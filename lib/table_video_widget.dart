@@ -1,15 +1,13 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
-import 'package:itvapp_live_tv/setting/setting_page.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
-
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
@@ -107,7 +105,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           child: Container(
             alignment: Alignment.center,
             color: Colors.black, // 视频背景颜色设置为黑色
-            child: widget.controller?.value.isInitialized ?? false
+            // 检查是否有视频控制器，并且是否已初始化
+            child: widget.controller != null && widget.controller!.value.isInitialized
                 ? Stack(
                     alignment: Alignment.center,
                     children: [
@@ -122,15 +121,22 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       // 如果视频未播放且抽屉未打开，显示播放按钮
                       if (!widget.isPlaying && !widget.drawerIsOpen)
                         GestureDetector(
-                            onTap: () {
-                              widget.controller?.play();
-                            },
-                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)),
+                          onTap: () {
+                            widget.controller?.play();
+                          },
+                          child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
+                        ),
                       // 如果正在缓冲且抽屉未打开，显示缓冲动画
-                      if (widget.isBuffering && !widget.drawerIsOpen) const SpinKitSpinningLines(color: Colors.white)
+                      if (widget.isBuffering && !widget.drawerIsOpen) const SpinKitSpinningLines(color: Colors.white),
                     ],
                   )
-                : VideoHoldBg(toastString: widget.drawerIsOpen ? '' : widget.toastString),
+                // 如果没有控制器或视频未初始化，显示 VideoHoldBg
+                : widget.controller != null
+                    ? VideoHoldBg(
+                        toastString: widget.drawerIsOpen ? '' : widget.toastString,
+                        videoController: widget.controller!,
+                      )
+                    : const Center(child: Text("No video controller available", style: TextStyle(color: Colors.white))),
           ),
         ),
         // 时间与日期位置显示组件
@@ -154,32 +160,43 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   const Spacer(),
                   // 频道列表按钮
                   IconButton(
-                      tooltip: S.current.tipChannelList,
-                      style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
-                      icon: const Icon(Icons.list_alt, color: Colors.white),
-                      onPressed: () {
-                        setState(() {
-                          _isShowMenuBar = false; // 隐藏菜单栏
-                        });
-                        Scaffold.of(context).openDrawer(); // 打开抽屉菜单
-                      }),
+                    tooltip: S.current.tipChannelList,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.white),
+                    ),
+                    icon: const Icon(Icons.list_alt, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        _isShowMenuBar = false; // 隐藏菜单栏
+                      });
+                      Scaffold.of(context).openDrawer(); // 打开抽屉菜单
+                    },
+                  ),
                   const SizedBox(width: 6),
                   // 切换频道源按钮
                   IconButton(
-                      tooltip: S.current.tipChangeLine,
-                      style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
-                      icon: const Icon(Icons.legend_toggle, color: Colors.white),
-                      onPressed: () {
-                        setState(() {
-                          _isShowMenuBar = false;
-                        });
-                        widget.changeChannelSources?.call(); // 调用更改频道源回调
-                      }),
+                    tooltip: S.current.tipChangeLine,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.white),
+                    ),
+                    icon: const Icon(Icons.legend_toggle, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        _isShowMenuBar = false;
+                      });
+                      widget.changeChannelSources?.call(); // 调用更改频道源回调
+                    },
+                  ),
                   const SizedBox(width: 6),
                   // 设置按钮
                   IconButton(
                     tooltip: S.current.settings,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.white),
+                    ),
                     icon: const Icon(Icons.settings, color: Colors.white),
                     onPressed: () {
                       // 打开设置页面逻辑
@@ -203,7 +220,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
                       Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                     },
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.white),
+                    ),
                     icon: const Icon(Icons.screen_rotation, color: Colors.white),
                   ),
                   if (!EnvUtil.isMobile) const SizedBox(width: 6),
@@ -217,7 +237,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         LogUtil.v('isFullScreen:::::$isFullScreen');
                         windowManager.setFullScreen(!isFullScreen);
                       },
-                      style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black87,
+                        side: const BorderSide(color: Colors.white),
+                      ),
                       icon: FutureBuilder<bool>(
                         future: windowManager.isFullScreen(),
                         builder: (context, snapshot) {
@@ -231,7 +254,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           }
                         },
                       ),
-                    )
+                    ),
                 ],
               ),
             ),
@@ -256,7 +279,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 20),
               icon: const Icon(Icons.screen_rotation, color: Colors.white),
             ),
-          )
+          ),
       ],
     );
   }
