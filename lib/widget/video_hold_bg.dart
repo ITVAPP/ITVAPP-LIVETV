@@ -1,3 +1,4 @@
+import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart'; // 引入视频播放器
@@ -52,7 +53,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
           children: [
             // 显示自定义背景（加载中）或播放状态下的背景
             _controller.value.isInitialized
-                ? _controller.value.hasVideo
+                ? (_controller.value.size.width > 0 && _controller.value.size.height > 0)
                     ? _buildVideoPlayer() // 如果是视频内容，显示视频
                     : _buildBingOrLocalBg(isBingBg, isPortrait) // 如果是音频内容，显示 Bing 或本地背景
                 : _buildCustomLoadingBg(isPortrait), // 加载状态显示自定义背景
