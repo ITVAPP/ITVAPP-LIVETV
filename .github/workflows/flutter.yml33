@@ -1,0 +1,39 @@
+name: Generate Flutter l10n Files
+
+on:
+  push:
+    branches:
+      - main  # 或者指定其他分支
+    paths:
+      - 'lib/l10n/**'  # 仅在 lib/l10n 文件夹内文件变化时触发
+
+jobs:
+  generate-l10n:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'  # 或者你当前使用的版本号
+        channel: 'stable'
+        architecture: 'x64'
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Generate l10n files
+      run: flutter gen-l10n --arb-dir=./lib/l10n --template-arb-file=intl_zh_CN.arb --output-dir=./lib/generated/intl
+
+    - name: Commit changes
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git add .
+        git commit -m "Generate l10n files"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
