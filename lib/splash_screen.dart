@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
+import 'package:itvapp_live_tv/entity/playlist_model.dart'; // 导入 PlaylistModel
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
@@ -9,8 +10,9 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  late Future<Map<String, dynamic>> _m3uDataFuture; // 用于存储异步获取的 M3U 数据
+  late Future<PlaylistModel?> _m3uDataFuture; // 用于存储异步获取的 M3U 数据
   int _retryCount = 0;  // 重试次数
+  String _message = '';  // 用于显示当前的提示信息
 
   @override
   void initState() {
@@ -19,29 +21,33 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   // 定义一个异步方法，用于获取远程数据并确保启动画面至少显示3秒
-  Future<Map<String, dynamic>> _fetchDataWithDelay() async {
+  Future<PlaylistModel?> _fetchDataWithDelay() async {
     try {
       final results = await Future.wait([
         _fetchWithRetry(), // 带重试的获取 M3U 数据方法
         Future.delayed(Duration(seconds: 3)) // 延时3秒
       ]);
-      return results[0] as Map<String, dynamic>; // 返回 M3U 数据
+      return results[0] as PlaylistModel?; // 返回 M3U 数据
     } catch (e) {
-      return {}; // 如果发生错误，返回一个空的 Map 以避免错误
+      return null; // 如果发生错误，返回 null
     }
   }
 
   // 带重试的 M3U 数据获取方法
-  Future<Map<String, dynamic>> _fetchWithRetry() async {
+  Future<PlaylistModel?> _fetchWithRetry() async {
     while (_retryCount < 3) {  // 最多重试三次
       try {
+        setState(() {
+          _message = 'Fetching data...'; // 显示数据获取提示
+        });
         final data = await M3uUtil.getDefaultM3uData();  // 获取数据
         if (data != null) {
-          return data as Map<String, dynamic>;
+          return data;  // 直接返回 PlaylistModel
         }
       } catch (e) {
         setState(() {
           _retryCount++;  // 更新重试次数
+          _message = 'Error occurred: $e\nRetrying ($_retryCount)'; // 更新错误信息
         });
       }
     }
@@ -62,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 : 'assets/images/launch_image_land.png', // 横向模式加载的图片
             fit: BoxFit.cover, // 图片覆盖整个屏幕
           ),
-          FutureBuilder<Map<String, dynamic>>(
+          FutureBuilder<PlaylistModel?>(
             future: _m3uDataFuture, // 传入异步计算的 Future
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -70,10 +76,10 @@ class _SplashScreenState extends State<SplashScreen> {
                 return _buildMessageUI(
                   _retryCount == 0 
                       ? S.current.loadingData 
-                      : 'Retrying ($_retryCount)', // 根据重试次数动态显示消息
+                      : _message, // 根据重试次数动态显示消息
                   isLoading: true,
                 );
-              } else if (snapshot.hasError || (snapshot.hasData && snapshot.data!.isEmpty)) {
+              } else if (snapshot.hasError || (snapshot.hasData && snapshot.data == null)) {
                 return _buildMessageUI(S.current.errorLoadingData, showRetryButton: true);
               } else if (snapshot.hasData) {
                 return _navigateToHome();
