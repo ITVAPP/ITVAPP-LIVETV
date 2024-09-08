@@ -44,7 +44,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   _loadEPGMsg() async {
     if (!_isShowEPG) return;
     setState(() {
-      _epgData = null;
+      _epgData = null;  // 清空现有的EPG数据
       _selEPGIndex = 0;
     });
     final res = await EpgUtil.getEpg(widget.playModel);
@@ -114,6 +114,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     if (widget.playModel != oldWidget.playModel) {
       setState(() {
+        _epgData = null;  // 清空旧的EPG数据
+        _selEPGIndex = 0; // 重置EPG索引
         _keys = widget.videoMap?.playList?.keys.toList() ?? <String>[];
         _values = widget.videoMap?.playList?.values.toList().cast<Map>() ?? <Map>[];
         int groupIndex = _keys.indexWhere((element) => element == widget.playModel?.group);
@@ -175,6 +177,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                     child: InkWell(
                       overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
                       onTap: () {
+                        setState(() {
+                          _epgData = null;  // 清空EPG数据
+                          _selEPGIndex = 0;
+                        });
                         if (_groupIndex != index) {
                           setState(() {
                             _groupIndex = index;
