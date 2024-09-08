@@ -3,10 +3,8 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:sp_util/sp_util.dart';
 import '../entity/subScribe_model.dart';
-import '../generated/l10n.dart';
 import 'log_util.dart';
 
 class M3uUtil {
@@ -17,28 +15,44 @@ class M3uUtil {
     String m3uData = '';
     final models = await getLocalData();
     if (models.isNotEmpty) {
+      // 获取本地数据
       final defaultModel = models.firstWhere(
           (element) => element.selected == true,
           orElse: () => models.first);
       final newRes = await HttpUtil().getRequest(defaultModel.link == 'default'
           ? EnvUtil.videoDefaultChannelHost()
           : defaultModel.link!);
+
       if (newRes != null) {
+        // 如果获取到新数据，保存到本地缓存
         LogUtil.v('已获取新数据::::::');
         m3uData = newRes;
         await SpUtil.putString('m3u_cache', m3uData);
       } else {
+        // 如果无法获取网络数据，则尝试从本地缓存获取
         final oldRes = SpUtil.getString('m3u_cache', defValue: '');
         if (oldRes.isNotEmpty) {
           LogUtil.v('已获取到历史保存的数据::::::');
           m3uData = oldRes;
+        } else {
+          // 如果本地也没有缓存数据，直接返回 null
+          LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
+          return null;
         }
       }
+
       if (m3uData.isEmpty) {
         return null;
       }
     } else {
+      // 如果本地没有数据，尝试从网络获取
       m3uData = await _fetchData();
+      if (m3uData.isEmpty) {
+        // 如果网络获取失败，返回 null
+        LogUtil.e('网络数据获取失败');
+        return null;
+      }
+      // 成功获取数据后，保存到本地
       await saveLocalData([
         SubScribeModel(
             time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
@@ -46,6 +60,7 @@ class M3uUtil {
             selected: true)
       ]);
     }
+    // 解析M3U数据
     return _parseM3u(m3uData);
   }
 
@@ -67,17 +82,15 @@ class M3uUtil {
       try {
         return await request();
       } on TimeoutException {
-        EasyLoading.showInfo('请求超时，重试第 $attempt 次...');
+        LogUtil.e('请求超时，重试第 $attempt 次...');
       } on HttpException catch (e) {
-        EasyLoading.showError('HTTP错误: ${e.message}');
+        LogUtil.e('HTTP错误: ${e.message}');
         rethrow; // 对于 HTTP 错误，停止重试并抛出异常
       } catch (e) {
         attempt++;
         LogUtil.v('请求失败：$e，重试第 $attempt 次...');
-        EasyLoading.showInfo('请求失败，重试第 $attempt 次...');
         if (attempt >= retries) {
           LogUtil.e('请求失败超过最大次数 $retries 次，停止重试');
-          EasyLoading.showError('请求失败超过最大次数 $retries 次');
           rethrow;  // 达到最大重试次数，抛出异常
         }
         await Future.delayed(retryDelay);  // 等待重试
@@ -170,17 +183,6 @@ class M3uUtil {
       });
     });
     return buffer.toString();
-  }
-
-  // 获取本地缓存的M3U数据
-  static Future<List<SubScribeModel>> getLocalData() async {
-    Completer completer = Completer();
-    List<SubScribeModel> m3uList = SpUtil.getObjList(
-        'local_m3u', (v) => SubScribeModel.fromJson(v),
-        defValue: <SubScribeModel>[])!;
-    completer.complete(m3uList);
-    final res = await completer.future;
-    return res;
   }
 
   // 保存M3U数据到本地缓存
