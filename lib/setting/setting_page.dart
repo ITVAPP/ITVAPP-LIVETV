@@ -1,7 +1,9 @@
 import 'package:itvapp_live_tv/router_keys.dart'; // 导入路由键，用于导航
 import 'package:itvapp_live_tv/util/check_version_util.dart'; // 导入版本检查工具
 import 'package:flutter/material.dart'; // 导入Flutter Material库，用于构建UI
+import 'package:provider/provider.dart'; // 用于状态管理
 import '../generated/l10n.dart'; // 导入国际化语言资源
+import 'package:itvapp_live_tv/provider/language_provider.dart'; // 导入语言提供者
 
 // 设置页面的主类，继承自 StatefulWidget
 class SettingPage extends StatefulWidget {
@@ -35,7 +37,11 @@ class _SettingPageState extends State<SettingPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(S.current.settings), // 使用国际化语言资源设置 AppBar 的标题
+        title: Consumer<LanguageProvider>(
+          builder: (context, languageProvider, child) {
+            return Text(S.of(context).settings); // 使用国际化语言资源设置 AppBar 的标题
+          },
+        ),
       ),
       body: ListView(
         children: [
@@ -52,7 +58,7 @@ class _SettingPageState extends State<SettingPage> {
                 children: [
                   // 显示应用名称，使用粗体和较大的字号
                   Text(
-                    S.current.appName, // 使用国际化语言显示应用名称
+                    S.of(context).appName, // 使用国际化语言显示应用名称
                     style: const TextStyle(
                       fontSize: 20, 
                       fontWeight: FontWeight.bold,
@@ -82,7 +88,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏设备时限制宽度为 580
               padding: const EdgeInsets.symmetric(horizontal: 16), // 内边距
               child: ListTile(
-                title: Text(S.current.homePage), // 使用国际化语言显示主页选项
+                title: Text(S.of(context).homePage), // 使用国际化语言显示主页选项
                 leading: const Icon(Icons.home_filled), // 显示主页图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
@@ -98,7 +104,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 根据屏幕宽度限制最大宽度
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
-                title: Text(S.current.releaseHistory), // 使用国际化语言显示发布历史标题
+                title: Text(S.of(context).releaseHistory), // 使用国际化语言显示发布历史标题
                 leading: const Icon(Icons.history), // 显示发布历史图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
@@ -114,7 +120,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏设备时限制宽度
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
-                title: Text(S.current.checkUpdate), // 使用国际化语言显示检查更新标题
+                title: Text(S.of(context).checkUpdate), // 使用国际化语言显示检查更新标题
                 leading: const Icon(Icons.tips_and_updates), // 显示检查更新图标
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min, // 使子组件占据最小空间
@@ -128,7 +134,7 @@ class _SettingPageState extends State<SettingPage> {
                         ),
                         // 显示最新版本的提示
                         child: Text(
-                          S.current.newVersion(_latestVersionEntity!.latestVersion!), // 使用国际化语言显示新版本号
+                          S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 使用国际化语言显示新版本号
                           style: const TextStyle(fontSize: 12, color: Colors.white),
                         ),
                       ),
