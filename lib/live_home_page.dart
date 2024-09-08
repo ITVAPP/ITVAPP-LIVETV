@@ -32,7 +32,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时重试次数
   static const int defaultMaxRetries = 1;
   // 超时检测的时间
-  static const int defaultTimeoutSeconds = 8;
+  static const int defaultTimeoutSeconds = 12;
 
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
