@@ -1,4 +1,4 @@
-name: Android APK Build
+name: ITVAPP-LIVETV APP
 
 on:
   push:
