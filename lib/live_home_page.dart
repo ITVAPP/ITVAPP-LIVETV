@@ -292,6 +292,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
   }
 
+  /// 异步加载视频数据和版本检测
+  _loadData() async {
+    await _parseData();
+    CheckVersionUtil.checkVersion(context, false, false);
+  }
+  
   @override
   void dispose() {
     // 禁用保持屏幕唤醒功能
