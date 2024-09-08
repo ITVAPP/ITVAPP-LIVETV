@@ -56,7 +56,7 @@ void main() async {
   WakelockPlus.enable();
   
   // 初始化日志工具，配置调试模式和日志标签
-  LogUtil.init(isDebug: kDebugMode, tag: 'EasyTV');
+  LogUtil.init(isDebug: kDebugMode, tag: 'ITVAPP-LIVETV');
   
   // 初始化共享存储的工具实例，用于管理存储操作
   await SpUtil.getInstance();
@@ -153,6 +153,10 @@ class MyApp extends StatelessWidget {
               if (locale.languageCode == 'zh' && 
                   (locale.countryCode == 'TW' || locale.countryCode == 'HK' || locale.countryCode == 'MO')) {
                 return const Locale('zh', 'TW');  // 繁体中文
+              }
+              // 处理简体中文
+              if (locale.languageCode == 'zh' && (locale.countryCode == 'CN' || locale.countryCode == null)) {
+                return const Locale('zh', 'CN');  // 简体中文
               }
               // 匹配合适的语言和国家代码
               return supportedLocales.firstWhere(
