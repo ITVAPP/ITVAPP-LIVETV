@@ -7,6 +7,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:dio/dio.dart';  // 添加dio导入
 
 import 'entity/playlist_model.dart';
 import 'util/env_util.dart';
