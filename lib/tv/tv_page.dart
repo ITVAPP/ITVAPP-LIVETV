@@ -202,7 +202,10 @@ class _TvPageState extends State<TvPage> {
                                 child: VideoPlayer(widget.controller!),
                               ),
                             )
-                          : VideoHoldBg(toastString: _drawerIsOpen ? '' : widget.toastString),
+                          : VideoHoldBg(
+                              toastString: _drawerIsOpen ? '' : widget.toastString,
+                              videoController: widget.controller!, 
+                            ),
                       if (_drawerIsOpen) const DatePositionWidget(),
                       if (!widget.isPlaying && !_drawerIsOpen)
                         GestureDetector(
