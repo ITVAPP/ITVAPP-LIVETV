@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
