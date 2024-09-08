@@ -5,7 +5,6 @@ import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -184,14 +183,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                             widget.onTapChannel?.call(newModel);
                           });
                           _scrollChannelController.jumpTo(0);
-                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                         } else {
                           Scaffold.of(context).closeDrawer();
                         }
                       },
                       onFocusChange: (focus) async {
                         if (focus) {
-                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+                          Scrollable.ensureVisible(context, alignment: 0.5);
                         }
                       },
                       splashColor: Colors.white.withOpacity(0.3),
@@ -239,11 +237,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                           }
                           final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];
                           widget.onTapChannel?.call(newModel);
-                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                         },
                         onFocusChange: (focus) async {
                           if (focus) {
-                            Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+                            Scrollable.ensureVisible(context, alignment: 0.5);
                           }
                         },
                         splashColor: Colors.white.withOpacity(0.3),
@@ -263,7 +260,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                                   style: TextStyle(color: widget.playModel?.title == name ? Colors.red : Colors.white, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              if (widget.playModel?.title == name) SpinKitWave(size: 20, color: Colors.red.withOpacity(0.8))
                             ],
                           ),
                         ),
@@ -322,18 +318,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                               ],
                             ),
                           );
-                          if (isTV) {
-                            child = InkWell(
-                              onTap: () {},
-                              onFocusChange: (bool isFocus) {
-                                if (isFocus) {
-                                  _epgScrollController.scrollTo(index: index, alignment: 0.3, duration: const Duration(milliseconds: 220));
-                                }
-                              },
-                              overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
-                              child: child,
-                            );
-                          }
                           return child;
                         },
                         itemCount: _epgData!.length),
