@@ -63,6 +63,9 @@ class _SettingFontPageState extends State<SettingFontPage> {
                             context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
                           },
                           selectedColor: const Color(0xFFEB144C), // 选中状态颜色
+                          backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                              ? const Color(0xFFEB144C) // 选中状态颜色
+                              : Colors.grey[300], // 未选中状态颜色
                           shape: const StadiumBorder(), // 圆角外形
                         ),
                       ),
@@ -80,34 +83,32 @@ class _SettingFontPageState extends State<SettingFontPage> {
                   children: [
                     const Text('语言选择', style: TextStyle(fontSize: 17)), // 语言选择标题
                     const SizedBox(height: 10), // 间距
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10, // 选项排列方式
+                    Column(
                       children: List.generate(
                         _languages.length,
-                        (index) => ElevatedButton(
-                          onPressed: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
-                              ? null // 已选中状态下按钮禁用
-                              : () {
+                        (index) => Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
+                          children: [
+                            Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
+                            ChoiceChip(
+                              label: Text(
+                                context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
+                                    ? '使用中' // 已选中的显示 "使用中"
+                                    : '使用', // 未选中的显示 "使用"
+                                style: const TextStyle(fontSize: 15),
+                              ),
+                              selected: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index], // 当前选中的语言
+                              onSelected: (bool selected) {
+                                if (!selected) {
                                   context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
-                                ? const Color(0xFFEB144C) // 已选中按钮的颜色
-                                : Colors.grey[300], // 未选中按钮的颜色
-                            foregroundColor: Colors.white, // 按钮文本颜色
-                            fixedSize: const Size(120, 40), // 按钮大小
-                          ),
-                          child: Text(
-                            context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
-                                ? '使用中' // 已选中的显示 "使用中"
-                                : '使用', // 未选中的显示 "使用"
-                            style: TextStyle(
-                              color: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
-                                  ? Colors.white // 已选中文本颜色为白色
-                                  : Colors.black, // 未选中文本颜色为黑色
+                                }
+                              },
+                              selectedColor: const Color(0xFFEB144C), // 选中状态颜色
+                              backgroundColor: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
+                                  ? const Color(0xFFEB144C) // 已选中状态颜色
+                                  : Colors.grey[300], // 未选中状态的颜色
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
