@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LanguageProvider with ChangeNotifier {
-  Locale _currentLocale = const Locale('en'); // 默认语言为英语
+  Locale _currentLocale = WidgetsBinding.instance.window.locale ?? const Locale('en'); // 默认使用系统语言
 
   // 获取当前语言
   Locale get currentLocale => _currentLocale;
