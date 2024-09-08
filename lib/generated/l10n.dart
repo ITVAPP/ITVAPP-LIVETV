@@ -1,560 +1,568 @@
-import 'package:flutter/material.dart'; // 引入Flutter的Material库
-import 'package:intl/intl.dart'; // 引入国际化库Intl
-import 'intl/messages_all.dart'; // 引入生成的国际化消息文件
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'intl/messages_all.dart';
 
-// 国际化类，使用Intl包进行多语言支持
 class S {
-  S(); // 构造函数
+  S();
 
   static S? _current;
 
-  // 获取当前的国际化实例
   static S get current {
     assert(_current != null,
-        'No instance of S was loaded. Try to initialize the S delegate before accessing S.current.'); // 确保当前实例已加载
+        'No instance of S was loaded. Try to initialize the S delegate before accessing S.current.');
     return _current!;
   }
 
-  // 定义App的本地化委托
   static const AppLocalizationDelegate delegate = AppLocalizationDelegate();
 
-  // 加载指定语言环境的国际化资源
   static Future<S> load(Locale locale) {
     final name = (locale.countryCode?.isEmpty ?? false)
-        ? locale.languageCode // 如果国家代码为空，使用语言代码
-        : locale.toString(); // 否则使用完整的语言环境字符串
-    final localeName = Intl.canonicalizedLocale(name); // 标准化语言环境名称
-    return initializeMessages(localeName).then((_) { // 初始化消息
-      Intl.defaultLocale = localeName; // 设置默认语言环境
-      final instance = S(); // 创建S的实例
+        ? locale.languageCode
+        : locale.toString();
+    final localeName = Intl.canonicalizedLocale(name);
+    return initializeMessages(localeName).then((_) {
+      Intl.defaultLocale = localeName;
+      final instance = S();
       S._current = instance;
 
       return instance;
     });
   }
 
-  // 从上下文中获取当前的国际化实例
   static S of(BuildContext context) {
-    final instance = S.maybeOf(context); // 尝试获取实例
+    final instance = S.maybeOf(context);
     assert(instance != null,
-        'No instance of S present in the widget tree. Did you add S.delegate in localizationsDelegates?'); // 如果实例不存在，抛出异常
+        'No instance of S present in the widget tree. Did you add S.delegate in localizationsDelegates?');
     return instance!;
   }
 
-  // 尝试从上下文中获取当前的国际化实例
   static S? maybeOf(BuildContext context) {
-    return Localizations.of<S>(context, S); // 从Localizations中获取实例
+    return Localizations.of<S>(context, S);
   }
-
-  // 以下为生成的本地化字符串方法
 
   String get appName {
     return Intl.message(
-      'ITVAPP LIVETV',
+      '电视宝直播',
       name: 'appName',
       desc: '',
       args: [],
     );
   }
 
+  /// `正在加载`
   String get loading {
     return Intl.message(
-      'Loading',
+      '正在加载',
       name: 'loading',
       desc: '',
       args: [],
     );
   }
 
+  /// `线路{line}播放: {channel}`
   String lineToast(Object line, Object channel) {
     return Intl.message(
-      'Line $line playing: $channel',
+      '线路$line播放: $channel',
       name: 'lineToast',
       desc: '',
       args: [line, channel],
     );
   }
 
+  /// `此视频无法播放，请更换其它频道`
   String get playError {
     return Intl.message(
-      'This video cannot be played, please switch to another channel',
+      '此视频无法播放，请更换其它频道',
       name: 'playError',
       desc: '',
       args: [],
     );
   }
 
+  /// `切换线路{line} ...`
   String switchLine(Object line) {
     return Intl.message(
-      'Switching to line $line ...',
+      '切换线路$line ...',
       name: 'switchLine',
       desc: '',
       args: [line],
     );
   }
 
+  /// `出错了，尝试重新连接...`
   String get playReconnect {
     return Intl.message(
-      'An error occurred, trying to reconnect...',
+      '出错了，尝试重新连接...',
       name: 'playReconnect',
       desc: '',
       args: [],
     );
   }
 
+  /// `线路{index}`
   String lineIndex(Object index) {
     return Intl.message(
-      'Line $index',
+      '线路$index',
       name: 'lineIndex',
       desc: '',
       args: [index],
     );
   }
 
-  String gettingData(Object retryCount, Object maxRetries) {
-    return Intl.message(
-      'Fetching data... (${retryCount}/${maxRetries})',
-      name: 'gettingData',
-      desc: '',
-      args: [retryCount, maxRetries],
-    );
-  }
-
-  String get loadingData {
-    return Intl.message(
-      'Fetching data...',
-      name: 'loadingData',
-      desc: '',
-      args: [],
-    );
-  }
-
-  String get errorLoadingData {
-    return Intl.message(
-      'Failed to load data, please try again later',
-      name: 'errorLoadingData',
-      desc: '',
-      args: [],
-    );
-  }
-
-  String get retry {
-    return Intl.message(
-      'Retry',
-      name: 'retry',
-      desc: '',
-      args: [],
-    );
-  }
-
+  /// `频道列表`
   String get tipChannelList {
     return Intl.message(
-      'Channel List',
+      '频道列表',
       name: 'tipChannelList',
       desc: '',
       args: [],
     );
   }
 
+  /// `切换线路`
   String get tipChangeLine {
     return Intl.message(
-      'Switch Line',
+      '切换线路',
       name: 'tipChangeLine',
       desc: '',
       args: [],
     );
   }
 
+  /// `竖屏模式`
   String get portrait {
     return Intl.message(
-      'Portrait Mode',
+      '竖屏模式',
       name: 'portrait',
       desc: '',
       args: [],
     );
   }
 
+  /// `横屏模式`
   String get landscape {
     return Intl.message(
-      'Landscape Mode',
+      '横屏模式',
       name: 'landscape',
       desc: '',
       args: [],
     );
   }
 
+  /// `全屏切换`
   String get fullScreen {
     return Intl.message(
-      'Full Screen Toggle',
+      '全屏切换',
       name: 'fullScreen',
       desc: '',
       args: [],
     );
   }
 
+  /// `设置`
   String get settings {
     return Intl.message(
-      'Settings',
+      '设置',
       name: 'settings',
       desc: '',
       args: [],
     );
   }
 
+  /// `主页`
   String get homePage {
     return Intl.message(
-      'Home Page',
+      '主页',
       name: 'homePage',
       desc: '',
       args: [],
     );
   }
 
+  /// `发布历史`
   String get releaseHistory {
     return Intl.message(
-      'Release History',
+      '发布历史',
       name: 'releaseHistory',
       desc: '',
       args: [],
     );
   }
 
+  /// `检查更新`
   String get checkUpdate {
     return Intl.message(
-      'Check for Updates',
+      '检查更新',
       name: 'checkUpdate',
       desc: '',
       args: [],
     );
   }
 
+  /// `新版本v{version}`
   String newVersion(Object version) {
     return Intl.message(
-      'New Version v$version',
+      '新版本v$version',
       name: 'newVersion',
       desc: '',
       args: [version],
     );
   }
 
+  /// `立即更新`
   String get update {
     return Intl.message(
-      'Update Now',
+      '立即更新',
       name: 'update',
       desc: '',
       args: [],
     );
   }
 
+  /// `已是最新版本`
   String get latestVersion {
     return Intl.message(
-      'You are on the latest version',
+      '已是最新版本',
       name: 'latestVersion',
       desc: '',
       args: [],
     );
   }
 
+  /// `发现新版本`
   String get findNewVersion {
     return Intl.message(
-      'New version found',
+      '发现新版本',
       name: 'findNewVersion',
       desc: '',
       args: [],
     );
   }
 
+  /// `更新内容`
   String get updateContent {
     return Intl.message(
-      'Update Content',
+      '更新内容',
       name: 'updateContent',
       desc: '',
       args: [],
     );
   }
 
+  /// `温馨提示`
   String get dialogTitle {
     return Intl.message(
-      'Friendly Reminder',
+      '温馨提示',
       name: 'dialogTitle',
       desc: '',
       args: [],
     );
   }
 
+  /// `确定添加此数据源吗？`
   String get dataSourceContent {
     return Intl.message(
-      'Are you sure you want to add this data source?',
+      '确定添加此数据源吗？',
       name: 'dataSourceContent',
       desc: '',
       args: [],
     );
   }
 
+  /// `取消`
   String get dialogCancel {
     return Intl.message(
-      'Cancel',
+      '取消',
       name: 'dialogCancel',
       desc: '',
       args: [],
     );
   }
 
+  /// `确定`
   String get dialogConfirm {
     return Intl.message(
-      'Confirm',
+      '确定',
       name: 'dialogConfirm',
       desc: '',
       args: [],
     );
   }
 
+  /// `IPTV订阅`
   String get subscribe {
     return Intl.message(
-      'IPTV Subscription',
+      'IPTV订阅',
       name: 'subscribe',
       desc: '',
       args: [],
     );
   }
 
+  /// `创建时间`
   String get createTime {
     return Intl.message(
-      'Creation Time',
+      '创建时间',
       name: 'createTime',
       desc: '',
       args: [],
     );
   }
 
+  /// `确定删除此订阅吗？`
   String get dialogDeleteContent {
     return Intl.message(
-      'Are you sure you want to delete this subscription?',
+      '确定删除此订阅吗？',
       name: 'dialogDeleteContent',
       desc: '',
       args: [],
     );
   }
 
+  /// `删除`
   String get delete {
     return Intl.message(
-      'Delete',
+      '删除',
       name: 'delete',
       desc: '',
       args: [],
     );
   }
 
+  /// `设为默认`
   String get setDefault {
     return Intl.message(
-      'Set as Default',
+      '设为默认',
       name: 'setDefault',
       desc: '',
       args: [],
     );
   }
 
+  /// `使用中`
   String get inUse {
     return Intl.message(
-      'In Use',
+      '使用中',
       name: 'inUse',
       desc: '',
       args: [],
     );
   }
 
+  /// `参数错误`
   String get tvParseParma {
     return Intl.message(
-      'Parameter Error',
+      '参数错误',
       name: 'tvParseParma',
       desc: '',
       args: [],
     );
   }
 
+  /// `推送成功`
   String get tvParseSuccess {
     return Intl.message(
-      'Push Successful',
+      '推送成功',
       name: 'tvParseSuccess',
       desc: '',
       args: [],
     );
   }
 
+  /// `请推送正确的链接`
   String get tvParsePushError {
     return Intl.message(
-      'Please push the correct link',
+      '请推送正确的链接',
       name: 'tvParsePushError',
       desc: '',
       args: [],
     );
   }
 
+  /// `扫码添加订阅源`
   String get tvScanTip {
     return Intl.message(
-      'Scan to add subscription source',
+      '扫码添加订阅源',
       name: 'tvScanTip',
       desc: '',
       args: [],
     );
   }
 
+  /// `推送地址：{address}`
   String pushAddress(Object address) {
     return Intl.message(
-      'Push Address: $address',
+      '推送地址：$address',
       name: 'pushAddress',
       desc: '',
       args: [address],
     );
   }
 
+  /// `在扫码结果页，输入新的订阅源，点击页面中的推送即可添加成功`
   String get tvPushContent {
     return Intl.message(
-      'On the scan result page, enter the new subscription source, and click the push button to add it successfully',
+      '在扫码结果页，输入新的订阅源，点击页面中的推送即可添加成功',
       name: 'tvPushContent',
       desc: '',
       args: [],
     );
   }
 
+  /// `复制订阅源后，回到此页面可自动添加订阅源`
   String get pasterContent {
     return Intl.message(
-      'After copying the subscription source, return to this page to automatically add the subscription source',
+      '复制订阅源后，回到此页面可自动添加订阅源',
       name: 'pasterContent',
       desc: '',
       args: [],
     );
   }
 
+  /// `添加订阅源`
   String get addDataSource {
     return Intl.message(
-      'Add Subscription Source',
+      '添加订阅源',
       name: 'addDataSource',
       desc: '',
       args: [],
     );
   }
 
+  /// `请输入或粘贴.m3u或.txt格式的订阅源链接`
   String get addFiledHintText {
     return Intl.message(
-      'Please enter or paste the .m3u or .txt format subscription link',
+      '请输入或粘贴.m3u或.txt格式的订阅源链接',
       name: 'addFiledHintText',
       desc: '',
       args: [],
     );
   }
 
+  /// `已添加过此订阅源`
   String get addRepeat {
     return Intl.message(
-      'This subscription source has already been added',
+      '已添加过此订阅源',
       name: 'addRepeat',
       desc: '',
       args: [],
     );
   }
 
+  /// `请输入http/https链接`
   String get addNoHttpLink {
     return Intl.message(
-      'Please enter http/https link',
+      '请输入http/https链接',
       name: 'addNoHttpLink',
       desc: '',
       args: [],
     );
   }
 
+  /// `连接超时`
   String get netTimeOut {
     return Intl.message(
-      'Connection Timeout',
+      '连接超时',
       name: 'netTimeOut',
       desc: '',
       args: [],
     );
   }
 
+  /// `请求超时`
   String get netSendTimeout {
     return Intl.message(
-      'Request Timeout',
+      '请求超时',
       name: 'netSendTimeout',
       desc: '',
       args: [],
     );
   }
 
+  /// `响应超时`
   String get netReceiveTimeout {
     return Intl.message(
-      'Response Timeout',
+      '响应超时',
       name: 'netReceiveTimeout',
       desc: '',
       args: [],
     );
   }
 
+  /// `响应异常{code}`
   String netBadResponse(Object code) {
     return Intl.message(
-      'Bad Response $code',
+      '响应异常$code',
       name: 'netBadResponse',
       desc: '',
       args: [code],
     );
   }
 
+  /// `请求取消`
   String get netCancel {
     return Intl.message(
-      'Request Cancelled',
+      '请求取消',
       name: 'netCancel',
       desc: '',
       args: [],
     );
   }
 
+  /// `解析数据源出错`
   String get parseError {
     return Intl.message(
-      'Error Parsing Data Source',
+      '解析数据源出错',
       name: 'parseError',
       desc: '',
       args: [],
     );
   }
 
+  /// `默认`
   String get defaultText {
     return Intl.message(
-      'Default',
+      '默认',
       name: 'defaultText',
       desc: '',
       args: [],
     );
   }
 
+  /// `获取默认数据源失败`
   String get getDefaultError {
     return Intl.message(
-      'Failed to get default data source',
+      '获取默认数据源失败',
       name: 'getDefaultError',
       desc: '',
       args: [],
     );
   }
 
+  /// `【OK键】刷新`
   String get okRefresh {
     return Intl.message(
-      '【OK Key】 Refresh',
+      '【OK键】刷新',
       name: 'okRefresh',
       desc: '',
       args: [],
     );
   }
 
+  /// `刷新`
   String get refresh {
     return Intl.message(
-      'Refresh',
+      '刷新',
       name: 'refresh',
       desc: '',
       args: [],
     );
   }
 
+  /// `暂无节目信息`
   String get noEPG {
     return Intl.message(
-      'No program information available',
+      '暂无节目信息',
       name: 'noEPG',
       desc: '',
       args: [],
@@ -562,11 +570,9 @@ class S {
   }
 }
 
-// 定义应用程序本地化委托
 class AppLocalizationDelegate extends LocalizationsDelegate<S> {
   const AppLocalizationDelegate();
 
-  // 支持的语言环境列表
   List<Locale> get supportedLocales {
     return const <Locale>[
       Locale.fromSubtags(languageCode: 'zh', countryCode: 'CN'), // 中文（中国）
@@ -576,19 +582,18 @@ class AppLocalizationDelegate extends LocalizationsDelegate<S> {
   }
 
   @override
-  bool isSupported(Locale locale) => _isSupported(locale); // 判断是否支持指定的语言环境
+  bool isSupported(Locale locale) => _isSupported(locale);
   @override
-  Future<S> load(Locale locale) => S.load(locale); // 加载指定语言环境的国际化资源
+  Future<S> load(Locale locale) => S.load(locale);
   @override
-  bool shouldReload(AppLocalizationDelegate old) => false; // 确定是否应重新加载本地化委托
+  bool shouldReload(AppLocalizationDelegate old) => false;
 
-  // 私有方法，判断是否支持指定的语言环境
   bool _isSupported(Locale locale) {
     for (var supportedLocale in supportedLocales) {
       if (supportedLocale.languageCode == locale.languageCode) {
-        return true; // 如果找到匹配的语言代码，返回true
+        return true;
       }
     }
-    return false; // 如果未找到匹配的语言代码，返回false
+    return false;
   }
 }

@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:sp_util/sp_util.dart';
 import '../entity/subScribe_model.dart';
+import '../generated/l10n.dart';
 import 'log_util.dart';
 
 class M3uUtil {
@@ -31,9 +32,9 @@ class M3uUtil {
       } else {
         // 如果无法获取网络数据，则尝试从本地缓存获取
         final oldRes = SpUtil.getString('m3u_cache', defValue: '');
-        if (oldRes.isNotEmpty) {
+        if (oldRes?.isNotEmpty ?? false) {
           LogUtil.v('已获取到历史保存的数据::::::');
-          m3uData = oldRes;
+          m3uData = oldRes ?? ''; // 如果 oldRes 是 null，使用空字符串
         } else {
           // 如果本地也没有缓存数据，直接返回 null
           LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
@@ -75,6 +76,17 @@ class M3uUtil {
     return res;
   }
 
+  static Future<String> _fetchData() async {
+    final defaultM3u = EnvUtil.videoDefaultChannelHost();
+    final res = await HttpUtil().getRequest(defaultM3u);
+    if (res == null) {
+      LogUtil.e('网络数据获取失败');
+      return "";  // 返回空字符串
+    } else {
+      return res;
+    }
+  }
+  
   // 重试机制的封装，最多重试 3 次，每次间隔 2 秒
   static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
     int attempt = 0;
@@ -83,8 +95,8 @@ class M3uUtil {
         return await request();
       } on TimeoutException {
         LogUtil.e('请求超时，重试第 $attempt 次...');
-      } on HttpException catch (e) {
-        LogUtil.e('HTTP错误: ${e.message}');
+      } on Exception catch (e) { // 捕获所有异常
+        LogUtil.e('HTTP错误: ${e.toString()}');
         rethrow; // 对于 HTTP 错误，停止重试并抛出异常
       } catch (e) {
         attempt++;
@@ -126,7 +138,7 @@ class M3uUtil {
   // 获取M3U数据，设置8秒的超时时间，并使用重试机制
   static Future<String?> _fetchM3uData(String url) async {
     // 设置8秒超时时间
-    return await _retryRequest(() => HttpUtil().getRequest(url).timeout(Duration(seconds: 8)));
+    return await _retryRequest(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)) as String?);
   }
 
   // 合并多个PlaylistModel，避免重复的播放地址

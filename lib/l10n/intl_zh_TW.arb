@@ -8,40 +8,30 @@
       "channel": {}
     }
   },
-  "playError": "此頻道暫時無法播放，請等待修復",
+  "playError": "此影片無法播放，請更換其它頻道",
   "switchLine": "切換線路{line} ...",
   "@switchLine": {
     "placeholders": {
       "line": {}
     }
   },
-  "playReconnect": "連線出錯，嘗試重新連線...",
+  "playReconnect": "出錯了，嘗試重新連線...",
   "lineIndex": "線路{index}",
   "@lineIndex": {
     "placeholders": {
       "index": {}
     }
   },
-  "gettingData": "正在獲取播放資料... ({retryCount}/{maxRetries})",
-  "@gettingData": {
-    "placeholders": {
-      "retryCount": {},
-      "maxRetries": {}
-    }
-  },
-  "loadingData": "正在獲取播放資料...",
-  "errorLoadingData": "獲取資料出錯，請稍後重試",
-  "retry": "重 試",
   "tipChannelList": "頻道列表",
   "tipChangeLine": "切換線路",
   "portrait": "豎屏模式",
   "landscape": "橫屏模式",
-  "fullScreen": "切換全屏",
+  "fullScreen": "全屏切換",
   "settings": "設定",
   "homePage": "主頁",
   "releaseHistory": "釋出歷史",
   "checkUpdate": "檢查更新",
-  "newVersion": "新版本 v{version}",
+  "newVersion": "新版本v{version}",
   "@newVersion": {
     "placeholders": {
       "version": {}
@@ -51,8 +41,8 @@
   "latestVersion": "已是最新版本",
   "findNewVersion": "發現新版本",
   "updateContent": "更新內容",
-  "dialogTitle": "提示",
-  "dataSourceContent": "確定新增資料來源嗎？",
+  "dialogTitle": "溫馨提示",
+  "dataSourceContent": "確定新增此資料來源嗎？",
   "dialogCancel": "取消",
   "dialogConfirm": "確定",
   "subscribe": "IPTV訂閱",
@@ -71,7 +61,7 @@
       "address": {}
     }
   },
-  "tvPushContent": "在掃碼結果頁，輸入新的訂閱源，點選頁面中的推送即可新增",
+  "tvPushContent": "在掃碼結果頁，輸入新的訂閱源，點選頁面中的推送即可新增成功",
   "pasterContent": "複製訂閱源後，回到此頁面可自動新增訂閱源",
   "addDataSource": "新增訂閱源",
   "addFiledHintText": "請輸入或貼上.m3u或.txt格式的訂閱源連結",
@@ -87,10 +77,10 @@
     }
   },
   "netCancel": "請求取消",
-  "parseError": "解析播放資料出錯",
+  "parseError": "解析資料來源出錯",
   "defaultText": "預設",
-  "getDefaultError": "獲取播放資料失敗",
-  "okRefresh": "請按【OK鍵】重新整理",
+  "getDefaultError": "獲取預設資料來源失敗",
+  "okRefresh": "【OK鍵】重新整理",
   "refresh": "重新整理",
   "noEPG": "暂无節目資訊"
 }

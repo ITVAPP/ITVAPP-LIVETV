@@ -22,16 +22,6 @@
       "index": {}
     }
   },
-  "gettingData": "Fetching data... ({retryCount}/{maxRetries})",
-  "@gettingData": {
-    "placeholders": {
-      "retryCount": {},
-      "maxRetries": {}
-    }
-  },
-  "loadingData": "Fetching data...",
-  "errorLoadingData": "Failed to load data, please try again later",
-  "retry": "Retry",
   "tipChannelList": "Channel List",
   "tipChangeLine": "Switch Line",
   "portrait": "Portrait Mode",

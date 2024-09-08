@@ -75,16 +75,16 @@ class _SplashScreenState extends State<SplashScreen> {
                 // 显示加载动画和重试次数
                 return _buildMessageUI(
                   _retryCount == 0 
-                      ? S.current.loadingData 
+                      ? '${S.current.loading} ${S.current.tipChannelList}...'  // 拼接两个本地化字符串
                       : _message, // 根据重试次数动态显示消息
                   isLoading: true,
                 );
               } else if (snapshot.hasError || (snapshot.hasData && snapshot.data == null)) {
-                return _buildMessageUI(S.current.errorLoadingData, showRetryButton: true);
+                return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData) {
                 return _navigateToHome();
               } else {
-                return _buildMessageUI(S.current.errorLoadingData, showRetryButton: true);
+                return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               }
             },
           ),
@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     borderRadius: BorderRadius.circular(30.0), // 圆角按钮设计
                   ),
                 ),
-                child: Text(S.current.retry, style: TextStyle(fontSize: 18)), // 按钮上的文本
+                child: Text(S.current.refresh, style: TextStyle(fontSize: 18)), // 按钮上的文本
               ),
             ],
           ],
