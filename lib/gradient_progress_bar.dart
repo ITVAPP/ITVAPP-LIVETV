@@ -10,7 +10,7 @@ class GradientProgressBar extends StatelessWidget {
     Key? key,
     this.width = 280.0, // 默认宽度设为 280.0
     this.height = 5.0,  // 默认高度设为 5.0
-    this.duration = const Duration(seconds: 1), // 默认动画持续时间为 2 秒
+    this.duration = const Duration(seconds: 1.5), // 默认动画持续时间为 1.5 秒
   }) : super(key: key);
 
   @override
