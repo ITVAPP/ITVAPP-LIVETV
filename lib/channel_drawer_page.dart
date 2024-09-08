@@ -183,13 +183,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                             widget.onTapChannel?.call(newModel);
                           });
                           _scrollChannelController.jumpTo(0);
+                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                         } else {
                           Scaffold.of(context).closeDrawer();
                         }
                       },
                       onFocusChange: (focus) async {
                         if (focus) {
-                          Scrollable.ensureVisible(context, alignment: 0.5);
+                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                         }
                       },
                       splashColor: Colors.white.withOpacity(0.3),
@@ -237,10 +238,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                           }
                           final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];
                           widget.onTapChannel?.call(newModel);
+                          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                         },
                         onFocusChange: (focus) async {
                           if (focus) {
-                            Scrollable.ensureVisible(context, alignment: 0.5);
+                            Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                           }
                         },
                         splashColor: Colors.white.withOpacity(0.3),
@@ -318,6 +320,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                               ],
                             ),
                           );
+                          if (isTV) {
+                            child = InkWell(
+                              onTap: () {},
+                              onFocusChange: (bool isFocus) {
+                                if (isFocus) {
+                                  _epgScrollController.scrollTo(index: index, alignment: 0.3, duration: const Duration(milliseconds: 220));
+                                }
+                              },
+                              overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
+                              child: child,
+                            );
+                          }
                           return child;
                         },
                         itemCount: _epgData!.length),
