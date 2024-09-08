@@ -2,6 +2,7 @@ import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart'; // 引入视频播放器
+import 'package:dio/dio.dart';  // 添加dio导入
 import '../generated/l10n.dart';
 import '../provider/theme_provider.dart';
 import '../gradient_progress_bar.dart'; // 引入渐变进度条
