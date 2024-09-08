@@ -12,6 +12,54 @@ import 'log_util.dart';
 class M3uUtil {
   M3uUtil._();
 
+  // 获取默认的m3u文件
+  static Future<PlaylistModel?> getDefaultM3uData() async {
+    String m3uData = '';
+    final models = await getLocalData();
+    if (models.isNotEmpty) {
+      final defaultModel = models.firstWhere(
+          (element) => element.selected == true,
+          orElse: () => models.first);
+      final newRes = await HttpUtil().getRequest(defaultModel.link == 'default'
+          ? EnvUtil.videoDefaultChannelHost()
+          : defaultModel.link!);
+      if (newRes != null) {
+        LogUtil.v('已获取新数据::::::');
+        m3uData = newRes;
+        await SpUtil.putString('m3u_cache', m3uData);
+      } else {
+        final oldRes = SpUtil.getString('m3u_cache', defValue: '');
+        if (oldRes.isNotEmpty) {
+          LogUtil.v('已获取到历史保存的数据::::::');
+          m3uData = oldRes;
+        }
+      }
+      if (m3uData.isEmpty) {
+        return null;
+      }
+    } else {
+      m3uData = await _fetchData();
+      await saveLocalData([
+        SubScribeModel(
+            time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
+            link: 'default',
+            selected: true)
+      ]);
+    }
+    return _parseM3u(m3uData);
+  }
+
+  // 获取本地m3u数据
+  static Future<List<SubScribeModel>> getLocalData() async {
+    Completer completer = Completer();
+    List<SubScribeModel> m3uList = SpUtil.getObjList(
+        'local_m3u', (v) => SubScribeModel.fromJson(v),
+        defValue: <SubScribeModel>[])!;
+    completer.complete(m3uList);
+    final res = await completer.future;
+    return res;
+  }
+
   // 重试机制的封装，最多重试 3 次，每次间隔 2 秒
   static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
     int attempt = 0;
@@ -25,7 +73,7 @@ class M3uUtil {
         rethrow; // 对于 HTTP 错误，停止重试并抛出异常
       } catch (e) {
         attempt++;
-        LogUtil.v('请求失败，重试第 $attempt 次...');
+        LogUtil.v('请求失败：$e，重试第 $attempt 次...');
         EasyLoading.showInfo('请求失败，重试第 $attempt 次...');
         if (attempt >= retries) {
           LogUtil.e('请求失败超过最大次数 $retries 次，停止重试');
@@ -82,14 +130,18 @@ class M3uUtil {
         channels.forEach((channelName, channelModel) {
           if (mergedPlaylist.playList![groupTitle]!.containsKey(channelName)) {
             // 如果频道已经存在，合并播放地址，并去重
-            mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls!
-              .followedBy(channelModel.urls!).toSet().toList(); // 使用toSet去重
+            if (channelModel.urls?.isNotEmpty ?? false) {
+              mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
+                mergedPlaylist.playList![groupTitle]![channelName]!.urls!
+                .followedBy(channelModel.urls!).toSet().toList(); // 使用toSet去重
+            }
           } else {
             // 如果频道不存在，直接添加
-            mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
-            mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls!.toSet().toList();
+            if (channelModel.urls?.isNotEmpty ?? false) {
+              mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
+              mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
+                mergedPlaylist.playList![groupTitle]![channelName]!.urls!.toSet().toList();
+            }
           }
         });
       });
@@ -170,9 +222,17 @@ class M3uUtil {
           final groupStr = params.firstWhere(
               (element) => element.startsWith('group-title='),
               orElse: () => 'group-title=${S.current.defaultText}');
+          if (groupStr.isNotEmpty && groupStr.contains('=')) {
+            tempGroupTitle = groupStr.split('=').last;
+          }
+
           String tvgLogo = params.firstWhere(
               (element) => element.startsWith('tvg-logo='),
               orElse: () => '');
+          if (tvgLogo.isNotEmpty && tvgLogo.contains('=')) {
+            tvgLogo = tvgLogo.split('=').last;
+          }
+
           String tvgId = params.firstWhere(
               (element) => element.startsWith('tvg-name='),
               orElse: () => '');
@@ -181,12 +241,10 @@ class M3uUtil {
                 (element) => element.startsWith('tvg-id='),
                 orElse: () => '');
           }
-          if (tvgId.isNotEmpty) {
+          if (tvgId.isNotEmpty && tvgId.contains('=')) {
             tvgId = tvgId.split('=').last;
           }
-          if (tvgLogo.isNotEmpty) {
-            tvgLogo = tvgLogo.split('=').last;
-          }
+
           if (groupStr.isNotEmpty) {
             tempGroupTitle = groupStr.split('=').last;
             tempChannelName = lineList.last;
