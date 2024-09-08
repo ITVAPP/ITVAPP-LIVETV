@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "888463325955",
+    "project_id": "itvapp-livetv",
+    "storage_bucket": "itvapp-livetv.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888463325955:android:2297a0661adc1ec3114736",
+        "android_client_info": {
+          "package_name": "net.itvapp.livetv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqUxPbow80VCqomx61XBQCb0oGC4xWSAI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

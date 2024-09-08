@@ -1,0 +1,96 @@
+{
+  "appName": "電視寶直播",
+  "loading": "正在載入",
+  "lineToast": "線路{line}播放: {channel}",
+  "@lineToast": {
+    "placeholders": {
+      "line": {},
+      "channel": {}
+    }
+  },
+  "playError": "此頻道暫時無法播放，請等待修復",
+  "switchLine": "切換線路{line} ...",
+  "@switchLine": {
+    "placeholders": {
+      "line": {}
+    }
+  },
+  "playReconnect": "連線出錯，嘗試重新連線...",
+  "lineIndex": "線路{index}",
+  "@lineIndex": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "gettingData": "正在獲取播放資料... ({retryCount}/{maxRetries})",
+  "@gettingData": {
+    "placeholders": {
+      "retryCount": {},
+      "maxRetries": {}
+    }
+  },
+  "loadingData": "正在獲取播放資料...",
+  "errorLoadingData": "獲取資料出錯，請稍後重試",
+  "retry": "重 試",
+  "tipChannelList": "頻道列表",
+  "tipChangeLine": "切換線路",
+  "portrait": "豎屏模式",
+  "landscape": "橫屏模式",
+  "fullScreen": "切換全屏",
+  "settings": "設定",
+  "homePage": "主頁",
+  "releaseHistory": "釋出歷史",
+  "checkUpdate": "檢查更新",
+  "newVersion": "新版本 v{version}",
+  "@newVersion": {
+    "placeholders": {
+      "version": {}
+    }
+  },
+  "update": "立即更新",
+  "latestVersion": "已是最新版本",
+  "findNewVersion": "發現新版本",
+  "updateContent": "更新內容",
+  "dialogTitle": "提示",
+  "dataSourceContent": "確定新增資料來源嗎？",
+  "dialogCancel": "取消",
+  "dialogConfirm": "確定",
+  "subscribe": "IPTV訂閱",
+  "createTime": "建立時間",
+  "dialogDeleteContent": "確定刪除此訂閱嗎？",
+  "delete": "刪除",
+  "setDefault": "設為預設",
+  "inUse": "使用中",
+  "tvParseParma": "引數錯誤",
+  "tvParseSuccess": "推送成功",
+  "tvParsePushError": "請推送正確的連結",
+  "tvScanTip": "掃碼新增訂閱源",
+  "pushAddress": "推送地址：{address}",
+  "@pushAddress": {
+    "placeholders": {
+      "address": {}
+    }
+  },
+  "tvPushContent": "在掃碼結果頁，輸入新的訂閱源，點選頁面中的推送即可新增",
+  "pasterContent": "複製訂閱源後，回到此頁面可自動新增訂閱源",
+  "addDataSource": "新增訂閱源",
+  "addFiledHintText": "請輸入或貼上.m3u或.txt格式的訂閱源連結",
+  "addRepeat": "已新增過此訂閱源",
+  "addNoHttpLink": "請輸入http/https連結",
+  "netTimeOut": "連線超時",
+  "netSendTimeout": "請求超時",
+  "netReceiveTimeout": "響應超時",
+  "netBadResponse": "響應異常{code}",
+  "@netBadResponse": {
+    "placeholders": {
+      "code": {}
+    }
+  },
+  "netCancel": "請求取消",
+  "parseError": "解析播放資料出錯",
+  "defaultText": "預設",
+  "getDefaultError": "獲取播放資料失敗",
+  "okRefresh": "請按【OK鍵】重新整理",
+  "refresh": "重新整理",
+  "noEPG": "暂无節目資訊"
+}

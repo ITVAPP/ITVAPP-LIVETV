@@ -1,0 +1,10 @@
+#EXTM3U x-tvg-url="https://live.fanmingming.com/e.xml,https://epg.v1.mk/fy.xml" catchup="append" catchup-source="?playseek=${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss}"
+#EXTINF:-1 tvg-name="CCTV1" tvg-logo="https://gitee.com/buzhenglin/live/raw/master/TVlog/CCTV1.png" group-title="央视频道",CCTV-1 综合
+http://[2409:8087:1a01:df::7005]:80/ottrrs.hl.chinamobile.com/PLTV/88888888/224/3221226559/index.m3u8
+http://hlslive-tx-cdn.ysp.cctv.cn/ysp/2024078203.m3u8
+http://dsm.52mm.top:28888/rtp/238.255.2.91:5999
+#EXTINF:-1 tvg-name="CCTV2" tvg-logo="https://gitee.com/buzhenglin/live/raw/master/TVlog/CCTV2.png" group-title="央视频道",CCTV-2 财经
+http://[2409:8087:1a01:df::7005]:80/ottrrs.hl.chinamobile.com/PLTV/88888888/224/3221226540/index.m3u8
+#EXTINF:-1 tvg-name="CCTV3" tvg-logo="https://gitee.com/buzhenglin/live/raw/master/TVlog/CCTV2.png" group-title="央视频道",CCTV-3 测试
+https://www.youtube.com/watch?v=e2USlI2kJWU
+
