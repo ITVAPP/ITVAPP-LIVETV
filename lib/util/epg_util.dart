@@ -13,9 +13,9 @@ class EpgUtil {
 
   static final _EPGMap = <String, EpgModel>{};
   static Iterable<XmlElement>? _programmes;
-  static CancelToken? _cancelToken;
 
-  static Future<EpgModel?> getEpg(PlayModel? model) async {
+  // 修改：getEpg 方法添加了可选的 cancelToken 参数
+  static Future<EpgModel?> getEpg(PlayModel? model, {CancelToken? cancelToken}) async {
     if (model == null) return null;
 
     String channelKey = '';
@@ -31,12 +31,14 @@ class EpgUtil {
       channelKey = "$date-$channel";
     }
 
+    // 使用缓存的EPG数据
     if (_EPGMap.containsKey(channelKey)) {
       final cacheModel = _EPGMap[channelKey]!;
       LogUtil.v('命中EPG:::${cacheModel.toJson()}');
       return cacheModel;
     }
 
+    // 使用XML文件中的EPG数据
     if (isHasXml) {
       EpgModel epgModel = EpgModel(channelName: model.title, epgData: []);
       for (var programme in _programmes!) {
@@ -55,11 +57,13 @@ class EpgUtil {
       return epgModel;
     }
 
-    _cancelToken?.cancel();
-    _cancelToken ??= CancelToken();
-    final epgRes = await HttpUtil().getRequest('https://epg.v1.mk/json?ch=$channel&date=$date', cancelToken: _cancelToken);
+    // 取消之前的请求并发起新的请求
+    cancelToken?.cancel();  // 如果传入了 cancelToken，取消之前的请求
+    final epgRes = await HttpUtil().getRequest(
+      'https://epg.v1.mk/json?ch=$channel&date=$date',
+      cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
+    );
     LogUtil.v('epgRes:::$epgRes');
-    _cancelToken = null;
     if (epgRes != null) {
       LogUtil.v('epgRes:channelName::${epgRes['channel_name']}');
       if (channel.contains(epgRes['channel_name'])) {
@@ -71,6 +75,7 @@ class EpgUtil {
     return null;
   }
 
+  // 加载EPG XML文件
   static loadEPGXML(String url) async {
     LogUtil.v('****start download EPG Xml ****');
     int index = 0;
@@ -90,6 +95,7 @@ class EpgUtil {
     _programmes = tempXmlDocument?.findAllElements('programme');
   }
 
+  // 重置EPG XML
   static resetEPGXML() {
     LogUtil.v('****reset EPG Xml ****');
     _programmes = null;
