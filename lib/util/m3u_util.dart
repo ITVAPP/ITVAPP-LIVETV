@@ -50,7 +50,7 @@ class M3uUtil {
             orElse: () => models.first);
 
         // 使用重试机制从远程获取M3U数据
-        final newRes = await _retryRequest(() async {
+        final newRes = await _retryRequest<String>(() async {
           return await HttpUtil().getRequest(defaultModel.link == 'default'
               ? EnvUtil.videoDefaultChannelHost()
               : defaultModel.link!);
@@ -80,7 +80,7 @@ class M3uUtil {
         }
       } else {
         // 本地没有订阅数据，直接从网络获取默认M3U数据
-        m3uData = await _retryRequest(() async => await _fetchData());
+        m3uData = await _retryRequest<String>(() async => await _fetchData());
         if (m3uData.isEmpty) {
           LogUtil.e('网络数据获取失败');
           return M3uResult(errorMessage: '从网络获取数据失败。');
@@ -179,7 +179,7 @@ class M3uUtil {
 
   // 获取M3U数据，设置8秒的超时时间，并使用重试机制
   static Future<String?> _fetchM3uData(String url) async {
-    return await _retryRequest(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)) as String?);
+    return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)) as String?);
   }
 
   // 合并多个PlaylistModel，避免重复的播放地址
