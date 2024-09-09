@@ -8,7 +8,7 @@ import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 import 'log_util.dart';
 
-// 新增封装结果的类
+/// 封装 M3U 数据或错误信息
 class M3uResult {
   final PlaylistModel? data;
   final String? errorMessage;
@@ -19,86 +19,74 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  // 获取本地缓存的m3u文件
+  // 获取本地缓存的M3U文件
   static Future<M3uResult> getLocalM3uData() async {
     try {
       final m3uData = SpUtil.getString('m3u_cache', defValue: '');
       if (m3uData?.isEmpty ?? true) {
-        return M3uResult(errorMessage: 'No local M3U data found.');
+        // 如果本地缓存中没有M3U数据，则返回错误提示
+        return M3uResult(errorMessage: '未找到本地M3U数据。');
       }
 
+      // 解析M3U数据
       final parsedData = await _parseM3u(m3uData!);
-      return M3uResult(data: parsedData); // 成功时返回解析后的数据
+      return M3uResult(data: parsedData);  // 成功时返回解析后的数据
     } catch (e) {
-      LogUtil.e('Error loading local M3U data: $e');
-      return M3uResult(errorMessage: 'Error loading local M3U data: $e');
+      LogUtil.e('加载本地M3U数据时出错: $e');  // 捕获并记录加载错误
+      return M3uResult(errorMessage: '加载本地M3U数据时出错: $e');
     }
   }
 
-  // 从远程获取默认的m3u文件并缓存
-  static Future<M3uResult> getRemoteM3uData() async {
-    try {
-      String m3uData = await _fetchData(); // 从远程获取数据
-      if (m3uData.isEmpty) {
-        return M3uResult(errorMessage: 'Failed to fetch data from the network.');
-      }
-
-      // 缓存到本地
-      await SpUtil.putString('m3u_cache', m3uData);
-
-      final parsedData = await _parseM3u(m3uData);
-      return M3uResult(data: parsedData); // 成功时返回解析后的数据
-    } catch (e) {
-      LogUtil.e('Error fetching remote M3U data: $e');
-      return M3uResult(errorMessage: 'Error fetching remote M3U data: $e');
-    }
-  }
-
-  // 获取默认的m3u文件，修改后的方法，保持原有功能
+  // 获取默认的M3U文件，修改后的方法，保持原有功能
   static Future<M3uResult> getDefaultM3uData() async {
     String m3uData = '';
-    final models = await getLocalData();
+    final models = await getLocalData();  // 获取本地存储的数据
 
     try {
       if (models.isNotEmpty) {
-        // 获取本地数据
+        // 本地有订阅数据，优先使用本地数据
         final defaultModel = models.firstWhere(
             (element) => element.selected == true,
             orElse: () => models.first);
-        final newRes = await HttpUtil().getRequest(defaultModel.link == 'default'
-            ? EnvUtil.videoDefaultChannelHost()
-            : defaultModel.link!);
+
+        // 使用重试机制从远程获取M3U数据
+        final newRes = await _retryRequest(() async {
+          return await HttpUtil().getRequest(defaultModel.link == 'default'
+              ? EnvUtil.videoDefaultChannelHost()
+              : defaultModel.link!);
+        });
 
         if (newRes != null) {
-          // 如果获取到新数据，保存到本地缓存
-          LogUtil.v('已获取新数据::::::');
+          // 成功获取到远程数据后，保存到本地缓存
+          LogUtil.v('已获取到新数据::::::');
           m3uData = newRes;
           await SpUtil.putString('m3u_cache', m3uData);
         } else {
-          // 如果无法获取网络数据，则尝试从本地缓存获取
+          // 如果无法从远程获取数据，则尝试使用本地缓存的数据
           final oldRes = SpUtil.getString('m3u_cache', defValue: '');
           if (oldRes?.isNotEmpty ?? false) {
-            LogUtil.v('已获取到历史保存的数据::::::');
-            m3uData = oldRes ?? ''; // 如果 oldRes 是 null，使用空字符串
+            LogUtil.v('已从历史缓存中获取数据::::::');
+            m3uData = oldRes ?? '';  // 如果 oldRes 为空，则使用空字符串
           } else {
-            // 如果本地也没有缓存数据，返回错误信息
+            // 如果本地也没有数据，返回错误提示
             LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
-            return M3uResult(errorMessage: 'Failed to load data from both cache and network.');
+            return M3uResult(errorMessage: '无法从本地缓存和网络中获取数据。');
           }
         }
 
         if (m3uData.isEmpty) {
-          return M3uResult(errorMessage: 'Received empty data.');
+          // 返回错误提示，表示获取到的M3U数据为空
+          return M3uResult(errorMessage: '收到的M3U数据为空。');
         }
       } else {
-        // 如果本地没有数据，尝试从网络获取
-        m3uData = await _fetchData();
+        // 本地没有订阅数据，直接从网络获取默认M3U数据
+        m3uData = await _retryRequest(() async => await _fetchData());
         if (m3uData.isEmpty) {
-          // 如果网络获取失败，返回错误信息
           LogUtil.e('网络数据获取失败');
-          return M3uResult(errorMessage: 'Failed to fetch data from the network.');
+          return M3uResult(errorMessage: '从网络获取数据失败。');
         }
-        // 成功获取数据后，保存到本地
+
+        // 成功获取网络数据后保存到本地
         await saveLocalData([
           SubScribeModel(
               time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
@@ -109,15 +97,15 @@ class M3uUtil {
 
       // 解析M3U数据
       final parsedData = await _parseM3u(m3uData);
-      return M3uResult(data: parsedData); // 成功时返回数据
+      return M3uResult(data: parsedData);  // 成功时返回数据
     } catch (e) {
-      // 捕获所有异常并返回错误信息
-      LogUtil.e('Error occurred while fetching M3U data: $e');
-      return M3uResult(errorMessage: 'Error occurred: $e');
+      // 捕获并记录所有错误
+      LogUtil.e('获取M3U数据时发生错误: $e');
+      return M3uResult(errorMessage: '发生错误: $e');
     }
   }
 
-  // 获取本地m3u数据
+  // 获取本地M3U数据
   static Future<List<SubScribeModel>> getLocalData() async {
     Completer completer = Completer();
     List<SubScribeModel> m3uList = SpUtil.getObjList(
@@ -128,36 +116,38 @@ class M3uUtil {
     return res;
   }
 
+  // 获取远程的默认M3U文件数据
   static Future<String> _fetchData() async {
     final defaultM3u = EnvUtil.videoDefaultChannelHost();
     final res = await HttpUtil().getRequest(defaultM3u);
     if (res == null) {
-      LogUtil.e('网络数据获取失败');
-      return "";  // 返回空字符串
+      LogUtil.e('网络数据获取失败');  // 记录网络获取失败日志
+      return "";  // 返回空字符串表示获取失败
     } else {
       return res;
     }
   }
 
-  // 重试机制的封装，最多重试 3 次，每次间隔 2 秒
+  // 重试机制的封装，最多重试3次，每次间隔2秒
   static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
     int attempt = 0;
     while (attempt < retries) {
       try {
+        // 尝试执行请求
         return await request();
       } on TimeoutException {
-        LogUtil.e('请求超时，重试第 $attempt 次...');
-      } on Exception catch (e) { // 捕获所有异常
-        LogUtil.e('HTTP错误: ${e.toString()}');
-        rethrow; // 对于 HTTP 错误，停止重试并抛出异常
+        LogUtil.e('请求超时，重试第 $attempt 次...');  // 捕获并记录超时错误
+      } on Exception catch (e) {
+        LogUtil.e('HTTP错误: ${e.toString()}');  // 捕获HTTP错误日志
+        rethrow;  // 对于HTTP错误，停止重试并抛出异常
       } catch (e) {
         attempt++;
-        LogUtil.v('请求失败：$e，重试第 $attempt 次...');
+        LogUtil.v('请求失败：$e，重试第 $attempt 次...');  // 捕获其他错误并记录日志
         if (attempt >= retries) {
-          LogUtil.e('请求失败超过最大次数 $retries 次，停止重试');
-          rethrow;  // 达到最大重试次数，抛出异常
+          LogUtil.e('请求失败次数超过最大限制 $retries 次，停止重试');  // 达到最大重试次数后记录日志
+          rethrow;  // 达到重试次数后抛出异常
         }
-        await Future.delayed(retryDelay);  // 等待重试
+        await Future.delayed(retryDelay);  // 等待一段时间后重试
       }
     }
     return null;
@@ -165,7 +155,7 @@ class M3uUtil {
 
   // 获取并处理多个M3U列表的合并，解析每个 URL 返回的数据
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
-    List<String> urls = url.split('||');
+    List<String> urls = url.split('||');  // 按 "||" 分割多个URL
 
     // 使用 Future.wait 并行处理多个M3U URL
     final results = await Future.wait(urls.map(_fetchM3uData));
@@ -180,7 +170,7 @@ class M3uUtil {
     }
 
     if (playlists.isEmpty) {
-      return null;
+      return null;  // 如果没有解析到任何数据，返回null
     }
 
     // 合并解析后的播放列表
@@ -189,7 +179,6 @@ class M3uUtil {
 
   // 获取M3U数据，设置8秒的超时时间，并使用重试机制
   static Future<String?> _fetchM3uData(String url) async {
-    // 设置8秒超时时间
     return await _retryRequest(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)) as String?);
   }
 
@@ -208,16 +197,16 @@ class M3uUtil {
           if (mergedPlaylist.playList![groupTitle]!.containsKey(channelName)) {
             // 如果频道已经存在，合并播放地址，并去重
             if (channelModel.urls?.isNotEmpty ?? false) {
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
-                mergedPlaylist.playList![groupTitle]![channelName]!.urls!
-                .followedBy(channelModel.urls!).toSet().toList(); // 使用toSet去重
+              mergedPlaylist.playList![groupTitle]![channelName]!.urls =
+                  mergedPlaylist.playList![groupTitle]![channelName]!.urls!
+                      .followedBy(channelModel.urls ?? []).toSet().toList();  // 使用toSet去重
             }
           } else {
             // 如果频道不存在，直接添加
             if (channelModel.urls?.isNotEmpty ?? false) {
               mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
-                mergedPlaylist.playList![groupTitle]![channelName]!.urls!.toSet().toList();
+              mergedPlaylist.playList![groupTitle]![channelName]!.urls =
+                  channelModel.urls?.toSet().toList() ?? [];
             }
           }
         });
@@ -230,19 +219,21 @@ class M3uUtil {
   // 保存合并后的M3U数据到本地存储
   static Future<void> saveMergedM3u(PlaylistModel mergedPlaylist) async {
     String m3uString = _convertPlaylistToString(mergedPlaylist);
-    await SpUtil.putString('m3u_cache', m3uString); // 保存合并后的播放列表到本地缓存
+    await SpUtil.putString('m3u_cache', m3uString);  // 保存合并后的播放列表到本地缓存
   }
 
   // 将PlaylistModel转换为M3U格式字符串
   static String _convertPlaylistToString(PlaylistModel playlist) {
     StringBuffer buffer = StringBuffer();
-    
+
     // 根据组名和频道名生成M3U格式内容
     playlist.playList?.forEach((groupTitle, channels) {
       channels.forEach((channelName, playModel) {
         buffer.writeln('#EXTINF:-1 group-title="$groupTitle", $channelName');
         playModel.urls?.forEach((url) {
-          buffer.writeln(url); // 写入每个播放地址
+          if (url.isNotEmpty) {  // 检查播放地址是否为空
+            buffer.writeln(url);  // 写入每个播放地址
+          }
         });
       });
     });
@@ -258,18 +249,18 @@ class M3uUtil {
 
   // 解析M3U文件并转换为 PlaylistModel 格式
   static Future<PlaylistModel> _parseM3u(String m3u) async {
-    final lines = m3u.split('\n'); // 按行分割M3U内容
+    final lines = m3u.split('\n');  // 按行分割M3U内容
     final playListModel = PlaylistModel();
     playListModel.playList = <String, Map<String, PlayModel>>{};
-    
+
     // 判断文件是否为标准M3U格式
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
       String tempGroupTitle = '';
       String tempChannelName = '';
-      
+
       for (int i = 0; i < lines.length - 1; i++) {
         String line = lines[i];
-        
+
         // 处理 #EXTM3U 开头的头部信息
         if (line.startsWith('#EXTM3U')) {
           List<String> params = line.replaceAll('"', '').split(' ');
@@ -277,7 +268,7 @@ class M3uUtil {
               (element) => element.startsWith('x-tvg-url'),
               orElse: () => '');
           if (tvgUrl.isNotEmpty) {
-            playListModel.epgUrl = tvgUrl.split('=').last; // 获取EPG URL
+            playListModel.epgUrl = tvgUrl.split('=').last;  // 获取EPG URL
           }
         } else if (line.startsWith('#EXTINF:')) {
           if (line.startsWith('#EXTINF:-1,')) {
@@ -323,26 +314,36 @@ class M3uUtil {
                     logo: tvgLogo,
                     title: tempChannelName,
                     urls: []);
-            
+
             final lineNext = lines[i + 1];
             if (isLiveLink(lineNext)) {
-              groupList.urls!.add(lineNext); // 添加播放地址
+              groupList.urls ??= [];
+              if (lineNext.isNotEmpty) {  // 添加检查确保播放地址不为空
+                groupList.urls!.add(lineNext);  // 添加播放地址
+              }
               group[tempChannelName] = groupList;
               playListModel.playList![tempGroupTitle] = group;
               i += 1;
             } else if (isLiveLink(lines[i + 2])) {
-              groupList.urls!.add(lines[i + 2].toString());
+              groupList.urls ??= [];
+              if (lines[i + 2].isNotEmpty) {  // 添加检查确保播放地址不为空
+                groupList.urls!.add(lines[i + 2].toString());
+              }
               group[tempChannelName] = groupList;
               playListModel.playList![tempGroupTitle] = group;
               i += 2;
             }
           }
         } else if (isLiveLink(line)) {
-          playListModel.playList![tempGroupTitle]![tempChannelName]!.urls!
-              .add(line); // 添加额外的播放地址
+          playListModel.playList![tempGroupTitle]![tempChannelName]!.urls ??= [];
+          if (line.isNotEmpty) {  // 添加检查确保播放地址不为空
+            playListModel.playList![tempGroupTitle]![tempChannelName]!.urls!
+                .add(line);  // 添加额外的播放地址
+          }
         }
       }
     } else {
+      // 处理非标准M3U文件
       String tempGroup = S.current.defaultText;
       for (int i = 0; i < lines.length - 1; i++) {
         final line = lines[i];
@@ -359,7 +360,10 @@ class M3uUtil {
                     id: groupTitle,
                     title: groupTitle,
                     urls: []);
-            chanelList.urls!.add(channelLink); // 添加播放地址
+            chanelList.urls ??= [];
+            if (channelLink.isNotEmpty) {  // 添加检查确保播放地址不为空
+              chanelList.urls!.add(channelLink);  // 添加播放地址
+            }
             group[groupTitle] = chanelList;
             playListModel.playList![tempGroup] = group;
           } else {
