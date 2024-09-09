@@ -321,7 +321,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 解析并加载播放列表数据
   /// 从远程获取 M3U 播放列表并初始化当前播放的频道
   Future<void> _parseData() async {
-    final resMap = await M3uUtil.getDefaultM3uData(); // 获取播放列表数据
+    final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
     LogUtil.v('_parseData:::::$resMap');
     _videoMap = resMap;
     _sourceIndex = 0;
