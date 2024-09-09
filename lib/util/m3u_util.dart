@@ -8,61 +8,78 @@ import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 import 'log_util.dart';
 
+// 新增封装结果的类
+class M3uResult {
+  final PlaylistModel? data;
+  final String? errorMessage;
+
+  M3uResult({this.data, this.errorMessage});
+}
+
 class M3uUtil {
   M3uUtil._();
 
-  // 获取默认的m3u文件
-  static Future<PlaylistModel?> getDefaultM3uData() async {
+  // 获取默认的m3u文件，修改后的方法
+  static Future<M3uResult> getDefaultM3uData() async {
     String m3uData = '';
     final models = await getLocalData();
-    if (models.isNotEmpty) {
-      // 获取本地数据
-      final defaultModel = models.firstWhere(
-          (element) => element.selected == true,
-          orElse: () => models.first);
-      final newRes = await HttpUtil().getRequest(defaultModel.link == 'default'
-          ? EnvUtil.videoDefaultChannelHost()
-          : defaultModel.link!);
 
-      if (newRes != null) {
-        // 如果获取到新数据，保存到本地缓存
-        LogUtil.v('已获取新数据::::::');
-        m3uData = newRes;
-        await SpUtil.putString('m3u_cache', m3uData);
-      } else {
-        // 如果无法获取网络数据，则尝试从本地缓存获取
-        final oldRes = SpUtil.getString('m3u_cache', defValue: '');
-        if (oldRes?.isNotEmpty ?? false) {
-          LogUtil.v('已获取到历史保存的数据::::::');
-          m3uData = oldRes ?? ''; // 如果 oldRes 是 null，使用空字符串
+    try {
+      if (models.isNotEmpty) {
+        // 获取本地数据
+        final defaultModel = models.firstWhere(
+            (element) => element.selected == true,
+            orElse: () => models.first);
+        final newRes = await HttpUtil().getRequest(defaultModel.link == 'default'
+            ? EnvUtil.videoDefaultChannelHost()
+            : defaultModel.link!);
+
+        if (newRes != null) {
+          // 如果获取到新数据，保存到本地缓存
+          LogUtil.v('已获取新数据::::::');
+          m3uData = newRes;
+          await SpUtil.putString('m3u_cache', m3uData);
         } else {
-          // 如果本地也没有缓存数据，直接返回 null
-          LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
-          return null;
+          // 如果无法获取网络数据，则尝试从本地缓存获取
+          final oldRes = SpUtil.getString('m3u_cache', defValue: '');
+          if (oldRes?.isNotEmpty ?? false) {
+            LogUtil.v('已获取到历史保存的数据::::::');
+            m3uData = oldRes ?? ''; // 如果 oldRes 是 null，使用空字符串
+          } else {
+            // 如果本地也没有缓存数据，返回错误信息
+            LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
+            return M3uResult(errorMessage: 'Failed to load data from both cache and network.');
+          }
         }
+
+        if (m3uData.isEmpty) {
+          return M3uResult(errorMessage: 'Received empty data.');
+        }
+      } else {
+        // 如果本地没有数据，尝试从网络获取
+        m3uData = await _fetchData();
+        if (m3uData.isEmpty) {
+          // 如果网络获取失败，返回错误信息
+          LogUtil.e('网络数据获取失败');
+          return M3uResult(errorMessage: 'Failed to fetch data from the network.');
+        }
+        // 成功获取数据后，保存到本地
+        await saveLocalData([
+          SubScribeModel(
+              time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
+              link: 'default',
+              selected: true)
+        ]);
       }
 
-      if (m3uData.isEmpty) {
-        return null;
-      }
-    } else {
-      // 如果本地没有数据，尝试从网络获取
-      m3uData = await _fetchData();
-      if (m3uData.isEmpty) {
-        // 如果网络获取失败，返回 null
-        LogUtil.e('网络数据获取失败');
-        return null;
-      }
-      // 成功获取数据后，保存到本地
-      await saveLocalData([
-        SubScribeModel(
-            time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
-            link: 'default',
-            selected: true)
-      ]);
+      // 解析M3U数据
+      final parsedData = await _parseM3u(m3uData);
+      return M3uResult(data: parsedData); // 成功时返回数据
+    } catch (e) {
+      // 捕获所有异常并返回错误信息
+      LogUtil.e('Error occurred while fetching M3U data: $e');
+      return M3uResult(errorMessage: 'Error occurred: $e');
     }
-    // 解析M3U数据
-    return _parseM3u(m3uData);
   }
 
   // 获取本地m3u数据
@@ -86,7 +103,7 @@ class M3uUtil {
       return res;
     }
   }
-  
+
   // 重试机制的封装，最多重试 3 次，每次间隔 2 秒
   static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
     int attempt = 0;
