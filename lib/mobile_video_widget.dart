@@ -41,14 +41,6 @@ class MobileVideoWidget extends StatefulWidget {
 
 // State 类，用于管理 MobileVideoWidget 的状态
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  @override
-  void dispose() {
-    // 只有在页面销毁时才释放控制器资源，避免横竖屏切换时释放
-    if (mounted) {
-      widget.controller?.dispose();
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
