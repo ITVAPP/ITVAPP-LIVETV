@@ -165,38 +165,31 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建打开抽屉的UI
   Widget _buildOpenDrawer() {
     double screenWidth = MediaQuery.of(context).size.width;  // 获取屏幕宽度
-    double drawWidth;  // 抽屉宽度
-    double egpWidth;  // EPG宽度
+    double groupListWidth = widget.isLandscape ? 100 : 80;  // 组列表宽度
+    double channelListWidth = widget.isLandscape ? 150 : 120;  // 频道列表宽度
+    double remainingWidth = screenWidth - groupListWidth - channelListWidth;  // 剩余宽度
 
-    if (widget.isLandscape) {
-      drawWidth = 100 + 150;  // 横屏时，分组列表宽度为100px，频道列表宽度为150px
-      egpWidth = screenWidth - drawWidth;  // 剩下的宽度分配给EPG
-    } else {
-      drawWidth = screenWidth * 0.75;  // 竖屏时，抽屉宽度占屏幕的75%
-      egpWidth = screenWidth - drawWidth - 10;  // 剩下的宽度为EPG
-    }
-
-    _isShowEPG = egpWidth > 80 && _epgData != null && _epgData!.isNotEmpty;  // 判断是否显示EPG
-    if (_isShowEPG) {
-      drawWidth += egpWidth;  // 如果显示EPG，调整抽屉宽度
-    }
-    bool isShowEpgWidget = _isShowEPG;  // 是否显示EPG组件
+    // 计算EPG是否显示
+    _isShowEPG = remainingWidth > 100 && _epgData != null && _epgData!.isNotEmpty;
 
     return AnimatedContainer(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),  // 设置左边距
-      width: drawWidth,  // 设置宽度
+      width: screenWidth,  // 设置宽度
       decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black, Colors.transparent])),  // 设置背景渐变
       duration: const Duration(milliseconds: 300),  // 设置动画持续时间
       curve: Curves.easeInOut,  // 设置动画曲线
-      child: Row(children: [
-        _buildGroupList(),  // 构建组列表
-        VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)),  // 垂直分隔线
-        if (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
-          _buildChannelList(),  // 构建频道列表
-        if (isShowEpgWidget)
-          _buildEpgList(egpWidth),  // 构建EPG列表
-      ]),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,  // 强制居左对齐
+        children: [
+          _buildGroupList(),  // 构建组列表
+          VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)),  // 垂直分隔线
+          if (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
+            _buildChannelList(),  // 构建频道列表
+          if (_isShowEPG)
+            _buildEpgList(remainingWidth),  // 构建EPG列表
+        ],
+      ),
     );
   }
 
