@@ -19,7 +19,42 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  // 获取默认的m3u文件，修改后的方法
+  // 获取本地缓存的m3u文件
+  static Future<M3uResult> getLocalM3uData() async {
+    try {
+      final m3uData = SpUtil.getString('m3u_cache', defValue: '');
+      if (m3uData?.isEmpty ?? true) {
+        return M3uResult(errorMessage: 'No local M3U data found.');
+      }
+
+      final parsedData = await _parseM3u(m3uData!);
+      return M3uResult(data: parsedData); // 成功时返回解析后的数据
+    } catch (e) {
+      LogUtil.e('Error loading local M3U data: $e');
+      return M3uResult(errorMessage: 'Error loading local M3U data: $e');
+    }
+  }
+
+  // 从远程获取默认的m3u文件并缓存
+  static Future<M3uResult> getRemoteM3uData() async {
+    try {
+      String m3uData = await _fetchData(); // 从远程获取数据
+      if (m3uData.isEmpty) {
+        return M3uResult(errorMessage: 'Failed to fetch data from the network.');
+      }
+
+      // 缓存到本地
+      await SpUtil.putString('m3u_cache', m3uData);
+
+      final parsedData = await _parseM3u(m3uData);
+      return M3uResult(data: parsedData); // 成功时返回解析后的数据
+    } catch (e) {
+      LogUtil.e('Error fetching remote M3U data: $e');
+      return M3uResult(errorMessage: 'Error fetching remote M3U data: $e');
+    }
+  }
+
+  // 获取默认的m3u文件，修改后的方法，保持原有功能
   static Future<M3uResult> getDefaultM3uData() async {
     String m3uData = '';
     final models = await getLocalData();
