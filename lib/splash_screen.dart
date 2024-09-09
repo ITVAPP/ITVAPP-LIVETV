@@ -40,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen> {
         setState(() {
           _message = 'Fetching data...'; // 显示数据获取提示
         });
-        final result = await M3uUtil.getRemoteM3uData();  // 使用远程数据获取方法
+        final result = await M3uUtil.getDefaultM3uData();  // 使用远程数据获取方法
         if (result.data != null) {
           return result;  // 直接返回 M3uResult 的 data
         } else {
