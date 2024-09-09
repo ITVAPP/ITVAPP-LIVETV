@@ -80,17 +80,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final int timeoutSeconds = defaultTimeoutSeconds;
 
   /// 播放视频的核心方法
-  /// 每次播放新视频前，都会先释放之前的资源，解析当前频道的视频源，并进行播放。
+  /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
     if (_currentChannel == null) return;
-
-    // 在开始播放新视频之前，释放旧的视频播放器资源
-    await _disposePlayer();
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
 
+    // 在开始播放新视频之前，释放旧的视频播放器资源
+    await _disposePlayer();
+    
     // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
 
