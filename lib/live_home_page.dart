@@ -323,7 +323,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _parseData() async {
     final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
     LogUtil.v('_parseData:::::$resMap');
-    _videoMap = resMap;
+    _videoMap = resMap.data;
     _sourceIndex = 0;
 
     if (_videoMap?.playList?.isNotEmpty ?? false) {
