@@ -73,11 +73,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 标志是否等待超时检测
   bool _timeoutActive = false;
 
+  // 标志播放器是否处于释放状态
+  bool _isDisposing = false;
+
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
   /// 播放视频的核心方法
-  /// 每次播放新视频前，都会先释放之前的资源，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
     if (_currentChannel == null) return;
 
@@ -161,10 +163,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 优化播放器资源释放
   Future<void> _disposePlayer() async {
-    if (_playerController != null) {
+    if (_playerController != null && !_isDisposing) {
+      _isDisposing = true;
+      if (_playerController!.value.isPlaying) {
+        await _playerController!.pause(); // 确保视频暂停
+      }
       _playerController!.removeListener(_videoListener); // 移除监听器
       await _playerController!.dispose(); // 释放资源
       _playerController = null;
+      _isDisposing = false;
     }
   }
 
@@ -191,7 +198,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       Future.delayed(const Duration(seconds: 2), () => _playVideo());
     } else {
       _sourceIndex += 1;
-      if (_sourceIndex > _currentChannel!.urls!.length - 1) {
+      if (_sourceIndex >= _currentChannel!.urls!.length) {
         _sourceIndex = _currentChannel!.urls!.length - 1;
         setState(() {
           toastString = S.current.playError;
@@ -234,7 +241,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 监听视频播放状态的变化
-  /// 包括检测缓冲状态、播放状态以及播放出错的情况
   void _videoListener() {
     if (_playerController == null) return;
 
@@ -265,12 +271,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 处理频道切换操作
-  /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
-  void _onTapChannel(PlayModel? model) {
+  Future<void> _onTapChannel(PlayModel? model) async {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
     LogUtil.v('onTapChannel:::::${_currentChannel?.toJson()}');
+    
+    await _disposePlayer(); // 确保之前的视频已停止并释放资源
     _playVideo(); // 开始播放选中的频道
   }
 
@@ -293,7 +300,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 异步加载视频数据和版本检测
-  _loadData() async {
+  Future<void> _loadData() async {
     await _parseData();
     CheckVersionUtil.checkVersion(context, false, false);
   }
@@ -309,7 +316,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 解析并加载播放列表数据
-  /// 从远程获取 M3U 播放列表并初始化当前播放的频道
   Future<void> _parseData() async {
     final resMap = await M3uUtil.getDefaultM3uData(); // 获取播放列表数据
     LogUtil.v('_parseData:::::$resMap');
@@ -335,7 +341,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果播放列表为空，显示未知错误提示
       setState(() {
         _currentChannel = null;
-        _disposePlayer();
         toastString = 'UNKNOWN'; // 显示未知错误提示
       });
     }
