@@ -80,7 +80,7 @@ class M3uUtil {
         }
       } else {
         // 本地没有订阅数据，直接从网络获取默认M3U数据
-        m3uData = await _retryRequest<String>(() async => await _fetchData());
+        m3uData = (await _retryRequest<String>(() async => await _fetchData())) ?? '';
         if (m3uData.isEmpty) {
           LogUtil.e('网络数据获取失败');
           return M3uResult(errorMessage: '从网络获取数据失败。');
