@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFFEB144C), // 按钮背景颜色
                   foregroundColor: Colors.white, // 按钮文字颜色
-                  padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0), // 按钮的内边距
+                  padding: EdgeInsets.symmetric(horizontal: 18.0, vertical: 5.0), // 按钮的内边距
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30.0), // 圆角按钮设计
                   ),
