@@ -107,30 +107,24 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    // 提前获取屏幕宽高以优化性能
+    // 获取屏幕宽度以计算进度条宽度
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    double progressBarWidth = isPortrait ? screenWidth * 0.6 : screenWidth * 0.4;
+    double progressBarWidth = screenWidth * 0.6;
 
     return Selector<ThemeProvider, bool>(
       selector: (_, provider) => provider.isBingBg, // 选择是否使用 Bing 背景
       builder: (BuildContext context, bool isBingBg, Widget? child) {
         return Stack(
           children: [
-            // 根据视频状态决定显示内容
-            if (_controller.value.isInitialized) ...[
-              if (_controller.value.size.width > 0 && _controller.value.size.height > 0)
-                // 视频播放时显示视频内容
-                _buildVideoPlayer(isPortrait, screenWidth, screenHeight)
-              else
-                // 音频播放时，根据 isBingBg 决定显示 Bing 或本地背景
-                _buildBingOrLocalBg(isBingBg, isPortrait, screenWidth, screenHeight)
-            ] else
-              // 加载和缓冲时显示本地背景
-              _buildCustomLoadingBg(isPortrait, screenWidth, screenHeight),
+            // 1. 如果播放器未初始化，显示加载时的本地背景图片
+            if (!_controller.value.isInitialized) 
+              _buildCustomLoadingBg(),
 
-            // 进度条和提示信息
+            // 2. 当播放器初始化后并且有尺寸信息时显示视频
+            if (_controller.value.isInitialized && _controller.value.size.width > 0 && _controller.value.size.height > 0)
+              _buildVideoPlayer(),
+
+            // 3. 显示进度条和加载提示文本
             Positioned(
               bottom: 18,
               left: 0,
@@ -162,49 +156,36 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
   }
 
   // 构建视频播放器组件
-  Widget _buildVideoPlayer(bool isPortrait, double screenWidth, double screenHeight) {
-    return FittedBox(
-      fit: BoxFit.cover, // 确保视频按比例填充屏幕
-      child: SizedBox(
-        width: screenWidth,
-        height: isPortrait
-            ? screenWidth / _controller.value.aspectRatio // 竖屏按宽度调整高度
-            : screenHeight, // 横屏使用屏幕高度
-        child: VideoPlayer(_controller), // 显示视频内容
+  Widget _buildVideoPlayer() {
+    return SizedBox.expand(
+      child: FittedBox(
+        fit: BoxFit.cover, // 确保视频按比例填充屏幕
+        child: SizedBox(
+          width: _controller.value.size.width,
+          height: _controller.value.size.height,
+          child: VideoPlayer(_controller), // 显示视频内容
+        ),
       ),
     );
   }
 
-  // 加载和缓冲时显示本地背景图片
-  Widget _buildCustomLoadingBg(bool isPortrait, double screenWidth, double screenHeight) {
+  // 加载时显示本地背景图片，自适应屏幕
+  Widget _buildCustomLoadingBg() {
     return Container(
-      width: screenWidth, // 设置背景宽度为屏幕宽度
-      height: isPortrait
-          ? screenWidth / 9 * 16 // 竖屏根据宽度按比例调整高度
-          : screenHeight, // 横屏使用屏幕高度
       decoration: const BoxDecoration(
         image: DecorationImage(
-          fit: BoxFit.cover, // 背景图按比例填充全屏
+          fit: BoxFit.cover, // 使用 BoxFit.cover 来确保图片自适应并填满整个屏幕
           image: AssetImage('assets/images/loading_bg.png'), // 使用本地加载背景
         ),
       ),
     );
   }
 
-  // 根据是否启用 Bing 背景来决定显示 Bing 或本地背景
-  Widget _buildBingOrLocalBg(bool isBingBg, bool isPortrait, double screenWidth, double screenHeight) {
-    return isBingBg ? _buildAnimatedBingBg(isPortrait, screenWidth, screenHeight) : _buildLocalBg(isPortrait, screenWidth, screenHeight);
-  }
-
   // 带有淡入淡出效果的 Bing 背景
-  Widget _buildAnimatedBingBg(bool isPortrait, double screenWidth, double screenHeight) {
+  Widget _buildAnimatedBingBg() {
     return FadeTransition(
       opacity: _fadeAnimation, // 淡入淡出效果
       child: Container(
-        width: screenWidth,
-        height: isPortrait
-            ? screenWidth / 9 * 16 // 竖屏按比例调整高度
-            : screenHeight, // 横屏使用屏幕高度
         decoration: BoxDecoration(
           image: DecorationImage(
             fit: BoxFit.cover, // 背景图片按比例填充
@@ -218,12 +199,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
   }
 
   // 显示本地背景图
-  Widget _buildLocalBg(bool isPortrait, double screenWidth, double screenHeight) {
+  Widget _buildLocalBg() {
     return Container(
-      width: screenWidth,
-      height: isPortrait
-          ? screenWidth / 9 * 16 // 竖屏按比例调整高度
-          : screenHeight, // 横屏使用屏幕高度
       decoration: const BoxDecoration(
         image: DecorationImage(
           fit: BoxFit.cover, // 本地背景图按比例填充
