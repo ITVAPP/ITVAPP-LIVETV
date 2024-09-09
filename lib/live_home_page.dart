@@ -20,7 +20,6 @@ import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
 import 'widget/empty_page.dart';
 
-/// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
   const LiveHomePage({super.key});
 
@@ -262,7 +261,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 更新播放状态
     if (isPlaying != _playerController!.value.isPlaying) {
       setState(() {
-        isPlaying = _playerController!.value.isPlaying;
+        isPlaying = _playerController!.value.isPlaying);
       });
     }
 
