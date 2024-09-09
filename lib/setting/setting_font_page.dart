@@ -1,5 +1,5 @@
-import 'package:itvapp_live_tv/provider/theme_provider.dart'; 
-import 'package:itvapp_live_tv/provider/language_provider.dart'; 
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +15,15 @@ class _SettingFontPageState extends State<SettingFontPage> {
   final _fontScales = [1.0, 1.1, 1.2, 1.3, 1.5]; // 字体缩放比例
   final _languages = ['English', '简体中文', '繁體中文']; // 语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 语言代码
+
+  // 统一的圆角样式
+  final _buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(30), // 设置圆角
+  );
+
+  // 统一的按钮选中颜色
+  final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
+  final _unselectedColor = Colors.grey[300]; // 未选中时颜色
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +71,11 @@ class _SettingFontPageState extends State<SettingFontPage> {
                           onSelected: (bool selected) {
                             context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
                           },
-                          selectedColor: const Color(0xFFEB144C), // 选中状态颜色
+                          selectedColor: _selectedColor, // 选中状态颜色
                           backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                              ? const Color(0xFFEB144C) // 选中状态颜色
-                              : Colors.grey[300], // 未选中状态颜色
-                          shape: const StadiumBorder(), // 圆角外形
+                              ? _selectedColor // 选中状态颜色
+                              : _unselectedColor, // 未选中状态颜色
+                          shape: _buttonShape, // 统一的圆角外形
                         ),
                       ),
                     ),
@@ -99,14 +108,14 @@ class _SettingFontPageState extends State<SettingFontPage> {
                               ),
                               selected: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index], // 当前选中的语言
                               onSelected: (bool selected) {
-                                if (!selected) {
-                                  context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
-                                }
+                                // 切换语言，点击即触发，不判断是否已选中
+                                context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
                               },
-                              selectedColor: const Color(0xFFEB144C), // 选中状态颜色
+                              selectedColor: _selectedColor, // 选中状态颜色
                               backgroundColor: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
-                                  ? const Color(0xFFEB144C) // 已选中状态颜色
-                                  : Colors.grey[300], // 未选中状态的颜色
+                                  ? _selectedColor // 已选中状态颜色
+                                  : _unselectedColor, // 未选中状态的颜色
+                              shape: _buttonShape, // 统一的圆角外形
                             ),
                           ],
                         ),
