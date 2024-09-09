@@ -47,7 +47,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 加载EPG信息的方法
   _loadEPGMsg() async {
-    if (!_isShowEPG) return;  // 如果不显示EPG，直接返回
     setState(() {
       _epgData = null;  // 清空现有的EPG数据
       _selEPGIndex = 0;  // 重置选中的EPG索引
@@ -55,13 +54,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _cancelToken?.cancel();  // 取消之前的请求
     _cancelToken = CancelToken();  // 创建新的取消Token
     final res = await EpgUtil.getEpg(widget.playModel, cancelToken: _cancelToken);  // 获取EPG数据
-    if (res == null || res!.epgData == null || res!.epgData!.isEmpty) return;  // 如果EPG数据为空，直接返回
-    _epgData = res.epgData!;  // 设置EPG数据
-    final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');  // 获取当前时间格式
-    final selectTimeData = _epgData!.where((element) => element.start!.compareTo(epgRangeTime) < 0).last.start;  // 获取选中的EPG时间
-    final selIndex = _epgData!.indexWhere((element) => element.start == selectTimeData);  // 获取选中的EPG索引
-    _selEPGIndex = selIndex;  // 设置选中的EPG索引
-    setState(() {});  // 更新界面
+    if (res == null || res.epgData == null || res.epgData!.isEmpty) {
+      setState(() {
+        _isShowEPG = false; // 确保没有EPG时不显示
+      });
+      return;  // 如果EPG数据为空，直接返回
+    }
+    setState(() {
+      _epgData = res.epgData!;  // 设置EPG数据
+      _isShowEPG = true;  // 设置显示EPG
+      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');  // 获取当前时间格式
+      final selectTimeData = _epgData!.where((element) => element.start!.compareTo(epgRangeTime) < 0).last.start;  // 获取选中的EPG时间
+      final selIndex = _epgData!.indexWhere((element) => element.start == selectTimeData);  // 获取选中的EPG索引
+      _selEPGIndex = selIndex;  // 设置选中的EPG索引
+    });
   }
 
   @override
@@ -163,18 +169,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double egpWidth;  // EPG宽度
 
     if (widget.isLandscape) {
-      drawWidth = max(screenWidth * 0.6, 400);  // 如果是横屏模式，计算抽屉宽度
-      egpWidth = drawWidth - 100 - 150;  // 计算EPG宽度
+      drawWidth = 100 + 150;  // 横屏时，分组列表宽度为100px，频道列表宽度为150px
+      egpWidth = screenWidth - drawWidth;  // 剩下的宽度分配给EPG
     } else {
-      drawWidth = screenWidth;  // 如果是竖屏模式，抽屉宽度等于屏幕宽度
-      egpWidth = (screenWidth - 80) / 2;  // 计算EPG宽度
+      drawWidth = screenWidth * 0.75;  // 竖屏时，抽屉宽度占屏幕的75%
+      egpWidth = screenWidth - drawWidth - 10;  // 剩下的宽度为EPG
     }
 
-    _isShowEPG = (drawWidth + egpWidth) < screenWidth;  // 判断是否显示EPG
-    if (_isShowEPG && _epgData != null && _epgData!.isNotEmpty) {
+    _isShowEPG = egpWidth > 80 && _epgData != null && _epgData!.isNotEmpty;  // 判断是否显示EPG
+    if (_isShowEPG) {
       drawWidth += egpWidth;  // 如果显示EPG，调整抽屉宽度
     }
-    bool isShowEpgWidget = _isShowEPG && _epgData != null && _epgData!.isNotEmpty;  // 是否显示EPG组件
+    bool isShowEpgWidget = _isShowEPG;  // 是否显示EPG组件
 
     return AnimatedContainer(
       key: _viewPortKey,
@@ -197,7 +203,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建组列表
   Widget _buildGroupList() {
     return SizedBox(
-      width: widget.isLandscape ? 100 : 80,  // 根据屏幕方向设置宽度
+      width: widget.isLandscape ? 100 : 80,  // 根据屏幕方向设置宽度，横屏100px，竖屏80px
       child: ListView.builder(
           itemExtent: _itemHeight,  // 设置列表项高度
           padding: const EdgeInsets.only(bottom: 100.0),  // 设置底部边距
@@ -262,7 +268,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 构建频道列表
   Widget _buildChannelList() {
-    return Expanded(
+    return SizedBox(
+      width: 150,  // 频道列表固定宽度为150px
       child: ListView.builder(
           itemExtent: _itemHeight,  // 设置列表项高度
           padding: const EdgeInsets.only(bottom: 100.0),  // 设置底部边距
@@ -326,7 +333,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建EPG列表
   Widget _buildEpgList(double egpWidth) {
     return SizedBox(
-      width: egpWidth,
+      width: egpWidth,  // 剩余宽度分配给EPG
       child: Material(
         color: Colors.black.withOpacity(0.1),
         child: Column(
