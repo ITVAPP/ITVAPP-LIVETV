@@ -1,4 +1,4 @@
-import 'dart:io';  // 导入 dart 的平台检测库，用于识别操作系统
+import 'dart:io'; 
 import 'dart:ui';  // 导入 dart 的 UI 库，用于获取系统语言环境
 
 // EnvUtil 类用于提供设备、环境和语言的检测以及不同资源地址的获取
@@ -47,13 +47,24 @@ class EnvUtil {
     }
   }
 
-  // 获取默认视频频道地址
+  // 获取默认视频频道地址，扩展支持简体中文、繁体中文和其他语言
   static String videoDefaultChannelHost() {
-    if (isChinese()) {
-      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists_zh.m3u';  // 中文环境返回 Gitee 原始资源地址
-    } else {
-      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists.m3u';  // 其他环境返回 GitHub 原始资源地址
+    final locale = PlatformDispatcher.instance.locale;  // 获取系统当前语言环境
+    final languageCode = locale.languageCode;  // 获取语言代码
+    final countryCode = locale.countryCode;  // 获取区域代码
+
+    // 简体中文环境
+    if (languageCode == 'zh' && (countryCode == 'CN' || countryCode == null)) {
+      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists_zh.m3u';
     }
+
+    // 繁体中文环境
+    if (languageCode == 'zh' && (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')) {
+      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists2.m3u';
+    }
+
+    // 其他语言环境
+    return 'https://cdn.itvapp.net/itvapp_live_tv/playlists3.m3u';
   }
 
   // 获取版本检查地址，用于检测软件更新
