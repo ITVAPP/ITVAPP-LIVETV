@@ -101,18 +101,18 @@ class _SettingFontPageState extends State<SettingFontPage> {
                             Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
                             ChoiceChip(
                               label: Text(
-                                context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
+                                context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                     ? '使用中' // 已选中的显示 "使用中"
                                     : '使用', // 未选中的显示 "使用"
                                 style: const TextStyle(fontSize: 15),
                               ),
-                              selected: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index], // 当前选中的语言
+                              selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
                               onSelected: (bool selected) {
                                 // 切换语言，点击即触发，不判断是否已选中
                                 context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
                               },
                               selectedColor: _selectedColor, // 选中状态颜色
-                              backgroundColor: context.watch<LanguageProvider>().currentLocale.languageCode == _languageCodes[index]
+                              backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                   ? _selectedColor // 已选中状态颜色
                                   : _unselectedColor, // 未选中状态的颜色
                               shape: _buttonShape, // 统一的圆角外形
