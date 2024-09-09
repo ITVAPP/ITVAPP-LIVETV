@@ -191,7 +191,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback() {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
-
+    
+   // 在重试前释放播放器资源
+   _disposePlayer(); // 确保释放旧的播放器资源
+  
     if (_retryCount <= maxRetries) {
       setState(() {
         toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
@@ -248,6 +251,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
+      _disposePlayer(); // 确保在出错时释放播放器资源	
       _retryPlayback(); // 调用失败处理逻辑
       return;
     }
