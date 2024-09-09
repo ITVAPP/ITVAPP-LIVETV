@@ -65,7 +65,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
                         (index) => ChoiceChip(
                           label: Text(
                             '${_fontScales[index]}', // 显示字体缩放比例
-                            style: const TextStyle(fontSize: 15),
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                  ? Colors.white // 选中状态的文字颜色
+                                  : Colors.black, // 未选中状态的文字颜色
+                            ),
                           ),
                           selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
                           onSelected: (bool selected) {
@@ -104,7 +109,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                 context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                     ? '使用中' // 已选中的显示 "使用中"
                                     : '使用', // 未选中的显示 "使用"
-                                style: const TextStyle(fontSize: 15),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                      ? Colors.white // 选中状态的文字颜色
+                                      : Colors.black, // 未选中状态的文字颜色
+                                ),
                               ),
                               selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
                               onSelected: (bool selected) {
