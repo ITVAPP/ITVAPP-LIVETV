@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sp_util/sp_util.dart';
 import '../util/font_util.dart';
 import '../util/env_util.dart'; // 导入用于检测设备的工具类
