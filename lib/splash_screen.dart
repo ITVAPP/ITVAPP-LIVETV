@@ -26,20 +26,25 @@ class _SplashScreenState extends State<SplashScreen> {
       setState(() {
         _message = '正在获取数据...'; // 显示数据获取提示
       });
-      final result = await M3uUtil.getDefaultM3uData();  // 使用远程数据获取方法
+      final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
+        setState(() {
+          _retryCount = attempt;
+          _message = '错误: 获取失败\n重试中 ($_retryCount 次)'; // 更新重试次数提示信息
+        });
+      });
       if (result.data != null) {
         return result;  // 直接返回 M3uResult 的 data
       } else {
         setState(() {
           _retryCount++;
-          _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount)'; // 显示错误信息
+          _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount 次)'; // 显示错误信息
         });
         return M3uResult(errorMessage: result.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e) {
       setState(() {
         _retryCount++;  // 更新重试次数
-        _message = '发生错误: $e\n重试中 ($_retryCount)'; // 更新错误信息
+        _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
       });
       return M3uResult(errorMessage: '发生错误: $e');
     }
@@ -103,7 +108,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Align(
       alignment: Alignment.bottomCenter, // UI 内容在屏幕底部对齐
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 98.0), // 底部的内边距
+        padding: const EdgeInsets.only(bottom: 108.0), // 底部的内边距
         child: Column(
           mainAxisSize: MainAxisSize.min, // 列表仅占用其子组件的最小空间
           children: [
