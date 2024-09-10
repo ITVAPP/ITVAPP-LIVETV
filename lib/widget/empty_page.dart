@@ -1,6 +1,6 @@
-import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:flutter/material.dart';
-
+import 'package:provider/provider.dart';  // 导入 Provider 包
+import '../provider/theme_provider.dart'; // 导入 ThemeProvider
 import '../generated/l10n.dart';
 
 class EmptyPage extends StatelessWidget {
@@ -9,6 +9,9 @@ class EmptyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
+
     return Center(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -30,9 +33,10 @@ class EmptyPage extends StatelessWidget {
             ),
             onPressed: onRefresh,
             child: Text(
-                '      ${EnvUtil.isTV() ? S.current.okRefresh : S.current.refresh}      ',
-                style: const TextStyle(color: Colors.white)),
-          )
+              '      ${isTV ? S.current.okRefresh : S.current.refresh}      ',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
         ],
       ),
     );
