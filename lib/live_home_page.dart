@@ -76,13 +76,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 标志播放器是否处于释放状态
   bool _isDisposing = false;
 
+  // 防止快速切换时的竞态条件
+  bool _isSwitchingChannel = false;
+
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
   /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
-    if (_currentChannel == null) return;
+    if (_currentChannel == null || _isSwitchingChannel) return;
+
+    _isSwitchingChannel = true;
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -90,7 +95,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 在开始播放新视频之前，释放旧的视频播放器资源
     await _disposePlayer();
-    
+
     // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
 
@@ -105,6 +110,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           toastString = S.current.playError; // 更新 UI 显示播放错误提示
         });
+        _isSwitchingChannel = false;
         return;
       }
 
@@ -115,6 +121,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (isDebugMode) {
         bool shouldPlay = await _showConfirmationDialog(context, url);
         if (!shouldPlay) {
+          _isSwitchingChannel = false;
           return; // 用户取消播放，退出函数
         }
       }
@@ -124,6 +131,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       setState(() {
         toastString = S.current.playError; // 显示错误提示
       });
+      _isSwitchingChannel = false;
       return;
     }
 
@@ -159,6 +167,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果播放过程中发生异常，处理播放失败逻辑
       LogUtil.v('播放出错:::::$e');
       _retryPlayback(); // 调用处理方法
+    } finally {
+      _isSwitchingChannel = false;
     }
   }
 
@@ -192,9 +202,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
     
-   // 在重试前释放播放器资源
-   _disposePlayer(); // 确保释放旧的播放器资源
-  
+    // 在重试前释放播放器资源
+    _disposePlayer(); // 确保释放旧的播放器资源
+
     if (_retryCount <= maxRetries) {
       setState(() {
         toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
