@@ -44,7 +44,7 @@ class M3uUtil {
   }
 
   // 获取默认的M3U文件
-  static Future<M3uResult> getDefaultM3uData() async {
+  static Future<M3uResult> getDefaultM3uData({Function(int attempt)? onRetry}) async {
     return _handleErrors(() async {
       String m3uData = '';
       final models = await getLocalData();  // 获取本地存储的数据
@@ -58,7 +58,7 @@ class M3uUtil {
           return await HttpUtil().getRequest(defaultModel.link == 'default'
               ? EnvUtil.videoDefaultChannelHost()
               : defaultModel.link!);
-        });
+        }, onRetry: onRetry);
 
         if (newRes != null) {
           m3uData = newRes;
@@ -72,7 +72,7 @@ class M3uUtil {
         }
       } else {
         // 没有本地数据，直接从网络获取
-        m3uData = (await _retryRequest<String>(_fetchData)) ?? '';
+        m3uData = (await _retryRequest<String>(_fetchData, onRetry: onRetry)) ?? '';
         if (m3uData.isEmpty) {
           LogUtil.e('网络数据获取失败');
           return M3uResult(errorMessage: '从网络获取数据失败。');
@@ -93,6 +93,28 @@ class M3uUtil {
     });
   }
 
+  // 重试机制封装，最多重试3次，每次间隔2秒，增加回调参数
+  static Future<T?> _retryRequest<T>(
+    Future<T?> Function() request, 
+    {int retries = 3, Duration retryDelay = const Duration(seconds: 2), Function(int attempt)? onRetry}) async {
+    
+    for (int attempt = 0; attempt < retries; attempt++) {
+      try {
+        return await request();
+      } catch (e) {
+        LogUtil.e('请求失败：$e，重试第 $attempt 次...');
+        if (onRetry != null) {
+          onRetry(attempt + 1);  // 回调传递重试次数
+        }
+        if (attempt >= retries - 1) {
+          return null;  // 超过重试次数，返回 null
+        }
+        await Future.delayed(retryDelay);  // 重试延时
+      }
+    }
+    return null;
+  }
+
   // 获取本地M3U数据
   static Future<List<SubScribeModel>> getLocalData() async {
     return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
@@ -103,22 +125,6 @@ class M3uUtil {
     final defaultM3u = EnvUtil.videoDefaultChannelHost();
     final res = await HttpUtil().getRequest(defaultM3u);
     return res ?? '';  // 返回空字符串表示获取失败
-  }
-
-  // 重试机制封装，最多重试3次，每次间隔2秒
-  static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
-    for (int attempt = 0; attempt < retries; attempt++) {
-      try {
-        return await request();
-      } catch (e) {
-        LogUtil.e('请求失败：$e，重试第 $attempt 次...');
-        if (attempt >= retries - 1) {
-          return null;  // 超过重试次数，返回null
-        }
-        await Future.delayed(retryDelay);  // 重试延时
-      }
-    }
-    return null;
   }
 
   // 获取并处理多个M3U列表的合并，解析每个 URL 返回的数据
