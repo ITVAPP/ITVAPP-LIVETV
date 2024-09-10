@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 class SettingBeautifyPage extends StatelessWidget {
   const SettingBeautifyPage({super.key});
+  
   @override
   Widget build(BuildContext context) {
     // 获取当前屏幕的宽度
@@ -37,11 +38,9 @@ class SettingBeautifyPage extends StatelessWidget {
                 title: const Text('每日Bing'), // 选项标题
                 value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
                 subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 选项的说明文字
-                onChanged: (value) async {
-                  // 这里我们增加了 `await` 来等待状态更新完成
-                  // 并且使用 `async` 方式确保异步操作的安全性
-                  
-                  await context.read<ThemeProvider>().setBingBg(value);
+                onChanged: (value) {
+                  // 同步更新 Bing 背景状态，和字体大小的逻辑保持一致
+                  context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
                 },
               ),
             ],
