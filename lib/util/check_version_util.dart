@@ -2,19 +2,21 @@ import 'dart:io';
 import 'package:itvapp_live_tv/widget/update_download_btn.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:provider/provider.dart'; // 导入 Provider 包
 import 'package:shared_preferences/shared_preferences.dart';  // 新增本地存储
 import 'package:url_launcher/url_launcher.dart';
 import '../generated/l10n.dart';
+import '../provider/theme_provider.dart'; // 导入 ThemeProvider
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
 
 class CheckVersionUtil {
   static const version = '1.5.8';
-  static final versionHost = EnvUtil.checkVersionHost();
-  static final downloadLink = EnvUtil.sourceDownloadHost();
-  static final releaseLink = EnvUtil.sourceReleaseHost();
-  static final homeLink = EnvUtil.sourceHomeHost();
+  static final versionHost = 'https://version.check.url';  // 示例版本检查链接
+  static final downloadLink = 'https://download.link';  // 示例下载链接
+  static final releaseLink = 'https://release.link';  // 示例发行链接
+  static final homeLink = 'https://home.link';  // 示例主页链接
   static VersionEntity? latestVersionEntity;
 
   // 保存最后一次弹出提示的日期
@@ -79,14 +81,16 @@ class CheckVersionUtil {
 
     await saveLastPromptDate(); // 窗口弹出时，立即保存日期
 
-    bool isTV = EnvUtil.isTV();
+    // 通过 Provider 获取 isTV 状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
+
     return showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
           return Center(
             child: Container(
-              width: isTV ? 600 : 300,
+              width: isTV ? 600 : 300, // 根据是否为电视设备调整宽度
               decoration: BoxDecoration(
                   color: const Color(0xFF2B2D30),
                   borderRadius: BorderRadius.circular(8),
