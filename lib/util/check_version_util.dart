@@ -72,6 +72,13 @@ class CheckVersionUtil {
   }
 
   static Future<bool?> showUpdateDialog(BuildContext context) async {
+    // 日期检查逻辑，确保一天只弹一次窗
+    if (!await shouldShowPrompt()) {
+      return false;  // 如果一天内已经提示过，则不再弹窗
+    }
+
+    await saveLastPromptDate(); // 窗口弹出时，立即保存日期
+
     bool isTV = EnvUtil.isTV();
     return showDialog<bool>(
         context: context,
@@ -139,11 +146,6 @@ class CheckVersionUtil {
 
   // 检查版本并提示
   static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true]) async {
-    // 检查是否需要提示
-    if (!await shouldShowPrompt()) {
-      return;  // 如果一天内已经提示过，则不再提示
-    }
-
     final res = await checkRelease(isShowLoading, isShowLatestToast);
     if (res != null && context.mounted) {
       final isUpdate = await showUpdateDialog(context);
@@ -151,9 +153,6 @@ class CheckVersionUtil {
         launchBrowserUrl(releaseLink);
       }
     }
-
-    // 保存最后一次提示日期
-    await saveLastPromptDate();
   }
 
   static launchBrowserUrl(String url) async {
