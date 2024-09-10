@@ -77,7 +77,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
               // 检查缓存的 m3u 数据源是否存在且有效
               final m3uData = SpUtil.getString('m3u_cache', defValue: '');
-              if (m3uData.isEmpty || !isValidM3U(m3uData)) {
+              if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
                 widget.onChangeSubSource();
               }
 
