@@ -43,24 +43,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late int _channelIndex; // 当前频道的索引
   final double _itemHeight = 50.0; // 每个列表项的高度
 
-  bool? isTV; // 用于存储异步结果
+  final bool isTV = EnvUtil.isTV(); // 判断是否为电视设备
 
   @override
   void initState() {
     super.initState();
-    _fetchIsTV(); // 调用异步方法获取是否为TV设备
+    LogUtil.v('ChannelDrawerPage:isTV:::$isTV');
     _initializeChannelData(); // 初始化频道数据
     _calculateViewportHeight(); // 计算视图窗口的高度
     _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
-  }
-
-  // 异步获取是否为TV设备
-  Future<void> _fetchIsTV() async {
-    final result = await EnvUtil.isTV();
-    setState(() {
-      isTV = result;
-      LogUtil.v('ChannelDrawerPage:isTV:::$isTV');
-    });
   }
 
   // 初始化频道数据
@@ -218,7 +209,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        overlayColor: isTV == true ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
+        overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
         onTap: () {
           if (_groupIndex != index) {
             setState(() {
@@ -284,8 +275,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              overlayColor: isTV == true ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
-              canRequestFocus: isTV == true,
+              overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
+              canRequestFocus: isTV,
               onTap: () {
                 if (isSelect) {
                   Scaffold.of(context).closeDrawer();
