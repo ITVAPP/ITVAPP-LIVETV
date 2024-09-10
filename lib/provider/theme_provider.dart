@@ -18,11 +18,16 @@ class ThemeProvider extends ChangeNotifier {
 
   // 构造函数，在初始化时从缓存中加载数据
   ThemeProvider() {
-    _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system')!;
-    _fontUrl = SpUtil.getString('appFontUrl', defValue: '')!;
-    _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0)!;
-    _isBingBg = SpUtil.getBool('bingBg', defValue: false)!;
-    _isTV = SpUtil.getBool('isTV', defValue: false)!; // 从缓存中获取 isTV 的值
+    // 安全获取字体和缩放比例，确保初始化时没有空指针错误
+    _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
+    _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
+    _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
+    
+    // 安全获取 Bing 背景的状态，避免初始化时获取到空值
+    _isBingBg = SpUtil.getBool('bingBg') ?? false;
+    _isTV = SpUtil.getBool('isTV') ?? false; // 从缓存中获取 isTV 的值
+
+    // 如果字体不是系统默认字体，则加载自定义字体
     if (_fontFamily != 'system') {
       FontUtil().loadFont(_fontUrl, _fontFamily);
     }
@@ -44,25 +49,25 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners(); // 通知监听器更新界面
   }
 
-  // 设置是否使用每日 Bing 背景
-  void setBingBg(bool isOpen) {
-    SpUtil.putBool('bingBg', isOpen);
-    _isBingBg = isOpen;
-    notifyListeners(); // 通知监听器更新界面
+  // 设置是否使用每日 Bing 背景，异步操作，确保存储成功后再更新状态
+  Future<void> setBingBg(bool isOpen) async {
+    await SpUtil.putBool('bingBg', isOpen);  // 异步存储 Bing 背景的状态
+    _isBingBg = isOpen;  // 更新内部状态
+    notifyListeners();  // 通知监听器更新界面
   }
 
   // 检测并设置设备是否为 TV
   Future<void> checkAndSetIsTV() async {
     bool deviceIsTV = await EnvUtil.isTV(); // 调用工具类检测是否为 TV
     _isTV = deviceIsTV;
-    SpUtil.putBool('isTV', _isTV); // 将结果保存到缓存
+    await SpUtil.putBool('isTV', _isTV); // 异步存储结果
     notifyListeners(); // 通知监听器更新界面
   }
 
   // 手动设置是否为 TV
-  void setIsTV(bool isTV) {
+  Future<void> setIsTV(bool isTV) async {
     _isTV = isTV;
-    SpUtil.putBool('isTV', _isTV);
+    await SpUtil.putBool('isTV', _isTV);  // 异步存储状态
     notifyListeners(); // 通知监听器更新界面
   }
 }
