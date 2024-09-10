@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class SettingFontPage extends StatefulWidget {
-  final bool isTV; // 是否为TV模式
-  const SettingFontPage({super.key, this.isTV = false});
+  const SettingFontPage({super.key});
 
   @override
   State<SettingFontPage> createState() => _SettingFontPageState();
@@ -30,15 +29,18 @@ class _SettingFontPageState extends State<SettingFontPage> {
     // 获取屏幕宽度以进行布局优化
     var screenWidth = MediaQuery.of(context).size.width;
 
+    // 通过 Provider 获取 isTV 状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
+
     // 最大内容宽度，适用于大屏设备
     double maxContainerWidth = 580;
 
     return Scaffold(
-      backgroundColor: widget.isTV ? const Color(0xFF1E2022) : null, // TV模式下的背景颜色
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下的背景颜色
       appBar: AppBar(
-        leading: widget.isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
+        leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
         title: const Text('设置'), // 设置页面标题
-        backgroundColor: widget.isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: Align(
         alignment: Alignment.center, // 内容居中显示
