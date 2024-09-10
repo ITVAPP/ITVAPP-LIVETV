@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'provider/theme_provider.dart';
 import 'entity/playlist_model.dart';
 import 'util/env_util.dart';
 
@@ -43,12 +44,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late int _channelIndex; // 当前频道的索引
   final double _itemHeight = 50.0; // 每个列表项的高度
 
-  final bool isTV = EnvUtil.isTV(); // 判断是否为电视设备
-
   @override
   void initState() {
     super.initState();
-    LogUtil.v('ChannelDrawerPage:isTV:::$isTV');
     _initializeChannelData(); // 初始化频道数据
     _calculateViewportHeight(); // 计算视图窗口的高度
     _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
@@ -147,11 +145,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return _buildOpenDrawer();
+    // 从 ThemeProvider 获取 isTV 状态
+    bool isTV = context.read<ThemeProvider>().isTV;
+
+    return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
   }
 
   // 构建抽屉视图
-  Widget _buildOpenDrawer() {
+  Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     double groupWidth = 100 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
     double channelListWidth = isPortrait ? 150 : 200; // 频道列表宽度，竖屏下缩小
@@ -170,12 +171,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       ),
       child: Row(
         children: [
-          _buildGroupListView(context, groupWidth), // 分组列表
+          _buildGroupListView(context, groupWidth, isTV), // 分组列表
           VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
           if (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
             SizedBox(
               width: channelListWidth, // 频道列表宽度
-              child: _buildChannelListView(context, isPortrait), // 频道列表
+              child: _buildChannelListView(context, isPortrait, isTV), // 频道列表
             ),
           if (isShowEPG && _epgData != null && _epgData!.isNotEmpty)
             VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
@@ -190,21 +191,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 构建分组列表视图
-  Widget _buildGroupListView(BuildContext context, double width) {
+  Widget _buildGroupListView(BuildContext context, double width, bool isTV) {
     return SizedBox(
       width: width, // 动态调整宽度
       child: ListView.builder(
         cacheExtent: _itemHeight, // 预缓存区域
         padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
         controller: _scrollController, // 使用滚动控制器
-        itemBuilder: (context, index) => _buildGroupListTile(context, index), // 构建每个分组项
+        itemBuilder: (context, index) => _buildGroupListTile(context, index, isTV), // 构建每个分组项
         itemCount: _keys.length, // 分组数目
       ),
     );
   }
 
   // 构建单个分组列表项
-  Widget _buildGroupListTile(BuildContext context, int index) {
+  Widget _buildGroupListTile(BuildContext context, int index, bool isTV) {
     final title = _keys[index];
     return Material(
       color: Colors.transparent,
@@ -250,19 +251,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 构建频道列表视图
-  Widget _buildChannelListView(BuildContext context, bool isPortrait) {
+  Widget _buildChannelListView(BuildContext context, bool isPortrait, bool isTV) {
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 100.0),
       cacheExtent: _itemHeight, // 预缓存区域
       controller: _scrollChannelController, // 使用滚动控制器
       physics: const ScrollPhysics(),
-      itemBuilder: (context, index) => _buildChannelListTile(context, index, isPortrait), // 构建每个频道项
+      itemBuilder: (context, index) => _buildChannelListTile(context, index, isPortrait, isTV), // 构建每个频道项
       itemCount: _values[_groupIndex].length, // 频道数目
     );
   }
 
   // 构建单个频道列表项
-  Widget _buildChannelListTile(BuildContext context, int index, bool isPortrait) {
+  Widget _buildChannelListTile(BuildContext context, int index, bool isPortrait, bool isTV) {
     final name = _values[_groupIndex].keys.toList()[index].toString();
     final isSelect = widget.playModel?.title == name;
     return LayoutBuilder(
