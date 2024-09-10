@@ -22,41 +22,34 @@ class _SplashScreenState extends State<SplashScreen> {
 
   // 定义一个异步方法，用于获取远程数据并确保启动画面至少显示3秒
   Future<M3uResult> _fetchDataWithDelay() async {
-    try {
-      final results = await Future.wait([
-        _fetchWithRetry(), // 带重试的获取 M3U 数据方法
-        Future.delayed(Duration(seconds: 3)) // 延时3秒
-      ]);
-      return results[0] as M3uResult; // 返回 M3uResult 数据
-    } catch (e) {
-      return M3uResult(errorMessage: '加载数据失败: $e'); // 如果发生错误，返回错误信息
-    }
+    final result = await _fetchData();  // 获取数据
+    await Future.delayed(Duration(seconds: 3));  // 确保画面至少显示3秒
+    return result;
   }
 
-  // 带重试的 M3U 数据获取方法
-  Future<M3uResult> _fetchWithRetry() async {
-    while (_retryCount < 3) {  // 最多重试三次
-      try {
+  // 统一错误处理的获取数据方法
+  Future<M3uResult> _fetchData() async {
+    try {
+      setState(() {
+        _message = '正在获取数据...'; // 显示数据获取提示
+      });
+      final result = await M3uUtil.getDefaultM3uData();  // 使用远程数据获取方法
+      if (result.data != null) {
+        return result;  // 直接返回 M3uResult 的 data
+      } else {
         setState(() {
-          _message = '正在获取数据...'; // 显示数据获取提示
+          _retryCount++;
+          _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount)'; // 显示错误信息
         });
-        final result = await M3uUtil.getDefaultM3uData();  // 使用远程数据获取方法
-        if (result.data != null) {
-          return result;  // 直接返回 M3uResult 的 data
-        } else {
-          setState(() {
-            _retryCount++;
-            _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount)'; // 显示错误信息
-          });
-        }
-      } catch (e) {
-        setState(() {
-          _retryCount++;  // 更新重试次数
-          _message = '发生错误: $e\n重试中 ($_retryCount)'; // 更新错误信息
-        });
+        return M3uResult(errorMessage: result.errorMessage);  // 返回带错误信息的 M3uResult
       }
+    } catch (e) {
+      setState(() {
+        _retryCount++;  // 更新重试次数
+        _message = '发生错误: $e\n重试中 ($_retryCount)'; // 更新错误信息
+      });
+      return M3uResult(errorMessage: '发生错误: $e');
     }
-    return M3uResult(errorMessage: '获取M3U数据失败，重试3次后仍未成功'); // 重试失败时返回错误信息
   }
 
   @override
@@ -89,14 +82,16 @@ class _SplashScreenState extends State<SplashScreen> {
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData && snapshot.data?.data != null) {
                 // 如果加载成功，导航到主页面
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) => const LiveHomePage(), // 创建主界面的路由
-                    ),
-                  );
+                Future.delayed(Duration(seconds: 3), () {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const LiveHomePage(), // 创建主界面的路由
+                      ),
+                    );
+                  });
                 });
-                return Scaffold(body: Container()); // 返回一个空页面，防止渲染
+                return Container(); // 返回一个空页面，防止不必要的渲染
               } else {
                 // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
