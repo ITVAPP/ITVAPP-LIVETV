@@ -16,6 +16,7 @@ class ThemeProvider extends ChangeNotifier {
   bool get isBingBg => _isBingBg;
   bool get isTV => _isTV; // 添加获取 isTV 的方法
 
+  // 构造函数，在初始化时从缓存中加载数据
   ThemeProvider() {
     _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system')!;
     _fontUrl = SpUtil.getString('appFontUrl', defValue: '')!;
@@ -33,35 +34,35 @@ class ThemeProvider extends ChangeNotifier {
     SpUtil.putString('appFontUrl', fontFullUrl);
     _fontFamily = fontFamilyName;
     _fontUrl = fontFullUrl;
-    notifyListeners();
+    notifyListeners(); // 通知监听器更新界面
   }
 
   // 设置文本缩放
   void setTextScale(double textScaleFactor) {
     SpUtil.putDouble('fontScale', textScaleFactor);
     _textScaleFactor = textScaleFactor;
-    notifyListeners();
+    notifyListeners(); // 通知监听器更新界面
   }
 
   // 设置是否使用每日 Bing 背景
   void setBingBg(bool isOpen) {
     SpUtil.putBool('bingBg', isOpen);
     _isBingBg = isOpen;
-    notifyListeners();
+    notifyListeners(); // 通知监听器更新界面
   }
 
-  // 添加 setIsTV 方法，用于检测和设置设备类型
+  // 检测并设置设备是否为 TV
   Future<void> checkAndSetIsTV() async {
     bool deviceIsTV = await EnvUtil.isTV(); // 调用工具类检测是否为 TV
     _isTV = deviceIsTV;
     SpUtil.putBool('isTV', _isTV); // 将结果保存到缓存
-    notifyListeners();
+    notifyListeners(); // 通知监听器更新界面
   }
 
-  // 设置是否为 TV
+  // 手动设置是否为 TV
   void setIsTV(bool isTV) {
     _isTV = isTV;
     SpUtil.putBool('isTV', _isTV);
-    notifyListeners();
+    notifyListeners(); // 通知监听器更新界面
   }
 }
