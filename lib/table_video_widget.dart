@@ -146,8 +146,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               height: 50,
               padding: const EdgeInsets.symmetric(horizontal: 15),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end, // 图标靠右
                 children: [
+                  const Spacer(),	
                   // 频道列表按钮，点击打开抽屉菜单
                   IconButton(
                     tooltip: S.current.tipChannelList,
