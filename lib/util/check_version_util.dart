@@ -1,10 +1,9 @@
 import 'dart:io';
-
 import 'package:itvapp_live_tv/widget/update_download_btn.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:shared_preferences/shared_preferences.dart';  // 新增本地存储
 import 'package:url_launcher/url_launcher.dart';
-
 import '../generated/l10n.dart';
 import 'env_util.dart';
 import 'http_util.dart';
@@ -18,7 +17,40 @@ class CheckVersionUtil {
   static final homeLink = EnvUtil.sourceHomeHost();
   static VersionEntity? latestVersionEntity;
 
-  static Future<VersionEntity?> checkRelease([bool isShowLoading = true, isShowLatestToast = true]) async {
+  // 保存最后一次弹出提示的日期
+  static Future<void> saveLastPromptDate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('lastPromptDate', DateTime.now().toIso8601String());
+    } catch (e) {
+      LogUtil.e('保存最后提示日期失败: $e');
+    }
+  }
+
+  // 获取最后一次弹出提示的日期
+  static Future<String?> getLastPromptDate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('lastPromptDate');
+    } catch (e) {
+      LogUtil.e('获取最后提示日期失败: $e');
+      return null;
+    }
+  }
+
+  // 检查是否超过一天未提示
+  static Future<bool> shouldShowPrompt() async {
+    final lastPromptDate = await getLastPromptDate();
+    if (lastPromptDate == null) return true; // 如果没有记录，说明从未提示过
+
+    final lastDate = DateTime.parse(lastPromptDate);
+    final currentDate = DateTime.now();
+
+    // 检查是否超过1天
+    return currentDate.difference(lastDate).inDays >= 1;
+  }
+
+  static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
     if (latestVersionEntity != null) return latestVersionEntity;
     try {
       final res = await HttpUtil().getRequest(versionHost);
@@ -96,8 +128,7 @@ class CheckVersionUtil {
                     ),
                   ),
                   UpdateDownloadBtn(
-                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}${isTV ? '-tv' : ''}'
-                          '.apk'),
+                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}${isTV ? '-tv' : ''}.apk'),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -106,7 +137,13 @@ class CheckVersionUtil {
         });
   }
 
-  static checkVersion(BuildContext context, [bool isShowLoading = true, isShowLatestToast = true]) async {
+  // 检查版本并提示
+  static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true]) async {
+    // 检查是否需要提示
+    if (!await shouldShowPrompt()) {
+      return;  // 如果一天内已经提示过，则不再提示
+    }
+
     final res = await checkRelease(isShowLoading, isShowLatestToast);
     if (res != null && context.mounted) {
       final isUpdate = await showUpdateDialog(context);
@@ -114,6 +151,9 @@ class CheckVersionUtil {
         launchBrowserUrl(releaseLink);
       }
     }
+
+    // 保存最后一次提示日期
+    await saveLastPromptDate();
   }
 
   static launchBrowserUrl(String url) async {
