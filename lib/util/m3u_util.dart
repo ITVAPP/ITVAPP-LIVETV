@@ -32,13 +32,13 @@ class M3uUtil {
   // 获取本地缓存的M3U文件
   static Future<M3uResult> getLocalM3uData() async {
     return _handleErrors(() async {
-      final m3uData = _getCachedM3uData();  // 使用缓存获取方法
-      if (m3uData.isEmpty) {
+      final m3uDataString = await _getCachedM3uData();  // 使用缓存获取方法
+      if (m3uDataString.isEmpty) {
         // 如果本地缓存中没有M3U数据，则获取默认M3U数据
         LogUtil.v('未找到本地M3U数据，尝试获取默认M3U数据...');
         return await getDefaultM3uData();
       }
-      final parsedData = await _parseM3u(m3uData);  // 解析M3U数据
+      final parsedData = await _parseM3u(m3uDataString);  // 解析M3U数据
       return M3uResult(data: parsedData);
     });
   }
@@ -51,7 +51,7 @@ class M3uUtil {
 
       if (models.isNotEmpty) {
         // 本地有订阅数据，优先使用本地数据
-        final defaultModel = models.firstWhere((element) => element.selected, orElse: () => models.first);
+        final defaultModel = models.firstWhere((element) => element.selected ?? false, orElse: () => models.first);
 
         // 使用重试机制从远程获取M3U数据
         final newRes = await _retryRequest<String>(() async {
