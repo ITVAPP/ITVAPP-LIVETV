@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import '../provider/theme_provider.dart';  // 导入 ThemeProvider
 import '../generated/l10n.dart';
 
 class UpdateDownloadBtn extends StatefulWidget {
@@ -18,10 +18,13 @@ class UpdateDownloadBtn extends StatefulWidget {
 
 class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
   bool _isFocusDownload = true;
-  double btnWidth = EnvUtil.isTV() ? 400 : 260;
 
   @override
   Widget build(BuildContext context) {
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
+    double btnWidth = isTV ? 400 : 260;
+
     return Consumer<DownloadProvider>(
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
         return provider.isDownloading
@@ -53,10 +56,11 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       },
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-            fixedSize: Size(btnWidth, 44),
-            backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
-            elevation: _isFocusDownload ? 10 : 0,
-            overlayColor: Colors.transparent),
+          fixedSize: Size(btnWidth, 44),
+          backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
+          elevation: _isFocusDownload ? 10 : 0,
+          overlayColor: Colors.transparent,
+        ),
         autofocus: true,
         onFocusChange: (bool isFocus) {
           setState(() {
