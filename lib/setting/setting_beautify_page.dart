@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class SettingBeautifyPage extends StatelessWidget {
-  final bool isTV;
-
-  // 构造函数，设置是否为 TV 模式，默认为 false
-  const SettingBeautifyPage({super.key, this.isTV = false});
+  const SettingBeautifyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     // 获取当前屏幕的宽度
     var screenWidth = MediaQuery.of(context).size.width;
+
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
 
     // 设置最大容器宽度为 580，适用于大屏幕设备
     double maxContainerWidth = 580;
