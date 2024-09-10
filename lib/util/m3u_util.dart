@@ -19,36 +19,39 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
+  // 统一错误处理方法
+  static Future<M3uResult> _handleErrors(Future<M3uResult> Function() action) async {
+    try {
+      return await action();
+    } catch (e) {
+      LogUtil.e('操作失败: $e');
+      return M3uResult(errorMessage: '操作失败: $e');
+    }
+  }
+
   // 获取本地缓存的M3U文件
   static Future<M3uResult> getLocalM3uData() async {
-    try {
-      final m3uData = SpUtil.getString('m3u_cache', defValue: '');
-      if (m3uData?.isEmpty ?? true) {
+    return _handleErrors(() async {
+      final m3uData = _getCachedM3uData();  // 使用缓存获取方法
+      if (m3uData.isEmpty) {
         // 如果本地缓存中没有M3U数据，则获取默认M3U数据
         LogUtil.v('未找到本地M3U数据，尝试获取默认M3U数据...');
         return await getDefaultM3uData();
       }
-
-      // 解析M3U数据
-      final parsedData = await _parseM3u(m3uData!);
-      return M3uResult(data: parsedData);  // 成功时返回解析后的数据
-    } catch (e) {
-      LogUtil.e('加载本地M3U数据时出错: $e');  // 捕获并记录加载错误
-      return M3uResult(errorMessage: '加载本地M3U数据时出错: $e');
-    }
+      final parsedData = await _parseM3u(m3uData);  // 解析M3U数据
+      return M3uResult(data: parsedData);
+    });
   }
 
-  // 获取默认的M3U文件，修改后的方法，保持原有功能
+  // 获取默认的M3U文件
   static Future<M3uResult> getDefaultM3uData() async {
-    String m3uData = '';
-    final models = await getLocalData();  // 获取本地存储的数据
+    return _handleErrors(() async {
+      String m3uData = '';
+      final models = await getLocalData();  // 获取本地存储的数据
 
-    try {
       if (models.isNotEmpty) {
         // 本地有订阅数据，优先使用本地数据
-        final defaultModel = models.firstWhere(
-            (element) => element.selected == true,
-            orElse: () => models.first);
+        final defaultModel = models.firstWhere((element) => element.selected, orElse: () => models.first);
 
         // 使用重试机制从远程获取M3U数据
         final newRes = await _retryRequest<String>(() async {
@@ -58,36 +61,24 @@ class M3uUtil {
         });
 
         if (newRes != null) {
-          // 成功获取到远程数据后，保存到本地缓存
-          LogUtil.v('已获取到新数据::::::');
           m3uData = newRes;
-          await SpUtil.putString('m3u_cache', m3uData);
+          await _saveCachedM3uData(m3uData);  // 保存到缓存
         } else {
-          // 如果无法从远程获取数据，则尝试使用本地缓存的数据
-          final oldRes = SpUtil.getString('m3u_cache', defValue: '');
-          if (oldRes?.isNotEmpty ?? false) {
-            LogUtil.v('已从历史缓存中获取数据::::::');
-            m3uData = oldRes ?? '';  // 如果 oldRes 为空，则使用空字符串
-          } else {
-            // 如果本地也没有数据，返回错误提示
+          m3uData = await _getCachedM3uData();  // 尝试使用本地缓存数据
+          if (m3uData.isEmpty) {
             LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
             return M3uResult(errorMessage: '无法从本地缓存和网络中获取数据。');
           }
         }
-
-        if (m3uData.isEmpty) {
-          // 返回错误提示，表示获取到的M3U数据为空
-          return M3uResult(errorMessage: '收到的M3U数据为空。');
-        }
       } else {
-        // 本地没有订阅数据，直接从网络获取默认M3U数据
-        m3uData = (await _retryRequest<String>(() async => await _fetchData())) ?? '';
+        // 没有本地数据，直接从网络获取
+        m3uData = (await _retryRequest<String>(_fetchData)) ?? '';
         if (m3uData.isEmpty) {
           LogUtil.e('网络数据获取失败');
           return M3uResult(errorMessage: '从网络获取数据失败。');
         }
 
-        // 成功获取网络数据后保存到本地
+        // 保存新订阅数据到本地
         await saveLocalData([
           SubScribeModel(
               time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
@@ -98,57 +89,33 @@ class M3uUtil {
 
       // 解析M3U数据
       final parsedData = await _parseM3u(m3uData);
-      return M3uResult(data: parsedData);  // 成功时返回数据
-    } catch (e) {
-      // 捕获并记录所有错误
-      LogUtil.e('获取M3U数据时发生错误: $e');
-      return M3uResult(errorMessage: '发生错误: $e');
-    }
+      return M3uResult(data: parsedData);
+    });
   }
 
   // 获取本地M3U数据
   static Future<List<SubScribeModel>> getLocalData() async {
-    Completer completer = Completer();
-    List<SubScribeModel> m3uList = SpUtil.getObjList(
-        'local_m3u', (v) => SubScribeModel.fromJson(v),
-        defValue: <SubScribeModel>[])!;
-    completer.complete(m3uList);
-    final res = await completer.future;
-    return res;
+    return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
   }
 
   // 获取远程的默认M3U文件数据
   static Future<String> _fetchData() async {
     final defaultM3u = EnvUtil.videoDefaultChannelHost();
     final res = await HttpUtil().getRequest(defaultM3u);
-    if (res == null) {
-      LogUtil.e('网络数据获取失败');  // 记录网络获取失败日志
-      return "";  // 返回空字符串表示获取失败
-    } else {
-      return res;
-    }
+    return res ?? '';  // 返回空字符串表示获取失败
   }
 
-  // 重试机制的封装，最多重试3次，每次间隔2秒
+  // 重试机制封装，最多重试3次，每次间隔2秒
   static Future<T?> _retryRequest<T>(Future<T?> Function() request, {int retries = 3, Duration retryDelay = const Duration(seconds: 2)}) async {
-    int attempt = 0;
-    while (attempt < retries) {
+    for (int attempt = 0; attempt < retries; attempt++) {
       try {
-        // 尝试执行请求
         return await request();
-      } on TimeoutException {
-        LogUtil.e('请求超时，重试第 $attempt 次...');  // 捕获并记录超时错误
-      } on Exception catch (e) {
-        LogUtil.e('HTTP错误: ${e.toString()}');  // 捕获HTTP错误日志
-        rethrow;  // 对于HTTP错误，停止重试并抛出异常
       } catch (e) {
-        attempt++;
-        LogUtil.v('请求失败：$e，重试第 $attempt 次...');  // 捕获其他错误并记录日志
-        if (attempt >= retries) {
-          LogUtil.e('请求失败次数超过最大限制 $retries 次，停止重试');  // 达到最大重试次数后记录日志
-          rethrow;  // 达到重试次数后抛出异常
+        LogUtil.e('请求失败：$e，重试第 $attempt 次...');
+        if (attempt >= retries - 1) {
+          return null;  // 超过重试次数，返回null
         }
-        await Future.delayed(retryDelay);  // 等待一段时间后重试
+        await Future.delayed(retryDelay);  // 重试延时
       }
     }
     return null;
@@ -157,8 +124,6 @@ class M3uUtil {
   // 获取并处理多个M3U列表的合并，解析每个 URL 返回的数据
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
     List<String> urls = url.split('||');  // 按 "||" 分割多个URL
-
-    // 使用 Future.wait 并行处理多个M3U URL
     final results = await Future.wait(urls.map(_fetchM3uData));
     final playlists = <PlaylistModel>[];
 
@@ -170,20 +135,17 @@ class M3uUtil {
       }
     }
 
-    if (playlists.isEmpty) {
-      return null;  // 如果没有解析到任何数据，返回null
-    }
+    if (playlists.isEmpty) return null;  // 如果没有解析到任何数据，返回null
 
-    // 合并解析后的播放列表
-    return _mergePlaylists(playlists);
+    return _mergePlaylists(playlists);  // 合并解析后的播放列表
   }
 
   // 获取M3U数据，设置8秒的超时时间，并使用重试机制
   static Future<String?> _fetchM3uData(String url) async {
-    return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)) as String?);
+    return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)));
   }
 
-  // 合并多个PlaylistModel，避免重复的播放地址
+  // 合并多个 PlaylistModel，避免重复的播放地址
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     PlaylistModel mergedPlaylist = PlaylistModel();
     mergedPlaylist.playList = {};
@@ -197,18 +159,14 @@ class M3uUtil {
         channels.forEach((channelName, channelModel) {
           if (mergedPlaylist.playList![groupTitle]!.containsKey(channelName)) {
             // 如果频道已经存在，合并播放地址，并去重
-            if (channelModel.urls?.isNotEmpty ?? false) {
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls =
-                  mergedPlaylist.playList![groupTitle]![channelName]!.urls!
-                      .followedBy(channelModel.urls ?? []).toSet().toList();  // 使用toSet去重
-            }
+            mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
+                mergedPlaylist.playList![groupTitle]![channelName]!.urls!
+                    .followedBy(channelModel.urls ?? []).toSet().toList();
           } else {
             // 如果频道不存在，直接添加
-            if (channelModel.urls?.isNotEmpty ?? false) {
-              mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls =
-                  channelModel.urls?.toSet().toList() ?? [];
-            }
+            mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
+            mergedPlaylist.playList![groupTitle]![channelName]!.urls =
+                channelModel.urls?.toSet().toList() ?? [];
           }
         });
       });
@@ -220,19 +178,18 @@ class M3uUtil {
   // 保存合并后的M3U数据到本地存储
   static Future<void> saveMergedM3u(PlaylistModel mergedPlaylist) async {
     String m3uString = _convertPlaylistToString(mergedPlaylist);
-    await SpUtil.putString('m3u_cache', m3uString);  // 保存合并后的播放列表到本地缓存
+    await _saveCachedM3uData(m3uString);  // 保存到本地缓存
   }
 
-  // 将PlaylistModel转换为M3U格式字符串
+  // 将 PlaylistModel 转换为 M3U 格式字符串
   static String _convertPlaylistToString(PlaylistModel playlist) {
     StringBuffer buffer = StringBuffer();
 
-    // 根据组名和频道名生成M3U格式内容
     playlist.playList?.forEach((groupTitle, channels) {
       channels.forEach((channelName, playModel) {
         buffer.writeln('#EXTINF:-1 group-title="$groupTitle", $channelName');
         playModel.urls?.forEach((url) {
-          if (url.isNotEmpty) {  // 检查播放地址是否为空
+          if (url.isNotEmpty) {
             buffer.writeln(url);  // 写入每个播放地址
           }
         });
@@ -241,20 +198,27 @@ class M3uUtil {
     return buffer.toString();
   }
 
-  // 保存M3U数据到本地缓存
-  static Future<bool> saveLocalData(List<SubScribeModel> models) async {
-    final res = await SpUtil.putObjectList(
-        'local_m3u', models.map((e) => e.toJson()).toList());
-    return res ?? false;
+  // 获取本地缓存数据
+  static Future<String> _getCachedM3uData() async {
+    return SpUtil.getString('m3u_cache', defValue: '') ?? '';
   }
 
-  // 解析M3U文件并转换为 PlaylistModel 格式
+  // 保存数据到本地缓存
+  static Future<void> _saveCachedM3uData(String data) async {
+    await SpUtil.putString('m3u_cache', data);
+  }
+
+  // 保存M3U数据到本地缓存
+  static Future<bool> saveLocalData(List<SubScribeModel> models) async {
+    return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
+  }
+
+  // 解析 M3U 文件并转换为 PlaylistModel 格式
   static Future<PlaylistModel> _parseM3u(String m3u) async {
-    final lines = m3u.split('\n');  // 按行分割M3U内容
+    final lines = m3u.split('\n');
     final playListModel = PlaylistModel();
     playListModel.playList = <String, Map<String, PlayModel>>{};
 
-    // 判断文件是否为标准M3U格式
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
       String tempGroupTitle = '';
       String tempChannelName = '';
@@ -262,12 +226,9 @@ class M3uUtil {
       for (int i = 0; i < lines.length - 1; i++) {
         String line = lines[i];
 
-        // 处理 #EXTM3U 开头的头部信息
         if (line.startsWith('#EXTM3U')) {
           List<String> params = line.replaceAll('"', '').split(' ');
-          final tvgUrl = params.firstWhere(
-              (element) => element.startsWith('x-tvg-url'),
-              orElse: () => '');
+          final tvgUrl = params.firstWhere((element) => element.startsWith('x-tvg-url'), orElse: () => '');
           if (tvgUrl.isNotEmpty) {
             playListModel.epgUrl = tvgUrl.split('=').last;  // 获取EPG URL
           }
@@ -277,27 +238,19 @@ class M3uUtil {
           }
           final lineList = line.split(',');
           List<String> params = lineList.first.replaceAll('"', '').split(' ');
-          final groupStr = params.firstWhere(
-              (element) => element.startsWith('group-title='),
-              orElse: () => 'group-title=${S.current.defaultText}');
+          final groupStr = params.firstWhere((element) => element.startsWith('group-title='), orElse: () => 'group-title=${S.current.defaultText}');
           if (groupStr.isNotEmpty && groupStr.contains('=')) {
             tempGroupTitle = groupStr.split('=').last;
           }
 
-          String tvgLogo = params.firstWhere(
-              (element) => element.startsWith('tvg-logo='),
-              orElse: () => '');
+          String tvgLogo = params.firstWhere((element) => element.startsWith('tvg-logo='), orElse: () => '');
           if (tvgLogo.isNotEmpty && tvgLogo.contains('=')) {
             tvgLogo = tvgLogo.split('=').last;
           }
 
-          String tvgId = params.firstWhere(
-              (element) => element.startsWith('tvg-name='),
-              orElse: () => '');
+          String tvgId = params.firstWhere((element) => element.startsWith('tvg-name='), orElse: () => '');
           if (tvgId.isEmpty) {
-            tvgId = params.firstWhere(
-                (element) => element.startsWith('tvg-id='),
-                orElse: () => '');
+            tvgId = params.firstWhere((element) => element.startsWith('tvg-id='), orElse: () => '');
           }
           if (tvgId.isNotEmpty && tvgId.contains('=')) {
             tvgId = tvgId.split('=').last;
@@ -306,28 +259,21 @@ class M3uUtil {
           if (groupStr.isNotEmpty) {
             tempGroupTitle = groupStr.split('=').last;
             tempChannelName = lineList.last;
-            Map<String, PlayModel> group =
-                playListModel.playList![tempGroupTitle] ?? {};
-            PlayModel groupList = group[tempChannelName] ??
-                PlayModel(
-                    id: tvgId,
-                    group: tempGroupTitle,
-                    logo: tvgLogo,
-                    title: tempChannelName,
-                    urls: []);
+            Map<String, PlayModel> group = playListModel.playList![tempGroupTitle] ?? {};
+            PlayModel groupList = group[tempChannelName] ?? PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
             final lineNext = lines[i + 1];
             if (isLiveLink(lineNext)) {
               groupList.urls ??= [];
-              if (lineNext.isNotEmpty) {  // 添加检查确保播放地址不为空
-                groupList.urls!.add(lineNext);  // 添加播放地址
+              if (lineNext.isNotEmpty) {
+                groupList.urls!.add(lineNext);
               }
               group[tempChannelName] = groupList;
               playListModel.playList![tempGroupTitle] = group;
               i += 1;
             } else if (isLiveLink(lines[i + 2])) {
               groupList.urls ??= [];
-              if (lines[i + 2].isNotEmpty) {  // 添加检查确保播放地址不为空
+              if (lines[i + 2].isNotEmpty) {
                 groupList.urls!.add(lines[i + 2].toString());
               }
               group[tempChannelName] = groupList;
@@ -337,9 +283,8 @@ class M3uUtil {
           }
         } else if (isLiveLink(line)) {
           playListModel.playList![tempGroupTitle]![tempChannelName]!.urls ??= [];
-          if (line.isNotEmpty) {  // 添加检查确保播放地址不为空
-            playListModel.playList![tempGroupTitle]![tempChannelName]!.urls!
-                .add(line);  // 添加额外的播放地址
+          if (line.isNotEmpty) {
+            playListModel.playList![tempGroupTitle]![tempChannelName]!.urls!.add(line);
           }
         }
       }
@@ -353,24 +298,16 @@ class M3uUtil {
           final groupTitle = lineList[0];
           final channelLink = lineList[1];
           if (isLiveLink(channelLink)) {
-            Map<String, PlayModel> group =
-                playListModel.playList![tempGroup] ?? <String, PlayModel>{};
-            final chanelList = group[groupTitle] ??
-                PlayModel(
-                    group: tempGroup,
-                    id: groupTitle,
-                    title: groupTitle,
-                    urls: []);
+            Map<String, PlayModel> group = playListModel.playList![tempGroup] ?? <String, PlayModel>{};
+            final chanelList = group[groupTitle] ?? PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
             chanelList.urls ??= [];
-            if (channelLink.isNotEmpty) {  // 添加检查确保播放地址不为空
-              chanelList.urls!.add(channelLink);  // 添加播放地址
+            if (channelLink.isNotEmpty) {
+              chanelList.urls!.add(channelLink);
             }
             group[groupTitle] = chanelList;
             playListModel.playList![tempGroup] = group;
           } else {
-            tempGroup = groupTitle == ''
-                ? '${S.current.defaultText}${i + 1}'
-                : groupTitle;
+            tempGroup = groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
             if (playListModel.playList![tempGroup] == null) {
               playListModel.playList![tempGroup] = <String, PlayModel>{};
             }
@@ -384,13 +321,6 @@ class M3uUtil {
   // 判断链接是否为直播链接
   static bool isLiveLink(String link) {
     final tLink = link.toLowerCase();
-    if (tLink.startsWith('http') ||
-        tLink.startsWith('r') ||
-        tLink.startsWith('p') ||
-        tLink.startsWith('s') ||
-        tLink.startsWith('w')) {
-      return true;
-    }
-    return false;
+    return tLink.startsWith('http') || tLink.startsWith('r') || tLink.startsWith('p') || tLink.startsWith('s') || tLink.startsWith('w');
   }
 }
