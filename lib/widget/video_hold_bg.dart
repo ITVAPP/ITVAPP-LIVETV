@@ -126,41 +126,43 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
           ),
           child: Stack(
             children: [
-              if (isLoading)
-                Center(
-                  child: GradientProgressBar(
-                    width: progressBarWidth,
-                    height: 5,
-                    duration: const Duration(seconds: 3),
-                  ),
-                ),
-              Positioned(
-                bottom: 12,
-                left: 0,
-                right: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    GradientProgressBar(
-                      width: progressBarWidth,
-                      height: 5,
-                      duration: const Duration(seconds: 3),
-                    ),
-                    const SizedBox(height: 8),
-                    FittedBox(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Text(
-                          widget.toastString ?? S.current.loading,
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
+              // 注释掉中间的进度条
+              // if (isLoading)
+              //   Center(
+              //     child: GradientProgressBar(
+              //       width: progressBarWidth,
+              //       height: 5,
+              //       duration: const Duration(seconds: 3),
+              //     ),
+              //   ),
+              if (isLoading || isBuffering) // 如果正在加载或缓冲，显示进度条
+                Positioned(
+                  bottom: 12,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      GradientProgressBar(
+                        width: progressBarWidth,
+                        height: 5,
+                        duration: const Duration(seconds: 3),
+                      ),
+                      const SizedBox(height: 8),
+                      FittedBox(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Text(
+                            widget.toastString ?? S.current.loading,
+                            style: const TextStyle(color: Colors.white, fontSize: 16),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         );
