@@ -63,6 +63,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   void onWindowLeaveFullScreen() {
     // 离开全屏时，按横竖屏状态决定是否显示标题栏按钮
     windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
+    if (EnvUtil.isMobile) {
+      // 确保移动设备更新屏幕方向
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    }
   }
 
   @override
@@ -70,6 +74,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 调整窗口大小时根据横竖屏状态决定标题栏按钮的显示
     LogUtil.v('onWindowResize:::::${widget.isLandscape}');
     windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
+
+    // 在窗口大小变化时关闭抽屉，避免布局错乱
+    if (Scaffold.of(context).isDrawerOpen) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -78,7 +87,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       children: [
         // 视频播放区域
         GestureDetector(
-          onTap: widget.isLandscape ? () => setState(() => _isShowMenuBar = !_isShowMenuBar) : null,
+          onTap: widget.isLandscape
+              ? () {
+                  if (_isShowMenuBar) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) setState(() => _isShowMenuBar = !_isShowMenuBar);
+                    });
+                  } else {
+                    setState(() => _isShowMenuBar = !_isShowMenuBar);
+                  }
+                }
+              : null,
           // 双击播放/暂停视频
           onDoubleTap: () {
             widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
@@ -97,7 +116,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         child: VideoPlayer(widget.controller!),
                       ),
                       // 如果视频未播放且抽屉未打开，显示播放按钮
-                      if (!widget.isPlaying && !widget.drawerIsOpen)
+                      if (!widget.isPlaying)
                         GestureDetector(
                           onTap: () => widget.controller?.play(),
                           child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
@@ -107,6 +126,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
                 : VideoHoldBg(
                     videoController: widget.controller ?? VideoPlayerController.network(''),
+                    toastString: widget.isBuffering ? S.current.buffering : S.current.loading, // 提示缓冲或加载状态
                   ),
           ),
         ),
