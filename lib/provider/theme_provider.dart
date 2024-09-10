@@ -22,6 +22,7 @@ class ThemeProvider extends ChangeNotifier {
     _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
     _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
     _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
+    _isBingBg = SpUtil.getBool('bingBg', defValue: false)!;
 
     // 安全获取 Bing 背景的状态，避免初始化时获取到空值
     _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
