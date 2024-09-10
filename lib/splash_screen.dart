@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart'; // 修改后的 M3uUtil
 import 'package:itvapp_live_tv/entity/playlist_model.dart'; // 导入 PlaylistModel
+import 'package:itvapp_live_tv/provider/theme_provider.dart'; // 导入 ThemeProvider 以保存 isTV 状态
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
@@ -17,7 +19,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _m3uDataFuture = _fetchData(); // 初始化时调用方法获取数据
+    _initializeApp(); // 在初始化时调用设备检查和数据获取方法
+  }
+
+  // 初始化应用，包括获取设备类型和数据
+  Future<void> _initializeApp() async {
+    // 获取设备类型并存储到 Provider 中
+    await Provider.of<ThemeProvider>(context, listen: false).checkAndSetIsTV();
+
+    // 然后获取 M3U 数据
+    _m3uDataFuture = _fetchData();
   }
 
   // 统一错误处理的获取数据方法
@@ -114,20 +125,20 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             if (isLoading)
               CircularProgressIndicator( // 如果是加载状态，显示加载动画
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)), // 加载动画颜色
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)), // 加载动画颜色
                 strokeWidth: 4.0, // 加载动画的粗细
               ),
-            if (isLoading) SizedBox(height: 16), // 加载动画与提示文字之间的间距
+            if (isLoading) const SizedBox(height: 16), // 加载动画与提示文字之间的间距
             Text(
               message, // 提示信息文本
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16, // 字体大小
                 color: Colors.white, // 文本颜色，确保在背景图片上清晰可见
               ),
               textAlign: TextAlign.center, // 提示文字居中对齐
             ),
             if (showRetryButton) ...[
-              SizedBox(height: 16), // 提示文字与重试按钮之间的间距
+              const SizedBox(height: 16), // 提示文字与重试按钮之间的间距
               ElevatedButton(
                 onPressed: () {
                   setState(() {
@@ -136,14 +147,14 @@ class _SplashScreenState extends State<SplashScreen> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFEB144C), // 按钮背景颜色
+                  backgroundColor: const Color(0xFFEB144C), // 按钮背景颜色
                   foregroundColor: Colors.white, // 按钮文字颜色
-                  padding: EdgeInsets.symmetric(horizontal: 18.0, vertical: 5.0), // 按钮的内边距
+                  padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 5.0), // 按钮的内边距
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30.0), // 圆角按钮设计
                   ),
                 ),
-                child: Text(S.current.refresh, style: TextStyle(fontSize: 18)), // 按钮上的文本
+                child: Text(S.current.refresh, style: const TextStyle(fontSize: 18)), // 按钮上的文本
               ),
             ],
           ],
