@@ -303,13 +303,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void initState() {
     super.initState();
 
-    // 初始化加载动画样式
-    EasyLoading.instance
-      ..loadingStyle = EasyLoadingStyle.custom
-      ..indicatorColor = Colors.black
-      ..textColor = Colors.black
-      ..backgroundColor = Colors.white70;
-
     // 如果是桌面设备，隐藏窗口标题栏
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
