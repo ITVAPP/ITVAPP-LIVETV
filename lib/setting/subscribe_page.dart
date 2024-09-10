@@ -10,15 +10,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:sp_util/sp_util.dart';
-
+import 'package:provider/provider.dart';  // 引入 Provider
+import '../provider/theme_provider.dart';  // 引入 ThemeProvider
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 import '../util/env_util.dart';
 
 class SubScribePage extends StatefulWidget {
-  final bool isTV;
-
-  const SubScribePage({super.key, this.isTV = false});
+  const SubScribePage({super.key});
 
   @override
   State<SubScribePage> createState() => _SubScribePageState();
@@ -45,7 +44,10 @@ class _SubScribePageState extends State<SubScribePage> {
   }
 
   _addLifecycleListen() {
-    if (EnvUtil.isTV()) return;
+    // 通过 Provider 获取 isTV 的状态，判断是否添加生命周期监听
+    bool isTV = context.read<ThemeProvider>().isTV;
+    if (isTV) return;
+    
     _appLifecycleListener = AppLifecycleListener(onStateChange: (state) {
       LogUtil.v('addLifecycleListen::::::$state');
       if (state == AppLifecycleState.resumed) {
@@ -55,7 +57,10 @@ class _SubScribePageState extends State<SubScribePage> {
   }
 
   _pasteClipboard() async {
-    if (EnvUtil.isTV()) return;
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.read<ThemeProvider>().isTV;
+    if (isTV) return;
+    
     final clipData = await Clipboard.getData(Clipboard.kTextPlain);
     final clipText = clipData?.text;
     if (clipText != null && clipText.startsWith('http')) {
@@ -91,7 +96,10 @@ class _SubScribePageState extends State<SubScribePage> {
   }
 
   _localNet() async {
-    if (!EnvUtil.isTV()) return;
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.read<ThemeProvider>().isTV;
+    if (!isTV) return;
+    
     _ip = await getCurrentIP();
     LogUtil.v('_ip::::$_ip');
     if (_ip == null) return;
@@ -173,14 +181,17 @@ class _SubScribePageState extends State<SubScribePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 通过 Provider 获取 isTV 的状态
+    bool isTV = context.watch<ThemeProvider>().isTV;
+
     return Scaffold(
-      backgroundColor: widget.isTV ? const Color(0xFF1E2022) : null,
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
-        backgroundColor: widget.isTV ? const Color(0xFF1E2022) : null,
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null,
         title: Text(S.current.subscribe),
         centerTitle: true,
-        leading: widget.isTV ? const SizedBox.shrink() : null,
-        actions: widget.isTV
+        leading: isTV ? const SizedBox.shrink() : null,
+        actions: isTV
             ? null
             : [
                 IconButton(
@@ -198,7 +209,7 @@ class _SubScribePageState extends State<SubScribePage> {
             child: Row(
               children: [
                 SizedBox(
-                  width: widget.isTV
+                  width: isTV
                       ? MediaQuery.of(context).size.width * 0.3
                       : MediaQuery.of(context).size.width,
                   child: ListView.separated(
@@ -330,8 +341,8 @@ class _SubScribePageState extends State<SubScribePage> {
                       },
                       itemCount: _m3uList.length),
                 ),
-                if (widget.isTV) const VerticalDivider(),
-                if (widget.isTV)
+                if (isTV) const VerticalDivider(),
+                if (isTV)
                   Expanded(
                       child: Container(
                     padding: const EdgeInsets.all(30.0),
@@ -373,7 +384,7 @@ class _SubScribePageState extends State<SubScribePage> {
               ],
             ),
           ),
-          if (!widget.isTV)
+          if (!isTV)
             Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
