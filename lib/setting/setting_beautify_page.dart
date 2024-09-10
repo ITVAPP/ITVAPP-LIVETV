@@ -39,7 +39,7 @@ class SettingBeautifyPage extends StatelessWidget {
                 value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
                 subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 选项的说明文字
                 onChanged: (value) {
-                  // 当用户切换开关时，更新 Bing 背景设置的状态
+                  // 当用户切换开关时，更新 Bing 背景设置的状态并保存到 SharedPreferences
                   context.read<ThemeProvider>().setBingBg(value);
                 },
               ),
