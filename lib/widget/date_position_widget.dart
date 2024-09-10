@@ -12,8 +12,8 @@ class DatePositionWidget extends StatelessWidget {
     bool isTV = context.watch<ThemeProvider>().isTV;
 
     return Positioned(
-      top: isTV ? 20 : 12, // 电视上距离顶部更远
-      right: isTV ? 20 : 12, // 电视上距离右侧更远
+      top: isTV ? 20 : 15, // 电视上距离顶部更远
+      right: isTV ? 25 : 15, // 电视上距离右侧更远
       child: IgnorePointer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
