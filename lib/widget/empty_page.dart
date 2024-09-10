@@ -20,7 +20,7 @@ class EmptyPage extends StatelessWidget {
             style: TextStyle(fontSize: 50),
           ),
           const Text(
-            '╮(╯▽╰)╭',
+            '出现错误',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 20, color: Colors.white),
           ),
