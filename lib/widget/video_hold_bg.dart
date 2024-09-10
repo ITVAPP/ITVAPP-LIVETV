@@ -9,7 +9,7 @@ import '../gradient_progress_bar.dart'; // 引入渐变进度条
 class VideoHoldBg extends StatelessWidget {
   final String? toastString;
 
-  const VideoHoldBg({Key? key, required this.toastString}) : super(key: key);
+  const VideoHoldBg({Key? key, required this.toastString, required this.videoController}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
