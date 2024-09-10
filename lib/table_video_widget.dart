@@ -126,7 +126,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
                 : VideoHoldBg(
                     videoController: widget.controller ?? VideoPlayerController.network(''),
-                    toastString: widget.isBuffering ? S.current.buffering : S.current.loading, // 提示缓冲或加载状态
+                    toastString: widget.drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
                   ),
           ),
         ),
