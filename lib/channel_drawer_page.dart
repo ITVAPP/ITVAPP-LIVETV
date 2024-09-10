@@ -75,9 +75,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       final selectTimeData = _epgData!.where((element) => element.start!.compareTo(epgRangeTime) < 0).last.start;  // 获取选中的EPG时间
       final selIndex = _epgData!.indexWhere((element) => element.start == selectTimeData);  // 获取选中的EPG索引
       _selEPGIndex = selIndex;  // 设置选中的EPG索引
+    });
 
-      // 滚动到选中的EPG索引
-      _epgScrollController.jumpTo(index: _selEPGIndex);
+    // 确保 UI 已经渲染完成后再进行滚动操作
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _epgScrollController.jumpTo(index: _selEPGIndex);  // 滚动到选中的EPG索引
     });
   }
 
