@@ -85,10 +85,20 @@ class _SplashScreenState extends State<SplashScreen> {
                   isLoading: true,
                 );
               } else if (snapshot.hasError || (snapshot.hasData && snapshot.data?.data == null)) {
+                // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData && snapshot.data?.data != null) {
-                return _navigateToHome();
+                // 如果加载成功，导航到主页面
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => const LiveHomePage(), // 创建主界面的路由
+                    ),
+                  );
+                });
+                return Scaffold(body: Container()); // 返回一个空页面，防止渲染
               } else {
+                // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               }
             },
@@ -145,18 +155,5 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
       ),
     );
-  }
-
-  // 导航到主界面的方法
-  Widget _navigateToHome() {
-    // 使用 WidgetsBinding.instance.addPostFrameCallback 确保在构建完成后进行导航
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const LiveHomePage(), // 创建主界面的路由
-        ),
-      );
-    });
-    return Container(); // 在导航过程中显示一个空的容器
   }
 }
