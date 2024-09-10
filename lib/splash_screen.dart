@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart'; // 修改后的 M3uUtil
 import 'package:itvapp_live_tv/entity/playlist_model.dart'; // 导入 PlaylistModel
-import 'package:itvapp_live_tv/provider/theme_provider.dart'; // 导入 ThemeProvider 以保存 isTV 状态
+import 'package:itvapp_live_tv/provider/theme_provider.dart'; // 导入 ThemeProvider
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
