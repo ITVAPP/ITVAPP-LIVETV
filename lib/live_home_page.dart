@@ -82,39 +82,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
-  // 是否为电视设备（异步获取结果）
-  bool? isTV;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // 初始化加载动画样式
-    EasyLoading.instance
-      ..loadingStyle = EasyLoadingStyle.custom
-      ..indicatorColor = Colors.black
-      ..textColor = Colors.black
-      ..backgroundColor = Colors.white70;
-
-    // 如果是桌面设备，隐藏窗口标题栏
-    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-
-    // 异步检查设备是否为电视
-    _checkIsTV();
-
-    // 加载播放列表数据和版本检测
-    _loadData();
-  }
-
-  /// 异步检查设备是否为电视
-  Future<void> _checkIsTV() async {
-    bool result = await EnvUtil.isTV();
-    setState(() {
-      isTV = result;
-    });
-  }
-
   /// 播放视频的核心方法
+  /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
     if (_currentChannel == null || _isSwitchingChannel) return;
 
@@ -232,7 +201,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback() {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
-
+    
     // 在重试前释放播放器资源
     _disposePlayer(); // 确保释放旧的播放器资源
 
@@ -324,11 +293,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
     LogUtil.v('onTapChannel:::::${_currentChannel?.toJson()}');
-
+    
     await _disposePlayer(); // 确保之前的视频已停止并释放资源
     _playVideo(); // 开始播放选中的频道
   }
 
+  @override
+  void initState() {
+    super.initState();
+
+    // 初始化加载动画样式
+    EasyLoading.instance
+      ..loadingStyle = EasyLoadingStyle.custom
+      ..indicatorColor = Colors.black
+      ..textColor = Colors.black
+      ..backgroundColor = Colors.white70;
+
+    // 如果是桌面设备，隐藏窗口标题栏
+    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+
+    // 加载播放列表数据和版本检测
+    _loadData();
+  }
+
+  /// 异步加载视频数据和版本检测
+  _loadData() async {
+    await _parseData();
+    CheckVersionUtil.checkVersion(context, false, false);
+  }
+  
   @override
   void dispose() {
     // 禁用保持屏幕唤醒功能
@@ -337,12 +330,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 释放播放器资源
     _disposePlayer();
     super.dispose();
-  }
-
-  /// 异步加载视频数据和版本检测
-  Future<void> _loadData() async {
-    await _parseData();
-    CheckVersionUtil.checkVersion(context, false, false);
   }
 
   /// 解析并加载播放列表数据
@@ -380,13 +367,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 如果 `isTV` 结果还没有准备好，显示加载动画
-    if (isTV == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     // 检测设备是否为电视设备，加载不同的 UI 布局
-    if (isTV == true) {
+    if (EnvUtil.isTV()) {
       return TvPage(
         videoMap: _videoMap,
         playModel: _currentChannel,
