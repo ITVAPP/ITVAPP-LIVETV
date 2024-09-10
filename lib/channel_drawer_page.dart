@@ -1,5 +1,4 @@
 import 'dart:math';
-
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
@@ -45,6 +44,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   CancelToken? _cancelToken;  // 取消网络请求的Token
 
+  // 滚动到指定位置的通用函数
+  void scrollToPosition(ScrollController controller, double offset, double maxScrollExtent) {
+    if (offset < maxScrollExtent) {
+      controller.jumpTo(max(0.0, offset)); // 滚动到指定位置
+    } else {
+      controller.jumpTo(maxScrollExtent); // 滚动到最大位置
+    }
+  }
+
   // 加载EPG信息的方法
   _loadEPGMsg() async {
     setState(() {
@@ -67,6 +75,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       final selectTimeData = _epgData!.where((element) => element.start!.compareTo(epgRangeTime) < 0).last.start;  // 获取选中的EPG时间
       final selIndex = _epgData!.indexWhere((element) => element.start == selectTimeData);  // 获取选中的EPG索引
       _selEPGIndex = selIndex;  // 设置选中的EPG索引
+
+      // 滚动到选中的EPG索引
+      _epgScrollController.jumpTo(index: _selEPGIndex);
     });
   }
 
@@ -96,20 +107,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       if (_groupIndex != 0) {  // 如果组索引不为0，滚动到相应位置
         final maxScrollExtent = _scrollController.position.maxScrollExtent;  // 获取最大滚动距离
         final shouldOffset = _groupIndex * _itemHeight - _viewPortHeight! + _itemHeight * 0.5;  // 计算滚动偏移
-        if (shouldOffset < maxScrollExtent) {
-          _scrollController.jumpTo(max(0.0, shouldOffset));  // 滚动到指定位置
-        } else {
-          _scrollController.jumpTo(maxScrollExtent);  // 滚动到最大位置
-        }
+        scrollToPosition(_scrollController, shouldOffset, maxScrollExtent);
       }
       if (_channelIndex != 0) {  // 如果频道索引不为0，滚动到相应位置
         final maxScrollExtent = _scrollChannelController.position.maxScrollExtent;  // 获取最大滚动距离
         final shouldOffset = _channelIndex * _itemHeight - _viewPortHeight! + _itemHeight * 0.5;  // 计算滚动偏移
-        if (shouldOffset < maxScrollExtent) {
-          _scrollChannelController.jumpTo(max(0.0, shouldOffset));  // 滚动到指定位置
-        } else {
-          _scrollChannelController.jumpTo(maxScrollExtent);  // 滚动到最大位置
-        }
+        scrollToPosition(_scrollChannelController, shouldOffset, maxScrollExtent);
       }
     });
     _loadEPGMsg();  // 加载EPG信息
@@ -157,6 +160,50 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     super.didUpdateWidget(oldWidget);
   }
 
+  // 构建通用的列表项
+  Widget buildListItem({
+    required String title,
+    required bool isSelected,
+    required Function onTap,
+    required ScrollController controller,
+    required int index,
+    bool isTV = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
+        onTap: () => onTap(),
+        onFocusChange: (focus) {
+          if (focus) {
+            Scrollable.ensureVisible(controller.position.context.storageContext,
+                alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+          }
+        },
+        splashColor: Colors.white.withOpacity(0.3),
+        child: Ink(
+          width: double.infinity,
+          height: _itemHeight,
+          decoration: BoxDecoration(
+            gradient: isSelected ? LinearGradient(colors: [Colors.red.withOpacity(0.6), Colors.red.withOpacity(0.3)]) : null,
+          ),
+          child: Align(
+            alignment: Alignment.center,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.red : Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return _buildOpenDrawer();  // 构建抽屉组件
@@ -165,8 +212,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建打开抽屉的UI
   Widget _buildOpenDrawer() {
     double screenWidth = MediaQuery.of(context).size.width;  // 获取屏幕宽度
-    double groupListWidth = widget.isLandscape ? 100 : 80;  // 组列表宽度
-    double channelListWidth = widget.isLandscape ? 150 : 120;  // 频道列表宽度
+    double groupListWidth = widget.isLandscape ? 110 : 90;  // 组列表宽度
+    double channelListWidth = widget.isLandscape ? 130 : 110;  // 频道列表宽度
     double remainingWidth = screenWidth - groupListWidth - channelListWidth;  // 剩余宽度
 
     // 计算EPG是否显示
@@ -196,130 +243,61 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建组列表
   Widget _buildGroupList() {
     return SizedBox(
-      width: widget.isLandscape ? 100 : 80,  // 根据屏幕方向设置宽度，横屏100px，竖屏80px
+      width: widget.isLandscape ? 110 : 90,  // 根据屏幕方向设置宽度，横屏110px，竖屏90px
       child: ListView.builder(
           itemExtent: _itemHeight,  // 设置列表项高度
           padding: const EdgeInsets.only(bottom: 100.0),  // 设置底部边距
           controller: _scrollController,  // 绑定滚动控制器
           itemBuilder: (context, index) {
             final title = _keys[index];  // 获取组标题
-            return _buildGroupItem(title, index);  // 构建组列表项
+            return buildListItem(
+              title: title,
+              isSelected: _groupIndex == index,
+              onTap: () {
+                setState(() {
+                  _groupIndex = index;
+                  _scrollChannelController.jumpTo(0); // 重置频道列表的滚动
+                });
+                final name = _values[_groupIndex].keys.first.toString();
+                final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];
+                widget.onTapChannel?.call(newModel);
+              },
+              controller: _scrollController,
+              index: index,
+              isTV: isTV,
+            );
           },
-          itemCount: _keys.length),  // 设置列表项数
-    );
-  }
-
-  // 构建组列表项
-  Widget _buildGroupItem(String title, int index) {
-    return Material(
-      color: Colors.transparent,  // 设置背景透明
-      child: InkWell(
-        overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,  // 设置选中颜色
-        onTap: () {
-          setState(() {
-            _epgData = null;  // 清空EPG数据
-            _selEPGIndex = 0;  // 重置EPG索引
-          });
-          if (_groupIndex != index) {  // 如果组索引不相等
-            setState(() {
-              _groupIndex = index;  // 更新组索引
-              final name = _values[_groupIndex].keys.toList()[0].toString();  // 获取频道名称
-              final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];  // 获取新的播放模型
-              widget.onTapChannel?.call(newModel);  // 调用回调函数
-            });
-            _scrollChannelController.jumpTo(0);  // 滚动到顶部
-            Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);  // 确保可见
-          } else {
-            Scaffold.of(context).closeDrawer();  // 关闭抽屉
-          }
-        },
-        onFocusChange: (focus) async {
-          if (focus) {
-            Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);  // 确保可见
-          }
-        },
-        splashColor: Colors.white.withOpacity(0.3),  // 设置点击效果
-        child: Ink(
-          width: double.infinity,
-          height: _itemHeight,
-          decoration: BoxDecoration(
-            gradient: _groupIndex == index ? LinearGradient(colors: [Colors.red.withOpacity(0.6), Colors.red.withOpacity(0.3)]) : null,  // 设置选中背景
-          ),
-          child: Align(
-            alignment: Alignment.center,
-            child: Text(
-              title,  // 显示组标题
-              style: TextStyle(color: _groupIndex == index ? Colors.red : Colors.white, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-        ),
-      ),
+          itemCount: _keys.length),
     );
   }
 
   // 构建频道列表
   Widget _buildChannelList() {
     return SizedBox(
-      width: 150,  // 频道列表固定宽度为150px
+      width: 130,  // 频道列表固定宽度为130px
       child: ListView.builder(
           itemExtent: _itemHeight,  // 设置列表项高度
           padding: const EdgeInsets.only(bottom: 100.0),  // 设置底部边距
           controller: _scrollChannelController,  // 绑定滚动控制器
-          physics: const ScrollPhysics(),
           itemBuilder: (context, index) {
             final name = _values[_groupIndex].keys.toList()[index].toString();  // 获取频道名称
-            return _buildChannelItem(name, index);  // 构建频道列表项
+            return buildListItem(
+              title: name,
+              isSelected: widget.playModel?.title == name,
+              onTap: () {
+                if (widget.playModel?.title == name) {
+                  Scaffold.of(context).closeDrawer();
+                } else {
+                  final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];
+                  widget.onTapChannel?.call(newModel);
+                }
+              },
+              controller: _scrollChannelController,
+              index: index,
+              isTV: isTV,
+            );
           },
-          itemCount: _values[_groupIndex].length),  // 设置列表项数
-    );
-  }
-
-  // 构建频道列表项
-  Widget _buildChannelItem(String name, int index) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
-        canRequestFocus: isTV,
-        autofocus: isTV && _channelIndex == index,
-        onTap: () async {
-          if (widget.playModel?.title == name) {
-            Scaffold.of(context).closeDrawer();  // 如果选中的频道已经在播放，关闭抽屉
-            return;
-          }
-          final newModel = widget.videoMap!.playList![_keys[_groupIndex]]![name];  // 获取新的播放模型
-          widget.onTapChannel?.call(newModel);  // 调用回调函数
-          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);  // 确保可见
-        },
-        onFocusChange: (focus) async {
-          if (focus) {
-            Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);  // 确保可见
-          }
-        },
-        splashColor: Colors.white.withOpacity(0.3),
-        child: Ink(
-          width: double.infinity,
-          height: _itemHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            gradient: widget.playModel?.title == name ? LinearGradient(colors: [Colors.red.withOpacity(0.3), Colors.transparent]) : null,  // 设置选中背景
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  name,  // 显示频道名称
-                  style: TextStyle(color: widget.playModel?.title == name ? Colors.red : Colors.white, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+          itemCount: _values[_groupIndex].length),
     );
   }
 
@@ -333,7 +311,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
           children: [
             Container(
               height: 44,
-              alignment: Alignment.center,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 10),  // 添加左边距，使标题不贴边
               child: const Text(
                 '节目单',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
@@ -344,20 +323,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               child: ScrollablePositionedList.builder(
                   initialScrollIndex: _selEPGIndex,  // 初始滚动到选中的EPG索引
                   itemScrollController: _epgScrollController,  // 绑定EPG滚动控制器
-                  initialAlignment: 0.3,
-                  physics: const ClampingScrollPhysics(),
-                  padding: isTV ? EdgeInsets.only(bottom: MediaQuery.of(context).size.height) : null,
                   itemBuilder: (BuildContext context, int index) {
                     final data = _epgData![index];  // 获取EPG数据
                     final isSelect = index == _selEPGIndex;  // 判断是否选中
-                    Widget child = Container(
-                      constraints: const BoxConstraints(
-                        minHeight: 40,
-                      ),
+                    return Container(
                       padding: const EdgeInsets.all(10),
                       alignment: Alignment.centerLeft,
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('${data.start}-${data.end}',  // 显示节目开始和结束时间
@@ -373,21 +345,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                         ],
                       ),
                     );
-                    if (isTV) {
-                      child = InkWell(
-                        onTap: () {},
-                        onFocusChange: (bool isFocus) {
-                          if (isFocus) {
-                            _epgScrollController.scrollTo(index: index, alignment: 0.3, duration: const Duration(milliseconds: 220));  // 确保选中项可见
-                          }
-                        },
-                        overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null,
-                        child: child,
-                      );
-                    }
-                    return child;
                   },
-                  itemCount: _epgData!.length),  // 设置EPG项数
+                  itemCount: _epgData!.length),
             ),
           ],
         ),
