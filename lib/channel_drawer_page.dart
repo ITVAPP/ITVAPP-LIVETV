@@ -155,8 +155,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     double groupWidth = 100 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
-    double channelListWidth = isPortrait ? 150 : 200; // 频道列表宽度，竖屏下缩小
-    double epgListWidth = isPortrait ? 150 : 250; // EPG列表宽度，横屏下增加
+    double channelListWidth = isPortrait ? 120 : 160; // 频道列表宽度，竖屏下缩小
+    double epgListWidth = isPortrait ? 180 : 290; // EPG列表宽度，横屏下增加
 
     double drawWidth = groupWidth + channelListWidth + (widget.isLandscape ? epgListWidth : 0);
     final screenWidth = MediaQuery.of(context).size.width;
@@ -268,7 +268,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     final isSelect = widget.playModel?.title == name;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        double maxWidth = isPortrait ? 150 : 200; // 设置最大宽度：竖屏为150，横屏为200
+        double maxWidth = isPortrait ? 120 : 160; // 设置最大宽度：竖屏为120，横屏为160
         return ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: constraints.maxWidth > maxWidth ? maxWidth : constraints.maxWidth, // 限制最大宽度
@@ -323,8 +323,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     return Column(
       children: [
         Container(
-          height: 44,
-          alignment: Alignment.center,
+          height: 48,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 10),  // 添加左边距，使标题不贴边
           decoration: BoxDecoration(
             color: Colors.black38, // 设置与EPG项一致的背景色
             borderRadius: BorderRadius.circular(5),
