@@ -18,22 +18,7 @@ class UpdateDownloadBtn extends StatefulWidget {
 
 class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
   bool _isFocusDownload = true;
-  double btnWidth = 260; // 默认按钮宽度
-
-  @override
-  void initState() {
-    super.initState();
-    // 异步获取是否为TV设备，决定按钮的宽度
-    _checkIsTV();
-  }
-
-  // 异步检查设备是否为TV，并设置按钮宽度
-  Future<void> _checkIsTV() async {
-    bool isTV = await EnvUtil.isTV(); // 异步调用获取是否为TV
-    setState(() {
-      btnWidth = isTV ? 400 : 260; // 根据设备类型设置按钮宽度
-    });
-  }
+  double btnWidth = EnvUtil.isTV() ? 400 : 260;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +29,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
                 borderRadius: BorderRadius.circular(44),
                 child: SizedBox(
                   height: 44,
-                  width: btnWidth, // 按照设备类型设置的宽度
+                  width: btnWidth,
                   child: Stack(
                     clipBehavior: Clip.hardEdge,
                     alignment: Alignment.center,
@@ -68,7 +53,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       },
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-            fixedSize: Size(btnWidth, 44), // 按照设备类型设置的宽度
+            fixedSize: Size(btnWidth, 44),
             backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
             elevation: _isFocusDownload ? 10 : 0,
             overlayColor: Colors.transparent),
