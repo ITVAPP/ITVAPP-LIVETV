@@ -1,7 +1,6 @@
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:flutter/material.dart';
-
 import '../setting/setting_beautify_page.dart';
 
 class TvSettingPage extends StatefulWidget {
@@ -63,12 +62,12 @@ class _TvSettingPageState extends State<TvSettingPage> {
         ),
         if (_selectedIndex == 0)
           const Expanded(
-            child: SubScribePage(isTV: true),
+            child: SubScribePage(), 
           ),
         if (_selectedIndex == 1)
-          const Expanded(child: SettingFontPage(isTV: true)),
+          const Expanded(child: SettingFontPage()), 
         if (_selectedIndex == 2)
-          const Expanded(child: SettingBeautifyPage(isTV: true)),
+          const Expanded(child: SettingBeautifyPage()), 
       ],
     );
   }
