@@ -62,7 +62,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _drawerIsOpen = false;
 
   // 调试模式开关，调试时为 true，生产环境为 false
-  bool isDebugMode = true;
+  bool isDebugMode = false;
 
   // 重试次数计数器，记录当前播放重试的次数
   int _retryCount = 0;
