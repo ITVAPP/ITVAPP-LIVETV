@@ -17,14 +17,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _m3uDataFuture = _fetchDataWithDelay(); // 初始化时调用方法获取数据
-  }
-
-  // 定义一个异步方法，用于获取远程数据并确保启动画面至少显示3秒
-  Future<M3uResult> _fetchDataWithDelay() async {
-    final result = await _fetchData();  // 获取数据
-    await Future.delayed(Duration(seconds: 3));  // 确保画面至少显示3秒
-    return result;
+    _m3uDataFuture = _fetchData(); // 初始化时调用方法获取数据
   }
 
   // 统一错误处理的获取数据方法
@@ -81,17 +74,19 @@ class _SplashScreenState extends State<SplashScreen> {
                 // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData && snapshot.data?.data != null) {
-                // 如果加载成功，导航到主页面
+                // 如果加载成功，延迟 3 秒后导航到主页面
                 Future.delayed(Duration(seconds: 3), () {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (context) => const LiveHomePage(), // 创建主界面的路由
-                      ),
-                    );
-                  });
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => const LiveHomePage(), // 创建主界面的路由
+                    ),
+                  );
                 });
-                return Container(); // 返回一个空页面，防止不必要的渲染
+                // 保持加载动画显示，直到页面跳转
+                return _buildMessageUI(
+                  '${S.current.loading} ${S.current.tipChannelList}...',
+                  isLoading: true,
+                );
               } else {
                 // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
@@ -132,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 onPressed: () {
                   setState(() {
                     _retryCount = 0;  // 重置重试次数
-                    _m3uDataFuture = _fetchDataWithDelay(); // 重新发起请求获取数据
+                    _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
                   });
                 },
                 style: ElevatedButton.styleFrom(
