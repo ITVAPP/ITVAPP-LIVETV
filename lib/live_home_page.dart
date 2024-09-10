@@ -2,6 +2,7 @@ import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:provider/provider.dart'; // 导入Provider包
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -14,11 +15,10 @@ import 'mobile_video_widget.dart';
 import 'table_video_widget.dart';
 import 'tv/tv_page.dart';
 import 'util/check_version_util.dart';
-import 'util/env_util.dart';
 import 'util/log_util.dart';
 import 'util/m3u_util.dart';
-import 'util/stream_url.dart';
 import 'widget/empty_page.dart';
+import 'provider/theme_provider.dart'; // 引入ThemeProvider
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
@@ -367,8 +367,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 使用 Provider 获取 isTV 值
+    bool isTV = context.watch<ThemeProvider>().isTV;
+
     // 检测设备是否为电视设备，加载不同的 UI 布局
-    if (EnvUtil.isTV()) {
+    if (isTV) {
       return TvPage(
         videoMap: _videoMap,
         playModel: _currentChannel,
