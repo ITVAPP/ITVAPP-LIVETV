@@ -1,16 +1,24 @@
 import 'dart:io'; 
 import 'dart:ui';  // 导入 dart 的 UI 库，用于获取系统语言环境
+import 'package:flutter/services.dart';  // 用于调用 Android 平台的原生方法
 
 // EnvUtil 类用于提供设备、环境和语言的检测以及不同资源地址的获取
 class EnvUtil {
+  static const MethodChannel _channel = MethodChannel('net.itvapp.isTV'); // 使用 net.itvapp.isTV 作为 Channel 名称
+
+  // 判断是否为 TV 设备，调用 Android 平台的 isTV 方法
+  static Future<bool> isTV() async {
+    try {
+      final bool isTV = await _channel.invokeMethod('isTV'); // 通过 Platform Channel 调用 Android 原生 isTV 方法
+      return isTV;
+    } on PlatformException catch (e) {
+      print("Failed to check if device is TV: '${e.message}'.");
+      return false; // 出现异常时返回 false，默认不是电视
+    }
+  }
+
   // _isMobile 用于缓存是否是移动设备的结果，初始值为 null
   static bool? _isMobile;
-
-  // 判断是否为 TV 设备
-  // 通过 Dart 的编译时常量环境变量来检查 'isTV' 是否为 true
-  static bool isTV() {
-    return const bool.fromEnvironment('isTV');
-  }
 
   // 判断是否为移动设备
   // 根据平台判断是否为 Android 或 iOS，并缓存结果以便后续调用
