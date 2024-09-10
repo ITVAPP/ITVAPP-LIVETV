@@ -24,8 +24,9 @@ class M3uUtil {
     try {
       final m3uData = SpUtil.getString('m3u_cache', defValue: '');
       if (m3uData?.isEmpty ?? true) {
-        // 如果本地缓存中没有M3U数据，则返回错误提示
-        return M3uResult(errorMessage: '未找到本地M3U数据。');
+        // 如果本地缓存中没有M3U数据，则获取默认M3U数据
+        LogUtil.v('未找到本地M3U数据，尝试获取默认M3U数据...');
+        return await getDefaultM3uData();
       }
 
       // 解析M3U数据
