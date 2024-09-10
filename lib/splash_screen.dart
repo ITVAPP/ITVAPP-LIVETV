@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
       ]);
       return results[0] as M3uResult; // 返回 M3uResult 数据
     } catch (e) {
-      return M3uResult(errorMessage: 'Failed to load data: $e'); // 如果发生错误，返回错误信息
+      return M3uResult(errorMessage: '加载数据失败: $e'); // 如果发生错误，返回错误信息
     }
   }
 
@@ -38,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
     while (_retryCount < 3) {  // 最多重试三次
       try {
         setState(() {
-          _message = 'Fetching data...'; // 显示数据获取提示
+          _message = '正在获取数据...'; // 显示数据获取提示
         });
         final result = await M3uUtil.getDefaultM3uData();  // 使用远程数据获取方法
         if (result.data != null) {
@@ -46,17 +46,17 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           setState(() {
             _retryCount++;
-            _message = 'Error: ${result.errorMessage}\nRetrying ($_retryCount)'; // 显示错误信息
+            _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount)'; // 显示错误信息
           });
         }
       } catch (e) {
         setState(() {
           _retryCount++;  // 更新重试次数
-          _message = 'Error occurred: $e\nRetrying ($_retryCount)'; // 更新错误信息
+          _message = '发生错误: $e\n重试中 ($_retryCount)'; // 更新错误信息
         });
       }
     }
-    return M3uResult(errorMessage: 'Failed to load M3U data after 3 retries'); // 重试失败时返回错误信息
+    return M3uResult(errorMessage: '获取M3U数据失败，重试3次后仍未成功'); // 重试失败时返回错误信息
   }
 
   @override
