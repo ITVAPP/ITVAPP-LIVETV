@@ -43,7 +43,7 @@ class LogUtil {
 
   // 通用日志记录方法
   static void _log(String level, Object? object, String? tag) {
-    if (!_debugMode) return;  // 如果 _debugMode 为 false，不记录日志
+    if (!debugMode) return;  // 如果 debugMode 为 false，不记录日志
     if (object == null) return; // 跳过 null 日志
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
