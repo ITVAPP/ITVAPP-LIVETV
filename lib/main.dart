@@ -211,7 +211,7 @@ class MyApp extends StatelessWidget {
                                 newContext,  // 使用新生成的上下文
                                 MaterialPageRoute(builder: (context) => LogViewerPage()),  // 跳转到日志查看页面
                               );
-                            });
+                            }, '跳转到日志查看页面错误');
                           },
                           child: Icon(Icons.view_list),
                           tooltip: '查看日志',
