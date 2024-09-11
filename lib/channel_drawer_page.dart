@@ -47,11 +47,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.safeExecute(() {
-      _initializeChannelData(); // 初始化频道数据
-      _calculateViewportHeight(); // 计算视图窗口的高度
-      _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
-    }, '初始化频道数据时发生错误');
+    _initializeChannelData(); // 初始化频道数据
+    _calculateViewportHeight(); // 计算视图窗口的高度
+    _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
   }
 
   // 初始化频道数据
@@ -122,31 +120,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
       });
-    } catch (e, stackTrace) {
-      LogUtil.logError('加载EPG数据时出错', e, stackTrace);
+    } catch (e) {
+      LogUtil.e('Error loading EPG data: $e');
     }
   }
 
   @override
   void dispose() {
-    LogUtil.safeExecute(() {
-      _scrollController.dispose();
-      _scrollChannelController.dispose();
-    }, '释放资源时出错');
+    _scrollController.dispose();
+    _scrollChannelController.dispose();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    LogUtil.safeExecute(() {
-      // 如果频道或分组变化，重新初始化数据并加载EPG
-      if (widget.playModel != oldWidget.playModel) {
-        _initializeChannelData();
-        _loadEPGMsg(widget.playModel);
-        _calculateViewportHeight();
-      }
-    }, '更新组件时发生错误');
+    // 如果频道或分组变化，重新初始化数据并加载EPG
+    if (widget.playModel != oldWidget.playModel) {
+      _initializeChannelData();
+      _loadEPGMsg(widget.playModel);
+      _calculateViewportHeight();
+    }
   }
 
   @override
@@ -218,21 +212,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       child: InkWell(
         overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
         onTap: () {
-          LogUtil.safeExecute(() {
-            if (_groupIndex != index) {
-              setState(() {
-                _groupIndex = index;
-                final name = _values[_groupIndex].keys.first.toString();
-                widget.onTapChannel?.call(_values[_groupIndex][name]); // 回调通知选中分组
-              });
-              _scrollChannelController.jumpTo(0); // 滚动到顶部
-              if (context.mounted) {
-                Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-              }
-            } else {
-              Scaffold.of(context).closeDrawer(); // 关闭抽屉
+          if (_groupIndex != index) {
+            setState(() {
+              _groupIndex = index;
+              final name = _values[_groupIndex].keys.first.toString();
+              widget.onTapChannel?.call(_values[_groupIndex][name]); // 回调通知选中分组
+            });
+            _scrollChannelController.jumpTo(0); // 滚动到顶部
+            if (context.mounted) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
             }
-          }, '点击分组项时出错');
+          } else {
+            Scaffold.of(context).closeDrawer(); // 关闭抽屉
+          }
         },
         onFocusChange: (focus) {
           if (focus && context.mounted) {
@@ -287,17 +279,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
               canRequestFocus: isTV,
               onTap: () {
-                LogUtil.safeExecute(() {
-                  if (isSelect) {
-                    Scaffold.of(context).closeDrawer();
-                    return;
-                  }
-                  final newModel = _values[_groupIndex][name];
-                  widget.onTapChannel?.call(newModel); // 回调通知选中频道
-                  if (context.mounted) {
-                    Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-                  }
-                }, '点击频道项时出错');
+                if (isSelect) {
+                  Scaffold.of(context).closeDrawer();
+                  return;
+                }
+                final newModel = _values[_groupIndex][name];
+                widget.onTapChannel?.call(newModel); // 回调通知选中频道
+                if (context.mounted) {
+                  Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+                }
               },
               onFocusChange: (focus) {
                 if (focus && context.mounted) {
