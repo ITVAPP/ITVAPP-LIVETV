@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sp_util/sp_util.dart';
 import '../util/font_util.dart';
 import '../util/env_util.dart'; // 导入用于检测设备的工具类
+import '../util/bing_util.dart'; // 导入BingUtil工具类
 
 class ThemeProvider extends ChangeNotifier {
   String _fontFamily = 'system';
@@ -22,10 +23,7 @@ class ThemeProvider extends ChangeNotifier {
     _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
     _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
     _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
-    _isBingBg = SpUtil.getBool('bingBg', defValue: false)!;
-
-    // 安全获取 Bing 背景的状态，避免初始化时获取到空值
-    _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
+    _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false; // 移除重复初始化
     _isTV = SpUtil.getBool('isTV', defValue: false) ?? false; // 从缓存中获取 isTV 的值
 
     // 如果字体不是系统默认字体，则加载自定义字体
@@ -50,10 +48,20 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners(); // 通知监听器更新界面
   }
 
-  // 设置每日 Bing 背景图片的开关状态，改为同步存储
-  void setBingBg(bool isOpen) {
-    SpUtil.putBool('bingBg', isOpen);  // 同步存储 Bing 背景状态
+  // 设置每日 Bing 背景图片的开关状态，改为异步操作
+  Future<void> setBingBg(bool isOpen) async {
+    await SpUtil.putBool('bingBg', isOpen);  // 异步存储 Bing 背景状态
     _isBingBg = isOpen;  // 更新内部状态
+    
+    if (isOpen) {
+      // 异步获取 Bing 背景图片 URL
+      String? bingImgUrl = await BingUtil.getCachedBingImgUrl();
+      if (bingImgUrl != null) {
+        // 此处可以调用应用背景更新的逻辑
+        print("Bing 背景图片 URL: $bingImgUrl");
+      }
+    }
+    
     notifyListeners();  // 通知监听器更新界面
   }
 
