@@ -96,7 +96,7 @@ class _SubScribePageState extends State<SubScribePage> {
         }
         Clipboard.setData(const ClipboardData(text: ''));
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('粘贴板获取数据时发生错误',  e, stackTrace.current);
     }
   }
@@ -151,7 +151,7 @@ class _SubScribePageState extends State<SubScribePage> {
             ..close();
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('本地网络配置时发生错误',  e, stackTrace.current);
     }
   }
@@ -162,7 +162,7 @@ class _SubScribePageState extends State<SubScribePage> {
       setState(() {
         _m3uList = res;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取本地数据时发生错误',  e, stackTrace);
     }
   }
