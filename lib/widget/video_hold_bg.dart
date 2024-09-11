@@ -6,7 +6,7 @@ import 'dart:async';
 import '../generated/l10n.dart';
 import '../provider/theme_provider.dart';
 import '../gradient_progress_bar.dart';
-import 'package:itvapp_live_tv/util/log_util.dart'; // 引入日志工具
+import '../util/log_util.dart'; // 引入日志工具类
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
@@ -33,49 +33,52 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
   @override
   void initState() {
     super.initState();
-    
-    // 监听视频播放结束或缓冲状态
-    widget.videoController.addListener(() {
-      LogUtil.safeExecute(() {
+
+    LogUtil.safeExecute(() {
+      // 监听视频播放结束或缓冲状态
+      widget.videoController.addListener(() {
         setState(() {
           if (!widget.videoController.value.isPlaying && !widget.videoController.value.isBuffering) {
             _timer?.cancel(); // 停止定时器
+            LogUtil.v('视频播放停止或缓冲结束，定时器取消');
           }
         });
-      }, '处理视频播放状态变化时发生错误');
-    });
+      });
+    }, '初始化监听器失败');
   }
 
   @override
   void dispose() {
     _timer?.cancel(); // 界面销毁时取消定时器
+    LogUtil.v('界面销毁，定时器取消');
     super.dispose();
   }
 
   // 获取 Bing 图片 URL 列表
   Future<void> _fetchBingImages() async {
-    LogUtil.safeExecute(() async {
-      setState(() {
-        isLoading = true; // 开始加载时，显示进度条
-      });
+    setState(() {
+      isLoading = true; // 开始加载时，显示进度条
+    });
 
-      try {
-        List<String> urls = await BingUtil.getBingImgUrls();
-        if (urls.isNotEmpty) {
-          setState(() {
-            bingImgUrls = urls;
-            currentBgUrl = bingImgUrls[0]; // 初始设置为第一张图片
-            isLoading = false; // 图片加载完成，隐藏进度条
-          });
-        }
-      } catch (e, stackTrace) {
-        LogUtil.logError('获取 Bing 图片时发生错误', e, stackTrace);
+    try {
+      List<String> urls = await BingUtil.getBingImgUrls();
+      LogUtil.v('成功获取 Bing 图片 URL 列表');
+      if (urls.isNotEmpty) {
         setState(() {
-          isLoading = false; // 加载失败时隐藏进度条
-          currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图作为回退
+          bingImgUrls = urls;
+          currentBgUrl = bingImgUrls[0]; // 初始设置为第一张图片
+          isLoading = false; // 图片加载完成，隐藏进度条
+          LogUtil.v('Bing 图片加载成功，当前背景图为第 1 张');
         });
       }
-    }, '获取 Bing 图片时发生错误');
+    } catch (e) {
+      LogUtil.logError('获取 Bing 图片失败', e);
+      setState(() {
+        isLoading = false; // 加载失败时隐藏进度条
+        currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图作为回退
+        LogUtil.v('加载 Bing 图片失败，使用本地背景图');
+      });
+    }
   }
 
   // 开始定时切换 Bing 图片
@@ -87,13 +90,15 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
             setState(() {
               imgIndex++;
               currentBgUrl = bingImgUrls[imgIndex]; // 切换到下一张图片
+              LogUtil.v('切换到第 $imgIndex 张 Bing 图片');
             });
           } else {
             timer.cancel(); // 如果图片切换完毕，停止定时器
+            LogUtil.v('Bing 图片已全部显示，定时器停止');
           }
         });
       }
-    }, '启动 Bing 图片切换定时器时发生错误');
+    }, '启动 Bing 图片定时器失败');
   }
 
   @override
@@ -108,14 +113,18 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
     return Selector<ThemeProvider, bool>(
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
-        // 如果 isBingBg 为 true，获取 Bing 背景图片并开始切换
-        if (isBingBg && bingImgUrls.isEmpty) {
-          _fetchBingImages();
-          _startBingImageTimer();
-        } else {
-          // 使用本地背景图片
-          currentBgUrl = 'assets/images/video_bg.png';
-        }
+        LogUtil.safeExecute(() {
+          // 如果 isBingBg 为 true，获取 Bing 背景图片并开始切换
+          if (isBingBg && bingImgUrls.isEmpty) {
+            _fetchBingImages();
+            _startBingImageTimer();
+            LogUtil.v('正在使用 Bing 背景图片');
+          } else {
+            // 使用本地背景图片
+            currentBgUrl = 'assets/images/video_bg.png';
+            LogUtil.v('正在使用本地背景图片');
+          }
+        }, '选择背景图片失败');
 
         // 在缓冲状态下保持显示当前的 Bing 图片或视频帧
         return Container(
