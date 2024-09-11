@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class LogUtil {
   static const String _defTag = 'common_utils';
-  static bool _debugMode = false; // 是否是调试模式，生产环境关闭日志
+  static bool _debugMode = false; // 直接在这里设置是否记录日志，true 表示记录日志，false 表示不记录
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
 
   // 封装的日志记录方法
@@ -13,20 +13,12 @@ class LogUtil {
   }
 
   // 封装的安全执行方法，捕获并记录异常
-  static Future<void> safeExecute(Future<void> Function() action, String errorMessage) async {
+  static void safeExecute(void Function() action, String errorMessage) {
     try {
-      await action();
+      action();
     } catch (error, stackTrace) {
       logError(errorMessage, error, stackTrace);
     }
-  }
-
-  // 初始化日志工具
-  static void init({
-    String tag = _defTag,
-    bool isDebug = false,  // 这里根据需要传入 true 或 false 来控制日志记录
-  }) {
-    _debugMode = isDebug;
   }
 
   // 记录 verbose 日志
