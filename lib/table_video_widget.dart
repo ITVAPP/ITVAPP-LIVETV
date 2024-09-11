@@ -113,13 +113,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       // 按宽高比调整播放器窗口
                       AspectRatio(
                         aspectRatio: widget.aspectRatio,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: VideoPlayer(widget.controller!),
-                        ),
+                        child: VideoPlayer(widget.controller!),
                       ),
                       // 如果视频未播放且抽屉未打开，显示播放按钮
-                      if (!widget.isPlaying && !widget.drawerIsOpen)
+                      if (!widget.isPlaying)
                         GestureDetector(
                           onTap: () => widget.controller?.play(),
                           child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
@@ -127,12 +124,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     ],
                   )
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
-                : Container(
-                    alignment: Alignment.center,
-                    child: VideoHoldBg(
-                      videoController: widget.controller ?? VideoPlayerController.network(''),
-                      toastString: widget.drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
-                    ),
+                : VideoHoldBg(
+                    videoController: widget.controller ?? VideoPlayerController.network(''),
+                    toastString: widget.drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
                   ),
           ),
         ),
