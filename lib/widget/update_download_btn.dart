@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';  // 导入 ThemeProvider
 import '../generated/l10n.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';  // 导入日志工具
+import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil 用于日志记录
 
 class UpdateDownloadBtn extends StatefulWidget {
   final String apkUrl;
@@ -73,19 +73,17 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
             if (Platform.isAndroid) {
               try {
                 context.read<DownloadProvider>().downloadApk(widget.apkUrl);
-                LogUtil.i('开始下载 APK: ${widget.apkUrl}');
               } catch (e, stackTrace) {
-                LogUtil.logError('下载 APK 时发生错误', e, stackTrace);
+                LogUtil.logError('下载 APK 时发生错误', e, stackTrace);  // 异常日志记录
               }
             } else {
               try {
                 Navigator.of(context).pop(true);
-                LogUtil.i('非 Android 设备，返回上一级');
               } catch (e, stackTrace) {
-                LogUtil.logError('非 Android 设备处理返回时出错', e, stackTrace);
+                LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 异常日志记录
               }
             }
-          }, '执行下载操作时发生错误');
+          }, '点击下载按钮时发生错误');
         },
         child: Text(
           S.current.update,
