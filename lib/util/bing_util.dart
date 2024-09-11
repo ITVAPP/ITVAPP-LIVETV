@@ -32,7 +32,7 @@ class BingUtil {
       bingImgUrls = urls;
       return bingImgUrls;
     } catch (e, stackTrace) {
-      logError('获取 Bing 图片 URLs 时发生错误', e, stackTrace);
+      LogUtil.logError('获取 Bing 图片 URLs 时发生错误', e, stackTrace);
       return [];
     }
   }
@@ -55,7 +55,7 @@ class BingUtil {
       }
       return null;
     } catch (e, stackTrace) {
-      logError('获取 Bing 图片 URL 时发生错误', e, stackTrace);
+      LogUtil.logError('获取 Bing 图片 URL 时发生错误', e, stackTrace);
       return null;
     }
   }
@@ -89,7 +89,7 @@ class BingUtil {
 
       return newBingImgUrl;
     } catch (e, stackTrace) {
-      logError('获取缓存的 Bing 图片 URL 时发生错误', e, stackTrace);
+      LogUtil.logError('获取缓存的 Bing 图片 URL 时发生错误', e, stackTrace);
       return null;
     }
   }
