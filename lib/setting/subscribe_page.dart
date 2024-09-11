@@ -37,17 +37,19 @@ class _SubScribePageState extends State<SubScribePage> {
   @override
   void initState() {
     super.initState();
-    _localNet();
-    _getData();
-    _pasteClipboard();
-    _addLifecycleListen();
+    LogUtil.safeExecute(() {
+      _localNet();
+      _getData();
+      _pasteClipboard();
+      _addLifecycleListen();
+    }, '初始化页面时发生错误');
   }
 
   _addLifecycleListen() {
     // 通过 Provider 获取 isTV 的状态，判断是否添加生命周期监听
     bool isTV = context.read<ThemeProvider>().isTV;
     if (isTV) return;
-    
+
     _appLifecycleListener = AppLifecycleListener(onStateChange: (state) {
       LogUtil.v('addLifecycleListen::::::$state');
       if (state == AppLifecycleState.resumed) {
@@ -57,100 +59,112 @@ class _SubScribePageState extends State<SubScribePage> {
   }
 
   _pasteClipboard() async {
-    // 通过 Provider 获取 isTV 的状态
-    bool isTV = context.read<ThemeProvider>().isTV;
-    if (isTV) return;
-    
-    final clipData = await Clipboard.getData(Clipboard.kTextPlain);
-    final clipText = clipData?.text;
-    if (clipText != null && clipText.startsWith('http')) {
-      final res = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              backgroundColor: const Color(0xff3C3F41),
-              title: Text(S.current.dialogTitle),
-              content: Text('${S.current.dataSourceContent}\n$clipText'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  child: Text(S.current.dialogCancel),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(true);
-                  },
-                  child: Text(S.current.dialogConfirm),
-                ),
-              ],
-            );
-          });
-      if (res == true) {
-        await _pareUrl(clipText);
+    try {
+      // 通过 Provider 获取 isTV 的状态
+      bool isTV = context.read<ThemeProvider>().isTV;
+      if (isTV) return;
+
+      final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+      final clipText = clipData?.text;
+      if (clipText != null && clipText.startsWith('http')) {
+        final res = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                backgroundColor: const Color(0xff3C3F41),
+                title: Text(S.current.dialogTitle),
+                content: Text('${S.current.dataSourceContent}\n$clipText'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(false);
+                    },
+                    child: Text(S.current.dialogCancel),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(true);
+                    },
+                    child: Text(S.current.dialogConfirm),
+                  ),
+                ],
+              );
+            });
+        if (res == true) {
+          await _pareUrl(clipText);
+        }
+        Clipboard.setData(const ClipboardData(text: ''));
       }
-      Clipboard.setData(const ClipboardData(text: ''));
+    } catch (e) {
+      LogUtil.logError('粘贴板获取数据时发生错误',  e, stackTrace);
     }
   }
 
   _localNet() async {
-    // 通过 Provider 获取 isTV 的状态
-    bool isTV = context.read<ThemeProvider>().isTV;
-    if (!isTV) return;
-    
-    _ip = await getCurrentIP();
-    LogUtil.v('_ip::::$_ip');
-    if (_ip == null) return;
-    _server = await HttpServer.bind(_ip, _port);
-    _address = 'http://$_ip:$_port';
-    setState(() {});
-    await for (var request in _server!) {
-      if (request.method == 'GET') {
-        request.response
-          ..headers.contentType = ContentType.html
-          ..write(getHtmlString(_address!))
-          ..close();
-      } else if (request.method == 'POST') {
-        String content = await utf8.decoder.bind(request).join();
-        Map<String, dynamic> data = jsonDecode(content);
-        String rMsg = S.current.tvParseParma;
-        if (data.containsKey('url')) {
-          final url = data['url'] as String?;
-          if (url == '' || url == null || !url.startsWith('http')) {
-            EasyLoading.showError(S.current.tvParsePushError);
-            rMsg = S.current.tvParsePushError;
+    try {
+      // 通过 Provider 获取 isTV 的状态
+      bool isTV = context.read<ThemeProvider>().isTV;
+      if (!isTV) return;
+
+      _ip = await getCurrentIP();
+      LogUtil.v('_ip::::$_ip');
+      if (_ip == null) return;
+      _server = await HttpServer.bind(_ip, _port);
+      _address = 'http://$_ip:$_port';
+      setState(() {});
+      await for (var request in _server!) {
+        if (request.method == 'GET') {
+          request.response
+            ..headers.contentType = ContentType.html
+            ..write(getHtmlString(_address!))
+            ..close();
+        } else if (request.method == 'POST') {
+          String content = await utf8.decoder.bind(request).join();
+          Map<String, dynamic> data = jsonDecode(content);
+          String rMsg = S.current.tvParseParma;
+          if (data.containsKey('url')) {
+            final url = data['url'] as String?;
+            if (url == '' || url == null || !url.startsWith('http')) {
+              EasyLoading.showError(S.current.tvParsePushError);
+              rMsg = S.current.tvParsePushError;
+            } else {
+              rMsg = S.current.tvParseSuccess;
+              await _pareUrl(url);
+            }
           } else {
-            rMsg = S.current.tvParseSuccess;
-            _pareUrl(url);
+            LogUtil.v('Missing parameters');
           }
+
+          final responseData = {'message': rMsg};
+
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(json.encode(responseData))
+            ..close();
         } else {
-          LogUtil.v('Missing parameters');
+          request.response
+            ..statusCode = HttpStatus.methodNotAllowed
+            ..write(
+                'Unsupported request: ${request.method}. Only POST requests are allowed.')
+            ..close();
         }
-
-        final responseData = {'message': rMsg};
-
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(json.encode(responseData))
-          ..close();
-      } else {
-        request.response
-          ..statusCode = HttpStatus.methodNotAllowed
-          ..write(
-              'Unsupported request: ${request.method}. Only POST requests are allowed.')
-          ..close();
       }
+    } catch (e) {
+      LogUtil.logError('本地网络配置时发生错误',  e, stackTrace);
     }
   }
 
   _getData() async {
-    final res = await M3uUtil.getLocalData();
-    setState(() {
-      _m3uList = res;
-    });
+    try {
+      final res = await M3uUtil.getLocalData();
+      setState(() {
+        _m3uList = res;
+      });
+    } catch (e) {
+      LogUtil.logError('获取本地数据时发生错误',  e, stackTrace);
+    }
   }
 
   Future<String> getCurrentIP() async {
@@ -167,16 +181,18 @@ class _SubScribePageState extends State<SubScribePage> {
         }
       }
     } catch (e) {
-      LogUtil.v(e.toString());
+      LogUtil.logError('获取当前IP时发生错误',  e, stackTrace);
     }
     return currentIP;
   }
 
   @override
   void dispose() {
-    _server?.close(force: true);
-    _appLifecycleListener?.dispose();
-    super.dispose();
+    LogUtil.safeExecute(() {
+      _server?.close(force: true);
+      _appLifecycleListener?.dispose();
+      super.dispose();
+    }, '页面释放资源时发生错误');
   }
 
   @override
@@ -459,23 +475,27 @@ class _SubScribePageState extends State<SubScribePage> {
 
   _pareUrl(String res) async {
     LogUtil.v('添加::::：$res');
-    final hasIndex = _m3uList.indexWhere((element) => element.link == res);
-    LogUtil.v('添加:hasIndex:::：$hasIndex');
-    if (hasIndex != -1) {
-      EasyLoading.showToast(S.current.addRepeat);
-      return;
-    }
-    if (res.startsWith('http') && hasIndex == -1) {
-      LogUtil.v('添加：$res');
-      final sub = SubScribeModel(
-          time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
-          link: res,
-          selected: false);
-      _m3uList.add(sub);
-      await M3uUtil.saveLocalData(_m3uList);
-      setState(() {});
-    } else {
-      EasyLoading.showToast(S.current.addNoHttpLink);
+    try {
+      final hasIndex = _m3uList.indexWhere((element) => element.link == res);
+      LogUtil.v('添加:hasIndex:::：$hasIndex');
+      if (hasIndex != -1) {
+        EasyLoading.showToast(S.current.addRepeat);
+        return;
+      }
+      if (res.startsWith('http') && hasIndex == -1) {
+        LogUtil.v('添加：$res');
+        final sub = SubScribeModel(
+            time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
+            link: res,
+            selected: false);
+        _m3uList.add(sub);
+        await M3uUtil.saveLocalData(_m3uList);
+        setState(() {});
+      } else {
+        EasyLoading.showToast(S.current.addNoHttpLink);
+      }
+    } catch (e) {
+      LogUtil.logError('解析 URL 时发生错误',  e, stackTrace);
     }
   }
 }
