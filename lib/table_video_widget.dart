@@ -43,53 +43,42 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   void initState() {
     super.initState();
     // 非移动设备时，注册窗口监听器
-    if (!EnvUtil.isMobile) {
-      LogUtil.safeExecute(() {
-        windowManager.addListener(this);
-      }, '初始化窗口监听器时发生错误');
-    }
+    if (!EnvUtil.isMobile) windowManager.addListener(this);
   }
 
   @override
   void dispose() {
-    LogUtil.safeExecute(() {
-      // 非移动设备时，移除窗口监听器
-      if (!EnvUtil.isMobile) windowManager.removeListener(this);
-      super.dispose();
-    }, '释放窗口资源时发生错误');
+    // 非移动设备时，移除窗口监听器
+    if (!EnvUtil.isMobile) windowManager.removeListener(this);
+    super.dispose();
   }
 
   @override
   void onWindowEnterFullScreen() {
-    LogUtil.safeExecute(() {
-      // 当进入全屏模式时隐藏标题栏
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-    }, '进入全屏模式时发生错误');
+    // 当进入全屏模式时隐藏标题栏
+    windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
   }
 
   @override
   void onWindowLeaveFullScreen() {
-    LogUtil.safeExecute(() {
-      // 离开全屏时，按横竖屏状态决定是否显示标题栏按钮
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
-      if (EnvUtil.isMobile) {
-        // 确保移动设备更新屏幕方向
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      }
-    }, '离开全屏模式时发生错误');
+    // 离开全屏时，按横竖屏状态决定是否显示标题栏按钮
+    windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
+    if (EnvUtil.isMobile) {
+      // 确保移动设备更新屏幕方向
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    }
   }
 
   @override
   void onWindowResize() {
-    LogUtil.safeExecute(() {
-      // 调整窗口大小时根据横竖屏状态决定标题栏按钮的显示
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
+    // 调整窗口大小时根据横竖屏状态决定标题栏按钮的显示
+    LogUtil.v('onWindowResize:::::${widget.isLandscape}');
+    windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
 
-      // 在窗口大小变化时关闭抽屉，避免布局错乱
-      if (Scaffold.of(context).isDrawerOpen) {
-        Navigator.pop(context);
-      }
-    }, '调整窗口大小时发生错误');
+    // 在窗口大小变化时关闭抽屉，避免布局错乱
+    if (Scaffold.of(context).isDrawerOpen) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -111,9 +100,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               : null,
           // 双击播放/暂停视频
           onDoubleTap: () {
-            LogUtil.safeExecute(() {
-              widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
-            }, '双击播放或暂停视频时发生错误');
+            widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
           },
           child: Container(
             alignment: Alignment.center,
@@ -167,10 +154,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.list_alt, color: Colors.white),
                     onPressed: () {
-                      LogUtil.safeExecute(() {
-                        setState(() => _isShowMenuBar = false);
-                        Scaffold.of(context).openDrawer(); // 打开抽屉
-                      }, '打开抽屉菜单时发生错误');
+                      setState(() => _isShowMenuBar = false);
+                      Scaffold.of(context).openDrawer(); // 打开抽屉
                     },
                   ),
                   const SizedBox(width: 6),
@@ -180,10 +165,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.legend_toggle, color: Colors.white),
                     onPressed: () {
-                      LogUtil.safeExecute(() {
-                        setState(() => _isShowMenuBar = false);
-                        widget.changeChannelSources?.call();
-                      }, '切换频道源时发生错误');
+                      setState(() => _isShowMenuBar = false);
+                      widget.changeChannelSources?.call();
                     },
                   ),
                   const SizedBox(width: 6),
@@ -193,12 +176,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.settings, color: Colors.white),
                     onPressed: () {
-                      LogUtil.safeExecute(() {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => SettingPage()),
-                        );
-                      }, '进入设置页面时发生错误');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingPage()),
+                      );
                     },
                   ),
                   const SizedBox(width: 6),
@@ -208,17 +189,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.screen_rotation, color: Colors.white),
                     onPressed: () async {
-                      LogUtil.safeExecute(() async {
-                        if (EnvUtil.isMobile) {
-                          // 移动设备设置为竖屏
-                          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-                        } else {
-                          // 桌面设备调整窗口大小为竖屏
-                          await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-                          await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                          Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                        }
-                      }, '切换为竖屏模式时发生错误');
+                      if (EnvUtil.isMobile) {
+                        // 移动设备设置为竖屏
+                        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+                      } else {
+                        // 桌面设备调整窗口大小为竖屏
+                        await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
+                        await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+                        Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                      }
                     },
                   ),
                   if (!EnvUtil.isMobile) const SizedBox(width: 12),
@@ -241,10 +220,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         },
                       ),
                       onPressed: () async {
-                        LogUtil.safeExecute(() async {
-                          final isFullScreen = await windowManager.isFullScreen();
-                          windowManager.setFullScreen(!isFullScreen); // 切换全屏状态
-                        }, '切换全屏状态时发生错误');
+                        final isFullScreen = await windowManager.isFullScreen();
+                        windowManager.setFullScreen(!isFullScreen); // 切换全屏状态
                       },
                     ),
                 ],
@@ -260,17 +237,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               tooltip: S.current.landscape,
               icon: const Icon(Icons.screen_rotation, color: Colors.white),
               onPressed: () async {
-                LogUtil.safeExecute(() async {
-                  if (EnvUtil.isMobile) {
-                    // 移动设备切换为横屏
-                    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                  } else {
-                    // 桌面设备调整窗口大小为横屏
-                    await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                    await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                    Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                  }
-                }, '切换为横屏模式时发生错误');
+                if (EnvUtil.isMobile) {
+                  // 移动设备切换为横屏
+                  SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+                } else {
+                  // 桌面设备调整窗口大小为横屏
+                  await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                  await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                  Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                }
               },
             ),
           ),

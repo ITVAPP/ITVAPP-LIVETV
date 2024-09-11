@@ -90,20 +90,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isSwitchingChannel = true;
 
-    LogUtil.safeExecute(() async {
-      // 更新界面上的加载提示文字，表明当前正在加载的流信息
-      toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
-      setState(() {});
+    // 更新界面上的加载提示文字，表明当前正在加载的流信息
+    toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+    setState(() {});
 
-      // 在开始播放新视频之前，释放旧的视频播放器资源
-      await _disposePlayer();
+    // 在开始播放新视频之前，释放旧的视频播放器资源
+    await _disposePlayer();
 
-      // 获取当前视频源的 URL
-      String url = _currentChannel!.urls![_sourceIndex].toString();
+    // 获取当前视频源的 URL
+    String url = _currentChannel!.urls![_sourceIndex].toString();
 
-      // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
-      StreamUrl streamUrl = StreamUrl(url);
-
+    // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
+    StreamUrl streamUrl = StreamUrl(url);
+    try {
       // 获取解析后的有效视频 URL
       String parsedUrl = await streamUrl.getStreamUrl();
 
@@ -127,7 +126,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return; // 用户取消播放，退出函数
         }
       }
+    } catch (e) {
+      // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
+      LogUtil.v('解析视频地址出错:::::$e');
+      setState(() {
+        toastString = S.current.playError; // 显示错误提示
+      });
+      _isSwitchingChannel = false;
+      return;
+    }
 
+    LogUtil.v('正在播放:$_sourceIndex::${_currentChannel!.toJson()}');
+
+    try {
       // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
       _playerController = VideoPlayerController.networkUrl(
         Uri.parse(url),
@@ -152,24 +163,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       // 添加超时检测机制
       _startTimeoutCheck();
-    }, '播放视频时发生错误');
-    _isSwitchingChannel = false;
+    } catch (e) {
+      // 如果播放过程中发生异常，处理播放失败逻辑
+      LogUtil.v('播放出错:::::$e');
+      _retryPlayback(); // 调用处理方法
+    } finally {
+      _isSwitchingChannel = false;
+    }
   }
 
   /// 优化播放器资源释放
   Future<void> _disposePlayer() async {
-    LogUtil.safeExecute(() async {
-      if (_playerController != null && !_isDisposing) {
-        _isDisposing = true;
-        if (_playerController!.value.isPlaying) {
-          await _playerController!.pause(); // 确保视频暂停
-        }
-        _playerController!.removeListener(_videoListener); // 移除监听器
-        await _playerController!.dispose(); // 释放资源
-        _playerController = null;
-        _isDisposing = false;
+    if (_playerController != null && !_isDisposing) {
+      _isDisposing = true;
+      if (_playerController!.value.isPlaying) {
+        await _playerController!.pause(); // 确保视频暂停
       }
-    }, '释放播放器时出错');
+      _playerController!.removeListener(_videoListener); // 移除监听器
+      await _playerController!.dispose(); // 释放资源
+      _playerController = null;
+      _isDisposing = false;
+    }
   }
 
   /// 超时检测，超时后未播放则自动重试
@@ -187,31 +201,29 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback() {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
+    
+    // 在重试前释放播放器资源
+    _disposePlayer(); // 确保释放旧的播放器资源
 
-    LogUtil.safeExecute(() async {
-      // 在重试前释放播放器资源
-      await _disposePlayer(); // 确保释放旧的播放器资源
-
-      if (_retryCount <= maxRetries) {
+    if (_retryCount <= maxRetries) {
+      setState(() {
+        toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
+      });
+      Future.delayed(const Duration(seconds: 2), () => _playVideo());
+    } else {
+      _sourceIndex += 1;
+      if (_sourceIndex > _currentChannel!.urls!.length - 1) {
+        _sourceIndex = _currentChannel!.urls!.length - 1;
         setState(() {
-          toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
+          toastString = S.current.playError;
+        });
+      } else {
+        setState(() {
+          toastString = S.current.switchLine(_sourceIndex + 1);
         });
         Future.delayed(const Duration(seconds: 2), () => _playVideo());
-      } else {
-        _sourceIndex += 1;
-        if (_sourceIndex > _currentChannel!.urls!.length - 1) {
-          _sourceIndex = _currentChannel!.urls!.length - 1;
-          setState(() {
-            toastString = S.current.playError;
-          });
-        } else {
-          setState(() {
-            toastString = S.current.switchLine(_sourceIndex + 1);
-          });
-          Future.delayed(const Duration(seconds: 2), () => _playVideo());
-        }
       }
-    }, '重试播放时出错');
+    }
   }
 
   /// 显示播放确认对话框，用户可以选择是否播放当前视频流
@@ -247,36 +259,34 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _videoListener() {
     if (_playerController == null) return;
 
-    LogUtil.safeExecute(() {
-      // 如果发生播放错误，则切换到下一个视频源
-      if (_playerController!.value.hasError) {
-        _disposePlayer(); // 确保在出错时释放播放器资源
-        _retryPlayback(); // 调用失败处理逻辑
-        return;
-      }
+    // 如果发生播放错误，则切换到下一个视频源
+    if (_playerController!.value.hasError) {
+      _disposePlayer(); // 确保在出错时释放播放器资源	
+      _retryPlayback(); // 调用失败处理逻辑
+      return;
+    }
 
-      // 更新缓冲状态
-      if (isBuffering != _playerController!.value.isBuffering) {
-        setState(() {
-          isBuffering = _playerController!.value.isBuffering;
-        });
-      }
+    // 更新缓冲状态
+    if (isBuffering != _playerController!.value.isBuffering) {
+      setState(() {
+        isBuffering = _playerController!.value.isBuffering;
+      });
+    }
 
-      // 更新播放状态
-      if (isPlaying != _playerController!.value.isPlaying) {
-        setState(() {
-          isPlaying = _playerController!.value.isPlaying;
-          if (isPlaying) {
-            aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 仅在开始播放时更新宽高比
-          }
-        });
-      }
+    // 更新播放状态
+    if (isPlaying != _playerController!.value.isPlaying) {
+      setState(() {
+        isPlaying = _playerController!.value.isPlaying;
+        if (isPlaying) {
+          aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 仅在开始播放时更新宽高比
+        }
+      });
+    }
 
-      // 如果播放器成功播放，取消超时检测
-      if (_playerController!.value.isPlaying) {
-        _timeoutActive = false; // 播放成功，取消超时
-      }
-    }, '播放状态监听时出错');
+    // 如果播放器成功播放，取消超时检测
+    if (_playerController!.value.isPlaying) {
+      _timeoutActive = false; // 播放成功，取消超时
+    }
   }
 
   /// 处理频道切换操作
@@ -285,78 +295,70 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
-
-    LogUtil.safeExecute(() async {
-      await _disposePlayer(); // 确保之前的视频已停止并释放资源
-      _playVideo(); // 开始播放选中的频道
-    }, '切换频道时出错');
+    LogUtil.v('onTapChannel:::::${_currentChannel?.toJson()}');
+    
+    await _disposePlayer(); // 确保之前的视频已停止并释放资源
+    _playVideo(); // 开始播放选中的频道
   }
 
   @override
   void initState() {
     super.initState();
 
-    LogUtil.safeExecute(() {
-      // 如果是桌面设备，隐藏窗口标题栏
-      if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+    // 如果是桌面设备，隐藏窗口标题栏
+    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
-      // 加载播放列表数据和版本检测
-      _loadData();
-    }, '初始化时出错');
+    // 加载播放列表数据和版本检测
+    _loadData();
   }
 
   /// 异步加载视频数据和版本检测
   _loadData() async {
-    LogUtil.safeExecute(() async {
-      await _parseData();
-      CheckVersionUtil.checkVersion(context, false, false);
-    }, '加载数据时出错');
+    await _parseData();
+    CheckVersionUtil.checkVersion(context, false, false);
   }
-
+  
   @override
   void dispose() {
-    LogUtil.safeExecute(() {
-      // 禁用保持屏幕唤醒功能
-      WakelockPlus.disable();
+    // 禁用保持屏幕唤醒功能
+    WakelockPlus.disable();
 
-      // 释放播放器资源
-      _disposePlayer();
-      super.dispose();
-    }, '资源释放时出错');
+    // 释放播放器资源
+    _disposePlayer();
+    super.dispose();
   }
 
   /// 解析并加载播放列表数据
   /// 从远程获取 M3U 播放列表并初始化当前播放的频道
   Future<void> _parseData() async {
-    LogUtil.safeExecute(() async {
-      final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
-      _videoMap = resMap.data;
-      _sourceIndex = 0;
+    final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
+    LogUtil.v('_parseData:::::$resMap');
+    _videoMap = resMap.data;
+    _sourceIndex = 0;
 
-      if (_videoMap?.playList?.isNotEmpty ?? false) {
-        setState(() {
-          // 加载第一个频道
-          String group = _videoMap!.playList!.keys.first.toString();
-          String channel = _videoMap!.playList![group]!.keys.first;
-          _currentChannel = _videoMap!.playList![group]![channel];
-          _playVideo(); // 播放第一个频道
-        });
+    if (_videoMap?.playList?.isNotEmpty ?? false) {
+      setState(() {
+        // 加载第一个频道
+        String group = _videoMap!.playList!.keys.first.toString();
+        String channel = _videoMap!.playList![group]!.keys.first;
+        _currentChannel = _videoMap!.playList![group]![channel];
+        _playVideo(); // 播放第一个频道
+      });
 
-        // 如果存在 EPG（节目预告）数据，则加载
-        if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
-          EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
-        } else {
-          EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
-        }
+      // 如果存在 EPG（节目预告）数据，则加载
+      if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
+        EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
       } else {
-        // 如果播放列表为空，显示未知错误提示
-        setState(() {
-          _currentChannel = null;
-          _disposePlayer();
-          toastString = 'UNKNOWN'; // 显示未知错误提示
-        });
+        EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
       }
-    }, '解析视频数据时出错');
+    } else {
+      // 如果播放列表为空，显示未知错误提示
+      setState(() {
+        _currentChannel = null;
+        _disposePlayer();
+        toastString = 'UNKNOWN'; // 显示未知错误提示
+      });
+    }
   }
 
   @override
@@ -441,49 +443,47 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
   Future<void> _changeChannelSources() async {
-    LogUtil.safeExecute(() async {
-      List<String> sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
-      final selectedIndex = await showModalBottomSheet(
-          context: context,
-          useRootNavigator: true,
-          barrierColor: Colors.transparent,
-          backgroundColor: Colors.black87,
-          builder: (BuildContext context) {
-            return SingleChildScrollView(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
-                color: Colors.transparent,
-                child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: List.generate(sources.length, (index) {
-                      return OutlinedButton(
-                          autofocus: _sourceIndex == index,
-                          style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                              foregroundColor: Colors.redAccent),
-                          onPressed: _sourceIndex == index
-                              ? null
-                              : () {
-                                  Navigator.pop(context, index);
-                                },
-                          child: Text(
-                            S.current.lineIndex(index + 1),
-                            style: TextStyle(fontSize: 12, color: _sourceIndex == index ? Colors.red : Colors.white),
-                          ));
-                    })),
-              ),
-            );
-          });
+    List<String> sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
+    final selectedIndex = await showModalBottomSheet(
+        context: context,
+        useRootNavigator: true,
+        barrierColor: Colors.transparent,
+        backgroundColor: Colors.black87,
+        builder: (BuildContext context) {
+          return SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
+              color: Colors.transparent,
+              child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: List.generate(sources.length, (index) {
+                    return OutlinedButton(
+                        autofocus: _sourceIndex == index,
+                        style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
+                            foregroundColor: Colors.redAccent),
+                        onPressed: _sourceIndex == index
+                            ? null
+                            : () {
+                                Navigator.pop(context, index);
+                              },
+                        child: Text(
+                          S.current.lineIndex(index + 1),
+                          style: TextStyle(fontSize: 12, color: _sourceIndex == index ? Colors.red : Colors.white),
+                        ));
+                  })),
+            ),
+          );
+        });
 
-      // 切换到选中的视频源并开始播放
-      if (selectedIndex != null && _sourceIndex != selectedIndex) {
-        _sourceIndex = selectedIndex;
-        LogUtil.v('切换线路:====线路${_sourceIndex + 1}');
-        _playVideo();
-      }
-    }, '切换视频源时出错');
+    // 切换到选中的视频源并开始播放
+    if (selectedIndex != null && _sourceIndex != selectedIndex) {
+      _sourceIndex = selectedIndex;
+      LogUtil.v('切换线路:====线路${_sourceIndex + 1}');
+      _playVideo();
+    }
   }
 }

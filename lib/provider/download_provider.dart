@@ -16,23 +16,19 @@ class DownloadProvider extends ChangeNotifier {
     _isDownloading = true;
     notifyListeners();
 
-    LogUtil.safeExecute(() async {
-      final savePath = '${(await getTemporaryDirectory()).path}/apk/${url.split('/').last}';
-      LogUtil.v('download apk :::: $url');
-      LogUtil.v('apk save path:::: $savePath');
+    final savePath = '${(await getTemporaryDirectory()).path}/apk/${url.split('/').last}';
+    LogUtil.v('download apk :::: $url');
+    LogUtil.v('apk save path:::: $savePath');
 
-      final code = await HttpUtil().downloadFile(url, savePath, progressCallback: (double currentProgress) {
-        _progress = currentProgress;
-        notifyListeners();
-      });
-
-      if (code == 200) {
-        await ApkInstaller.installApk(filePath: savePath);
-      } else {
-        LogUtil.logError('APK下载失败', '状态码: $code', StackTrace.current); // 修改logError参数
-        _isDownloading = false;
-        notifyListeners();
-      }
-    }, 'APK下载过程中发生错误');
+    final code = await HttpUtil().downloadFile(url, savePath, progressCallback: (double currentProgress) {
+      _progress = currentProgress;
+      notifyListeners();
+    });
+    if (code == 200) {
+      await ApkInstaller.installApk(filePath: savePath);
+    } else {
+      _isDownloading = false;
+      notifyListeners();
+    }
   }
 }

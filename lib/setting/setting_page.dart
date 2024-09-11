@@ -1,10 +1,9 @@
-import 'package:itvapp_live_tv/router_keys.dart';
-import 'package:itvapp_live_tv/util/check_version_util.dart'; 
-import 'package:flutter/material.dart'; 
-import 'package:provider/provider.dart'; 
-import 'package:itvapp_live_tv/provider/language_provider.dart'; 
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import '../generated/l10n.dart'; 
+import 'package:itvapp_live_tv/router_keys.dart'; // 导入路由键，用于导航
+import 'package:itvapp_live_tv/util/check_version_util.dart'; // 导入版本检查工具
+import 'package:flutter/material.dart'; // 导入Flutter Material库，用于构建UI
+import 'package:provider/provider.dart'; // 用于状态管理
+import '../generated/l10n.dart'; // 导入国际化语言资源
+import 'package:itvapp_live_tv/provider/language_provider.dart'; // 导入语言提供者
 
 // 设置页面的主类，继承自 StatefulWidget
 class SettingPage extends StatefulWidget {

@@ -2,7 +2,6 @@ import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:flutter/material.dart';
 import '../setting/setting_beautify_page.dart';
-import '../util/log_util.dart';
 
 class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key});
@@ -32,11 +31,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   selected: _selectedIndex == 0,
                   autofocus: true,
                   onTap: () {
-                    LogUtil.safeExecute<void>(() {
-                      setState(() {
-                        _selectedIndex = 0;
-                      });
-                    }, '点击订阅源时发生错误');
+                    setState(() {
+                      _selectedIndex = 0;
+                    });
                   },
                 ),
                 ListTile(
@@ -44,11 +41,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   title: const Text('字体设置'),
                   selected: _selectedIndex == 1,
                   onTap: () {
-                    LogUtil.safeExecute<void>(() {
-                      setState(() {
-                        _selectedIndex = 1;
-                      });
-                    }, '点击字体设置时发生错误');
+                    setState(() {
+                      _selectedIndex = 1;
+                    });
                   },
                 ),
                 ListTile(
@@ -56,11 +51,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   title: const Text('美化'),
                   selected: _selectedIndex == 2,
                   onTap: () {
-                    LogUtil.safeExecute<void>(() {
-                      setState(() {
-                        _selectedIndex = 2;
-                      });
-                    }, '点击美化时发生错误');
+                    setState(() {
+                      _selectedIndex = 2;
+                    });
                   },
                 ),
               ],
@@ -68,20 +61,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
           ),
         ),
         if (_selectedIndex == 0)
-          LogUtil.safeExecute<Widget>(
-            () => const Expanded(child: SubScribePage()),
-            '加载订阅源页面时发生错误',
+          const Expanded(
+            child: SubScribePage(), 
           ),
         if (_selectedIndex == 1)
-          LogUtil.safeExecute<Widget>(
-            () => const Expanded(child: SettingFontPage()),
-            '加载字体设置页面时发生错误',
-          ),
+          const Expanded(child: SettingFontPage()), 
         if (_selectedIndex == 2)
-          LogUtil.safeExecute<Widget>(
-            () => const Expanded(child: SettingBeautifyPage()),
-            '加载美化页面时发生错误',
-          ),
+          const Expanded(child: SettingBeautifyPage()), 
       ],
     );
   }

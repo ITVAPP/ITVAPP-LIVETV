@@ -7,7 +7,7 @@ import '../generated/l10n.dart';
 class HttpUtil {
   static final HttpUtil _instance = HttpUtil._();
   late Dio _dio;
-
+  
   // 设置基本选项
   BaseOptions options = BaseOptions(
     connectTimeout: const Duration(seconds: 10),
@@ -31,90 +31,91 @@ class HttpUtil {
       ));
   }
 
-  // GET 请求方法，添加了重试机制和日志记录
+  // GET 请求方法，添加了重试机制
   Future<T?> getRequest<T>(String path,
       {Map<String, dynamic>? queryParameters,
       Options? options,
       CancelToken? cancelToken,
       ProgressCallback? onReceiveProgress,
-      int retryCount = 3, // 默认重试次数为 3
-      Duration retryDelay = const Duration(seconds: 2) // 重试前的延迟
+      int retryCount = 3,  // 默认重试次数为 3
+      Duration retryDelay = const Duration(seconds: 2)  // 重试前的延迟
       }) async {
-    return LogUtil.safeExecute<T?>(() async {}, fallback: null);
-      Response? response;
-      int currentAttempt = 0;
+    LogUtil.v('开始执行 GET 请求: $path');
+    Response? response;
+    int currentAttempt = 0;
 
-      while (currentAttempt < retryCount) {
-        try {
-          // 执行 GET 请求
-          response = await _dio.get<T>(path,
-              queryParameters: queryParameters,
-              options: options,
-              cancelToken: cancelToken,
-              onReceiveProgress: onReceiveProgress);
-          return response.data; // 请求成功，返回数据
-        } on DioException catch (e) {
-          currentAttempt++;
-          LogUtil.v('请求失败 (第$currentAttempt次): $path');
-          // 当达到最大重试次数时，处理错误并终止请求
-          if (currentAttempt >= retryCount) {
-            LogUtil.logError('GET请求失败', e, StackTrace.current);
-            formatError(e);
-            return null; // 返回 null 表示失败
-          } else {
-            // 在每次失败后等待一段时间再重试
-            await Future.delayed(retryDelay);
-          }
+    while (currentAttempt < retryCount) {
+      try {
+        // 执行 GET 请求
+        response = await _dio.get<T>(path,
+            queryParameters: queryParameters,
+            options: options,
+            cancelToken: cancelToken,
+            onReceiveProgress: onReceiveProgress);
+        LogUtil.i('GET 请求成功: $path');
+        return response?.data; // 请求成功，返回数据
+      } on DioException catch (e, stackTrace) {
+        currentAttempt++;
+        logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+
+        // 当达到最大重试次数时，处理错误并终止请求
+        if (currentAttempt >= retryCount) {
+          formatError(e);
+          return null; // 返回 null 表示失败
+        } else {
+          // 在每次失败后等待一段时间再重试
+          await Future.delayed(retryDelay);
+          LogUtil.i('等待 $retryDelay 后重试第 $currentAttempt 次');
         }
       }
-      return null; // 万一出现意外，返回 null
-    }, 'GET请求时出现错误: $path');
+    }
+    return null; // 万一出现意外，返回 null
   }
 
-  // 文件下载方法，包含进度回调和错误日志记录
+  // 文件下载方法，包含进度回调
   Future<int?> downloadFile(String url, String savePath,
       {ValueChanged<double>? progressCallback}) async {
-    return LogUtil.safeExecute<int?>(() async {
-      Response? response;
-      try {
-        // 执行下载操作
-        response = await _dio.download(
-          url,
-          savePath,
-          options: Options(
-            receiveTimeout: const Duration(seconds: 60),
-            headers: {
-              HttpHeaders.acceptEncodingHeader: '*',
-              HttpHeaders.userAgentHeader:
-                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-            },
-          ),
-          onReceiveProgress: (received, total) {
-            if (total <= 0) return;
-            progressCallback?.call((received / total)); // 回调下载进度
+    Response? response;
+    try {
+      LogUtil.i('开始下载文件: $url');
+      
+      // 执行下载操作
+      response = await _dio.download(
+        url,
+        savePath,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 60),
+          headers: {
+            HttpHeaders.acceptEncodingHeader: '*',
+            HttpHeaders.userAgentHeader:
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
           },
-        );
+        ),
+        onReceiveProgress: (received, total) {
+          if (total <= 0) return;
+          progressCallback?.call((received / total)); // 回调下载进度
+          LogUtil.d('下载进度: ${(received / total * 100).toStringAsFixed(2)}%');
+        },
+      );
 
-        // 下载成功状态码应为 200，否则抛出异常
-        if (response.statusCode != 200) {
-          throw DioException(
-              requestOptions: response.requestOptions,
-              error: '状态码 ${response.statusCode}');
-        }
-      } on DioException catch (e) {
-        LogUtil.logError('下载文件失败', e, StackTrace.current);
-        formatError(e);
-        return 500; // 返回500表示失败
+      // 下载成功状态码应为 200，否则抛出异常
+      if (response.statusCode != 200) {
+        throw DioException(
+            requestOptions: response.requestOptions,
+            error: '状态码: ${response.statusCode}');
       }
-      return response?.statusCode ?? 500; // 如果失败返回500
-    }, '下载文件时出错: $url');
+      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
+    } on DioException catch (e, stackTrace) {
+      logError('文件下载失败: $url', e, stackTrace);
+    }
+    return response?.statusCode ?? 500; // 如果失败返回 500
   }
 }
 
 // 错误处理方法，记录日志并显示不同的提示
 void formatError(DioException e) {
-  LogUtil.safeExecute(() {
-    LogUtil.v('DioException>>>>>$e');
+  LogUtil.v('DioException>>>>>$e');
+  safeExecute(() {
     if (e.type == DioExceptionType.connectionTimeout) {
       // 连接超时
       LogUtil.v(S.current.netTimeOut);
@@ -134,5 +135,5 @@ void formatError(DioException e) {
       // 其他错误类型
       LogUtil.v(e.message.toString());
     }
-  }, '处理网络错误时出错');
+  }, '处理 DioException 错误时发生异常');
 }

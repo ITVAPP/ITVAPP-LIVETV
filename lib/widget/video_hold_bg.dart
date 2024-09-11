@@ -6,7 +6,6 @@ import 'dart:async';
 import '../generated/l10n.dart';
 import '../provider/theme_provider.dart';
 import '../gradient_progress_bar.dart';
-import '../util/log_util.dart'; // 引入日志工具类
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
@@ -33,13 +32,14 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
   @override
   void initState() {
     super.initState();
-
+    
     // 监听视频播放结束或缓冲状态
     widget.videoController.addListener(() {
-      if (!widget.videoController.value.isPlaying && !widget.videoController.value.isBuffering) {
-        LogUtil.v('视频已暂停或缓冲，停止定时器');
-        _timer?.cancel(); // 停止定时器
-      }
+      setState(() {
+        if (!widget.videoController.value.isPlaying && !widget.videoController.value.isBuffering) {
+          _timer?.cancel(); // 停止定时器
+        }
+      });
     });
   }
 
@@ -55,7 +55,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
       isLoading = true; // 开始加载时，显示进度条
     });
 
-    LogUtil.safeExecute(() async {
+    try {
       List<String> urls = await BingUtil.getBingImgUrls();
       if (urls.isNotEmpty) {
         setState(() {
@@ -63,15 +63,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
           currentBgUrl = bingImgUrls[0]; // 初始设置为第一张图片
           isLoading = false; // 图片加载完成，隐藏进度条
         });
-        LogUtil.v('成功获取 Bing 图片列表');
       }
-    }, '获取 Bing 图片失败', fallback: () {
+    } catch (e) {
       setState(() {
         isLoading = false; // 加载失败时隐藏进度条
         currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图作为回退
-        LogUtil.e('使用本地背景图');
       });
-    });
+    }
   }
 
   // 开始定时切换 Bing 图片
@@ -82,10 +80,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
           setState(() {
             imgIndex++;
             currentBgUrl = bingImgUrls[imgIndex]; // 切换到下一张图片
-            LogUtil.v('切换到 Bing 图片索引 $imgIndex');
           });
         } else {
-          LogUtil.v('Bing 图片已全部展示，停止定时器');
           timer.cancel(); // 如果图片切换完毕，停止定时器
         }
       });
@@ -106,10 +102,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
       builder: (BuildContext context, bool isBingBg, Widget? child) {
         // 如果 isBingBg 为 true，获取 Bing 背景图片并开始切换
         if (isBingBg && bingImgUrls.isEmpty) {
-          LogUtil.safeExecute(() {
-            _fetchBingImages();
-            _startBingImageTimer();
-          }, '初始化 Bing 图片时发生错误');
+          _fetchBingImages();
+          _startBingImageTimer();
         } else {
           // 使用本地背景图片
           currentBgUrl = 'assets/images/video_bg.png';

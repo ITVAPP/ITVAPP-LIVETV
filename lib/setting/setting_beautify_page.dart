@@ -1,20 +1,21 @@
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 
 class SettingBeautifyPage extends StatelessWidget {
   const SettingBeautifyPage({super.key});
-
+  
   @override
   Widget build(BuildContext context) {
-    // 使用 try-catch 并记录日志，确保捕获所有潜在错误
-    return LogUtil.safeExecute(() {}, fallback: Scaffold(body: Center(child: Text("Error in Beautify Page"))));
+    try {
       // 获取当前屏幕的宽度
       var screenWidth = MediaQuery.of(context).size.width;
+      LogUtil.d('屏幕宽度: $screenWidth');
 
       // 通过 Provider 获取 isTV 的状态
       bool isTV = context.watch<ThemeProvider>().isTV;
+      LogUtil.d('当前设备模式: ${isTV ? "TV" : "非TV"}');
 
       // 设置最大容器宽度为 580，适用于大屏幕设备
       double maxContainerWidth = 580;
@@ -45,10 +46,10 @@ class SettingBeautifyPage extends StatelessWidget {
                     child: Switch(
                       value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
                       onChanged: (value) {
-                        LogUtil.safeExecute(() {
+                        safeExecute(() {
                           context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
-                          LogUtil.v('每日Bing背景切换: $value');  // 记录日志
-                        }, '切换每日Bing背景时发生错误');
+                          LogUtil.i('每日Bing背景设置为: ${value ? "启用" : "禁用"}');
+                        }, '设置每日Bing背景时发生错误');
                       },
                       activeColor: Colors.white, // 滑块的颜色
                       activeTrackColor: const Color(0xFFEB144C), // 开启时轨道的背景颜色
@@ -62,6 +63,11 @@ class SettingBeautifyPage extends StatelessWidget {
           ),
         ),
       );
-    }, '加载美化设置页面时出错');
+    } catch (e, stackTrace) {
+      logError('构建 SettingBeautifyPage 时发生错误', e, stackTrace);
+      return Scaffold(
+        body: Center(child: Text('加载页面时出错')),
+      );
+    }
   }
 }
