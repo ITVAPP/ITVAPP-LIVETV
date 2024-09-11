@@ -180,7 +180,7 @@ class _SubScribePageState extends State<SubScribePage> {
           }
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取当前IP时发生错误',  e, stackTrace);
     }
     return currentIP;
@@ -494,7 +494,7 @@ class _SubScribePageState extends State<SubScribePage> {
       } else {
         EasyLoading.showToast(S.current.addNoHttpLink);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('解析 URL 时发生错误',  e, stackTrace);
     }
   }
