@@ -26,7 +26,7 @@ class BingUtil {
       if (urls.isNotEmpty) {
         LogUtil.i('成功获取到 ${urls.length} 张 Bing 图片 URLs');
       } else {
-        LogUtil.w('未能获取到 Bing 图片 URLs');
+        LogUtil.e('未能获取到 Bing 图片 URLs');
       }
 
       bingImgUrls = urls;
@@ -51,7 +51,7 @@ class BingUtil {
         LogUtil.i('成功获取 Bing 图片 URL: $bingImgUrl');
         return bingImgUrl;
       } else {
-        LogUtil.w('未能获取 Bing 图片 URL');
+        LogUtil.e('未能获取 Bing 图片 URL');
       }
       return null;
     } catch (e, stackTrace) {
