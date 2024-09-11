@@ -185,9 +185,9 @@ class MyApp extends StatelessWidget {
                     data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
                     child: FlutterEasyLoading(child: child),  // 加载动画封装
                   ),
-                  // 添加按钮，仅当 _debugMode 为 true 时显示
+                  // 添加按钮，仅当 debugMode 为 true 时显示
                   Visibility(
-                    visible: LogUtil._debugMode,  // 当 _debugMode 为 true 时显示按钮
+                    visible: LogUtil.debugMode,  // 当 debugMode 为 true 时显示按钮
                     child: Positioned(
                       bottom: 20,
                       right: 20,
