@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';  // 导入 ThemeProvider
 import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';  // 导入日志工具
 
 class UpdateDownloadBtn extends StatefulWidget {
   final String apkUrl;
@@ -68,11 +69,23 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           });
         },
         onPressed: () {
-          if (Platform.isAndroid) {
-            context.read<DownloadProvider>().downloadApk(widget.apkUrl);
-          } else {
-            Navigator.of(context).pop(true);
-          }
+          LogUtil.safeExecute(() {
+            if (Platform.isAndroid) {
+              try {
+                context.read<DownloadProvider>().downloadApk(widget.apkUrl);
+                LogUtil.i('开始下载 APK: ${widget.apkUrl}');
+              } catch (e, stackTrace) {
+                LogUtil.logError('下载 APK 时发生错误', e, stackTrace);
+              }
+            } else {
+              try {
+                Navigator.of(context).pop(true);
+                LogUtil.i('非 Android 设备，返回上一级');
+              } catch (e, stackTrace) {
+                LogUtil.logError('非 Android 设备处理返回时出错', e, stackTrace);
+              }
+            }
+          }, '执行下载操作时发生错误');
         },
         child: Text(
           S.current.update,
