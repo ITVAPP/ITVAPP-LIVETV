@@ -48,7 +48,8 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners(); // 通知监听器更新界面
   }
 
-    void setBingBg(bool isOpen) {
+  // 设置每日 Bing 背景图片的开关状态，改为异步操作
+  void setBingBg(bool isOpen) {
     SpUtil.putBool('bingBg', isOpen);
     _isBingBg = isOpen;
     notifyListeners();
