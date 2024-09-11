@@ -4,10 +4,11 @@ import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:video_player/video_player.dart';
-import 'package:window_manager/window_manager.dart'; 
+import 'package:window_manager/window_manager.dart';
 
 import 'generated/l10n.dart';
 import 'util/env_util.dart';
+import 'util/log_util.dart';  // 导入日志工具
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
@@ -56,64 +57,68 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
           // 添加按钮
           IconButton(
             onPressed: () async {
-              // 如果不是移动设备，隐藏窗口标题栏
-              if (!EnvUtil.isMobile) {
-                windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-              }
+              LogUtil.safeExecute(() async {
+                // 如果不是移动设备，隐藏窗口标题栏
+                if (!EnvUtil.isMobile) {
+                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                }
 
-              // 暂停视频播放，如果当前视频正在播放
-              final wasPlaying = widget.controller?.value.isPlaying ?? false;
-              if (wasPlaying) {
-                widget.controller?.pause();
-              }
+                // 暂停视频播放，如果当前视频正在播放
+                final wasPlaying = widget.controller?.value.isPlaying ?? false;
+                if (wasPlaying) {
+                  widget.controller?.pause();
+                }
 
-              // 跳转到订阅页面
-              await Navigator.of(context).pushNamed(RouterKeys.subScribe);
+                // 跳转到订阅页面
+                await Navigator.of(context).pushNamed(RouterKeys.subScribe);
 
-              // 返回后如果视频之前是播放状态，继续播放视频
-              if (wasPlaying) {
-                widget.controller?.play();
-              }
+                // 返回后如果视频之前是播放状态，继续播放视频
+                if (wasPlaying) {
+                  widget.controller?.play();
+                }
 
-              // 检查缓存的 m3u 数据源是否存在且有效
-              final m3uData = SpUtil.getString('m3u_cache', defValue: '');
-              if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
-                widget.onChangeSubSource();
-              }
+                // 检查缓存的 m3u 数据源是否存在且有效
+                final m3uData = SpUtil.getString('m3u_cache', defValue: '');
+                if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
+                  widget.onChangeSubSource();
+                }
 
-              // 恢复窗口标题栏显示
-              if (!EnvUtil.isMobile) {
-                windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-              }
+                // 恢复窗口标题栏显示
+                if (!EnvUtil.isMobile) {
+                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+                }
+              });
             },
             icon: const Icon(Icons.add),  // 添加频道的图标
           ),
           // 设置按钮
           IconButton(
             onPressed: () async {
-              // 如果不是移动设备，隐藏窗口标题栏
-              if (!EnvUtil.isMobile) {
-                windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-              }
+              LogUtil.safeExecute(() async {
+                // 如果不是移动设备，隐藏窗口标题栏
+                if (!EnvUtil.isMobile) {
+                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                }
 
-              // 暂停视频播放
-              final wasPlaying = widget.controller?.value.isPlaying ?? false;
-              if (wasPlaying) {
-                widget.controller?.pause();
-              }
+                // 暂停视频播放
+                final wasPlaying = widget.controller?.value.isPlaying ?? false;
+                if (wasPlaying) {
+                  widget.controller?.pause();
+                }
 
-              // 跳转到设置页面
-              await Navigator.of(context).pushNamed(RouterKeys.setting);
+                // 跳转到设置页面
+                await Navigator.of(context).pushNamed(RouterKeys.setting);
 
-              // 返回后如果视频之前是播放状态，继续播放视频
-              if (wasPlaying) {
-                widget.controller?.play();
-              }
+                // 返回后如果视频之前是播放状态，继续播放视频
+                if (wasPlaying) {
+                  widget.controller?.play();
+                }
 
-              // 恢复窗口标题栏显示
-              if (!EnvUtil.isMobile) {
-                windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-              }
+                // 恢复窗口标题栏显示
+                if (!EnvUtil.isMobile) {
+                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+                }
+              });
             },
             icon: const Icon(Icons.settings_outlined),  // 设置图标
           ),
