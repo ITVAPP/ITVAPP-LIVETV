@@ -56,7 +56,7 @@ class HttpUtil {
         return response?.data; // 请求成功，返回数据
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
-        logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
 
         // 当达到最大重试次数时，处理错误并终止请求
         if (currentAttempt >= retryCount) {
@@ -106,7 +106,7 @@ class HttpUtil {
       }
       LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
     } on DioException catch (e, stackTrace) {
-      logError('文件下载失败: $url', e, stackTrace);
+      LogUtil.logError('文件下载失败: $url', e, stackTrace);
     }
     return response?.statusCode ?? 500; // 如果失败返回 500
   }
@@ -115,7 +115,7 @@ class HttpUtil {
 // 错误处理方法，记录日志并显示不同的提示
 void formatError(DioException e) {
   LogUtil.v('DioException>>>>>$e');
-  safeExecute(() {
+  LogUtil.safeExecute(() {
     if (e.type == DioExceptionType.connectionTimeout) {
       // 连接超时
       LogUtil.v(S.current.netTimeOut);
