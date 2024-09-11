@@ -29,7 +29,7 @@ class DownloadProvider extends ChangeNotifier {
       if (code == 200) {
         await ApkInstaller.installApk(filePath: savePath);
       } else {
-        LogUtil.logError('APK下载失败，状态码: $code');
+        LogUtil.logError('APK下载失败', '状态码: $code', StackTrace.current); // 修改logError参数
         _isDownloading = false;
         notifyListeners();
       }
