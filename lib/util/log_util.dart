@@ -150,37 +150,3 @@ class _LogViewerPageState extends State<LogViewerPage> {
     );
   }
 }
-
-/// 主页面
-class HomePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('主页面'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('这是主页面'),
-            if (LogUtil._debugMode)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => LogViewerPage()));
-                },
-                child: Text('查看日志'),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-void main() {
-  // 初始化日志工具，设置为调试模式
-  LogUtil.init(isDebug: true); // 将 true 改为 false 可以禁用日志
-  runApp(MaterialApp(home: HomePage()));
-}
