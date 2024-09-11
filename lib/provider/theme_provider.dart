@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:sp_util/sp_util.dart';
 import '../util/font_util.dart';
 import '../util/env_util.dart'; // 导入用于检测设备的工具类
-import '../util/bing_util.dart'; // 导入BingUtil工具类
 
 class ThemeProvider extends ChangeNotifier {
   String _fontFamily = 'system';
@@ -23,7 +22,7 @@ class ThemeProvider extends ChangeNotifier {
     _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
     _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
     _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
-    _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false; // 移除重复初始化
+    _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
     _isTV = SpUtil.getBool('isTV', defValue: false) ?? false; // 从缓存中获取 isTV 的值
 
     // 如果字体不是系统默认字体，则加载自定义字体
