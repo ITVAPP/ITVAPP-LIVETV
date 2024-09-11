@@ -154,7 +154,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _playerController?.play();
       setState(() {
         toastString = S.current.loading; // 更新 UI，显示加载状态
-        aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 更新视频宽高比
       });
 
       // 播放成功，重置重试次数计数器
@@ -278,6 +277,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (isPlaying != _playerController!.value.isPlaying) {
       setState(() {
         isPlaying = _playerController!.value.isPlaying;
+        if (isPlaying) {
+          aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 仅在开始播放时更新宽高比
+        }
       });
     }
 
