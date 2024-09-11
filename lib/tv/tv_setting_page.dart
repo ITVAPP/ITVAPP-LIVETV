@@ -32,7 +32,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   selected: _selectedIndex == 0,
                   autofocus: true,
                   onTap: () {
-                    LogUtil.safeExecute(() {
+                    LogUtil.safeExecute<void>(() {
                       setState(() {
                         _selectedIndex = 0;
                       });
@@ -44,7 +44,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   title: const Text('字体设置'),
                   selected: _selectedIndex == 1,
                   onTap: () {
-                    LogUtil.safeExecute(() {
+                    LogUtil.safeExecute<void>(() {
                       setState(() {
                         _selectedIndex = 1;
                       });
@@ -56,7 +56,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   title: const Text('美化'),
                   selected: _selectedIndex == 2,
                   onTap: () {
-                    LogUtil.safeExecute(() {
+                    LogUtil.safeExecute<void>(() {
                       setState(() {
                         _selectedIndex = 2;
                       });
@@ -68,17 +68,17 @@ class _TvSettingPageState extends State<TvSettingPage> {
           ),
         ),
         if (_selectedIndex == 0)
-          LogUtil.safeExecute(
+          LogUtil.safeExecute<Widget>(
             () => const Expanded(child: SubScribePage()),
             '加载订阅源页面时发生错误',
           ),
         if (_selectedIndex == 1)
-          LogUtil.safeExecute(
+          LogUtil.safeExecute<Widget>(
             () => const Expanded(child: SettingFontPage()),
             '加载字体设置页面时发生错误',
           ),
         if (_selectedIndex == 2)
-          LogUtil.safeExecute(
+          LogUtil.safeExecute<Widget>(
             () => const Expanded(child: SettingBeautifyPage()),
             '加载美化页面时发生错误',
           ),
