@@ -45,7 +45,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 非移动设备时，注册窗口监听器
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
-    });
+    }, '注册窗口监听器发生错误');
   }
 
   @override
@@ -53,7 +53,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 非移动设备时，移除窗口监听器
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
-    });
+    }, '移除窗口监听器发生错误');
     super.dispose();
   }
 
@@ -62,7 +62,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       // 当进入全屏模式时隐藏标题栏
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-    });
+    }, '进入全屏时发生错误');
   }
 
   @override
@@ -74,7 +74,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 确保移动设备更新屏幕方向
         SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       }
-    });
+    }, '离开全屏时发生错误');
   }
 
   @override
@@ -88,7 +88,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       if (Scaffold.of(context).isDrawerOpen) {
         Navigator.pop(context);
       }
-    });
+    }, '调整窗口大小时发生错误');
   }
 
   @override
@@ -112,7 +112,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           onDoubleTap: () {
             LogUtil.safeExecute(() {
               widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
-            });
+            }, '双击播放/暂停发生错误');
           },
           child: Container(
             alignment: Alignment.center,
@@ -131,7 +131,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       if (!widget.isPlaying)
                         GestureDetector(
                           onTap: () {
-                            LogUtil.safeExecute(() => widget.controller?.play());
+                            LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
                           },
                           child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
                         ),
@@ -171,7 +171,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       LogUtil.safeExecute(() {
                         setState(() => _isShowMenuBar = false);
                         Scaffold.of(context).openDrawer(); // 打开抽屉
-                      });
+                      }, '切换频道发生错误');
                     },
                   ),
                   const SizedBox(width: 6),
@@ -184,7 +184,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       LogUtil.safeExecute(() {
                         setState(() => _isShowMenuBar = false);
                         widget.changeChannelSources?.call();
-                      });
+                      }, '切换频道源按钮发生错误');
                     },
                   ),
                   const SizedBox(width: 6),
@@ -199,7 +199,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           context,
                           MaterialPageRoute(builder: (context) => SettingPage()),
                         );
-                      });
+                      }, '进入设置页面发生错误');
                     },
                   ),
                   const SizedBox(width: 6),
@@ -219,7 +219,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
                           Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                         }
-                      });
+                      }, '切换为竖屏时发生错误');
                     },
                   ),
                   if (!EnvUtil.isMobile) const SizedBox(width: 12),
@@ -245,7 +245,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         LogUtil.safeExecute(() async {
                           final isFullScreen = await windowManager.isFullScreen();
                           windowManager.setFullScreen(!isFullScreen); // 切换全屏状态
-                        });
+                        }, '切换为全屏时发生错误');
                       },
                     ),
                 ],
@@ -271,7 +271,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
                     Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                   }
-                });
+                }, '切换为横屏时发生错误');
               },
             ),
           ),
