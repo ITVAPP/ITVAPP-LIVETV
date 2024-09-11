@@ -77,7 +77,7 @@ class CheckVersionUtil {
       }
       return null;
     } catch (e, stackTrace) {
-      LogUtil.logError('版本检查失败', e, stackTrace.current);
+      LogUtil.logError('版本检查失败', e, stackTrace);
       return null;
     }
   }
@@ -171,7 +171,7 @@ class CheckVersionUtil {
         }
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('检查版本时发生错误', e, stackTrace.current);
+      LogUtil.logError('检查版本时发生错误', e, stackTrace);
     }
   }
 
@@ -180,7 +180,7 @@ class CheckVersionUtil {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       LogUtil.v('成功打开浏览器: $url');
     } catch (e, stackTrace) {
-      LogUtil.logError('打开浏览器失败', e, stackTrace.current);
+      LogUtil.logError('打开浏览器失败', e, stackTrace);
     }
   }
 }
