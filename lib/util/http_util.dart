@@ -40,7 +40,7 @@ class HttpUtil {
       int retryCount = 3, // 默认重试次数为 3
       Duration retryDelay = const Duration(seconds: 2) // 重试前的延迟
       }) async {
-    return LogUtil.safeExecute<T?>(() async {
+    return LogUtil.safeExecute<T?>(() async {}, fallback: null);
       Response? response;
       int currentAttempt = 0;
 

@@ -21,7 +21,7 @@ class CheckVersionUtil {
 
   // 保存最后一次弹出提示的日期
   static Future<void> saveLastPromptDate() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('lastPromptDate', DateTime.now().toIso8601String());
     }, '保存最后提示日期时出错');
@@ -29,7 +29,7 @@ class CheckVersionUtil {
 
   // 获取最后一次弹出提示的日期
   static Future<String?> getLastPromptDate() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString('lastPromptDate');
     }, '获取最后提示日期时出错');
@@ -37,7 +37,7 @@ class CheckVersionUtil {
 
   // 检查是否超过一天未提示
   static Future<bool> shouldShowPrompt() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       final lastPromptDate = await getLastPromptDate();
       if (lastPromptDate == null) return true; // 如果没有记录，说明从未提示过
 
@@ -50,7 +50,7 @@ class CheckVersionUtil {
   }
 
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       if (latestVersionEntity != null) return latestVersionEntity;
       try {
         final res = await HttpUtil().getRequest(versionHost);
@@ -73,7 +73,7 @@ class CheckVersionUtil {
   }
 
   static Future<bool?> showUpdateDialog(BuildContext context) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       // 日期检查逻辑，确保一天只弹一次窗
       if (!await shouldShowPrompt()) {
         return false;  // 如果一天内已经提示过，则不再弹窗
@@ -151,7 +151,7 @@ class CheckVersionUtil {
 
   // 检查版本并提示
   static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true]) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       final res = await checkRelease(isShowLoading, isShowLatestToast);
       if (res != null && context.mounted) {
         final isUpdate = await showUpdateDialog(context);
@@ -163,7 +163,7 @@ class CheckVersionUtil {
   }
 
   static launchBrowserUrl(String url) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: false);
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     }, '打开浏览器时出错');
   }

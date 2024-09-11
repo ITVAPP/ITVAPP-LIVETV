@@ -21,7 +21,7 @@ class M3uUtil {
 
   // 统一错误处理方法，使用 safeExecute 封装异常处理
   static Future<M3uResult> _handleErrors(Future<M3uResult> Function() action) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       return await action();
     }, '处理M3U数据时发生错误');
   }
@@ -94,7 +94,7 @@ class M3uUtil {
   static Future<T?> _retryRequest<T>(
     Future<T?> Function() request, 
     {int retries = 3, Duration retryDelay = const Duration(seconds: 2), Function(int attempt)? onRetry}) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       for (int attempt = 0; attempt < retries; attempt++) {
         try {
           return await request();
@@ -115,14 +115,14 @@ class M3uUtil {
 
   // 获取本地M3U数据
   static Future<List<SubScribeModel>> getLocalData() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
     }, '获取本地数据时出错');
   }
 
   // 获取远程的默认M3U文件数据
   static Future<String> _fetchData() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
       final res = await HttpUtil().getRequest(defaultM3u);
       return res ?? '';  // 返回空字符串表示获取失败
@@ -131,7 +131,7 @@ class M3uUtil {
 
   // 获取并处理多个M3U列表的合并，解析每个 URL 返回的数据
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       List<String> urls = url.split('||');  // 按 "||" 分割多个URL
       final results = await Future.wait(urls.map(_fetchM3uData));
       final playlists = <PlaylistModel>[];
@@ -186,7 +186,7 @@ class M3uUtil {
 
   // 保存合并后的M3U数据到本地存储
   static Future<void> saveMergedM3u(PlaylistModel mergedPlaylist) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       String m3uString = _convertPlaylistToString(mergedPlaylist);
       await _saveCachedM3uData(m3uString);  // 保存到本地缓存
     }, '保存合并的M3U数据时出错');
@@ -216,21 +216,21 @@ class M3uUtil {
 
   // 保存数据到本地缓存
   static Future<void> _saveCachedM3uData(String data) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       await SpUtil.putString('m3u_cache', data);
     }, '保存M3U缓存数据时出错');
   }
 
   // 保存M3U数据到本地缓存
   static Future<bool> saveLocalData(List<SubScribeModel> models) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
     }, '保存本地订阅数据时出错');
   }
 
   // 解析 M3U 文件并转换为 PlaylistModel 格式
   static Future<PlaylistModel> _parseM3u(String m3u) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute(() async {}, fallback: M3uResult());
       final lines = m3u.split('\n');
       final playListModel = PlaylistModel();
       playListModel.playList = <String, Map<String, PlayModel>>{};

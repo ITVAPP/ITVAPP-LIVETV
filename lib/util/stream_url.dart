@@ -10,7 +10,7 @@ class StreamUrl {
 
   // 返回处理后的 URL，如果是 YouTube URL，则会解析；如果失败或不是 YouTube URL，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
-    return await LogUtil.safeExecute<String>(() async {
+    return await LogUtil.safeExecute<String>(() async {}, fallback: "Error");
       // 判断是否是 YouTube 链接
       if (_isYouTubeUrl(url)) {
         // 如果是 YouTube 直播，获取直播流 URL

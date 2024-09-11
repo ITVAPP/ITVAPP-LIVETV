@@ -24,7 +24,7 @@ class FontUtil {
 
   // 下载字体文件，添加日志和异常处理
   Future<Uint8List?> downloadFont(String url, {bool overwrite = false, ValueChanged<double>? progressCallback}) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: Uint8List(0));
       final uri = Uri.parse(url);
       final filename = uri.pathSegments.last;
       final dir = await getFontPath();
@@ -44,7 +44,7 @@ class FontUtil {
 
   // 下载文件为字节数组，添加日志和异常处理
   Future<Uint8List?> downloadBytes(String url, String filename, String savePath, {ValueChanged<double>? progressCallback}) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: Uint8List(0));
       final code = await HttpUtil().downloadFile(url, savePath, progressCallback: progressCallback);
       if (code == 200) {
         LogUtil.v('Font $filename 下载成功, 保存路径: $savePath');
@@ -75,7 +75,7 @@ class FontUtil {
 
   // 加载字体，添加日志和异常处理
   Future<bool> loadFont(String url, String fontFamily, {ValueChanged<double>? progressCallback}) async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute(() async {}, fallback: Uint8List(0));
       LogUtil.v('开始加载字体: $fontFamily');
       final fontByte = await downloadFont(url, progressCallback: progressCallback);
       if (fontByte == null) {
@@ -88,7 +88,7 @@ class FontUtil {
         LogUtil.v('字体 $fontFamily 成功加载');
         return true;
       } catch (e, s) {
-        LogUtil.e('字体 $fontFamily 加载失败: $e', stackTrace: s);
+        LogUtil.e('字体 $fontFamily 加载失败: $e');
         return false;
       }
     }, '加载字体时发生错误');
