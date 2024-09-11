@@ -16,7 +16,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LogUtil.safeExecute(() {
+    return LogUtil.safeExecute<Widget>(() {
       return Row(
         children: [
           SizedBox(
