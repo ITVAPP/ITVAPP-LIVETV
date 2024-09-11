@@ -24,7 +24,7 @@ class M3uUtil {
     try {
       return await action();
     } catch (e) {
-      LogUtil.logError('操作失败', e);
+      LogUtil.logError('操作失败', e, stackTrace);
       return M3uResult(errorMessage: '操作失败: $e');
     }
   }
@@ -41,7 +41,7 @@ class M3uUtil {
         final parsedData = await _parseM3u(m3uDataString);  // 解析M3U数据
         return M3uResult(data: parsedData);
       } catch (e) {
-        LogUtil.logError('解析本地M3U数据失败', e);
+        LogUtil.logError('解析本地M3U数据失败', e, stackTrace);
         return M3uResult(errorMessage: '解析本地M3U数据失败: $e');
       }
     });
@@ -95,7 +95,7 @@ class M3uUtil {
         final parsedData = await _parseM3u(m3uData);
         return M3uResult(data: parsedData);
       } catch (e) {
-        LogUtil.logError('获取默认M3U数据失败', e);
+        LogUtil.logError('获取默认M3U数据失败', e, stackTrace);
         return M3uResult(errorMessage: '获取默认M3U数据失败: $e');
       }
     });
@@ -109,7 +109,7 @@ class M3uUtil {
       try {
         return await request();
       } catch (e) {
-        LogUtil.logError('请求失败，重试第 $attempt 次', e);
+        LogUtil.logError('请求失败，重试第 $attempt 次', e, stackTrace);
         if (onRetry != null) {
           onRetry(attempt + 1);  // 回调传递重试次数
         }
@@ -136,7 +136,7 @@ class M3uUtil {
       final res = await HttpUtil().getRequest(defaultM3u);
       return res ?? '';  // 返回空字符串表示获取失败
     } catch (e) {
-      LogUtil.logError('获取默认M3U文件数据失败', e);
+      LogUtil.logError('获取默认M3U文件数据失败', e, stackTrace);
       return '';
     }
   }
@@ -158,7 +158,7 @@ class M3uUtil {
       if (playlists.isEmpty) return null;
       return _mergePlaylists(playlists);
     } catch (e) {
-      LogUtil.logError('获取并合并M3U数据失败', e);
+      LogUtil.logError('获取并合并M3U数据失败', e, stackTrace);
       return null;
     }
   }
@@ -169,7 +169,7 @@ class M3uUtil {
       try {
         return await HttpUtil().getRequest(url).timeout(Duration(seconds: 8));
       } catch (e) {
-        LogUtil.logError('获取M3U数据失败', e);
+        LogUtil.logError('获取M3U数据失败', e, stackTrace);
         return null;
       }
     });
@@ -209,7 +209,7 @@ class M3uUtil {
       String m3uString = _convertPlaylistToString(mergedPlaylist);
       await _saveCachedM3uData(m3uString);  // 保存到本地缓存
     } catch (e) {
-      LogUtil.logError('保存合并后的M3U数据失败', e);
+      LogUtil.logError('保存合并后的M3U数据失败', e, stackTrace);
     }
   }
 
@@ -237,7 +237,7 @@ class M3uUtil {
     try {
       return SpUtil.getString('m3u_cache', defValue: '') ?? '';
     } catch (e) {
-      LogUtil.logError('获取本地缓存的M3U数据失败', e);
+      LogUtil.logError('获取本地缓存的M3U数据失败', e, stackTrace);
       return '';
     }
   }
@@ -247,7 +247,7 @@ class M3uUtil {
     try {
       await SpUtil.putString('m3u_cache', data);
     } catch (e) {
-      LogUtil.logError('保存M3U数据到本地缓存失败', e);
+      LogUtil.logError('保存M3U数据到本地缓存失败', e, stackTrace);
     }
   }
 
@@ -256,7 +256,7 @@ class M3uUtil {
     try {
       return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
     } catch (e) {
-      LogUtil.logError('保存订阅数据失败', e);
+      LogUtil.logError('保存订阅数据失败', e, stackTrace);
       return false;
     }
   }
@@ -365,7 +365,7 @@ class M3uUtil {
       }
       return playListModel;
     } catch (e) {
-      LogUtil.logError('解析M3U数据失败', e);
+      LogUtil.logError('解析M3U数据失败', e, stackTrace);
       throw e;
     }
   }
