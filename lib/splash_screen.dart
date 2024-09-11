@@ -26,12 +26,14 @@ class _SplashScreenState extends State<SplashScreen> {
   // 初始化应用，包括获取设备类型和数据
   Future<void> _initializeApp() async {
     try {
-      // 获取设备类型并存储到 Provider 中
-      await Provider.of<ThemeProvider>(context, listen: false).checkAndSetIsTV();
-      LogUtil.i('设备类型检查成功并已存储');
-      
-      // 然后获取 M3U 数据
-      _m3uDataFuture = _fetchData();
+      LogUtil.safeExecute(() async {
+        // 获取设备类型并存储到 Provider 中
+        await Provider.of<ThemeProvider>(context, listen: false).checkAndSetIsTV();
+        LogUtil.i('设备类型检查成功并已存储');
+
+        // 然后获取 M3U 数据
+        _m3uDataFuture = _fetchData();
+      });
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
     }
@@ -40,8 +42,10 @@ class _SplashScreenState extends State<SplashScreen> {
   // 统一错误处理的获取数据方法
   Future<M3uResult> _fetchData() async {
     try {
-      setState(() {
-        _message = '正在获取数据...'; // 显示数据获取提示
+      LogUtil.safeExecute(() {
+        setState(() {
+          _message = '正在获取数据...'; // 显示数据获取提示
+        });
       });
 
       final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
@@ -154,10 +158,12 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 16), // 提示文字与重试按钮之间的间距
               ElevatedButton(
                 onPressed: () {
-                  setState(() {
-                    _retryCount = 0;  // 重置重试次数
-                    _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
-                    LogUtil.i('重新尝试获取 M3U 数据');
+                  LogUtil.safeExecute(() {
+                    setState(() {
+                      _retryCount = 0;  // 重置重试次数
+                      _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
+                      LogUtil.i('重新尝试获取 M3U 数据');
+                    });
                   });
                 },
                 style: ElevatedButton.styleFrom(
