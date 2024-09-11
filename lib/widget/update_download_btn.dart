@@ -1,10 +1,10 @@
 import 'dart:io';
-
 import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart';  // 导入 ThemeProvider
+import '../provider/theme_provider.dart'; // 导入 ThemeProvider
 import '../generated/l10n.dart';
 
 class UpdateDownloadBtn extends StatefulWidget {
@@ -68,11 +68,15 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           });
         },
         onPressed: () {
-          if (Platform.isAndroid) {
-            context.read<DownloadProvider>().downloadApk(widget.apkUrl);
-          } else {
-            Navigator.of(context).pop(true);
-          }
+          LogUtil.safeExecute(() async {
+            if (Platform.isAndroid) {
+              LogUtil.v('开始下载APK：${widget.apkUrl}');
+              await context.read<DownloadProvider>().downloadApk(widget.apkUrl);
+            } else {
+              LogUtil.v('非Android设备，跳转到更新页面');
+              Navigator.of(context).pop(true);
+            }
+          }, '下载APK或跳转更新页面过程中发生错误');
         },
         child: Text(
           S.current.update,
