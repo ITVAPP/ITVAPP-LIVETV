@@ -298,7 +298,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               child: Ink(
                 width: double.infinity,
                 height: _itemHeight,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: isSelect ? Colors.black38 : Colors.black26, // 为频道项添加透明的黑色背景
                   borderRadius: BorderRadius.circular(5), // 圆角
