@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; 
 import 'package:itvapp_live_tv/provider/theme_provider.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/m3u_util.dart'; 
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
-import '../util/log_util.dart';  // 导入日志工具
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -28,7 +28,8 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // 获取设备类型并存储到 Provider 中
       await Provider.of<ThemeProvider>(context, listen: false).checkAndSetIsTV();
-
+      LogUtil.i('设备类型检查成功并已存储');
+      
       // 然后获取 M3U 数据
       _m3uDataFuture = _fetchData();
     } catch (error, stackTrace) {
@@ -52,6 +53,7 @@ class _SplashScreenState extends State<SplashScreen> {
       });
 
       if (result.data != null) {
+        LogUtil.i('M3U 数据获取成功');
         return result;  // 直接返回 M3uResult 的 data
       } else {
         setState(() {
@@ -155,6 +157,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   setState(() {
                     _retryCount = 0;  // 重置重试次数
                     _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
+                    LogUtil.i('重新尝试获取 M3U 数据');
                   });
                 },
                 style: ElevatedButton.styleFrom(
