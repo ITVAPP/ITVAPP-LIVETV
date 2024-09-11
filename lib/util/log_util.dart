@@ -1,57 +1,34 @@
 import 'dart:developer';
 
-/// Log Util.
 class LogUtil {
   static const String _defTag = 'common_utils';
-  static bool _debugMode = false; //是否是debug模式,true: log v 不输出.
-  static int _maxLen = 128;
-  static String _tagValue = _defTag;
+  static bool _debugMode = false; // 是否是调试模式，生产环境关闭日志
+  static List<String> _errorLogs = []; // 存储错误日志
 
+  // 初始化日志工具
   static void init({
     String tag = _defTag,
     bool isDebug = false,
-    int maxLen = 128,
   }) {
-    _tagValue = tag;
     _debugMode = isDebug;
-    _maxLen = maxLen;
   }
 
-  static void d(Object? object, {String? tag}) {
-    if (_debugMode) {
-      log('$tag d | ${object?.toString()}');
-    }
-  }
-
+  // 记录错误日志
   static void e(Object? object, {String? tag}) {
-    _printLog(tag, ' e ', object);
-  }
-
-  static void v(Object? object, {String? tag}) {
+    String error = '${tag ?? _defTag} e | ${object?.toString()}';
+    _errorLogs.add(error);
     if (_debugMode) {
-      _printLog(tag, ' v ', object);
+      log(error);
     }
   }
 
-  static void _printLog(String? tag, String stag, Object? object) {
-    String da = object?.toString() ?? 'null';
-    tag = tag ?? _tagValue;
-    if (da.length <= _maxLen) {
-      print('$tag$stag $da');
-      return;
-    }
-    print(
-        '$tag$stag — — — — — — — — — — — — — — — — st — — — — — — — — — — — — — — — —');
-    while (da.isNotEmpty) {
-      if (da.length > _maxLen) {
-        print('$tag$stag| ${da.substring(0, _maxLen)}');
-        da = da.substring(_maxLen, da.length);
-      } else {
-        print('$tag$stag| $da');
-        da = '';
-      }
-    }
-    print(
-        '$tag$stag — — — — — — — — — — — — — — — — ed — — — — — — — — — — — — — — — —');
+  // 获取所有错误日志
+  static List<String> getErrorLogs() {
+    return _errorLogs;
+  }
+
+  // 清空错误日志
+  static void clearErrorLogs() {
+    _errorLogs.clear();
   }
 }
