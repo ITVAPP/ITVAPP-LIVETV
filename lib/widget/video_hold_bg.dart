@@ -71,7 +71,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
           LogUtil.v('Bing 图片加载成功，当前背景图为第 1 张');
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取 Bing 图片失败', e, stackTrace.current);
       setState(() {
         isLoading = false; // 加载失败时隐藏进度条
