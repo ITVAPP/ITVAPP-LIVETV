@@ -1,5 +1,20 @@
-import 'dart:developer';
+import 'dart:developer' as developer;  // 使用别名来避免与 log 冲突
 import 'package:flutter/material.dart';
+
+// 封装的日志记录方法
+void _logError(String message, dynamic error, StackTrace stackTrace) {
+  LogUtil.e('$message: $error');
+  LogUtil.e('堆栈信息: $stackTrace');
+}
+
+// 封装的安全执行方法，捕获并记录异常
+void _safeExecute(Future<void> Function() action, String errorMessage) async {
+  try {
+    await action();
+  } catch (error, stackTrace) {
+    _logError(errorMessage, error, stackTrace);
+  }
+}
 
 class LogUtil {
   static const String _defTag = 'common_utils';
@@ -37,10 +52,11 @@ class LogUtil {
   // 通用日志记录方法
   static void _log(String level, Object? object, String? tag) {
     if (!_debugMode) return;  // 如果 _debugMode 为 false，不记录日志
+    if (object == null) return; // 跳过 null 日志
     String time = DateTime.now().toString();
-    String logMessage = '${tag ?? _defTag} $level | ${object?.toString()}';
+    String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
     _logs.add({'time': time, 'level': level, 'message': logMessage});
-    log(logMessage);
+    developer.log(logMessage); // 使用 developer.log 记录日志
   }
 
   // 获取所有日志
@@ -123,6 +139,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                 setState(() {
                   LogUtil.clearLogs();
                 });
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('日志已清空')));
               },
               child: Text('清空日志'),
             ),
@@ -144,7 +161,9 @@ class _LogViewerPageState extends State<LogViewerPage> {
         },
         child: Text(label),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _selectedLevel == level ? Colors.blue : Colors.grey, // 修改这里
+          backgroundColor: _selectedLevel == level
+              ? Theme.of(context).primaryColor
+              : Colors.grey,
         ),
       ),
     );
