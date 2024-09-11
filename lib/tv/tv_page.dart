@@ -51,7 +51,6 @@ class _TvPageState extends State<TvPage> {
   bool _debounce = true; // 防止按键被快速多次触发
   Timer? _timer; // 定时器用于处理按键节流
   bool _drawerIsOpen = false; // 侧边抽屉是否打开
-
   bool _isError = false; // 标识是否播放过程中发生错误
 
   // 显示错误信息的工具函数
@@ -64,28 +63,30 @@ class _TvPageState extends State<TvPage> {
 
   // 打开添加源的设置页面
   Future<bool?> _openAddSource() async {
-    return Navigator.push<bool>(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return const TvSettingPage(); // 进入设置页面
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          var begin = const Offset(0.0, -1.0); // 动画起点为屏幕外顶部
-          var end = Offset.zero; // 动画终点为屏幕中间
-          var curve = Curves.ease; // 使用缓动曲线
+    return await LogUtil.safeExecute(() async {
+      return Navigator.push<bool>(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return const TvSettingPage(); // 进入设置页面
+          },
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            var begin = const Offset(0.0, -1.0); // 动画起点为屏幕外顶部
+            var end = Offset.zero; // 动画终点为屏幕中间
+            var curve = Curves.ease; // 使用缓动曲线
 
-          var tween = Tween(begin: begin, end: end).chain(
-            CurveTween(curve: curve),
-          );
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
 
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
-      ),
-    );
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+    }, '打开添加源的设置页面时出错');
   }
 
   // 处理键盘事件的函数，处理遥控器输入
@@ -98,73 +99,64 @@ class _TvPageState extends State<TvPage> {
       _timer = null;
     });
 
-    // 根据按键的不同逻辑键值执行相应的操作
-    switch (e.logicalKey) {
-      case LogicalKeyboardKey.arrowRight:
-        LogUtil.v('按了右键'); // 处理右键操作
-        break;
-      case LogicalKeyboardKey.arrowLeft:
-        LogUtil.v('按了左键'); // 处理左键操作
-        break;
-      case LogicalKeyboardKey.arrowUp:
-        LogUtil.v('按了上键');
-        _videoNode.unfocus(); // 移除视频区域的焦点
-        await widget.changeChannelSources?.call(); // 切换视频源
-        Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
-        break;
-      case LogicalKeyboardKey.arrowDown:
-        LogUtil.v('按了下键');
-        widget.controller?.pause(); // 暂停视频播放
-        _videoNode.unfocus(); // 移除焦点
-        await _openAddSource(); // 打开设置页面
-        final m3uData = SpUtil.getString('m3u_cache', defValue: '')!;
-        if (m3uData == '') {
-          widget.onChangeSubSource?.call(); // 如果没有视频源，调用切换回调
-        } else {
-          widget.controller?.play(); // 恢复视频播放
-        }
-        Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
-        break;
-      case LogicalKeyboardKey.select:
-        LogUtil.v('按了确认键');
-        if (_isError) {
-          _showError('视频加载失败，请重试'); // 如果出现错误，显示提示信息
-          return;
-        }
+    await LogUtil.safeExecute(() async {
+      // 根据按键的不同逻辑键值执行相应的操作
+      switch (e.logicalKey) {
+        case LogicalKeyboardKey.arrowRight:
+          break;
+        case LogicalKeyboardKey.arrowLeft:
+          break;
+        case LogicalKeyboardKey.arrowUp:
+          _videoNode.unfocus(); // 移除视频区域的焦点
+          await widget.changeChannelSources?.call(); // 切换视频源
+          Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
+          break;
+        case LogicalKeyboardKey.arrowDown:
+          widget.controller?.pause(); // 暂停视频播放
+          _videoNode.unfocus(); // 移除焦点
+          await _openAddSource(); // 打开设置页面
+          final m3uData = SpUtil.getString('m3u_cache', defValue: '')!;
+          if (m3uData == '') {
+            widget.onChangeSubSource?.call(); // 如果没有视频源，调用切换回调
+          } else {
+            widget.controller?.play(); // 恢复视频播放
+          }
+          Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
+          break;
+        case LogicalKeyboardKey.select:
+          if (_isError) {
+            _showError('视频加载失败，请重试'); // 如果出现错误，显示提示信息
+            return;
+          }
 
-        if (widget.controller?.value.isInitialized == true &&
-            !widget.controller!.value.isPlaying &&
-            !widget.controller!.value.isBuffering) {
-          widget.controller?.play(); // 如果未播放且未缓冲，开始播放
-        } else {
-          LogUtil.v('确认键:::打开频道列表');
+          if (widget.controller?.value.isInitialized == true &&
+              !widget.controller!.value.isPlaying &&
+              !widget.controller!.value.isBuffering) {
+            widget.controller?.play(); // 如果未播放且未缓冲，开始播放
+          } else {
+            if (!Scaffold.of(context).isDrawerOpen) {
+              Scaffold.of(context).openDrawer(); // 打开频道抽屉
+            }
+          }
+          break;
+        case LogicalKeyboardKey.goBack:
+          Navigator.pop(context); // 返回上一个页面
+          break;
+        case LogicalKeyboardKey.contextMenu:
           if (!Scaffold.of(context).isDrawerOpen) {
             Scaffold.of(context).openDrawer(); // 打开频道抽屉
           }
-        }
-        break;
-      case LogicalKeyboardKey.goBack:
-        LogUtil.v('按了返回键');
-        Navigator.pop(context); // 返回上一个页面
-        break;
-      case LogicalKeyboardKey.contextMenu:
-        LogUtil.v('按了菜单键');
-        if (!Scaffold.of(context).isDrawerOpen) {
-          Scaffold.of(context).openDrawer(); // 打开频道抽屉
-        }
-        break;
-      case LogicalKeyboardKey.audioVolumeUp:
-        LogUtil.v('按了音量加键');
-        break;
-      case LogicalKeyboardKey.audioVolumeDown:
-        LogUtil.v('按了音量减键');
-        break;
-      case LogicalKeyboardKey.f5:
-        LogUtil.v('按了语音键');
-        break;
-      default:
-        break;
-    }
+          break;
+        case LogicalKeyboardKey.audioVolumeUp:
+          break;
+        case LogicalKeyboardKey.audioVolumeDown:
+          break;
+        case LogicalKeyboardKey.f5:
+          break;
+        default:
+          break;
+      }
+    }, '处理键盘事件时出错');
   }
 
   @override
