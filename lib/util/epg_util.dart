@@ -16,89 +16,88 @@ class EpgUtil {
 
   // 修改：getEpg 方法添加了可选的 cancelToken 参数
   static Future<EpgModel?> getEpg(PlayModel? model, {CancelToken? cancelToken}) async {
-    if (model == null) return null;
+    return LogUtil.safeExecute(() async {
+      if (model == null) return null;
 
-    String channelKey = '';
-    String channel = '';
-    String date = '';
-    final isHasXml = _programmes != null && _programmes!.isNotEmpty;
-    LogUtil.v('加载EPG:::$isHasXml:::${_programmes?.length}');
-    if (model.id != null && model.id != '' && isHasXml) {
-      channelKey = model.id!;
-    } else {
-      channel = model.title!.replaceAll(' ', '').replaceAll('-', '');
-      date = DateUtil.formatDate(DateTime.now(), format: "yyMMdd");
-      channelKey = "$date-$channel";
-    }
+      String channelKey = '';
+      String channel = '';
+      String date = '';
+      final isHasXml = _programmes != null && _programmes!.isNotEmpty;
+      if (model.id != null && model.id != '' && isHasXml) {
+        channelKey = model.id!;
+      } else {
+        channel = model.title!.replaceAll(' ', '').replaceAll('-', '');
+        date = DateUtil.formatDate(DateTime.now(), format: "yyMMdd");
+        channelKey = "$date-$channel";
+      }
 
-    // 使用缓存的EPG数据
-    if (_EPGMap.containsKey(channelKey)) {
-      final cacheModel = _EPGMap[channelKey]!;
-      LogUtil.v('命中EPG:::${cacheModel.toJson()}');
-      return cacheModel;
-    }
+      // 使用缓存的EPG数据
+      if (_EPGMap.containsKey(channelKey)) {
+        final cacheModel = _EPGMap[channelKey]!;
+        return cacheModel;
+      }
 
-    // 使用XML文件中的EPG数据
-    if (isHasXml) {
-      EpgModel epgModel = EpgModel(channelName: model.title, epgData: []);
-      for (var programme in _programmes!) {
-        final channel = programme.getAttribute('channel');
-        if (channel == model.id) {
-          final start = programme.getAttribute('start')!;
-          final dateStart = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(start), format: "HH:mm");
-          final stop = programme.getAttribute('stop')!;
-          final dateEnd = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(stop), format: "HH:mm");
-          final title = programme.findAllElements('title').first.innerText;
-          epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd));
+      // 使用XML文件中的EPG数据
+      if (isHasXml) {
+        EpgModel epgModel = EpgModel(channelName: model.title, epgData: []);
+        for (var programme in _programmes!) {
+          final channel = programme.getAttribute('channel');
+          if (channel == model.id) {
+            final start = programme.getAttribute('start')!;
+            final dateStart = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(start), format: "HH:mm");
+            final stop = programme.getAttribute('stop')!;
+            final dateEnd = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(stop), format: "HH:mm");
+            final title = programme.findAllElements('title').first.innerText;
+            epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd));
+          }
+        }
+        if (epgModel.epgData!.isEmpty) return null;
+        _EPGMap[channelKey] = epgModel;
+        return epgModel;
+      }
+
+      // 取消之前的请求并发起新的请求
+      cancelToken?.cancel();  // 如果传入了 cancelToken，取消之前的请求
+      final epgRes = await HttpUtil().getRequest(
+        'https://epg.v1.mk/json?ch=$channel&date=$date',
+        cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
+      );
+      if (epgRes != null) {
+        if (channel.contains(epgRes['channel_name'])) {
+          final epg = EpgModel.fromJson(epgRes);
+          _EPGMap[channelKey] = epg;
+          return epg;
         }
       }
-      if (epgModel.epgData!.isEmpty) return null;
-      _EPGMap[channelKey] = epgModel;
-      return epgModel;
-    }
-
-    // 取消之前的请求并发起新的请求
-    cancelToken?.cancel();  // 如果传入了 cancelToken，取消之前的请求
-    final epgRes = await HttpUtil().getRequest(
-      'https://epg.v1.mk/json?ch=$channel&date=$date',
-      cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
-    );
-    LogUtil.v('epgRes:::$epgRes');
-    if (epgRes != null) {
-      LogUtil.v('epgRes:channelName::${epgRes['channel_name']}');
-      if (channel.contains(epgRes['channel_name'])) {
-        final epg = EpgModel.fromJson(epgRes);
-        _EPGMap[channelKey] = epg;
-        return epg;
-      }
-    }
-    return null;
+      return null;
+    }, '获取EPG数据时出错');
   }
 
   // 加载EPG XML文件
   static loadEPGXML(String url) async {
-    LogUtil.v('****start download EPG Xml ****');
-    int index = 0;
-    final uStr = url.replaceAll('/h', ',h');
-    final urlLink = uStr.split(',');
-    XmlDocument? tempXmlDocument;
-    while (tempXmlDocument == null && index < urlLink.length) {
-      final res = await HttpUtil().getRequest(urlLink[index]);
-      if (res != null) {
-        LogUtil.v('****download EPG Xml success****');
-        tempXmlDocument = XmlDocument.parse(res.toString());
-      } else {
-        tempXmlDocument = null;
-        index += 1;
+    LogUtil.safeExecute(() async {
+      int index = 0;
+      final uStr = url.replaceAll('/h', ',h');
+      final urlLink = uStr.split(',');
+      XmlDocument? tempXmlDocument;
+      while (tempXmlDocument == null && index < urlLink.length) {
+        final res = await HttpUtil().getRequest(urlLink[index]);
+        if (res != null) {
+          tempXmlDocument = XmlDocument.parse(res.toString());
+        } else {
+          tempXmlDocument = null;
+          index += 1;
+        }
       }
-    }
-    _programmes = tempXmlDocument?.findAllElements('programme');
+      _programmes = tempXmlDocument?.findAllElements('programme');
+    }, '加载EPG XML文件时出错');
   }
 
   // 重置EPG XML
   static resetEPGXML() {
-    LogUtil.v('****reset EPG Xml ****');
-    _programmes = null;
+    LogUtil.safeExecute(() {
+      _programmes = null;
+    }, '重置EPG XML时出错');
   }
 }
 
