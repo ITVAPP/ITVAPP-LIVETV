@@ -35,55 +35,64 @@ class ThemeProvider extends ChangeNotifier {
       if (_fontFamily != 'system') {
         FontUtil().loadFont(_fontUrl, _fontFamily);
       }
-      return Future.value(); // 添加 Future<void> 返回值
     }, '初始化 ThemeProvider 时出错');
   }
 
-  // 设置字体相关的方法
-  void setFontFamily(String fontFamilyName, [String fontFullUrl = '']) {
-    LogUtil.safeExecute(() async {
+  // 设置字体相关的方法，捕获并记录异步操作中的异常
+  Future<void> setFontFamily(String fontFamilyName, [String fontFullUrl = '']) async {
+    try {
       await SpUtil.putString('appFontFamily', fontFamilyName);
       await SpUtil.putString('appFontUrl', fontFullUrl);
       _fontFamily = fontFamilyName;
       _fontUrl = fontFullUrl;
       notifyListeners(); // 通知监听器更新界面
-    }, '设置字体时出错');
+    } catch (error, stackTrace) {
+      LogUtil.logError('设置字体时出错', error, stackTrace);
+    }
   }
 
-  // 设置文本缩放
-  void setTextScale(double textScaleFactor) {
-    LogUtil.safeExecute(() async {
+  // 设置文本缩放，捕获并记录异步操作中的异常
+  Future<void> setTextScale(double textScaleFactor) async {
+    try {
       await SpUtil.putDouble('fontScale', textScaleFactor);
       _textScaleFactor = textScaleFactor;
       notifyListeners(); // 通知监听器更新界面
-    }, '设置文本缩放时出错');
+    } catch (error, stackTrace) {
+      LogUtil.logError('设置文本缩放时出错', error, stackTrace);
+    }
   }
 
-  // 设置每日 Bing 背景图片的开关状态，改为异步操作
-  void setBingBg(bool isOpen) {
-    LogUtil.safeExecute(() async {
+  // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
+  Future<void> setBingBg(bool isOpen) async {
+    try {
       await SpUtil.putBool('bingBg', isOpen);  // 确保这是一个异步操作
       _isBingBg = isOpen;
       notifyListeners(); // 通知监听器更新界面
-    }, '设置 Bing 背景时出错');
+    } catch (error, stackTrace) {
+      LogUtil.logError('设置 Bing 背景时出错', error, stackTrace);
+    }
   }
 
-  // 检测并设置设备是否为 TV
+  // 检测并设置设备是否为 TV，捕获并记录异步操作中的异常
   Future<void> checkAndSetIsTV() async {
-    LogUtil.safeExecute(() async {
+    try {
       bool deviceIsTV = await EnvUtil.isTV(); // 调用工具类检测是否为 TV
       _isTV = deviceIsTV;
       await SpUtil.putBool('isTV', _isTV); // 异步存储结果
       notifyListeners(); // 通知监听器更新界面
-    }, '检测并设置设备为 TV 时出错');
+    } catch (error, stackTrace) {
+      LogUtil.logError('检测并设置设备为 TV 时出错', error, stackTrace);
+    }
   }
 
-  // 手动设置是否为 TV
+  // 手动设置是否为 TV，捕获并记录异步操作中的异常
   Future<void> setIsTV(bool isTV) async {
-    LogUtil.safeExecute(() async {
+    try {
       _isTV = isTV;
       await SpUtil.putBool('isTV', _isTV);  // 异步存储状态
       notifyListeners(); // 通知监听器更新界面
-    }, '手动设置 TV 状态时出错');
+    } catch (error, stackTrace) {
+      LogUtil.logError('手动设置 TV 状态时出错', error, stackTrace);
+    }
   }
 }
