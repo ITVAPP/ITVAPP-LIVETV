@@ -105,7 +105,6 @@ class MyApp extends StatelessWidget {
           fontFamily = null;
         }
 
-        return LogUtil.safeExecute<MaterialApp>(() {
           // 返回 MaterialApp，配置应用的主题、语言、路由等
           return MaterialApp(
             title: 'ITVAPP LIVETV',  // 应用标题
