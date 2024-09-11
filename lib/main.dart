@@ -183,20 +183,24 @@ class MyApp extends StatelessWidget {
                   data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
                   child: FlutterEasyLoading(child: child),  // 加载动画封装
                 ),
-                Positioned(
-                  bottom: 20,
-                  right: 20,
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => LogViewerPage()),  // 跳转到日志查看页面
-                      );
-                    },
-                    child: Icon(Icons.view_list),
-                    tooltip: '查看日志',
-                  ),
-                ),
+               Positioned(
+                 bottom: 20,
+                 right: 20,
+                 child: Builder(  // 使用 Builder 生成新的上下文
+                   builder: (BuildContext newContext) {
+                     return FloatingActionButton(
+                       onPressed: () {
+                         Navigator.push(
+                           newContext,  // 使用新生成的上下文
+                           MaterialPageRoute(builder: (context) => LogViewerPage()),  // 跳转到日志查看页面
+                         );
+                       },
+                       child: Icon(Icons.view_list),
+                       tooltip: '查看日志',
+                     );
+                   },
+                 ),
+               ),
               ],
             );
           },
