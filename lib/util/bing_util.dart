@@ -9,7 +9,7 @@ class BingUtil {
 
   // 获取最多 15 张 Bing 图片的 URL
   static Future<List<String>> getBingImgUrls() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute<List<String>>(() async {
       if (bingImgUrls.isNotEmpty) return bingImgUrls;
 
       List<String> urls = [];
@@ -30,7 +30,7 @@ class BingUtil {
 
   // 只获取一张 Bing 背景图片的 URL
   static Future<String?> getBingImgUrl() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute<String?>(() async {
       if (bingImgUrl != null && bingImgUrl != '') return bingImgUrl;
 
       try {
@@ -48,7 +48,7 @@ class BingUtil {
 
   // 从缓存中获取 Bing 背景图片的 URL，带缓存时间检查
   static Future<String?> getCachedBingImgUrl() async {
-    return LogUtil.safeExecute(() async {
+    return LogUtil.safeExecute<String?>(() async {
       // 获取缓存的 URL 和时间戳
       String? cachedUrl = SpUtil.getString('bingImgUrl', defValue: null);
       int? cacheTime = SpUtil.getInt('bingImgUrlCacheTime', defValue: 0);
