@@ -40,12 +40,12 @@ class DownloadProvider extends ChangeNotifier {
         LogUtil.v('APK 文件下载完成，开始安装: $savePath');
         await ApkInstaller.installApk(filePath: savePath);
       } else {
-        LogUtil.logError('下载 APK 文件失败，错误码: $code', Exception('HTTP Error Code: $code'));
+        LogUtil.logError('下载 APK 文件失败，错误码: $code', e, stackTrace);
         _isDownloading = false;
         notifyListeners();
       }
-    } catch (e) {
-      LogUtil.logError('下载或安装 APK 时发生错误', e);
+    } catch (e, stackTrace) {
+      LogUtil.logError('下载或安装 APK 时发生错误', e, stackTrace);
       _isDownloading = false;
       notifyListeners();
     }
