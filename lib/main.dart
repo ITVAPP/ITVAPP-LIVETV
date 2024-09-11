@@ -105,7 +105,7 @@ class MyApp extends StatelessWidget {
           fontFamily = null;
         }
 
-        return LogUtil.safeExecute(() {
+        return LogUtil.safeExecute<MaterialApp>(() {
           // 返回 MaterialApp，配置应用的主题、语言、路由等
           return MaterialApp(
             title: 'ITVAPP LIVETV',  // 应用标题
@@ -213,7 +213,7 @@ class MyApp extends StatelessWidget {
               );
             },
           );
-        }, '构建 MyApp 时发生错误');
+        }, '构建 MyApp 时发生错误', fallback: MaterialApp());  // 添加 fallback 确保返回非空的 MaterialApp
       },
     );
   }
