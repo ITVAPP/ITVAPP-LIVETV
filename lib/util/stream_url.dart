@@ -90,7 +90,7 @@ class StreamUrl {
           return streamInfo;
         }
       }
-      LogUtil.w('没有找到匹配的质量，使用默认流');
+      LogUtil.e('没有找到匹配的质量，使用默认流');
       return null;
     } catch (e, stackTrace) {
       LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
@@ -152,7 +152,7 @@ class StreamUrl {
         }
 
         if (qualityUrls.isNotEmpty) {
-          LogUtil.w('没有找到匹配的分辨率，使用默认流');
+          LogUtil.e('没有找到匹配的分辨率，使用默认流');
           return qualityUrls.values.first;
         }
       }
@@ -171,7 +171,7 @@ class StreamUrl {
       LogUtil.d('提取到的分辨率: ${match.group(1)}');
       return match.group(1);
     }
-    LogUtil.w('未能提取到分辨率: $extInfLine');
+    LogUtil.e('未能提取到分辨率: $extInfLine');
     return null;
   }
 }
