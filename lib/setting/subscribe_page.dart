@@ -10,8 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:provider/provider.dart';  // 引入 Provider
-import '../provider/theme_provider.dart';  // 引入 ThemeProvider
+import 'package:provider/provider.dart'; // 引入 Provider
+import '../provider/theme_provider.dart'; // 引入 ThemeProvider
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 import '../util/env_util.dart';
@@ -37,17 +37,19 @@ class _SubScribePageState extends State<SubScribePage> {
   @override
   void initState() {
     super.initState();
-    _localNet();
-    _getData();
-    _pasteClipboard();
-    _addLifecycleListen();
+    LogUtil.safeExecute(() {
+      _localNet();
+      _getData();
+      _pasteClipboard();
+      _addLifecycleListen();
+    }, '初始化时发生错误');
   }
 
   _addLifecycleListen() {
     // 通过 Provider 获取 isTV 的状态，判断是否添加生命周期监听
     bool isTV = context.read<ThemeProvider>().isTV;
     if (isTV) return;
-    
+
     _appLifecycleListener = AppLifecycleListener(onStateChange: (state) {
       LogUtil.v('addLifecycleListen::::::$state');
       if (state == AppLifecycleState.resumed) {
@@ -60,7 +62,7 @@ class _SubScribePageState extends State<SubScribePage> {
     // 通过 Provider 获取 isTV 的状态
     bool isTV = context.read<ThemeProvider>().isTV;
     if (isTV) return;
-    
+
     final clipData = await Clipboard.getData(Clipboard.kTextPlain);
     final clipText = clipData?.text;
     if (clipText != null && clipText.startsWith('http')) {
@@ -89,7 +91,9 @@ class _SubScribePageState extends State<SubScribePage> {
             );
           });
       if (res == true) {
-        await _pareUrl(clipText);
+        await LogUtil.safeExecute(() async {
+          await _pareUrl(clipText);
+        }, '粘贴剪贴板内容时发生错误');
       }
       Clipboard.setData(const ClipboardData(text: ''));
     }
@@ -99,77 +103,83 @@ class _SubScribePageState extends State<SubScribePage> {
     // 通过 Provider 获取 isTV 的状态
     bool isTV = context.read<ThemeProvider>().isTV;
     if (!isTV) return;
-    
-    _ip = await getCurrentIP();
-    LogUtil.v('_ip::::$_ip');
-    if (_ip == null) return;
-    _server = await HttpServer.bind(_ip, _port);
-    _address = 'http://$_ip:$_port';
-    setState(() {});
-    await for (var request in _server!) {
-      if (request.method == 'GET') {
-        request.response
-          ..headers.contentType = ContentType.html
-          ..write(getHtmlString(_address!))
-          ..close();
-      } else if (request.method == 'POST') {
-        String content = await utf8.decoder.bind(request).join();
-        Map<String, dynamic> data = jsonDecode(content);
-        String rMsg = S.current.tvParseParma;
-        if (data.containsKey('url')) {
-          final url = data['url'] as String?;
-          if (url == '' || url == null || !url.startsWith('http')) {
-            EasyLoading.showError(S.current.tvParsePushError);
-            rMsg = S.current.tvParsePushError;
+
+    await LogUtil.safeExecute(() async {
+      _ip = await getCurrentIP();
+      LogUtil.v('_ip::::$_ip');
+      if (_ip == null) return;
+      _server = await HttpServer.bind(_ip, _port);
+      _address = 'http://$_ip:$_port';
+      setState(() {});
+      await for (var request in _server!) {
+        if (request.method == 'GET') {
+          request.response
+            ..headers.contentType = ContentType.html
+            ..write(getHtmlString(_address!))
+            ..close();
+        } else if (request.method == 'POST') {
+          String content = await utf8.decoder.bind(request).join();
+          Map<String, dynamic> data = jsonDecode(content);
+          String rMsg = S.current.tvParseParma;
+          if (data.containsKey('url')) {
+            final url = data['url'] as String?;
+            if (url == '' || url == null || !url.startsWith('http')) {
+              EasyLoading.showError(S.current.tvParsePushError);
+              rMsg = S.current.tvParsePushError;
+            } else {
+              rMsg = S.current.tvParseSuccess;
+              _pareUrl(url);
+            }
           } else {
-            rMsg = S.current.tvParseSuccess;
-            _pareUrl(url);
+            LogUtil.v('Missing parameters');
           }
+
+          final responseData = {'message': rMsg};
+
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(json.encode(responseData))
+            ..close();
         } else {
-          LogUtil.v('Missing parameters');
+          request.response
+            ..statusCode = HttpStatus.methodNotAllowed
+            ..write(
+                'Unsupported request: ${request.method}. Only POST requests are allowed.')
+            ..close();
         }
-
-        final responseData = {'message': rMsg};
-
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(json.encode(responseData))
-          ..close();
-      } else {
-        request.response
-          ..statusCode = HttpStatus.methodNotAllowed
-          ..write(
-              'Unsupported request: ${request.method}. Only POST requests are allowed.')
-          ..close();
       }
-    }
+    }, '本地网络初始化时发生错误');
   }
 
   _getData() async {
-    final res = await M3uUtil.getLocalData();
-    setState(() {
-      _m3uList = res;
-    });
+    await LogUtil.safeExecute(() async {
+      final res = await M3uUtil.getLocalData();
+      setState(() {
+        _m3uList = res;
+      });
+    }, '获取本地M3U数据时发生错误');
   }
 
   Future<String> getCurrentIP() async {
-    String currentIP = '';
-    try {
-      for (var interface in await NetworkInterface.list()) {
-        for (var addr in interface.addresses) {
-          LogUtil.v(
-              'Name: ${interface.name}  IP Address: ${addr.address}  IPV4: ${InternetAddress.anyIPv4}');
-          if (addr.type == InternetAddressType.IPv4 &&
-              addr.address.startsWith('192')) {
-            currentIP = addr.address;
+    return await LogUtil.safeExecute(() async {
+      String currentIP = '';
+      try {
+        for (var interface in await NetworkInterface.list()) {
+          for (var addr in interface.addresses) {
+            LogUtil.v(
+                'Name: ${interface.name}  IP Address: ${addr.address}  IPV4: ${InternetAddress.anyIPv4}');
+            if (addr.type == InternetAddressType.IPv4 &&
+                addr.address.startsWith('192')) {
+              currentIP = addr.address;
+            }
           }
         }
+      } catch (e) {
+        LogUtil.v(e.toString());
       }
-    } catch (e) {
-      LogUtil.v(e.toString());
-    }
-    return currentIP;
+      return currentIP;
+    }, '获取当前IP时发生错误', fallback: '');
   }
 
   @override
@@ -302,27 +312,31 @@ class _SubScribePageState extends State<SubScribePage> {
                                                   );
                                                 });
                                             if (isDelete == true) {
-                                              _m3uList.removeAt(index);
-                                              await M3uUtil.saveLocalData(
-                                                  _m3uList);
-                                              setState(() {});
+                                              LogUtil.safeExecute(() async {
+                                                _m3uList.removeAt(index);
+                                                await M3uUtil.saveLocalData(
+                                                    _m3uList);
+                                                setState(() {});
+                                              }, '删除M3U源时发生错误');
                                             }
                                           },
                                           child: Text(S.current.delete)),
                                     TextButton(
                                       onPressed: model.selected != true
                                           ? () async {
-                                              for (var element in _m3uList) {
-                                                element.selected = false;
-                                              }
-                                              if (model.selected != true) {
-                                                model.selected = true;
-                                                await SpUtil.remove(
-                                                    'm3u_cache');
-                                                await M3uUtil.saveLocalData(
-                                                    _m3uList);
-                                                setState(() {});
-                                              }
+                                              LogUtil.safeExecute(() async {
+                                                for (var element in _m3uList) {
+                                                  element.selected = false;
+                                                }
+                                                if (model.selected != true) {
+                                                  model.selected = true;
+                                                  await SpUtil.remove(
+                                                      'm3u_cache');
+                                                  await M3uUtil.saveLocalData(
+                                                      _m3uList);
+                                                  setState(() {});
+                                                }
+                                              }, '设置默认M3U源时发生错误');
                                             }
                                           : null,
                                       child: Text(model.selected != true
@@ -454,7 +468,9 @@ class _SubScribePageState extends State<SubScribePage> {
           );
         });
     if (res == null || res == '') return;
-    _pareUrl(res);
+    await LogUtil.safeExecute(() async {
+      await _pareUrl(res);
+    }, '添加M3U源时发生错误');
   }
 
   _pareUrl(String res) async {
