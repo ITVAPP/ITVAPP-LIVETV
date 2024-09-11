@@ -26,7 +26,7 @@ class CheckVersionUtil {
       await prefs.setString('lastPromptDate', DateTime.now().toIso8601String());
       LogUtil.v('保存最后提示日期成功');
     } catch (e) {
-      LogUtil.logError('保存最后提示日期失败', e);
+      LogUtil.logError('保存最后提示日期失败', e, stackTrace);
     }
   }
 
@@ -37,7 +37,7 @@ class CheckVersionUtil {
       LogUtil.v('获取最后提示日期成功');
       return prefs.getString('lastPromptDate');
     } catch (e) {
-      LogUtil.logError('获取最后提示日期失败', e);
+      LogUtil.logError('获取最后提示日期失败', e, stackTrace);
       return null;
     }
   }
@@ -54,7 +54,7 @@ class CheckVersionUtil {
       // 检查是否超过1天
       return currentDate.difference(lastDate).inDays >= 1;
     } catch (e) {
-      LogUtil.logError('检查提示间隔失败', e);
+      LogUtil.logError('检查提示间隔失败', e, stackTrace);
       return true; // 如果出现错误，默认返回 true
     }
   }
@@ -77,7 +77,7 @@ class CheckVersionUtil {
       }
       return null;
     } catch (e) {
-      LogUtil.logError('版本检查失败', e);
+      LogUtil.logError('版本检查失败', e, stackTrace);
       return null;
     }
   }
@@ -171,7 +171,7 @@ class CheckVersionUtil {
         }
       }
     } catch (e) {
-      LogUtil.logError('检查版本时发生错误', e);
+      LogUtil.logError('检查版本时发生错误', e, stackTrace);
     }
   }
 
@@ -180,7 +180,7 @@ class CheckVersionUtil {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       LogUtil.v('成功打开浏览器: $url');
     } catch (e) {
-      LogUtil.logError('打开浏览器失败', e);
+      LogUtil.logError('打开浏览器失败', e, stackTrace);
     }
   }
 }
