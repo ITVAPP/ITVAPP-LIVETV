@@ -12,12 +12,13 @@ class LogUtil {
     LogUtil.e('堆栈信息: $stackTrace');
   }
 
-  // 封装的安全执行方法，捕获并记录异常
-  static void safeExecute(void Function() action, String errorMessage) {
+  // 修改后的 safeExecute 方法，支持返回值
+  static T? safeExecute<T>(T Function() action, String errorMessage) {
     try {
-      action();
+      return action(); // 执行并返回结果
     } catch (error, stackTrace) {
-      logError(errorMessage, error, stackTrace);
+      logError(errorMessage, error, stackTrace); // 捕获并记录异常
+      return null; // 如果出错，返回 null
     }
   }
 
@@ -43,7 +44,7 @@ class LogUtil {
 
   // 通用日志记录方法
   static void _log(String level, Object? object, String? tag) {
-    if (!_debugMode) return;  // 如果 _debugMode 为 false，不记录日志
+    if (!debugMode) return;  // 如果 debugMode 为 false，不记录日志
     if (object == null) return; // 跳过 null 日志
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
