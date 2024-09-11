@@ -1,5 +1,6 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
+import 'log_util.dart'; // 导入日志工具类
 
 class StreamUrl {
   final String url;
@@ -9,7 +10,7 @@ class StreamUrl {
 
   // 返回处理后的 URL，如果是 YouTube URL，则会解析；如果失败或不是 YouTube URL，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
-    try {
+    return await LogUtil.safeExecute(() async {
       // 判断是否是 YouTube 链接
       if (_isYouTubeUrl(url)) {
         // 如果是 YouTube 直播，获取直播流 URL
@@ -20,9 +21,7 @@ class StreamUrl {
         }
       }
       return url; // 如果不是 YouTube 链接，直接返回原始 URL
-    } catch (e) {
-      return 'ERROR';  // 出现异常时返回 'ERROR'
-    }
+    }, '解析视频流 URL 时出错');
   }
 
   // 释放资源（关闭 YouTube API 实例）
@@ -37,18 +36,20 @@ class StreamUrl {
 
   // 获取 YouTube 直播流的 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeLiveStreamUrl() async {
-    String? m3u8Url;
-    // 尝试最多两次获取 m3u8 地址，按不同的分辨率优先顺序
-    for (int i = 0; i < 2; i++) {
-      m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-      if (m3u8Url != null) break;  // 如果获取成功，跳出循环
-    }
-    return m3u8Url;  // 返回解析到的 m3u8 地址或 null
+    return await LogUtil.safeExecute(() async {
+      String? m3u8Url;
+      // 尝试最多两次获取 m3u8 地址，按不同的分辨率优先顺序
+      for (int i = 0; i < 2; i++) {
+        m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+        if (m3u8Url != null) break;  // 如果获取成功，跳出循环
+      }
+      return m3u8Url;  // 返回解析到的 m3u8 地址或 null
+    }, '获取 YouTube 直播流 URL 时出错');
   }
 
   // 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeVideoUrl() async {
-    try {
+    return await LogUtil.safeExecute(() async {
       var video = await yt.videos.get(url);  // 获取视频详细信息
       if (video.isLive) {
         // 如果是直播视频，调用获取直播流的函数
@@ -60,9 +61,7 @@ class StreamUrl {
         var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
         return streamInfo?.url.toString();  // 返回最佳视频流的 URL 或 null
       }
-    } catch (e) {
-      return null;  // 如果出错，返回 null
-    }
+    }, '获取 YouTube 视频流 URL 时出错');
   }
 
   // 根据指定的清晰度列表，获取最佳的视频流信息
@@ -82,7 +81,7 @@ class StreamUrl {
 
   // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    try {
+    return await LogUtil.safeExecute(() async {
       // 向 YouTube 链接发送 HTTP GET 请求
       final response = await http.get(
         Uri.parse(youtubeUrl),
@@ -102,15 +101,13 @@ class StreamUrl {
           }
         }
       }
-    } catch (e) {
-      return null;  // 出错时返回 null
-    }
-    return null;  // 如果解析不到有效的 m3u8 地址，返回 null
+      return null;  // 如果解析不到有效的 m3u8 地址，返回 null
+    }, '获取 YouTube M3U8 地址时出错');
   }
 
   // 根据 m3u8 清单中的分辨率，选择最合适的流 URL
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    try {
+    return await LogUtil.safeExecute(() async {
       // 请求 m3u8 文件，获取视频流的不同分辨率清单
       final response = await http.get(Uri.parse(indexM3u8Url));
 
@@ -142,10 +139,8 @@ class StreamUrl {
           return qualityUrls.values.first;  // 如果没有匹配，返回第一个 URL
         }
       }
-    } catch (e) {
-      return null;  // 出错时返回 null
-    }
-    return null;
+      return null;  // 如果解析不到有效的分辨率清单，返回 null
+    }, '选择最合适的 M3U8 流 URL 时出错');
   }
 
   // 从 m3u8 文件的清单行中提取视频质量（分辨率）
