@@ -2,7 +2,6 @@ import 'package:apk_installer/apk_installer.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-
 import '../util/http_util.dart';
 
 class DownloadProvider extends ChangeNotifier {
@@ -13,20 +12,40 @@ class DownloadProvider extends ChangeNotifier {
   double get progress => _progress;
 
   Future<void> downloadApk(String url) async {
-    _isDownloading = true;
-    notifyListeners();
+    try {
+      LogUtil.safeExecute(() {
+        _isDownloading = true;
+        notifyListeners();
+        LogUtil.v('开始下载 APK 文件: $url');
+      }, '初始化下载时发生错误');
 
-    final savePath = '${(await getTemporaryDirectory()).path}/apk/${url.split('/').last}';
-    LogUtil.v('download apk :::: $url');
-    LogUtil.v('apk save path:::: $savePath');
+      final savePath = '${(await getTemporaryDirectory()).path}/apk/${url.split('/').last}';
+      LogUtil.v('APK 保存路径: $savePath');
 
-    final code = await HttpUtil().downloadFile(url, savePath, progressCallback: (double currentProgress) {
-      _progress = currentProgress;
-      notifyListeners();
-    });
-    if (code == 200) {
-      await ApkInstaller.installApk(filePath: savePath);
-    } else {
+      final code = await HttpUtil().downloadFile(
+        url,
+        savePath,
+        progressCallback: (double currentProgress) {
+          try {
+            _progress = currentProgress;
+            notifyListeners();
+            LogUtil.v('下载进度: ${(_progress * 100).toStringAsFixed(2)}%');
+          } catch (e) {
+            LogUtil.logError('更新下载进度时发生错误', e);
+          }
+        },
+      );
+
+      if (code == 200) {
+        LogUtil.v('APK 文件下载完成，开始安装: $savePath');
+        await ApkInstaller.installApk(filePath: savePath);
+      } else {
+        LogUtil.logError('下载 APK 文件失败，错误码: $code', Exception('HTTP Error Code: $code'));
+        _isDownloading = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      LogUtil.logError('下载或安装 APK 时发生错误', e);
       _isDownloading = false;
       notifyListeners();
     }
