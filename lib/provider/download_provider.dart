@@ -30,8 +30,8 @@ class DownloadProvider extends ChangeNotifier {
             _progress = currentProgress;
             notifyListeners();
             LogUtil.v('下载进度: ${(_progress * 100).toStringAsFixed(2)}%');
-          } catch (e) {
-            LogUtil.logError('更新下载进度时发生错误', e);
+          } catch (e, stackTrace) {
+            LogUtil.logError('更新下载进度时发生错误', e, stackTrace);
           }
         },
       );
