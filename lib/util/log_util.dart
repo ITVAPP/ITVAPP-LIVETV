@@ -1,25 +1,25 @@
-import 'dart:developer' as developer;  // 使用别名来避免与 log 冲突
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-
-// 封装的日志记录方法
-void _logError(String message, dynamic error, StackTrace stackTrace) {
-  LogUtil.e('$message: $error');
-  LogUtil.e('堆栈信息: $stackTrace');
-}
-
-// 封装的安全执行方法，捕获并记录异常
-void _safeExecute(Future<void> Function() action, String errorMessage) async {
-  try {
-    await action();
-  } catch (error, stackTrace) {
-    _logError(errorMessage, error, stackTrace);
-  }
-}
 
 class LogUtil {
   static const String _defTag = 'common_utils';
   static bool _debugMode = false; // 是否是调试模式，生产环境关闭日志
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
+
+  // 封装的日志记录方法
+  static void logError(String message, dynamic error, StackTrace stackTrace) {
+    LogUtil.e('$message: $error');
+    LogUtil.e('堆栈信息: $stackTrace');
+  }
+
+  // 封装的安全执行方法，捕获并记录异常
+  static Future<void> safeExecute(Future<void> Function() action, String errorMessage) async {
+    try {
+      await action();
+    } catch (error, stackTrace) {
+      logError(errorMessage, error, stackTrace);
+    }
+  }
 
   // 初始化日志工具
   static void init({
@@ -29,7 +29,7 @@ class LogUtil {
     _debugMode = isDebug;
   }
 
-  // 记录 verbose 日志 (保持与现有代码兼容)
+  // 记录 verbose 日志
   static void v(Object? object, {String? tag}) {
     _log('v', object, tag);
   }
@@ -139,7 +139,8 @@ class _LogViewerPageState extends State<LogViewerPage> {
                 setState(() {
                   LogUtil.clearLogs();
                 });
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('日志已清空')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text('日志已清空')));
               },
               child: Text('清空日志'),
             ),
