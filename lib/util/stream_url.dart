@@ -10,7 +10,7 @@ class StreamUrl {
 
   // 返回处理后的 URL，如果是 YouTube URL，则会解析；如果失败或不是 YouTube URL，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String>(() async {
       // 判断是否是 YouTube 链接
       if (_isYouTubeUrl(url)) {
         // 如果是 YouTube 直播，获取直播流 URL
@@ -36,7 +36,7 @@ class StreamUrl {
 
   // 获取 YouTube 直播流的 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeLiveStreamUrl() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String?>(() async {
       String? m3u8Url;
       // 尝试最多两次获取 m3u8 地址，按不同的分辨率优先顺序
       for (int i = 0; i < 2; i++) {
@@ -49,7 +49,7 @@ class StreamUrl {
 
   // 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeVideoUrl() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String?>(() async {
       var video = await yt.videos.get(url);  // 获取视频详细信息
       if (video.isLive) {
         // 如果是直播视频，调用获取直播流的函数
@@ -81,7 +81,7 @@ class StreamUrl {
 
   // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String?>(() async {
       // 向 YouTube 链接发送 HTTP GET 请求
       final response = await http.get(
         Uri.parse(youtubeUrl),
@@ -107,7 +107,7 @@ class StreamUrl {
 
   // 根据 m3u8 清单中的分辨率，选择最合适的流 URL
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String?>(() async {
       // 请求 m3u8 文件，获取视频流的不同分辨率清单
       final response = await http.get(Uri.parse(indexM3u8Url));
 
