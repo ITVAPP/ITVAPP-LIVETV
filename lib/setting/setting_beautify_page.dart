@@ -9,7 +9,7 @@ class SettingBeautifyPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 使用 try-catch 并记录日志，确保捕获所有潜在错误
-    return LogUtil.safeExecute(() {
+    return LogUtil.safeExecute(() {}, fallback: Scaffold(body: Center(child: Text("Error in Beautify Page"))));
       // 获取当前屏幕的宽度
       var screenWidth = MediaQuery.of(context).size.width;
 
