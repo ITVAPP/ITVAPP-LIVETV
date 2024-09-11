@@ -35,6 +35,7 @@ class ThemeProvider extends ChangeNotifier {
       if (_fontFamily != 'system') {
         FontUtil().loadFont(_fontUrl, _fontFamily);
       }
+      return Future.value(); // 添加 Future<void> 返回值
     }, '初始化 ThemeProvider 时出错');
   }
 
