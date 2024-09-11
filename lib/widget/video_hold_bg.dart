@@ -72,7 +72,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
         });
       }
     } catch (e) {
-      LogUtil.logError('获取 Bing 图片失败', e, stackTrace);
+      LogUtil.logError('获取 Bing 图片失败', e, stackTrace.current);
       setState(() {
         isLoading = false; // 加载失败时隐藏进度条
         currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图作为回退
