@@ -34,7 +34,7 @@ class LanguageProvider with ChangeNotifier {
           LogUtil.v('未找到已保存的语言设置，使用系统默认语言');
         }
       }, '加载已保存语言设置时发生错误');
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('从 SharedPreferences 加载语言设置时发生错误', e, stackTrace);
     }
   }
@@ -72,7 +72,7 @@ class LanguageProvider with ChangeNotifier {
           await prefs.remove('countryCode'); // 如果没有国家代码，则移除
         }
         LogUtil.v('语言设置已保存到 SharedPreferences');
-      } catch (e) {
+      } catch (e, stackTrace) {
         LogUtil.logError('保存语言设置到 SharedPreferences 时发生错误', e, stackTrace);
       }
     }, '更改语言设置时发生错误');
