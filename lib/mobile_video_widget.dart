@@ -87,7 +87,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 if (!EnvUtil.isMobile) {
                   windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
                 }
-              });
+              }, '执行操作按钮发生错误');
             },
             icon: const Icon(Icons.add),  // 添加频道的图标
           ),
@@ -118,7 +118,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 if (!EnvUtil.isMobile) {
                   windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
                 }
-              });
+              }, '执行操作设置按钮发生错误');
             },
             icon: const Icon(Icons.settings_outlined),  // 设置图标
           ),
