@@ -108,6 +108,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
       if (parsedUrl == 'ERROR') {
+        LogUtil.e('视频解析失败: $_sourceIndex :: ${_currentChannel?.title}');  // 添加日志记录
         setState(() {
           toastString = S.current.playError; // 更新 UI 显示播放错误提示
         });
@@ -128,7 +129,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e) {
       // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
-      LogUtil.v('解析视频地址出错:::::$e');
+      LogUtil.e('解析视频地址时出错: $e');  // 添加日志记录
       setState(() {
         toastString = S.current.playError; // 显示错误提示
       });
@@ -136,7 +137,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    LogUtil.v('正在播放:$_sourceIndex::${_currentChannel!.toJson()}');
+    LogUtil.v('解析成功，准备播放: $_sourceIndex :: $url');  // 添加日志记录
 
     try {
       // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
@@ -165,7 +166,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _startTimeoutCheck();
     } catch (e) {
       // 如果播放过程中发生异常，处理播放失败逻辑
-      LogUtil.v('播放出错:::::$e');
+      LogUtil.e('播放时出错: $e');  // 添加日志记录
       _retryPlayback(); // 调用处理方法
     } finally {
       _isSwitchingChannel = false;
@@ -191,7 +192,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = true; // 开始超时检测
     Future.delayed(Duration(seconds: timeoutSeconds), () {
       if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
-        LogUtil.v('超时未播放，自动重试');
+        LogUtil.e('超时未播放，自动重试');  // 添加日志记录
         _retryPlayback();
       }
     });
@@ -201,7 +202,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback() {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
-    
+
+    LogUtil.v('播放重试: $_retryCount / $maxRetries');  // 添加日志记录
+
     // 在重试前释放播放器资源
     _disposePlayer(); // 确保释放旧的播放器资源
 
@@ -217,6 +220,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           toastString = S.current.playError;
         });
+        LogUtil.e('所有线路均已尝试，播放失败');  // 添加日志记录
       } else {
         setState(() {
           toastString = S.current.switchLine(_sourceIndex + 1);
@@ -261,6 +265,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
+      LogUtil.e('播放器发生错误: ${_playerController!.value.errorDescription}');  // 添加日志记录
       _disposePlayer(); // 确保在出错时释放播放器资源	
       _retryPlayback(); // 调用失败处理逻辑
       return;
@@ -295,7 +300,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
-    LogUtil.v('onTapChannel:::::${_currentChannel?.toJson()}');
     
     await _disposePlayer(); // 确保之前的视频已停止并释放资源
     _playVideo(); // 开始播放选中的频道
@@ -332,7 +336,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从远程获取 M3U 播放列表并初始化当前播放的频道
   Future<void> _parseData() async {
     final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
-    LogUtil.v('_parseData:::::$resMap');
+    LogUtil.v('_parseData:::::$resMap');  // 添加日志记录
     _videoMap = resMap.data;
     _sourceIndex = 0;
 
@@ -357,6 +361,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _currentChannel = null;
         _disposePlayer();
         toastString = 'UNKNOWN'; // 显示未知错误提示
+        LogUtil.e('播放列表为空或加载失败');  // 添加日志记录
       });
     }
   }
@@ -482,7 +487,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 切换到选中的视频源并开始播放
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
-      LogUtil.v('切换线路:====线路${_sourceIndex + 1}');
       _playVideo();
     }
   }
