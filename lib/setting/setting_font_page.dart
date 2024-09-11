@@ -28,7 +28,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   @override
   Widget build(BuildContext context) {
     // 包装整个 build 方法，确保捕获潜在错误
-    return LogUtil.safeExecute(() {
+    return LogUtil.safeExecute<Scaffold>(() {
       // 获取屏幕宽度以进行布局优化
       var screenWidth = MediaQuery.of(context).size.width;
 
@@ -148,6 +148,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
           ),
         ),
       );
-    }, '加载字体设置页面时出错');
+    }, '加载字体设置页面时出错', fallback: Scaffold()); // 提供 Scaffold fallback
   }
 }
