@@ -35,7 +35,7 @@ class LanguageProvider with ChangeNotifier {
         }
       }, '加载已保存语言设置时发生错误');
     } catch (e) {
-      LogUtil.logError('从 SharedPreferences 加载语言设置时发生错误', e);
+      LogUtil.logError('从 SharedPreferences 加载语言设置时发生错误', e, stackTrace);
     }
   }
 
@@ -73,7 +73,7 @@ class LanguageProvider with ChangeNotifier {
         }
         LogUtil.v('语言设置已保存到 SharedPreferences');
       } catch (e) {
-        LogUtil.logError('保存语言设置到 SharedPreferences 时发生错误', e);
+        LogUtil.logError('保存语言设置到 SharedPreferences 时发生错误', e, stackTrace);
       }
     }, '更改语言设置时发生错误');
   }
