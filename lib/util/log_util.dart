@@ -144,7 +144,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
         },
         child: Text(label),
         style: ElevatedButton.styleFrom(
-          primary: _selectedLevel == level ? Colors.blue : Colors.grey,
+          backgroundColor: _selectedLevel == level ? Colors.blue : Colors.grey, // 修改这里
         ),
       ),
     );
