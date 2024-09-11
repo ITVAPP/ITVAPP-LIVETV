@@ -1,7 +1,7 @@
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil
 
 class SettingBeautifyPage extends StatelessWidget {
   const SettingBeautifyPage({super.key});
