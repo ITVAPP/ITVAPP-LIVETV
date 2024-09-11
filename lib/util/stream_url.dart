@@ -24,14 +24,14 @@ class StreamUrl {
       }
       return url; // 如果不是 YouTube 链接，直接返回原始 URL
     } catch (e, stackTrace) {
-      logError('获取视频流地址时发生错误', e, stackTrace);
+      LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';  // 出现异常时返回 'ERROR'
     }
   }
 
   // 释放资源（关闭 YouTube API 实例）
   void dispose() {
-    safeExecute(() {
+    LogUtil.safeExecute(() {
       yt.close();
       LogUtil.i('YouTubeExplode 实例已关闭');
     }, '关闭 YouTubeExplode 实例时发生错误');
@@ -53,7 +53,7 @@ class StreamUrl {
       LogUtil.i('获取到 YouTube 直播流地址: $m3u8Url');
       return m3u8Url;
     } catch (e, stackTrace) {
-      logError('获取 YouTube 直播流地址时发生错误', e, stackTrace);
+      LogUtil.logError('获取 YouTube 直播流地址时发生错误', e, stackTrace);
       return null;
     }
   }
@@ -72,7 +72,7 @@ class StreamUrl {
         return streamInfo?.url.toString();
       }
     } catch (e, stackTrace) {
-      logError('获取 YouTube 视频流地址时发生错误', e, stackTrace);
+      LogUtil.logError('获取 YouTube 视频流地址时发生错误', e, stackTrace);
       return null;
     }
   }
@@ -93,7 +93,7 @@ class StreamUrl {
       LogUtil.w('没有找到匹配的质量，使用默认流');
       return null;
     } catch (e, stackTrace) {
-      logError('获取最佳视频流时发生错误', e, stackTrace);
+      LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
       return null;
     }
   }
@@ -118,7 +118,7 @@ class StreamUrl {
         }
       }
     } catch (e, stackTrace) {
-      logError('获取 YouTube m3u8 地址时发生错误', e, stackTrace);
+      LogUtil.logError('获取 YouTube m3u8 地址时发生错误', e, stackTrace);
     }
     return null;
   }
@@ -157,7 +157,7 @@ class StreamUrl {
         }
       }
     } catch (e, stackTrace) {
-      logError('获取最合适的 m3u8 地址时发生错误', e, stackTrace);
+      LogUtil.logError('获取最合适的 m3u8 地址时发生错误', e, stackTrace);
     }
     return null;
   }
