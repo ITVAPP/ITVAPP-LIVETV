@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // 然后获取 M3U 数据
         _m3uDataFuture = _fetchData();
-      });
+      }, '获取设备类型时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
     }
@@ -46,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
         setState(() {
           _message = '正在获取数据...'; // 显示数据获取提示
         });
-      });
+      }, '获取 M3U 数据时发生错误');
 
       final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
         setState(() {
@@ -164,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
                       LogUtil.i('重新尝试获取 M3U 数据');
                     });
-                  });
+                  }, '重试获取 M3U 数据时发生错误');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEB144C), // 按钮背景颜色
