@@ -172,7 +172,7 @@ class _TvPageState extends State<TvPage> {
         default:
           break;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('处理键盘事件时发生错误', e, stackTrace);
     }
   }
