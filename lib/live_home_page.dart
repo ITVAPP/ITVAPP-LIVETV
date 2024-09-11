@@ -126,9 +126,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return; // 用户取消播放，退出函数
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
-      LogUtil.v('解析视频地址出错:::::$e');
+      LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
         toastString = S.current.playError; // 显示错误提示
       });
@@ -163,9 +163,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       // 添加超时检测机制
       _startTimeoutCheck();
-    } catch (e) {
+    } catch (e, stackTrace) {
       // 如果播放过程中发生异常，处理播放失败逻辑
-      LogUtil.v('播放出错:::::$e');
+      LogUtil.logError('播放出错', e, stackTrace);
       _retryPlayback(); // 调用处理方法
     } finally {
       _isSwitchingChannel = false;
@@ -176,13 +176,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _disposePlayer() async {
     if (_playerController != null && !_isDisposing) {
       _isDisposing = true;
-      if (_playerController!.value.isPlaying) {
-        await _playerController!.pause(); // 确保视频暂停
-      }
-      _playerController!.removeListener(_videoListener); // 移除监听器
-      await _playerController!.dispose(); // 释放资源
-      _playerController = null;
-      _isDisposing = false;
+      LogUtil.safeExecute(() async {
+        if (_playerController!.value.isPlaying) {
+          await _playerController!.pause(); // 确保视频暂停
+        }
+        _playerController!.removeListener(_videoListener); // 移除监听器
+        await _playerController!.dispose(); // 释放资源
+        _playerController = null;
+        _isDisposing = false;
+      }, '释放播放器资源时出错');
     }
   }
 
@@ -314,8 +316,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 异步加载视频数据和版本检测
   _loadData() async {
-    await _parseData();
-    CheckVersionUtil.checkVersion(context, false, false);
+    try {
+      await _parseData();
+      CheckVersionUtil.checkVersion(context, false, false);
+    } catch (e, stackTrace) {
+      LogUtil.logError('加载数据时出错', e, stackTrace);
+    }
   }
   
   @override
@@ -331,33 +337,37 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 解析并加载播放列表数据
   /// 从远程获取 M3U 播放列表并初始化当前播放的频道
   Future<void> _parseData() async {
-    final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
-    LogUtil.v('_parseData:::::$resMap');
-    _videoMap = resMap.data;
-    _sourceIndex = 0;
+    try {
+      final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
+      LogUtil.v('_parseData:::::$resMap');
+      _videoMap = resMap.data;
+      _sourceIndex = 0;
 
-    if (_videoMap?.playList?.isNotEmpty ?? false) {
-      setState(() {
-        // 加载第一个频道
-        String group = _videoMap!.playList!.keys.first.toString();
-        String channel = _videoMap!.playList![group]!.keys.first;
-        _currentChannel = _videoMap!.playList![group]![channel];
-        _playVideo(); // 播放第一个频道
-      });
+      if (_videoMap?.playList?.isNotEmpty ?? false) {
+        setState(() {
+          // 加载第一个频道
+          String group = _videoMap!.playList!.keys.first.toString();
+          String channel = _videoMap!.playList![group]!.keys.first;
+          _currentChannel = _videoMap!.playList![group]![channel];
+          _playVideo(); // 播放第一个频道
+        });
 
-      // 如果存在 EPG（节目预告）数据，则加载
-      if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
-        EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+        // 如果存在 EPG（节目预告）数据，则加载
+        if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
+          EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+        } else {
+          EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+        }
       } else {
-        EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+        // 如果播放列表为空，显示未知错误提示
+        setState(() {
+          _currentChannel = null;
+          _disposePlayer();
+          toastString = 'UNKNOWN'; // 显示未知错误提示
+        });
       }
-    } else {
-      // 如果播放列表为空，显示未知错误提示
-      setState(() {
-        _currentChannel = null;
-        _disposePlayer();
-        toastString = 'UNKNOWN'; // 显示未知错误提示
-      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析播放列表时出错', e, stackTrace);
     }
   }
 
