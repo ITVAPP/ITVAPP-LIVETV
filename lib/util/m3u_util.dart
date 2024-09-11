@@ -23,7 +23,7 @@ class M3uUtil {
   static Future<M3uResult> _handleErrors(Future<M3uResult> Function() action) async {
     try {
       return await action();
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('操作失败', e, stackTrace);
       return M3uResult(errorMessage: '操作失败: $e');
     }
@@ -40,7 +40,7 @@ class M3uUtil {
       try {
         final parsedData = await _parseM3u(m3uDataString);  // 解析M3U数据
         return M3uResult(data: parsedData);
-      } catch (e) {
+      } catch (e, stackTrace) {
         LogUtil.logError('解析本地M3U数据失败', e, stackTrace);
         return M3uResult(errorMessage: '解析本地M3U数据失败: $e');
       }
@@ -94,7 +94,7 @@ class M3uUtil {
         // 解析M3U数据
         final parsedData = await _parseM3u(m3uData);
         return M3uResult(data: parsedData);
-      } catch (e) {
+      } catch (e, stackTrace) {
         LogUtil.logError('获取默认M3U数据失败', e, stackTrace);
         return M3uResult(errorMessage: '获取默认M3U数据失败: $e');
       }
@@ -108,7 +108,7 @@ class M3uUtil {
     for (int attempt = 0; attempt < retries; attempt++) {
       try {
         return await request();
-      } catch (e) {
+      } catch (e, stackTrace) {
         LogUtil.logError('请求失败，重试第 $attempt 次', e, stackTrace);
         if (onRetry != null) {
           onRetry(attempt + 1);  // 回调传递重试次数
