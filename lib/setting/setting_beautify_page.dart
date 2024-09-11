@@ -46,7 +46,7 @@ class SettingBeautifyPage extends StatelessWidget {
                     child: Switch(
                       value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
                       onChanged: (value) {
-                        safeExecute(() {
+                        LogUtil.safeExecute(() {
                           context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
                           LogUtil.i('每日Bing背景设置为: ${value ? "启用" : "禁用"}');
                         }, '设置每日Bing背景时发生错误');
@@ -64,7 +64,7 @@ class SettingBeautifyPage extends StatelessWidget {
         ),
       );
     } catch (e, stackTrace) {
-      logError('构建 SettingBeautifyPage 时发生错误', e, stackTrace);
+      LogUtil.logError('构建 SettingBeautifyPage 时发生错误', e, stackTrace);
       return Scaffold(
         body: Center(child: Text('加载页面时出错')),
       );
