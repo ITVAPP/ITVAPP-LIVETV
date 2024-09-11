@@ -28,7 +28,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   @override
   Widget build(BuildContext context) {
     // 包装整个 build 方法，确保捕获潜在错误
-    return LogUtil.safeExecute<Scaffold>(() {
+    return LogUtil.safeExecute<Scaffold>(() {}, fallback: Scaffold(body: Center(child: Text("Error in Font Page"))));
       // 获取屏幕宽度以进行布局优化
       var screenWidth = MediaQuery.of(context).size.width;
 
