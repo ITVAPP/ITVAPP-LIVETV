@@ -162,7 +162,7 @@ class _SubScribePageState extends State<SubScribePage> {
   }
 
   Future<String> getCurrentIP() async {
-    return await LogUtil.safeExecute(() async {
+    return await LogUtil.safeExecute<String>(() async {
       String currentIP = '';
       try {
         for (var interface in await NetworkInterface.list()) {
