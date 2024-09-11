@@ -48,21 +48,10 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners(); // 通知监听器更新界面
   }
 
-  // 设置每日 Bing 背景图片的开关状态，改为异步操作
-  Future<void> setBingBg(bool isOpen) async {
-    await SpUtil.putBool('bingBg', isOpen);  // 异步存储 Bing 背景状态
-    _isBingBg = isOpen;  // 更新内部状态
-    
-    if (isOpen) {
-      // 异步获取 Bing 背景图片 URL
-      String? bingImgUrl = await BingUtil.getCachedBingImgUrl();
-      if (bingImgUrl != null) {
-        // 此处可以调用应用背景更新的逻辑
-        print("Bing 背景图片 URL: $bingImgUrl");
-      }
-    }
-    
-    notifyListeners();  // 通知监听器更新界面
+    void setBingBg(bool isOpen) {
+    SpUtil.putBool('bingBg', isOpen);
+    _isBingBg = isOpen;
+    notifyListeners();
   }
 
   // 检测并设置设备是否为 TV
