@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class LogUtil {
   static const String _defTag = 'common_utils';
-  static bool _debugMode = false; // 直接在这里设置是否记录日志，true 表示记录日志，false 表示不记录
+  static bool _debugMode = true; // 直接在这里设置是否记录日志，true 表示记录日志，false 表示不记录
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
 
   // 封装的日志记录方法
