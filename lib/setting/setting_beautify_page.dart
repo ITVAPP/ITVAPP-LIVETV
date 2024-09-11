@@ -33,15 +33,23 @@ class SettingBeautifyPage extends StatelessWidget {
           alignment: Alignment.center,
           child: ListView(
             children: [
-              // 切换每日 Bing 背景图片的设置项
-              SwitchListTile(
+              // 自定义切换每日 Bing 背景图片的设置项
+              ListTile(
                 title: const Text('每日Bing'), // 选项标题
-                value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
                 subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 选项的说明文字
-                onChanged: (value) {
-                  // 同步更新 Bing 背景状态，和字体大小的逻辑保持一致
-                  context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
-                },
+                trailing: Transform.scale(
+                  scale: 1.2, // 调整开关大小
+                  child: Switch(
+                    value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
+                    onChanged: (value) {
+                      context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
+                    },
+                    activeColor: Colors.white, // 滑块的颜色
+                    activeTrackColor: const Color(0xFFEB144C), // 开启时轨道的背景颜色
+                    inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
+                    inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
+                  ),
+                ),
               ),
             ],
           ),
