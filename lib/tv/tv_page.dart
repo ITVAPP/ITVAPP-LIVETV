@@ -88,7 +88,7 @@ class _TvPageState extends State<TvPage> {
           },
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace);
       return null;
     }
