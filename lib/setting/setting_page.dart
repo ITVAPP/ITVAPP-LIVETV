@@ -196,7 +196,7 @@ class _SettingPageState extends State<SettingPage> {
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
                   // 导航到日志设置页面
-                  Navigator.pushNamed(context, RouterKeys.logViewer);
+                  Navigator.pushNamed(context, RouterKeys.settinglog);
                 },
               ),
             ),
