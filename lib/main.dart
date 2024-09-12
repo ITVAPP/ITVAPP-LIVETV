@@ -192,7 +192,7 @@ class MyApp extends StatelessWidget {
           home: SplashScreen(),
 
           // 全局构建器，处理文本缩放和加载动画
-         builder: (context, child) {
+          builder: (context, child) {
             return Stack(
               children: [
                 MediaQuery(
@@ -229,7 +229,7 @@ class MyApp extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(10.0), // 设置圆角半径
                                 ),
                               ),
-  child: const Text('查看日志'),
+                              child: const Text('查看日志'),
                             ),
                           ],
                         ),
