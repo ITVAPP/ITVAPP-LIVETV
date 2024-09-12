@@ -23,7 +23,9 @@ import 'provider/theme_provider.dart'; // 引入ThemeProvider
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
-  const LiveHomePage({super.key});
+  final M3uResult m3uData; // 接收上个页面传递的 M3uResult 数据
+
+  const LiveHomePage({super.key, required this.m3uData});
 
   @override
   State<LiveHomePage> createState() => _LiveHomePageState();
@@ -317,25 +319,53 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 异步加载视频数据和版本检测
   _loadData() async {
     try {
-      await _parseData();
+      // 使用上个页面传递的 M3uResult 数据
+      if (widget.m3uData.data != null) {
+        _parseDataFromM3uResult(widget.m3uData); // 如果传递的 M3uResult 数据正确，解析它
+      } else {
+        // 如果 M3uResult 数据不正确，使用 getLocalM3uData 获取本地数据
+        await _parseData();
+      }
+
+      // 版本检测
       CheckVersionUtil.checkVersion(context, false, false);
     } catch (e, stackTrace) {
       LogUtil.logError('加载数据时出错', e, stackTrace);
     }
   }
-  
-  @override
-  void dispose() {
-    // 禁用保持屏幕唤醒功能
-    WakelockPlus.disable();
 
-    // 释放播放器资源
-    _disposePlayer();
-    super.dispose();
+  /// 解析并加载传递的 M3uResult 数据
+  Future<void> _parseDataFromM3uResult(M3uResult m3uResult) async {
+    LogUtil.v('_parseDataFromM3uResult:::::$m3uResult');
+    _videoMap = m3uResult.data;
+    _sourceIndex = 0;
+
+    if (_videoMap?.playList?.isNotEmpty ?? false) {
+      setState(() {
+        // 加载第一个频道
+        String group = _videoMap!.playList!.keys.first.toString();
+        String channel = _videoMap!.playList![group]!.keys.first;
+        _currentChannel = _videoMap!.playList![group]![channel];
+        _playVideo(); // 播放第一个频道
+      });
+
+      // 如果存在 EPG（节目预告）数据，则加载
+      if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
+        EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+      } else {
+        EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+      }
+    } else {
+      // 如果播放列表为空，显示未知错误提示
+      setState(() {
+        _currentChannel = null;
+        _disposePlayer();
+        toastString = 'UNKNOWN'; // 显示未知错误提示
+      });
+    }
   }
 
-  /// 解析并加载播放列表数据
-  /// 从远程获取 M3U 播放列表并初始化当前播放的频道
+  /// 解析并加载本地播放列表数据
   Future<void> _parseData() async {
     try {
       final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
@@ -369,6 +399,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('解析播放列表时出错', e, stackTrace);
     }
+  }
+
+  @override
+  void dispose() {
+    // 禁用保持屏幕唤醒功能
+    WakelockPlus.disable();
+
+    // 释放播放器资源
+    _disposePlayer();
+    super.dispose();
   }
 
   @override
