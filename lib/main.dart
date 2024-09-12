@@ -203,39 +203,39 @@ class MyApp extends StatelessWidget {
                 if (LogUtil.debugMode) 
                 {
                   // 捕获 Flutter 中的全局错误并显示 ErrorWidget
-                  ErrorWidget.builder = (FlutterErrorDetails details) {
-                    return Material(
-                      color: Colors.redAccent,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error, size: 50, color: Colors.white),
-                            const SizedBox(height: 20),
-                            Text(
-                              '发生错误：${details.exception}',
-                              style: const TextStyle(color: Colors.white, fontSize: 18),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFEB144C), // 按钮背景颜色
-                                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0), // 按钮内边距
-                                shape: RoundedRectangleBorder( // 圆角样式
-                                  borderRadius: BorderRadius.circular(10.0), // 设置圆角半径
-                                ),
-                              ),
-                              child: const Text('查看日志'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  };
+ErrorWidget.builder = (FlutterErrorDetails details) {
+  return Material(
+    color: Colors.redAccent,
+    child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error, size: 50, color: Colors.white),
+          const SizedBox(height: 20),
+          Text(
+            '发生错误：${details.exception}',
+            style: const TextStyle(color: Colors.white, fontSize: 18),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pushNamed(context, RouterKeys.settinglog);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEB144C),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+            ),
+            child: const Text('查看日志'),
+          ),
+        ],
+      ),
+    ),
+  );
+};
                 }
               ],
             );
