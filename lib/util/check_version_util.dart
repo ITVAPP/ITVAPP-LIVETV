@@ -91,17 +91,24 @@ class CheckVersionUtil {
 
     await saveLastPromptDate(); // 窗口弹出时，立即保存日期
 
-    // 通过 Provider 获取 isTV 状态
-    bool isTV = context.watch<ThemeProvider>().isTV;
-
     return showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
           LogUtil.v('显示更新弹窗');
+          
+          // 获取屏幕的宽度和高度
+          final screenWidth = MediaQuery.of(context).size.width;
+          final screenHeight = MediaQuery.of(context).size.height;
+          // 判断屏幕是横屏还是竖屏
+          final isPortrait = screenHeight > screenWidth;
+
+          // 根据屏幕方向和屏幕宽度设置弹窗宽度为屏幕宽度的某个百分比
+          final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 竖屏时使用80%，横屏时使用60%
+
           return Center(
             child: Container(
-              width: isTV ? 600 : 300, // 根据是否为电视设备调整宽度
+              width: dialogWidth,  // 动态调整宽度
               decoration: BoxDecoration(
                   color: const Color(0xFF2B2D30),
                   borderRadius: BorderRadius.circular(8),
@@ -151,7 +158,7 @@ class CheckVersionUtil {
                     ),
                   ),
                   UpdateDownloadBtn(
-                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}${isTV ? '-tv' : ''}.apk'),
+                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk'),
                   const SizedBox(height: 30),
                 ],
               ),
