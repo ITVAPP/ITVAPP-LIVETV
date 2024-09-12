@@ -188,7 +188,7 @@ class M3uUtil {
 
   // 保存合并后的M3U数据到本地存储
   static Future<void> saveMergedM3u(PlaylistModel mergedPlaylist) async {
-    return await LogUtil.safeExecute(() async {
+    await LogUtil.safeExecute(() async {
       String m3uString = _convertPlaylistToString(mergedPlaylist);
       await _saveCachedM3uData(m3uString);  // 保存到本地缓存
     }, "保存合并后的M3U数据时发生错误");
@@ -222,7 +222,7 @@ class M3uUtil {
 
   // 保存数据到本地缓存
   static Future<void> _saveCachedM3uData(String data) async {
-    return await LogUtil.safeExecute(() async {
+    await LogUtil.safeExecute(() async {
       await SpUtil.putString('m3u_cache', data);
     }, "保存M3U数据到本地缓存时发生错误");
   }
