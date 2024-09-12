@@ -3,39 +3,31 @@ import 'package:flutter/material.dart';
 
 class LogUtil {
   static const String _defTag = 'common_utils';
-  static bool debugMode = true; // 通过这个变量控制是否记录日志
+  static bool debugMode = true; // 控制是否记录日志
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
 
   // 封装的日志记录方法，增加参数检查并记录堆栈位置
   static void logError(String message, dynamic error, [StackTrace? stackTrace]) {
-    // 如果 debugMode 为 false，不记录日志
-    if (!debugMode) return;
+    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    stackTrace ??= StackTrace.current; // 如果堆栈信息为空，使用当前堆栈信息
 
-    // 如果堆栈信息为空，使用当前堆栈信息
-    stackTrace ??= StackTrace.current;
-
-    // 检查参数是否为空或者不符合预期
+    // 检查参数是否为空
     if (message == null || error == null) {
-      // 如果参数不符合预期，记录当前调用堆栈信息
       LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
       return;
     }
 
-    // 正常记录错误信息和堆栈信息
-    final timestamp = DateTime.now().toIso8601String(); // 增加时间戳，便于定位日志时间
+    // 记录错误信息和堆栈信息
+    final timestamp = DateTime.now().toIso8601String();
     LogUtil.e('[$timestamp] 错误: $message');
     LogUtil.e('错误详情: $error');
     LogUtil.e('堆栈信息: $stackTrace');
   }
 
-  // 封装的安全执行方法，捕获并记录异常
+  // 安全执行方法，捕获并记录异常
   static void safeExecute(void Function()? action, String errorMessage) {
-    // 如果 debugMode 为 false，不记录日志
-    if (!debugMode) return;
-
-    // 检查 action 是否为 null
+    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
     if (action == null) {
-      // 记录函数调用位置及错误信息
       logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', StackTrace.current);
       return;
     }
@@ -47,38 +39,35 @@ class LogUtil {
     }
   }
 
-  // 记录 verbose 日志
+  // 记录不同类型的日志
   static void v(Object? object, {String? tag}) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!debugMode) return;
     _log('v', object, tag);
   }
 
-  // 记录错误日志
   static void e(Object? object, {String? tag}) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!debugMode) return;
     _log('e', object, tag);
   }
 
-  // 记录信息日志
   static void i(Object? object, {String? tag}) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!debugMode) return;
     _log('i', object, tag);
   }
 
-  // 记录调试日志
   static void d(Object? object, {String? tag}) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!debugMode) return;
     _log('d', object, tag);
   }
 
   // 通用日志记录方法
   static void _log(String level, Object? object, String? tag) {
-    if (!debugMode) return;  // 如果 debugMode 为 false，不记录日志
-    if (object == null) return; // 跳过 null 日志
+    if (!debugMode) return;
+    if (object == null) return;
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
     _logs.add({'time': time, 'level': level, 'message': logMessage});
-    developer.log(logMessage); // 使用 developer.log 记录日志
+    developer.log(logMessage);
   }
 
   // 获取所有日志
@@ -104,7 +93,7 @@ class LogViewerPage extends StatefulWidget {
 }
 
 class _LogViewerPageState extends State<LogViewerPage> {
-  String _selectedLevel = 'all'; // 当前选中的日志级别
+  String _selectedLevel = 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +107,6 @@ class _LogViewerPageState extends State<LogViewerPage> {
       ),
       body: Column(
         children: [
-          // 日志类型切换按钮
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -153,7 +141,6 @@ class _LogViewerPageState extends State<LogViewerPage> {
                     ),
                   ),
           ),
-          // 清空日志按钮
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ElevatedButton(
