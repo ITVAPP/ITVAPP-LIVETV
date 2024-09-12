@@ -200,22 +200,57 @@ class MyApp extends StatelessWidget {
                   child: FlutterEasyLoading(child: child), // 加载动画封装
                 ),
                 // 添加按钮，仅当 debugMode 为 true 时显示
-                Visibility(
-                  visible: LogUtil.debugMode, // 当 debugMode 为 true 时显示按钮
-                  child: Positioned(
+                if (LogUtil.debugMode) 
+                {
+                  // 捕获 Flutter 中的全局错误并显示 ErrorWidget
+                  ErrorWidget.builder = (FlutterErrorDetails details) {
+                    return Material(
+                      color: Colors.redAccent,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error, size: 50, color: Colors.white),
+                            const SizedBox(height: 20),
+                            Text(
+                              '发生错误：${details.exception}',
+                              style: const TextStyle(color: Colors.white, fontSize: 18),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEB144C), // 按钮背景颜色
+                                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0), // 按钮内边距
+                                shape: RoundedRectangleBorder( // 圆角样式
+                                  borderRadius: BorderRadius.circular(10.0), // 设置圆角半径
+                                ),
+                              ),
+  child: const Text('查看日志'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  };
+
+                  return Positioned(
                     top: 20,
                     right: 20,
                     child: FloatingActionButton(
-                     onPressed: () {
-                       LogUtil.safeExecute(() {
-                         Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
-                       }, '跳转到日志查看页面错误');
-                     },
-                     child: Icon(Icons.view_list),
-                     tooltip: '查看日志',
-                   ),
-                  ),
-                ),
+                      onPressed: () {
+                        LogUtil.safeExecute(() {
+                          Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
+                        }, '跳转到日志查看页面错误');
+                      },
+                      child: const Icon(Icons.view_list),
+                      tooltip: '查看日志',
+                    ),
+                  );
+                }
               ],
             );
           },
