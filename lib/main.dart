@@ -184,17 +184,18 @@ class MyApp extends StatelessWidget {
                 Visibility(
                   visible: LogUtil.debugMode,  // 当 debugMode 为 true 时显示按钮
                   child: Align(
-                    alignment: Alignment.center,  // 设置按钮垂直居中
-                    child: Builder(  // 使用 Builder 生成新的上下文
-                      builder: (BuildContext newContext) {
-                        return FloatingActionButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, RouterKeys.settinglog);  // 跳转到日志查看页面
-                          },
-                          child: Icon(Icons.view_list),
-                          tooltip: '查看日志',
-                        );
-                      },
+                    alignment: Alignment.bottomRight,  // 设置按钮在右下角
+                    child: Padding(  // 添加一些间距，使按钮不会紧贴边缘
+                      padding: const EdgeInsets.all(16.0),  // 设置内边距
+                      child: FloatingActionButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, RouterKeys.settinglog);  // 跳转到日志查看页面
+                        },
+                        mini: true,  // 设置为较小的按钮
+                        shape: const CircleBorder(),  // 确保按钮为圆形
+                        child: const Icon(Icons.view_list),  // 按钮图标
+                        tooltip: '查看日志',  // 长按时显示的提示
+                      ),
                     ),
                   ),
                 ),
