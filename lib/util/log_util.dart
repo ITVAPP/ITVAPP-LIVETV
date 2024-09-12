@@ -8,15 +8,17 @@ class LogUtil {
   // 封装的日志记录方法，增加参数检查并记录堆栈位置
   static void logError(String message, dynamic error, [StackTrace? stackTrace]) {
     if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
-    stackTrace ??= StackTrace.current; // 如果堆栈信息为空，使用当前堆栈信息
 
-    // 检查参数是否为空
-    if (message == null || error == null) {
+    // 使用当前堆栈信息
+    stackTrace ??= StackTrace.current; 
+
+    // 参数检查
+    if (message?.isNotEmpty != true || error == null) {
       LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
       return;
     }
 
-    // 记录错误信息和堆栈信息
+    // 记录错误信息
     final timestamp = DateTime.now().toIso8601String();
     LogUtil.e('[$timestamp] 错误: $message');
     LogUtil.e('错误详情: $error');
