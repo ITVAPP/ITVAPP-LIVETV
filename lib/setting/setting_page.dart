@@ -192,7 +192,7 @@ class _SettingPageState extends State<SettingPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
                 title: const Text('日志'), // 设置美化标题
-                leading: const Icon(Icons.ac_unit), // 显示美化图标
+                leading: const Icon(Icons.view_list), // 显示美化图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
                   // 导航到日志设置页面
