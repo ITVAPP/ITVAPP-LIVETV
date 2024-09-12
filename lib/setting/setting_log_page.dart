@@ -11,7 +11,7 @@ class SettinglogPage extends StatefulWidget {
 
 class _SettinglogPageState extends State<SettinglogPage> {
   String _selectedLevel = 'all';
-  int _logLimit = 100; // 初始加载条数
+  int _logLimit = 80; // 初始加载条数
   bool _hasMoreLogs = true; // 是否还有更多日志
   List<Map<String, String>> _logs = []; // 缓存的日志
 
