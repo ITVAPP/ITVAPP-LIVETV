@@ -197,9 +197,9 @@ class MyApp extends StatelessWidget {
               children: [
                 MediaQuery(
                   data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
-                  child: FlutterEasyLoading(child: child), // 加载动画封装
+                  child: FlutterEasyLoading(child: child),
                 ),
-                // 添加按钮，仅当 debugMode 为 true 时显示
+                // 仅当 debugMode 为 true 时使用 ErrorWidget.builder
                 if (LogUtil.debugMode) 
                 {
                   // 捕获 Flutter 中的全局错误并显示 ErrorWidget
@@ -236,20 +236,6 @@ class MyApp extends StatelessWidget {
                       ),
                     );
                   };
-
-                  return Positioned(
-                    top: 20,
-                    right: 20,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        LogUtil.safeExecute(() {
-                          Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
-                        }, '跳转到日志查看页面错误');
-                      },
-                      child: const Icon(Icons.view_list),
-                      tooltip: '查看日志',
-                    ),
-                  );
                 }
               ],
             );
