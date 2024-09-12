@@ -176,15 +176,19 @@ class MyApp extends StatelessWidget {
 
           // 全局构建器，处理悬浮日志按钮、文本缩放和加载动画
           builder: (context, child) {
+            // 获取 ThemeProvider 中的日志开关状态
+            final themeProvider = Provider.of<ThemeProvider>(context);
+            final isLogOn = themeProvider.isLogOn;
+
             return Stack(
               children: [
                 MediaQuery(
                   data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
                   child: FlutterEasyLoading(child: child),  // 加载动画封装
                 ),
-                // 添加按钮，仅当 debugMode 为 true 时显示
+                // 添加按钮，仅当 isLogOn 为 true 时显示
                 Visibility(
-                  visible: LogUtil.debugMode,  // 当 debugMode 为 true 时显示按钮
+                  visible: isLogOn,  // 使用 ThemeProvider 中的 isLogOn 控制
                   child: Align(
                     alignment: Alignment.bottomRight,  // 设置按钮在右下角
                     child: Padding(  // 添加一些间距，使按钮不会紧贴边缘
