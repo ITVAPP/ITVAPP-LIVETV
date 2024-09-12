@@ -39,38 +39,26 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 设置字体相关的方法，捕获并记录异步操作中的异常
-  Future<void> setFontFamily(String fontFamilyName, [String fontFullUrl = '']) async {
-    try {
-      await SpUtil.putString('appFontFamily', fontFamilyName);
-      await SpUtil.putString('appFontUrl', fontFullUrl);
-      _fontFamily = fontFamilyName;
-      _fontUrl = fontFullUrl;
-      notifyListeners(); // 通知监听器更新界面
-    } catch (error, stackTrace) {
-      LogUtil.logError('设置字体时出错', error, stackTrace);
-    }
+  void setFontFamily(String fontFamilyName, [String fontFullUrl = '']) {
+    SpUtil.putString('appFontFamily', fontFamilyName);
+    SpUtil.putString('appFontUrl', fontFullUrl);
+    _fontFamily = fontFamilyName;
+    _fontUrl = fontFullUrl;
+    notifyListeners();
   }
 
   // 设置文本缩放，捕获并记录异步操作中的异常
-  Future<void> setTextScale(double textScaleFactor) async {
-    try {
-      await SpUtil.putDouble('fontScale', textScaleFactor);
-      _textScaleFactor = textScaleFactor;
-      notifyListeners(); // 通知监听器更新界面
-    } catch (error, stackTrace) {
-      LogUtil.logError('设置文本缩放时出错', error, stackTrace);
-    }
+  void setTextScale(double textScaleFactor) {
+    SpUtil.putDouble('fontScale', textScaleFactor);
+    _textScaleFactor = textScaleFactor;
+    notifyListeners();
   }
 
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
-  Future<void> setBingBg(bool isOpen) async {
-    try {
-      await SpUtil.putBool('bingBg', isOpen);  // 确保这是一个异步操作
-      _isBingBg = isOpen;
-      notifyListeners(); // 通知监听器更新界面
-    } catch (error, stackTrace) {
-      LogUtil.logError('设置 Bing 背景时出错', error, stackTrace);
-    }
+  void setBingBg(bool isOpen) {
+    SpUtil.putBool('bingBg', isOpen);
+    _isBingBg = isOpen;
+    notifyListeners();
   }
 
   // 检测并设置设备是否为 TV，捕获并记录异步操作中的异常
