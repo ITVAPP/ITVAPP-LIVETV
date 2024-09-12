@@ -6,18 +6,18 @@ class LogUtil {
   static const String _defTag = 'common_utils';
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
 
-  // 获取是否启用日志记录的状态
-  static bool get debugMode {
+  // 私有方法，用于从 ThemeProvider 获取日志开关状态
+  static bool _isLogOn() {
     final context = Provider.of<ThemeProvider>(Provider.of<BuildContext>(null, listen: false), listen: false);
     return context.isLogOn;
   }
 
   // 封装的日志记录方法，增加参数检查并记录堆栈位置
   static void logError(String message, dynamic error, [StackTrace? stackTrace]) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!_isLogOn()) return; // 如果日志开关关闭，不记录日志
 
     // 使用当前堆栈信息
-    stackTrace ??= StackTrace.current; 
+    stackTrace ??= StackTrace.current;
 
     // 参数检查
     if (message?.isNotEmpty != true || error == null) {
@@ -34,7 +34,7 @@ class LogUtil {
 
   // 安全执行方法，捕获并记录异常
   static void safeExecute(void Function()? action, String errorMessage) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
+    if (!_isLogOn()) return; // 如果日志开关关闭，不记录日志
     if (action == null) {
       logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', StackTrace.current);
       return;
@@ -49,28 +49,28 @@ class LogUtil {
 
   // 记录不同类型的日志
   static void v(Object? object, {String? tag}) {
-    if (!debugMode) return;
+    if (!_isLogOn()) return;
     _log('v', object, tag);
   }
 
   static void e(Object? object, {String? tag}) {
-    if (!debugMode) return;
+    if (!_isLogOn()) return;
     _log('e', object, tag);
   }
 
   static void i(Object? object, {String? tag}) {
-    if (!debugMode) return;
+    if (!_isLogOn()) return;
     _log('i', object, tag);
   }
 
   static void d(Object? object, {String? tag}) {
-    if (!debugMode) return;
+    if (!_isLogOn()) return;
     _log('d', object, tag);
   }
 
   // 通用日志记录方法
   static void _log(String level, Object? object, String? tag) {
-    if (!debugMode) return;
+    if (!_isLogOn()) return;
     if (object == null) return;
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
@@ -93,11 +93,10 @@ class LogUtil {
     _logs.clear();
   }
 
-  // 设置 debugMode 状态，不再使用
-  static void setDebugMode(bool isEnabled) {
-    // 现在不需要实现，因为 debugMode 状态是动态从 ThemeProvider 中获取的
-    if (!isEnabled) {
-      clearLogs(); // 如果关闭日志记录，则清空已有日志
+  // 从 ThemeProvider 获取日志开关状态，如果关闭日志则清除日志
+  static void setDebugMode() {
+    if (!_isLogOn()) {
+      clearLogs(); // 如果日志开关被关闭，则清空日志
     }
   }
 }
