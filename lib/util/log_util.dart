@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 
 class LogUtil {
   static const String _defTag = 'common_utils';
-  static bool debugMode = true; // 控制是否记录日志
+  static bool debugMode = false; // 控制是否记录日志 true 或 false
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
 
   // 封装的日志记录方法，增加参数检查并记录堆栈位置
