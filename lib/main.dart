@@ -130,6 +130,7 @@ class MyApp extends StatelessWidget {
             RouterKeys.setting: (BuildContext context) => const SettingPage(),  // 设置页面
             RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),  // 字体设置页面
             RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(),  // 美化设置页面
+            RouterKeys.settinglog: (BuildContext context) => SettinglogPage(),  // 日志查看页面
           },
 
           // 本地化代理，支持多语言
