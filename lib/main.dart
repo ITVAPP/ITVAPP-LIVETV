@@ -36,20 +36,20 @@ void main() async {
 
     // 设置窗口的选项，如窗口大小、最小大小、是否居中、背景透明等
     WindowOptions windowOptions = const WindowOptions(
-      size: Size(414, 414 * 16 / 9),  // 窗口初始大小
-      minimumSize: Size(300, 300 * 9 / 16),  // 窗口最小大小
-      center: true,  // 窗口居中显示
-      backgroundColor: Colors.transparent,  // 背景透明
-      skipTaskbar: false,  // 不从任务栏隐藏
-      titleBarStyle: TitleBarStyle.hidden,  // 隐藏标题栏
-      title: 'ITVAPP LIVETV',  // 窗口标题
+      size: Size(414, 414 * 16 / 9), // 窗口初始大小
+      minimumSize: Size(300, 300 * 9 / 16), // 窗口最小大小
+      center: true, // 窗口居中显示
+      backgroundColor: Colors.transparent, // 背景透明
+      skipTaskbar: false, // 不从任务栏隐藏
+      titleBarStyle: TitleBarStyle.hidden, // 隐藏标题栏
+      title: 'ITVAPP LIVETV', // 窗口标题
     );
 
     try {
       // 等待窗口准备好后展示并聚焦
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
-        await windowManager.show();  // 显示窗口
-        await windowManager.focus();  // 聚焦窗口
+        await windowManager.show(); // 显示窗口
+        await windowManager.focus(); // 聚焦窗口
       });
     } catch (e, stackTrace) {
       LogUtil.logError('初始化窗口时出错', e, stackTrace); // 捕获并记录窗口初始化时的错误
@@ -69,8 +69,8 @@ void main() async {
   try {
     // 注册 FVP 播放器，支持不同平台和解码器
     fvp.registerWith(options: {
-      'platforms': ['android', 'ios'],  // 支持的平台
-      'video.decoders': ['FFmpeg']  // 使用 FFmpeg 进行视频解码
+      'platforms': ['android', 'ios'], // 支持的平台
+      'video.decoders': ['FFmpeg'] // 使用 FFmpeg 进行视频解码
     });
   } catch (e, stackTrace) {
     LogUtil.logError('注册 FVP 播放器时出错', e, stackTrace); // 捕获并记录 FVP 播放器注册时的错误
@@ -121,31 +121,32 @@ class MyApp extends StatelessWidget {
 
         // 返回 MaterialApp，配置应用的主题、语言、路由等
         return MaterialApp(
-          title: 'ITVAPP LIVETV',  // 应用标题
+          title: 'ITVAPP LIVETV', // 应用标题
 
           // 设置应用的主题，包括亮度、颜色方案、字体和其他 UI 样式
           theme: ThemeData(
-              brightness: Brightness.dark,  // 使用暗色主题
-              fontFamily: fontFamily,  // 设置字体
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent, brightness: Brightness.dark),  // 基于种子颜色生成色系
-              scaffoldBackgroundColor: Colors.black,  // 背景色设为黑色
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.black,  // AppBar 背景色
-                foregroundColor: Colors.white,  // AppBar 文字颜色
-                elevation: 0,  // 移除阴影
-                centerTitle: true,  // 标题居中
-              ),
-              useMaterial3: true),  // 使用 Material Design 3
+            brightness: Brightness.dark, // 使用暗色主题
+            fontFamily: fontFamily, // 设置字体
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent, brightness: Brightness.dark), // 基于种子颜色生成色系
+            scaffoldBackgroundColor: Colors.black, // 背景色设为黑色
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.black, // AppBar 背景色
+              foregroundColor: Colors.white, // AppBar 文字颜色
+              elevation: 0, // 移除阴影
+              centerTitle: true, // 标题居中
+            ),
+            useMaterial3: true, // 使用 Material Design 3
+          ),
 
           // 设置应用的语言
           locale: languageProvider.currentLocale,
 
           // 定义路由配置
           routes: {
-            RouterKeys.subScribe: (BuildContext context) => const SubScribePage(),  // 订阅页面
-            RouterKeys.setting: (BuildContext context) => const SettingPage(),  // 设置页面
-            RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),  // 字体设置页面
-            RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(),  // 美化设置页面
+            RouterKeys.subScribe: (BuildContext context) => const SubScribePage(), // 订阅页面
+            RouterKeys.setting: (BuildContext context) => const SettingPage(), // 设置页面
+            RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(), // 字体设置页面
+            RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(), // 美化设置页面
           },
 
           // 本地化代理，支持多语言
@@ -153,7 +154,7 @@ class MyApp extends StatelessWidget {
             S.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate
+            GlobalWidgetsLocalizations.delegate,
           ],
 
           // 支持的语言列表
@@ -165,11 +166,11 @@ class MyApp extends StatelessWidget {
               // 处理中文的特殊区域
               if (locale.languageCode == 'zh' &&
                   (locale.countryCode == 'TW' || locale.countryCode == 'HK' || locale.countryCode == 'MO')) {
-                return const Locale('zh', 'TW');  // 繁体中文
+                return const Locale('zh', 'TW'); // 繁体中文
               }
               // 处理简体中文
               if (locale.languageCode == 'zh' && (locale.countryCode == 'CN' || locale.countryCode == null)) {
-                return const Locale('zh', 'CN');  // 简体中文
+                return const Locale('zh', 'CN'); // 简体中文
               }
               // 匹配合适的语言和国家代码
               return supportedLocales.firstWhere(
@@ -179,7 +180,7 @@ class MyApp extends StatelessWidget {
                 orElse: () => supportedLocales.first,
               );
             }
-            return supportedLocales.first;  // 默认使用第一个支持的语言
+            return supportedLocales.first; // 默认使用第一个支持的语言
           },
 
           // 隐藏调试标志
@@ -194,29 +195,26 @@ class MyApp extends StatelessWidget {
               children: [
                 MediaQuery(
                   data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
-                  child: FlutterEasyLoading(child: child),  // 加载动画封装
+                  child: FlutterEasyLoading(child: child), // 加载动画封装
                 ),
                 // 添加按钮，仅当 debugMode 为 true 时显示
                 Visibility(
-                  visible: LogUtil.debugMode,  // 当 debugMode 为 true 时显示按钮
+                  visible: LogUtil.debugMode, // 当 debugMode 为 true 时显示按钮
                   child: Positioned(
                     bottom: 20,
                     right: 20,
-                    child: Builder(  // 使用 Builder 生成新的上下文
-                      builder: (BuildContext newContext) {
-                        return FloatingActionButton(
-                          onPressed: () {
-                            LogUtil.safeExecute(() { // 使用 safeExecute 包装日志查看功能
-                              Navigator.push(
-                                newContext,  // 使用新生成的上下文
-                                MaterialPageRoute(builder: (context) => LogViewerPage()),  // 跳转到日志查看页面
-                              );
-                            }, '跳转到日志查看页面错误');
-                          },
-                          child: Icon(Icons.view_list),
-                          tooltip: '查看日志',
-                        );
+                    child: FloatingActionButton(
+                      onPressed: () {
+                        LogUtil.safeExecute(() {
+                          // 使用 context 确保 Navigator.push 使用正确的导航上下文
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => LogViewerPage()), // 跳转到日志查看页面
+                          );
+                        }, '跳转到日志查看页面错误');
                       },
+                      child: Icon(Icons.view_list),
+                      tooltip: '查看日志',
                     ),
                   ),
                 ),
