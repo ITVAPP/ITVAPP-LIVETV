@@ -85,4 +85,12 @@ class LogUtil {
   static void clearLogs() {
     _logs.clear();
   }
+
+  // 设置 debugMode 状态，供外部调用
+  static void setDebugMode(bool isEnabled) {
+    debugMode = isEnabled;
+    if (!isEnabled) {
+      clearLogs(); // 如果关闭日志记录，则清空已有日志
+    }
+  }
 }
