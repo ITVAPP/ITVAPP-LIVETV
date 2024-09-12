@@ -22,6 +22,7 @@ import 'splash_screen.dart';  // 导入 SplashScreen
 import 'provider/download_provider.dart';
 import 'router_keys.dart';
 import 'setting/setting_beautify_page.dart';
+import 'setting/setting_log_page.dart';
 import 'setting/setting_page.dart';
 
 // 入口函数，使用 async 关键字确保异步操作可以在程序启动时完成
@@ -147,7 +148,7 @@ class MyApp extends StatelessWidget {
             RouterKeys.setting: (BuildContext context) => const SettingPage(), // 设置页面
             RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(), // 字体设置页面
             RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(), // 美化设置页面
-            RouterKeys.logViewer: (BuildContext context) => LogViewerPage(), // 日志查看页面
+            RouterKeys.settinglog: (BuildContext context) => const SettinglogPage(), // 日志查看页面
           },
 
           // 本地化代理，支持多语言
