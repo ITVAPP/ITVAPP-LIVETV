@@ -124,7 +124,7 @@ class M3uUtil {
 
   // 获取本地M3U数据
   static Future<List<SubScribeModel>> getLocalData() async {
-    return LogUtil.safeExecute(() {
+    return await LogUtil.safeExecute(() async {
       return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
     }, '获取本地M3U数据失败');
   }
@@ -135,7 +135,7 @@ class M3uUtil {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
       final res = await HttpUtil().getRequest(defaultM3u);
       return res ?? '';  // 返回空字符串表示获取失败
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取默认M3U文件数据失败', e, stackTrace);
       return '';
     }
@@ -157,7 +157,7 @@ class M3uUtil {
 
       if (playlists.isEmpty) return null;
       return _mergePlaylists(playlists);
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取并合并M3U数据失败', e, stackTrace);
       return null;
     }
@@ -168,7 +168,7 @@ class M3uUtil {
     return _retryRequest<String>(() async {
       try {
         return await HttpUtil().getRequest(url).timeout(Duration(seconds: 8));
-      } catch (e) {
+      } catch (e, stackTrace) {
         LogUtil.logError('获取M3U数据失败', e, stackTrace);
         return null;
       }
@@ -208,7 +208,7 @@ class M3uUtil {
     try {
       String m3uString = _convertPlaylistToString(mergedPlaylist);
       await _saveCachedM3uData(m3uString);  // 保存到本地缓存
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('保存合并后的M3U数据失败', e, stackTrace);
     }
   }
@@ -236,7 +236,7 @@ class M3uUtil {
   static Future<String> _getCachedM3uData() async {
     try {
       return SpUtil.getString('m3u_cache', defValue: '') ?? '';
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('获取本地缓存的M3U数据失败', e, stackTrace);
       return '';
     }
@@ -246,7 +246,7 @@ class M3uUtil {
   static Future<void> _saveCachedM3uData(String data) async {
     try {
       await SpUtil.putString('m3u_cache', data);
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('保存M3U数据到本地缓存失败', e, stackTrace);
     }
   }
@@ -255,7 +255,7 @@ class M3uUtil {
   static Future<bool> saveLocalData(List<SubScribeModel> models) async {
     try {
       return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('保存订阅数据失败', e, stackTrace);
       return false;
     }
@@ -364,7 +364,7 @@ class M3uUtil {
         }
       }
       return playListModel;
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogUtil.logError('解析M3U数据失败', e, stackTrace);
       throw e;
     }
