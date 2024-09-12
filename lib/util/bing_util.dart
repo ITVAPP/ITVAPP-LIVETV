@@ -10,11 +10,26 @@ class BingUtil {
   // 获取最多 15 张 Bing 图片的 URL
   static Future<List<String>> getBingImgUrls() async {
     try {
+      // 检查是否有缓存的图片 URL 列表
       if (bingImgUrls.isNotEmpty) {
         LogUtil.i('从缓存中获取 Bing 图片 URLs');
         return bingImgUrls;
       }
 
+      // 如果没有缓存，尝试从本地缓存中读取
+      String? cachedUrlList = SpUtil.getString('bingImgUrls', defValue: null);
+      int? cacheTime = SpUtil.getInt('bingImgUrlsCacheTime', defValue: 0);
+
+      if (cachedUrlList != null && cachedUrlList.isNotEmpty) {
+        DateTime cachedDate = DateTime.fromMillisecondsSinceEpoch(cacheTime ?? 0);
+        if (DateTime.now().difference(cachedDate) < cacheDuration) {
+          LogUtil.i('缓存未过期，使用缓存的 Bing 图片 URL 列表');
+          bingImgUrls = cachedUrlList.split(','); // 从缓存中读取列表
+          return bingImgUrls;
+        }
+      }
+
+      // 如果缓存过期或没有缓存，发起新的网络请求
       List<String> urls = [];
       for (int i = 0; i < 15; i++) {
         final res = await HttpUtil().getRequest('https://bing.biturl.top/?idx=$i');
@@ -25,11 +40,16 @@ class BingUtil {
 
       if (urls.isNotEmpty) {
         LogUtil.i('成功获取到 ${urls.length} 张 Bing 图片 URLs');
+        bingImgUrls = urls;
+
+        // 缓存新的图片列表
+        await SpUtil.putString('bingImgUrls', bingImgUrls.join(','));
+        await SpUtil.putInt('bingImgUrlsCacheTime', DateTime.now().millisecondsSinceEpoch);
+        LogUtil.i('Bing 图片 URLs 已缓存');
       } else {
         LogUtil.e('未能获取到 Bing 图片 URLs');
       }
 
-      bingImgUrls = urls;
       return bingImgUrls;
     } catch (e, stackTrace) {
       LogUtil.logError('获取 Bing 图片 URLs 时发生错误', e, stackTrace);
