@@ -13,6 +13,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   String _selectedLevel = 'all';
   int _logLimit = 100; // 初始加载条数
   bool _hasMoreLogs = true; // 是否还有更多日志
+  List<Map<String, String>> _logs = []; // 缓存的日志
 
   final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(30), // 统一圆角样式
@@ -20,25 +21,23 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
   final _unselectedColor = Colors.grey[300]; // 未选中时颜色
 
-  // 获取有限的日志
-  List<Map<String, String>> getLimitedLogs() {
+  // 获取有限的日志并缓存
+  void _fetchLogs() {
     List<Map<String, String>> logs = _selectedLevel == 'all'
         ? LogUtil.getLogs()
         : LogUtil.getLogsByLevel(_selectedLevel);
 
-    if (logs.length > _logLimit) {
-      _hasMoreLogs = true;
-      return logs.sublist(0, _logLimit); // 返回限制条数的日志
-    } else {
-      _hasMoreLogs = false;
-      return logs; // 没有更多日志时，返回所有日志
-    }
+    setState(() {
+      _logs = logs.length > _logLimit ? logs.sublist(0, _logLimit) : logs;
+      _hasMoreLogs = logs.length > _logLimit;
+    });
   }
 
   // 加载更多日志
   void _loadMoreLogs() {
     setState(() {
-      _logLimit += 100; // 每次增加100条
+      _logLimit += 100;
+      _fetchLogs(); // 重新获取日志
     });
   }
 
@@ -50,11 +49,16 @@ class _SettinglogPageState extends State<SettinglogPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    List<Map<String, String>> logs = getLimitedLogs();
-    var screenWidth = MediaQuery.of(context).size.width;
+  void initState() {
+    super.initState();
+    _fetchLogs(); // 初始化时获取日志
+  }
 
+  @override
+  Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
+    bool debugMode = context.watch<ThemeProvider>().debugMode; // 获取当前debugMode状态
+    var screenWidth = MediaQuery.of(context).size.width;
     double maxContainerWidth = 580;
 
     return Scaffold(
@@ -72,6 +76,19 @@ class _SettinglogPageState extends State<SettinglogPage> {
           ),
           child: Column(
             children: [
+              // 调试模式开关
+              SwitchListTile(
+                title: Text('调试模式'),
+                value: debugMode,
+                onChanged: (bool value) {
+                  context.read<ThemeProvider>().setDebugMode(value); // 更新调试模式状态
+                  if (value) {
+                    _fetchLogs(); // 调试模式打开时获取日志
+                  }
+                },
+              ),
+              
+              // 日志过滤按钮
               Padding(
                 padding: const EdgeInsets.all(15),
                 child: Row(
@@ -85,52 +102,57 @@ class _SettinglogPageState extends State<SettinglogPage> {
                   ],
                 ),
               ),
-              Expanded(
-                child: logs.isEmpty
-                    ? Center(child: Text('暂无日志'))
-                    : Scrollbar(
-                        thumbVisibility: true, // 替代 isAlwaysShown
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Column(
-                            children: [
-                              DataTable(
-                                columns: [
-                                  DataColumn(label: Text('时间')),
-                                  DataColumn(label: Text('类型')),
-                                  DataColumn(label: Text('日志信息')),
-                                ],
-                                rows: logs
-                                    .map((log) => DataRow(cells: [
-                                          DataCell(Text(formatDateTime(log['time']!))),
-                                          DataCell(Text(log['level']!)),
-                                          DataCell(Text(log['message']!)),
-                                        ]))
-                                    .toList(),
-                              ),
-                              if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
+
+              // 仅在调试模式下显示日志表格
+              if (debugMode)
+                Expanded(
+                  child: _logs.isEmpty
+                      ? Center(child: Text('暂无日志'))
+                      : Scrollbar(
+                          thumbVisibility: true, // 替代 isAlwaysShown
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Column(
+                              children: [
+                                DataTable(
+                                  columns: [
+                                    DataColumn(label: Text('时间')),
+                                    DataColumn(label: Text('类型')),
+                                    DataColumn(label: Text('日志信息')),
+                                  ],
+                                  rows: _logs
+                                      .map((log) => DataRow(cells: [
+                                            DataCell(Text(formatDateTime(log['time']!))),
+                                            DataCell(Text(log['level']!)),
+                                            DataCell(Text(log['message']!)),
+                                          ]))
+                                      .toList(),
+                                ),
                                 Padding(
                                   padding: const EdgeInsets.all(8.0),
-                                  child: ElevatedButton(
-                                    onPressed: _loadMoreLogs,
-                                    child: Text('加载更多'),
-                                    style: ElevatedButton.styleFrom(
-                                      shape: _buttonShape, // 统一圆角样式
-                                      backgroundColor: _selectedColor,
-                                    ),
-                                  ),
+                                  child: _hasMoreLogs
+                                      ? ElevatedButton(
+                                          onPressed: _loadMoreLogs,
+                                          child: Text('加载更多'),
+                                          style: ElevatedButton.styleFrom(
+                                            shape: _buttonShape, // 统一圆角样式
+                                            backgroundColor: _selectedColor,
+                                          ),
+                                        )
+                                      : Text('无更多日志'),
                                 ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-              ),
+                ),
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton(
                   onPressed: () {
                     setState(() {
                       LogUtil.clearLogs();
+                      _logs.clear();
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -161,6 +183,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           setState(() {
             _selectedLevel = level;
             _logLimit = 100; // 切换过滤条件时重置分页
+            _fetchLogs(); // 根据过滤条件获取日志
           });
         },
         child: Text(label),
