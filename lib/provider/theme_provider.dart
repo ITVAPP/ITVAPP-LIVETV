@@ -10,13 +10,14 @@ class ThemeProvider extends ChangeNotifier {
   String _fontUrl = '';
   bool _isBingBg = false;
   bool _isTV = false; // 添加 isTV 变量
-  bool debugMode = LogUtil.debugMode; // 初始值从 LogUtil 中获取
+  bool _isLogOn = true; // 添加日志开关变量
 
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
   String get fontUrl => _fontUrl;
   bool get isBingBg => _isBingBg;
-  bool get isTV => _isTV; // 添加获取 isTV 的方法
+  bool get isTV => _isTV;
+  bool get isLogOn => _isLogOn; // 获取日志开关状态
 
   // 构造函数，在初始化时从缓存中加载数据
   ThemeProvider() {
@@ -31,12 +32,24 @@ class ThemeProvider extends ChangeNotifier {
       _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
       _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
       _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
+      _isLogOn = SpUtil.getBool('isLogOn', defValue: true) ?? true; // 加载日志开关状态
+
+      // 设置日志记录开关
+      LogUtil.setDebugMode(_isLogOn);
 
       // 如果字体不是系统默认字体，则加载自定义字体
       if (_fontFamily != 'system') {
         FontUtil().loadFont(_fontUrl, _fontFamily);
       }
     }, '初始化 ThemeProvider 时出错');
+  }
+
+  // 设置日志开关状态，捕获并记录异步操作中的异常
+  void setLogOn(bool isLogOn) {
+    SpUtil.putBool('isLogOn', isLogOn);
+    _isLogOn = isLogOn;
+    LogUtil.setDebugMode(isLogOn); // 同步 LogUtil 的 debugMode
+    notifyListeners(); // 通知 UI 更新
   }
 
   // 设置字体相关的方法，捕获并记录异步操作中的异常
@@ -59,13 +72,6 @@ class ThemeProvider extends ChangeNotifier {
   void setBingBg(bool isOpen) {
     SpUtil.putBool('bingBg', isOpen);
     _isBingBg = isOpen;
-    notifyListeners();
-  }
-
-  // 设置记录日志的开关状态
-  void setDebugMode(bool debugMode) {
-    SpUtil.putBool('debugMode', debugMode);
-    this.debugMode = debugMode;
     notifyListeners();
   }
 
