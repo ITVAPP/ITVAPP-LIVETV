@@ -19,7 +19,8 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  // 统一错误处理方法
+  /// 统一错误处理方法，通过 try-catch 捕获并处理异常
+  /// 在 catch 块中记录异常信息及堆栈信息
   static Future<M3uResult> _handleErrors(Future<M3uResult> Function() action) async {
     try {
       return await action();
@@ -29,31 +30,34 @@ class M3uUtil {
     }
   }
 
-  // 获取本地缓存的M3U文件
+  /// 获取本地缓存的M3U文件
+  /// 如果缓存不存在，则尝试获取默认的M3U数据
+  /// 在任何失败的情况下记录日志并返回错误信息
   static Future<M3uResult> getLocalM3uData() async {
     return _handleErrors(() async {
-      final m3uDataString = await _getCachedM3uData();  // 使用缓存获取方法
+      final m3uDataString = await _getCachedM3uData();
       if (m3uDataString.isEmpty) {
-        // 如果本地缓存中没有M3U数据，则获取默认M3U数据
+        // 如果本地缓存没有数据，尝试获取默认M3U数据
         LogUtil.v('未找到本地M3U数据，尝试获取默认M3U数据...');
         return await getDefaultM3uData();
       }
-      final parsedData = await _parseM3u(m3uDataString);  // 解析M3U数据
+      final parsedData = await _parseM3u(m3uDataString);  // 尝试解析M3U数据
       return M3uResult(data: parsedData);
     });
   }
 
-  // 获取默认的M3U文件
+  /// 获取默认的M3U文件，支持重试机制
+  /// 在多种可能的失败场景中记录日志：网络失败、本地缓存失败等
   static Future<M3uResult> getDefaultM3uData({Function(int attempt)? onRetry}) async {
     return _handleErrors(() async {
       String m3uData = '';
-      final models = await getLocalData();  // 获取本地存储的数据
+      final models = await getLocalData();  // 获取本地存储的订阅数据
 
       if (models.isNotEmpty) {
         // 本地有订阅数据，优先使用本地数据
         final defaultModel = models.firstWhere((element) => element.selected ?? false, orElse: () => models.first);
 
-        // 使用重试机制从远程获取M3U数据
+        // 尝试通过重试机制从远程获取M3U数据
         final newRes = await _retryRequest<String>(() async {
           return await HttpUtil().getRequest(defaultModel.link == 'default'
               ? EnvUtil.videoDefaultChannelHost()
@@ -62,19 +66,19 @@ class M3uUtil {
 
         if (newRes != null) {
           m3uData = newRes;
-          await _saveCachedM3uData(m3uData);  // 保存到缓存
+          await _saveCachedM3uData(m3uData);  // 保存到缓存中
         } else {
-          m3uData = await _getCachedM3uData();  // 尝试使用本地缓存数据
+          m3uData = await _getCachedM3uData();  // 如果远程获取失败，尝试使用本地缓存
           if (m3uData.isEmpty) {
-            LogUtil.e('无法获取数据，本地缓存和网络请求都失败');
+            LogUtil.logError('无法获取数据，本地缓存和网络请求都失败', 'm3uData为空');
             return M3uResult(errorMessage: '无法从本地缓存和网络中获取数据。');
           }
         }
       } else {
-        // 没有本地数据，直接从网络获取
+        // 没有本地数据，从网络获取
         m3uData = (await _retryRequest<String>(_fetchData, onRetry: onRetry)) ?? '';
         if (m3uData.isEmpty) {
-          LogUtil.e('网络数据获取失败');
+          LogUtil.logError('网络数据获取失败', 'm3uData为空');
           return M3uResult(errorMessage: '从网络获取数据失败。');
         }
 
@@ -87,13 +91,14 @@ class M3uUtil {
         ]);
       }
 
-      // 解析M3U数据
+      // 尝试解析M3U数据
       final parsedData = await _parseM3u(m3uData);
       return M3uResult(data: parsedData);
     });
   }
 
-  // 重试机制封装，最多重试3次，每次间隔2秒，增加回调参数
+  /// 封装的重试机制，最多重试 `retries` 次
+  /// 每次失败时记录日志，并在达到最大重试次数时返回 null
   static Future<T?> _retryRequest<T>(
     Future<T?> Function() request, 
     {int retries = 3, Duration retryDelay = const Duration(seconds: 2), Function(int attempt)? onRetry}) async {
@@ -102,35 +107,47 @@ class M3uUtil {
       try {
         return await request();
       } catch (e, stackTrace) {
-        LogUtil.logError('请求失败', e, stackTrace);
-        LogUtil.e('重试第 $attempt 次...');
+        LogUtil.logError('请求失败，重试第 $attempt 次...', e, stackTrace);
         if (onRetry != null) {
           onRetry(attempt + 1);  // 回调传递重试次数
         }
         if (attempt >= retries - 1) {
-          return null;  // 超过重试次数，返回 null
+          return null;  // 超过最大重试次数，返回 null
         }
-        await Future.delayed(retryDelay);  // 重试延时
+        await Future.delayed(retryDelay);  // 延时重试
       }
     }
     return null;
   }
 
-  // 获取本地M3U数据
+  /// 获取本地M3U数据
+  /// 从本地缓存中获取订阅数据列表，如果失败会记录错误
   static Future<List<SubScribeModel>> getLocalData() async {
-    return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
+    try {
+      return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取本地M3U数据失败', e, stackTrace);
+      return [];
+    }
   }
 
-  // 获取远程的默认M3U文件数据
+  /// 获取远程的默认M3U文件数据
+  /// 通过 `HttpUtil` 发起请求获取数据，并在请求失败时记录日志
   static Future<String> _fetchData() async {
-    final defaultM3u = EnvUtil.videoDefaultChannelHost();
-    final res = await HttpUtil().getRequest(defaultM3u);
-    return res ?? '';  // 返回空字符串表示获取失败
+    try {
+      final defaultM3u = EnvUtil.videoDefaultChannelHost();
+      final res = await HttpUtil().getRequest(defaultM3u);
+      return res ?? '';  // 返回空字符串表示获取失败
+    } catch (e, stackTrace) {
+      LogUtil.logError('远程获取默认M3U文件失败', e, stackTrace);
+      return '';
+    }
   }
 
-  // 获取并处理多个M3U列表的合并，解析每个 URL 返回的数据
+  /// 获取并处理多个M3U列表的合并，解析每个URL返回的数据
+  /// 在解析过程中遇到问题时，记录相关错误
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
-    return await LogUtil.safeExecute(() async {
+    try {
       List<String> urls = url.split('||');  // 按 "||" 分割多个URL
       final results = await Future.wait(urls.map(_fetchM3uData));
       final playlists = <PlaylistModel>[];
@@ -146,17 +163,27 @@ class M3uUtil {
       if (playlists.isEmpty) return null;  // 如果没有解析到任何数据，返回null
 
       return _mergePlaylists(playlists);  // 合并解析后的播放列表
-    }, "合并M3U数据时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取并合并M3U数据失败', e, stackTrace);
+      return null;
+    }
   }
 
-  // 获取M3U数据，设置8秒的超时时间，并使用重试机制
+  /// 获取M3U数据，设置8秒的超时时间，并使用重试机制
+  /// 在请求超时或失败时记录日志
   static Future<String?> _fetchM3uData(String url) async {
-    return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)));
+    try {
+      return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)));
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取M3U数据失败', e, stackTrace);
+      return null;
+    }
   }
 
-  // 合并多个 PlaylistModel，避免重复的播放地址
+  /// 合并多个 PlaylistModel，避免重复的播放地址
+  /// 合并过程中如果发生异常，记录日志
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
-    return LogUtil.safeExecute(() {
+    try {
       PlaylistModel mergedPlaylist = PlaylistModel();
       mergedPlaylist.playList = {};
 
@@ -183,20 +210,27 @@ class M3uUtil {
       }
 
       return mergedPlaylist;
-    }, "合并播放列表时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('合并播放列表失败', e, stackTrace);
+      return PlaylistModel();
+    }
   }
 
-  // 保存合并后的M3U数据到本地存储
+  /// 保存合并后的M3U数据到本地存储
+  /// 如果保存失败，记录相关日志
   static Future<void> saveMergedM3u(PlaylistModel mergedPlaylist) async {
-    await LogUtil.safeExecute(() async {
+    try {
       String m3uString = _convertPlaylistToString(mergedPlaylist);
       await _saveCachedM3uData(m3uString);  // 保存到本地缓存
-    }, "保存合并后的M3U数据时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存合并后的M3U数据失败', e, stackTrace);
+    }
   }
 
-  // 将 PlaylistModel 转换为 M3U 格式字符串
+  /// 将 PlaylistModel 转换为 M3U 格式字符串
+  /// 处理过程中出现任何错误都要记录日志
   static String _convertPlaylistToString(PlaylistModel playlist) {
-    return LogUtil.safeExecute(() {
+    try {
       StringBuffer buffer = StringBuffer();
 
       playlist.playList?.forEach((groupTitle, channels) {
@@ -210,33 +244,45 @@ class M3uUtil {
         });
       });
       return buffer.toString();
-    }, "转换播放列表为字符串时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('转换播放列表为M3U格式失败', e, stackTrace);
+      return '';
+    }
   }
 
-  // 获取本地缓存数据
+  /// 获取本地缓存数据，如果缓存数据为空或读取失败，记录相关日志
   static Future<String> _getCachedM3uData() async {
-    return await LogUtil.safeExecute(() async {
+    try {
       return SpUtil.getString('m3u_cache', defValue: '') ?? '';
-    }, "获取本地缓存数据时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取本地缓存M3U数据失败', e, stackTrace);
+      return '';
+    }
   }
 
-  // 保存数据到本地缓存
+  /// 保存数据到本地缓存，操作失败时记录日志
   static Future<void> _saveCachedM3uData(String data) async {
-    await LogUtil.safeExecute(() async {
+    try {
       await SpUtil.putString('m3u_cache', data);
-    }, "保存M3U数据到本地缓存时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存M3U数据到本地缓存失败', e, stackTrace);
+    }
   }
 
-  // 保存M3U数据到本地缓存
+  /// 保存订阅模型数据到本地缓存，保存失败时记录日志
   static Future<bool> saveLocalData(List<SubScribeModel> models) async {
-    return await LogUtil.safeExecute(() async {
-      return SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
-    }, "保存本地订阅数据时发生错误");
+    try {
+      return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存订阅数据到本地缓存失败', e, stackTrace);
+      return false;
+    }
   }
 
-  // 解析 M3U 文件并转换为 PlaylistModel 格式
+  /// 解析 M3U 文件并转换为 PlaylistModel 格式
+  /// 在解析过程中记录可能出现的任何错误
   static Future<PlaylistModel> _parseM3u(String m3u) async {
-    return await LogUtil.safeExecute(() async {
+    try {
       final lines = m3u.split('\n');
       final playListModel = PlaylistModel();
       playListModel.playList = <String, Map<String, PlayModel>>{};
@@ -338,10 +384,13 @@ class M3uUtil {
         }
       }
       return playListModel;
-    }, "解析M3U文件时发生错误");
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析M3U文件失败', e, stackTrace);
+      return PlaylistModel();
+    }
   }
 
-  // 判断链接是否为直播链接
+  /// 判断链接是否为直播链接
   static bool isLiveLink(String link) {
     final tLink = link.toLowerCase();
     return tLink.startsWith('http') || tLink.startsWith('r') || tLink.startsWith('p') || tLink.startsWith('s') || tLink.startsWith('w');
