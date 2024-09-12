@@ -58,8 +58,16 @@ class _TvPageState extends State<TvPage> {
   void _showError(String message) {
     setState(() {
       _isError = true; // 设置错误状态
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message))); // 显示错误提示
-      LogUtil.logError('播放错误：$message', Exception(message));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)), // 显示错误提示
+      );
+
+      // 捕获当前堆栈信息并传递给 logError
+      try {
+        throw Exception(message);
+      } catch (e, stackTrace) {
+        LogUtil.logError('播放错误：$message', e, stackTrace);
+      }
     });
   }
 
