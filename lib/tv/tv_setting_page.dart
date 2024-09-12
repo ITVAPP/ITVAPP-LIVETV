@@ -1,5 +1,6 @@
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
 import '../setting/setting_beautify_page.dart';
 
@@ -53,6 +54,16 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   onTap: () {
                     setState(() {
                       _selectedIndex = 2;
+                    });
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.view_list),
+                  title: const Text('日志'),
+                  selected: _selectedIndex == 3,
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = 3;
                     });
                   },
                 ),
