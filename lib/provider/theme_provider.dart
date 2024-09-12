@@ -10,6 +10,7 @@ class ThemeProvider extends ChangeNotifier {
   String _fontUrl = '';
   bool _isBingBg = false;
   bool _isTV = false; // 添加 isTV 变量
+  bool debugMode = LogUtil.debugMode; // 初始值从 LogUtil 中获取
 
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
@@ -58,6 +59,13 @@ class ThemeProvider extends ChangeNotifier {
   void setBingBg(bool isOpen) {
     SpUtil.putBool('bingBg', isOpen);
     _isBingBg = isOpen;
+    notifyListeners();
+  }
+
+  // 设置记录日志的开关状态
+  void setDebugMode(bool debugMode) {
+    SpUtil.putBool('debugMode', debugMode);
+    this.debugMode = debugMode;
     notifyListeners();
   }
 
