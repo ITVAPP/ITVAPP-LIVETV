@@ -201,7 +201,7 @@ class MyApp extends StatelessWidget {
                 Visibility(
                   visible: LogUtil.debugMode, // 当 debugMode 为 true 时显示按钮
                   child: Positioned(
-                    bottom: 20,
+                    top: 20,
                     right: 20,
                     child: FloatingActionButton(
                       onPressed: () {
