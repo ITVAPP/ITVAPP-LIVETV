@@ -147,6 +147,7 @@ class MyApp extends StatelessWidget {
             RouterKeys.setting: (BuildContext context) => const SettingPage(), // 设置页面
             RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(), // 字体设置页面
             RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(), // 美化设置页面
+            RouterKeys.logViewer: (BuildContext context) => LogViewerPage(), // 日志查看页面
           },
 
           // 本地化代理，支持多语言
@@ -205,13 +206,7 @@ class MyApp extends StatelessWidget {
                     right: 20,
                     child: FloatingActionButton(
                       onPressed: () {
-                        LogUtil.safeExecute(() {
-                          // 使用 context 确保 Navigator.push 使用正确的导航上下文
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => LogViewerPage()), // 跳转到日志查看页面
-                          );
-                        }, '跳转到日志查看页面错误');
+                        Navigator.pushNamed(context, '/logViewer'); // 通过命名路由跳转到日志查看页面
                       },
                       child: Icon(Icons.view_list),
                       tooltip: '查看日志',
