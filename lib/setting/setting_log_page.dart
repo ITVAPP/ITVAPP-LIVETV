@@ -18,7 +18,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
     borderRadius: BorderRadius.circular(30), // 统一圆角样式
   );
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = Colors.grey[300]; // 未选中时颜色
+  final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
 
   // 获取有限的日志
   List<Map<String, String>> getLimitedLogs() {
