@@ -9,5 +9,5 @@ class RouterKeys {
   static const String settingBeautify = '/setting/beautify';
 
   // 新增日志查看页面的路由
-  static const String logViewer = '/logViewer'; 
+  static const String logViewer = '/setting/log'; 
 }
