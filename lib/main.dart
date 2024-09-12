@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import 'package:itvapp_live_tv/provider/language_provider.dart';  // 添加语言 Provider
+import 'package:itvapp_live_tv/provider/language_provider.dart'; 
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
@@ -190,30 +190,11 @@ class MyApp extends StatelessWidget {
           // 使用 SplashScreen 作为启动页
           home: SplashScreen(),
 
-          // 全局构建器，处理悬浮日志按钮、文本缩放和加载动画
+          // 全局构建器，处理文本缩放和加载动画
           builder: (context, child) {
-            return Stack(
-              children: [
-                MediaQuery(
-                  data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
-                  child: FlutterEasyLoading(child: child), // 加载动画封装
-                ),
-                // 添加按钮，仅当 debugMode 为 true 时显示
-                Visibility(
-                  visible: LogUtil.debugMode, // 当 debugMode 为 true 时显示按钮
-                  child: Positioned(
-                    top: 20,
-                    right: 20,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/logViewer'); // 通过命名路由跳转到日志查看页面
-                      },
-                      child: Icon(Icons.view_list),
-                      tooltip: '查看日志',
-                    ),
-                  ),
-                ),
-              ],
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),  // 应用文本缩放比例
+              child: FlutterEasyLoading(child: child),  // 加载动画封装
             );
           },
         );
