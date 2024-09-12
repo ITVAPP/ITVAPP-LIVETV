@@ -30,7 +30,7 @@ class ThemeProvider extends ChangeNotifier {
       _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
       _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
       _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
-      _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
+      _isBingBg = SpUtil.getBool('isbingBg', defValue: false) ?? false;
       _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
       _isLogOn = SpUtil.getBool('isLogOn', defValue: true) ?? true; // 加载日志开关状态
 
@@ -48,7 +48,6 @@ class ThemeProvider extends ChangeNotifier {
   void setLogOn(bool isLogOn) {
     SpUtil.putBool('isLogOn', isLogOn);
     _isLogOn = isLogOn;
-    LogUtil.setDebugMode(isLogOn); // 同步 LogUtil 的 debugMode
     notifyListeners(); // 通知 UI 更新
   }
 
@@ -69,9 +68,9 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
-  void setBingBg(bool isOpen) {
-    SpUtil.putBool('bingBg', isOpen);
-    _isBingBg = isOpen;
+  void setBingBg(bool isBingBg) {
+    SpUtil.putBool('isbingBg', isBingBg);
+    _isBingBg = isBingBg;
     notifyListeners();
   }
 
