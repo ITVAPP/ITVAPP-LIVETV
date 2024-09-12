@@ -187,39 +187,28 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
 
           // 使用 SplashScreen 作为启动页
-          home: SplashScreen(),
+          home: Scaffold(
+            body: SplashScreen(),  // 启动页面
+            floatingActionButton: Visibility(
+              visible: LogUtil.debugMode,
+              child: FloatingActionButton(
+                onPressed: () {
+                  LogUtil.safeExecute(() {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => LogViewerPage()), // 跳转到日志查看页面
+                    );
+                  }, '跳转到日志查看页面错误');
+                },
+                child: Icon(Icons.view_list),
+                tooltip: '查看日志',
+              ),
+            ),
+          ),
 
           // 全局构建器，处理悬浮日志按钮、文本缩放和加载动画
           builder: (context, child) {
-            return Stack(
-              children: [
-                MediaQuery(
-                  data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(data.textScaleFactor)),
-                  child: FlutterEasyLoading(child: child), // 加载动画封装
-                ),
-                // 添加按钮，仅当 debugMode 为 true 时显示
-                Visibility(
-                  visible: LogUtil.debugMode, // 当 debugMode 为 true 时显示按钮
-                  child: Positioned(
-                    top: 20,
-                    right: 20,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        LogUtil.safeExecute(() {
-                          // 使用 context 确保 Navigator.push 使用正确的导航上下文
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => LogViewerPage()), // 跳转到日志查看页面
-                          );
-                        }, '跳转到日志查看页面错误');
-                      },
-                      child: Icon(Icons.view_list),
-                      tooltip: '查看日志',
-                    ),
-                  ),
-                ),
-              ],
-            );
+            return FlutterEasyLoading(child: child); // 加载动画封装
           },
         );
       },
