@@ -45,33 +45,50 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 设置日志开关状态，捕获并记录异步操作中的异常
-  void setLogOn(bool isLogOn) {
-    SpUtil.putBool('isLogOn', isLogOn);
-    _isLogOn = isLogOn;
-    notifyListeners(); // 通知 UI 更新
+  void setLogOn(bool isLogOn) async {
+    try {
+      await SpUtil.putBool('isLogOn', isLogOn);
+      _isLogOn = isLogOn;
+      LogUtil.setDebugMode(_isLogOn); // 在修改日志开关状态后再次设置日志开关
+      notifyListeners(); // 通知 UI 更新
+    } catch (e, stackTrace) {
+      LogUtil.logError('设置日志开关状态时出错', e, stackTrace);
+    }
   }
 
   // 设置字体相关的方法，捕获并记录异步操作中的异常
   void setFontFamily(String fontFamilyName, [String fontFullUrl = '']) {
-    SpUtil.putString('appFontFamily', fontFamilyName);
-    SpUtil.putString('appFontUrl', fontFullUrl);
-    _fontFamily = fontFamilyName;
-    _fontUrl = fontFullUrl;
-    notifyListeners();
+    try {
+      SpUtil.putString('appFontFamily', fontFamilyName);
+      SpUtil.putString('appFontUrl', fontFullUrl);
+      _fontFamily = fontFamilyName;
+      _fontUrl = fontFullUrl;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      LogUtil.logError('设置字体时出错', e, stackTrace); // 捕获并记录异常
+    }
   }
 
   // 设置文本缩放，捕获并记录异步操作中的异常
   void setTextScale(double textScaleFactor) {
-    SpUtil.putDouble('fontScale', textScaleFactor);
-    _textScaleFactor = textScaleFactor;
-    notifyListeners();
+    try {
+      SpUtil.putDouble('fontScale', textScaleFactor);
+      _textScaleFactor = textScaleFactor;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      LogUtil.logError('设置文本缩放时出错', e, stackTrace); // 捕获并记录异常
+    }
   }
 
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
   void setBingBg(bool isBingBg) {
-    SpUtil.putBool('isbingBg', isBingBg);
-    _isBingBg = isBingBg;
-    notifyListeners();
+    try {
+      SpUtil.putBool('isbingBg', isBingBg);
+      _isBingBg = isBingBg;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      LogUtil.logError('设置每日 Bing 背景时出错', e, stackTrace); // 捕获并记录异常
+    }
   }
 
   // 检测并设置设备是否为 TV，捕获并记录异步操作中的异常
