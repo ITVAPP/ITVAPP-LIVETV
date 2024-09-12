@@ -24,10 +24,9 @@ class VideoHoldBg extends StatefulWidget {
 
 class _VideoHoldBgState extends State<VideoHoldBg> {
   List<String> bingImgUrls = []; // 存储 Bing 图片的 URL
-  String currentBgUrl = ''; // 当前显示的背景图 URL
+  String currentBgUrl = 'assets/images/video_bg.png'; // 当前显示的背景图 URL
   int imgIndex = 0; // 当前 Bing 图片的索引
   Timer? _timer; // 定时器
-  bool isLocalBg = true; // 默认使用本地背景图片
   bool isLoading = true; // 是否处于加载状态
 
   @override
@@ -114,12 +113,12 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
         LogUtil.safeExecute(() {
-          // 如果 isBingBg 为 true，获取 Bing 背景图片并开始切换
+          // 如果 isBingBg 为 true，且尚未加载 Bing 图片
           if (isBingBg && bingImgUrls.isEmpty) {
             _fetchBingImages();
             _startBingImageTimer();
             LogUtil.v('正在使用 Bing 背景图片');
-          } else {
+          } else if (!isBingBg) {
             // 使用本地背景图片
             currentBgUrl = 'assets/images/video_bg.png';
             LogUtil.v('正在使用本地背景图片');
@@ -134,8 +133,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> {
               fit: BoxFit.cover,
               image: isBuffering
                   ? (widget.videoController.value.isPlaying
-                      ? NetworkImage(currentBgUrl) // 缓冲时显示当前的 Bing 图片或视频帧
-                      : AssetImage('assets/images/video_bg.png') as ImageProvider) // 保持 Bing 图片或使用本地图片
+                      ? NetworkImage(currentBgUrl) // 缓冲时显示当前的 Bing 图片
+                      : AssetImage('assets/images/video_bg.png') as ImageProvider) // 使用本地图片
                   : (isBingBg
                       ? NetworkImage(currentBgUrl) // 显示 Bing 图片
                       : AssetImage('assets/images/video_bg.png') as ImageProvider), // 显示本地图片
