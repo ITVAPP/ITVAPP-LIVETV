@@ -206,18 +206,14 @@ class MyApp extends StatelessWidget {
                     top: 20,
                     right: 20,
                     child: FloatingActionButton(
-                      onPressed: () {
-                        LogUtil.safeExecute(() {
-                          // 使用 context 确保 Navigator.push 使用正确的导航上下文
-                          Navigator.push(
-                            context,
-                            Navigator.pushNamed(context, RouterKeys.settinglog), // 跳转到日志查看页面
-                          );
-                        }, '跳转到日志查看页面错误');
-                      },
-                      child: Icon(Icons.view_list),
-                      tooltip: '查看日志',
-                    ),
+                     onPressed: () {
+                       LogUtil.safeExecute(() {
+                         Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转到日志查看页面
+                       }, '跳转到日志查看页面错误');
+                     },
+                     child: Icon(Icons.view_list),
+                     tooltip: '查看日志',
+                   ),
                   ),
                 ),
               ],
