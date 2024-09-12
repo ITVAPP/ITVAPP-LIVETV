@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import 'package:itvapp_live_tv/provider/language_provider.dart';  // 添加语言 Provider
+import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
@@ -18,10 +18,11 @@ import 'package:window_manager/window_manager.dart';
 
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
-import 'splash_screen.dart';  // 导入 SplashScreen
+import 'splash_screen.dart';
 import 'provider/download_provider.dart';
 import 'router_keys.dart';
 import 'setting/setting_beautify_page.dart';
+import 'setting/setting_log_page.dart';
 import 'setting/setting_page.dart';
 
 // 入口函数，使用 async 关键字确保异步操作可以在程序启动时完成
