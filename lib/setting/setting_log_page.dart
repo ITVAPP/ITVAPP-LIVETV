@@ -68,7 +68,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             child: logs.isEmpty
                 ? Center(child: Text('暂无日志'))
                 : Scrollbar(
-                    isAlwaysShown: true,
+                    thumbVisibility: true, // 替代 isAlwaysShown
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Column(
@@ -110,14 +110,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('日志已清空'),
-                    action: SnackBarAction(
-                      label: '撤销',
-                      onPressed: () {
-                        setState(() {
-                          LogUtil.restorePreviousLogs(); // 恢复之前的日志
-                        });
-                      },
-                    ),
                   ),
                 );
               },
