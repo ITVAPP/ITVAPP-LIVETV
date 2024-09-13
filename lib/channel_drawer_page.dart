@@ -326,7 +326,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                   borderRadius: BorderRadius.circular(5), // 圆角
                 ),
                 child: Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.center,
                   child: Text(
                     name,
                     style: TextStyle(color: isSelect ? Colors.redAccent : Colors.white, fontWeight: FontWeight.bold),
