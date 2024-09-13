@@ -126,18 +126,24 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       body: Column(
         children: [
-          // 视频播放器的展示区域，保持固定的宽高比
+          // 视频播放器的展示区域，加载完成前显示占位符
           AspectRatio(
-            aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 使用视频控制器中的宽高比或传入的默认值
-            child: TableVideoWidget(
-              controller: widget.controller,  // 传入视频控制器
-              toastString: widget.toastString,  // 提示信息
-              isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
-              isBuffering: widget.isBuffering,  // 是否缓冲
-              isPlaying: widget.isPlaying,  // 是否正在播放
-              drawerIsOpen: false,  // 抽屉菜单关闭状态
-            ),
+            aspectRatio: widget.controller?.value.isInitialized == true
+                ? widget.controller!.value.aspectRatio  // 视频初始化后，设置实际宽高比
+                : 16 / 9,  // 加载时默认占位符宽高比
+            child: widget.controller?.value.isInitialized == true
+                ? TableVideoWidget(
+                    controller: widget.controller,  // 传入视频控制器
+                    toastString: widget.toastString,  // 提示信息
+                    isLandscape: isLandscape,  // 动态判断是否为横屏
+                    aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
+                    isBuffering: widget.isBuffering,  // 是否缓冲
+                    isPlaying: widget.isPlaying,  // 是否正在播放
+                    drawerIsOpen: false,  // 抽屉菜单关闭状态
+                  )
+                : const Center(
+                    child: CircularProgressIndicator(),  // 视频加载时显示加载动画
+                  ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
           Flexible(
