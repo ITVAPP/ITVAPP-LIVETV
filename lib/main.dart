@@ -86,8 +86,20 @@ void main() async {
 }
 
 // 应用的主界面
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // 更新 LogUtil 的 debugMode 只在应用启动时调用一次
+    LogUtil.updateDebugModeFromProvider(context);
+  }
 
   @override
   Widget build(BuildContext context) {
