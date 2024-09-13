@@ -42,7 +42,9 @@ class _SplashScreenState extends State<SplashScreen> {
         LogUtil.i('设备类型检查成功并已存储');
 
         // 然后获取 M3U 数据
-        _m3uDataFuture = _fetchData();
+        setState(() {
+          _m3uDataFuture = _fetchData(); // 初始化完成后再开始获取 M3U 数据
+        });
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
