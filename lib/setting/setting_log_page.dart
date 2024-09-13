@@ -111,8 +111,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
                                 child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
-                                  spacing: 8, // 控制每个按钮之间的水平间距
-                                  runSpacing: 4, // 控制每行之间的垂直间距
+                                  spacing: 3, // 控制每个按钮之间的水平间距
+                                  runSpacing: 3, // 控制每行之间的垂直间距
                                   alignment: WrapAlignment.center, // 按钮居中对齐
                                   children: [
                                     _buildFilterButton('all', '所有'),
