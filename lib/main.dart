@@ -98,17 +98,14 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
-    // 获取 ThemeProvider 实例并应用各种设置
+    // 获取 ThemeProvider 实例
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     
-    // 更新日志开关 LogUtil 的 debugMode
+    // 只在启动时检测 TV 状态并设置
+    themeProvider.checkAndSetIsTV(); // 只检测一次
+    
+    // 初始化日志开关，但不自动触发 UI 更新
     LogUtil.updateDebugModeFromProvider(context);
-    
-    // 根据缓存初始化每日 Bing 背景
-    themeProvider.setBingBg(themeProvider.isBingBg);
-    
-    // 初始化 TV 设备检测并设置
-    themeProvider.checkAndSetIsTV();
   }
 
   @override
