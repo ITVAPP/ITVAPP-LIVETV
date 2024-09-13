@@ -138,8 +138,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    LogUtil.v('正在播放:$_sourceIndex::${_currentChannel!.toJson()}');
-
     try {
       // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
       _playerController = VideoPlayerController.networkUrl(
@@ -299,7 +297,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
-    LogUtil.v('onTapChannel:::::${_currentChannel?.toJson()}');
     
     await _disposePlayer(); // 确保之前的视频已停止并释放资源
     _playVideo(); // 开始播放选中的频道
@@ -358,7 +355,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _parseData() async {
     try {
       final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
-      LogUtil.v('_parseData:::::$resMap');
       _videoMap = resMap.data;
       _sourceIndex = 0;
 
@@ -520,7 +516,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 切换到选中的视频源并开始播放
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
-      LogUtil.v('切换线路:====线路${_sourceIndex + 1}');
       _playVideo();
     }
   }
