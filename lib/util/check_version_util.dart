@@ -83,98 +83,108 @@ class CheckVersionUtil {
   }
 
   static Future<bool?> showUpdateDialog(BuildContext context) async {
-    // 日期检查逻辑，确保一天只弹一次窗
-    if (!await shouldShowPrompt()) {
-      LogUtil.v('一天内已提示过，无需再次弹窗');
-      return false;  // 如果一天内已经提示过，则不再弹窗
-    }
-
-    await saveLastPromptDate(); // 窗口弹出时，立即保存日期
-
     return showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          LogUtil.v('显示更新弹窗');
-          
-          // 获取屏幕的宽度和高度
-          final screenWidth = MediaQuery.of(context).size.width;
-          final screenHeight = MediaQuery.of(context).size.height;
-          // 判断屏幕是横屏还是竖屏
-          final isPortrait = screenHeight > screenWidth;
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        LogUtil.v('显示更新弹窗');
+        
+        // 获取屏幕的宽度和高度
+        final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
+        // 判断屏幕是横屏还是竖屏
+        final isPortrait = screenHeight > screenWidth;
 
-          // 根据屏幕方向和屏幕宽度设置弹窗宽度为屏幕宽度的某个百分比
-          final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 竖屏时使用80%，横屏时使用60%
+        // 根据屏幕方向和屏幕宽度设置弹窗宽度为屏幕宽度的某个百分比
+        final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 竖屏时使用80%，横屏时使用60%
 
-          return Center(
-            child: Container(
-              width: dialogWidth,  // 动态调整宽度
-              decoration: BoxDecoration(
-                  color: const Color(0xFF2B2D30),
-                  borderRadius: BorderRadius.circular(8),
-                  gradient: const LinearGradient(
-                      colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${S.current.findNewVersion}🚀',
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-                        ),
+        return Center(
+          child: Container(
+            width: dialogWidth,  // 动态调整宽度
+            decoration: BoxDecoration(
+              color: const Color(0xFF2B2D30),
+              borderRadius: BorderRadius.circular(8),
+              gradient: const LinearGradient(
+                colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], 
+                begin: Alignment.topCenter, 
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${S.current.findNewVersion}🚀',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                       ),
-                      Positioned(
-                        right: 0,
-                        child: IconButton(
-                          onPressed: () {
-                            Navigator.of(context).pop(false);
-                            LogUtil.v('用户关闭了更新弹窗');
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      child: IconButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(false);
+                          LogUtil.v('用户关闭了更新弹窗');
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    )
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  constraints: const BoxConstraints(minHeight: 200, minWidth: 300),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text('${CheckVersionUtil.latestVersionEntity!.latestMsg}'),
                       )
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    constraints: const BoxConstraints(minHeight: 200, minWidth: 300),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text('${CheckVersionUtil.latestVersionEntity!.latestMsg}'),
-                        )
-                      ],
-                    ),
-                  ),
-                  UpdateDownloadBtn(
-                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk'),
-                  const SizedBox(height: 30),
-                ],
-              ),
+                ),
+                UpdateDownloadBtn(
+                  apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+                ),
+                const SizedBox(height: 30),
+              ],
             ),
-          );
-        });
+          ),
+        );
+      },
+    );
   }
 
   // 检查版本并提示
-  static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true]) async {
+  static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true, bool isManual = false]) async {
     try {
+      // 如果是自动检查并且一天内已经提示过，则不再弹窗
+      if (!isManual && !await shouldShowPrompt()) {
+        LogUtil.v('一天内已提示过，无需再次弹窗');
+        return;
+      }
+
+      // 手动或自动触发时检查版本
       final res = await checkRelease(isShowLoading, isShowLatestToast);
       if (res != null && context.mounted) {
         final isUpdate = await showUpdateDialog(context);
         if (isUpdate == true && !Platform.isAndroid) {
           launchBrowserUrl(releaseLink);
+        }
+
+        // 如果是自动检查，弹窗后保存提示时间
+        if (!isManual) {
+          await saveLastPromptDate();
         }
       }
     } catch (e, stackTrace) {
