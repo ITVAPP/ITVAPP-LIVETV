@@ -27,13 +27,23 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       LogUtil.safeExecute(() async {
+        // 先确保 ThemeProvider 的初始化完成
+        ThemeProvider themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+        // 等待 ThemeProvider 初始化完成
+        while (!themeProvider.isInitialized) {
+          await Future.delayed(Duration(milliseconds: 100)); // 每隔100ms检查一次
+        }
+
+        LogUtil.i('ThemeProvider 初始化完成');
+
         // 获取设备类型并存储到 Provider 中
-        await Provider.of<ThemeProvider>(context, listen: false).checkAndSetIsTV();
+        await themeProvider.checkAndSetIsTV();
         LogUtil.i('设备类型检查成功并已存储');
 
         // 然后获取 M3U 数据
         _m3uDataFuture = _fetchData();
-      }, '获取设备类型时发生错误');
+      }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
     }
