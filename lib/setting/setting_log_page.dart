@@ -13,6 +13,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   String _selectedLevel = 'all';
   int _logLimit = 100; // 初始加载条数
   bool _hasMoreLogs = true; // 是否还有更多日志
+  List<Map<String, String>>? _cachedLogs; // 日志缓存，避免重复获取
 
   final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(30), // 统一圆角样式
@@ -22,19 +23,36 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 异步获取有限的日志并按日期排序
   Future<List<Map<String, String>>> getLimitedLogsAsync() async {
+    // 如果缓存中已有日志，直接返回缓存的日志
+    if (_cachedLogs != null) {
+      return _cachedLogs!;
+    }
+
+    // 根据所选日志级别获取日志
     List<Map<String, String>> logs = _selectedLevel == 'all'
         ? await LogUtil.getLogsAsync()
         : await LogUtil.getLogsByLevelAsync(_selectedLevel);
 
-    // 按时间降序排序
-    logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
+    // 处理时间字段的解析，避免因为格式问题抛出异常
+    logs.sort((a, b) {
+      final timeA = a['time'];
+      final timeB = b['time'];
+      if (timeA == null || timeB == null) return 0; // 如果时间为空，返回相同
+      try {
+        return DateTime.parse(timeB).compareTo(DateTime.parse(timeA));
+      } catch (e) {
+        return 0; // 如果时间格式解析出错，则保持顺序不变
+      }
+    });
 
     if (logs.length > _logLimit) {
       _hasMoreLogs = true;
-      return logs.sublist(0, _logLimit); // 返回限制条数的日志
+      _cachedLogs = logs.sublist(0, _logLimit); // 返回并缓存限制条数的日志
+      return _cachedLogs!;
     } else {
       _hasMoreLogs = false;
-      return logs; // 没有更多日志时，返回所有日志
+      _cachedLogs = logs; // 缓存所有日志
+      return _cachedLogs!;
     }
   }
 
@@ -42,14 +60,19 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void _loadMoreLogs() {
     setState(() {
       _logLimit += 100; // 每次增加100条
+      _cachedLogs = null; // 每次加载更多时清除缓存，重新获取
     });
   }
 
   // 格式化时间
   String formatDateTime(String dateTime) {
-    DateTime parsedTime = DateTime.parse(dateTime);
-    return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} "
-        "${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
+    try {
+      DateTime parsedTime = DateTime.parse(dateTime);
+      return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} "
+          "${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return "时间格式错误"; // 如果解析失败，返回提示信息
+    }
   }
 
   @override
@@ -169,6 +192,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   onPressed: () {
                                     setState(() {
                                       LogUtil.clearLogs();
+                                      _cachedLogs = null; // 清空日志时清除缓存
                                     });
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -206,6 +230,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           setState(() {
             _selectedLevel = level;
             _logLimit = 100; // 切换过滤条件时重置分页
+            _cachedLogs = null; // 切换日志级别时清除缓存
           });
         },
         child: Text(
