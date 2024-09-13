@@ -30,9 +30,9 @@ class ThemeProvider extends ChangeNotifier {
       _fontFamily = SpUtil.getString('appFontFamily', defValue: 'system') ?? 'system';
       _fontUrl = SpUtil.getString('appFontUrl', defValue: '') ?? '';
       _textScaleFactor = SpUtil.getDouble('fontScale', defValue: 1.0) ?? 1.0;
-      _isBingBg = SpUtil.getBool('isbingBg', defValue: false) ?? false;
+      _isBingBg = SpUtil.getBool('bingBg', defValue: false) ?? false;
       _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
-      _isLogOn = SpUtil.getBool('isLogOn', defValue: true) ?? true; // 加载日志开关状态
+      _isLogOn = SpUtil.getBool('LogOn', defValue: true) ?? true; // 加载日志开关状态
 
       // 设置日志记录开关
       LogUtil.setDebugMode(_isLogOn);
@@ -45,10 +45,10 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 设置日志开关状态，捕获并记录异步操作中的异常
-  void setLogOn(bool isLogOn) async {
+  void setLogOn(bool isOpen) {
     try {
-      await SpUtil.putBool('isLogOn', isLogOn);
-      _isLogOn = isLogOn;
+      SpUtil.putBool('LogOn', isOpen);
+      _isLogOn = isOpen;
       LogUtil.setDebugMode(_isLogOn); // 在修改日志开关状态后再次设置日志开关
       notifyListeners(); // 通知 UI 更新
     } catch (e, stackTrace) {
@@ -81,10 +81,10 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
-  void setBingBg(bool isBingBg) {
+  void setBingBg(bool isOpen) {
     try {
-      SpUtil.putBool('isbingBg', isBingBg);
-      _isBingBg = isBingBg;
+      SpUtil.putBool('bingBg', isOpen);
+      _isBingBg = isOpen;
       notifyListeners();
     } catch (e, stackTrace) {
       LogUtil.logError('设置每日 Bing 背景时出错', e, stackTrace); // 捕获并记录异常
