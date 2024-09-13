@@ -98,17 +98,20 @@ class LogUtil {
     return _logs.where((log) => log['level'] == level).toList();
   }
 
-  // 异步获取所有日志
+  // 异步获取所有日志，增加对时间格式和空值的处理
   static Future<List<Map<String, String>>> getLogsAsync() async {
     // 模拟异步延迟操作并确保返回非空列表
-    return Future.delayed(Duration(milliseconds: 100), () => _logs.isNotEmpty ? _logs : []);
+    return Future.delayed(Duration(milliseconds: 100), () {
+      return _logs.isNotEmpty ? _logs : [];
+    });
   }
 
-  // 异步获取指定级别的日志
+  // 异步获取指定级别的日志，增加对时间格式和空值的处理
   static Future<List<Map<String, String>>> getLogsByLevelAsync(String level) async {
     // 模拟异步延迟操作并确保返回非空列表
-    return Future.delayed(Duration(milliseconds: 100), () =>
-        _logs.isNotEmpty ? _logs.where((log) => log['level'] == level).toList() : []);
+    return Future.delayed(Duration(milliseconds: 100), () {
+      return _logs.isNotEmpty ? _logs.where((log) => log['level'] == level).toList() : [];
+    });
   }
 
   // 清空日志
