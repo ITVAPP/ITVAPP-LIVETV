@@ -33,11 +33,18 @@ class ThemeProvider extends ChangeNotifier {
     Future.microtask(() => _initialize()); // 使用 Future.microtask 确保异步任务在构造函数完成后执行
   }
 
+  // 确保 SharedPreferences 已初始化
+  Future<void> _ensurePrefsInitialized() async {
+    if (_prefs == null) {
+      _prefs = await SharedPreferences.getInstance();
+    }
+  }
+
   // 初始化方法，捕获并记录初始化中的异常
   Future<void> _initialize() async {
     try {
       LogUtil.safeExecute(() async {
-        _prefs = await SharedPreferences.getInstance(); // 获取 SharedPreferences 实例并缓存
+        await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
 
         // 读取各项设置的值，读取不到则使用默认值
         _fontFamily = _prefs?.getString('appFontFamily') ?? 'system'; // 读取字体，默认'system'
@@ -75,6 +82,7 @@ class ThemeProvider extends ChangeNotifier {
   // 设置日志开关状态，捕获并记录异步操作中的异常
   Future<void> setLogOn(bool isOpen) async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isLogOn != isOpen) {
         LogUtil.safeExecute(() async {
           await _prefs?.setBool('LogOn', isOpen); // 使用已缓存的 SharedPreferences 实例
@@ -92,6 +100,7 @@ class ThemeProvider extends ChangeNotifier {
   // 设置字体相关的方法，捕获并记录异步操作中的异常
   Future<void> setFontFamily(String fontFamilyName, [String fontFullUrl = '']) async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_fontFamily != fontFamilyName || _fontUrl != fontFullUrl) {
         LogUtil.safeExecute(() async {
           await _prefs?.setString('appFontFamily', fontFamilyName); // 使用缓存的 SharedPreferences 实例
@@ -110,6 +119,7 @@ class ThemeProvider extends ChangeNotifier {
   // 设置文本缩放，捕获并记录异步操作中的异常
   Future<void> setTextScale(double textScaleFactor) async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_textScaleFactor != textScaleFactor) {
         LogUtil.safeExecute(() async {
           await _prefs?.setDouble('fontScale', textScaleFactor); // 使用缓存的 SharedPreferences 实例
@@ -126,6 +136,7 @@ class ThemeProvider extends ChangeNotifier {
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
   Future<void> setBingBg(bool isOpen) async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isBingBg != isOpen) {
         LogUtil.safeExecute(() async {
           await _prefs?.setBool('bingBg', isOpen); // 使用缓存的 SharedPreferences 实例
@@ -142,6 +153,7 @@ class ThemeProvider extends ChangeNotifier {
   // 检测并设置设备是否为 TV，捕获并记录异步操作中的异常
   Future<void> checkAndSetIsTV() async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       LogUtil.safeExecute(() async {
         bool deviceIsTV = await EnvUtil.isTV(); // 调用工具类检测是否为 TV
         if (_isTV != deviceIsTV) {
@@ -159,6 +171,7 @@ class ThemeProvider extends ChangeNotifier {
   // 手动设置是否为 TV，捕获并记录异步操作中的异常
   Future<void> setIsTV(bool isTV) async {
     try {
+      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isTV != isTV) {
         LogUtil.safeExecute(() async {
           _isTV = isTV;
