@@ -1,11 +1,11 @@
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 
 class SettingBeautifyPage extends StatelessWidget {
   const SettingBeautifyPage({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -28,37 +28,38 @@ class SettingBeautifyPage extends StatelessWidget {
           leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
         ),
         body: Align(
-          alignment: Alignment.center, // 将内容居中
+          alignment: Alignment.center, // 内容居中显示
           child: Container(
             constraints: BoxConstraints(
-              // 如果屏幕宽度超过 580，则设置最大宽度为 580；否则为屏幕的全部宽度
-              maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity,
+              maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity, // 限制最大宽度
             ),
-            alignment: Alignment.center,
-            child: ListView(
-              children: [
-                // 自定义切换每日 Bing 背景图片的设置项
-                ListTile(
-                  title: const Text('每日Bing'), // 选项标题
-                  subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 选项的说明文字
-                  trailing: Transform.scale(
-                    scale: 1.2, // 调整开关大小
-                    child: Switch(
-                      value: context.watch<ThemeProvider>().isBingBg, // 获取当前 Bing 背景设置的状态
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), // 增加内边距
+              child: ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10.0), // 添加垂直间距
+                    child: SwitchListTile(
+                      title: const Text(
+                        '每日Bing', 
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ), // 设置标题加粗
+                      subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 提示信息
+                      value: context.watch<ThemeProvider>().isBingBg, // 读取 Bing 背景状态
                       onChanged: (value) {
                         LogUtil.safeExecute(() {
-                          context.read<ThemeProvider>().setBingBg(value); // 直接调用同步存储的方法
+                          context.read<ThemeProvider>().setBingBg(value); // 设置 Bing 背景状态
                           LogUtil.i('每日Bing背景设置为: ${value ? "启用" : "禁用"}');
                         }, '设置每日Bing背景时发生错误');
                       },
-                      activeColor: Colors.white, // 滑块的颜色
-                      activeTrackColor: const Color(0xFFEB144C), // 开启时轨道的背景颜色
-                      inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
-                      inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
+                      activeColor: Colors.white, // 启用时滑块颜色
+                      activeTrackColor: const Color(0xFFEB144C), // 启用时轨道颜色
+                      inactiveThumbColor: Colors.white, // 关闭时滑块颜色
+                      inactiveTrackColor: Colors.grey, // 关闭时轨道颜色
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -66,7 +67,9 @@ class SettingBeautifyPage extends StatelessWidget {
     } catch (e, stackTrace) {
       LogUtil.logError('构建 SettingBeautifyPage 时发生错误', e, stackTrace);
       return Scaffold(
-        body: Center(child: Text('加载页面时出错')),
+        body: const Center(
+          child: Text('加载页面时出错'), // 错误页面提示
+        ),
       );
     }
   }
