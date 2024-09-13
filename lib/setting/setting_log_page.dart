@@ -126,36 +126,38 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   thumbVisibility: true, // 替代 isAlwaysShown
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
-                                    child: Column(
-                                      children: [
-                                        DataTable(
-                                          columns: [
-                                            DataColumn(label: Text('时间')),
-                                            DataColumn(label: Text('类型')),
-                                            DataColumn(label: Text('日志信息')),
-                                          ],
-                                          rows: logs
-                                              .map((log) => DataRow(cells: [
-                                                    DataCell(Text(formatDateTime(log['time']!))),
-
-                                                    DataCell(Text(log['level']!)),
-                                                    DataCell(Text(log['message']!)),
-                                                  ]))
-                                              .toList(),
-                                        ),
-                                        if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
-                                          Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: ElevatedButton(
-                                              onPressed: _loadMoreLogs,
-                                              child: Text('加载更多'),
-                                              style: ElevatedButton.styleFrom(
-                                                shape: _buttonShape, // 统一圆角样式
-                                                backgroundColor: _selectedColor,
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.vertical,
+                                      child: Column(
+                                        children: [
+                                          DataTable(
+                                            columns: [
+                                              DataColumn(label: Text('时间')),
+                                              DataColumn(label: Text('类型')),
+                                              DataColumn(label: Text('日志信息')),
+                                            ],
+                                            rows: logs
+                                                .map((log) => DataRow(cells: [
+                                                      DataCell(Text(formatDateTime(log['time']!))),
+                                                      DataCell(Text(log['level']!)),
+                                                      DataCell(Text(log['message']!)),
+                                                    ]))
+                                                .toList(),
+                                          ),
+                                          if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
+                                            Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: ElevatedButton(
+                                                onPressed: _loadMoreLogs,
+                                                child: Text('加载更多'),
+                                                style: ElevatedButton.styleFrom(
+                                                  shape: _buttonShape, // 统一圆角样式
+                                                  backgroundColor: _selectedColor,
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
