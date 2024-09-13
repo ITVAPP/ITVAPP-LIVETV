@@ -8,6 +8,8 @@ import '../provider/theme_provider.dart';
 import '../gradient_progress_bar.dart';
 import '../util/log_util.dart'; // 引入日志工具类
 
+// Bing 背景图片的加载和切换（_fetchBingImages()、定时器切换背景图等）需要确定实现
+
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
   final VideoPlayerController videoController; // 视频控制器
@@ -29,6 +31,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
   Timer? _timer; // 定时器
   bool isLoading = true; // 是否处于加载状态
   bool isAudio = false; // 是否是音频
+  bool showBgImage = true; // 控制背景图显示状态
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -41,12 +44,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
 
     LogUtil.safeExecute(() {
-      // 监听视频播放结束或缓冲状态
+      // 监听视频播放状态
       widget.videoController.addListener(() {
         setState(() {
-          if (!widget.videoController.value.isPlaying && !widget.videoController.value.isBuffering) {
-            _timer?.cancel(); // 停止定时器
-            LogUtil.v('视频播放停止或缓冲结束，定时器取消');
+          if (widget.videoController.value.isPlaying) {
+            showBgImage = false; // 视频播放时移除背景图
           }
 
           // 判断播放内容是否为音频，尺寸为 null 或 0 认为是音频
@@ -69,126 +71,61 @@ class _VideoHoldBgState extends State<VideoHoldBg> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // 获取 Bing 图片 URL 列表
-  Future<void> _fetchBingImages() async {
-    setState(() {
-      isLoading = true; // 开始加载时，显示进度条
-    });
-
-    try {
-      List<String> urls = await BingUtil.getBingImgUrls();
-      LogUtil.v('成功获取 Bing 图片 URL 列表');
-      if (urls.isNotEmpty) {
-        setState(() {
-          bingImgUrls = urls;
-          currentBgUrl = bingImgUrls[0]; // 初始设置为第一张图片
-          isLoading = false; // 图片加载完成，隐藏进度条
-          _startBingImageTimer(); // 开始 Bing 图片定时器
-          LogUtil.v('Bing 图片加载成功，当前背景图为第 1 张');
-        });
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取 Bing 图片失败', e, stackTrace);
-      setState(() {
-        isLoading = false; // 加载失败时隐藏进度条
-        currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图作为回退
-        LogUtil.v('加载 Bing 图片失败，使用本地背景图');
-      });
-    }
-  }
-
-  // 开始定时切换 Bing 图片
-  void _startBingImageTimer() {
-    LogUtil.safeExecute(() {
-      if (bingImgUrls.isNotEmpty) {
-        _timer = Timer.periodic(Duration(seconds: 30), (timer) {
-          setState(() {
-            imgIndex = (imgIndex + 1) % bingImgUrls.length; // 循环切换 Bing 图片
-            currentBgUrl = bingImgUrls[imgIndex];
-            _animationController.forward(from: 0.0); // 触发淡入动画
-            LogUtil.v('切换到第 $imgIndex 张 Bing 图片');
-          });
-        });
-      }
-    }, '启动 Bing 图片定时器失败');
-  }
-
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final double progressBarWidth = screenWidth * 0.6;
 
-    // 获取视频缓冲状态
-    bool isBuffering = widget.videoController.value.isBuffering;
-
-    // 如果播放的是音频，通过 Selector 来监听 ThemeProvider 中的 isBingBg 状态
+    // 显示本地背景图片和提示信息
     return Selector<ThemeProvider, bool>(
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
-        LogUtil.safeExecute(() {
-          // 播放的是音频时，判断是否使用 Bing 背景
-          if (isAudio) {
-            if (isBingBg && bingImgUrls.isEmpty) {
-              _fetchBingImages(); // 加载 Bing 图片
-              LogUtil.v('正在使用 Bing 背景图片');
-            } else if (!isBingBg) {
-              currentBgUrl = 'assets/images/video_bg.png'; // 使用本地背景图片
-              LogUtil.v('正在使用本地背景图片');
-            }
-          }
-        }, '选择背景图片失败');
-
-        return _buildBackground(isLoading, isBuffering, progressBarWidth);
-      },
-    );
-  }
-
-  Widget _buildBackground(bool isLoading, bool isBuffering, double progressBarWidth) {
-    return FadeTransition(
-      opacity: _fadeAnimation, // 应用淡入淡出效果
-      child: Container(
-        padding: const EdgeInsets.only(top: 30, bottom: 30),
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            fit: BoxFit.cover,
-            image: isLoading
-                ? AssetImage('assets/images/video_bg.png') // 加载时始终显示本地背景图
-                : NetworkImage(currentBgUrl), // 正常显示当前背景图片（Bing 或本地）
-          ),
-        ),
-        child: Stack(
-          children: [
-            if (isLoading || isBuffering) // 如果正在加载或缓冲，显示进度条和提示文字
-              Positioned(
-                bottom: 12,
-                left: 0,
-                right: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    GradientProgressBar(
-                      width: progressBarWidth,
-                      height: 5,
-                      duration: const Duration(seconds: 3),
+        return FadeTransition(
+          opacity: _fadeAnimation, // 应用淡入淡出效果
+          child: Stack(
+            children: [
+              if (showBgImage) // 在播放前显示背景图
+                Container(
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      fit: BoxFit.cover,
+                      image: AssetImage('assets/images/video_bg.png'),
                     ),
-                    const SizedBox(height: 8),
-                    FittedBox(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Text(
-                          widget.toastString ?? S.current.loading,
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+              // 通过 toastString 控制进度条和提示文字的显示
+              if (widget.toastString != null) // 只依赖 toastString
+                Positioned(
+                  bottom: 12,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      GradientProgressBar(
+                        width: progressBarWidth,
+                        height: 5,
+                        duration: const Duration(seconds: 3),
+                      ),
+                      const SizedBox(height: 8),
+                      FittedBox(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Text(
+                            widget.toastString ?? S.current.loading,
+                            style: const TextStyle(color: Colors.white, fontSize: 16),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
