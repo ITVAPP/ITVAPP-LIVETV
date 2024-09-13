@@ -13,7 +13,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   String _selectedLevel = 'all';
   int _logLimit = 100; // 初始加载条数
   bool _hasMoreLogs = true; // 是否还有更多日志
-  List<Map<String, String>>? _cachedLogs; // 日志缓存，避免重复获取
 
   final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(30), // 统一圆角样式
@@ -21,38 +20,21 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
   final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
 
-  // 异步获取有限的日志并按日期排序
-  Future<List<Map<String, String>>> getLimitedLogsAsync() async {
-    // 如果缓存中已有日志，直接返回缓存的日志
-    if (_cachedLogs != null) {
-      return _cachedLogs!;
-    }
-
-    // 根据所选日志级别获取日志
+  // 获取有限的日志并按日期排序
+  List<Map<String, String>> getLimitedLogs() {
     List<Map<String, String>> logs = _selectedLevel == 'all'
-        ? await LogUtil.getLogsAsync()
-        : await LogUtil.getLogsByLevelAsync(_selectedLevel);
+        ? LogUtil.getLogs()
+        : LogUtil.getLogsByLevel(_selectedLevel);
 
-    // 处理时间字段的解析，避免因为格式问题抛出异常
-    logs.sort((a, b) {
-      final timeA = a['time'];
-      final timeB = b['time'];
-      if (timeA == null || timeB == null) return 0; // 如果时间为空，返回相同
-      try {
-        return DateTime.parse(timeB).compareTo(DateTime.parse(timeA));
-      } catch (e) {
-        return 0; // 如果时间格式解析出错，则保持顺序不变
-      }
-    });
+    // 按时间降序排序
+    logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
 
     if (logs.length > _logLimit) {
       _hasMoreLogs = true;
-      _cachedLogs = logs.sublist(0, _logLimit); // 返回并缓存限制条数的日志
-      return _cachedLogs!;
+      return logs.sublist(0, _logLimit); // 返回限制条数的日志
     } else {
       _hasMoreLogs = false;
-      _cachedLogs = logs; // 缓存所有日志
-      return _cachedLogs!;
+      return logs; // 没有更多日志时，返回所有日志
     }
   }
 
@@ -60,24 +42,21 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void _loadMoreLogs() {
     setState(() {
       _logLimit += 100; // 每次增加100条
-      _cachedLogs = null; // 每次加载更多时清除缓存，重新获取
     });
   }
 
   // 格式化时间
   String formatDateTime(String dateTime) {
-    try {
-      DateTime parsedTime = DateTime.parse(dateTime);
-      return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} "
-          "${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
-    } catch (e) {
-      return "时间格式错误"; // 如果解析失败，返回提示信息
-    }
+    DateTime parsedTime = DateTime.parse(dateTime);
+    return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} "
+        "${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, String>> logs = getLimitedLogs();
     var screenWidth = MediaQuery.of(context).size.width;
+
     bool isTV = context.watch<ThemeProvider>().isTV;
     bool isLogOn = context.watch<ThemeProvider>().isLogOn; // 获取日志开关状态
     double maxContainerWidth = 580;
@@ -119,98 +98,94 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 // 判断开关状态，如果关闭则不显示日志内容
                 if (isLogOn)
                   Expanded(
-                    child: FutureBuilder<List<Map<String, String>>>(
-                      future: getLimitedLogsAsync(), // 异步获取日志数据
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator()); // 显示加载动画
-                        } else if (snapshot.hasError) {
-                          return Center(child: Text('加载日志时出错'));
-                        } else {
-                          List<Map<String, String>> logs = snapshot.data ?? [];
-
-                          return Column(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
+                          child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
+                            spacing: 8, // 控制每个按钮之间的水平间距
+                            runSpacing: 4, // 控制每行之间的垂直间距
+                            alignment: WrapAlignment.center, // 按钮居中对齐
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                                child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
-                                  spacing: 3, // 控制每个按钮之间的水平间距
-                                  runSpacing: 3, // 控制每行之间的垂直间距
-                                  alignment: WrapAlignment.center, // 按钮居中对齐
-                                  children: [
-                                    _buildFilterButton('all', '所有'),
-                                    _buildFilterButton('v', '详细'),
-                                    _buildFilterButton('e', '错误'),
-                                    _buildFilterButton('i', '信息'),
-                                    _buildFilterButton('d', '调试'),
-                                  ],
-                                ),
-                              ),
-                              Flexible(
-                                child: logs.isEmpty
-                                    ? Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.info_outline, size: 60, color: Colors.grey),
-                                            SizedBox(height: 10),
-                                            Text('暂无日志', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                                          ],
-                                        ),
-                                      )
-                                    : Scrollbar(
-                                        thumbVisibility: true, // 替代 isAlwaysShown
-                                        child: ListView.builder(
-                                          itemCount: logs.length + (_hasMoreLogs ? 1 : 0),
-                                          itemBuilder: (context, index) {
-                                            if (index == logs.length) {
-                                              return Padding(
-                                                padding: const EdgeInsets.all(8.0),
-                                                child: ElevatedButton(
-                                                  onPressed: _loadMoreLogs,
-                                                  child: Text('加载更多'),
-                                                  style: ElevatedButton.styleFrom(
-                                                    shape: _buttonShape, // 统一圆角样式
-                                                    backgroundColor: _selectedColor,
-                                                  ),
+                              _buildFilterButton('all', '所有'),
+                              _buildFilterButton('v', '详细'),
+                              _buildFilterButton('e', '错误'),
+                              _buildFilterButton('i', '信息'),
+                              _buildFilterButton('d', '调试'),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: logs.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.info_outline, size: 60, color: Colors.grey),
+                                      SizedBox(height: 10),
+                                      Text('暂无日志', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                                    ],
+                                  ),
+                                )
+                              : Scrollbar(
+                                  thumbVisibility: true, // 替代 isAlwaysShown
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.vertical,
+                                      child: Column(
+                                        children: [
+                                          DataTable(
+                                            columns: [
+                                              DataColumn(label: Text('时间')),
+                                              DataColumn(label: Text('日志信息')),
+                                            ],
+                                            rows: logs
+                                                .map((log) => DataRow(cells: [
+                                                      DataCell(Text(formatDateTime(log['time']!))),
+                                                      DataCell(Text(log['message']!)),
+                                                    ]))
+                                                .toList(),
+                                          ),
+                                          if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
+                                            Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: ElevatedButton(
+                                                onPressed: _loadMoreLogs,
+                                                child: Text('加载更多'),
+                                                style: ElevatedButton.styleFrom(
+                                                  shape: _buttonShape, // 统一圆角样式
+                                                  backgroundColor: _selectedColor,
                                                 ),
-                                              );
-                                            }
-
-                                            final log = logs[index];
-                                            return ListTile(
-                                              title: Text(formatDateTime(log['time']!)),
-                                              subtitle: Text(log['message']!),
-                                            );
-                                          },
-                                        ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      LogUtil.clearLogs();
-                                      _cachedLogs = null; // 清空日志时清除缓存
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('日志已清空'),
-                                      ),
-                                    );
-                                  },
-                                  child: Text('清空日志'),
-                                  style: ElevatedButton.styleFrom(
-                                    shape: _buttonShape, // 统一圆角样式
-                                    backgroundColor: _selectedColor,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          );
-                        }
-                      },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                LogUtil.clearLogs();
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('日志已清空'),
+                                ),
+                              );
+                            },
+                            child: Text('清空日志'),
+                            style: ElevatedButton.styleFrom(
+                              shape: _buttonShape, // 统一圆角样式
+                              backgroundColor: _selectedColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -230,7 +205,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
           setState(() {
             _selectedLevel = level;
             _logLimit = 100; // 切换过滤条件时重置分页
-            _cachedLogs = null; // 切换日志级别时清除缓存
           });
         },
         child: Text(
