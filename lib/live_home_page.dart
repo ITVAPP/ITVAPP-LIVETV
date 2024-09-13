@@ -23,7 +23,8 @@ import 'provider/theme_provider.dart'; // 引入ThemeProvider
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
-  final M3uResult m3uData; // 接收上个页面传递的 M3uResult 数据
+  // final M3uResult m3uData; 
+  final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
 
@@ -319,13 +320,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 异步加载视频数据和版本检测
   _loadData() async {
     try {
-      // 使用上个页面传递的 M3uResult 数据
-      if (widget.m3uData.data != null) {
-        _parseDataFromM3uResult(widget.m3uData); // 如果传递的 M3uResult 数据正确，解析它
+      // 判断传递的数据是否是 PlaylistModel 类型且数据正确
+      if (widget.m3uData != null && widget.m3uData.data is PlaylistModel) {
+        PlaylistModel playlist = widget.m3uData.data as PlaylistModel;
+        _parseDataFromM3uResult(playlist); // 如果数据正确，解析它
       } else {
-        // 如果 M3uResult 数据不正确，使用 getLocalM3uData 获取本地数据
+        // 如果数据不正确，使用 getLocalM3uData 获取数据
+        LogUtil.logError('播放数据数据不正确，重新获取', e, stackTrace);
         await _parseData();
       }
+    } catch (e) {
+      // 处理可能出现的异常
+      LogUtil.logError('处理播放数据时出错', e, stackTrace);
+      await _parseData();
+    }
+  }
 
       // 版本检测
       CheckVersionUtil.checkVersion(context, false, false);
