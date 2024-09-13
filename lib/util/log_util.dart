@@ -100,15 +100,15 @@ class LogUtil {
 
   // 异步获取所有日志
   static Future<List<Map<String, String>>> getLogsAsync() async {
-    // 模拟异步延迟操作
-    return Future.delayed(Duration(milliseconds: 100), () => _logs);
+    // 模拟异步延迟操作并确保返回非空列表
+    return Future.delayed(Duration(milliseconds: 100), () => _logs.isNotEmpty ? _logs : []);
   }
 
   // 异步获取指定级别的日志
   static Future<List<Map<String, String>>> getLogsByLevelAsync(String level) async {
-    // 模拟异步延迟操作
+    // 模拟异步延迟操作并确保返回非空列表
     return Future.delayed(Duration(milliseconds: 100), () =>
-        _logs.where((log) => log['level'] == level).toList());
+        _logs.isNotEmpty ? _logs.where((log) => log['level'] == level).toList() : []);
   }
 
   // 清空日志
