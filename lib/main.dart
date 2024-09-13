@@ -97,8 +97,18 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // 更新 LogUtil 的 debugMode 只在应用启动时调用一次
+
+    // 获取 ThemeProvider 实例并应用各种设置
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    // 更新日志开关 LogUtil 的 debugMode
     LogUtil.updateDebugModeFromProvider(context);
+    
+    // 根据缓存初始化每日 Bing 背景
+    themeProvider.setBingBg(themeProvider.isBingBg);
+    
+    // 初始化 TV 设备检测并设置
+    themeProvider.checkAndSetIsTV();
   }
 
   @override
