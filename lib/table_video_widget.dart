@@ -122,9 +122,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 ? Stack(
                     alignment: Alignment.center,
                     children: [
-                      // 按宽高比调整播放器窗口
+                      // 仅在视频初始化后设置宽高比
                       AspectRatio(
-                        aspectRatio: widget.aspectRatio,
+                        aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频的实际宽高比
                         child: VideoPlayer(widget.controller!),
                       ),
                       // 如果视频未播放且抽屉未打开，显示播放按钮
