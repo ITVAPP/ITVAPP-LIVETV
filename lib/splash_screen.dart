@@ -111,7 +111,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 Future.delayed(Duration(seconds: 3), () {
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
-                      builder: (context) => LiveHomePage(m3uData: snapshot.data!), // 传递 M3U 数据
+                      // 修改此处，提取 M3uResult 中的 PlaylistModel 数据
+                      builder: (context) => LiveHomePage(m3uData: snapshot.data!.data!), // 传递 PlaylistModel 数据
                     ),
                   );
                 });
