@@ -98,6 +98,19 @@ class LogUtil {
     return _logs.where((log) => log['level'] == level).toList();
   }
 
+  // 异步获取所有日志
+  static Future<List<Map<String, String>>> getLogsAsync() async {
+    // 模拟异步延迟操作
+    return Future.delayed(Duration(milliseconds: 100), () => _logs);
+  }
+
+  // 异步获取指定级别的日志
+  static Future<List<Map<String, String>>> getLogsByLevelAsync(String level) async {
+    // 模拟异步延迟操作
+    return Future.delayed(Duration(milliseconds: 100), () =>
+        _logs.where((log) => log['level'] == level).toList());
+  }
+
   // 清空日志
   static void clearLogs() {
     _logs.clear();
