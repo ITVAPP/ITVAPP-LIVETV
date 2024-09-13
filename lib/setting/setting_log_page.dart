@@ -20,11 +20,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
   final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
 
-  // 获取有限的日志
+  // 获取有限的日志并按日期排序
   List<Map<String, String>> getLimitedLogs() {
     List<Map<String, String>> logs = _selectedLevel == 'all'
         ? LogUtil.getLogs()
         : LogUtil.getLogsByLevel(_selectedLevel);
+
+    // 按时间降序排序
+    logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
 
     if (logs.length > _logLimit) {
       _hasMoreLogs = true;
@@ -102,7 +105,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildFilterButton('all', '所有日志'),
+                              _buildFilterButton('all', '所有'),
                               _buildFilterButton('v', '详细'),
                               _buildFilterButton('e', '错误'),
                               _buildFilterButton('i', '信息'),
@@ -133,13 +136,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                           DataTable(
                                             columns: [
                                               DataColumn(label: Text('时间')),
-                                              DataColumn(label: Text('类型')),
                                               DataColumn(label: Text('日志信息')),
                                             ],
                                             rows: logs
                                                 .map((log) => DataRow(cells: [
                                                       DataCell(Text(formatDateTime(log['time']!))),
-                                                      DataCell(Text(log['level']!)),
                                                       DataCell(Text(log['message']!)),
                                                     ]))
                                                 .toList(),
