@@ -102,8 +102,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
+                            spacing: 8, // 控制每个按钮之间的水平间距
+                            runSpacing: 4, // 控制每行之间的垂直间距
+                            alignment: WrapAlignment.center, // 按钮居中对齐
                             children: [
                               _buildFilterButton('all', '所有'),
                               _buildFilterButton('v', '详细'),
@@ -197,7 +199,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮
   Widget _buildFilterButton(String level, String label) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 4.0), // 缩小每个按钮之间的间距
       child: OutlinedButton(
         onPressed: () {
           setState(() {
@@ -205,8 +207,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
             _logLimit = 100; // 切换过滤条件时重置分页
           });
         },
-        child: Text(label),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 12), // 缩小按钮文字的字体大小
+        ),
         style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // 减少按钮的内边距
           shape: _buttonShape, // 统一圆角样式
           side: BorderSide(color: _selectedLevel == level ? _selectedColor : _unselectedColor),
           backgroundColor: _selectedLevel == level ? _selectedColor.withOpacity(0.1) : Colors.transparent,
