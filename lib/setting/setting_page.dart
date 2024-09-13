@@ -144,7 +144,7 @@ class _SettingPageState extends State<SettingPage> {
                 ),
                 onTap: () async {
                   // 调用版本检查工具，检查是否有新版本
-                  await CheckVersionUtil.checkVersion(context);
+                  await CheckVersionUtil.checkVersion(context, true, true, true);
                   setState(() {
                     // 更新页面以显示最新的版本信息
                     _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
