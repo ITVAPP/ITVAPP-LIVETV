@@ -16,6 +16,11 @@ class ThemeProvider extends ChangeNotifier {
   // 标记是否需要通知 UI 更新，避免不必要的重绘
   bool _shouldNotify = false;
 
+  // 新增：标记初始化是否完成
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized; // 新增：获取初始化状态
+
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
   String get fontUrl => _fontUrl;
@@ -51,6 +56,7 @@ class ThemeProvider extends ChangeNotifier {
         }
 
         _shouldNotify = true; // 标记数据已更新，需要通知 UI
+        _isInitialized = true; // 新增：标记初始化完成
         _notifyIfNeeded(); // 通知 UI 更新
       }, '初始化 ThemeProvider 时出错');
     } catch (e, stackTrace) {
