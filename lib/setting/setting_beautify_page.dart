@@ -3,9 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 
-class SettingBeautifyPage extends StatelessWidget {
+class SettingBeautifyPage extends StatefulWidget {
   const SettingBeautifyPage({super.key});
 
+  @override
+  _SettingBeautifyPageState createState() => _SettingBeautifyPageState();
+}
+
+class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
   @override
   Widget build(BuildContext context) {
     try {
@@ -41,7 +46,7 @@ class SettingBeautifyPage extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 10.0), // 添加垂直间距
                     child: SwitchListTile(
                       title: const Text(
-                        '每日Bing', 
+                        '每日Bing',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ), // 设置标题加粗
                       subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 提示信息
