@@ -20,11 +20,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
   final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
 
-  // 获取有限的日志并按日期排序
-  List<Map<String, String>> getLimitedLogs() {
+  // 异步获取有限的日志并按日期排序
+  Future<List<Map<String, String>>> getLimitedLogsAsync() async {
     List<Map<String, String>> logs = _selectedLevel == 'all'
-        ? LogUtil.getLogs()
-        : LogUtil.getLogsByLevel(_selectedLevel);
+        ? await LogUtil.getLogsAsync()
+        : await LogUtil.getLogsByLevelAsync(_selectedLevel);
 
     // 按时间降序排序
     logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
@@ -54,9 +54,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, String>> logs = getLimitedLogs();
     var screenWidth = MediaQuery.of(context).size.width;
-
     bool isTV = context.watch<ThemeProvider>().isTV;
     bool isLogOn = context.watch<ThemeProvider>().isLogOn; // 获取日志开关状态
     double maxContainerWidth = 580;
@@ -98,94 +96,97 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 // 判断开关状态，如果关闭则不显示日志内容
                 if (isLogOn)
                   Expanded(
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                          child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
-                            spacing: 8, // 控制每个按钮之间的水平间距
-                            runSpacing: 4, // 控制每行之间的垂直间距
-                            alignment: WrapAlignment.center, // 按钮居中对齐
+                    child: FutureBuilder<List<Map<String, String>>>(
+                      future: getLimitedLogsAsync(), // 异步获取日志数据
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator()); // 显示加载动画
+                        } else if (snapshot.hasError) {
+                          return Center(child: Text('加载日志时出错'));
+                        } else {
+                          List<Map<String, String>> logs = snapshot.data ?? [];
+
+                          return Column(
                             children: [
-                              _buildFilterButton('all', '所有'),
-                              _buildFilterButton('v', '详细'),
-                              _buildFilterButton('e', '错误'),
-                              _buildFilterButton('i', '信息'),
-                              _buildFilterButton('d', '调试'),
-                            ],
-                          ),
-                        ),
-                        Flexible(
-                          child: logs.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.info_outline, size: 60, color: Colors.grey),
-                                      SizedBox(height: 10),
-                                      Text('暂无日志', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                                    ],
-                                  ),
-                                )
-                              : Scrollbar(
-                                  thumbVisibility: true, // 替代 isAlwaysShown
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.vertical,
-                                      child: Column(
-                                        children: [
-                                          DataTable(
-                                            columns: [
-                                              DataColumn(label: Text('时间')),
-                                              DataColumn(label: Text('日志信息')),
-                                            ],
-                                            rows: logs
-                                                .map((log) => DataRow(cells: [
-                                                      DataCell(Text(formatDateTime(log['time']!))),
-                                                      DataCell(Text(log['message']!)),
-                                                    ]))
-                                                .toList(),
-                                          ),
-                                          if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
-                                            Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: ElevatedButton(
-                                                onPressed: _loadMoreLogs,
-                                                child: Text('加载更多'),
-                                                style: ElevatedButton.styleFrom(
-                                                  shape: _buttonShape, // 统一圆角样式
-                                                  backgroundColor: _selectedColor,
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
+                                child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
+                                  spacing: 8, // 控制每个按钮之间的水平间距
+                                  runSpacing: 4, // 控制每行之间的垂直间距
+                                  alignment: WrapAlignment.center, // 按钮居中对齐
+                                  children: [
+                                    _buildFilterButton('all', '所有'),
+                                    _buildFilterButton('v', '详细'),
+                                    _buildFilterButton('e', '错误'),
+                                    _buildFilterButton('i', '信息'),
+                                    _buildFilterButton('d', '调试'),
+                                  ],
+                                ),
+                              ),
+                              Flexible(
+                                child: logs.isEmpty
+                                    ? Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.info_outline, size: 60, color: Colors.grey),
+                                            SizedBox(height: 10),
+                                            Text('暂无日志', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                                          ],
+                                        ),
+                                      )
+                                    : Scrollbar(
+                                        thumbVisibility: true, // 替代 isAlwaysShown
+                                        child: ListView.builder(
+                                          itemCount: logs.length + (_hasMoreLogs ? 1 : 0),
+                                          itemBuilder: (context, index) {
+                                            if (index == logs.length) {
+                                              return Padding(
+                                                padding: const EdgeInsets.all(8.0),
+                                                child: ElevatedButton(
+                                                  onPressed: _loadMoreLogs,
+                                                  child: Text('加载更多'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    shape: _buttonShape, // 统一圆角样式
+                                                    backgroundColor: _selectedColor,
+                                                  ),
                                                 ),
-                                              ),
-                                            ),
-                                        ],
+                                              );
+                                            }
+
+                                            final log = logs[index];
+                                            return ListTile(
+                                              title: Text(formatDateTime(log['time']!)),
+                                              subtitle: Text(log['message']!),
+                                            );
+                                          },
+                                        ),
                                       ),
-                                    ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      LogUtil.clearLogs();
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('日志已清空'),
+                                      ),
+                                    );
+                                  },
+                                  child: Text('清空日志'),
+                                  style: ElevatedButton.styleFrom(
+                                    shape: _buttonShape, // 统一圆角样式
+                                    backgroundColor: _selectedColor,
                                   ),
                                 ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                LogUtil.clearLogs();
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('日志已清空'),
-                                ),
-                              );
-                            },
-                            child: Text('清空日志'),
-                            style: ElevatedButton.styleFrom(
-                              shape: _buttonShape, // 统一圆角样式
-                              backgroundColor: _selectedColor,
-                            ),
-                          ),
-                        ),
-                      ],
+                              ),
+                            ],
+                          );
+                        }
+                      },
                     ),
                   ),
               ],
