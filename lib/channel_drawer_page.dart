@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'provider/theme_provider.dart';
 import 'entity/playlist_model.dart';
 import 'util/env_util.dart';
 
@@ -59,6 +58,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     LogUtil.safeExecute(() {
       _keys = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分组的键
       _values = widget.videoMap?.playList?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取所有分组的值
+      
+      // 对每个分组中的频道按名字进行 Unicode 排序
+      for (int i = 0; i < _values.length; i++) {
+        var sortedChannels = Map<String, PlayModel>.fromEntries(
+          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
+        );
+        _values[i] = sortedChannels; // 更新为排序后的频道列表
+      }
+
       _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
       _channelIndex = _groupIndex != -1
           ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
