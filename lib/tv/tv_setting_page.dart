@@ -144,7 +144,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
         if (_selectedIndex == 2)
           const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
         if (_selectedIndex == 3)
-          const Expanded(child: SettinglogPage()), // 如果选中日志，则显示日志页面
+          Expanded(child: SettingLogPage()), // 如果选中日志，则显示日志页面
       ],
     );
   }
