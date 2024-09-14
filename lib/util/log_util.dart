@@ -44,8 +44,8 @@ class LogUtil {
 
   // 安全执行方法，捕获并记录异常
   static void safeExecute(void Function()? action, String errorMessage) {
-    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
     if (action == null) {
+      // 不论 debugMode 是否开启，都要进行基本的参数检查
       logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', StackTrace.current);
       return;
     }
@@ -53,35 +53,32 @@ class LogUtil {
     try {
       action(); // 执行传入的函数
     } catch (error, stackTrace) {
-      logError(errorMessage, error, stackTrace); // 捕获并记录异常
+      // 捕获并记录异常，日志记录逻辑受 debugMode 控制
+      logError(errorMessage, error, stackTrace);
     }
   }
 
   // 记录不同类型的日志
   static void v(Object? object, {String? tag}) {
-    if (!debugMode) return;
     _log('v', object, tag);
   }
 
   static void e(Object? object, {String? tag}) {
-    if (!debugMode) return;
     _log('e', object, tag);
   }
 
   static void i(Object? object, {String? tag}) {
-    if (!debugMode) return;
     _log('i', object, tag);
   }
 
   static void d(Object? object, {String? tag}) {
-    if (!debugMode) return;
     _log('d', object, tag);
   }
 
-  // 通用日志记录方法
+  // 通用日志记录方法，日志记录受 debugMode 控制
   static void _log(String level, Object? object, String? tag) {
-    if (!debugMode) return;
-    if (object == null) return;
+    if (!debugMode || object == null) return;
+    
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
     _logs.add({'time': time, 'level': level, 'message': logMessage});
