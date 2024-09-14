@@ -4,63 +4,81 @@ String getHtmlString(String ipAddress) => '''
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>极简TV</title>
+<title>ITVAPP LIVETV</title>
     <style>
         body {
-            padding: 20px;
+            padding: 40px;
             background-color: #f0f0f0;
-            background-image: url('https://fastly.jsdelivr.net/gh/aiyakuaile/images/idiom_bg_6.jpg');
+            background-image: url('https://cdn.itvapp.net/itvapp_live_tv/idiom_bg.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             height: 100vh;
+            font-size: 28px; /* 调整字体大小，适应TV */
         }
         h2 {
             color: #333;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #666;
+            font-size: 36px; /* 提高标题字体大小 */
         }
         textarea {
             width: 100%;
-            min-height: 100px;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            min-height: 150px; /* 提高文本框高度 */
+            padding: 20px;
+            font-size: 24px; /* 提高输入区域字体大小 */
+            border: 2px solid #ccc;
+            border-radius: 8px;
             box-sizing: border-box;
-            transition: border-color 0.3s ease;
-            resize: vertical; /* 允许垂直调整 */
+            resize: none;
         }
         textarea:focus {
             border-color: #007bff;
             outline: none;
         }
         button {
-            padding: 12px 20px;
+            padding: 20px 40px; /* 增加按钮尺寸 */
             background-color: #007bff;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 28px; /* 提高按钮字体大小 */
             transition: background-color 0.3s ease;
+            outline: none;
         }
-        button:hover {
+        button:hover,
+        button:focus {
             background-color: #0056b3;
+            outline: 3px solid #fff; /* 为焦点按钮增加高亮边框 */
+        }
+        button:disabled {
+            background-color: #aaa;
         }
     </style>
 <script>
-        function autoResize(element) {
-            element.style.height = "auto";
-            element.style.height = (element.scrollHeight) + "px";
-        }
+    // 自动调整文本框高度
+    function autoResize(element) {
+        element.style.height = "auto";
+        element.style.height = (element.scrollHeight) + "px";
+    }
+
+    // 发送POST请求到指定IP地址
     function sendPostRequest() {
         var userInput = document.getElementById("userInput").value;
-        var url = "$ipAddress"; 
+
+        // 检查用户输入是否为空
+        if (!userInput.trim()) {
+            alert("订阅源不能为空！");
+            return;
+        }
+
+        var url = "$ipAddress";  // 使用传入的IP地址
         var data = { url: userInput };
+
+        // 提交按钮禁用，避免重复提交
+        var submitButton = document.querySelector("button");
+        submitButton.disabled = true;
+        submitButton.textContent = "推送中...";
+
         fetch(url, {
             method: "POST",
             headers: {
@@ -69,8 +87,12 @@ String getHtmlString(String ipAddress) => '''
             body: JSON.stringify(data)
         })
         .then(response => {
+            submitButton.disabled = false;
+            submitButton.textContent = "立即推送";
+
+            // 检查响应状态
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error('网络响应不正常');
             }
             return response.json();
         })
@@ -78,16 +100,18 @@ String getHtmlString(String ipAddress) => '''
             alert(data.message);
         })
         .catch(error => {
-            alert(error.message);
+            // 显示错误信息
+            alert("请求失败: " + error.message);
         });
     }
 </script>
 </head>
 <body>
     <h2>添加订阅源</h2>
-    <textarea id="userInput" placeholder="请输入订阅源" oninput="autoResize(this)"></textarea>
+    <!-- 增加 tabindex 使文本框和按钮可以通过遥控器聚焦 -->
+    <textarea id="userInput" placeholder="请输入订阅源" oninput="autoResize(this)" tabindex="1"></textarea>
     <br><br>
-    <button onclick="sendPostRequest()">立即推送</button>
+    <button onclick="sendPostRequest()" tabindex="2">立即推送</button>
 </body>
 </html>
 ''';
