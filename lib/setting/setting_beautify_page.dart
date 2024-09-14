@@ -11,6 +11,23 @@ class SettingBeautifyPage extends StatefulWidget {
 }
 
 class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
+  // 焦点节点，用于TV端焦点管理
+  final FocusNode _bingFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // 页面加载时，将焦点默认设置到第一个可用组件
+    _bingFocusNode.requestFocus();
+  }
+
+  @override
+  void dispose() {
+    // 释放焦点资源
+    _bingFocusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -40,30 +57,34 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), // 增加内边距
-              child: ListView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10.0), // 添加垂直间距
-                    child: SwitchListTile(
-                      title: const Text(
-                        '每日Bing',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ), // 设置标题加粗
-                      subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 提示信息
-                      value: context.watch<ThemeProvider>().isBingBg, // 读取 Bing 背景状态
-                      onChanged: (value) {
-                        LogUtil.safeExecute(() {
-                          context.read<ThemeProvider>().setBingBg(value); // 设置 Bing 背景状态
-                          LogUtil.i('每日Bing背景设置为: ${value ? "启用" : "禁用"}');
-                        }, '设置每日Bing背景时发生错误');
-                      },
-                      activeColor: Colors.white, // 启用时滑块颜色
-                      activeTrackColor: const Color(0xFFEB144C), // 启用时轨道颜色
-                      inactiveThumbColor: Colors.white, // 关闭时滑块颜色
-                      inactiveTrackColor: Colors.grey, // 关闭时轨道颜色
+              child: FocusTraversalGroup( // 在 TV 模式下使用焦点组管理方向键切换
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, // 子组件从左对齐
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10.0), // 添加垂直间距
+                      child: SwitchListTile(
+                        focusNode: _bingFocusNode, // 将焦点节点绑定到该组件
+                        title: const Text(
+                          '每日Bing',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ), // 设置标题加粗
+                        subtitle: const Text('未播放时的屏幕背景，每日更换图片'), // 提示信息
+                        value: context.watch<ThemeProvider>().isBingBg, // 读取 Bing 背景状态
+                        onChanged: (value) {
+                          LogUtil.safeExecute(() {
+                            context.read<ThemeProvider>().setBingBg(value); // 设置 Bing 背景状态
+                            LogUtil.i('每日Bing背景设置为: ${value ? "启用" : "禁用"}');
+                          }, '设置每日Bing背景时发生错误');
+                        },
+                        activeColor: Colors.white, // 启用时滑块颜色
+                        activeTrackColor: const Color(0xFFEB144C), // 启用时轨道颜色
+                        inactiveThumbColor: Colors.white, // 关闭时滑块颜色
+                        inactiveTrackColor: Colors.grey, // 关闭时轨道颜色
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
