@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 class StreamUrl {
   final String url;
   final YoutubeExplode yt = YoutubeExplode(); // 创建 YouTube API 实例，用于获取视频数据
+  bool _isDisposed = false; // 标志位，防止重复释放
 
   StreamUrl(this.url);  // 构造函数，初始化播放 URL
 
@@ -29,10 +30,12 @@ class StreamUrl {
     }
   }
 
-  // 释放资源（关闭 YouTube API 实例）
+  // 释放资源（关闭 YouTube API 实例），防止重复调用
   void dispose() {
+    if (_isDisposed) return; // 如果已经释放了资源，直接返回
     LogUtil.safeExecute(() {
       yt.close();
+      _isDisposed = true; // 设置为已释放
       LogUtil.i('YouTubeExplode 实例已关闭');
     }, '关闭 YouTubeExplode 实例时发生错误');
   }
