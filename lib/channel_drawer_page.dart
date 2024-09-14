@@ -4,6 +4,7 @@ import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'entity/playlist_model.dart';
@@ -45,97 +46,98 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   @override
   void initState() {
     super.initState();
-    _initializeChannelData(); // 初始化频道数据
-    _calculateViewportHeight(); // 计算视图窗口的高度
-    _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
-
-    // 添加滚动监听器
-    _scrollController.addListener(_onScroll);
-    _scrollChannelController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    // 滚动事件处理逻辑（如果需要）
+    LogUtil.safeExecute(() {
+      _initializeChannelData(); // 初始化频道数据
+      _calculateViewportHeight(); // 计算视图窗口的高度
+      _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
+    }, '初始化频道数据时发生错误');
   }
 
   // 初始化频道数据
   void _initializeChannelData() {
-    _keys = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分组的键
-    _values = widget.videoMap?.playList?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取所有分组的值
+    LogUtil.safeExecute(() {
+      _keys = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分组的键
+      _values = widget.videoMap?.playList?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取所有分组的值
+      
+      // 对每个分组中的频道按名字进行 Unicode 排序
+      for (int i = 0; i < _values.length; i++) {
+        var sortedChannels = Map<String, PlayModel>.fromEntries(
+          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
+        );
+        _values[i] = sortedChannels; // 更新为排序后的频道列表
+      }
 
-    // 对每个分组中的频道按名字进行 Unicode 排序
-    for (int i = 0; i < _values.length; i++) {
-      var sortedChannels = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
-      );
-      _values[i] = sortedChannels; // 更新为排序后的频道列表
-    }
+      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
+      _channelIndex = _groupIndex != -1
+          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+          : 0; // 当前频道的索引
 
-    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
-    _channelIndex = _groupIndex != -1
-        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-        : 0; // 当前频道的索引
-
-    // 如果分组或频道索引未找到，默认设置为0
-    if (_groupIndex == -1) _groupIndex = 0;
-    if (_channelIndex == -1) _channelIndex = 0;
+      // 如果分组或频道索引未找到，默认设置为0
+      if (_groupIndex == -1) _groupIndex = 0;
+      if (_channelIndex == -1) _channelIndex = 0;
+    }, '初始化频道数据时出错');
   }
 
   // 计算视图窗口的高度
   void _calculateViewportHeight() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox != null) {
-        final height = renderBox.size.height * 0.5; // 取窗口高度的一半
-        if (context.mounted) {
+    WidgetsBinding.instance?.addPostFrameCallback((_) {
+      LogUtil.safeExecute(() {
+        final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
+        if (renderBox != null) {
+          final height = renderBox.size.height * 0.5; // 取窗口高度的一半
           setState(() {
             _viewPortHeight = height;
             _adjustScrollPositions(); // 调整滚动位置
           });
         }
-      }
+      }, '计算视图窗口高度时出错');
     });
   }
 
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
-    if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
-    _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
+    LogUtil.safeExecute(() {
+      if (_viewPortHeight == null) return;
+      _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
+      _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
+    }, '调整滚动位置时出错');
   }
 
   // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
-    if (!controller.hasClients || _viewPortHeight == null) return;
-
-    final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
-    final shouldOffset = index * _itemHeight - _viewPortHeight! + _itemHeight * 0.5; // 计算偏移量
-    final offset = shouldOffset.clamp(0.0, maxScrollExtent); // 限制滚动范围
-    controller.jumpTo(offset); // 滚动到计算的偏移量位置
+    LogUtil.safeExecute(() {
+      if (!controller.hasClients) return;
+      final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
+      final double viewPortHeight = _viewPortHeight!;
+      final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
+      if (shouldOffset < maxScrollExtent) {
+        controller.jumpTo(max(0.0, shouldOffset)); // 滚动到计算的偏移量位置
+      } else {
+        controller.jumpTo(maxScrollExtent); // 滚动到最大范围
+      }
+    }, '根据索引调整滚动位置时出错');
   }
 
   // 加载EPG（节目单）数据
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
     if (playModel == null) return;
-
+    setState(() {
+      _epgData = null; // 清空当前节目单数据
+      _selEPGIndex = 0; // 重置选中的节目单索引
+    });
     try {
       final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
-      if (res?.epgData?.isEmpty ?? true) return;
+      if (res?.epgData == null || res!.epgData!.isEmpty) return;
 
-      final newEpgData = res!.epgData!;
-      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
-      final selectTimeData = newEpgData.lastWhere(
-        (element) => element.start!.compareTo(epgRangeTime) < 0,
-        orElse: () => newEpgData.first,
-      ).start;
-
-      // 仅在节目单数据发生变化时更新 UI
-      if (_epgData != newEpgData && context.mounted) {
-        setState(() {
-          _epgData = newEpgData;
-          _selEPGIndex = newEpgData.indexWhere((element) => element.start == selectTimeData);
-        });
-      }
+      setState(() {
+        _epgData = res!.epgData!; // 更新节目单数据
+        final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
+        final selectTimeData = _epgData!.lastWhere(
+          (element) => element.start!.compareTo(epgRangeTime) < 0, // 查找当前时间之前的节目
+          orElse: () => _epgData!.first, // 如果未找到，默认选中第一个节目
+        ).start;
+        _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
+      });
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
     }
@@ -143,23 +145,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   @override
   void dispose() {
-    // 释放滚动控制器资源并移除监听器
-    _scrollController.removeListener(_onScroll);
-    _scrollChannelController.removeListener(_onScroll);
-    _scrollController.dispose();
-    _scrollChannelController.dispose();
-    super.dispose();
+    LogUtil.safeExecute(() {
+      _scrollController.dispose();
+      _scrollChannelController.dispose();
+      super.dispose();
+    }, '释放资源时出错');
   }
 
   @override
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 如果频道或分组变化，重新初始化数据并加载EPG
-    if (widget.playModel != oldWidget.playModel) {
-      _initializeChannelData();
-      _loadEPGMsg(widget.playModel);
-      _calculateViewportHeight();
-    }
+    LogUtil.safeExecute(() {
+      // 如果频道或分组变化，重新初始化数据并加载EPG
+      if (widget.playModel != oldWidget.playModel) {
+        _initializeChannelData();
+        _loadEPGMsg(widget.playModel);
+        _calculateViewportHeight();
+      }
+    }, '更新小部件时出错');
   }
 
   @override
@@ -231,19 +234,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       child: InkWell(
         overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
         onTap: () {
-          if (_groupIndex != index) {
-            setState(() {
-              _groupIndex = index;
-              final name = _values[_groupIndex].keys.first.toString();
-              widget.onTapChannel?.call(_values[_groupIndex][name]); // 回调通知选中分组
-            });
-            _scrollChannelController.jumpTo(0); // 滚动到顶部
-            if (context.mounted) {
+          LogUtil.safeExecute(() {
+            if (_groupIndex != index) {
+              setState(() {
+                _groupIndex = index;
+                final name = _values[_groupIndex].keys.first.toString();
+                widget.onTapChannel?.call(_values[_groupIndex][name]); // 回调通知选中分组
+              });
+              _scrollChannelController.jumpTo(0); // 滚动到顶部
+              if (context.mounted) {
+                Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+              }
+            } else {
+              Scaffold.of(context).closeDrawer(); // 关闭抽屉
+            }
+          }, '分组列表项点击时出错');
+        },
+        onFocusChange: (focus) {
+          LogUtil.safeExecute(() {
+            if (focus && context.mounted) {
               Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
             }
-          } else {
-            Scaffold.of(context).closeDrawer(); // 关闭抽屉
-          }
+          }, '焦点变化时出错');
         },
         splashColor: Colors.white.withOpacity(0.3),
         child: Ink(
@@ -293,15 +305,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               overlayColor: isTV ? WidgetStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV设备上的特殊样式
               canRequestFocus: isTV,
               onTap: () {
-                if (isSelect) {
-                  Scaffold.of(context).closeDrawer();
-                  return;
-                }
-                final newModel = _values[_groupIndex][name];
-                widget.onTapChannel?.call(newModel); // 回调通知选中频道
-                if (context.mounted) {
-                  Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-                }
+                LogUtil.safeExecute(() {
+                  if (isSelect) {
+                    Scaffold.of(context).closeDrawer();
+                    return;
+                  }
+                  final newModel = _values[_groupIndex][name];
+                  widget.onTapChannel?.call(newModel); // 回调通知选中频道
+                  if (context.mounted) {
+                    Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+                  }
+                }, '频道列表项点击时出错');
+              },
+              onFocusChange: (focus) {
+                LogUtil.safeExecute(() {
+                  if (focus && context.mounted) {
+                    Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+                  }
+                }, '焦点变化时出错');
               },
               splashColor: Colors.white.withOpacity(0.3),
               child: Ink(
