@@ -83,6 +83,10 @@ class CheckVersionUtil {
   }
 
   static Future<bool?> showUpdateDialog(BuildContext context) async {
+    // 为更新和关闭按钮创建 FocusNode
+    final FocusNode updateButtonFocusNode = FocusNode();
+    final FocusNode closeButtonFocusNode = FocusNode();
+
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -97,6 +101,11 @@ class CheckVersionUtil {
 
         // 根据屏幕方向和屏幕宽度设置弹窗宽度为屏幕宽度的某个百分比
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 竖屏时使用80%，横屏时使用60%
+
+        // 在对话框显示后，将焦点设置在更新按钮上
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          FocusScope.of(context).requestFocus(updateButtonFocusNode);
+        });
 
         return Center(
           child: Container(
@@ -127,6 +136,7 @@ class CheckVersionUtil {
                     Positioned(
                       right: 0,
                       child: IconButton(
+                        focusNode: closeButtonFocusNode,  // 设置关闭按钮的焦点
                         onPressed: () {
                           Navigator.of(context).pop(false);
                           LogUtil.v('用户关闭了更新弹窗');
@@ -155,6 +165,7 @@ class CheckVersionUtil {
                 ),
                 UpdateDownloadBtn(
                   apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+                  focusNode: updateButtonFocusNode,  // 设置更新按钮的焦点
                 ),
                 const SizedBox(height: 30),
               ],
