@@ -135,7 +135,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.system_update,
-                  title: Text(S.of(context).checkUpdate), // 使用国际化语言显示检查更新标题
+                  title: '升级',
                   index: 4,
                   onTap: _checkForUpdates, // 直接调用检查更新逻辑
                 ),
