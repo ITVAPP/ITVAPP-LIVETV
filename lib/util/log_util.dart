@@ -83,9 +83,13 @@ class LogUtil {
     if (!debugMode) return;
     if (object == null) return;
     String time = DateTime.now().toString();
-    String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
+    
+    // 存储日志的级别和内容分离
+    String logMessage = object.toString(); // 只记录实际的日志内容
     _logs.add({'time': time, 'level': level, 'message': logMessage});
-    developer.log(logMessage);
+
+    // 控制台输出完整日志信息，包括分类信息
+    developer.log('[$level] ${tag ?? _defTag} | $logMessage');
   }
 
   // 获取所有日志
@@ -96,22 +100,6 @@ class LogUtil {
   // 获取指定类型的日志
   static List<Map<String, String>> getLogsByLevel(String level) {
     return _logs.where((log) => log['level'] == level).toList();
-  }
-
-  // 异步获取所有日志，增加对时间格式和空值的处理
-  static Future<List<Map<String, String>>> getLogsAsync() async {
-    // 模拟异步延迟操作并确保返回非空列表
-    return Future.delayed(Duration(milliseconds: 100), () {
-      return _logs.isNotEmpty ? _logs : [];
-    });
-  }
-
-  // 异步获取指定级别的日志，增加对时间格式和空值的处理
-  static Future<List<Map<String, String>>> getLogsByLevelAsync(String level) async {
-    // 模拟异步延迟操作并确保返回非空列表
-    return Future.delayed(Duration(milliseconds: 100), () {
-      return _logs.isNotEmpty ? _logs.where((log) => log['level'] == level).toList() : [];
-    });
   }
 
   // 清空日志
