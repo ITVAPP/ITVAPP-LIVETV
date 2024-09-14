@@ -21,10 +21,14 @@ class VideoHoldBg extends StatefulWidget {
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   late AnimationController _animationController; // 动画控制器，控制背景淡入淡出效果
   late Animation<double> _fadeAnimation; // 淡入淡出的动画效果
+  List<String> _bingImgUrls = [];  // 用于存储多个 Bing 背景图片 URL
+  int _currentImgIndex = 0;  // 当前显示的背景图片索引
+  Timer? _timer;  // 定时器，用于切换背景图片
 
   @override
   void initState() {
     super.initState();
+
     // 初始化动画控制器，设置动画持续时间为 1 秒
     _animationController = AnimationController(duration: const Duration(seconds: 1), vsync: this);
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
@@ -36,11 +40,38 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     widget.videoController.addListener(() {
       setState(() {}); // 触发UI更新
     });
+
+    // 异步获取 Bing 背景图片 URL 列表
+    _loadBingBackgrounds();
+  }
+
+  // 异步加载 Bing 图片 URL 列表
+  Future<void> _loadBingBackgrounds() async {
+    try {
+      _bingImgUrls = await BingUtil.getBingImgUrls();  // 获取最多 15 张 Bing 图片 URL
+      if (_bingImgUrls.isNotEmpty) {
+        setState(() {});  // 触发界面更新
+
+        // 只有在加载到 Bing 图片时才启动定时器
+        _timer = Timer.periodic(Duration(seconds: 5), (Timer timer) {
+          setState(() {
+            _currentImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;  // 轮换图片
+            _animationController.forward(from: 0.0);  // 每次切换图片时重新播放淡入动画
+          });
+        });
+      } else {
+        LogUtil.e('未获取到任何 Bing 图片 URL');
+      }
+    } catch (e) {
+      LogUtil.logError('加载 Bing 图片时发生错误', e);  // 记录错误日志
+    }
   }
 
   @override
   void dispose() {
     _animationController.dispose(); // 销毁动画控制器
+    _timer?.cancel();  // 销毁定时器
+    _timer = null;  // 将定时器置空，防止多次调用
     LogUtil.v('界面销毁，动画控制器取消'); // 记录日志，说明界面销毁时进行了资源清理
     super.dispose();
   }
@@ -109,27 +140,20 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     );
   }
 
-  // 动态加载Bing图片背景，如果Bing图片加载失败则使用本地默认图片
+  // 动态加载Bing图片背景，支持多张图片轮换展示
   Widget _buildBingBg() {
-    return FutureBuilder<String?>(
-      // 异步获取Bing每日图片URL
-      future: BingUtil.getBingImgUrl(),
-      builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
-        late ImageProvider image;
-        if (snapshot.hasData && snapshot.data != null) {
-          // 如果成功获取到Bing图片URL，则使用网络图片作为背景
-          image = NetworkImage(snapshot.data!);
-        } else {
-          // 如果Bing图片URL获取失败，使用本地默认背景图片
-          image = const AssetImage('assets/images/video_bg.png');
-        }
-        return Container(
-          // 使用BoxDecoration设置背景图片，图片根据容器大小覆盖整个背景
-          decoration: BoxDecoration(
-            image: DecorationImage(fit: BoxFit.cover, image: image),
-          ),
-        );
-      },
+    return Container(
+      decoration: BoxDecoration(
+        image: _bingImgUrls.isNotEmpty
+            ? DecorationImage(
+                fit: BoxFit.cover,
+                image: NetworkImage(_bingImgUrls[_currentImgIndex]), // 轮换展示的背景图片
+              )
+            : const DecorationImage(
+                fit: BoxFit.cover,
+                image: AssetImage('assets/images/video_bg.png'), // 若无Bing图片，使用本地默认背景
+              ),
+      ),
     );
   }
 
