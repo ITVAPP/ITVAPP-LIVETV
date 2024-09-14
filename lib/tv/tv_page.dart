@@ -54,10 +54,23 @@ class _TvPageState extends State<TvPage> {
 
   bool _isError = false; // 标识是否播放过程中发生错误
 
-  // 显示错误信息的工具函数
+  // 防抖处理函数，将操作包装在防抖逻辑中，防止短时间内多次触发相同事件
+  void _handleDebounce(Function action, [Duration delay = const Duration(milliseconds: 300)]) {
+    if (_debounce) {
+      _debounce = false;
+      action();  // 执行动作
+      _timer = Timer(delay, () {
+        _debounce = true;  // 设定一个定时器，在指定时间后恢复防抖开关
+        _timer?.cancel();
+        _timer = null;
+      });
+    }
+  }
+
+  // 显示错误信息并记录日志
   void _showError(String message) {
     setState(() {
-      _isError = true; // 设置错误状态
+      _isError = true; // 设置错误状态，用于控制UI显示
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)), // 显示错误提示
       );
@@ -66,7 +79,7 @@ class _TvPageState extends State<TvPage> {
       try {
         throw Exception(message);
       } catch (e, stackTrace) {
-        LogUtil.logError('播放错误：$message', e, stackTrace);
+        LogUtil.logError('播放错误：$message', e, stackTrace); // 记录错误日志
       }
     });
   }
@@ -85,112 +98,119 @@ class _TvPageState extends State<TvPage> {
             var end = Offset.zero; // 动画终点为屏幕中间
             var curve = Curves.ease; // 使用缓动曲线
 
+            // 定义位移动画
             var tween = Tween(begin: begin, end: end).chain(
               CurveTween(curve: curve),
             );
 
             return SlideTransition(
-              position: animation.drive(tween),
+              position: animation.drive(tween), // 应用动画
               child: child,
             );
           },
         ),
       );
     } catch (e, stackTrace) {
-      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace);
+      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
       return null;
     }
   }
 
   // 处理键盘事件的函数，处理遥控器输入
   Future<void> _focusEventHandle(BuildContext context, KeyEvent e) async {
-    try {
-      if (e is! KeyUpEvent || !_debounce) return; // 如果不是按键释放事件或节流未恢复，则直接返回
-      _debounce = false; // 防止短时间内再次触发
-      _timer = Timer(const Duration(milliseconds: 300), () {
-        _debounce = true; // 恢复节流状态
-        _timer?.cancel(); // 取消定时器
-        _timer = null;
-      });
+    _handleDebounce(() async {
+      if (e is! KeyUpEvent) return; // 只处理按键释放事件
 
       // 根据按键的不同逻辑键值执行相应的操作
       switch (e.logicalKey) {
         case LogicalKeyboardKey.arrowRight:
-          LogUtil.v('按了右键'); // 处理右键操作
+          // 处理右键操作
           break;
         case LogicalKeyboardKey.arrowLeft:
-          LogUtil.v('按了左键'); // 处理左键操作
+          // 处理左键操作
           break;
         case LogicalKeyboardKey.arrowUp:
-          LogUtil.v('按了上键');
           _videoNode.unfocus(); // 移除视频区域的焦点
           await widget.changeChannelSources?.call(); // 切换视频源
-          Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
+          _restoreFocus(); // 延迟恢复焦点
           break;
         case LogicalKeyboardKey.arrowDown:
-          LogUtil.v('按了下键');
           widget.controller?.pause(); // 暂停视频播放
           _videoNode.unfocus(); // 移除焦点
-          await _openAddSource(); // 打开设置页面
+          await _openAddSource(); // 打开设置页面以添加新的视频源
           final m3uData = SpUtil.getString('m3u_cache', defValue: '')!;
           if (m3uData == '') {
             widget.onChangeSubSource?.call(); // 如果没有视频源，调用切换回调
           } else {
-            widget.controller?.play(); // 恢复视频播放
+            widget.controller?.play(); // 如果有视频源，恢复视频播放
           }
-          Future.delayed(const Duration(seconds: 1), () => _videoNode.requestFocus()); // 延迟恢复焦点
+          _restoreFocus(); // 延迟恢复焦点
           break;
         case LogicalKeyboardKey.select:
-          LogUtil.v('按了确认键');
           if (_isError) {
-            _showError('视频加载失败，请重试'); // 如果出现错误，显示提示信息
+            _showError('视频加载失败，请重试'); // 如果播放出错，显示提示信息
             return;
           }
 
           if (widget.controller?.value.isInitialized == true &&
               !widget.controller!.value.isPlaying &&
               !widget.controller!.value.isBuffering) {
-            widget.controller?.play(); // 如果未播放且未缓冲，开始播放
+            widget.controller?.play(); // 如果视频未播放且未缓冲，则开始播放
           } else {
-            LogUtil.v('确认键:::打开频道列表');
             if (!Scaffold.of(context).isDrawerOpen) {
-              Scaffold.of(context).openDrawer(); // 打开频道抽屉
+              Scaffold.of(context).openDrawer(); // 打开频道列表的侧边抽屉
             }
           }
           break;
         case LogicalKeyboardKey.goBack:
-          LogUtil.v('按了返回键');
           Navigator.pop(context); // 返回上一个页面
           break;
         case LogicalKeyboardKey.contextMenu:
-          LogUtil.v('按了菜单键');
           if (!Scaffold.of(context).isDrawerOpen) {
-            Scaffold.of(context).openDrawer(); // 打开频道抽屉
+            Scaffold.of(context).openDrawer(); // 打开侧边抽屉菜单
           }
           break;
         case LogicalKeyboardKey.audioVolumeUp:
-          LogUtil.v('按了音量加键');
+          // 处理音量加键操作
           break;
         case LogicalKeyboardKey.audioVolumeDown:
-          LogUtil.v('按了音量减键');
+          // 处理音量减键操作
           break;
         case LogicalKeyboardKey.f5:
-          LogUtil.v('按了语音键');
+          // 处理语音键操作
           break;
         default:
           break;
       }
-    } catch (e, stackTrace) {
-      LogUtil.logError('处理键盘事件时发生错误', e, stackTrace);
-    }
+    });
+  }
+
+  // 恢复焦点的方法，封装了延迟操作，以便在适当的时间恢复键盘焦点
+  void _restoreFocus([Duration delay = const Duration(milliseconds: 100)]) {
+    Future.delayed(delay, () => _videoNode.requestFocus());
+  }
+
+  // 抽屉状态处理，当抽屉打开或关闭时触发相应的焦点管理
+  void _handleDrawerChange(bool isOpen) {
+    LogUtil.safeExecute(() {
+      setState(() {
+        _drawerIsOpen = isOpen; // 记录当前抽屉状态
+        if (_drawerIsOpen) {
+          _videoNode.unfocus(); // 如果抽屉打开，则移除视频焦点
+        } else {
+          _restoreFocus(); // 如果抽屉关闭，延迟恢复视频区域焦点
+        }
+      });
+    }, '处理抽屉状态变化时发生错误');
   }
 
   @override
   void dispose() {
     LogUtil.safeExecute(() {
-      _timer?.cancel(); // 销毁定时器
+      _timer?.cancel(); // 销毁定时器，防止内存泄漏
       _videoNode.dispose(); // 销毁焦点节点
-      super.dispose();
+      widget.controller?.dispose(); // 销毁视频控制器，释放资源
+      super.dispose(); // 调用父类的 dispose 方法
     }, '释放资源时发生错误');
   }
 
@@ -206,52 +226,39 @@ class _TvPageState extends State<TvPage> {
       ),
       drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.3, // 侧边抽屉的拖拽宽度
       drawerScrimColor: Colors.transparent, // 抽屉背景透明
-      onDrawerChanged: (bool isOpen) {
-        LogUtil.safeExecute(() {
-          setState(() {
-            _drawerIsOpen = isOpen;
-            if (_drawerIsOpen) {
-              _videoNode.unfocus(); // 抽屉打开时移除视频焦点
-            } else {
-              Future.delayed(const Duration(milliseconds: 100), () {
-                _videoNode.requestFocus(); // 抽屉关闭时延迟恢复焦点
-              });
-            }
-          });
-        }, '处理抽屉状态变化时发生错误');
-      },
+      onDrawerChanged: _handleDrawerChange, // 当抽屉打开或关闭时调用的回调函数
       body: Builder(builder: (context) {
         return KeyboardListener(
           focusNode: _videoNode, // 将焦点绑定到视频区域
           autofocus: true, // 自动获取焦点
           onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
           child: widget.toastString == 'UNKNOWN'
-              ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面
+              ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
               : Container(
-                  alignment: Alignment.center, // 居中对齐
+                  alignment: Alignment.center, // 内容居中对齐
                   color: Colors.black, // 设置背景为黑色
-                  child: Stack( // 使用堆叠布局
-                    alignment: Alignment.center, // 居中对齐
+                  child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
+                    alignment: Alignment.center, // 堆叠的子组件居中对齐
                     children: [
                       widget.controller?.value.isInitialized == true
                           ? AspectRatio(
                               aspectRatio: widget.aspectRatio, // 设置视频宽高比
                               child: SizedBox(
-                                width: double.infinity,
-                                child: VideoPlayer(widget.controller!), // 播放视频
+                                width: double.infinity, // 占满宽度
+                                child: VideoPlayer(widget.controller!), // 显示视频播放器
                               ),
                             )
                           : VideoHoldBg(
                               toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
                               videoController: widget.controller!,
                             ),
-                      if (_drawerIsOpen) const DatePositionWidget(), // 打开抽屉时显示时间和位置信息
+                      if (_drawerIsOpen) const DatePositionWidget(), // 如果抽屉打开，显示时间和位置信息
                       if (!widget.isPlaying && !_drawerIsOpen)
                         GestureDetector(
                             onTap: () {
-                              widget.controller?.play(); // 点击图标时播放视频
+                              widget.controller?.play(); // 如果视频暂停，点击图标时播放视频
                             },
-                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)),
+                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)), // 播放按钮
                       if (widget.isBuffering && !_drawerIsOpen) const SpinKitSpinningLines(color: Colors.white), // 显示缓冲动画
                       if (_isError && !_drawerIsOpen)
                         Center(child: Text('播放错误，请重试', style: TextStyle(color: Colors.red))), // 显示错误提示
