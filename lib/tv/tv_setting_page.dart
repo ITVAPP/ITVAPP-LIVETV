@@ -45,7 +45,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(S.of(context).checkVersionFailed),
+          content: Text('版本检查失败'),
         ),
       );
     }
