@@ -24,6 +24,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   List<String> _bingImgUrls = [];  // 用于存储多个 Bing 背景图片 URL
   int _currentImgIndex = 0;  // 当前显示的背景图片索引
   Timer? _timer;  // 定时器，用于切换背景图片
+  bool _isBingLoaded = false;  // 用于判断是否已经加载过 Bing 背景
 
   @override
   void initState() {
@@ -40,17 +41,17 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     widget.videoController.addListener(() {
       setState(() {}); // 触发UI更新
     });
-
-    // 异步获取 Bing 背景图片 URL 列表
-    _loadBingBackgrounds();
   }
 
   // 异步加载 Bing 图片 URL 列表
   Future<void> _loadBingBackgrounds() async {
+    if (_isBingLoaded) return; // 防止重复加载
     try {
       _bingImgUrls = await BingUtil.getBingImgUrls();  // 获取最多 15 张 Bing 图片 URL
       if (_bingImgUrls.isNotEmpty) {
-        setState(() {});  // 触发界面更新
+        setState(() {
+          _isBingLoaded = true;  // 只加载一次 Bing 图片
+        });
 
         // 只有在加载到 Bing 图片时才启动定时器
         _timer = Timer.periodic(Duration(seconds: 15), (Timer timer) {
@@ -89,6 +90,10 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       // 使用Selector从ThemeProvider中选择isBingBg属性，确定是否启用Bing背景
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
+        if (isBingBg && !_isBingLoaded) {
+          // 如果启用Bing背景且未加载过，开始加载Bing图片
+          _loadBingBackgrounds();
+        }
         return Stack(
           children: [
             // 判断视频是否开始播放
