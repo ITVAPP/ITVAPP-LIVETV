@@ -17,10 +17,19 @@ class _SplashScreenState extends State<SplashScreen> {
   int _retryCount = 0;  // 重试次数
   String _message = '';  // 用于显示当前的提示信息
 
+  // 用于控制焦点的 FocusNode
+  final FocusNode _retryButtonFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
     _initializeApp(); // 在初始化时调用设备检查和数据获取方法
+  }
+
+  @override
+  void dispose() {
+    _retryButtonFocusNode.dispose(); // 释放 FocusNode 资源
+    super.dispose();
   }
 
   // 初始化应用，包括获取设备类型和数据
@@ -92,7 +101,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     var orientation = MediaQuery.of(context).orientation;
-
     return Scaffold(
       body: Stack(
         fit: StackFit.expand, // 使子组件填满 Stack
@@ -116,6 +124,12 @@ class _SplashScreenState extends State<SplashScreen> {
                 );
               } else if (snapshot.hasError || (snapshot.hasData && snapshot.data?.data == null)) {
                 LogUtil.e('加载 M3U 数据时发生错误或数据为空'); // 添加错误日志
+                
+                // 聚焦重试按钮
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  FocusScope.of(context).requestFocus(_retryButtonFocusNode);
+                });
+                
                 // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData && snapshot.data?.data != null) {
@@ -170,6 +184,7 @@ class _SplashScreenState extends State<SplashScreen> {
             if (showRetryButton) ...[
               const SizedBox(height: 16), // 提示文字与重试按钮之间的间距
               ElevatedButton(
+                focusNode: _retryButtonFocusNode, // 设置按钮的 FocusNode
                 onPressed: () {
                   LogUtil.safeExecute(() {
                     setState(() {
