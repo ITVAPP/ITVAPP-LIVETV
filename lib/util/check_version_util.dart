@@ -85,9 +85,7 @@ class CheckVersionUtil {
 
   // 显示版本更新的对话框
   static Future<bool?> showUpdateDialog(BuildContext context) async {
-    // 为更新和关闭按钮创建 FocusNode，用于焦点控制
-    final FocusNode updateButtonFocusNode = FocusNode();
-    final FocusNode closeButtonFocusNode = FocusNode();
+    // 不再使用 FocusNode 控制焦点，改为使用 TV 端的 `FocusTraversalGroup` 和 `Focus` 控件
 
     return showDialog<bool>(
       context: context,
@@ -102,11 +100,6 @@ class CheckVersionUtil {
         final isPortrait = screenHeight > screenWidth;
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
 
-        // 在对话框显示后，将焦点设置在更新按钮上
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          FocusScope.of(context).requestFocus(updateButtonFocusNode);  // 设置焦点在更新按钮上
-        });
-
         return Center(
           child: Container(
             width: dialogWidth,  // 设置对话框宽度
@@ -119,60 +112,65 @@ class CheckVersionUtil {
                 end: Alignment.bottomCenter,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  children: [
-                    // 显示版本更新标题
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${S.current.findNewVersion}🚀',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    // 关闭按钮，使用 focusNode 控制焦点
-                    Positioned(
-                      right: 0,
-                      child: IconButton(
-                        focusNode: closeButtonFocusNode,  // 设置关闭按钮的焦点
-                        onPressed: () {
-                          Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
-                          LogUtil.v('用户关闭了更新弹窗');
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-                    )
-                  ],
-                ),
-                // 显示版本信息
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  constraints: const BoxConstraints(minHeight: 200, minWidth: 300),  // 设置最小高度和宽度
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: FocusTraversalGroup(
+              policy: WidgetOrderTraversalPolicy(), // TV端焦点遍历策略
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
                     children: [
-                      Text(
-                        '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',  // 显示版本号
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                      ),
-                      Padding(
+                      // 显示版本更新标题
+                      Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(20),
-                        child: Text('${CheckVersionUtil.latestVersionEntity!.latestMsg}'),  // 显示版本更新日志
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${S.current.findNewVersion}🚀',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      // 关闭按钮，使用 Focus 控件包裹以支持 TV 焦点导航
+                      Positioned(
+                        right: 0,
+                        child: Focus(
+                          child: IconButton(
+                            onPressed: () {
+                              Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
+                              LogUtil.v('用户关闭了更新弹窗');
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
                       )
                     ],
                   ),
-                ),
-                // 更新按钮，使用 focusNode 控制焦点
-                UpdateDownloadBtn(
-                  apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
-                  focusNode: updateButtonFocusNode,  // 设置更新按钮的焦点
-                ),
-                const SizedBox(height: 30),
-              ],
+                  // 显示版本信息
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    constraints: const BoxConstraints(minHeight: 200, minWidth: 300),  // 设置最小高度和宽度
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',  // 显示版本号
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text('${CheckVersionUtil.latestVersionEntity!.latestMsg}'),  // 显示版本更新日志
+                        )
+                      ],
+                    ),
+                  ),
+                  // 更新按钮，使用 Focus 控件包裹以支持 TV 焦点导航
+                  Focus(
+                    child: UpdateDownloadBtn(
+                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+              ),
             ),
           ),
         );
