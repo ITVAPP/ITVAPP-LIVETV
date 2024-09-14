@@ -53,7 +53,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         setState(() {});  // 触发界面更新
 
         // 只有在加载到 Bing 图片时才启动定时器
-        _timer = Timer.periodic(Duration(seconds: 5), (Timer timer) {
+        _timer = Timer.periodic(Duration(seconds: 15), (Timer timer) {
           setState(() {
             _currentImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;  // 轮换图片
             _animationController.forward(from: 0.0);  // 每次切换图片时重新播放淡入动画
