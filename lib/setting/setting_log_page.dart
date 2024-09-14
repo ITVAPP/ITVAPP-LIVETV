@@ -20,6 +20,25 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
   final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
 
+  // 为 TV 焦点管理增加焦点节点
+  final List<FocusNode> _focusNodes = List.generate(5, (index) => FocusNode());
+
+  @override
+  void initState() {
+    super.initState();
+    // 页面加载时，将焦点默认设置到第一个过滤按钮
+    _focusNodes[0].requestFocus();
+  }
+
+  @override
+  void dispose() {
+    // 释放所有焦点节点，防止内存泄漏
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
   // 获取有限的日志并按日期排序
   List<Map<String, String>> getLimitedLogs() {
     List<Map<String, String>> logs = _selectedLevel == 'all'
@@ -87,7 +106,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
                     subtitle: const Text('如非调试应用，无需打开日志开关'), // 选项的说明文字
                     value: isLogOn,
                     onChanged: (value) {
-                      context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
+                      LogUtil.safeExecute(() {
+                        context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
+                        LogUtil.i('日志记录状态设置为: ${value ? "开启" : "关闭"}');
+                      }, '设置日志开关状态时出错');
                     },
                     activeColor: Colors.white, // 滑块的颜色
                     activeTrackColor: const Color(0xFFEB144C), // 开启时轨道的背景颜色
@@ -102,16 +124,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                          child: Wrap( // 使用 Wrap 代替 Row，避免按钮超出边界
-                            spacing: 8, // 控制每个按钮之间的水平间距
-                            runSpacing: 4, // 控制每行之间的垂直间距
-                            alignment: WrapAlignment.center, // 按钮居中对齐
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildFilterButton('all', '所有'),
-                              _buildFilterButton('v', '详细'),
-                              _buildFilterButton('e', '错误'),
-                              _buildFilterButton('i', '信息'),
-                              _buildFilterButton('d', '调试'),
+                              _buildFilterButton('all', '所有', 0),
+                              _buildFilterButton('v', '详细', 1),
+                              _buildFilterButton('e', '错误', 2),
+                              _buildFilterButton('i', '信息', 3),
+                              _buildFilterButton('d', '调试', 4),
                             ],
                           ),
                         ),
@@ -128,7 +148,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   ),
                                 )
                               : Scrollbar(
-                                  thumbVisibility: true, // 替代 isAlwaysShown
+                                  thumbVisibility: true, 
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: SingleChildScrollView(
@@ -138,11 +158,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                           DataTable(
                                             columns: [
                                               DataColumn(label: Text('时间')),
+                                              DataColumn(label: Text('类型')),
                                               DataColumn(label: Text('日志信息')),
                                             ],
                                             rows: logs
                                                 .map((log) => DataRow(cells: [
                                                       DataCell(Text(formatDateTime(log['time']!))),
+                                                      DataCell(Text(log['level']!)),
                                                       DataCell(Text(log['message']!)),
                                                     ]))
                                                 .toList(),
@@ -196,23 +218,20 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 构建过滤按钮
-  Widget _buildFilterButton(String level, String label) {
+  // 构建过滤按钮，并将焦点节点添加进去
+  Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0), // 缩小每个按钮之间的间距
+      padding: const EdgeInsets.symmetric(horizontal: 3.0),
       child: OutlinedButton(
+        focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
           setState(() {
             _selectedLevel = level;
             _logLimit = 100; // 切换过滤条件时重置分页
           });
         },
-        child: Text(
-          label,
-          style: TextStyle(fontSize: 12), // 缩小按钮文字的字体大小
-        ),
+        child: Text(label),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // 减少按钮的内边距
           shape: _buttonShape, // 统一圆角样式
           side: BorderSide(color: _selectedLevel == level ? _selectedColor : _unselectedColor),
           backgroundColor: _selectedLevel == level ? _selectedColor.withOpacity(0.1) : Colors.transparent,
