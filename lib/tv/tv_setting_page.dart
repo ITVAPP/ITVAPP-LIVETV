@@ -1,9 +1,13 @@
-import 'package:itvapp_live_tv/router_keys.dart'; 
-import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:flutter/material.dart'; 
 import 'package:provider/provider.dart';
 import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
+import 'package:itvapp_live_tv/util/check_version_util.dart';
+import 'package:itvapp_live_tv/setting/setting_font_page.dart'; // 字体设置页面
+import 'package:itvapp_live_tv/setting/subscribe_page.dart'; // 订阅页面
+import '../setting/setting_beautify_page.dart'; // 美化设置页面
+import '../setting/setting_log_page.dart'; // 导入日志页面
+import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -131,7 +135,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.system_update,
-                  title: S.of(context).checkUpdate, // 使用国际化资源
+                  title: Text(S.of(context).checkUpdate), // 使用国际化语言显示检查更新标题
                   index: 4,
                   onTap: _checkForUpdates, // 直接调用检查更新逻辑
                 ),
