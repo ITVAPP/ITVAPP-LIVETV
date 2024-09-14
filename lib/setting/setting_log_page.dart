@@ -177,7 +177,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                         // 每个日志条目
                                         return ListTile(
                                           title: Text(formatDateTime(logs[index]['time']!)), // 显示日志时间
-                                          subtitle: Text(logs[index]['message']!), // 显示日志信息
+                                          subtitle: Text(logs[index]['message']!), // 只显示日志内容，不显示分类信息
                                         );
                                       },
                                     ),
