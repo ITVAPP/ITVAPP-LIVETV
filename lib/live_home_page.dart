@@ -85,12 +85,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
+  StreamUrl? _streamUrl; // 用于存储当前的 StreamUrl 实例
+
   /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
     if (_currentChannel == null || _isSwitchingChannel) return;
 
     _isSwitchingChannel = true;
+
+    // 释放旧的 StreamUrl 实例
+    _disposeStreamUrl();
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -103,10 +108,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     String url = _currentChannel!.urls![_sourceIndex].toString();
 
     // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
-    StreamUrl streamUrl = StreamUrl(url);
+    _streamUrl = StreamUrl(url);
     try {
       // 获取解析后的有效视频 URL
-      String parsedUrl = await streamUrl.getStreamUrl();
+      String parsedUrl = await _streamUrl!.getStreamUrl();
 
       // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
       if (parsedUrl == 'ERROR') {
@@ -185,6 +190,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playerController = null;
         _isDisposing = false;
       }, '释放播放器资源时出错');
+    }
+
+    // 释放旧的 StreamUrl 实例
+    _disposeStreamUrl();
+  }
+
+  /// 释放 StreamUrl 实例
+  void _disposeStreamUrl() {
+    if (_streamUrl != null) {
+      _streamUrl!.dispose();  // 调用 StreamUrl 的 dispose 方法释放资源
+      _streamUrl = null;       // 释放后将其置空
     }
   }
 
@@ -390,7 +406,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 禁用保持屏幕唤醒功能
     WakelockPlus.disable();
 
-    // 释放播放器资源
+    // 释放播放器和 StreamUrl 资源
     _disposePlayer();
     super.dispose();
   }
