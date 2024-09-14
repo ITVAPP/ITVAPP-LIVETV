@@ -7,6 +7,7 @@ class LogUtil {
   static const String _defTag = 'common_utils';
   static bool debugMode = false; // 控制是否记录日志 true 或 false
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
+  static const int _maxLogs = 500; // 设置最大日志条目数
 
   // 设置 debugMode 状态，供外部调用
   static void setDebugMode(bool isEnabled) {
@@ -18,24 +19,27 @@ class LogUtil {
 
   // 通过 Provider 来获取 isLogOn 并设置 debugMode
   static void updateDebugModeFromProvider(BuildContext context) {
-    bool isLogOn = Provider.of<ThemeProvider>(context, listen: false).isLogOn;
-    setDebugMode(isLogOn);
+    try {
+      var themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
+      setDebugMode(isLogOn);
+    } catch (e) {
+      setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
+      print('未能读取到 ThemeProvider，默认关闭日志功能: $e');
+    }
   }
 
   // 封装的日志记录方法，增加参数检查并记录堆栈位置
   static void logError(String message, dynamic error, [StackTrace? stackTrace]) {
     if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
 
-    // 使用当前堆栈信息
-    stackTrace ??= StackTrace.current; 
+    stackTrace ??= StackTrace.current; // 使用当前堆栈信息
 
-    // 参数检查
     if (message?.isNotEmpty != true || error == null) {
       LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
       return;
     }
 
-    // 记录错误信息
     final timestamp = DateTime.now().toIso8601String();
     LogUtil.e('[$timestamp] 错误: $message');
     LogUtil.e('错误详情: $error');
@@ -45,7 +49,6 @@ class LogUtil {
   // 安全执行方法，捕获并记录异常
   static void safeExecute(void Function()? action, String errorMessage) {
     if (action == null) {
-      // 不论 debugMode 是否开启，都要进行基本的参数检查
       logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', StackTrace.current);
       return;
     }
@@ -53,8 +56,7 @@ class LogUtil {
     try {
       action(); // 执行传入的函数
     } catch (error, stackTrace) {
-      // 捕获并记录异常，日志记录逻辑受 debugMode 控制
-      logError(errorMessage, error, stackTrace);
+      logError(errorMessage, error, stackTrace); // 捕获并记录异常
     }
   }
 
@@ -78,9 +80,15 @@ class LogUtil {
   // 通用日志记录方法，日志记录受 debugMode 控制
   static void _log(String level, Object? object, String? tag) {
     if (!debugMode || object == null) return;
-    
+
     String time = DateTime.now().toString();
     String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
+
+    // 限制日志的数量，如果超过最大数量，则移除最旧的日志
+    if (_logs.length >= _maxLogs) {
+      _logs.removeAt(0); // 移除最旧的一条日志
+    }
+
     _logs.add({'time': time, 'level': level, 'message': logMessage});
     developer.log(logMessage);
   }
