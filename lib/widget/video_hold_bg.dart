@@ -11,7 +11,6 @@ import '../util/log_util.dart'; // 引入日志工具类，用于处理日志输
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
   final VideoPlayerController videoController;
-
   const VideoHoldBg({Key? key, required this.toastString, required this.videoController}) : super(key: key);
 
   @override
@@ -37,10 +36,28 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     // 启动动画
     _animationController.forward();
 
-    // 监听视频播放状态，判断是否为音频
-    widget.videoController.addListener(() {
-      setState(() {}); // 触发UI更新
-    });
+    // 监听视频播放状态，判断是否为音频，并且仅当状态变化时更新 UI
+    widget.videoController.addListener(_handleVideoUpdate);
+
+    // 初始化时检查是否播放音频，直接判断当前状态
+    final videoSize = widget.videoController.value.size;
+    final isPlayingAudio = widget.videoController.value.isPlaying &&
+        (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
+    if (isPlayingAudio && !_isBingLoaded) {
+      _loadBingBackgrounds();
+    }
+  }
+
+  // 处理视频播放状态变化，仅在状态变化时更新 UI
+  void _handleVideoUpdate() {
+    final videoSize = widget.videoController.value.size;
+    final isPlayingAudio = widget.videoController.value.isPlaying &&
+        (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
+
+    // 仅当状态发生变化时才更新 UI
+    if (isPlayingAudio && !_isBingLoaded) {
+      setState(() {});
+    }
   }
 
   // 异步加载 Bing 图片 URL 列表
@@ -62,9 +79,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         });
       } else {
         LogUtil.e('未获取到任何 Bing 图片 URL');
+        _isBingLoaded = true;  // 防止重复尝试加载
       }
     } catch (e) {
-      LogUtil.logError('加载 Bing 图片时发生错误', e);  // 记录错误日志
+      LogUtil.logError('加载 Bing 图片时发生错误', e);  // 记录详细错误
+      _isBingLoaded = true;  // 防止重复尝试加载
     }
   }
 
@@ -73,7 +92,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     _animationController.dispose(); // 销毁动画控制器
     _timer?.cancel();  // 销毁定时器
     _timer = null;  // 将定时器置空，防止多次调用
-    LogUtil.v('界面销毁，动画控制器取消'); // 记录日志，说明界面销毁时进行了资源清理
+    widget.videoController.removeListener(_handleVideoUpdate); // 移除监听器，防止内存泄漏
+    LogUtil.v('界面销毁，动画控制器取消'); // 记录日志
     super.dispose();
   }
 
@@ -90,17 +110,23 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       // 使用Selector从ThemeProvider中选择isBingBg属性，确定是否启用Bing背景
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
-        if (isBingBg && !_isBingLoaded) {
-          // 如果启用Bing背景且未加载过，开始加载Bing图片
+        // 判断是否启用 Bing 背景并且视频正在播放音频（通过尺寸判断）
+        final videoSize = widget.videoController.value.size;
+        final isPlayingAudio = widget.videoController.value.isPlaying &&
+            (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
+
+        if (isBingBg && isPlayingAudio && !_isBingLoaded) {
+          // 如果启用Bing背景且播放的是音频，并且未加载过，开始加载Bing图片
           _loadBingBackgrounds();
         }
+
         return Stack(
           children: [
             // 判断视频是否开始播放
             if (!widget.videoController.value.isInitialized || !widget.videoController.value.isPlaying)
               // 视频未开始播放，显示本地背景
               _buildLocalBg()
-            else if (widget.videoController.value.isPlaying && !widget.videoController.value.isInitialized)
+            else if (isPlayingAudio)
               // 视频播放音频时，根据isBingBg决定背景
               AnimatedBuilder(
                 animation: _fadeAnimation,
