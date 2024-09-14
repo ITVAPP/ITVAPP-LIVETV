@@ -83,13 +83,9 @@ class LogUtil {
     if (!debugMode) return;
     if (object == null) return;
     String time = DateTime.now().toString();
-    
-    // 存储日志的级别和内容分离
-    String logMessage = object.toString(); // 只记录实际的日志内容
+    String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
     _logs.add({'time': time, 'level': level, 'message': logMessage});
-
-    // 控制台输出完整日志信息，包括分类信息
-    developer.log('[$level] ${tag ?? _defTag} | $logMessage');
+    developer.log(logMessage);
   }
 
   // 获取所有日志
