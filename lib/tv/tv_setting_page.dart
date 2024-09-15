@@ -3,11 +3,11 @@ import 'package:provider/provider.dart';
 import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
 import 'package:itvapp_live_tv/util/check_version_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 import 'package:itvapp_live_tv/setting/setting_font_page.dart'; // 字体设置页面
 import 'package:itvapp_live_tv/setting/subscribe_page.dart'; // 订阅页面
 import '../setting/setting_beautify_page.dart'; // 美化设置页面
 import '../setting/setting_log_page.dart'; // 导入日志页面
-import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -38,14 +38,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('当前已经是最新版本'),
+            content: Text(S.of(context).latestVersion),  //已经是最新版本
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('版本检查失败'),
+          content: Text(S.of(context).netReceiveTimeout),  //版本检查失败
         ),
       );
     }
@@ -86,7 +86,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
             appBar: AppBar(
               title: Consumer<LanguageProvider>(
                 builder: (context, languageProvider, child) {
-                  return Text(S.of(context).settings); // 使用国际化语言资源设置标题
+                  return Text(S.of(context).settings); 
                 },
               ),
             ),
@@ -95,7 +95,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
               children: [
                 buildListTile(
                   icon: Icons.subscriptions,
-                  title: '订阅源',
+                  title: S.of(context).subscribe,  //订阅
                   index: 0,
                   onTap: () {
                     setState(() {
@@ -105,7 +105,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.font_download,
-                  title: '字体',
+                  title: S.of(context).fontTitle,  //字体
                   index: 1,
                   onTap: () {
                     setState(() {
@@ -115,7 +115,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.brush,
-                  title: '美化',
+                  title: S.of(context).backgroundImageTitle,  //背景图
                   index: 2,
                   onTap: () {
                     setState(() {
@@ -125,7 +125,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.view_list,
-                  title: '日志',
+                  title: S.of(context).slogTitle,  //日志
                   index: 3,
                   onTap: () {
                     setState(() {
@@ -135,7 +135,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 ),
                 buildListTile(
                   icon: Icons.system_update,
-                  title: '升级',
+                  title: S.of(context).updateTitle,  //更新
                   index: 4,
                   onTap: _checkForUpdates, // 直接调用检查更新逻辑
                 ),
