@@ -2,6 +2,7 @@ import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart'; // 导入Provider包
+import 'provider/theme_provider.dart'; // 引入ThemeProvider
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -19,7 +20,6 @@ import 'util/log_util.dart';
 import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
 import 'widget/empty_page.dart';
-import 'provider/theme_provider.dart'; // 引入ThemeProvider
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
@@ -250,17 +250,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: Text('找到视频流'),
-              content: Text('流URL: $url\n\n你想播放这个流吗？'),
+              title: Text(S.of(context).foundStreamTitle),  //找到视频流
+              content: Text(S.of(context).streamUrlContent.replaceFirst('{url}', url)),  //你想播放这个流吗
               actions: <Widget>[
                 TextButton(
-                  child: Text('取消'),
+                  child: Text(S.of(context).cancelButton),  //取消
                   onPressed: () {
                     Navigator.of(context).pop(false); // 用户取消播放
                   },
                 ),
                 TextButton(
-                  child: Text('播放'),
+                  child: Text(S.of(context).playButton),  //播放
                   onPressed: () {
                     Navigator.of(context).pop(true); // 用户确认播放
                   },
