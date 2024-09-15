@@ -1,6 +1,6 @@
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:sp_util/sp_util.dart';  // 用于缓存数据
-import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
+import 'package:sp_util/sp_util.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 
 class BingUtil {
   static List<String> bingImgUrls = [];
@@ -12,7 +12,6 @@ class BingUtil {
     try {
       // 检查是否有缓存的图片 URL 列表
       if (bingImgUrls.isNotEmpty) {
-        LogUtil.i('从缓存中获取 Bing 图片 URLs');
         return bingImgUrls;
       }
 
@@ -39,13 +38,11 @@ class BingUtil {
       }
 
       if (urls.isNotEmpty) {
-        LogUtil.i('成功获取到 ${urls.length} 张 Bing 图片 URLs');
         bingImgUrls = urls;
 
         // 缓存新的图片列表
         await SpUtil.putString('bingImgUrls', bingImgUrls.join(','));
         await SpUtil.putInt('bingImgUrlsCacheTime', DateTime.now().millisecondsSinceEpoch);
-        LogUtil.i('Bing 图片 URLs 已缓存');
       } else {
         LogUtil.e('未能获取到 Bing 图片 URLs');
       }
@@ -61,7 +58,6 @@ class BingUtil {
   static Future<String?> getBingImgUrl() async {
     try {
       if (bingImgUrl != null && bingImgUrl != '') {
-        LogUtil.i('从缓存中获取 Bing 图片 URL');
         return bingImgUrl;
       }
 
@@ -91,7 +87,6 @@ class BingUtil {
       if (cachedUrl != null && cachedUrl != '') {
         DateTime cachedDate = DateTime.fromMillisecondsSinceEpoch(cacheTime ?? 0);
         if (DateTime.now().difference(cachedDate) < cacheDuration) {
-          LogUtil.i('缓存未过期，使用缓存的 Bing 图片 URL');
           return cachedUrl; // 缓存未过期，返回缓存的 URL
         } else {
           LogUtil.i('缓存已过期，准备获取新的 Bing 图片 URL');
@@ -104,7 +99,6 @@ class BingUtil {
         // 将新的 URL 和当前时间戳缓存起来
         await SpUtil.putString('bingImgUrl', newBingImgUrl);
         await SpUtil.putInt('bingImgUrlCacheTime', DateTime.now().millisecondsSinceEpoch);
-        LogUtil.i('成功缓存新的 Bing 图片 URL');
       }
 
       return newBingImgUrl;
