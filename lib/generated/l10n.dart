@@ -763,6 +763,15 @@ class S {
     );
   }
 
+  String get logCopied {
+    return Intl.message(
+      '日志已复制到剪贴板',
+      name: 'logCopied',
+      desc: '',
+      args: [],
+    );
+  }
+
   String get clipboardDataFetchError {
     return Intl.message(
       '获取剪贴板数据失败',
