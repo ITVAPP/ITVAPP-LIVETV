@@ -118,38 +118,41 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('语言选择', style: TextStyle(fontSize: 17)), // 语言选择标题
-                      const SizedBox(height: 10), // 间距
+                      const SizedBox(height: 6), // 间距
                       Column(
                         children: List.generate(
                           _languages.length,
-                          (index) => Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
-                            children: [
-                              Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
-                              ChoiceChip(
-                                label: Text(
-                                  context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                      ? '使用中' // 已选中的显示 "使用中"
-                                      : '使用', // 未选中的显示 "使用"
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                        ? Colors.white // 选中状态的文字颜色
-                                        : Colors.black, // 未选中状态的文字颜色
+                          (index) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
+                              children: [
+                                Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
+                                ChoiceChip(
+                                  label: Text(
+                                    context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                        ? '使用中' // 已选中的显示 "使用中"
+                                        : '使用', // 未选中的显示 "使用"
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                          ? Colors.white // 选中状态的文字颜色
+                                          : Colors.black, // 未选中状态的文字颜色
+                                    ),
                                   ),
+                                  selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
+                                  onSelected: (bool selected) {
+                                    // 切换语言，点击即触发，不判断是否已选中
+                                    context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
+                                  },
+                                  selectedColor: _selectedColor, // 选中状态颜色
+                                  backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                      ? _selectedColor // 已选中状态颜色
+                                      : _unselectedColor, // 未选中状态的颜色
+                                  shape: _buttonShape, // 统一的圆角外形
                                 ),
-                                selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
-                                onSelected: (bool selected) {
-                                  // 切换语言，点击即触发，不判断是否已选中
-                                  context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
-                                },
-                                selectedColor: _selectedColor, // 选中状态颜色
-                                backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                    ? _selectedColor // 已选中状态颜色
-                                    : _unselectedColor, // 未选中状态的颜色
-                                shape: _buttonShape, // 统一的圆角外形
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
