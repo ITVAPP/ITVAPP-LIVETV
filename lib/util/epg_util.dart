@@ -22,7 +22,6 @@ class EpgUtil {
     String channel = '';
     String date = '';
     final isHasXml = _programmes != null && _programmes!.isNotEmpty;
-    LogUtil.v('加载EPG:::$isHasXml:::${_programmes?.length}');
     if (model.id != null && model.id != '' && isHasXml) {
       channelKey = model.id!;
     } else {
@@ -34,7 +33,6 @@ class EpgUtil {
     // 使用缓存的EPG数据
     if (_EPGMap.containsKey(channelKey)) {
       final cacheModel = _EPGMap[channelKey]!;
-      LogUtil.v('命中EPG:::${cacheModel.toJson()}');
       return cacheModel;
     }
 
@@ -63,9 +61,7 @@ class EpgUtil {
       'https://epg.v1.mk/json?ch=$channel&date=$date',
       cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
     );
-    LogUtil.v('epgRes:::$epgRes');
     if (epgRes != null) {
-      LogUtil.v('epgRes:channelName::${epgRes['channel_name']}');
       if (channel.contains(epgRes['channel_name'])) {
         final epg = EpgModel.fromJson(epgRes);
         _EPGMap[channelKey] = epg;
@@ -77,7 +73,6 @@ class EpgUtil {
 
   // 加载EPG XML文件
   static loadEPGXML(String url) async {
-    LogUtil.v('****start download EPG Xml ****');
     int index = 0;
     final uStr = url.replaceAll('/h', ',h');
     final urlLink = uStr.split(',');
@@ -85,7 +80,6 @@ class EpgUtil {
     while (tempXmlDocument == null && index < urlLink.length) {
       final res = await HttpUtil().getRequest(urlLink[index]);
       if (res != null) {
-        LogUtil.v('****download EPG Xml success****');
         tempXmlDocument = XmlDocument.parse(res.toString());
       } else {
         tempXmlDocument = null;
@@ -97,7 +91,6 @@ class EpgUtil {
 
   // 重置EPG XML
   static resetEPGXML() {
-    LogUtil.v('****reset EPG Xml ****');
     _programmes = null;
   }
 }
