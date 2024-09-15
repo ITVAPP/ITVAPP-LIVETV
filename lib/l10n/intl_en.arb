@@ -1,14 +1,14 @@
 {
   "appName": "ITVAPP LIVETV",
-  "loading": "Loading",
-  "lineToast": "Line {line} playing: {channel}",
+  "loading": "Loading channels...",
+  "lineToast": "Connecting: {channel} Line {line}",
   "@lineToast": {
     "placeholders": {
       "line": {},
       "channel": {}
     }
   },
-  "playError": "This video cannot be played, please switch to another channel",
+  "playError": "This line is temporarily unavailable, please wait for it to be fixed",
   "switchLine": "Switching to line {line} ...",
   "@switchLine": {
     "placeholders": {
@@ -16,7 +16,7 @@
     }
   },
   "playReconnect": "An error occurred, trying to reconnect...",
-  "lineIndex": "Line {index}",
+  "lineIndex": "Connecting to line {index}...",
   "@lineIndex": {
     "placeholders": {
       "index": {}
@@ -26,7 +26,7 @@
   "tipChangeLine": "Switch Line",
   "portrait": "Portrait Mode",
   "landscape": "Landscape Mode",
-  "fullScreen": "Full Screen Toggle",
+  "fullScreen": "Toggle Full Screen",
   "settings": "Settings",
   "homePage": "Home Page",
   "releaseHistory": "Release History",
@@ -45,15 +45,15 @@
   "dataSourceContent": "Are you sure you want to add this data source?",
   "dialogCancel": "Cancel",
   "dialogConfirm": "Confirm",
-  "subscribe": "IPTV Subscription",
+  "subscribe": "Subscribe",
   "createTime": "Creation Time",
   "dialogDeleteContent": "Are you sure you want to delete this subscription?",
   "delete": "Delete",
   "setDefault": "Set as Default",
   "inUse": "In Use",
   "tvParseParma": "Parameter Error",
-  "tvParseSuccess": "Push Successful",
-  "tvParsePushError": "Please push the correct link",
+  "tvParseSuccess": "Pushed Successfully",
+  "tvParsePushError": "Please push a valid link",
   "tvScanTip": "Scan to add subscription source",
   "pushAddress": "Push Address: {address}",
   "@pushAddress": {
@@ -61,16 +61,16 @@
       "address": {}
     }
   },
-  "tvPushContent": "On the scan result page, enter the new subscription source and click the push button to add successfully",
+  "tvPushContent": "In the scan result page, enter a new subscription source, and click 'Push' on the page to add it successfully",
   "pasterContent": "After copying the subscription source, return to this page to automatically add the subscription source",
   "addDataSource": "Add Subscription Source",
-  "addFiledHintText": "Please enter or paste the .m3u or .txt format subscription link",
-  "addRepeat": "This subscription source has been added",
+  "addFiledHintText": "Please enter or paste a subscription source link in .m3u or .txt format",
+  "addRepeat": "This subscription source has already been added",
   "addNoHttpLink": "Please enter an http/https link",
-  "netTimeOut": "Connection timed out",
-  "netSendTimeout": "Request timed out",
-  "netReceiveTimeout": "Response timed out",
-  "netBadResponse": "Abnormal response {code}",
+  "netTimeOut": "Connection Timeout",
+  "netSendTimeout": "Request Timeout",
+  "netReceiveTimeout": "Response Timeout",
+  "netBadResponse": "Bad Response {code}",
   "@netBadResponse": {
     "placeholders": {
       "code": {}
@@ -79,8 +79,37 @@
   "netCancel": "Request Cancelled",
   "parseError": "Error parsing data source",
   "defaultText": "Default",
-  "getDefaultError": "Failed to get the default data source",
-  "okRefresh": "【OK key】 Refresh",
+  "getDefaultError": "Failed to retrieve default data source",
+  "okRefresh": "[OK] to Refresh",
   "refresh": "Refresh",
-  "noEPG": "NO EPG DATA"
+  "noEPG": "No program information available",
+  "logtitle": "Log Viewer",
+  "SwitchTitle": "Log Recording",
+  "logSubtitle": "Unless debugging as a developer, there's no need to enable logs",
+  "filterAll": "All",
+  "filterVerbose": "Verbose",
+  "filterError": "Error",
+  "filterInfo": "Info",
+  "filterDebug": "Debug",
+  "noLogs": "No logs available",
+  "logCleared": "Logs cleared",
+  "clearLogs": "Clear Logs",
+  "programListTitle": "Channel List",
+  "foundStreamTitle": "Stream Found",
+  "streamUrlContent": "Stream URL: {url}\n\nDo you want to play this stream?",
+  "cancelButton": "Cancel",
+  "playButton": "Play",
+  "downloading": "Downloading... {progress}%",
+  "fontTitle": "Font",
+  "backgroundImageTitle": "Background Image",
+  "slogTitle": "Logs",
+  "updateTitle": "Update",
+  "errorLoadingPage": "Error loading page",
+  "backgroundImageDescription": "Automatically change background when playing audio",
+  "dailyBing": "Enable background switching",
+  "inUse": "In Use",
+  "use": "Use",
+  "languageSelection": "Language Selection",
+  "fontSizeTitle": "Font Size",
+  "clipboardDataFetchError": "Failed to fetch clipboard data"
 }
