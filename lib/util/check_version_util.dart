@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:itvapp_live_tv/widget/update_download_btn.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:provider/provider.dart'; // 导入 Provider 包，用于状态管理
-import 'package:shared_preferences/shared_preferences.dart';  // 用于本地存储用户的偏好数据
-import 'package:url_launcher/url_launcher.dart';  // 用于在外部浏览器中打开 URL
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:url_launcher/url_launcher.dart'; 
 import '../generated/l10n.dart';
-import '../provider/theme_provider.dart'; // 导入主题设置的 Provider
+import '../provider/theme_provider.dart';
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
@@ -24,7 +24,6 @@ class CheckVersionUtil {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('lastPromptDate', DateTime.now().toIso8601String());
-      LogUtil.v('保存最后提示日期成功');  // 成功保存提示日期到本地存储
     } catch (e, stackTrace) {
       LogUtil.logError('保存最后提示日期失败', e, stackTrace);  // 错误处理
     }
@@ -34,7 +33,6 @@ class CheckVersionUtil {
   static Future<String?> getLastPromptDate() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      LogUtil.v('获取最后提示日期成功');  // 成功从本地存储获取提示日期
       return prefs.getString('lastPromptDate');  // 返回提示日期
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
@@ -69,11 +67,9 @@ class CheckVersionUtil {
         final latestMsg = res['body'] as String?;  // 获取最新版本的更新日志
         if (latestVersion != null && latestVersion.compareTo(version) > 0) {
           latestVersionEntity = VersionEntity(latestVersion: latestVersion, latestMsg: latestMsg);  // 存储新版本信息
-          LogUtil.v('发现新版本: $latestVersion');
           return latestVersionEntity;  // 返回最新版本信息
         } else {
           if (isShowLatestToast) EasyLoading.showToast(S.current.latestVersion);  // 如果是最新版本，显示提示
-          LogUtil.v('已是最新版: $version');
         }
       }
       return null;  // 如果没有新版本，返回 null
@@ -91,7 +87,6 @@ class CheckVersionUtil {
       context: context,
       barrierDismissible: false,  // 禁止点击对话框外关闭
       builder: (BuildContext context) {
-        LogUtil.v('显示更新弹窗');
         
         // 获取屏幕的宽度和高度
         final screenWidth = MediaQuery.of(context).size.width;
@@ -136,7 +131,6 @@ class CheckVersionUtil {
                           child: IconButton(
                             onPressed: () {
                               Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
-                              LogUtil.v('用户关闭了更新弹窗');
                             },
                             icon: const Icon(Icons.close),
                           ),
@@ -183,7 +177,6 @@ class CheckVersionUtil {
     try {
       // 如果是自动检查并且一天内已经提示过，则不再弹窗
       if (!isManual && !await shouldShowPrompt()) {
-        LogUtil.v('一天内已提示过，无需再次弹窗');
         return;
       }
 
@@ -209,7 +202,6 @@ class CheckVersionUtil {
   static launchBrowserUrl(String url) async {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);  // 使用外部浏览器打开链接
-      LogUtil.v('成功打开浏览器: $url');
     } catch (e, stackTrace) {
       LogUtil.logError('打开浏览器失败', e, stackTrace);  // 错误处理
     }
