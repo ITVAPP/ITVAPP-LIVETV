@@ -158,13 +158,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                           DataTable(
                                             columns: [
                                               DataColumn(label: Text('时间')),
-                                              DataColumn(label: Text('类型')),
                                               DataColumn(label: Text('日志信息')),
                                             ],
                                             rows: logs
                                                 .map((log) => DataRow(cells: [
                                                       DataCell(Text(formatDateTime(log['time']!))),
-                                                      DataCell(Text(log['level']!)),
                                                       DataCell(Text(log['message']!)),
                                                     ]))
                                                 .toList(),
@@ -221,7 +219,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，并将焦点节点添加进去
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3.0),
+      padding: const EdgeInsets.symmetric(horizontal: 6.0),
       child: OutlinedButton(
         focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
@@ -232,6 +230,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
         },
         child: Text(label),
         style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 3.0), // 调整按钮的左右内边距	
           shape: _buttonShape, // 统一圆角样式
           side: BorderSide(color: _selectedLevel == level ? _selectedColor : _unselectedColor),
           backgroundColor: _selectedLevel == level ? _selectedColor.withOpacity(0.1) : Colors.transparent,
