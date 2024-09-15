@@ -10,6 +10,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'entity/playlist_model.dart';
+import 'generated/l10n.dart';
 
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频数据的映射
