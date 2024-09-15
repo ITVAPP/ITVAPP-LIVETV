@@ -162,7 +162,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
 
       // 播放成功，重置重试次数计数器
-      _retryCount = 0;
+      _retryCount = 0; // 确保在播放成功时重置重试次数
       _timeoutActive = false; // 播放成功，取消超时检测
       _playerController?.addListener(_videoListener); // 添加播放监听
 
@@ -311,6 +311,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
   Future<void> _onTapChannel(PlayModel? model) async {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
+    _retryCount = 0; // 重置重试次数计数器
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
     
