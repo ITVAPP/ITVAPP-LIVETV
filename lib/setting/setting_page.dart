@@ -159,7 +159,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 根据屏幕大小调整宽度
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
-                title: const Text('字体'), // 设置标题
+                title: const Text(S.of(context).fontTitle), // 设置标题
                 leading: const Icon(Icons.text_fields), // 显示图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
@@ -175,7 +175,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏时限制最大宽度
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
-                title: const Text('美化'), // 设置标题
+                title: const Text(S.of(context).backgroundImageTitle), // 设置标题
                 leading: const Icon(Icons.ac_unit), // 显示图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
@@ -191,7 +191,7 @@ class _SettingPageState extends State<SettingPage> {
               width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏时限制最大宽度
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListTile(
-                title: const Text('日志'), // 设置标题
+                title: const Text(S.of(context).slogTitle), // 设置标题
                 leading: const Icon(Icons.view_list), // 显示图标
                 trailing: const Icon(Icons.arrow_right), // 显示向右箭头
                 onTap: () {
