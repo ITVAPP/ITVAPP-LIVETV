@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:flutter/services.dart';  // 添加 Clipboard 的包
 import '../generated/l10n.dart';
 
 /// 日志查看页面
@@ -153,21 +154,44 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     scrollDirection: Axis.vertical, // 去掉水平滚动，仅保留垂直滚动
                                     child: Column(
                                       children: logs
-                                          .map((log) => Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Padding(
+                                          .asMap()
+                                          .map((index, log) => MapEntry(
+                                                index,
+                                                Focus(
+                                                  focusNode: _focusNodes[index], // 使用焦点节点管理焦点
+                                                  onKey: (FocusNode node, RawKeyEvent event) {
+                                                    if (event is RawKeyDownEvent &&
+                                                        (event.logicalKey == LogicalKeyboardKey.select ||
+                                                            event.logicalKey == LogicalKeyboardKey.enter)) {
+                                                      // 当按下 TV 端遥控器的确认键或回车键时复制日志内容到剪贴板
+                                                      Clipboard.setData(ClipboardData(text: log['message']!));
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(S.of(context).logCopied), // 日志已复制
+                                                        ),
+                                                      );
+                                                      return KeyEventResult.handled; // 事件已处理
+                                                    }
+                                                    return KeyEventResult.ignored; // 未处理的事件
+                                                  },
+                                                  child: Padding(
                                                     padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                                    child: Text(
-                                                      formatDateTime(log['time']!), // 第一行时间
-                                                      style: const TextStyle(
-                                                          fontWeight: FontWeight.bold, fontSize: 16),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          formatDateTime(log['time']!), // 第一行时间
+                                                          style: const TextStyle(
+                                                              fontWeight: FontWeight.bold, fontSize: 16),
+                                                        ),
+                                                        Text(LogUtil.parseLogMessage(log['message']!)), // 第二行日志信息
+                                                        const Divider(), // 分隔符
+                                                      ],
                                                     ),
                                                   ),
-                                                  Text(LogUtil.parseLogMessage(log['message']!)), // 第二行日志信息
-                                                  const Divider(), // 分隔符
-                                                ],
+                                                ),
                                               ))
+                                          .values
                                           .toList(),
                                     ),
                                   ),
@@ -207,7 +231,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，并将焦点节点添加进去
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+      padding: const EdgeInsets.symmetric(horizontal: 3.0),
       child: OutlinedButton(
         focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
