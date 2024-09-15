@@ -38,7 +38,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(S.of(context).latestVersion()), // 已经是最新版本
+            content: Text(S.of(context).latestVersion), // 已经是最新版本
           ),
         );
       }
