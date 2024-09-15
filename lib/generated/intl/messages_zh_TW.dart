@@ -79,6 +79,37 @@ class MessageLookup extends MessageLookupByLibrary {
             "在掃碼結果頁，輸入新的訂閱源，點選頁面中的推送即可新增成功"),
         "tvScanTip": MessageLookupByLibrary.simpleMessage("掃碼新增訂閱源"),
         "update": MessageLookupByLibrary.simpleMessage("立即更新"),
-        "updateContent": MessageLookupByLibrary.simpleMessage("更新內容")
+        "updateContent": MessageLookupByLibrary.simpleMessage("更新內容"),
+        "netReceiveTimeout": MessageLookupByLibrary.simpleMessage("響應超時"),
+        "netSendTimeout": MessageLookupByLibrary.simpleMessage("請求超時"),
+        "errorLoadingPage": MessageLookupByLibrary.simpleMessage("載入頁面出錯"),
+        "logtitle": MessageLookupByLibrary.simpleMessage("日誌檢視器"),
+        "SwitchTitle": MessageLookupByLibrary.simpleMessage("記錄日誌"),
+        "logSubtitle": MessageLookupByLibrary.simpleMessage(
+            "如非開發人員偵錯，無需開啟日誌開關"),
+        "filterAll": MessageLookupByLibrary.simpleMessage("所有"),
+        "filterVerbose": MessageLookupByLibrary.simpleMessage("詳細"),
+        "filterError": MessageLookupByLibrary.simpleMessage("錯誤"),
+        "filterInfo": MessageLookupByLibrary.simpleMessage("資訊"),
+        "filterDebug": MessageLookupByLibrary.simpleMessage("偵錯"),
+        "noLogs": MessageLookupByLibrary.simpleMessage("暫無日誌"),
+        "logCleared": MessageLookupByLibrary.simpleMessage("日誌已清空"),
+        "clearLogs": MessageLookupByLibrary.simpleMessage("清空日誌"),
+        "programListTitle": MessageLookupByLibrary.simpleMessage("頻道列表"),
+        "foundStreamTitle": MessageLookupByLibrary.simpleMessage("找到影片流"),
+        "streamUrlContent": (url) =>
+            "流URL: ${url}\n\n你想播放這個流嗎？",
+        "cancelButton": MessageLookupByLibrary.simpleMessage("取消"),
+        "playButton": MessageLookupByLibrary.simpleMessage("播放"),
+        "downloading": (progress) => "下載中...${progress}%",
+        "fontTitle": MessageLookupByLibrary.simpleMessage("字型"),
+        "backgroundImageTitle": MessageLookupByLibrary.simpleMessage("背景圖"),
+        "slogTitle": MessageLookupByLibrary.simpleMessage("日誌"),
+        "updateTitle": MessageLookupByLibrary.simpleMessage("更新"),
+        "backgroundImageDescription": MessageLookupByLibrary.simpleMessage(
+            "自動更換播放音訊時的背景"),
+        "dailyBing": MessageLookupByLibrary.simpleMessage("開啟背景切換"),
+        "clipboardDataFetchError":
+            MessageLookupByLibrary.simpleMessage("獲取剪貼簿資料失敗")
       };
 }
