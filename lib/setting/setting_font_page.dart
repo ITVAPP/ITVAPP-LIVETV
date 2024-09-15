@@ -2,6 +2,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../generated/l10n.dart';
 
 class SettingFontPage extends StatefulWidget {
   const SettingFontPage({super.key});
@@ -12,7 +13,7 @@ class SettingFontPage extends StatefulWidget {
 
 class _SettingFontPageState extends State<SettingFontPage> {
   final _fontScales = [1.0, 1.1, 1.2, 1.3, 1.5]; // 字体缩放比例
-  final _languages = ['English', '简体中文', '繁體中文']; // 语言显示名称
+  final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 语言代码
 
   // 统一的圆角样式
@@ -58,7 +59,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
       backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下的背景颜色
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
-        title: const Text('设置'), // 设置页面标题
+        title: const Text(S.of(context).settings), // 设置页面标题
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: Align(
@@ -77,7 +78,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('字体大小', style: TextStyle(fontSize: 17)), // 字体大小标题
+                      const Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 17)), // 字体大小标题
                       const SizedBox(height: 10), // 间距
                       Wrap(
                         spacing: 10,
@@ -117,7 +118,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('语言选择', style: TextStyle(fontSize: 17)), // 语言选择标题
+                      const Text(S.of(context).languageSelection, style: TextStyle(fontSize: 17)), // 语言选择标题
                       const SizedBox(height: 6), // 间距
                       Column(
                         children: List.generate(
@@ -131,8 +132,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                 ChoiceChip(
                                   label: Text(
                                     context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                        ? '使用中' // 已选中的显示 "使用中"
-                                        : '使用', // 未选中的显示 "使用"
+                                        ? S.of(context).inUse // 已选中的显示 "使用中"
+                                        : S.of(context).use, // 未选中的显示 "使用"
                                     style: TextStyle(
                                       fontSize: 15,
                                       color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
