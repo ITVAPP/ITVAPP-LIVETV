@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
@@ -81,7 +81,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   void onWindowResize() {
     LogUtil.safeExecute(() {
       // 调整窗口大小时根据横竖屏状态决定标题栏按钮的显示
-      LogUtil.v('onWindowResize:::::${widget.isLandscape}');
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
 
       // 在窗口大小变化时关闭抽屉，避免布局错乱
