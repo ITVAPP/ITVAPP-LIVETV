@@ -64,7 +64,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                       padding: const EdgeInsets.symmetric(vertical: 10.0), // 添加垂直间距
                       child: SwitchListTile(
                         focusNode: _bingFocusNode, // 将焦点节点绑定到该组件
-                        title: const Text(
+                        title: Text(
                           Text(S.of(context).dailyBing),
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ), // 设置标题加粗
