@@ -376,7 +376,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
             borderRadius: BorderRadius.circular(5),
           ),
           child: const Text(
-            S.of(context).programListTitle, //频道列表
+            Text(S.of(context).programListTitle), // 频道列表
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
