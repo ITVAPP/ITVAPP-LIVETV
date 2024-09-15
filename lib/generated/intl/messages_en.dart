@@ -8,11 +8,11 @@ typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 class MessageLookup extends MessageLookupByLibrary {
   String get localeName => 'en';
 
-  static String m0(index) => "Line ${index}";
+  static String m0(index) => "Connecting to line ${index}...";
 
-  static String m1(line, channel) => "Line ${line} playing: ${channel}";
+  static String m1(line, channel) => "Connecting: ${channel} Line ${line}";
 
-  static String m2(code) => "Abnormal response ${code}";
+  static String m2(code) => "Bad Response ${code}";
 
   static String m3(version) => "New Version v${version}";
 
@@ -25,11 +25,11 @@ class MessageLookup extends MessageLookupByLibrary {
         "addDataSource":
             MessageLookupByLibrary.simpleMessage("Add Subscription Source"),
         "addFiledHintText": MessageLookupByLibrary.simpleMessage(
-            "Please enter or paste the .m3u or .txt format subscription link"),
+            "Please enter or paste a subscription source link in .m3u or .txt format"),
         "addNoHttpLink": MessageLookupByLibrary.simpleMessage(
             "Please enter an http/https link"),
         "addRepeat": MessageLookupByLibrary.simpleMessage(
-            "This subscription source has been added"),
+            "This subscription source has already been added"),
         "appName": MessageLookupByLibrary.simpleMessage("ITVAPP LIVETV"),
         "checkUpdate":
             MessageLookupByLibrary.simpleMessage("Check for Updates"),
@@ -47,9 +47,9 @@ class MessageLookup extends MessageLookupByLibrary {
         "findNewVersion":
             MessageLookupByLibrary.simpleMessage("New version found"),
         "fullScreen":
-            MessageLookupByLibrary.simpleMessage("Full Screen Toggle"),
+            MessageLookupByLibrary.simpleMessage("Toggle Full Screen"),
         "getDefaultError": MessageLookupByLibrary.simpleMessage(
-            "Failed to get the default data source"),
+            "Failed to retrieve default data source"),
         "homePage": MessageLookupByLibrary.simpleMessage("Home Page"),
         "inUse": MessageLookupByLibrary.simpleMessage("In Use"),
         "landscape": MessageLookupByLibrary.simpleMessage("Landscape Mode"),
@@ -57,24 +57,25 @@ class MessageLookup extends MessageLookupByLibrary {
             "You are on the latest version"),
         "lineIndex": m0,
         "lineToast": m1,
-        "loading": MessageLookupByLibrary.simpleMessage("Loading"),
+        "loading": MessageLookupByLibrary.simpleMessage("Loading channels..."),
         "netBadResponse": m2,
         "netCancel": MessageLookupByLibrary.simpleMessage("Request Cancelled"),
         "netReceiveTimeout":
-            MessageLookupByLibrary.simpleMessage("Response timed out"),
+            MessageLookupByLibrary.simpleMessage("Response Timeout"),
         "netSendTimeout":
-            MessageLookupByLibrary.simpleMessage("Request timed out"),
+            MessageLookupByLibrary.simpleMessage("Request Timeout"),
         "netTimeOut":
-            MessageLookupByLibrary.simpleMessage("Connection timed out"),
+            MessageLookupByLibrary.simpleMessage("Connection Timeout"),
         "newVersion": m3,
-        "noEPG": MessageLookupByLibrary.simpleMessage("NO EPG DATA"),
-        "okRefresh": MessageLookupByLibrary.simpleMessage("【OK key】 Refresh"),
+        "noEPG": MessageLookupByLibrary.simpleMessage(
+            "No program information available"),
+        "okRefresh": MessageLookupByLibrary.simpleMessage("[OK] to Refresh"),
         "parseError":
             MessageLookupByLibrary.simpleMessage("Error parsing data source"),
         "pasterContent": MessageLookupByLibrary.simpleMessage(
             "After copying the subscription source, return to this page to automatically add the subscription source"),
         "playError": MessageLookupByLibrary.simpleMessage(
-            "This video cannot be played, please switch to another channel"),
+            "This line is temporarily unavailable, please wait for it to be fixed"),
         "playReconnect": MessageLookupByLibrary.simpleMessage(
             "An error occurred, trying to reconnect..."),
         "portrait": MessageLookupByLibrary.simpleMessage("Portrait Mode"),
@@ -84,20 +85,50 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Release History"),
         "setDefault": MessageLookupByLibrary.simpleMessage("Set as Default"),
         "settings": MessageLookupByLibrary.simpleMessage("Settings"),
-        "subscribe": MessageLookupByLibrary.simpleMessage("IPTV Subscription"),
+        "subscribe": MessageLookupByLibrary.simpleMessage("Subscribe"),
         "switchLine": m5,
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("Switch Line"),
         "tipChannelList": MessageLookupByLibrary.simpleMessage("Channel List"),
         "tvParseParma": MessageLookupByLibrary.simpleMessage("Parameter Error"),
         "tvParsePushError": MessageLookupByLibrary.simpleMessage(
-            "Please push the correct link"),
+            "Please push a valid link"),
         "tvParseSuccess":
-            MessageLookupByLibrary.simpleMessage("Push Successful"),
+            MessageLookupByLibrary.simpleMessage("Pushed Successfully"),
         "tvPushContent": MessageLookupByLibrary.simpleMessage(
-            "On the scan result page, enter the new subscription source and click the push button to add successfully"),
+            "In the scan result page, enter a new subscription source, and click 'Push' on the page to add it successfully"),
         "tvScanTip": MessageLookupByLibrary.simpleMessage(
             "Scan to add subscription source"),
         "update": MessageLookupByLibrary.simpleMessage("Update Now"),
-        "updateContent": MessageLookupByLibrary.simpleMessage("Update Content")
+        "updateContent": MessageLookupByLibrary.simpleMessage("Update Content"),
+        "logtitle": MessageLookupByLibrary.simpleMessage("Log Viewer"),
+        "SwitchTitle": MessageLookupByLibrary.simpleMessage("Log Recording"),
+        "logSubtitle": MessageLookupByLibrary.simpleMessage(
+            "Unless debugging as a developer, there's no need to enable logs"),
+        "filterAll": MessageLookupByLibrary.simpleMessage("All"),
+        "filterVerbose": MessageLookupByLibrary.simpleMessage("Verbose"),
+        "filterError": MessageLookupByLibrary.simpleMessage("Error"),
+        "filterInfo": MessageLookupByLibrary.simpleMessage("Info"),
+        "filterDebug": MessageLookupByLibrary.simpleMessage("Debug"),
+        "noLogs": MessageLookupByLibrary.simpleMessage("No logs available"),
+        "logCleared": MessageLookupByLibrary.simpleMessage("Logs cleared"),
+        "clearLogs": MessageLookupByLibrary.simpleMessage("Clear Logs"),
+        "programListTitle":
+            MessageLookupByLibrary.simpleMessage("Channel List"),
+        "foundStreamTitle": MessageLookupByLibrary.simpleMessage("Stream Found"),
+        "streamUrlContent": (url) =>
+            "Stream URL: ${url}\n\nDo you want to play this stream?",
+        "cancelButton": MessageLookupByLibrary.simpleMessage("Cancel"),
+        "playButton": MessageLookupByLibrary.simpleMessage("Play"),
+        "downloading": (progress) =>
+            "Downloading... ${progress}%",
+        "fontTitle": MessageLookupByLibrary.simpleMessage("Font"),
+        "backgroundImageTitle":
+            MessageLookupByLibrary.simpleMessage("Background Image"),
+        "slogTitle": MessageLookupByLibrary.simpleMessage("Logs"),
+        "updateTitle": MessageLookupByLibrary.simpleMessage("Update"),
+        "errorLoadingPage": MessageLookupByLibrary.simpleMessage("Error loading page"),
+        "backgroundImageDescription": MessageLookupByLibrary.simpleMessage("Automatically change background when playing audio"),
+        "dailyBing": MessageLookupByLibrary.simpleMessage("Enable background switching"),
+        "clipboardDataFetchError": MessageLookupByLibrary.simpleMessage("Failed to fetch clipboard data")
       };
 }
