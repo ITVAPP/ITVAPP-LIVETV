@@ -26,71 +26,70 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
     bool isTV = context.watch<ThemeProvider>().isTV;
     double btnWidth = isTV ? 400 : 260;
 
-      return Consumer<DownloadProvider>(
-        builder: (BuildContext context, DownloadProvider provider, Widget? child) {
-          return provider.isDownloading
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(48),
-                  child: SizedBox(
-                    height: 48,
-                    width: btnWidth,
-                    child: Stack(
-                      clipBehavior: Clip.hardEdge,
-                      alignment: Alignment.center,
-                      children: [
-                        Positioned.fill(
-                          child: LinearProgressIndicator(
-                            value: provider.progress,
-                            backgroundColor: Colors.redAccent.withOpacity(0.2),
-                            color: Colors.redAccent,
-                          ),
+    return Consumer<DownloadProvider>(
+      builder: (BuildContext context, DownloadProvider provider, Widget? child) {
+        return provider.isDownloading
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(48),
+                child: SizedBox(
+                  height: 48,
+                  width: btnWidth,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        child: LinearProgressIndicator(
+                          value: provider.progress,
+                          backgroundColor: Colors.redAccent.withOpacity(0.2),
+                          color: Colors.redAccent,
                         ),
-                        Text(
-                          S.of(context).downloading.replaceFirst(
-                              '{progress}', (provider.progress * 100).toStringAsFixed(1)), // 国际化下载中
-                          style: const TextStyle(color: Colors.white),
-                        )
-                      ],
-                    ),
+                      ),
+                      // 修改的部分：国际化“下载中”文本
+                      Text(
+                        '${S.of(context).downloading}...${(provider.progress * 100).toStringAsFixed(1)}%', // 显示国际化的“下载中”和进度百分比
+                        style: const TextStyle(color: Colors.white),
+                      )
+                    ],
                   ),
-                )
-              : child!;
-        },
-      );
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          fixedSize: Size(btnWidth, 48),
-          backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
-          elevation: _isFocusDownload ? 10 : 0,
-          overlayColor: Colors.transparent,
-        ),
-        autofocus: true,
-        onFocusChange: (bool isFocus) {
-          setState(() {
-            _isFocusDownload = isFocus;
-          });
-        },
-        onPressed: () {
-          LogUtil.safeExecute(() {
-            if (Platform.isAndroid) {
-              try {
-                context.read<DownloadProvider>().downloadApk(widget.apkUrl);
-              } catch (e, stackTrace) {
-                LogUtil.logError('下载 APK 时发生错误', e, stackTrace);  // 异常日志记录
-              }
-            } else {
-              try {
-                Navigator.of(context).pop(true);
-              } catch (e, stackTrace) {
-                LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 异常日志记录
-              }
+                ),
+              )
+            : child!;
+      },
+    );
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        fixedSize: Size(btnWidth, 48),
+        backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
+        elevation: _isFocusDownload ? 10 : 0,
+        overlayColor: Colors.transparent,
+      ),
+      autofocus: true,
+      onFocusChange: (bool isFocus) {
+        setState(() {
+          _isFocusDownload = isFocus;
+        });
+      },
+      onPressed: () {
+        LogUtil.safeExecute(() {
+          if (Platform.isAndroid) {
+            try {
+              context.read<DownloadProvider>().downloadApk(widget.apkUrl);
+            } catch (e, stackTrace) {
+              LogUtil.logError('下载 APK 时发生错误', e, stackTrace);  // 异常日志记录
             }
-          }, '点击下载按钮时发生错误');
-        },
-        child: Text(
-          S.current.update,
-          style: const TextStyle(color: Colors.white),
-        ),
+          } else {
+            try {
+              Navigator.of(context).pop(true);
+            } catch (e, stackTrace) {
+              LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 异常日志记录
+            }
+          }
+        }, '点击下载按钮时发生错误');
+      },
+      child: Text(
+        S.current.update,
+        style: const TextStyle(color: Colors.white),
       ),
     );
   }
