@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';  // 导入 Provider 包
-import '../provider/theme_provider.dart'; // 导入 ThemeProvider
+import 'package:provider/provider.dart'; 
+import '../provider/theme_provider.dart'; 
 import '../generated/l10n.dart';
 
 class EmptyPage extends StatelessWidget {
@@ -23,7 +23,7 @@ class EmptyPage extends StatelessWidget {
             style: TextStyle(fontSize: 50),
           ),
           const Text(
-            '出现错误',
+            S.of(context).filterError,  //出现错误
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 20, color: Colors.white),
           ),
