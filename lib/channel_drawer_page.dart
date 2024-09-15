@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'entity/playlist_model.dart';
 import 'util/env_util.dart';
+import 'dart:async'; // 添加这个包以支持 Timer
 
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频数据的映射
@@ -43,6 +44,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late int _channelIndex; // 当前频道的索引
   final double _itemHeight = 50.0; // 每个列表项的高度
 
+  Timer? _debounceTimer; // 用于节流或防抖
+
   @override
   void initState() {
     super.initState();
@@ -66,7 +69,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         );
         _values[i] = sortedChannels; // 更新为排序后的频道列表
       }
-
       _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
       _channelIndex = _groupIndex != -1
           ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
@@ -143,8 +145,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     }
   }
 
+  // 节流点击处理
+  void _onTapChannelThrottled(PlayModel? newModel) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
+      widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    });
+  }
+
   @override
   void dispose() {
+    _debounceTimer?.cancel(); // 清理定时器
     LogUtil.safeExecute(() {
       _scrollController.dispose();
       _scrollChannelController.dispose();
@@ -239,7 +253,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               setState(() {
                 _groupIndex = index;
                 final name = _values[_groupIndex].keys.first.toString();
-                widget.onTapChannel?.call(_values[_groupIndex][name]); // 回调通知选中分组
+                _onTapChannelThrottled(_values[_groupIndex][name]); // 使用节流的频道切换回调
               });
               _scrollChannelController.jumpTo(0); // 滚动到顶部
               if (context.mounted) {
@@ -311,7 +325,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                     return;
                   }
                   final newModel = _values[_groupIndex][name];
-                  widget.onTapChannel?.call(newModel); // 回调通知选中频道
+                  _onTapChannelThrottled(newModel); // 使用节流的频道切换回调
                   if (context.mounted) {
                     Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
                   }
