@@ -57,7 +57,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       },
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          fixedSize: Size(btnWidth, 44),
+          fixedSize: Size(btnWidth, 48),
           backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
           elevation: _isFocusDownload ? 10 : 0,
           overlayColor: Colors.transparent,
