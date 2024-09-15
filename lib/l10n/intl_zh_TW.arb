@@ -1,14 +1,14 @@
 {
   "appName": "電視寶直播",
-  "loading": "正在載入",
-  "lineToast": "線路{line}播放: {channel}",
+  "loading": "正在載入頻道...",
+  "lineToast": "開始播放: {channel} 線路{line}",
   "@lineToast": {
     "placeholders": {
       "line": {},
       "channel": {}
     }
   },
-  "playError": "此影片無法播放，請更換其它頻道",
+  "playError": "此線路暫時無法播放，請等待修復",
   "switchLine": "切換線路{line} ...",
   "@switchLine": {
     "placeholders": {
@@ -16,7 +16,7 @@
     }
   },
   "playReconnect": "出錯了，嘗試重新連線...",
-  "lineIndex": "線路{index}",
+  "lineIndex": "連線線路{index}...",
   "@lineIndex": {
     "placeholders": {
       "index": {}
