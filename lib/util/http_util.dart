@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:flutter/cupertino.dart'; // 保留，因为可能有其他用途
+import 'package:flutter/cupertino.dart';
 import '../generated/l10n.dart';
 
 class HttpUtil {
@@ -40,7 +40,6 @@ class HttpUtil {
       int retryCount = 3,  // 默认重试次数为 3
       Duration retryDelay = const Duration(seconds: 2)  // 重试前的延迟
       }) async {
-    LogUtil.v('开始执行 GET 请求: $path');
     Response? response;
     int currentAttempt = 0;
 
@@ -52,7 +51,6 @@ class HttpUtil {
             options: options,
             cancelToken: cancelToken,
             onReceiveProgress: onReceiveProgress);
-        LogUtil.i('GET 请求成功: $path');
         return response?.data; // 请求成功，返回数据
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
@@ -94,7 +92,6 @@ class HttpUtil {
         onReceiveProgress: (received, total) {
           if (total <= 0) return;
           progressCallback?.call((received / total)); // 回调下载进度
-          LogUtil.d('下载进度: ${(received / total * 100).toStringAsFixed(2)}%');
         },
       );
 
