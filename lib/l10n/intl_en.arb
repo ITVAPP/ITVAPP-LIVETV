@@ -111,6 +111,6 @@
   "use": "Use",
   "languageSelection": "Language Selection",
   "fontSizeTitle": "Font Size",
-  "LogCopied": "The log has been copied to the clipboard"
+  "logCopied": "The log has been copied to the clipboard"
   "clipboardDataFetchError": "Failed to fetch clipboard data"
 }
