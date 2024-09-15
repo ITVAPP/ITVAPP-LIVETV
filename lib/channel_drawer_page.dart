@@ -375,9 +375,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
             color: Colors.black38, // 设置与EPG项一致的背景色
             borderRadius: BorderRadius.circular(5),
           ),
-          child: const Text(
-            Text(S.of(context).programListTitle), // 频道列表
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          child: Text(
+            S.of(context).programListTitle, // 频道列表
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold), // 加粗样式
           ),
         ),
         VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
