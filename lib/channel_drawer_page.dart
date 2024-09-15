@@ -1,15 +1,15 @@
 import 'dart:math';
+import 'dart:async'; 
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'entity/playlist_model.dart';
-import 'util/env_util.dart';
-import 'dart:async'; // 添加这个包以支持 Timer
 
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频数据的映射
@@ -151,7 +151,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       _debounceTimer?.cancel();
     }
 
-    _debounceTimer = Timer(const Duration(milliseconds: 1000), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       widget.onTapChannel?.call(newModel); // 执行频道切换回调
     });
   }
@@ -342,7 +342,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               child: Ink(
                 width: double.infinity,
                 height: _itemHeight,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   color: isSelect ? Colors.black38 : Colors.black26, // 为频道项添加透明的黑色背景
                   borderRadius: BorderRadius.circular(5), // 圆角
@@ -375,18 +375,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
             borderRadius: BorderRadius.circular(5),
           ),
           child: const Text(
-            '节目单',
+            S.of(context).programListTitle, //频道列表
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
         VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
         Flexible(
           child: ScrollablePositionedList.builder(
-            initialScrollIndex: _selEPGIndex, // 初始滚动到选中的节目项
+            initialScrollIndex: _selEPGIndex, // 初始滚动到选中的频道项
             itemBuilder: (BuildContext context, int index) {
               final data = _epgData?[index];
               if (data == null) return const SizedBox.shrink(); // 如果没有数据则返回空视图
-              final isSelect = index == _selEPGIndex; // 判断是否为选中的节目
+              final isSelect = index == _selEPGIndex; // 判断是否为选中的频道
               return Container(
                 constraints: const BoxConstraints(minHeight: 40),
                 padding: const EdgeInsets.all(10),
@@ -396,7 +396,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                   borderRadius: BorderRadius.circular(5), // 圆角
                 ),
                 child: Text(
-                  '${data.start}-${data.end}\n${data.title}', // 显示节目开始时间、结束时间和标题
+                  '${data.start}-${data.end}\n${data.title}', // 显示频道开始时间、结束时间和标题
                   style: TextStyle(
                     fontWeight: isSelect ? FontWeight.bold : FontWeight.normal, // 选中项加粗显示
                     color: isSelect ? Colors.redAccent : Colors.white, // 选中项显示红色，其他为白色
@@ -404,7 +404,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 ),
               );
             },
-            itemCount: _epgData?.length ?? 0, // 节目单项数目
+            itemCount: _epgData?.length ?? 0, // 频道列表单项数目
           ),
         ),
       ],
