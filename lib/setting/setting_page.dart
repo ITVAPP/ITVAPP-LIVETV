@@ -154,7 +154,7 @@ class _SettingPageState extends State<SettingPage> {
                   if (_latestVersionEntity == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(S.of(context).noNewVersion), // 使用国际化语言显示“当前已是最新版本”的提示
+                        content: Text(S.of(context).latestVersion), // 使用国际化语言显示“当前已是最新版本”的提示
                       ),
                     );
                   }
