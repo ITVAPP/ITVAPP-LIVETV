@@ -1,7 +1,7 @@
 {
   "appName": "電視寶直播",
   "loading": "正在載入頻道...",
-  "lineToast": "開始播放: {channel} 線路{line}",
+  "lineToast": "開始連線: {channel} 線路{line}",
   "@lineToast": {
     "placeholders": {
       "line": {},
