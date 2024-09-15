@@ -109,6 +109,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "backgroundImageDescription": MessageLookupByLibrary.simpleMessage(
             "自动更换播放音频时的背景"),
         "dailyBing": MessageLookupByLibrary.simpleMessage("开启背景切换"),
+        "logCopied": MessageLookupByLibrary.simpleMessage("日志已复制到剪贴板"),
         "clipboardDataFetchError":
             MessageLookupByLibrary.simpleMessage("获取剪贴板数据失败")
       };
