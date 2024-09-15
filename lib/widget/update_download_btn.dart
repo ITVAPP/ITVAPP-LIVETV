@@ -46,7 +46,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
                         ),
                       ),
                       Text(
-                        S.of(context).downloading.replaceFirst('{progress}', (provider.progress * 100).toStringAsFixed(1)),   //下载中
+                        S.of(context).downloading().replaceFirst('{progress}', (provider.progress * 100).toStringAsFixed(1)), // 下载中
                         style: const TextStyle(color: Colors.white),
                       )
                     ],
