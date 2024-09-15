@@ -22,34 +22,38 @@ class _TvSettingPageState extends State<TvSettingPage> {
   int _selectedIndex = 0; // 当前选中的菜单索引，初始值为0
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
-  // 用于检查版本更新的逻辑
-  Future<void> _checkForUpdates() async {
-    try {
-      await CheckVersionUtil.checkVersion(context, true, true, true);
-      setState(() {
-        _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
-      });
-      if (_latestVersionEntity != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(S.of(context).newVersion(_latestVersionEntity!.latestVersion!)),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(S.of(context).latestVersion), // 已经是最新版本
-          ),
-        );
-      }
-    } catch (e) {
+// 用于检查版本更新的逻辑
+Future<void> _checkForUpdates() async {
+  try {
+    await CheckVersionUtil.checkVersion(context, true, true, true);
+    setState(() {
+      _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
+    });
+
+    // 如果有最新版本
+    if (_latestVersionEntity != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(S.of(context).netReceiveTimeout),  //版本检查失败
+          content: Text(S.of(context).newVersion(_latestVersionEntity!.latestVersion!)),
+        ),
+      );
+    } else {
+      // 没有最新版本
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(S.of(context).latestVersion), // 已经是最新版本
         ),
       );
     }
+  } catch (e) {
+    // 版本检查失败
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(S.of(context).netReceiveTimeout),  //版本检查失败
+      ),
+    );
   }
+}
 
   // 通用的buildListTile方法，减少重复代码
   Widget buildListTile({
