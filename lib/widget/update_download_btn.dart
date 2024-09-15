@@ -26,35 +26,37 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
     bool isTV = context.watch<ThemeProvider>().isTV;
     double btnWidth = isTV ? 400 : 260;
 
-    return Consumer<DownloadProvider>(
-      builder: (BuildContext context, DownloadProvider provider, Widget? child) {
-        return provider.isDownloading
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(48),
-                child: SizedBox(
-                  height: 48,
-                  width: btnWidth,
-                  child: Stack(
-                    clipBehavior: Clip.hardEdge,
-                    alignment: Alignment.center,
-                    children: [
-                      Positioned.fill(
-                        child: LinearProgressIndicator(
-                          value: provider.progress,
-                          backgroundColor: Colors.redAccent.withOpacity(0.2),
-                          color: Colors.redAccent,
+      return Consumer<DownloadProvider>(
+        builder: (BuildContext context, DownloadProvider provider, Widget? child) {
+          return provider.isDownloading
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(48),
+                  child: SizedBox(
+                    height: 48,
+                    width: btnWidth,
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      alignment: Alignment.center,
+                      children: [
+                        Positioned.fill(
+                          child: LinearProgressIndicator(
+                            value: provider.progress,
+                            backgroundColor: Colors.redAccent.withOpacity(0.2),
+                            color: Colors.redAccent,
+                          ),
                         ),
-                      ),
-                      Text(
-                        S.of(context).downloading.replaceFirst('{progress}', (provider.progress * 100).toStringAsFixed(1)), // 下载中
-                        style: const TextStyle(color: Colors.white),
-                      )
-                    ],
+                        Text(
+                          S.of(context).downloading.replaceFirst(
+                              '{progress}', (provider.progress * 100).toStringAsFixed(1)), // 国际化下载中
+                          style: const TextStyle(color: Colors.white),
+                        )
+                      ],
+                    ),
                   ),
-                ),
-              )
-            : child!;
-      },
+                )
+              : child!;
+        },
+      );
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           fixedSize: Size(btnWidth, 48),
