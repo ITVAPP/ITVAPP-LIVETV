@@ -148,7 +148,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   ),
                                 )
                               : Scrollbar(
-                                  thumbVisibility: true, 
+                                  thumbVisibility: true,
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: SingleChildScrollView(
@@ -163,7 +163,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                             rows: logs
                                                 .map((log) => DataRow(cells: [
                                                       DataCell(Text(formatDateTime(log['time']!))),
-                                                      DataCell(Text(log['message']!)),
+                                                      DataCell(Text(LogUtil.parseLogMessage(log['message']!))), // 只显示日志内容部分
                                                     ]))
                                                 .toList(),
                                           ),
