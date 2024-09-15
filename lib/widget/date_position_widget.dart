@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';  // 导入 Provider 包
-import '../provider/theme_provider.dart'; // 导入 ThemeProvider
-import '../util/date_util.dart';
+import 'package:intl/intl.dart'; 
+import 'package:provider/provider.dart'; 
+import '../provider/theme_provider.dart';
 
 class DatePositionWidget extends StatelessWidget {
   const DatePositionWidget({super.key});
@@ -10,6 +10,16 @@ class DatePositionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // 通过 Provider 获取 isTV 的状态
     bool isTV = context.watch<ThemeProvider>().isTV;
+
+    // 获取当前设备的语言环境
+    String locale = Localizations.localeOf(context).toLanguageTag();
+
+    // 格式化日期和星期
+    String formattedDate = DateFormat('yyyy/MM/dd', locale).format(DateTime.now());
+    String formattedWeekday = DateFormat.EEEE(locale).format(DateTime.now());
+
+    // 格式化时间
+    String formattedTime = DateFormat('HH:mm', locale).format(DateTime.now());
 
     return Positioned(
       top: isTV ? 20 : 15, // 电视上距离顶部更远
@@ -20,7 +30,7 @@ class DatePositionWidget extends StatelessWidget {
           children: [
             // 第一行显示日期和星期
             Text(
-              "${DateUtil.formatDate(DateTime.now(), format: 'yyyy/MM/dd')} ${DateUtil.getWeekday(DateTime.now(), languageCode: 'zh')}",
+              "$formattedDate $formattedWeekday",
               style: TextStyle(
                 fontSize: isTV ? 22 : 16, // 电视上日期字体更大
                 color: Colors.white70,
@@ -35,7 +45,7 @@ class DatePositionWidget extends StatelessWidget {
             ),
             // 第二行显示时间
             Text(
-              DateUtil.formatDate(DateTime.now(), format: 'HH:mm'),
+              formattedTime,
               style: TextStyle(
                 fontSize: isTV ? 50 : 38, // 电视上时间字体更大
                 color: Colors.white,
