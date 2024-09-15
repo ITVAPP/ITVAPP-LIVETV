@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import '../generated/l10n.dart';
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
@@ -84,7 +85,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
       backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下背景颜色
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
-        title: const Text('日志查看器'), // 页面标题
+        title: Text(S.of(context).logtitle),  // 页面标题
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: Align(
@@ -102,13 +103,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10.0),
                   child: SwitchListTile(
-                    title: const Text('记录日志', style: TextStyle(fontWeight: FontWeight.bold)), // 选项标题
-                    subtitle: const Text('如非调试应用，无需打开日志开关'), // 选项的说明文字
+                    title: Text(S.of(context).SwitchTitle, style: TextStyle(fontWeight: FontWeight.bold)), // 选项标题
+                    subtitle: Text(S.of(context).logSubtitle), // 选项的说明文字
                     value: isLogOn,
                     onChanged: (value) {
                       LogUtil.safeExecute(() {
                         context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
-                        LogUtil.i('日志记录状态设置为: ${value ? "开启" : "关闭"}');
                       }, '设置日志开关状态时出错');
                     },
                     activeColor: Colors.white, // 滑块的颜色
@@ -127,11 +127,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildFilterButton('all', '所有', 0),
-                              _buildFilterButton('v', '详细', 1),
-                              _buildFilterButton('e', '错误', 2),
-                              _buildFilterButton('i', '信息', 3),
-                              _buildFilterButton('d', '调试', 4),
+                              _buildFilterButton('all', S.of(context).filterAll, 0),
+                              _buildFilterButton('v', S.of(context).filterVerbose, 1),
+                              _buildFilterButton('e', S.of(context).filterError, 2),
+                              _buildFilterButton('i', S.of(context).filterInfo, 3),
+                              _buildFilterButton('d', S.of(context).filterDebug, 4),
                             ],
                           ),
                         ),
@@ -143,44 +143,32 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     children: [
                                       Icon(Icons.info_outline, size: 60, color: Colors.grey),
                                       SizedBox(height: 10),
-                                      Text('暂无日志', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                                      Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
                                     ],
                                   ),
                                 )
                               : Scrollbar(
                                   thumbVisibility: true,
                                   child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.vertical,
-                                      child: Column(
-                                        children: [
-                                          DataTable(
-                                            columns: [
-                                              DataColumn(label: Text('时间')),
-                                              DataColumn(label: Text('日志信息')),
-                                            ],
-                                            rows: logs
-                                                .map((log) => DataRow(cells: [
-                                                      DataCell(Text(formatDateTime(log['time']!))),
-                                                      DataCell(Text(LogUtil.parseLogMessage(log['message']!))), // 只显示日志内容部分
-                                                    ]))
-                                                .toList(),
-                                          ),
-                                          if (_hasMoreLogs) // 仅当有更多日志时显示加载更多按钮
-                                            Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: ElevatedButton(
-                                                onPressed: _loadMoreLogs,
-                                                child: Text('加载更多'),
-                                                style: ElevatedButton.styleFrom(
-                                                  shape: _buttonShape, // 统一圆角样式
-                                                  backgroundColor: _selectedColor,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
+                                    scrollDirection: Axis.vertical, // 去掉水平滚动，仅保留垂直滚动
+                                    child: Column(
+                                      children: logs
+                                          .map((log) => Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                                    child: Text(
+                                                      formatDateTime(log['time']!), // 第一行时间
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight.bold, fontSize: 16),
+                                                    ),
+                                                  ),
+                                                  Text(LogUtil.parseLogMessage(log['message']!)), // 第二行日志信息
+                                                  const Divider(), // 分隔符
+                                                ],
+                                              ))
+                                          .toList(),
                                     ),
                                   ),
                                 ),
@@ -194,11 +182,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               });
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('日志已清空'),
+                                  content: Text(S.of(context).logCleared),  //日志已清空
                                 ),
                               );
                             },
-                            child: Text('清空日志'),
+                            child: Text(S.of(context).clearLogs),   //清空日志
                             style: ElevatedButton.styleFrom(
                               shape: _buttonShape, // 统一圆角样式
                               backgroundColor: _selectedColor,
@@ -219,7 +207,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，并将焦点节点添加进去
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0),
+      padding: const EdgeInsets.symmetric(horizontal: 5.0),
       child: OutlinedButton(
         focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
@@ -230,7 +218,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
         },
         child: Text(label),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 3.0), // 调整按钮的左右内边距	
+          padding: const EdgeInsets.symmetric(horizontal: 2.0), // 调整按钮的左右内边距	
           shape: _buttonShape, // 统一圆角样式
           side: BorderSide(color: _selectedLevel == level ? _selectedColor : _unselectedColor),
           backgroundColor: _selectedLevel == level ? _selectedColor.withOpacity(0.1) : Colors.transparent,
