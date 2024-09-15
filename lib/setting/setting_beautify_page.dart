@@ -65,7 +65,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                       child: SwitchListTile(
                         focusNode: _bingFocusNode, // 将焦点节点绑定到该组件
                         title: Text(
-                          Text(S.of(context).dailyBing),
+                          S.of(context).dailyBing,  // 修正的部分：直接使用 S.of(context).dailyBing 返回的字符串
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ), // 设置标题加粗
                         subtitle: Text(S.of(context).backgroundImageDescription),  // 提示信息
