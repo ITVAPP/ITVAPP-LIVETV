@@ -129,6 +129,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "errorLoadingPage": MessageLookupByLibrary.simpleMessage("Error loading page"),
         "backgroundImageDescription": MessageLookupByLibrary.simpleMessage("Automatically change background when playing audio"),
         "dailyBing": MessageLookupByLibrary.simpleMessage("Enable background switching"),
+        "logCopied": MessageLookupByLibrary.simpleMessage("The log has been copied to the clipboard"),
         "clipboardDataFetchError": MessageLookupByLibrary.simpleMessage("Failed to fetch clipboard data")
       };
 }
