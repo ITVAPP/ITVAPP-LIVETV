@@ -111,5 +111,7 @@
   "use": "使用",
   "languageSelection": "语言选择",
   "fontSizeTitle": "字体大小",
+  "noNewVersion": "当前已是最新版本",
+  "logCopied": "日志已复制到剪贴板",
   "clipboardDataFetchError": "获取剪贴板数据失败"
 }
