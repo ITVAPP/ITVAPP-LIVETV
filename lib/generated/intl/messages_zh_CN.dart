@@ -8,9 +8,9 @@ typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 class MessageLookup extends MessageLookupByLibrary {
   String get localeName => 'zh_CN';
 
-  static String m0(index) => "线路${index}";
+  static String m0(index) => "连接线路${index}...";
 
-  static String m1(line, channel) => "线路${line}播放: ${channel}";
+  static String m1(line, channel) => "开始连接: ${channel} 线路${line}";
 
   static String m2(code) => "响应异常${code}";
 
@@ -48,7 +48,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "latestVersion": MessageLookupByLibrary.simpleMessage("已是最新版本"),
         "lineIndex": m0,
         "lineToast": m1,
-        "loading": MessageLookupByLibrary.simpleMessage("正在加载"),
+        "loading": MessageLookupByLibrary.simpleMessage("正在加载频道..."),
         "netBadResponse": m2,
         "netCancel": MessageLookupByLibrary.simpleMessage("请求取消"),
         "netReceiveTimeout": MessageLookupByLibrary.simpleMessage("响应超时"),
@@ -60,7 +60,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "parseError": MessageLookupByLibrary.simpleMessage("解析数据源出错"),
         "pasterContent":
             MessageLookupByLibrary.simpleMessage("复制订阅源后，回到此页面可自动添加订阅源"),
-        "playError": MessageLookupByLibrary.simpleMessage("此视频无法播放，请更换其它频道"),
+        "playError": MessageLookupByLibrary.simpleMessage("此线路暂时无法播放，请等待修复"),
         "playReconnect": MessageLookupByLibrary.simpleMessage("出错了，尝试重新连接..."),
         "portrait": MessageLookupByLibrary.simpleMessage("竖屏模式"),
         "pushAddress": m4,
@@ -68,7 +68,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "releaseHistory": MessageLookupByLibrary.simpleMessage("发布历史"),
         "setDefault": MessageLookupByLibrary.simpleMessage("设为默认"),
         "settings": MessageLookupByLibrary.simpleMessage("设置"),
-        "subscribe": MessageLookupByLibrary.simpleMessage("IPTV订阅"),
+        "subscribe": MessageLookupByLibrary.simpleMessage("订阅"),
         "switchLine": m5,
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("切换线路"),
         "tipChannelList": MessageLookupByLibrary.simpleMessage("频道列表"),
