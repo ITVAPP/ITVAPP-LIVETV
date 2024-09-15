@@ -1,12 +1,12 @@
-import 'dart:async'; // 引入异步操作和定时器相关的库
+import 'dart:async'; 
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
-import 'package:video_player/video_player.dart'; // 引入视频播放器库，用于处理视频播放
-import '../generated/l10n.dart';
 import '../provider/theme_provider.dart';
-import '../gradient_progress_bar.dart'; // 引入渐变进度条
-import '../util/log_util.dart'; // 引入日志工具类，用于处理日志输出
+import '../generated/l10n.dart';
+import '../gradient_progress_bar.dart'; 
+import '../util/log_util.dart'; 
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
@@ -93,7 +93,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     _timer?.cancel();  // 销毁定时器
     _timer = null;  // 将定时器置空，防止多次调用
     widget.videoController.removeListener(_handleVideoUpdate); // 移除监听器，防止内存泄漏
-    LogUtil.v('界面销毁，动画控制器取消'); // 记录日志
     super.dispose();
   }
 
