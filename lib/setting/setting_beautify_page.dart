@@ -44,7 +44,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
       return Scaffold(
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // 在 TV 模式下设置背景颜色
         appBar: AppBar(
-          S.of(context).backgroundImageTitle,  // AppBar 标题
+          title: Text(S.of(context).backgroundImageTitle),  // AppBar 标题
           backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
           leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
         ),
@@ -65,7 +65,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                       child: SwitchListTile(
                         focusNode: _bingFocusNode, // 将焦点节点绑定到该组件
                         title: const Text(
-                          S.of(context).dailyBing,
+                          Text(S.of(context).dailyBing),
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ), // 设置标题加粗
                         subtitle: Text(S.of(context).backgroundImageDescription),  // 提示信息
@@ -91,7 +91,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
     } catch (e, stackTrace) {
       LogUtil.logError('构建 SettingBeautifyPage 时发生错误', e, stackTrace);
       return Scaffold(
-        body: const Center(
+        body: Center(
           child: Text(S.of(context).errorLoadingPage), // 错误页面提示
         ),
       );
