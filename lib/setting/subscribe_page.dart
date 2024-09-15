@@ -52,7 +52,6 @@ class _SubScribePageState extends State<SubScribePage> {
 
     // 当应用恢复时，重新检查剪贴板内容
     _appLifecycleListener = AppLifecycleListener(onStateChange: (state) {
-      LogUtil.v('addLifecycleListen::::::$state');
       if (state == AppLifecycleState.resumed) {
         _pasteClipboard();  // 恢复后检查剪贴板是否有可处理的内容
       }
@@ -104,7 +103,7 @@ class _SubScribePageState extends State<SubScribePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('粘贴板获取数据时发生错误', e, stackTrace);
-      _showErrorSnackBar(context, '获取剪贴板数据失败');  // 捕获异常并提示用户
+      _showErrorSnackBar(context, S.of(context).clipboardDataFetchError);  // 捕获异常并提示用户
     }
   }
 
@@ -116,7 +115,6 @@ class _SubScribePageState extends State<SubScribePage> {
 
       // 获取当前设备的IP地址
       _ip = await NetworkService.getCurrentIP();
-      LogUtil.v('_ip::::$_ip');
       if (_ip == null) return;
 
       // 在指定端口启动HTTP服务器
@@ -488,16 +486,13 @@ class _SubScribePageState extends State<SubScribePage> {
 
   // 解析并处理新的M3U地址
   _pareUrl(String res) async {
-    LogUtil.v('添加::::：$res');
     try {
       final hasIndex = _m3uList.indexWhere((element) => element.link == res);  // 检查是否已存在
-      LogUtil.v('添加:hasIndex:::：$hasIndex');
       if (hasIndex != -1) {
         EasyLoading.showToast(S.current.addRepeat);  // 提示重复添加
         return;
       }
       if (res.startsWith('http') && hasIndex == -1) {
-        LogUtil.v('添加：$res');
         final sub = SubScribeModel(
             time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),  // 记录创建时间
             link: res,
@@ -526,7 +521,6 @@ class NetworkService {
     try {
       for (var interface in await NetworkInterface.list()) {
         for (var addr in interface.addresses) {
-          LogUtil.v('Name: ${interface.name}  IP Address: ${addr.address}  IPV4: ${InternetAddress.anyIPv4}');
           // 检查是否为局域网IP地址
           if (addr.type == InternetAddressType.IPv4 &&
               addr.address.startsWith('192')) {
