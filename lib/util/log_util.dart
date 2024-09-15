@@ -107,4 +107,10 @@ class LogUtil {
   static void clearLogs() {
     _logs.clear();
   }
+
+  // 解析日志消息，展示实际内容时只提取消息部分
+  static String parseLogMessage(String message) {
+    // 按 '|' 分割，返回第二部分，即实际的日志内容
+    return message.split('|').last.trim();
+  }
 }
