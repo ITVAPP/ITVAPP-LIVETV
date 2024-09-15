@@ -12,6 +12,7 @@ import '../channel_drawer_page.dart';
 import '../entity/playlist_model.dart';
 import '../util/log_util.dart';
 import '../widget/video_hold_bg.dart';
+import '../generated/l10n.dart';
 
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频播放列表模型
@@ -261,7 +262,7 @@ class _TvPageState extends State<TvPage> {
                             child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)), // 播放按钮
                       if (widget.isBuffering && !_drawerIsOpen) const SpinKitSpinningLines(color: Colors.white), // 显示缓冲动画
                       if (_isError && !_drawerIsOpen)
-                        Center(child: Text('播放错误，请重试', style: TextStyle(color: Colors.red))), // 显示错误提示
+                        Center(child: Text(S.of(context).playError,style: TextStyle(color: Colors.red))), // 显示错误提示
                     ],
                   ),
                 ),
