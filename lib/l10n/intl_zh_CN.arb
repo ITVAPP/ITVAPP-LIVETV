@@ -1,14 +1,14 @@
 {
   "appName": "电视宝直播",
-  "loading": "正在加载",
-  "lineToast": "线路{line}播放: {channel}",
+  "loading": "正在加载频道...",
+  "lineToast": "开始连接: {channel} 线路{line}",
   "@lineToast": {
     "placeholders": {
       "line": {},
       "channel": {}
     }
   },
-  "playError": "此视频无法播放，请更换其它频道",
+  "playError": "此线路暂时无法播放，请等待修复",
   "switchLine": "切换线路{line} ...",
   "@switchLine": {
     "placeholders": {
@@ -16,7 +16,7 @@
     }
   },
   "playReconnect": "出错了，尝试重新连接...",
-  "lineIndex": "线路{index}",
+  "lineIndex": "连接线路{index}...",
   "@lineIndex": {
     "placeholders": {
       "index": {}
@@ -45,7 +45,7 @@
   "dataSourceContent": "确定添加此数据源吗？",
   "dialogCancel": "取消",
   "dialogConfirm": "确定",
-  "subscribe": "IPTV订阅",
+  "subscribe": "订阅",
   "createTime": "创建时间",
   "dialogDeleteContent": "确定删除此订阅吗？",
   "delete": "删除",
@@ -82,5 +82,34 @@
   "getDefaultError": "获取默认数据源失败",
   "okRefresh": "【OK键】刷新",
   "refresh": "刷新",
-  "noEPG": "暂无节目信息"
+  "noEPG": "暂无节目信息",
+  "logtitle": "日志查看器",
+  "SwitchTitle": "记录日志",
+  "logSubtitle": "如非开发人员调试，无需打开日志开关",
+  "filterAll": "所有",
+  "filterVerbose": "详细",
+  "filterError": "错误",
+  "filterInfo": "信息",
+  "filterDebug": "调试",
+  "noLogs": "暂无日志",
+  "logCleared": "日志已清空",
+  "clearLogs": "清空日志",
+  "programListTitle": "频道列表",
+  "foundStreamTitle": "找到视频流",
+  "streamUrlContent": "流URL: {url}\n\n你想播放这个流吗？",
+  "cancelButton": "取消",
+  "playButton": "播放",
+  "downloading": "下载中...{progress}%",
+  "fontTitle": "字体",
+  "backgroundImageTitle": "背景图",
+  "slogTitle": "日志",
+  "updateTitle": "更新",
+  "errorLoadingPage": "加载页面出错",
+  "backgroundImageDescription": "自动更换播放音频时的背景",
+  "dailyBing": "开启背景切换",
+  "inUse": "使用中",
+  "use": "使用",
+  "languageSelection": "语言选择",
+  "fontSizeTitle": "字体大小",
+  "clipboardDataFetchError": "获取剪贴板数据失败"
 }
