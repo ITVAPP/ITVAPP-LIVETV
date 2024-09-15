@@ -4,9 +4,9 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart';  // 导入 ThemeProvider
+import '../provider/theme_provider.dart'; 
 import '../generated/l10n.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil 用于日志记录
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 
 class UpdateDownloadBtn extends StatefulWidget {
   final String apkUrl;
@@ -30,9 +30,9 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
         return provider.isDownloading
             ? ClipRRect(
-                borderRadius: BorderRadius.circular(44),
+                borderRadius: BorderRadius.circular(48),
                 child: SizedBox(
-                  height: 44,
+                  height: 48,
                   width: btnWidth,
                   child: Stack(
                     clipBehavior: Clip.hardEdge,
@@ -46,7 +46,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
                         ),
                       ),
                       Text(
-                        '下载中...${(provider.progress * 100).toStringAsFixed(1)}%',
+                        S.of(context).downloading.replaceFirst('{progress}', (provider.progress * 100).toStringAsFixed(1)),   //下载中
                         style: const TextStyle(color: Colors.white),
                       )
                     ],
