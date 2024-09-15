@@ -6,11 +6,11 @@ final messages = new MessageLookup();
 typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 
 class MessageLookup extends MessageLookupByLibrary {
-  String get localeName => 'zh_CN';
+  String get localeName => 'zh_TW';
 
-  static String m0(index) => "線路${index}";
+  static String m0(index) => "連線線路${index}...";
 
-  static String m1(line, channel) => "線路${line}播放: ${channel}";
+  static String m1(line, channel) => "開始連線: ${channel} 線路${line}";
 
   static String m2(code) => "響應異常${code}";
 
@@ -48,7 +48,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "latestVersion": MessageLookupByLibrary.simpleMessage("已是最新版本"),
         "lineIndex": m0,
         "lineToast": m1,
-        "loading": MessageLookupByLibrary.simpleMessage("正在載入"),
+        "loading": MessageLookupByLibrary.simpleMessage("正在載入頻道..."),
         "netBadResponse": m2,
         "netCancel": MessageLookupByLibrary.simpleMessage("請求取消"),
         "netReceiveTimeout": MessageLookupByLibrary.simpleMessage("響應超時"),
@@ -60,7 +60,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "parseError": MessageLookupByLibrary.simpleMessage("解析資料來源出錯"),
         "pasterContent":
             MessageLookupByLibrary.simpleMessage("複製訂閱源後，回到此頁面可自動新增訂閱源"),
-        "playError": MessageLookupByLibrary.simpleMessage("此影片無法播放，請更換其它頻道"),
+        "playError": MessageLookupByLibrary.simpleMessage("此線路暫時無法播放，請等待修復"),
         "playReconnect": MessageLookupByLibrary.simpleMessage("出錯了，嘗試重新連線..."),
         "portrait": MessageLookupByLibrary.simpleMessage("豎屏模式"),
         "pushAddress": m4,
@@ -68,7 +68,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "releaseHistory": MessageLookupByLibrary.simpleMessage("釋出歷史"),
         "setDefault": MessageLookupByLibrary.simpleMessage("設為預設"),
         "settings": MessageLookupByLibrary.simpleMessage("設定"),
-        "subscribe": MessageLookupByLibrary.simpleMessage("IPTV訂閱"),
+        "subscribe": MessageLookupByLibrary.simpleMessage("訂閱"),
         "switchLine": m5,
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("切換線路"),
         "tipChannelList": MessageLookupByLibrary.simpleMessage("頻道列表"),
