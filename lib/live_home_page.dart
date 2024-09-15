@@ -251,7 +251,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           builder: (BuildContext context) {
             return AlertDialog(
               title: Text(S.of(context).foundStreamTitle),  //找到视频流
-              content: Text(S.of(context).streamUrlContent().replaceFirst('{url}', url)), // 你想播放这个流吗
+              content: Text(S.of(context).streamUrlContent(url)), // 你想播放这个流吗
               actions: <Widget>[
                 TextButton(
                   child: Text(S.of(context).cancelButton),  //取消
