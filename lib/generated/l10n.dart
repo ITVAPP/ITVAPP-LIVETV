@@ -40,6 +40,7 @@ class S {
     return Localizations.of<S>(context, S);
   }
 
+  // 基础信息
   String get appName {
     return Intl.message(
       '电视宝直播',
@@ -49,37 +50,34 @@ class S {
     );
   }
 
-  /// `正在加载`
   String get loading {
     return Intl.message(
-      '正在加载',
+      '正在加载频道...',
       name: 'loading',
       desc: '',
       args: [],
     );
   }
 
-  /// `线路{line}播放: {channel}`
+  // 占位符文本
   String lineToast(Object line, Object channel) {
     return Intl.message(
-      '线路$line播放: $channel',
+      '开始连接: $channel 线路$line',
       name: 'lineToast',
       desc: '',
       args: [line, channel],
     );
   }
 
-  /// `此视频无法播放，请更换其它频道`
   String get playError {
     return Intl.message(
-      '此视频无法播放，请更换其它频道',
+      '此线路暂时无法播放，请等待修复',
       name: 'playError',
       desc: '',
       args: [],
     );
   }
 
-  /// `切换线路{line} ...`
   String switchLine(Object line) {
     return Intl.message(
       '切换线路$line ...',
@@ -89,7 +87,6 @@ class S {
     );
   }
 
-  /// `出错了，尝试重新连接...`
   String get playReconnect {
     return Intl.message(
       '出错了，尝试重新连接...',
@@ -99,17 +96,15 @@ class S {
     );
   }
 
-  /// `线路{index}`
   String lineIndex(Object index) {
     return Intl.message(
-      '线路$index',
+      '连接线路$index...',
       name: 'lineIndex',
       desc: '',
       args: [index],
     );
   }
 
-  /// `频道列表`
   String get tipChannelList {
     return Intl.message(
       '频道列表',
@@ -119,7 +114,6 @@ class S {
     );
   }
 
-  /// `切换线路`
   String get tipChangeLine {
     return Intl.message(
       '切换线路',
@@ -129,7 +123,6 @@ class S {
     );
   }
 
-  /// `竖屏模式`
   String get portrait {
     return Intl.message(
       '竖屏模式',
@@ -139,7 +132,6 @@ class S {
     );
   }
 
-  /// `横屏模式`
   String get landscape {
     return Intl.message(
       '横屏模式',
@@ -149,7 +141,6 @@ class S {
     );
   }
 
-  /// `全屏切换`
   String get fullScreen {
     return Intl.message(
       '全屏切换',
@@ -159,7 +150,6 @@ class S {
     );
   }
 
-  /// `设置`
   String get settings {
     return Intl.message(
       '设置',
@@ -169,7 +159,6 @@ class S {
     );
   }
 
-  /// `主页`
   String get homePage {
     return Intl.message(
       '主页',
@@ -179,7 +168,6 @@ class S {
     );
   }
 
-  /// `发布历史`
   String get releaseHistory {
     return Intl.message(
       '发布历史',
@@ -189,7 +177,6 @@ class S {
     );
   }
 
-  /// `检查更新`
   String get checkUpdate {
     return Intl.message(
       '检查更新',
@@ -199,7 +186,6 @@ class S {
     );
   }
 
-  /// `新版本v{version}`
   String newVersion(Object version) {
     return Intl.message(
       '新版本v$version',
@@ -209,7 +195,6 @@ class S {
     );
   }
 
-  /// `立即更新`
   String get update {
     return Intl.message(
       '立即更新',
@@ -219,7 +204,6 @@ class S {
     );
   }
 
-  /// `已是最新版本`
   String get latestVersion {
     return Intl.message(
       '已是最新版本',
@@ -229,7 +213,6 @@ class S {
     );
   }
 
-  /// `发现新版本`
   String get findNewVersion {
     return Intl.message(
       '发现新版本',
@@ -239,7 +222,6 @@ class S {
     );
   }
 
-  /// `更新内容`
   String get updateContent {
     return Intl.message(
       '更新内容',
@@ -249,7 +231,6 @@ class S {
     );
   }
 
-  /// `温馨提示`
   String get dialogTitle {
     return Intl.message(
       '温馨提示',
@@ -259,7 +240,6 @@ class S {
     );
   }
 
-  /// `确定添加此数据源吗？`
   String get dataSourceContent {
     return Intl.message(
       '确定添加此数据源吗？',
@@ -269,7 +249,6 @@ class S {
     );
   }
 
-  /// `取消`
   String get dialogCancel {
     return Intl.message(
       '取消',
@@ -279,7 +258,6 @@ class S {
     );
   }
 
-  /// `确定`
   String get dialogConfirm {
     return Intl.message(
       '确定',
@@ -289,17 +267,15 @@ class S {
     );
   }
 
-  /// `IPTV订阅`
   String get subscribe {
     return Intl.message(
-      'IPTV订阅',
+      '订阅',
       name: 'subscribe',
       desc: '',
       args: [],
     );
   }
 
-  /// `创建时间`
   String get createTime {
     return Intl.message(
       '创建时间',
@@ -309,7 +285,6 @@ class S {
     );
   }
 
-  /// `确定删除此订阅吗？`
   String get dialogDeleteContent {
     return Intl.message(
       '确定删除此订阅吗？',
@@ -319,7 +294,6 @@ class S {
     );
   }
 
-  /// `删除`
   String get delete {
     return Intl.message(
       '删除',
@@ -329,7 +303,6 @@ class S {
     );
   }
 
-  /// `设为默认`
   String get setDefault {
     return Intl.message(
       '设为默认',
@@ -339,7 +312,6 @@ class S {
     );
   }
 
-  /// `使用中`
   String get inUse {
     return Intl.message(
       '使用中',
@@ -349,7 +321,6 @@ class S {
     );
   }
 
-  /// `参数错误`
   String get tvParseParma {
     return Intl.message(
       '参数错误',
@@ -359,7 +330,6 @@ class S {
     );
   }
 
-  /// `推送成功`
   String get tvParseSuccess {
     return Intl.message(
       '推送成功',
@@ -369,7 +339,6 @@ class S {
     );
   }
 
-  /// `请推送正确的链接`
   String get tvParsePushError {
     return Intl.message(
       '请推送正确的链接',
@@ -379,7 +348,6 @@ class S {
     );
   }
 
-  /// `扫码添加订阅源`
   String get tvScanTip {
     return Intl.message(
       '扫码添加订阅源',
@@ -389,7 +357,6 @@ class S {
     );
   }
 
-  /// `推送地址：{address}`
   String pushAddress(Object address) {
     return Intl.message(
       '推送地址：$address',
@@ -399,7 +366,6 @@ class S {
     );
   }
 
-  /// `在扫码结果页，输入新的订阅源，点击页面中的推送即可添加成功`
   String get tvPushContent {
     return Intl.message(
       '在扫码结果页，输入新的订阅源，点击页面中的推送即可添加成功',
@@ -409,7 +375,6 @@ class S {
     );
   }
 
-  /// `复制订阅源后，回到此页面可自动添加订阅源`
   String get pasterContent {
     return Intl.message(
       '复制订阅源后，回到此页面可自动添加订阅源',
@@ -419,7 +384,6 @@ class S {
     );
   }
 
-  /// `添加订阅源`
   String get addDataSource {
     return Intl.message(
       '添加订阅源',
@@ -429,7 +393,6 @@ class S {
     );
   }
 
-  /// `请输入或粘贴.m3u或.txt格式的订阅源链接`
   String get addFiledHintText {
     return Intl.message(
       '请输入或粘贴.m3u或.txt格式的订阅源链接',
@@ -439,7 +402,6 @@ class S {
     );
   }
 
-  /// `已添加过此订阅源`
   String get addRepeat {
     return Intl.message(
       '已添加过此订阅源',
@@ -449,7 +411,6 @@ class S {
     );
   }
 
-  /// `请输入http/https链接`
   String get addNoHttpLink {
     return Intl.message(
       '请输入http/https链接',
@@ -459,7 +420,6 @@ class S {
     );
   }
 
-  /// `连接超时`
   String get netTimeOut {
     return Intl.message(
       '连接超时',
@@ -469,7 +429,6 @@ class S {
     );
   }
 
-  /// `请求超时`
   String get netSendTimeout {
     return Intl.message(
       '请求超时',
@@ -479,7 +438,6 @@ class S {
     );
   }
 
-  /// `响应超时`
   String get netReceiveTimeout {
     return Intl.message(
       '响应超时',
@@ -489,7 +447,6 @@ class S {
     );
   }
 
-  /// `响应异常{code}`
   String netBadResponse(Object code) {
     return Intl.message(
       '响应异常$code',
@@ -499,7 +456,6 @@ class S {
     );
   }
 
-  /// `请求取消`
   String get netCancel {
     return Intl.message(
       '请求取消',
@@ -509,7 +465,6 @@ class S {
     );
   }
 
-  /// `解析数据源出错`
   String get parseError {
     return Intl.message(
       '解析数据源出错',
@@ -519,7 +474,6 @@ class S {
     );
   }
 
-  /// `默认`
   String get defaultText {
     return Intl.message(
       '默认',
@@ -529,7 +483,6 @@ class S {
     );
   }
 
-  /// `获取默认数据源失败`
   String get getDefaultError {
     return Intl.message(
       '获取默认数据源失败',
@@ -539,7 +492,6 @@ class S {
     );
   }
 
-  /// `【OK键】刷新`
   String get okRefresh {
     return Intl.message(
       '【OK键】刷新',
@@ -549,7 +501,6 @@ class S {
     );
   }
 
-  /// `刷新`
   String get refresh {
     return Intl.message(
       '刷新',
@@ -559,11 +510,263 @@ class S {
     );
   }
 
-  /// `暂无节目信息`
   String get noEPG {
     return Intl.message(
       '暂无节目信息',
       name: 'noEPG',
+      desc: '',
+      args: [],
+    );
+  }
+
+  // 新增部分
+  String get logtitle {
+    return Intl.message(
+      '日志查看器',
+      name: 'logtitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get SwitchTitle {
+    return Intl.message(
+      '记录日志',
+      name: 'SwitchTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get logSubtitle {
+    return Intl.message(
+      '如非开发人员调试，无需打开日志开关',
+      name: 'logSubtitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get filterAll {
+    return Intl.message(
+      '所有',
+      name: 'filterAll',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get filterVerbose {
+    return Intl.message(
+      '详细',
+      name: 'filterVerbose',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get filterError {
+    return Intl.message(
+      '错误',
+      name: 'filterError',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get filterInfo {
+    return Intl.message(
+      '信息',
+      name: 'filterInfo',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get filterDebug {
+    return Intl.message(
+      '调试',
+      name: 'filterDebug',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get noLogs {
+    return Intl.message(
+      '暂无日志',
+      name: 'noLogs',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get logCleared {
+    return Intl.message(
+      '日志已清空',
+      name: 'logCleared',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get clearLogs {
+    return Intl.message(
+      '清空日志',
+      name: 'clearLogs',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get programListTitle {
+    return Intl.message(
+      '频道列表',
+      name: 'programListTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get foundStreamTitle {
+    return Intl.message(
+      '找到视频流',
+      name: 'foundStreamTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String streamUrlContent(Object url) {
+    return Intl.message(
+      '流URL: $url\n\n你想播放这个流吗？',
+      name: 'streamUrlContent',
+      desc: '',
+      args: [url],
+    );
+  }
+
+  String get cancelButton {
+    return Intl.message(
+      '取消',
+      name: 'cancelButton',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get playButton {
+    return Intl.message(
+      '播放',
+      name: 'playButton',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String downloading(Object progress) {
+    return Intl.message(
+      '下载中...$progress%',
+      name: 'downloading',
+      desc: '',
+      args: [progress],
+    );
+  }
+
+  String get fontTitle {
+    return Intl.message(
+      '字体',
+      name: 'fontTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get backgroundImageTitle {
+    return Intl.message(
+      '背景图',
+      name: 'backgroundImageTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get slogTitle {
+    return Intl.message(
+      '日志',
+      name: 'slogTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get updateTitle {
+    return Intl.message(
+      '更新',
+      name: 'updateTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get errorLoadingPage {
+    return Intl.message(
+      '加载页面出错',
+      name: 'errorLoadingPage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get backgroundImageDescription {
+    return Intl.message(
+      '自动更换播放音频时的背景',
+      name: 'backgroundImageDescription',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get dailyBing {
+    return Intl.message(
+      '开启背景切换',
+      name: 'dailyBing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get use {
+    return Intl.message(
+      '使用',
+      name: 'use',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get languageSelection {
+    return Intl.message(
+      '语言选择',
+      name: 'languageSelection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get fontSizeTitle {
+    return Intl.message(
+      '字体大小',
+      name: 'fontSizeTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get clipboardDataFetchError {
+    return Intl.message(
+      '获取剪贴板数据失败',
+      name: 'clipboardDataFetchError',
       desc: '',
       args: [],
     );
