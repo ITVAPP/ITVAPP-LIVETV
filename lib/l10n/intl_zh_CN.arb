@@ -22,7 +22,7 @@
       "index": {}
     }
   },
-  "tipChannelList": "节目单",
+  "tipChannelList": "频道列表",
   "tipChangeLine": "切换线路",
   "portrait": "竖屏模式",
   "landscape": "横屏模式",
@@ -94,7 +94,7 @@
   "noLogs": "暂无日志",
   "logCleared": "日志已清空",
   "clearLogs": "清空日志",
-  "programListTitle": "频道列表",
+  "programListTitle": "节目单",
   "foundStreamTitle": "找到视频流",
   "streamUrlContent": "流URL: {url}\n\n你想播放这个流吗？",
   "cancelButton": "取消",
