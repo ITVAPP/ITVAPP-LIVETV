@@ -182,22 +182,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _disposePlayer() async {
     if (_playerController != null && !_isDisposing) {
       _isDisposing = true;
-      LogUtil.safeExecute(() async {
-        try {
-          if (_playerController!.value.isPlaying) {
-            await _playerController!.pause(); // 确保视频暂停
-          }
-          _timeoutActive = false; // 停止超时检测，避免后续重试
-          _playerController!.removeListener(_videoListener); // 移除监听器
-          await _playerController!.dispose(); // 释放资源
-        } catch (e, stackTrace) {
-          LogUtil.logError('释放播放器资源时出错', e, stackTrace);
-        } finally {
-          _playerController = null; // 确保播放器控制器置空
-          _isDisposing = false;
+
+      try {
+        if (_playerController!.value.isPlaying) {
+          await _playerController!.pause(); // 确保视频暂停
         }
-      });
+        _timeoutActive = false; // 停止超时检测，避免后续重试
+        _playerController!.removeListener(_videoListener); // 移除监听器
+        await _playerController!.dispose(); // 释放资源
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放播放器资源时出错', e, stackTrace); // 记录错误
+      } finally {
+        _playerController = null; // 确保播放器控制器置空
+        _isDisposing = false;
+      }
     }
+
     // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
   }
