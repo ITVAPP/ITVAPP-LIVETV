@@ -1,8 +1,8 @@
 import 'package:itvapp_live_tv/router_keys.dart'; 
 import 'package:itvapp_live_tv/util/check_version_util.dart'; 
 import 'package:flutter/material.dart'; 
-import 'package:provider/provider.dart'; 
-import '../generated/l10n.dart'; 
+import 'package:provider/provider.dart';
+import '../generated/l10n.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 
 // 设置页面的主类，继承自 StatefulWidget
@@ -60,7 +60,7 @@ class _SettingPageState extends State<SettingPage> {
                   Text(
                     S.of(context).appName, // 使用国际化语言显示应用名称
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 20, 
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -71,8 +71,8 @@ class _SettingPageState extends State<SettingPage> {
                     child: Text(
                       'v${CheckVersionUtil.version}', // 从版本检查工具获取当前应用版本号
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.redAccent,
+                        fontSize: 12, 
+                        color: Colors.redAccent, 
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -149,15 +149,6 @@ class _SettingPageState extends State<SettingPage> {
                     // 更新页面以显示最新的版本信息
                     _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
                   });
-
-                  // 如果没有新版本，显示SnackBar提示
-                  if (_latestVersionEntity == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(S.of(context).latestVersion), // 使用国际化语言显示“当前已是最新版本”的提示
-                      ),
-                    );
-                  }
                 },
               ),
             ),
