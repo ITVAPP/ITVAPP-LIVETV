@@ -23,8 +23,8 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
   Widget build(BuildContext context) {
     // 判断当前屏幕方向是否为横屏
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    // 在横屏时使用TV端的按钮宽度
-    double btnWidth = isLandscape ? 400 : 260;
+    // 在横屏时使用的按钮宽度
+    double btnWidth = isLandscape ? 380 : 220;
 
     return Consumer<DownloadProvider>(
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
@@ -57,7 +57,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       },
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          fixedSize: Size(btnWidth, 48),  // 横屏时的按钮宽度
+          fixedSize: Size(btnWidth, 48),
           backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
           elevation: _isFocusDownload ? 10 : 0,
           overlayColor: Colors.transparent,
