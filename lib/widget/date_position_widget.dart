@@ -13,9 +13,9 @@ class DatePositionWidget extends StatelessWidget {
     // 获取当前设备的语言环境
     String locale = Localizations.localeOf(context).toLanguageTag();
 
-    // 创建一个时间流，每秒更新一次
+    // 创建一个时间流，每3秒更新一次
     Stream<DateTime> timeStream = Stream.periodic(
-      const Duration(seconds: 1), 
+      const Duration(seconds: 3), 
       (_) => DateTime.now(),
     );
 
@@ -55,8 +55,8 @@ class DatePositionWidget extends StatelessWidget {
                 Text(
                   "$formattedDate $formattedWeekday",
                   style: TextStyle(
-                    fontSize: isLandscape ? 16 : 9, // 横屏时日期字体更大
-                    color: Colors.white70,
+                    fontSize: isLandscape ? 19 : 9, // 横屏时日期字体更大
+                    color: Colors.white80,
                     shadows: const [
                       Shadow(
                         blurRadius: 8.0,
@@ -67,12 +67,12 @@ class DatePositionWidget extends StatelessWidget {
                   ),
                 ),
                 // 添加 SizedBox 来调整日期和时间之间的距离
-                SizedBox(height: isLandscape ? 6 : 3), // 横屏时增加间距
+                SizedBox(height: isLandscape ? 3 : 1), // 横屏时增加间距
                 // 第二行显示时间
                 Text(
                   formattedTime,
                   style: TextStyle(
-                    fontSize: isLandscape ? 38 : 28, // 横屏时时间字体更大
+                    fontSize: isLandscape ? 39 : 29, // 横屏时时间字体更大
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     shadows: const [
