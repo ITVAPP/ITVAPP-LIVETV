@@ -113,7 +113,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "logCleared": MessageLookupByLibrary.simpleMessage("Logs cleared"),
         "clearLogs": MessageLookupByLibrary.simpleMessage("Clear Logs"),
         "programListTitle":
-            MessageLookupByLibrary.simpleMessage("Channel List"),
+            MessageLookupByLibrary.simpleMessage("TV schedule"),
         "foundStreamTitle": MessageLookupByLibrary.simpleMessage("Stream Found"),
         "streamUrlContent": (url) =>
             "Stream URL: ${url}\n\nDo you want to play this stream?",
