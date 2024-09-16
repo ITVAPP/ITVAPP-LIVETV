@@ -71,7 +71,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "subscribe": MessageLookupByLibrary.simpleMessage("訂閱"),
         "switchLine": m5,
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("切換線路"),
-        "tipChannelList": MessageLookupByLibrary.simpleMessage("節目單"),
+        "tipChannelList": MessageLookupByLibrary.simpleMessage("頻道列表"),
         "tvParseParma": MessageLookupByLibrary.simpleMessage("引數錯誤"),
         "tvParsePushError": MessageLookupByLibrary.simpleMessage("請推送正確的連結"),
         "tvParseSuccess": MessageLookupByLibrary.simpleMessage("推送成功"),
@@ -95,7 +95,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "noLogs": MessageLookupByLibrary.simpleMessage("暫無日誌"),
         "logCleared": MessageLookupByLibrary.simpleMessage("日誌已清空"),
         "clearLogs": MessageLookupByLibrary.simpleMessage("清空日誌"),
-        "programListTitle": MessageLookupByLibrary.simpleMessage("頻道列表"),
+        "programListTitle": MessageLookupByLibrary.simpleMessage("節目單"),
         "foundStreamTitle": MessageLookupByLibrary.simpleMessage("找到影片流"),
         "streamUrlContent": (url) =>
             "流URL: ${url}\n\n你想播放這個流嗎？",
