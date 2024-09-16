@@ -90,7 +90,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
-    if (_currentChannel == null || _isSwitchingChannel) return;
+    if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
     _isSwitchingChannel = true;
 
@@ -180,6 +180,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 优化播放器资源释放
   Future<void> _disposePlayer() async {
+    // 释放旧的 StreamUrl 实例
+    _disposeStreamUrl();
+    
     if (_playerController != null && !_isDisposing) {
       _isDisposing = true;
 
@@ -197,9 +200,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _isDisposing = false;
       }
     }
-
-    // 释放旧的 StreamUrl 实例
-    _disposeStreamUrl();
   }
 
   /// 释放 StreamUrl 实例
@@ -214,6 +214,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _startTimeoutCheck() {
     _timeoutActive = true; // 开始超时检测
     Future.delayed(Duration(seconds: timeoutSeconds), () {
+      if (_isDisposing) return; // 添加_isDisposing检查
       if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
         LogUtil.v('超时未播放，自动重试');
         _retryPlayback();
@@ -233,7 +234,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       setState(() {
         toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
       });
-      Future.delayed(const Duration(seconds: 2), () => _playVideo());
+      Future.delayed(const Duration(seconds: 2), () {
+        if (_isDisposing) return; // 添加_isDisposing检查
+        _playVideo();
+      });
     } else {
       _sourceIndex += 1;
       if (_sourceIndex > _currentChannel!.urls!.length - 1) {
@@ -245,7 +249,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           toastString = S.current.switchLine(_sourceIndex + 1);
         });
-        Future.delayed(const Duration(seconds: 2), () => _playVideo());
+        Future.delayed(const Duration(seconds: 2), () {
+          if (_isDisposing) return; // 添加_isDisposing检查
+          _playVideo();
+        });
       }
     }
   }
@@ -281,7 +288,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 监听视频播放状态的变化
   /// 包括检测缓冲状态、播放状态以及播放出错的情况
   void _videoListener() {
-    if (_playerController == null) return;
+    if (_playerController == null || _isDisposing) return;
 
     // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
@@ -410,6 +417,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void dispose() {
     // 禁用保持屏幕唤醒功能
     WakelockPlus.disable();
+
+    _isDisposing = true; // 标记正在释放资源
 
     // 释放播放器和 StreamUrl 资源
     _disposePlayer();
