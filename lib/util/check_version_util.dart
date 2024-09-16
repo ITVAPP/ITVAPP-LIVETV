@@ -112,7 +112,7 @@ class CheckVersionUtil {
             child: FocusTraversalGroup(
               policy: WidgetOrderTraversalPolicy(), // TV端焦点遍历策略
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
                   Stack(
                     children: [
@@ -140,33 +140,40 @@ class CheckVersionUtil {
                       )
                     ],
                   ),
-                  // 内容区域，启用滚动
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',  // 显示版本号
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              CheckVersionUtil.latestVersionEntity!.latestMsg ?? '',  // 显示版本更新日志
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ],
+                  // 内容区域，启用滚动，焦点可以在TV端上/下键切换
+                  Flexible(  // 使用Flexible而不是Expanded，使内容区域根据实际内容调整
+                    child: FocusTraversalGroup(
+                      policy: WidgetOrderTraversalPolicy(), // 让TV端可用遥控器导航内容
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,  // 自动调整高度以适应内容
+                            children: [
+                              Text(
+                                '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',  // 显示版本号
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                CheckVersionUtil.latestVersionEntity!.latestMsg ?? '',  // 显示版本更新日志
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
                   // 更新按钮，使用 Focus 控件包裹以支持 TV 焦点导航
-                  Focus(
-                    child: UpdateDownloadBtn(
-                      apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+                  FocusTraversalGroup(
+                    policy: WidgetOrderTraversalPolicy(), // 确保TV端焦点可以通过遥控器切换
+                    child: Focus(
+                      child: UpdateDownloadBtn(
+                        apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 30),
