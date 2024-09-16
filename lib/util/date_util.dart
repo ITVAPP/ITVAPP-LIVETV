@@ -12,14 +12,14 @@ class DateFormats {
   static String h_m_s = 'HH:mm:ss';
   static String h_m = 'HH:mm';
 
-  static String zh_full = 'yyyy年MM月dd日 HH时mm分ss秒';
-  static String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH时mm分';
+  static String zh_full = 'yyyy年MM月dd日 HH:mm:ss';  // 修改：去掉了“时”、“分”、“秒”的中文文字
+  static String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH:mm'; // 修改：去掉了“时”、“分”
   static String zh_y_mo_d = 'yyyy年MM月dd日';
   static String zh_y_mo = 'yyyy年MM月';
   static String zh_mo_d = 'MM月dd日';
-  static String zh_mo_d_h_m = 'MM月dd日 HH时mm分';
-  static String zh_h_m_s = 'HH时mm分ss秒';
-  static String zh_h_m = 'HH时mm分';
+  static String zh_mo_d_h_m = 'MM月dd日 HH:mm'; // 修改：去掉了“时”、“分”
+  static String zh_h_m_s = 'HH:mm:ss';         // 修改：去掉了“时”、“分”、“秒”
+  static String zh_h_m = 'HH:mm';              // 修改：去掉了“时”、“分”
 }
 
 /// month->days.
