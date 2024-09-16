@@ -5,12 +5,14 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 class StreamUrl {
   final String url;
   final YoutubeExplode yt = YoutubeExplode(); // 创建 YouTube API 实例，用于获取视频数据
+  final http.Client _client = http.Client(); // 创建 HTTP 客户端实例
   bool _isDisposed = false; // 标志位，防止重复释放
 
   StreamUrl(this.url);  // 构造函数，初始化播放 URL
 
   // 返回处理后的 URL，如果是 YouTube URL，则会解析；如果失败或不是 YouTube URL，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
+    if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
     try {
       LogUtil.i('尝试获取视频流地址: $url');
       
@@ -34,10 +36,11 @@ class StreamUrl {
   void dispose() {
     if (_isDisposed) return; // 如果已经释放了资源，直接返回
     LogUtil.safeExecute(() {
-      yt.close();
       _isDisposed = true; // 设置为已释放
-      LogUtil.i('YouTubeExplode 实例已关闭');
-    }, '关闭 YouTubeExplode 实例时发生错误');
+      yt.close();
+      _client.close(); // 关闭 HTTP 客户端
+      LogUtil.i('YouTubeExplode 实例和 HTTP 客户端已关闭');
+    }, '关闭资源时发生错误');
   }
 
   // 判断 URL 是否为 YouTube 链接（检测是否包含 'youtube.com' 或 'youtu.be'）
@@ -47,24 +50,30 @@ class StreamUrl {
 
   // 获取 YouTube 直播流的 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeLiveStreamUrl() async {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     String? m3u8Url;
     try {
       for (int i = 0; i < 2; i++) {
         m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
         if (m3u8Url != null) break;  // 如果获取成功，跳出循环
+        if (_isDisposed) return null;  // 资源释放后立即退出
       }
       LogUtil.i('获取到 YouTube 直播流地址: $m3u8Url');
       return m3u8Url;
     } catch (e, stackTrace) {
-      LogUtil.logError('获取 YouTube 直播流地址时发生错误', e, stackTrace);
+      if (!_isDisposed) {
+        LogUtil.logError('获取 YouTube 直播流地址时发生错误', e, stackTrace);
+      }
       return null;
     }
   }
 
   // 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
   Future<String?> _getYouTubeVideoUrl() async {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
       var video = await yt.videos.get(url);  // 获取视频详细信息
+      if (_isDisposed) return null;  // 如果资源被释放，立即退出
       LogUtil.d('获取视频数据成功: ${video.id}');
       
       if (video.isLive) {
@@ -75,13 +84,16 @@ class StreamUrl {
         return streamInfo?.url.toString();
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('获取 YouTube 视频流地址时发生错误', e, stackTrace);
+      if (!_isDisposed) {
+        LogUtil.logError('获取 YouTube 视频流地址时发生错误', e, stackTrace);
+      }
       return null;
     }
   }
 
   // 根据指定的清晰度列表，获取最佳的视频流信息
   StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
       for (var quality in preferredQualities) {
         var streamInfo = manifest.muxed.firstWhere(
@@ -92,22 +104,27 @@ class StreamUrl {
           LogUtil.i('找到最佳质量的视频流: $quality');
           return streamInfo;
         }
+        if (_isDisposed) return null;  // 资源释放后立即退出
       }
       LogUtil.e('没有找到匹配的质量，使用默认流');
       return null;
     } catch (e, stackTrace) {
-      LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
+      if (!_isDisposed) {
+        LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
+      }
       return null;
     }
   }
 
   // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      final response = await http.get(
+      final response = await _client.get(  // 使用 _client 进行请求
         Uri.parse(youtubeUrl),
         headers: {'User-Agent': 'Mozilla/5.0'},
       ).timeout(Duration(seconds: 10));
+      if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
         final regex = RegExp(r'"hlsManifestUrl":"(https://[^"]+\.m3u8)"');
@@ -121,15 +138,20 @@ class StreamUrl {
         }
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('获取 YouTube m3u8 地址时发生错误', e, stackTrace);
+      if (!_isDisposed) {
+        LogUtil.logError('获取 YouTube m3u8 地址时发生错误', e, stackTrace);
+      }
     }
     return null;
   }
 
   // 根据 m3u8 清单中的分辨率，选择最合适的流 URL
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      final response = await http.get(Uri.parse(indexM3u8Url));
+      final response = await _client.get(Uri.parse(indexM3u8Url))  // 使用 _client 进行请求
+          .timeout(Duration(seconds: 10));  // 添加超时处理
+      if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
         final lines = response.body.split('\n');
@@ -145,6 +167,7 @@ class StreamUrl {
               qualityUrls[quality] = url;
             }
           }
+          if (_isDisposed) return null;  // 资源释放后立即退出
         }
 
         for (var preferredQuality in preferredQualities) {
@@ -160,13 +183,16 @@ class StreamUrl {
         }
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('获取最合适的 m3u8 地址时发生错误', e, stackTrace);
+      if (!_isDisposed) {
+        LogUtil.logError('获取最合适的 m3u8 地址时发生错误', e, stackTrace);
+      }
     }
     return null;
   }
 
   // 从 m3u8 文件的清单行中提取视频质量（分辨率）
   String? _extractQuality(String extInfLine) {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
     final regex = RegExp(r'RESOLUTION=\d+x(\d+)');
     final match = regex.firstMatch(extInfLine);
 
