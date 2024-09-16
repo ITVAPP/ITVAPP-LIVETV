@@ -94,15 +94,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isSwitchingChannel = true;
 
-    // 释放旧的 StreamUrl 实例
+   // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
+
+    // 在开始播放新视频之前，释放旧的视频播放器资源
+    await _disposePlayer();
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
-
-    // 在开始播放新视频之前，释放旧的视频播放器资源
-    await _disposePlayer();
 
     // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
@@ -162,7 +162,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
 
       // 播放成功，重置重试次数计数器
-      _retryCount = 0; // 确保在播放成功时重置重试次数
+      _retryCount = 0;
       _timeoutActive = false; // 播放成功，取消超时检测
       _playerController?.addListener(_videoListener); // 添加播放监听
 
@@ -311,11 +311,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
   Future<void> _onTapChannel(PlayModel? model) async {
     _timeoutActive = false; // 用户切换频道，取消之前的超时检测
-    _retryCount = 0; // 重置重试次数计数器
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
-    
-    await _disposePlayer(); // 确保之前的视频已停止并释放资源
+    _retryCount = 0; // 重置重试次数计数器
     _playVideo(); // 开始播放选中的频道
   }
 
