@@ -56,7 +56,7 @@ class DatePositionWidget extends StatelessWidget {
                   "$formattedDate $formattedWeekday",
                   style: TextStyle(
                     fontSize: isLandscape ? 19 : 9, // 横屏时日期字体更大
-                    color: Colors.white80,
+                    color: Colors.white70,
                     shadows: const [
                       Shadow(
                         blurRadius: 8.0,
