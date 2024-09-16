@@ -32,14 +32,27 @@ class StreamUrl {
     }
   }
 
-  // 释放资源（关闭 YouTube API 实例），防止重复调用
+  // 释放资源（关闭 YouTube API 实例和 HTTP 客户端），防止重复调用
   void dispose() {
     if (_isDisposed) return; // 如果已经释放了资源，直接返回
     LogUtil.safeExecute(() {
       _isDisposed = true; // 设置为已释放
-      yt.close();
-      _client.close(); // 关闭 HTTP 客户端
-      LogUtil.i('YouTubeExplode 实例和 HTTP 客户端已关闭');
+      
+      // 关闭 YouTube API 实例，终止未完成的请求
+      try {
+        yt.close();
+        LogUtil.i('YouTubeExplode 实例已关闭，未完成的 YouTube 请求将被清除');
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放 YouTubeExplode 实例时发生错误', e, stackTrace);
+      }
+
+      // 关闭 HTTP 客户端，终止未完成的请求
+      try {
+        _client.close();
+        LogUtil.i('HTTP 客户端已关闭，未完成的 HTTP 请求将被清除');
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放 HTTP 客户端时发生错误', e, stackTrace);
+      }
     }, '关闭资源时发生错误');
   }
 
