@@ -207,7 +207,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，并将焦点节点添加进去
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+      padding: const EdgeInsets.symmetric(horizontal: 3.0),
       child: OutlinedButton(
         focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
