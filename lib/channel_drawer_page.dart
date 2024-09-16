@@ -184,6 +184,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget build(BuildContext context) {
     // 从 ThemeProvider 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
+
     return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
   }
 
@@ -193,7 +194,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double groupWidth = 100 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
     double channelListWidth = isPortrait ? 120 : 160; // 频道列表宽度，竖屏下缩小
     double epgListWidth = isPortrait ? 180 : 290; // EPG列表宽度，横屏下增加
-
     double drawWidth = groupWidth + channelListWidth + (widget.isLandscape ? epgListWidth : 0);
     final screenWidth = MediaQuery.of(context).size.width;
     bool isShowEPG = drawWidth < screenWidth;
@@ -375,7 +375,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
             borderRadius: BorderRadius.circular(5),
           ),
           child: Text(
-            S.of(context).programListTitle, // 频道列表
+            S.of(context).programListTitle, // 节目单列表
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold), // 加粗样式
           ),
         ),
