@@ -1,3 +1,4 @@
+import 'dart:async';  // 引入异步包来支持 Stream
 import 'package:flutter/material.dart';
 import '../util/date_util.dart'; 
 
@@ -12,60 +13,78 @@ class DatePositionWidget extends StatelessWidget {
     // 获取当前设备的语言环境
     String locale = Localizations.localeOf(context).toLanguageTag();
 
-    // 使用自定义 DateUtil 和 DateFormats 来格式化日期和星期
-    String formattedDate = DateUtil.formatDate(
-      DateTime.now(), 
-      format: locale.startsWith('zh') ? DateFormats.zh_y_mo_d : DateFormats.y_mo_d
+    // 创建一个时间流，每秒更新一次
+    Stream<DateTime> timeStream = Stream.periodic(
+      const Duration(seconds: 1), 
+      (_) => DateTime.now(),
     );
-
-    // 获取星期，支持中文和英文
-    String formattedWeekday = DateUtil.getWeekday(
-      DateTime.now(), 
-      languageCode: locale.startsWith('zh') ? 'zh' : 'en'
-    );
-
-    // 使用自定义格式化时间
-    String formattedTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');
 
     return Positioned(
       top: isLandscape ? 20 : 15, // 横屏时距离顶部更远
       right: isLandscape ? 25 : 15, // 横屏时距离右侧更远
       child: IgnorePointer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // 第一行显示日期和星期
-            Text(
-              "$formattedDate $formattedWeekday",
-              style: TextStyle(
-                fontSize: isLandscape ? 22 : 16, // 横屏时日期字体更大
-                color: Colors.white70,
-                shadows: const [
-                  Shadow(
-                    blurRadius: 8.0,
-                    color: Colors.black45,
-                    offset: Offset(0, 2),
+        child: StreamBuilder<DateTime>(
+          stream: timeStream,  // 监听时间流
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Container();  // 如果没有数据，返回一个空容器
+            }
+
+            // 获取当前的时间
+            DateTime currentTime = snapshot.data!;
+
+            // 使用自定义 DateUtil 和 DateFormats 来格式化日期和星期
+            String formattedDate = DateUtil.formatDate(
+              currentTime, 
+              format: locale.startsWith('zh') ? DateFormats.zh_y_mo_d : DateFormats.y_mo_d,
+            );
+
+            // 获取星期，支持中文和英文
+            String formattedWeekday = DateUtil.getWeekday(
+              currentTime, 
+              languageCode: locale.startsWith('zh') ? 'zh' : 'en',
+            );
+
+            // 使用自定义格式化时间
+            String formattedTime = DateUtil.formatDate(currentTime, format: 'HH:mm');
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // 第一行显示日期和星期
+                Text(
+                  "$formattedDate $formattedWeekday",
+                  style: TextStyle(
+                    fontSize: isLandscape ? 22 : 16, // 横屏时日期字体更大
+                    color: Colors.white70,
+                    shadows: const [
+                      Shadow(
+                        blurRadius: 8.0,
+                        color: Colors.black45,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            // 第二行显示时间
-            Text(
-              formattedTime,
-              style: TextStyle(
-                fontSize: isLandscape ? 50 : 38, // 横屏时时间字体更大
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                shadows: const [
-                  Shadow(
-                    blurRadius: 10.0, // 模糊效果
-                    color: Colors.black,
-                    offset: Offset(0, 2),
+                ),
+                // 第二行显示时间
+                Text(
+                  formattedTime,
+                  style: TextStyle(
+                    fontSize: isLandscape ? 50 : 38, // 横屏时时间字体更大
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    shadows: const [
+                      Shadow(
+                        blurRadius: 10.0, // 模糊效果
+                        color: Colors.black,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
