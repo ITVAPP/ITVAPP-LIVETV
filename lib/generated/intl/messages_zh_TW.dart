@@ -71,7 +71,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "subscribe": MessageLookupByLibrary.simpleMessage("訂閱"),
         "switchLine": m5,
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("切換線路"),
-        "tipChannelList": MessageLookupByLibrary.simpleMessage("頻道列表"),
+        "tipChannelList": MessageLookupByLibrary.simpleMessage("節目單"),
         "tvParseParma": MessageLookupByLibrary.simpleMessage("引數錯誤"),
         "tvParsePushError": MessageLookupByLibrary.simpleMessage("請推送正確的連結"),
         "tvParseSuccess": MessageLookupByLibrary.simpleMessage("推送成功"),
