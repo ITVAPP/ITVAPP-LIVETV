@@ -621,7 +621,7 @@ class S {
 
   String get programListTitle {
     return Intl.message(
-      '频道列表',
+      '节目单',
       name: 'programListTitle',
       desc: '',
       args: [],
