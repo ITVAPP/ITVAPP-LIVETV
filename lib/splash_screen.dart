@@ -41,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // 等待 ThemeProvider 初始化完成
         while (!themeProvider.isInitialized) {
-          await Future.delayed(Duration(milliseconds: 100)); // 每隔100ms检查一次
+          await Future.delayed(Duration(milliseconds: 500)); // 每隔500ms检查一次
         }
 
         LogUtil.i('ThemeProvider 初始化完成');
@@ -172,7 +172,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)), // 加载动画颜色
                 strokeWidth: 4.0, // 加载动画的粗细
               ),
-            if (isLoading) const SizedBox(height: 16), // 加载动画与提示文字之间的间距
+            if (isLoading) const SizedBox(height: 18), // 加载动画与提示文字之间的间距
             Text(
               message, // 提示信息文本
               style: const TextStyle(
