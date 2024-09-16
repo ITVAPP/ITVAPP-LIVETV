@@ -1,29 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; 
-import 'package:provider/provider.dart'; 
-import '../provider/theme_provider.dart';
+import '../utils/date_util.dart'; 
 
 class DatePositionWidget extends StatelessWidget {
   const DatePositionWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 通过 Provider 获取 isTV 的状态
-    bool isTV = context.watch<ThemeProvider>().isTV;
+    // 使用 MediaQuery 判断设备是否为横屏
+    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     // 获取当前设备的语言环境
     String locale = Localizations.localeOf(context).toLanguageTag();
 
-    // 格式化日期和星期
-    String formattedDate = DateFormat('yyyy/MM/dd', locale).format(DateTime.now());
-    String formattedWeekday = DateFormat.EEEE(locale).format(DateTime.now());
+    // 使用自定义 DateUtil 和 DateFormats 来格式化日期和星期
+    String formattedDate = DateUtil.formatDate(
+      DateTime.now(), 
+      format: locale.startsWith('zh') ? DateFormats.zh_y_mo_d : DateFormats.y_mo_d
+    );
 
-    // 格式化时间
-    String formattedTime = DateFormat('HH:mm', locale).format(DateTime.now());
+    // 获取星期，支持中文和英文
+    String formattedWeekday = DateUtil.getWeekday(
+      DateTime.now(), 
+      languageCode: locale.startsWith('zh') ? 'zh' : 'en'
+    );
+
+    // 使用自定义格式化时间
+    String formattedTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');
 
     return Positioned(
-      top: isTV ? 20 : 15, // 电视上距离顶部更远
-      right: isTV ? 25 : 15, // 电视上距离右侧更远
+      top: isLandscape ? 20 : 15, // 横屏时距离顶部更远
+      right: isLandscape ? 25 : 15, // 横屏时距离右侧更远
       child: IgnorePointer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -32,7 +38,7 @@ class DatePositionWidget extends StatelessWidget {
             Text(
               "$formattedDate $formattedWeekday",
               style: TextStyle(
-                fontSize: isTV ? 22 : 16, // 电视上日期字体更大
+                fontSize: isLandscape ? 22 : 16, // 横屏时日期字体更大
                 color: Colors.white70,
                 shadows: const [
                   Shadow(
@@ -47,7 +53,7 @@ class DatePositionWidget extends StatelessWidget {
             Text(
               formattedTime,
               style: TextStyle(
-                fontSize: isTV ? 50 : 38, // 电视上时间字体更大
+                fontSize: isLandscape ? 50 : 38, // 横屏时时间字体更大
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 shadows: const [
