@@ -184,7 +184,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget build(BuildContext context) {
     // 从 ThemeProvider 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-
     return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
   }
 
@@ -370,7 +369,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         Container(
           height: 48,
           alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 10),  // 添加左边距，使标题不贴边
+          padding: const EdgeInsets.only(left: 8),  // 添加左边距，使标题不贴边
           decoration: BoxDecoration(
             color: Colors.black38, // 设置与EPG项一致的背景色
             borderRadius: BorderRadius.circular(5),
