@@ -94,7 +94,7 @@
   "noLogs": "No logs available",
   "logCleared": "Logs cleared",
   "clearLogs": "Clear Logs",
-  "programListTitle": "Channel List",
+  "programListTitle": "TV schedule",
   "foundStreamTitle": "Stream Found",
   "streamUrlContent": "Stream URL: {url}\n\nDo you want to play this stream?",
   "cancelButton": "Cancel",
