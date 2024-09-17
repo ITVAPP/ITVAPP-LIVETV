@@ -37,7 +37,7 @@ class CategoryList extends StatelessWidget {
               onTap: () => onCategoryTap(index),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-                padding: const EdgeInsets.all(8.0), // 添加内边距
+                padding: const EdgeInsets.all(6.0), // 添加内边距
                 child: Text(
                   title,
                   style: TextStyle(
@@ -95,7 +95,7 @@ class GroupList extends StatelessWidget {
         splashColor: Colors.white.withOpacity(0.3),
         child: Container(
           constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-          padding: const EdgeInsets.all(8.0), // 添加内边距
+          padding: const EdgeInsets.all(6.0), // 添加内边距
           decoration: BoxDecoration(
             gradient: selectedGroupIndex == index
                 ? LinearGradient(colors: [Colors.red.withOpacity(0.6), Colors.red.withOpacity(0.3)])
@@ -161,7 +161,7 @@ class ChannelList extends StatelessWidget {
         splashColor: Colors.white.withOpacity(0.3),
         child: Container(
           constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
             color: isSelect ? Colors.black38 : Colors.black26, // 频道项背景
             borderRadius: BorderRadius.circular(5), // 圆角
