@@ -297,10 +297,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
     // 对每个分组中的频道按名字进行 Unicode 排序
     for (int i = 0; i < _values.length; i++) {
-      var sortedChannels = Map<String, PlayModel>.fromEntries(
+      _values[i] = Map<String, PlayModel>.fromEntries(
         _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
       );
-      _values[i] = sortedChannels; // 更新为排序后的频道列表
     }
     _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
     _channelIndex = _groupIndex != -1
@@ -353,13 +352,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
     final double viewPortHeight = _viewPortHeight!;
     final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
-    if (shouldOffset < maxScrollExtent) {
-      controller.animateTo(max(0.0, shouldOffset),
-          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到计算的偏移量
-    } else {
-      controller.animateTo(maxScrollExtent,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到最大范围
-    }
+    controller.animateTo(
+      shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   // 加载EPG（节目单）数据
