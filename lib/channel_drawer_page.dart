@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math'; 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -9,6 +9,40 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
+
+// 分类列表组件
+class CategoryList extends StatelessWidget {
+  final List<String> categories;
+  final int selectedCategoryIndex;
+  final Function(int index) onCategoryTap;
+
+  const CategoryList({
+    super.key,
+    required this.categories,
+    required this.selectedCategoryIndex,
+    required this.onCategoryTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final title = categories[index];
+        return ListTile(
+          title: Text(
+            title,
+            style: TextStyle(
+              color: selectedCategoryIndex == index ? Colors.red : Colors.white,
+              fontWeight: selectedCategoryIndex == index ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          onTap: () => onCategoryTap(index),
+        );
+      },
+    );
+  }
+}
 
 // 分组列表组件
 class GroupList extends StatelessWidget {
@@ -233,6 +267,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late int _groupIndex; // 当前分组的索引
   late int _channelIndex; // 当前频道的索引
   final double _itemHeight = 50.0; // 每个列表项的高度
+  late List<String> _categories; // 分类的列表
+  late int _categoryIndex; // 当前选中的分类索引
 
   Timer? _debounceTimer; // 用于节流或防抖
 
@@ -240,18 +276,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   void initState() {
     super.initState();
     LogUtil.safeExecute(() {
+      _initializeCategoryData(); // 初始化分类数据
       _initializeChannelData(); // 初始化频道数据
       _calculateViewportHeight(); // 计算视图窗口的高度
       _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
     }, '初始化频道数据时发生错误');
   }
 
+  // 初始化分类数据
+  void _initializeCategoryData() {
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类的键
+    _categoryIndex = 0; // 初始化选中的分类索引
+  }
+
   // 初始化频道数据
   void _initializeChannelData() {
     LogUtil.safeExecute(() {
-      _keys = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分组的键
-      _values = widget.videoMap?.playList?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取所有分组的值
-      
+      final selectedCategory = _categories[_categoryIndex]; // 根据选中的分类获取对应分组
+      final categoryMap = widget.videoMap?.playList[selectedCategory] as Map<String, Map<String, PlayModel>>?;
+
+      _keys = categoryMap?.keys.toList() ?? <String>[]; // 获取分组键
+      _values = categoryMap?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取分组值
+
       // 对每个分组中的频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
         var sortedChannels = Map<String, PlayModel>.fromEntries(
@@ -268,6 +314,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       if (_groupIndex == -1) _groupIndex = 0;
       if (_channelIndex == -1) _channelIndex = 0;
     }, '初始化频道数据时出错');
+  }
+
+  // 切换分类时更新分组和频道
+  void _onCategoryTap(int index) {
+    setState(() {
+      _categoryIndex = index; // 更新选中的分类索引
+      _initializeChannelData(); // 根据新的分类重新初始化频道数据
+      _groupIndex = 0; // 重置分组索引
+      _channelIndex = 0; // 重置频道索引
+      _scrollController.jumpTo(0); // 重置分组滚动位置
+      _scrollChannelController.jumpTo(0); // 重置频道滚动位置
+    });
   }
 
   // 计算视图窗口的高度
@@ -303,10 +361,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       final double viewPortHeight = _viewPortHeight!;
       final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
       if (shouldOffset < maxScrollExtent) {
-        controller.animateTo(max(0.0, shouldOffset), 
+        controller.animateTo(max(0.0, shouldOffset),
             duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到计算的偏移量
       } else {
-        controller.animateTo(maxScrollExtent, 
+        controller.animateTo(maxScrollExtent,
             duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到最大范围
       }
     }, '根据索引调整滚动位置时出错');
@@ -387,22 +445,31 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建抽屉视图
   Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    double groupWidth = 100 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
-    double channelListWidth = isPortrait ? 120 : 160; // 频道列表宽度，竖屏下缩小
-    double epgListWidth = isPortrait ? 180 : 290; // EPG列表宽度，横屏下增加
-    double drawWidth = groupWidth + channelListWidth + (widget.isLandscape ? epgListWidth : 0);
-    final screenWidth = MediaQuery.of(context).size.width;
-    bool isShowEPG = drawWidth < screenWidth;
+    double categoryWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分类列表宽度
+    double groupWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
+    double channelListWidth = isPortrait
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
+        : 160; // 横屏时频道列表宽度为固定160
+    double epgListWidth = isPortrait ? 0 : 280; // 竖屏时不显示EPG，横屏时宽度为280
 
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      width: widget.isLandscape ? drawWidth : screenWidth, // 横屏时使用计算的宽度
+      width: widget.isLandscape ? categoryWidth + groupWidth + channelListWidth + epgListWidth : screenWidth, // 横屏时计算宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
       ),
       child: Row(
         children: [
+          SizedBox(
+            width: categoryWidth,
+            child: CategoryList(
+              categories: _categories,
+              selectedCategoryIndex: _categoryIndex,
+              onCategoryTap: _onCategoryTap, // 分类点击事件
+            ),
+          ),
+          VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
           SizedBox(
             width: groupWidth,
             child: GroupList(
@@ -432,9 +499,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 onChannelTap: (newModel) => _onTapChannelThrottled(newModel),
               ),
             ),
-          if (isShowEPG && _epgData != null && _epgData!.isNotEmpty)
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
             VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
-          if (isShowEPG && _epgData != null && _epgData!.isNotEmpty)
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
             SizedBox(
               width: epgListWidth, // EPG显示区宽度
               child: EPGList(
