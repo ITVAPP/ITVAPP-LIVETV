@@ -99,6 +99,32 @@ class PlaylistModel {
     );
   }
 
+  /// 自动判断使用两层还是三层结构的 getChannel 方法
+  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
+    if (channel == null && categoryOrGroup is String) {
+      // 两个参数，旧的两层结构调用，categoryOrGroup 实际上是 group，groupOrChannel 实际上是 channel
+      String group = categoryOrGroup;
+      String channelName = groupOrChannel;
+
+      // 从默认分类 "所有频道" 查找
+      if (playList.containsKey('所有频道') && playList['所有频道']!.containsKey(group)) {
+        return playList['所有频道']![group]?[channelName];
+      }
+    } else if (channel != null && categoryOrGroup is String) {
+      // 三个参数，新的三层结构调用，categoryOrGroup 是 category，groupOrChannel 是 group，channel 是频道名称
+      String category = categoryOrGroup;
+      String group = groupOrChannel;
+
+      // 从三层结构查找
+      if (playList.containsKey(category) && playList[category]!.containsKey(group)) {
+        return playList[category]![group]?[channel];
+      }
+    }
+
+    // 如果找不到频道，返回 null
+    return null;
+  }
+
   /// 按标题或组名搜索频道
   List<PlayModel> searchChannels(String keyword) {
     List<PlayModel> results = [];
