@@ -26,12 +26,8 @@ class DatePositionWidget extends StatelessWidget {
         child: StreamBuilder<DateTime>(
           stream: timeStream,  // 监听时间流
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return Container();  // 如果没有数据，返回一个空容器
-            }
-
-            // 获取当前的时间
-            DateTime currentTime = snapshot.data!;
+            // 获取当前的时间，如果 snapshot 中没有数据，则使用当前时间
+            DateTime currentTime = snapshot.data ?? DateTime.now();
 
             // 使用自定义 DateUtil 和 DateFormats 来格式化日期和星期
             String formattedDate = DateUtil.formatDate(
@@ -67,12 +63,12 @@ class DatePositionWidget extends StatelessWidget {
                   ),
                 ),
                 // 添加 SizedBox 来调整日期和时间之间的距离
-                SizedBox(height: isLandscape ? 3 : 1), // 横屏时增加间距
+                SizedBox(height: isLandscape ? 2 : 1), // 横屏时增加间距
                 // 第二行显示时间
                 Text(
                   formattedTime,
                   style: TextStyle(
-                    fontSize: isLandscape ? 39 : 29, // 横屏时时间字体更大
+                    fontSize: isLandscape ? 42 : 32, // 横屏时时间字体更大
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     shadows: const [
