@@ -49,7 +49,7 @@ class PlaylistModel {
   /// 如果没有提供 `category`，将其设置为 "所有频道"。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     // 校验JSON中是否包含必要字段
-    if (!json.containsKey('epgUrl') || !json.containsKey('playList')) {
+    if (json['epgUrl'] == null || json['playList'] == null) {
       throw ArgumentError('JSON must contain epgUrl and playList');
     }
 
@@ -57,41 +57,35 @@ class PlaylistModel {
     String? epgUrl = json['epgUrl'] as String?;
 
     // 获取播放列表数据，确保playListJson为Map类型
-    Map<String, dynamic>? playListJson = json['playList'];
+    Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
 
     // 初始化播放列表
     Map<String, Map<String, Map<String, PlayModel>>> playList = {};
 
-    if (playListJson is! Map) {
-      return PlaylistModel(epgUrl: epgUrl, playList: playList);
-    }
-
-    for (var entry in playListJson.entries) {
+    playListJson.forEach((categoryKey, groupMapJson) {
       // 如果分类为空或不存在，设置为 "所有频道"
-      String categoryKey = (entry.key as String?)?.isNotEmpty == true ? entry.key : '所有频道';
-      var groupMap = entry.value as Map<String, dynamic>?;
+      String category = categoryKey.isNotEmpty ? categoryKey : '所有频道';
 
-      if (groupMap == null) continue;
+      if (groupMapJson is Map<String, dynamic>) {
+        Map<String, Map<String, PlayModel>> groupMap = {};
 
-      Map<String, Map<String, PlayModel>> groupMapTransformed = {};
-      for (var groupEntry in groupMap.entries) {
-        var channelMap = groupEntry.value as Map<String, dynamic>?;
+        groupMapJson.forEach((groupTitle, channelMapJson) {
+          if (channelMapJson is Map<String, dynamic>) {
+            Map<String, PlayModel> channelMap = {};
 
-        if (channelMap == null) continue;
+            channelMapJson.forEach((channelName, channelData) {
+              if (channelData is Map<String, dynamic>) {
+                channelMap[channelName] = PlayModel.fromJson(channelData);
+              }
+            });
 
-        Map<String, PlayModel> channelMapTransformed = {};
-        for (var channelEntry in channelMap.entries) {
-          if (channelEntry.key is! String || channelEntry.value is! Map) continue;
+            groupMap[groupTitle] = channelMap;
+          }
+        });
 
-          var channelName = channelEntry.key;
-          var channelJson = channelEntry.value;
-
-          channelMapTransformed[channelName] = PlayModel.fromJson(channelJson);
-        }
-        groupMapTransformed[groupEntry.key] = channelMapTransformed;
+        playList[category] = groupMap;
       }
-      playList[categoryKey] = groupMapTransformed;
-    }
+    });
 
     return PlaylistModel(
       epgUrl: epgUrl,
