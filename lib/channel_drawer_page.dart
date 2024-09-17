@@ -275,12 +275,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.safeExecute(() {
-      _initializeCategoryData(); // 初始化分类数据
-      _initializeChannelData(); // 初始化频道数据
-      _calculateViewportHeight(); // 计算视图窗口的高度
-      _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
-    }, '初始化频道数据时发生错误');
+    _initializeCategoryData(); // 初始化分类数据
+    _initializeChannelData(); // 初始化频道数据
+    _calculateViewportHeight(); // 计算视图窗口的高度
+    _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
   }
 
   // 初始化分类数据
@@ -291,29 +289,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 初始化频道数据
   void _initializeChannelData() {
-    LogUtil.safeExecute(() {
-      final selectedCategory = _categories[_categoryIndex]; // 根据选中的分类获取对应分组
-      final categoryMap = widget.videoMap?.playList[selectedCategory] as Map<String, Map<String, PlayModel>>?;
+    final selectedCategory = _categories[_categoryIndex]; // 根据选中的分类获取对应分组
+    final categoryMap = widget.videoMap?.playList[selectedCategory] as Map<String, Map<String, PlayModel>>?;
 
-      _keys = categoryMap?.keys.toList() ?? <String>[]; // 获取分组键
-      _values = categoryMap?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取分组值
+    _keys = categoryMap?.keys.toList() ?? <String>[]; // 获取分组键
+    _values = categoryMap?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取分组值
 
-      // 对每个分组中的频道按名字进行 Unicode 排序
-      for (int i = 0; i < _values.length; i++) {
-        var sortedChannels = Map<String, PlayModel>.fromEntries(
-          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
-        );
-        _values[i] = sortedChannels; // 更新为排序后的频道列表
-      }
-      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
-      _channelIndex = _groupIndex != -1
-          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-          : 0; // 当前频道的索引
+    // 对每个分组中的频道按名字进行 Unicode 排序
+    for (int i = 0; i < _values.length; i++) {
+      var sortedChannels = Map<String, PlayModel>.fromEntries(
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
+      );
+      _values[i] = sortedChannels; // 更新为排序后的频道列表
+    }
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
+    _channelIndex = _groupIndex != -1
+        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+        : 0; // 当前频道的索引
 
-      // 如果分组或频道索引未找到，默认设置为0
-      if (_groupIndex == -1) _groupIndex = 0;
-      if (_channelIndex == -1) _channelIndex = 0;
-    }, '初始化频道数据时出错');
+    // 如果分组或频道索引未找到，默认设置为0
+    if (_groupIndex == -1) _groupIndex = 0;
+    if (_channelIndex == -1) _channelIndex = 0;
   }
 
   // 切换分类时更新分组和频道
@@ -323,51 +319,47 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       _initializeChannelData(); // 根据新的分类重新初始化频道数据
       _groupIndex = 0; // 重置分组索引
       _channelIndex = 0; // 重置频道索引
-      _scrollController.jumpTo(0); // 重置分组滚动位置
-      _scrollChannelController.jumpTo(0); // 重置频道滚动位置
+      _scrollController.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
+      _scrollChannelController.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
     });
   }
 
   // 计算视图窗口的高度
   void _calculateViewportHeight() {
     WidgetsBinding.instance?.addPostFrameCallback((_) {
-      LogUtil.safeExecute(() {
-        final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-        if (renderBox != null) {
-          final height = renderBox.size.height * 0.5; // 取窗口高度的一半
-          setState(() {
-            _viewPortHeight = height;
-            _adjustScrollPositions(); // 调整滚动位置
-          });
-        }
-      }, '计算视图窗口高度时出错');
+      final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox != null) {
+        final height = renderBox.size.height * 0.5; // 取窗口高度的一半
+        setState(() {
+          _viewPortHeight = height;
+          _adjustScrollPositions(); // 调整滚动位置
+        });
+      }
     });
   }
 
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
-    LogUtil.safeExecute(() {
-      if (_viewPortHeight == null) return;
-      _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
-      _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
-    }, '调整滚动位置时出错');
+    if (_viewPortHeight == null) return;
+    _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
+    _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
   }
 
   // 根据索引调整滚动位置，使用动画滚动
   void _scrollToPosition(ScrollController controller, int index) {
-    LogUtil.safeExecute(() {
-      if (!controller.hasClients) return;
-      final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
-      final double viewPortHeight = _viewPortHeight!;
-      final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
-      if (shouldOffset < maxScrollExtent) {
-        controller.animateTo(max(0.0, shouldOffset),
-            duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到计算的偏移量
-      } else {
-        controller.animateTo(maxScrollExtent,
-            duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到最大范围
-      }
-    }, '根据索引调整滚动位置时出错');
+    if (!controller.hasClients) return;
+    final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
+    final double viewPortHeight = _viewPortHeight!;
+    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
+    if (shouldOffset < maxScrollExtent) {
+      controller.animateTo(max(0.0, shouldOffset),
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到计算的偏移量
+    } else {
+      controller.animateTo(maxScrollExtent,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到最大范围
+    }
   }
 
   // 加载EPG（节目单）数据
@@ -409,29 +401,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   @override
   void dispose() {
     _debounceTimer?.cancel(); // 清理定时器
-    LogUtil.safeExecute(() {
-      // 确保控制器资源的正确释放
-      if (_scrollController.hasClients) {
-        _scrollController.dispose();
-      }
-      if (_scrollChannelController.hasClients) {
-        _scrollChannelController.dispose();
-      }
-      super.dispose();
-    }, '释放资源时出错');
+    if (_scrollController.hasClients) {
+      _scrollController.dispose();
+    }
+    if (_scrollChannelController.hasClients) {
+      _scrollChannelController.dispose();
+    }
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    LogUtil.safeExecute(() {
-      // 如果频道或分组变化，重新初始化数据并加载EPG
-      if (widget.playModel != oldWidget.playModel) {
-        _initializeChannelData();
-        _loadEPGMsg(widget.playModel);
-        _calculateViewportHeight();
-      }
-    }, '更新小部件时出错');
+    if (widget.playModel != oldWidget.playModel) {
+      _initializeChannelData();
+      _loadEPGMsg(widget.playModel);
+      _calculateViewportHeight();
+    }
   }
 
   @override
@@ -482,7 +468,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                   _groupIndex = index;
                   final name = _values[_groupIndex].keys.first;
                   _onTapChannelThrottled(_values[_groupIndex][name]);
-                  _scrollChannelController.jumpTo(0); // 滚动到顶部
+                  _scrollChannelController.animateTo(0,
+                      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
                 });
               },
             ),
