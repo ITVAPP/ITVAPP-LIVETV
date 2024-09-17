@@ -46,6 +46,7 @@ class DatePositionWidget extends StatelessWidget {
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min, // 使列根据子项的大小收缩
               children: [
                 // 第一行显示日期和星期
                 Text(
@@ -62,8 +63,8 @@ class DatePositionWidget extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 添加 SizedBox 来调整日期和时间之间的距离
-                SizedBox(height: isLandscape ? 2 : 1), // 横屏时增加间距
+                // 使用 SizedBox 减少日期和时间之间的间距
+                SizedBox(height: isLandscape ? 1 : 0.5), // 控制日期和时间之间的间距
                 // 第二行显示时间
                 Text(
                   formattedTime,
