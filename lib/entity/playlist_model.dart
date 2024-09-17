@@ -153,8 +153,8 @@ class PlayModel {
   String? group;
   List<String>? urls;
 
-  /// 工厂构造函数，通过JSON对象创建一个 [PlayModel] 实例。
-  factory PlayModel.fromJson(dynamic json) {
+  /// 通过JSON对象创建一个 [PlayModel] 实例。
+  static PlayModel? fromJson(dynamic json) {
     // 如果 'id' 或 'urls' 缺失，直接跳过创建 PlayModel
     if (json['id'] == null || json['urls'] == null) {
       return null;
