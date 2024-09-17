@@ -50,7 +50,10 @@ class PlaylistModel {
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     // 校验JSON中是否包含必要字段
     if (json['epgUrl'] == null || json['playList'] == null) {
-      throw ArgumentError('JSON must contain epgUrl and playList');
+      return PlaylistModel(
+        epgUrl: json['epgUrl'] as String?,
+        playList: {},
+      );
     }
 
     // 获取EPG URL，使用 null-safety 处理
@@ -75,7 +78,10 @@ class PlaylistModel {
 
             channelMapJson.forEach((channelName, channelData) {
               if (channelData is Map<String, dynamic>) {
-                channelMap[channelName] = PlayModel.fromJson(channelData);
+                PlayModel? playModel = PlayModel.fromJson(channelData);
+                if (playModel != null) {
+                  channelMap[channelName] = playModel;
+                }
               }
             });
 
@@ -147,15 +153,15 @@ class PlayModel {
   ///
   /// - [json]：包含频道属性的JSON数据的动态对象。
   factory PlayModel.fromJson(dynamic json) {
-    // 确保必需字段存在且有效
+    // 如果 'id' 或 'urls' 缺失，直接跳过创建 PlayModel
     if (json['id'] == null || json['urls'] == null) {
-      throw ArgumentError('JSON must contain id and urls');
+      return null;
     }
 
     // 验证 urls 是否为有效的非空字符串列表
     List<String> urlsList = List<String>.from(json['urls'] ?? []);
     if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-      throw ArgumentError('urls must be a non-empty list of strings');
+      return null; // 跳过无效的 URL
     }
 
     return PlayModel(
