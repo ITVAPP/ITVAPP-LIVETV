@@ -62,32 +62,35 @@ class PlaylistModel {
     // 初始化播放列表
     Map<String, Map<String, Map<String, PlayModel>>> playList = {};
 
-    if (playListJson is Map) {
-      for (var entry in playListJson.entries) {
-        String categoryKey = (entry.key is String && entry.key.isNotEmpty) ? entry.key : '所有频道';
-        var groupMap = entry.value;
+    if (playListJson is! Map) {
+      return PlaylistModel(epgUrl: epgUrl, playList: playList);
+    }
 
-        if (groupMap is Map) {
-          Map<String, Map<String, PlayModel>> groupMapTransformed = {};
-          for (var groupEntry in groupMap.entries) {
-            var channelMap = groupEntry.value;
+    for (var entry in playListJson.entries) {
+      // 如果分类为空或不存在，设置为 "所有频道"
+      String categoryKey = (entry.key as String?)?.isNotEmpty == true ? entry.key : '所有频道';
+      var groupMap = entry.value as Map<String, dynamic>?;
 
-            if (channelMap is Map) {
-              Map<String, PlayModel> channelMapTransformed = {};
-              for (var channelEntry in channelMap.entries) {
-                var channelName = channelEntry.key;
-                var channelJson = channelEntry.value;
+      if (groupMap == null) continue;
 
-                if (channelName is String && channelJson is Map) {
-                  channelMapTransformed[channelName] = PlayModel.fromJson(channelJson);
-                }
-              }
-              groupMapTransformed[groupEntry.key] = channelMapTransformed;
-            }
-          }
-          playList[categoryKey] = groupMapTransformed;
+      Map<String, Map<String, PlayModel>> groupMapTransformed = {};
+      for (var groupEntry in groupMap.entries) {
+        var channelMap = groupEntry.value as Map<String, dynamic>?;
+
+        if (channelMap == null) continue;
+
+        Map<String, PlayModel> channelMapTransformed = {};
+        for (var channelEntry in channelMap.entries) {
+          if (channelEntry.key is! String || channelEntry.value is! Map) continue;
+
+          var channelName = channelEntry.key;
+          var channelJson = channelEntry.value;
+
+          channelMapTransformed[channelName] = PlayModel.fromJson(channelJson);
         }
+        groupMapTransformed[groupEntry.key] = channelMapTransformed;
       }
+      playList[categoryKey] = groupMapTransformed;
     }
 
     return PlaylistModel(
@@ -102,8 +105,8 @@ class PlaylistModel {
     for (var groupMap in playList.values) {
       for (var channelMap in groupMap.values) {
         for (var channel in channelMap.values) {
-          if (channel.title != null && channel.title!.contains(keyword) ||
-              channel.group != null && channel.group!.contains(keyword)) {
+          if ((channel.title?.contains(keyword) ?? false) ||
+              (channel.group?.contains(keyword) ?? false)) {
             results.add(channel);
           }
         }
