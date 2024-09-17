@@ -6,8 +6,31 @@ class PlaylistModel {
   /// [playList] 是一个三层嵌套的Map，其中：
   /// - 第一层 `String` 键是分类（例如：“区域”或“语言”），如果没有提供，则默认为 "所有频道"。
   ///   - 示例：对于 M3U 中未指定分类信息的情况，使用 "所有频道" 作为默认分类。
+  ///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用 "所有频道" 作为分类。
   /// - 第二层 `String` 键是组的标题（例如："体育"，"新闻"），从 `group-title` 提取。
+  ///   - 示例：`group-title="央视频道"`，提取 "央视频道" 作为第二层键。
   /// - 第三层 `Map` 将频道名称（`String`）与对应的 [PlayModel] 实例关联。
+  ///   - 示例：`CCTV-1 综合` 作为第三层键，值是 `PlayModel` 对象。
+  /// 
+  /// ### M3U 播放列表示例：
+  /// ```
+  /// #EXTM3U x-tvg-url=" http://example.com/e.xml"
+  ///
+  /// # 央视频道分类
+  /// #EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1 综合" tvg-logo=" http://example.com/CCTV1.png" group-title="央视频道",CCTV-1 综合
+  /// http://example.com/cctv1.m3u8
+  ///
+  /// #EXTINF:-1 tvg-id="CCTV2" tvg-name="CCTV-2 财经" tvg-logo=" http://example.com/CCTV2.png" group-title="央视频道",CCTV-2 财经
+  /// http://example.com/cctv2.m3u8
+  ///
+  /// # 娱乐频道分类
+  /// #EXTINF:-1 tvg-id="HunanTV" tvg-name="湖南卫视" tvg-logo=" http://example.com/HunanTV.png" group-title="娱乐频道",湖南卫视
+  /// http://example.com/hunantv.m3u8
+  ///
+  /// # 体育频道分类
+  /// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
+  /// http://example.com/cctv5.m3u8
+  /// ```
 
   PlaylistModel({
     this.epgUrl,
