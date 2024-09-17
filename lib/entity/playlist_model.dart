@@ -52,15 +52,20 @@ class PlaylistModel {
     String? epgUrl = json['epgUrl'] as String?;
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
 
-    // 判断是三层结构还是两层结构
-    bool isThreeLayer = playListJson.values.first is Map<String, dynamic> &&
-        (playListJson.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>;
-
-    Map<String, dynamic> playList = isThreeLayer
-        ? _parseThreeLayer(playListJson)
-        : _parseTwoLayer(playListJson);
+    // 判断数据结构，并解析
+    Map<String, dynamic> playList = _parsePlayList(playListJson);
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
+  }
+
+  /// 自动判断并解析播放列表结构（两层或三层）
+  static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
+    // 检测是三层结构还是两层结构
+    bool isThreeLayer = json.values.first is Map<String, dynamic> &&
+        (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>;
+
+    // 如果是三层结构，解析为三层；否则解析为两层
+    return isThreeLayer ? _parseThreeLayer(json) : _parseTwoLayer(json);
   }
 
   /// 解析三层结构的播放列表
