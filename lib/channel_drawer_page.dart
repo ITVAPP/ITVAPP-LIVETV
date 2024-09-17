@@ -439,6 +439,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape ? categoryWidth + groupWidth + channelListWidth + epgListWidth : screenWidth, // 横屏时计算宽度
+      width: widget.isLandscape 
+    ? categoryWidth + groupWidth + channelListWidth + epgListWidth 
+    : MediaQuery.of(context).size.width, // 横屏时计算宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
       ),
