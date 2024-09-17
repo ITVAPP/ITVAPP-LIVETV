@@ -110,7 +110,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20), // 间距
+                const SizedBox(height: 12), // 间距
 
                 // 语言选择部分
                 Padding(
