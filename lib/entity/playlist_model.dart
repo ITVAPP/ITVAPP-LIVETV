@@ -183,12 +183,12 @@ class PlayModel {
 
   factory PlayModel.fromJson(dynamic json) {
     if (json['id'] == null || json['urls'] == null) {
-      return null;
+      return PlayModel(); // 返回默认实例而不是null
     }
 
     List<String> urlsList = List<String>.from(json['urls'] ?? []);
     if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-      return null;
+      return PlayModel(); // 返回默认实例而不是null
     }
 
     return PlayModel(
