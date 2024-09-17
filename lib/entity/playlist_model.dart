@@ -6,31 +6,8 @@ class PlaylistModel {
   /// [playList] 是一个三层嵌套的Map，其中：
   /// - 第一层 `String` 键是分类（例如：“区域”或“语言”），如果没有提供，则默认为 "所有频道"。
   ///   - 示例：对于 M3U 中未指定分类信息的情况，使用 "所有频道" 作为默认分类。
-  ///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用 "所有频道" 作为分类。
   /// - 第二层 `String` 键是组的标题（例如："体育"，"新闻"），从 `group-title` 提取。
-  ///   - 示例：`group-title="央视频道"`，提取 "央视频道" 作为第二层键。
   /// - 第三层 `Map` 将频道名称（`String`）与对应的 [PlayModel] 实例关联。
-  ///   - 示例：`CCTV-1 综合` 作为第三层键，值是 `PlayModel` 对象。
-  /// 
-  /// ### M3U 播放列表示例：
-  /// ```
-  /// #EXTM3U x-tvg-url=" http://example.com/e.xml"
-  ///
-  /// # 央视频道分类
-  /// #EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1 综合" tvg-logo=" http://example.com/CCTV1.png" group-title="央视频道",CCTV-1 综合
-  /// http://example.com/cctv1.m3u8
-  ///
-  /// #EXTINF:-1 tvg-id="CCTV2" tvg-name="CCTV-2 财经" tvg-logo=" http://example.com/CCTV2.png" group-title="央视频道",CCTV-2 财经
-  /// http://example.com/cctv2.m3u8
-  ///
-  /// # 娱乐频道分类
-  /// #EXTINF:-1 tvg-id="HunanTV" tvg-name="湖南卫视" tvg-logo=" http://example.com/HunanTV.png" group-title="娱乐频道",湖南卫视
-  /// http://example.com/hunantv.m3u8
-  ///
-  /// # 体育频道分类
-  /// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
-  /// http://example.com/cctv5.m3u8
-  /// ```
 
   PlaylistModel({
     this.epgUrl,
@@ -38,8 +15,6 @@ class PlaylistModel {
   }) : playList = playList ?? {};
 
   /// 电子节目指南（EPG）的URL，用于获取节目相关信息。
-  /// 在M3U文件中提取自 `#EXTM3U` 标签的 `x-tvg-url`。
-  /// 示例：`x-tvg-url="https://live.fanmingming.com/e.xml"`
   String? epgUrl;
 
   /// 按分类、分组和频道的Map结构
@@ -56,17 +31,16 @@ class PlaylistModel {
       );
     }
 
-    // 获取EPG URL，使用 null-safety 处理
+    // 获取EPG URL
     String? epgUrl = json['epgUrl'] as String?;
 
-    // 获取播放列表数据，确保playListJson为Map类型
+    // 获取播放列表数据
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
 
     // 初始化播放列表
     Map<String, Map<String, Map<String, PlayModel>>> playList = {};
 
     playListJson.forEach((categoryKey, groupMapJson) {
-      // 如果分类为空或不存在，设置为 "所有频道"
       String category = categoryKey.isNotEmpty ? categoryKey : '所有频道';
 
       if (groupMapJson is Map<String, dynamic>) {
@@ -102,23 +76,28 @@ class PlaylistModel {
   /// 自动判断使用两层还是三层结构的 getChannel 方法
   PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
     if (channel == null && categoryOrGroup is String) {
-      // 两个参数，旧的两层结构调用，categoryOrGroup 实际上是 group，groupOrChannel 实际上是 channel
+      // 两个参数，旧的两层结构调用，categoryOrGroup 是组，groupOrChannel 是频道
       String group = categoryOrGroup;
       String channelName = groupOrChannel;
 
       // 从默认分类 "所有频道" 查找
-      if (playList.containsKey('所有频道') && playList['所有频道']!.containsKey(group)) {
-        return playList['所有频道']![group]?[channelName];
+      if (playList.containsKey('所有频道')) {
+        return playList['所有频道']?[group]?[channelName];
+      }
+
+      // 如果分类不存在，直接查找组和频道
+      for (var categoryMap in playList.values) {
+        if (categoryMap.containsKey(group)) {
+          return categoryMap[group]?[channelName];
+        }
       }
     } else if (channel != null && categoryOrGroup is String) {
-      // 三个参数，新的三层结构调用，categoryOrGroup 是 category，groupOrChannel 是 group，channel 是频道名称
+      // 三个参数，categoryOrGroup 是分类，groupOrChannel 是组，channel 是频道名称
       String category = categoryOrGroup;
       String group = groupOrChannel;
 
       // 从三层结构查找
-      if (playList.containsKey(category) && playList[category]!.containsKey(group)) {
-        return playList[category]![group]?[channel];
-      }
+      return playList[category]?[group]?[channel];
     }
 
     // 如果找不到频道，返回 null
@@ -145,8 +124,6 @@ class PlaylistModel {
 /// 表示单个可播放频道的模型类。
 class PlayModel {
   /// 构造函数，用于创建一个 [PlayModel] 实例。
-  ///
-  /// 接受频道的各种属性作为可选参数，例如 [id]、[logo]、[urls]、[title] 和 [group]。
   PlayModel({
     this.id,
     this.logo,
@@ -156,28 +133,21 @@ class PlayModel {
   });
 
   /// 频道的唯一标识符，通常对应 `tvg-id`。
-  /// 在M3U文件中从 `tvg-id` 属性中提取。
   String? id;
 
   /// 频道的显示名称或标题，通常对应 `group-title`。
-  /// 在M3U文件中从 `tvg-name` 属性中提取。
   String? title;
 
   /// 频道的Logo图像的URL，通常对应 `tvg-logo`。
-  /// 在M3U文件中从 `tvg-logo` 属性中提取。
   String? logo;
 
   /// 该频道所属的组或类别（例如："体育"，"新闻"）。
-  /// 在M3U文件中从 `group-title` 属性中提取。
   String? group;
 
   /// 频道的可播放URL列表，可能包含多个URL以提供备用或不同质量的流媒体链接。
-  /// 从M3U文件中的URL行提取，可能有多个播放源。
   List<String>? urls;
 
   /// 工厂构造函数，通过JSON对象创建一个 [PlayModel] 实例。
-  ///
-  /// - [json]：包含频道属性的JSON数据的动态对象。
   factory PlayModel.fromJson(dynamic json) {
     // 如果 'id' 或 'urls' 缺失，直接跳过创建 PlayModel
     if (json['id'] == null || json['urls'] == null) {
@@ -200,8 +170,6 @@ class PlayModel {
   }
 
   /// 创建当前 [PlayModel] 实例的副本，可以选择性地覆盖特定字段。
-  ///
-  /// 返回一个新的 [PlayModel] 对象，如果未提供新的值，则保留现有值。
   PlayModel copyWith({
     String? id,
     String? logo,
@@ -218,8 +186,6 @@ class PlayModel {
       );
 
   /// 将 [PlayModel] 实例转换为可兼容JSON格式的 `Map` 对象。
-  ///
-  /// 返回一个 `Map<String, dynamic>`，表示 [PlayModel] 的各个属性。
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};
     map['id'] = id;
