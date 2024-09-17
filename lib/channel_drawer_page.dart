@@ -306,28 +306,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化频道数据
-  void _initializeChannelData() {
-    final selectedCategory = _categories[_categoryIndex]; // 根据选中的分类获取对应分组
-    final categoryMap = widget.videoMap?.playList[selectedCategory] as Map<String, Map<String, PlayModel>>?;
-
-    _keys = categoryMap?.keys.toList() ?? <String>[]; // 获取分组键
-    _values = categoryMap?.values.toList().cast<Map<String, PlayModel>>() ?? <Map<String, PlayModel>>[]; // 获取分组值
-
+void _initializeChannelData() {
+  final selectedCategory = _categories[_categoryIndex];
+  
+  // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
+  final categoryMap = widget.videoMap?.playList[selectedCategory];
+  
+  if (categoryMap is Map<String, Map<String, PlayModel>>) {
+    // 三层结构：处理分组 -> 频道
+    _keys = categoryMap.keys.toList(); // 获取分组
+    _values = categoryMap.values.toList(); // 获取每个分组下的频道
+    
     // 对每个分组中的频道按名字进行 Unicode 排序
     for (int i = 0; i < _values.length; i++) {
       _values[i] = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)) // 使用 compareTo 进行 Unicode 排序
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
       );
     }
-    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 当前分组的索引
+    
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
     _channelIndex = _groupIndex != -1
         ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-        : 0; // 当前频道的索引
-
-    // 如果分组或频道索引未找到，默认设置为0
-    if (_groupIndex == -1) _groupIndex = 0;
-    if (_channelIndex == -1) _channelIndex = 0;
+        : 0; // 获取当前选中的频道索引
+  } else if (categoryMap is Map<String, PlayModel>) {
+    // 两层结构：直接处理频道
+    _keys = ['所有频道']; // 使用一个默认分组
+    _values = [categoryMap]; // 频道直接作为值
+    
+    _groupIndex = 0; // 没有分组，固定为 0
+    _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
   }
+
+  // 默认值处理
+  if (_groupIndex == -1) _groupIndex = 0;
+  if (_channelIndex == -1) _channelIndex = 0;
+}
 
   // 切换分类时更新分组和频道
   void _onCategoryTap(int index) {
