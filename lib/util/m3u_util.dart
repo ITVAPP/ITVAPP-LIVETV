@@ -188,23 +188,27 @@ class M3uUtil {
       mergedPlaylist.playList = {};
 
       for (PlaylistModel playlist in playlists) {
-        playlist.playList?.forEach((groupTitle, channels) {
+        playlist.playList?.forEach((category, groups) {
           mergedPlaylist.playList ??= {};
-          mergedPlaylist.playList![groupTitle] ??= {};
+          mergedPlaylist.playList![category] ??= {};
 
-          // 合并同组同频道名的播放地址
-          channels.forEach((channelName, channelModel) {
-            if (mergedPlaylist.playList![groupTitle]!.containsKey(channelName)) {
-              // 如果频道已经存在，合并播放地址，并去重
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls = 
-                  mergedPlaylist.playList![groupTitle]![channelName]!.urls!
-                      .followedBy(channelModel.urls ?? []).toSet().toList();
-            } else {
-              // 如果频道不存在，直接添加
-              mergedPlaylist.playList![groupTitle]![channelName] = channelModel;
-              mergedPlaylist.playList![groupTitle]![channelName]!.urls =
-                  channelModel.urls?.toSet().toList() ?? [];
-            }
+          groups.forEach((groupTitle, channels) {
+            mergedPlaylist.playList![category]![groupTitle] ??= {};
+
+            // 合并同组同频道名的播放地址
+            channels.forEach((channelName, channelModel) {
+              if (mergedPlaylist.playList![category]![groupTitle]!.containsKey(channelName)) {
+                // 如果频道已经存在，合并播放地址，并去重
+                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls =
+                    mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls!
+                        .followedBy(channelModel.urls ?? []).toSet().toList();
+              } else {
+                // 如果频道不存在，直接添加
+                mergedPlaylist.playList![category]![groupTitle]![channelName] = channelModel;
+                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls =
+                    channelModel.urls?.toSet().toList() ?? [];
+              }
+            });
           });
         });
       }
@@ -233,13 +237,15 @@ class M3uUtil {
     try {
       StringBuffer buffer = StringBuffer();
 
-      playlist.playList?.forEach((groupTitle, channels) {
-        channels.forEach((channelName, playModel) {
-          buffer.writeln('#EXTINF:-1 group-title="$groupTitle", $channelName');
-          playModel.urls?.forEach((url) {
-            if (url.isNotEmpty) {
-              buffer.writeln(url);  // 写入每个播放地址
-            }
+      playlist.playList?.forEach((category, groups) {
+        groups.forEach((groupTitle, channels) {
+          channels.forEach((channelName, playModel) {
+            buffer.writeln('#EXTINF:-1 group-title="$groupTitle", $channelName');
+            playModel.urls?.forEach((url) {
+              if (url.isNotEmpty) {
+                buffer.writeln(url);  // 写入每个播放地址
+              }
+            });
           });
         });
       });
@@ -285,11 +291,12 @@ class M3uUtil {
     try {
       final lines = m3u.split('\n');
       final playListModel = PlaylistModel();
-      playListModel.playList = <String, Map<String, PlayModel>>{};
+      playListModel.playList = <String, Map<String, Map<String, PlayModel>>>{};
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         String tempGroupTitle = '';
         String tempChannelName = '';
+        String tempCategory = '所有频道';
 
         for (int i = 0; i < lines.length - 1; i++) {
           String line = lines[i];
@@ -306,6 +313,7 @@ class M3uUtil {
             }
             final lineList = line.split(',');
             List<String> params = lineList.first.replaceAll('"', '').split(' ');
+
             final groupStr = params.firstWhere((element) => element.startsWith('group-title='), orElse: () => 'group-title=${S.current.defaultText}');
             if (groupStr.isNotEmpty && groupStr.contains('=')) {
               tempGroupTitle = groupStr.split('=').last;
@@ -327,32 +335,36 @@ class M3uUtil {
             if (groupStr.isNotEmpty) {
               tempGroupTitle = groupStr.split('=').last;
               tempChannelName = lineList.last;
-              Map<String, PlayModel> group = playListModel.playList![tempGroupTitle] ?? {};
-              PlayModel groupList = group[tempChannelName] ?? PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
+
+              Map<String, Map<String, PlayModel>> categoryMap = playListModel.playList![tempCategory] ?? {};
+              Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? {};
+              PlayModel channel = groupMap[tempChannelName] ?? PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
               final lineNext = lines[i + 1];
               if (isLiveLink(lineNext)) {
-                groupList.urls ??= [];
+                channel.urls ??= [];
                 if (lineNext.isNotEmpty) {
-                  groupList.urls!.add(lineNext);
+                  channel.urls!.add(lineNext);
                 }
-                group[tempChannelName] = groupList;
-                playListModel.playList![tempGroupTitle] = group;
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![tempCategory] = categoryMap;
                 i += 1;
               } else if (isLiveLink(lines[i + 2])) {
-                groupList.urls ??= [];
+                channel.urls ??= [];
                 if (lines[i + 2].isNotEmpty) {
-                  groupList.urls!.add(lines[i + 2].toString());
+                  channel.urls!.add(lines[i + 2].toString());
                 }
-                group[tempChannelName] = groupList;
-                playListModel.playList![tempGroupTitle] = group;
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![tempCategory] = categoryMap;
                 i += 2;
               }
             }
           } else if (isLiveLink(line)) {
-            playListModel.playList![tempGroupTitle]![tempChannelName]!.urls ??= [];
+            playListModel.playList![tempCategory]![tempGroupTitle]![tempChannelName]!.urls ??= [];
             if (line.isNotEmpty) {
-              playListModel.playList![tempGroupTitle]![tempChannelName]!.urls!.add(line);
+              playListModel.playList![tempCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
             }
           }
         }
@@ -366,18 +378,20 @@ class M3uUtil {
             final groupTitle = lineList[0];
             final channelLink = lineList[1];
             if (isLiveLink(channelLink)) {
-              Map<String, PlayModel> group = playListModel.playList![tempGroup] ?? <String, PlayModel>{};
-              final chanelList = group[groupTitle] ?? PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
-              chanelList.urls ??= [];
+              Map<String, Map<String, PlayModel>> categoryMap = playListModel.playList![tempGroup] ?? {};
+              Map<String, PlayModel> groupMap = categoryMap[groupTitle] ?? {};
+              final channel = groupMap[groupTitle] ?? PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
+              channel.urls ??= [];
               if (channelLink.isNotEmpty) {
-                chanelList.urls!.add(channelLink);
+                channel.urls!.add(channelLink);
               }
-              group[groupTitle] = chanelList;
-              playListModel.playList![tempGroup] = group;
+              groupMap[groupTitle] = channel;
+              categoryMap[groupTitle] = groupMap;
+              playListModel.playList![tempGroup] = categoryMap;
             } else {
               tempGroup = groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
               if (playListModel.playList![tempGroup] == null) {
-                playListModel.playList![tempGroup] = <String, PlayModel>{};
+                playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
               }
             }
           }
