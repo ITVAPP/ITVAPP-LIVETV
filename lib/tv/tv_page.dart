@@ -15,7 +15,7 @@ import '../widget/video_hold_bg.dart';
 import '../generated/l10n.dart';
 
 class TvPage extends StatefulWidget {
-  final PlaylistModel? videoMap; // 视频播放列表模型
+  final PlaylistModel? videoMap; // 视频播放列表模型，改为三层结构
   final PlayModel? playModel; // 当前播放的频道模型
   final Function(PlayModel? newModel)? onTapChannel; // 点击频道时调用的回调函数
 
@@ -220,7 +220,7 @@ class _TvPageState extends State<TvPage> {
     return Scaffold(
       backgroundColor: Colors.black, // 设置背景为黑色
       drawer: ChannelDrawerPage( // 侧边抽屉，显示频道列表
-        videoMap: widget.videoMap,
+        videoMap: widget.videoMap, // 改为三层结构的播放列表
         playModel: widget.playModel,
         onTapChannel: widget.onTapChannel,
         isLandscape: true,
