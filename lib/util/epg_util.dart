@@ -14,20 +14,24 @@ class EpgUtil {
   static final _EPGMap = <String, EpgModel>{};
   static Iterable<XmlElement>? _programmes;
 
-  // 修改：getEpg 方法添加了可选的 cancelToken 参数
+  // 修改：getEpg 方法添加了可选的 cancelToken 参数，并适配三层结构
   static Future<EpgModel?> getEpg(PlayModel? model, {CancelToken? cancelToken}) async {
     if (model == null) return null;
 
     String channelKey = '';
+    String category = '';
+    String group = '';
     String channel = '';
     String date = '';
     final isHasXml = _programmes != null && _programmes!.isNotEmpty;
     if (model.id != null && model.id != '' && isHasXml) {
       channelKey = model.id!;
     } else {
+      category = model.group ?? ''; // 从三层结构中获取分类
+      group = model.title!.replaceAll(' ', '').replaceAll('-', '');
       channel = model.title!.replaceAll(' ', '').replaceAll('-', '');
       date = DateUtil.formatDate(DateTime.now(), format: "yyMMdd");
-      channelKey = "$date-$channel";
+      channelKey = "$date-$category-$group-$channel"; // 适配三层结构
     }
 
     // 使用缓存的EPG数据
