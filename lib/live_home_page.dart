@@ -94,7 +94,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isSwitchingChannel = true;
 
-   // 释放旧的 StreamUrl 实例
+    // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
 
     // 在开始播放新视频之前，释放旧的视频播放器资源
@@ -351,9 +351,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_videoMap?.playList?.isNotEmpty ?? false) {
         setState(() {
           // 加载第一个频道
-          String group = _videoMap!.playList!.keys.first.toString();
-          String channel = _videoMap!.playList![group]!.keys.first;
-          _currentChannel = _videoMap!.playList![group]![channel];
+          String category = _videoMap!.playList!.keys.first;
+          String group = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>).keys.first;
+          String channel = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
+          _currentChannel = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>)[group]![channel];
           _playVideo(); // 播放第一个频道
         });
 
@@ -389,9 +390,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_videoMap?.playList?.isNotEmpty ?? false) {
         setState(() {
           // 加载第一个频道
-          String group = _videoMap!.playList!.keys.first.toString();
-          String channel = _videoMap!.playList![group]!.keys.first;
-          _currentChannel = _videoMap!.playList![group]![channel];
+          String category = _videoMap!.playList!.keys.first;
+          String group = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>).keys.first;
+          String channel = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
+          _currentChannel = (_videoMap!.playList![category] as Map<String, Map<String, PlayModel>>)[group]![channel];
           _playVideo(); // 播放第一个频道
         });
 
@@ -419,7 +421,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     WakelockPlus.disable();
 
     _isDisposing = true; // 标记正在释放资源
-
     // 释放播放器和 StreamUrl 资源
     _disposePlayer();
     super.dispose();
