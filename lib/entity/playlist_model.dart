@@ -46,7 +46,6 @@ class PlaylistModel {
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
   /// 如果没有提供 `category`，将其设置为 "所有频道"。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    // 校验JSON中是否包含必要字段
     if (json['epgUrl'] == null || json['playList'] == null) {
       return PlaylistModel(
         epgUrl: json['epgUrl'] as String?,
@@ -54,13 +53,8 @@ class PlaylistModel {
       );
     }
 
-    // 获取EPG URL
     String? epgUrl = json['epgUrl'] as String?;
-
-    // 获取播放列表数据
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
-
-    // 初始化播放列表
     Map<String, Map<String, Map<String, PlayModel>>> playList = {};
 
     playListJson.forEach((categoryKey, groupMapJson) {
@@ -98,28 +92,27 @@ class PlaylistModel {
 
   /// 自动判断使用两层还是三层结构的 getChannel 方法
   PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
-    if (channel == null && categoryOrGroup is String) {
-      // 两个参数，旧的两层结构调用，categoryOrGroup 是组，groupOrChannel 是频道
-      String group = categoryOrGroup;
+    if (channel == null) {
+      // 两个参数：如果 `categoryOrGroup` 是组名并且不存在分类信息，按二层结构处理
+      String group = categoryOrGroup as String;
       String channelName = groupOrChannel;
 
-      // 从默认分类 "所有频道" 查找
+      // 如果是二层结构，直接从 "所有频道" 中查找
       if (playList.containsKey('所有频道')) {
         return playList['所有频道']?[group]?[channelName];
       }
 
-      // 如果分类不存在，直接查找组和频道
+      // 如果没有找到，遍历所有分类下的组名进行查找
       for (var categoryMap in playList.values) {
         if (categoryMap.containsKey(group)) {
           return categoryMap[group]?[channelName];
         }
       }
-    } else if (channel != null && categoryOrGroup is String) {
-      // 三个参数，categoryOrGroup 是分类，groupOrChannel 是组，channel 是频道名称
-      String category = categoryOrGroup;
+    } else {
+      // 三个参数：按三层结构查找
+      String category = categoryOrGroup as String;
       String group = groupOrChannel;
 
-      // 从三层结构查找
       return playList[category]?[group]?[channel];
     }
 
@@ -146,7 +139,6 @@ class PlaylistModel {
 
 /// 表示单个可播放频道的模型类。
 class PlayModel {
-  /// 构造函数，用于创建一个 [PlayModel] 实例。
   PlayModel({
     this.id,
     this.logo,
@@ -155,19 +147,10 @@ class PlayModel {
     this.group,
   });
 
-  /// 频道的唯一标识符，通常对应 `tvg-id`。
   String? id;
-
-  /// 频道的显示名称或标题，通常对应 `group-title`。
   String? title;
-
-  /// 频道的Logo图像的URL，通常对应 `tvg-logo`。
   String? logo;
-
-  /// 该频道所属的组或类别（例如："体育"，"新闻"）。
   String? group;
-
-  /// 频道的可播放URL列表，可能包含多个URL以提供备用或不同质量的流媒体链接。
   List<String>? urls;
 
   /// 工厂构造函数，通过JSON对象创建一个 [PlayModel] 实例。
