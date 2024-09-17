@@ -32,7 +32,7 @@ class PlaylistModel {
   /// http://example.com/cctv5.m3u8
   /// ```
 
-PlaylistModel({
+  PlaylistModel({
     this.epgUrl,
     Map<String, dynamic>? playList,
   }) : playList = playList ?? {};
@@ -40,12 +40,10 @@ PlaylistModel({
   /// 电子节目指南（EPG）的URL，用于获取节目相关信息。
   String? epgUrl;
 
-  /// 存储播放列表的数据结构
-  /// 支持三层和两层结构，使用 dynamic 处理不同结构
+  /// 存储播放列表的数据结构，支持两层和三层结构
   Map<String, dynamic> playList;
 
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
-  /// 自动判断数据结构是两层还是三层。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     if (json['epgUrl'] == null || json['playList'] == null) {
       return PlaylistModel(epgUrl: json['epgUrl'], playList: {});
