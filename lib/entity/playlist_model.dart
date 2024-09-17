@@ -41,72 +41,51 @@ PlaylistModel({
   String? epgUrl;
 
   /// 存储播放列表的数据结构
-  /// 支持三层和两层结构，使用 dynamic 作为处理三层或二层的判断
+  /// 支持三层和两层结构，使用 dynamic 处理不同结构
   Map<String, dynamic> playList;
 
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
-  /// 如果没有提供 `category`，将其设置为 "所有频道"。
+  /// 自动判断数据结构是两层还是三层。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    // 校验JSON中是否包含必要字段
     if (json['epgUrl'] == null || json['playList'] == null) {
-      return PlaylistModel(
-        epgUrl: json['epgUrl'] as String?,
-        playList: {},
-      );
+      return PlaylistModel(epgUrl: json['epgUrl'], playList: {});
     }
 
-    // 获取EPG URL
     String? epgUrl = json['epgUrl'] as String?;
-
-    // 获取播放列表数据
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
 
     // 判断是三层结构还是两层结构
     bool isThreeLayer = playListJson.values.first is Map<String, dynamic> &&
         (playListJson.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>;
 
-    Map<String, dynamic> playList = {};
+    Map<String, dynamic> playList = isThreeLayer
+        ? _parseThreeLayer(playListJson)
+        : _parseTwoLayer(playListJson);
 
-    if (isThreeLayer) {
-      // 处理三层结构
-      playList = _parseThreeLayer(playListJson);
-    } else {
-      // 处理两层结构
-      playList = _parseTwoLayer(playListJson);
-    }
-
-    return PlaylistModel(
-      epgUrl: epgUrl,
-      playList: playList,
-    );
+    return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
 
   /// 解析三层结构的播放列表
-  static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(Map<String, dynamic> json) {
+  static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
+      Map<String, dynamic> json) {
     Map<String, Map<String, Map<String, PlayModel>>> result = {};
     json.forEach((categoryKey, groupMapJson) {
       String category = categoryKey.isNotEmpty ? categoryKey : '所有频道';
 
       if (groupMapJson is Map<String, dynamic>) {
         Map<String, Map<String, PlayModel>> groupMap = {};
-
         groupMapJson.forEach((groupTitle, channelMapJson) {
           if (channelMapJson is Map<String, dynamic>) {
             Map<String, PlayModel> channelMap = {};
-
             channelMapJson.forEach((channelName, channelData) {
-              if (channelData is Map<String, dynamic>) {
-                PlayModel? playModel = PlayModel.fromJson(channelData);
-                if (playModel != null) {
-                  channelMap[channelName] = playModel;
-                }
+              PlayModel? playModel = PlayModel.fromJson(channelData);
+              if (playModel != null) {
+                channelMap[channelName] = playModel;
               }
             });
-
             groupMap[groupTitle] = channelMap;
           }
         });
-
         result[category] = groupMap;
       }
     });
@@ -114,21 +93,18 @@ PlaylistModel({
   }
 
   /// 解析两层结构的播放列表
-  static Map<String, Map<String, PlayModel>> _parseTwoLayer(Map<String, dynamic> json) {
+  static Map<String, Map<String, PlayModel>> _parseTwoLayer(
+      Map<String, dynamic> json) {
     Map<String, Map<String, PlayModel>> result = {};
     json.forEach((groupTitle, channelMapJson) {
       if (channelMapJson is Map<String, dynamic>) {
         Map<String, PlayModel> channelMap = {};
-
         channelMapJson.forEach((channelName, channelData) {
-          if (channelData is Map<String, dynamic>) {
-            PlayModel? playModel = PlayModel.fromJson(channelData);
-            if (playModel != null) {
-              channelMap[channelName] = playModel;
-            }
+          PlayModel? playModel = PlayModel.fromJson(channelData);
+          if (playModel != null) {
+            channelMap[channelName] = playModel;
           }
         });
-
         result[groupTitle] = channelMap;
       }
     });
@@ -136,31 +112,35 @@ PlaylistModel({
   }
 
   /// 自动判断使用两层还是三层结构的 getChannel 方法
-  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
+  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel,
+      [String? channel]) {
     if (channel == null && categoryOrGroup is String) {
-      // 两个参数，旧的两层结构调用，categoryOrGroup 是组，groupOrChannel 是频道
+      // 两个参数，处理两层结构
       String group = categoryOrGroup;
       String channelName = groupOrChannel;
 
-      // 从默认分类 "所有频道" 查找
+      // 尝试从 "所有频道" 中查找
       if (playList.containsKey('所有频道')) {
-        return (playList['所有频道'] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
+        return (playList['所有频道']
+                as Map<String, Map<String, PlayModel>>)[group]?[channelName];
       }
 
       // 如果分类不存在，直接查找组和频道
       for (var categoryMap in playList.values) {
-        if (categoryMap is Map<String, Map<String, PlayModel>> && categoryMap.containsKey(group)) {
+        if (categoryMap is Map<String, Map<String, PlayModel>> &&
+            categoryMap.containsKey(group)) {
           return categoryMap[group]?[channelName];
         }
       }
     } else if (channel != null && categoryOrGroup is String) {
-      // 三个参数，categoryOrGroup 是分类，groupOrChannel 是组，channel 是频道名称
+      // 三个参数，处理三层结构
       String category = categoryOrGroup;
       String group = groupOrChannel;
 
       // 从三层结构查找
       if (playList[category] is Map<String, Map<String, PlayModel>>) {
-        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
+        return (playList[category]
+                as Map<String, Map<String, PlayModel>>)[group]?[channel];
       }
     }
 
@@ -189,7 +169,6 @@ PlaylistModel({
 
 /// 表示单个可播放频道的模型类。
 class PlayModel {
-  /// 构造函数，用于创建一个 [PlayModel] 实例。
   PlayModel({
     this.id,
     this.logo,
@@ -198,32 +177,20 @@ class PlayModel {
     this.group,
   });
 
-  /// 频道的唯一标识符，通常对应 `tvg-id`。
   String? id;
-
-  /// 频道的显示名称或标题，通常对应 `group-title`。
   String? title;
-
-  /// 频道的Logo图像的URL，通常对应 `tvg-logo`。
   String? logo;
-
-  /// 该频道所属的组或类别（例如："体育"，"新闻"）。
   String? group;
-
-  /// 频道的可播放URL列表，可能包含多个URL以提供备用或不同质量的流媒体链接。
   List<String>? urls;
 
-  /// 工厂构造函数，通过JSON对象创建一个 [PlayModel] 实例。
   factory PlayModel.fromJson(dynamic json) {
-    // 如果 'id' 或 'urls' 缺失，直接跳过创建 PlayModel
     if (json['id'] == null || json['urls'] == null) {
       return null;
     }
 
-    // 验证 urls 是否为有效的非空字符串列表
     List<String> urlsList = List<String>.from(json['urls'] ?? []);
     if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-      return null; // 跳过无效的 URL
+      return null;
     }
 
     return PlayModel(
@@ -235,23 +202,22 @@ class PlayModel {
     );
   }
 
-  /// 创建当前 [PlayModel] 实例的副本，可以选择性地覆盖特定字段。
   PlayModel copyWith({
     String? id,
     String? logo,
     String? title,
     String? group,
     List<String>? urls,
-  }) =>
-      PlayModel(
-        id: id ?? this.id,
-        logo: logo ?? this.logo,
-        urls: urls ?? this.urls,
-        title: title ?? this.title,
-        group: group ?? this.group,
-      );
+  }) {
+    return PlayModel(
+      id: id ?? this.id,
+      logo: logo ?? this.logo,
+      urls: urls ?? this.urls,
+      title: title ?? this.title,
+      group: group ?? this.group,
+    );
+  }
 
-  /// 将 [PlayModel] 实例转换为可兼容JSON格式的 `Map` 对象。
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};
     map['id'] = id;
