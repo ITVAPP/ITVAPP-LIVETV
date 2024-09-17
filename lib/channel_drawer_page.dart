@@ -29,15 +29,28 @@ class CategoryList extends StatelessWidget {
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final title = categories[index];
-        return ListTile(
-          title: Text(
-            title,
-            style: TextStyle(
-              color: selectedCategoryIndex == index ? Colors.red : Colors.white,
-              fontWeight: selectedCategoryIndex == index ? FontWeight.bold : FontWeight.normal,
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5), // 添加适当的间距
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => onCategoryTap(index),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
+                padding: const EdgeInsets.all(8.0), // 添加内边距
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: selectedCategoryIndex == index ? Colors.red : Colors.white,
+                    fontWeight: selectedCategoryIndex == index ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  softWrap: true, // 允许文字换行
+                  maxLines: null, // 行数不限，根据内容自动调整高度
+                  overflow: TextOverflow.visible, // 确保文字不会被截断
+                ),
+              ),
             ),
           ),
-          onTap: () => onCategoryTap(index),
         );
       },
     );
@@ -80,9 +93,9 @@ class GroupList extends StatelessWidget {
       child: InkWell(
         onTap: () => onGroupTap(index), // 传递点击回调
         splashColor: Colors.white.withOpacity(0.3),
-        child: Ink(
-          width: double.infinity,
-          height: itemHeight,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
+          padding: const EdgeInsets.all(8.0), // 添加内边距
           decoration: BoxDecoration(
             gradient: selectedGroupIndex == index
                 ? LinearGradient(colors: [Colors.red.withOpacity(0.6), Colors.red.withOpacity(0.3)])
@@ -96,6 +109,9 @@ class GroupList extends StatelessWidget {
                 color: selectedGroupIndex == index ? Colors.red : Colors.white,
                 fontWeight: FontWeight.bold,
               ),
+              softWrap: true, // 允许文字换行
+              maxLines: null, // 行数不限，根据内容自动调整高度
+              overflow: TextOverflow.visible, // 确保文字不会被截断
             ),
           ),
         ),
@@ -143,9 +159,8 @@ class ChannelList extends StatelessWidget {
       child: InkWell(
         onTap: () => onChannelTap(channels[name]),
         splashColor: Colors.white.withOpacity(0.3),
-        child: Ink(
-          width: double.infinity,
-          height: itemHeight,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: isSelect ? Colors.black38 : Colors.black26, // 频道项背景
@@ -159,6 +174,9 @@ class ChannelList extends StatelessWidget {
                 color: isSelect ? Colors.redAccent : Colors.white,
                 fontWeight: FontWeight.bold,
               ),
+              softWrap: true, // 允许文字换行
+              maxLines: null, // 行数不限，根据内容自动调整高度
+              overflow: TextOverflow.visible, // 确保文字不会被截断
             ),
           ),
         ),
@@ -266,7 +284,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<Map<String, PlayModel>> _values; // 视频分组的值列表
   late int _groupIndex; // 当前分组的索引
   late int _channelIndex; // 当前频道的索引
-  final double _itemHeight = 50.0; // 每个列表项的高度
+  final double _itemHeight = 38.0; // 每个列表项的高度
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
@@ -438,10 +456,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      width: widget.isLandscape ? categoryWidth + groupWidth + channelListWidth + epgListWidth : screenWidth, // 横屏时计算宽度
       width: widget.isLandscape 
-    ? categoryWidth + groupWidth + channelListWidth + epgListWidth 
-    : MediaQuery.of(context).size.width, // 横屏时计算宽度
+          ? categoryWidth + groupWidth + channelListWidth + epgListWidth 
+          : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
       ),
