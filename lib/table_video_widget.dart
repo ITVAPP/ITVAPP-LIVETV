@@ -262,7 +262,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       backgroundColor: Colors.black87,
                       side: const BorderSide(color: Colors.white),
               ),
-              icon: const Icon(Icons.screen_rotation, color: Colors.white),
+              icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18),
               onPressed: () async {
                 LogUtil.safeExecute(() async {
                   if (EnvUtil.isMobile) {
