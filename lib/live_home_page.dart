@@ -436,7 +436,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 检测设备是否为电视设备，加载不同的 UI 布局
     if (isTV) {
       return TvPage(
-        ..._buildCommonProps(),
+        videoMap: _videoMap,
+        playModel: _currentChannel,
+        onTapChannel: _onTapChannel,
+        toastString: toastString,
+        controller: _playerController,
+        isBuffering: isBuffering,
+        isPlaying: isPlaying,
+        aspectRatio: aspectRatio,
+        onChangeSubSource: _parseData,
+        changeChannelSources: _changeChannelSources,
       );
     }
 
@@ -446,8 +455,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
         portrait: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
           return MobileVideoWidget(
-            ..._buildCommonProps(),
+            toastString: toastString,
+            controller: _playerController,
+            changeChannelSources: _changeChannelSources,
             isLandscape: false,
+            isBuffering: isBuffering,
+            isPlaying: isPlaying,
+            aspectRatio: aspectRatio,
+            onChangeSubSource: _parseData,
             drawChild: ChannelDrawerPage(
               videoMap: _videoMap,
               playModel: _currentChannel,
@@ -478,10 +493,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
               body: toastString == 'UNKNOWN'
                   ? EmptyPage(onRefresh: _parseData) // 如果播放列表为空，显示错误页面
                   : TableVideoWidget(
-                      ..._buildCommonProps(),
+                      toastString: toastString,
+                      controller: _playerController,
+                      isBuffering: isBuffering,
+                      isPlaying: isPlaying,
+                      aspectRatio: aspectRatio,
                       drawerIsOpen: _drawerIsOpen,
-                      isLandscape: true,
-                    ),
+                      changeChannelSources: _changeChannelSources,
+                      isLandscape: true),
             ),
           );
         },
