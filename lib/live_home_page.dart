@@ -1,8 +1,8 @@
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart'; 
-import 'provider/theme_provider.dart'; 
+import 'package:provider/provider.dart'; // 导入Provider包
+import 'provider/theme_provider.dart'; // 引入ThemeProvider
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -23,7 +23,7 @@ import 'widget/empty_page.dart';
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
-  final PlaylistModel m3uData; 
+  final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
 
@@ -32,108 +32,116 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
+  // 超时重试次数
   static const int defaultMaxRetries = 1;
+  // 超时检测的时间
   static const int defaultTimeoutSeconds = 12;
 
+  // 存储加载状态的提示文字
   String toastString = S.current.loading;
+
+  // 视频播放列表的数据模型，包含多个播放频道及其视频源
   PlaylistModel? _videoMap;
+
+  // 当前播放的频道数据模型
   PlayModel? _currentChannel;
+
+  // 当前选中的视频源索引，表示正在播放哪个线路的地址
   int _sourceIndex = 0;
+
+  // 视频播放器控制器，用于控制视频的播放、暂停等操作
   VideoPlayerController? _playerController;
+
+  // 标记播放器是否处于缓冲状态
   bool isBuffering = false;
+
+  // 标记播放器是否正在播放
   bool isPlaying = false;
+
+  // 视频的宽高比，用于调整视频显示比例
   double aspectRatio = 1.78;
+
+  // 标记侧边抽屉（频道选择）是否打开
   bool _drawerIsOpen = false;
+
+  // 调试模式开关，调试时为 true，生产环境为 false
   bool isDebugMode = false;
+
+  // 重试次数计数器，记录当前播放重试的次数
   int _retryCount = 0;
+
+  // 最大重试次数
   final int maxRetries = defaultMaxRetries;
+
+  // 标志是否等待超时检测
   bool _timeoutActive = false;
+
+  // 标志播放器是否处于释放状态
   bool _isDisposing = false;
+
+  // 防止快速切换时的竞态条件
   bool _isSwitchingChannel = false;
+
+  // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
-  StreamUrl? _streamUrl;
 
-  /// 重置播放状态的方法
-  void _resetPlaybackState() {
-    _retryCount = 0;   // 重置重试次数
-    _sourceIndex = 0;  // 重置视频源索引
-    _timeoutActive = false;  // 取消超时检测状态
-    isBuffering = false;  // 重置缓冲状态
-    isPlaying = false;    // 重置播放状态
-  }
-
-
-  /// 统一处理播放列表和EPG逻辑的方法
-  void _handlePlaylistAndEPG({required void Function() onEmpty}) {
-    if (_videoMap?.playList?.isNotEmpty ?? false) {
-      setState(() {
-        _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
-        _playVideo();
-      });
-
-      _loadEPGData();
-    } else {
-      onEmpty();
-    }
-  }
-  
-  /// 加载EPG数据的通用方法
-  void _loadEPGData() {
-    if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
-      EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
-    } else {
-      EpgUtil.resetEPGXML();
-    }
-  }
+  StreamUrl? _streamUrl; // 用于存储当前的 StreamUrl 实例
 
   /// 播放视频的核心方法
+  /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
     _isSwitchingChannel = true;
 
-    // 释放旧的资源
-    await _disposeResources();
+    // 在开始播放新视频之前，释放旧的资源
+    await _disposePlayer();
 
-    // 更新加载提示
+    // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
 
-    // 获取视频URL
+    // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
-    _streamUrl = StreamUrl(url);
 
+    // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
+    _streamUrl = StreamUrl(url);
     try {
-      url = await _getParsedStreamUrl(url);
-      await _initializeAndPlayVideo(url);
+      // 获取解析后的有效视频 URL
+      String parsedUrl = await _streamUrl!.getStreamUrl();
+
+      // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
+      if (parsedUrl == 'ERROR') {
+        setState(() {
+          toastString = S.current.playError; // 更新 UI 显示播放错误提示
+        });
+        _isSwitchingChannel = false;
+        return;
+      }
+
+      // 如果解析成功，使用解析后的 URL
+      url = parsedUrl;
+
+      // 如果处于调试模式，则弹出确认对话框，允许用户确认是否播放该视频流
+      if (isDebugMode) {
+        bool shouldPlay = await _showConfirmationDialog(context, url);
+        if (!shouldPlay) {
+          _isSwitchingChannel = false;
+          return; // 用户取消播放，退出函数
+        }
+      }
     } catch (e, stackTrace) {
+      // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
       LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
-        toastString = S.current.playError;
+        toastString = S.current.playError; // 显示错误提示
       });
       _isSwitchingChannel = false;
-    }
-  }
-
-  /// 解析StreamUrl
-  Future<String> _getParsedStreamUrl(String url) async {
-    String parsedUrl = await _streamUrl!.getStreamUrl();
-    if (parsedUrl == 'ERROR') {
-      throw Exception('解析视频地址出错');
+      return;
     }
 
-    if (isDebugMode) {
-      bool shouldPlay = await _showConfirmationDialog(context, parsedUrl);
-      if (!shouldPlay) {
-        throw Exception('用户取消播放');
-      }
-    }
-    return parsedUrl;
-  }
-
-  /// 初始化并播放视频
-  Future<void> _initializeAndPlayVideo(String url) async {
     try {
+      // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
       _playerController = VideoPlayerController.networkUrl(
         Uri.parse(url),
         videoPlayerOptions: VideoPlayerOptions(
@@ -141,206 +149,200 @@ class _LiveHomePageState extends State<LiveHomePage> {
           mixWithOthers: false,
           webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
         ),
-      )..setVolume(1.0);
+      )..setVolume(1.0); // 设置音量
 
+      // 初始化播放器，开始播放视频
       await _playerController?.initialize();
       _playerController?.play();
       setState(() {
-        toastString = S.current.loading; 
+        toastString = S.current.loading; // 更新 UI，显示加载状态
       });
 
-      _resetPlaybackState();
+      // 播放成功，重置重试次数计数器
+      _retryCount = 0;
+      _sourceIndex = 0; // 重置视频源索引
+      _timeoutActive = false; // 播放成功，取消超时检测
+      _playerController?.addListener(_videoListener); // 添加播放监听
+
+      // 添加超时检测机制
       _startTimeoutCheck();
     } catch (e, stackTrace) {
+      // 如果播放过程中发生异常，处理播放失败逻辑
       LogUtil.logError('播放出错', e, stackTrace);
-      _retryPlayback();
+      _retryPlayback(); // 调用处理方法
     } finally {
       _isSwitchingChannel = false;
     }
   }
 
-  /// 统一资源释放方法
-  Future<void> _disposeResources() async {
-    if (_streamUrl != null) {
-      _streamUrl!.dispose();
-      _streamUrl = null;
-    }
+  /// 优化播放器资源释放
+  Future<void> _disposePlayer() async {
+    // 释放旧的 StreamUrl 实例
+    _disposeStreamUrl();
 
     if (_playerController != null && !_isDisposing) {
       _isDisposing = true;
+
       try {
-        await _disposePlayerController();
+        if (_playerController!.value.isPlaying) {
+          await _playerController!.pause(); // 确保视频暂停
+        }
+        _timeoutActive = false; // 停止超时检测，避免后续重试
+        _playerController!.removeListener(_videoListener); // 移除监听器
+        await _playerController!.dispose(); // 释放资源
       } catch (e, stackTrace) {
-        LogUtil.logError('释放播放器资源时出错', e, stackTrace);
+        LogUtil.logError('释放播放器资源时出错', e, stackTrace); // 记录错误
       } finally {
-        _playerController = null; 
+        _playerController = null; // 确保播放器控制器置空
         _isDisposing = false;
       }
     }
   }
 
-  /// 释放播放器控制器
-  Future<void> _disposePlayerController() async {
-    if (_playerController!.value.isPlaying) {
-      await _playerController!.pause();
+  /// 释放 StreamUrl 实例
+  void _disposeStreamUrl() {
+    if (_streamUrl != null) {
+      _streamUrl!.dispose();  // 调用 StreamUrl 的 dispose 方法释放资源
+      _streamUrl = null;       // 释放后将其置空
     }
-    _timeoutActive = false;
-    _playerController!.removeListener(_videoListener);
-    await _playerController!.dispose();
   }
 
-  /// 超时检测
+  /// 超时检测，超时后未播放则自动重试
   void _startTimeoutCheck() {
-    _timeoutActive = true;
+    _timeoutActive = true; // 开始超时检测
     Future.delayed(Duration(seconds: timeoutSeconds), () {
-      if (_shouldAbortTimeout()) return;
-      _retryPlayback();
+      if (_isDisposing) return; // 添加_isDisposing检查
+      if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
+        LogUtil.v('超时未播放，自动重试');
+        _retryPlayback();
+      }
     });
   }
 
-  /// 判断是否需要终止超时检测
-  bool _shouldAbortTimeout() {
-    return _isDisposing || (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying);
-  }
-
-  /// 处理播放失败的逻辑
+  /// 处理播放失败的逻辑，进行重试或切换线路
   void _retryPlayback() {
-    _timeoutActive = false;
+    _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
-    _disposeResources();
+
+    // 在重试前释放播放器资源
+    _disposePlayer(); // 确保释放旧的播放器资源
 
     if (_retryCount <= maxRetries) {
-      _showRetryToast();
-      _retryAfterDelay();
+      setState(() {
+        toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (_isDisposing) return; // 添加_isDisposing检查
+        _playVideo();
+      });
     } else {
-      _switchToNextSource();
+      _sourceIndex += 1;
+      if (_sourceIndex > _currentChannel!.urls!.length - 1) {
+        _sourceIndex = _currentChannel!.urls!.length - 1;
+        setState(() {
+          toastString = S.current.playError;
+        });
+      } else {
+        setState(() {
+          toastString = S.current.switchLine(_sourceIndex + 1);
+        });
+        Future.delayed(const Duration(seconds: 2), () {
+          if (_isDisposing) return; // 添加_isDisposing检查
+          _playVideo();
+        });
+      }
     }
   }
 
-  /// 显示重试提示
-  void _showRetryToast() {
-    setState(() {
-      toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
-    });
-  }
-
-  /// 延迟重试播放
-  void _retryAfterDelay() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (_isDisposing) return;
-      _playVideo();
-    });
-  }
-
-  /// 切换到下一个视频源
-  void _switchToNextSource() {
-    _sourceIndex += 1;
-    if (_sourceIndex > _currentChannel!.urls!.length - 1) {
-      _handleLastSourceError();
-    } else {
-      _switchSourceAfterDelay();
-    }
-  }
-
-  /// 处理最后一个源的错误
-  void _handleLastSourceError() {
-    _sourceIndex = _currentChannel!.urls!.length - 1;
-    setState(() {
-      toastString = S.current.playError;
-    });
-  }
-
-  /// 延迟切换源
-  void _switchSourceAfterDelay() {
-    setState(() {
-      toastString = S.current.switchLine(_sourceIndex + 1);
-    });
-    Future.delayed(const Duration(seconds: 2), () {
-      if (_isDisposing) return;
-      _playVideo();
-    });
-  }
-
-  /// 播放确认对话框
+  /// 显示播放确认对话框，用户可以选择是否播放当前视频流
   Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
     return await showDialog<bool>(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: Text(S.of(context).foundStreamTitle),
-              content: Text(S.of(context).streamUrlContent(url)),
+              title: Text(S.of(context).foundStreamTitle),  //找到视频流
+              content: Text(S.of(context).streamUrlContent(url)), // 你想播放这个流吗
               actions: <Widget>[
                 TextButton(
-                  child: Text(S.of(context).cancelButton),
+                  child: Text(S.of(context).cancelButton),  //取消
                   onPressed: () {
-                    Navigator.of(context).pop(false); 
+                    Navigator.of(context).pop(false); // 用户取消播放
                   },
                 ),
                 TextButton(
-                  child: Text(S.of(context).playButton),
+                  child: Text(S.of(context).playButton),  //播放
                   onPressed: () {
-                    Navigator.of(context).pop(true);
+                    Navigator.of(context).pop(true); // 用户确认播放
                   },
                 ),
               ],
             );
           },
         ) ??
-        false; 
+        false; // 如果对话框意外关闭，返回 false
   }
 
-  /// 监听视频播放状态
+  /// 监听视频播放状态的变化
+  /// 包括检测缓冲状态、播放状态以及播放出错的情况
   void _videoListener() {
     if (_playerController == null || _isDisposing) return;
 
+    // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
-      _disposeResources(); 
-      _retryPlayback();
+      _disposePlayer(); // 确保在出错时释放播放器资源
+      _retryPlayback(); // 调用失败处理逻辑
       return;
     }
 
-    _updatePlayerState();
+    // 更新缓冲状态
+    if (isBuffering != _playerController!.value.isBuffering) {
+      setState(() {
+        isBuffering = _playerController!.value.isBuffering;
+      });
+    }
+
+    // 更新播放状态
+    if (isPlaying != _playerController!.value.isPlaying) {
+      setState(() {
+        isPlaying = _playerController!.value.isPlaying;
+        if (isPlaying) {
+          aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 仅在开始播放时更新宽高比
+        }
+      });
+    }
   }
 
-  /// 更新播放器状态
-  void _updatePlayerState() {
-    setState(() {
-      isBuffering = _playerController!.value.isBuffering;
-      isPlaying = _playerController!.value.isPlaying;
-
-      if (isPlaying) {
-        aspectRatio = _playerController?.value.aspectRatio ?? 1.78;
-        _timeoutActive = false;
-      }
-    });
-  }
-
-  /// 处理频道切换
+  /// 处理频道切换操作
+  /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
   Future<void> _onTapChannel(PlayModel? model) async {
-    _timeoutActive = false;
     _currentChannel = model;
-    _sourceIndex = 0;
-    _retryCount = 0;
-    _playVideo();
+    _sourceIndex = 0; // 重置视频源索引
+    _retryCount = 0; // 重置重试次数计数器
+    _timeoutActive = false; // 取消超时检测
+    _playVideo(); // 开始播放选中的频道
   }
 
   @override
   void initState() {
     super.initState();
 
+    // 如果是桌面设备，隐藏窗口标题栏
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
+    // 加载播放列表数据和版本检测
     _loadData();
   }
 
-  /// 从播放列表中动态提取频道
+  /// 从播放列表中动态提取频道，处理两层和三层结构
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     String category = playList.keys.first;
     if (playList[category] is Map<String, Map<String, PlayModel>>) {
+      // 三层结构处理
       String group = (playList[category] as Map<String, Map<String, PlayModel>>).keys.first;
       String channel = (playList[category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
       return (playList[category] as Map<String, Map<String, PlayModel>>)[group]![channel];
     } else if (playList[category] is Map<String, PlayModel>) {
+      // 两层结构处理
       String channel = (playList[category] as Map<String, PlayModel>).keys.first;
       return (playList[category] as Map<String, PlayModel>)[channel];
     }
@@ -353,14 +355,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _videoMap = widget.m3uData;
       _sourceIndex = 0;
 
-      _handlePlaylistAndEPG(onEmpty: () {
-        setState(() {
-          _currentChannel = null;
-          _disposeResources();
-          toastString = 'UNKNOWN';
-        });
-      });
+      await _handlePlaylist(); // 处理播放列表和 EPG 数据
 
+      // 版本检测
       CheckVersionUtil.checkVersion(context, false, false);
     } catch (e, stackTrace) {
       LogUtil.logError('加载数据时出错', e, stackTrace);
@@ -368,65 +365,89 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 解析本地播放列表数据
+  /// 解析并加载本地播放列表数据
   Future<void> _parseData() async {
     try {
-      final resMap = await M3uUtil.getLocalM3uData();
+      final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
       _videoMap = resMap.data;
       _sourceIndex = 0;
 
-      _handlePlaylistAndEPG(onEmpty: () {
-        setState(() {
-          _currentChannel = null;
-          _disposeResources();
-          toastString = 'UNKNOWN';
-        });
-      });
+      await _handlePlaylist(); // 处理播放列表和 EPG 数据
     } catch (e, stackTrace) {
       LogUtil.logError('解析播放列表时出错', e, stackTrace);
     }
   }
 
+  /// 处理播放列表和 EPG 数据的通用逻辑
+  Future<void> _handlePlaylist() async {
+    if (_videoMap?.playList?.isNotEmpty ?? false) {
+      setState(() {
+        _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
+        _playVideo(); // 播放第一个频道
+      });
+
+      // 如果存在 EPG（节目预告）数据，则加载
+      if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
+        EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+      } else {
+        EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+      }
+    } else {
+      setState(() {
+        _currentChannel = null;
+        _disposePlayer();
+        toastString = 'UNKNOWN'; // 显示未知错误提示
+      });
+    }
+  }
+
   @override
   void dispose() {
+    // 禁用保持屏幕唤醒功能
     WakelockPlus.disable();
-    _isDisposing = true;
-    _disposeResources();
+
+    _isDisposing = true; // 标记正在释放资源
+    // 释放播放器和 StreamUrl 资源
+    _disposePlayer();
     super.dispose();
+  }
+
+  /// 播放器参数公共属性
+  Map<String, dynamic> _buildCommonProps() {
+    return {
+      'videoMap': _videoMap,
+      'playModel': _currentChannel,
+      'onTapChannel': _onTapChannel,
+      'toastString': toastString,
+      'controller': _playerController,
+      'isBuffering': isBuffering,
+      'isPlaying': isPlaying,
+      'aspectRatio': aspectRatio,
+      'onChangeSubSource': _parseData,
+      'changeChannelSources': _changeChannelSources,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
+    // 使用 Provider 获取 isTV 值
     bool isTV = context.watch<ThemeProvider>().isTV;
 
+    // 检测设备是否为电视设备，加载不同的 UI 布局
     if (isTV) {
       return TvPage(
-        videoMap: _videoMap,
-        playModel: _currentChannel,
-        onTapChannel: _onTapChannel,
-        toastString: toastString,
-        controller: _playerController,
-        isBuffering: isBuffering,
-        isPlaying: isPlaying,
-        aspectRatio: aspectRatio,
-        onChangeSubSource: _parseData,
-        changeChannelSources: _changeChannelSources,
+        ..._buildCommonProps(),
       );
     }
 
+    // 如果不是电视设备，加载移动设备布局
     return Material(
       child: OrientationLayoutBuilder(
         portrait: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
           return MobileVideoWidget(
-            toastString: toastString,
-            controller: _playerController,
-            changeChannelSources: _changeChannelSources,
+            ..._buildCommonProps(),
             isLandscape: false,
-            isBuffering: isBuffering,
-            isPlaying: isPlaying,
-            aspectRatio: aspectRatio,
-            onChangeSubSource: _parseData,
             drawChild: ChannelDrawerPage(
               videoMap: _videoMap,
               playModel: _currentChannel,
@@ -455,16 +476,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 });
               },
               body: toastString == 'UNKNOWN'
-                  ? EmptyPage(onRefresh: _parseData) 
+                  ? EmptyPage(onRefresh: _parseData) // 如果播放列表为空，显示错误页面
                   : TableVideoWidget(
-                      toastString: toastString,
-                      controller: _playerController,
-                      isBuffering: isBuffering,
-                      isPlaying: isPlaying,
-                      aspectRatio: aspectRatio,
+                      ..._buildCommonProps(),
                       drawerIsOpen: _drawerIsOpen,
-                      changeChannelSources: _changeChannelSources,
-                      isLandscape: true),
+                      isLandscape: true,
+                    ),
             ),
           );
         },
@@ -472,7 +489,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     );
   }
 
-  /// 切换视频源的方法
+  /// 切换视频源的方法，通过底部弹出框选择不同的视频源
   Future<void> _changeChannelSources() async {
     List<String> sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
     final selectedIndex = await showModalBottomSheet(
@@ -510,6 +527,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           );
         });
 
+    // 切换到选中的视频源并开始播放
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
       _playVideo();
