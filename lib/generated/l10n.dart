@@ -71,7 +71,7 @@ class S {
 
   String get playError {
     return Intl.message(
-      '此线路暂时无法播放，请等待修复',
+      '此频道暂时无法播放，请等待修复',
       name: 'playError',
       desc: '',
       args: [],
@@ -540,7 +540,7 @@ class S {
 
   String get logSubtitle {
     return Intl.message(
-      '如非开发人员调试，无需打开日志开关',
+      '如非开发人员，无需打开日志开关',
       name: 'logSubtitle',
       desc: '',
       args: [],
