@@ -17,22 +17,34 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
+      // 优化：如果不是 YouTube URL，尽早返回原始 URL，避免后续处理
+      if (!_isYouTubeUrl(url)) {
+        return url; // 如果不是 YouTube 链接，直接返回原始 URL
+      }
+
       LogUtil.i('尝试获取视频流地址: $url');
       
-      if (_isYouTubeUrl(url)) {
-        if (url.contains('ytlive')) {
-          LogUtil.i('检测到 YouTube 直播流');
-          return await _getYouTubeLiveStreamUrl() ?? 'ERROR';  // 处理 YouTube 直播视频
-        } else {
-          LogUtil.i('检测到普通 YouTube 视频');
-          return await _getYouTubeVideoUrl() ?? 'ERROR';  // 处理普通 YouTube 视频
-        }
+      // 如果是 YouTube URL，判断是直播流还是普通视频
+      if (url.contains('ytlive')) {
+        LogUtil.i('检测到 YouTube 直播流');
+        return await _getYouTubeLiveStreamUrl().timeout(Duration(seconds: 10), onTimeout: () {
+          LogUtil.e('获取 YouTube 直播流超时');
+          return 'ERROR';
+        }) ?? 'ERROR';  // 处理 YouTube 直播视频
+      } else {
+        LogUtil.i('检测到普通 YouTube 视频');
+        return await _getYouTubeVideoUrl().timeout(Duration(seconds: 10), onTimeout: () {
+          LogUtil.e('获取 YouTube 视频流超时');
+          return 'ERROR';
+        }) ?? 'ERROR';  // 处理普通 YouTube 视频
       }
-      return url; // 如果不是 YouTube 链接，直接返回原始 URL
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';  // 出现异常时返回 'ERROR'
     } finally {
+      if (!_isDisposed) {
+        _completer?.complete(); // 确保任务完成
+      }
       _completer = null; // 清除 completer
     }
   }
