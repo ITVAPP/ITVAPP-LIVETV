@@ -53,6 +53,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final int timeoutSeconds = defaultTimeoutSeconds;
   StreamUrl? _streamUrl;
 
+  /// 重置播放状态的方法
+  void _resetPlaybackState() {
+    _retryCount = 0;   // 重置重试次数
+    _sourceIndex = 0;  // 重置视频源索引
+    _timeoutActive = false;  // 取消超时检测状态
+    isBuffering = false;  // 重置缓冲状态
+    isPlaying = false;    // 重置播放状态
+  }
+
+
   /// 统一处理播放列表和EPG逻辑的方法
   void _handlePlaylistAndEPG({required void Function() onEmpty}) {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
@@ -66,7 +76,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       onEmpty();
     }
   }
-
+  
   /// 加载EPG数据的通用方法
   void _loadEPGData() {
     if (_videoMap?.epgUrl != null && _videoMap?.epgUrl != '') {
