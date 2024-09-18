@@ -1,18 +1,21 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'dart:async';
 
 class StreamUrl {
   final String url;
   final YoutubeExplode yt = YoutubeExplode(); // 创建 YouTube API 实例，用于获取视频数据
   final http.Client _client = http.Client(); // 创建 HTTP 客户端实例
   bool _isDisposed = false; // 标志位，防止重复释放
+  Completer<void>? _completer; // 用于取消异步任务
 
   StreamUrl(this.url);  // 构造函数，初始化播放 URL
 
   // 返回处理后的 URL，如果是 YouTube URL，则会解析；如果失败或不是 YouTube URL，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
     if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
+    _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
       LogUtil.i('尝试获取视频流地址: $url');
       
@@ -29,15 +32,23 @@ class StreamUrl {
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';  // 出现异常时返回 'ERROR'
+    } finally {
+      _completer = null; // 清除 completer
     }
   }
 
   // 释放资源（关闭 YouTube API 实例和 HTTP 客户端），防止重复调用
   void dispose() {
     if (_isDisposed) return; // 如果已经释放了资源，直接返回
+    _isDisposed = true; // 提前设置为已释放，防止重复释放
+    
+    // 如果有未完成的异步任务，取消它
+    if (_completer != null && !_completer!.isCompleted) {
+      _completer!.completeError('资源已释放，任务被取消');
+      LogUtil.i('取消未完成的异步操作');
+    }
+
     LogUtil.safeExecute(() {
-      _isDisposed = true; // 设置为已释放
-      
       // 关闭 YouTube API 实例，终止未完成的请求
       try {
         yt.close();
@@ -46,7 +57,7 @@ class StreamUrl {
         LogUtil.logError('释放 YouTubeExplode 实例时发生错误', e, stackTrace);
       }
 
-      // 关闭 HTTP 客户端，终止未完成的请求
+      // 关闭 HTTP 客户端，终止未完成的 HTTP 请求
       try {
         _client.close();
         LogUtil.i('HTTP 客户端已关闭，未完成的 HTTP 请求将被清除');
@@ -67,6 +78,7 @@ class StreamUrl {
     String? m3u8Url;
     try {
       for (int i = 0; i < 2; i++) {
+        if (_completer?.isCompleted == true) return null; // 检查任务是否取消
         m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
         if (m3u8Url != null) break;  // 如果获取成功，跳出循环
         if (_isDisposed) return null;  // 资源释放后立即退出
