@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -9,6 +8,61 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
+
+// 分割线样式
+const verticalDivider = VerticalDivider(
+  width: 0.1,
+  color: Colors.white54,
+);
+
+// 通用列表项构建函数
+Widget buildListItem({
+  required String title,
+  required bool isSelected,
+  required Function() onTap,
+  bool isCentered = true, // 控制文本是否居中对齐
+  double? minHeight, // 允许传入一个可选的最小高度
+  EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
+  Color selectedColor = Colors.red,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: Colors.white.withOpacity(0.3),
+        child: Container(
+          constraints: BoxConstraints(minHeight: minHeight ?? 38.0), // 默认最小高度为 38.0
+          padding: padding,
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? LinearGradient(
+                    colors: [
+                      selectedColor.withOpacity(0.6),
+                      selectedColor.withOpacity(0.3),
+                    ],
+                  )
+                : null,
+          ),
+          child: Align(
+            alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? selectedColor : Colors.white,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              softWrap: true,
+              maxLines: null,
+              overflow: TextOverflow.visible,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 // 分类列表组件
 class CategoryList extends StatelessWidget {
@@ -28,29 +82,12 @@ class CategoryList extends StatelessWidget {
     return ListView.builder(
       itemCount: categories.length,
       itemBuilder: (context, index) {
-        final title = categories[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5), // 添加适当的间距
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onCategoryTap(index),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-                padding: const EdgeInsets.all(6.0), // 添加内边距
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: selectedCategoryIndex == index ? Colors.red : Colors.white,
-                    fontWeight: selectedCategoryIndex == index ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  softWrap: true, // 允许文字换行
-                  maxLines: null, // 行数不限，根据内容自动调整高度
-                  overflow: TextOverflow.visible, // 确保文字不会被截断
-                ),
-              ),
-            ),
-          ),
+        return buildListItem(
+          title: categories[index],
+          isSelected: selectedCategoryIndex == index,
+          onTap: () => onCategoryTap(index),
+          isCentered: true, // 分类列表项居中
+          minHeight: 38.0, // 设置分类列表项的最小高度
         );
       },
     );
@@ -76,46 +113,20 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isTV = context.read<ThemeProvider>().isTV;
     return ListView.builder(
       cacheExtent: itemHeight, // 预缓存区域
       padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
       controller: scrollController, // 使用滚动控制器
-      itemBuilder: (context, index) => _buildGroupListTile(context, index, isTV), // 构建每个分组项
       itemCount: keys.length, // 分组数目
-    );
-  }
-
-  Widget _buildGroupListTile(BuildContext context, int index, bool isTV) {
-    final title = keys[index];
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onGroupTap(index), // 传递点击回调
-        splashColor: Colors.white.withOpacity(0.3),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-          padding: const EdgeInsets.all(6.0), // 添加内边距
-          decoration: BoxDecoration(
-            gradient: selectedGroupIndex == index
-                ? LinearGradient(colors: [Colors.red.withOpacity(0.6), Colors.red.withOpacity(0.3)])
-                : null,
-          ),
-          child: Align(
-            alignment: Alignment.center,
-            child: Text(
-              title,
-              style: TextStyle(
-                color: selectedGroupIndex == index ? Colors.red : Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-              softWrap: true, // 允许文字换行
-              maxLines: null, // 行数不限，根据内容自动调整高度
-              overflow: TextOverflow.visible, // 确保文字不会被截断
-            ),
-          ),
-        ),
-      ),
+      itemBuilder: (context, index) {
+        return buildListItem(
+          title: keys[index],
+          isSelected: selectedGroupIndex == index,
+          onTap: () => onGroupTap(index),
+          isCentered: true, // 分组列表项居中
+          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+        );
+      },
     );
   }
 }
@@ -139,48 +150,22 @@ class ChannelList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isTV = context.read<ThemeProvider>().isTV;
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 100.0),
       cacheExtent: itemHeight, // 预缓存区域
       controller: scrollController, // 使用滚动控制器
+      itemCount: channels.length,
       itemBuilder: (context, index) {
         final channelName = channels.keys.toList()[index];
         final isSelect = selectedChannelName == channelName;
-        return _buildChannelListTile(context, channelName, isSelect, isTV);
+        return buildListItem(
+          title: channelName,
+          isSelected: isSelect,
+          onTap: () => onChannelTap(channels[channelName]),
+          isCentered: true, // 频道列表项居中
+          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+        );
       },
-      itemCount: channels.length,
-    );
-  }
-
-  Widget _buildChannelListTile(BuildContext context, String name, bool isSelect, bool isTV) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onChannelTap(channels[name]),
-        splashColor: Colors.white.withOpacity(0.3),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 38.0), // 最小高度为 38 像素
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: isSelect ? Colors.black38 : Colors.black26, // 频道项背景
-            borderRadius: BorderRadius.circular(5), // 圆角
-          ),
-          child: Align(
-            alignment: Alignment.center,
-            child: Text(
-              name,
-              style: TextStyle(
-                color: isSelect ? Colors.redAccent : Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-              softWrap: true, // 允许文字换行
-              maxLines: null, // 行数不限，根据内容自动调整高度
-              overflow: TextOverflow.visible, // 确保文字不会被截断
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -215,39 +200,28 @@ class EPGList extends StatelessWidget {
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold), // 加粗样式
           ),
         ),
-        VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
+        verticalDivider, // 分割线
         Flexible(
           child: ScrollablePositionedList.builder(
             initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
+            itemCount: epgData?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
               final data = epgData?[index];
               if (data == null) return const SizedBox.shrink();
               final isSelect = index == selectedIndex;
-              return _buildEPGListTile(data, isSelect);
+              return buildListItem(
+                title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
+                isSelected: isSelect,
+                onTap: () => onSelectEPG(index),
+                isCentered: false, // EPG列表项左对齐
+                minHeight: 48.0, // 固定的最小高度
+                padding: const EdgeInsets.all(10),
+                selectedColor: Colors.redAccent,
+              );
             },
-            itemCount: epgData?.length ?? 0,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildEPGListTile(EpgData data, bool isSelect) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 40),
-      padding: const EdgeInsets.all(10),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-        color: isSelect ? Colors.black38 : Colors.black26, // EPG项背景
-        borderRadius: BorderRadius.circular(5), // 圆角
-      ),
-      child: Text(
-        '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
-        style: TextStyle(
-          fontWeight: isSelect ? FontWeight.bold : FontWeight.normal, // 选中项加粗显示
-          color: isSelect ? Colors.redAccent : Colors.white, // 选中项显示红色
-        ),
-      ),
     );
   }
 }
@@ -284,7 +258,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<Map<String, PlayModel>> _values; // 视频分组的值列表
   late int _groupIndex; // 当前分组的索引
   late int _channelIndex; // 当前频道的索引
-  final double _itemHeight = 38.0; // 每个列表项的高度
+  final double _itemHeight = 48.0; // 每个列表项的高度
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
@@ -342,18 +316,54 @@ void _initializeChannelData() {
   if (_channelIndex == -1) _channelIndex = 0;
 }
 
+  // 通用节流点击处理
+  void _onTapThrottled(Function action) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      action();
+    });
+  }
+
   // 切换分类时更新分组和频道
   void _onCategoryTap(int index) {
-    setState(() {
-      _categoryIndex = index; // 更新选中的分类索引
-      _initializeChannelData(); // 根据新的分类重新初始化频道数据
-      _groupIndex = 0; // 重置分组索引
-      _channelIndex = 0; // 重置频道索引
-      _scrollController.animateTo(0,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
-      _scrollChannelController.animateTo(0,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
+    _onTapThrottled(() {
+      setState(() {
+        _categoryIndex = index; // 更新选中的分类索引
+        _initializeChannelData(); // 根据新的分类重新初始化频道数据
+        _groupIndex = 0; // 重置分组索引
+        _channelIndex = 0; // 重置频道索引
+        _scrollToTop(_scrollController);
+        _scrollToTop(_scrollChannelController);
+      });
     });
+  }
+
+  // 切换分组时更新频道
+  void _onGroupTap(int index) {
+    _onTapThrottled(() {
+      setState(() {
+        _groupIndex = index;
+        final name = _values[_groupIndex].keys.first;
+        _onChannelTap(_values[_groupIndex][name]);
+        _scrollToTop(_scrollChannelController);
+      });
+    });
+  }
+
+  // 切换频道
+  void _onChannelTap(PlayModel? newModel) {
+    _onTapThrottled(() {
+      widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    });
+  }
+
+  // 滚动到顶部
+  void _scrollToTop(ScrollController controller) {
+    controller.animateTo(0,
+      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
   }
 
   // 计算视图窗口的高度
@@ -415,17 +425,6 @@ void _initializeChannelData() {
     }
   }
 
-  // 节流点击处理
-  void _onTapChannelThrottled(PlayModel? newModel) {
-    if (_debounceTimer?.isActive ?? false) {
-      _debounceTimer?.cancel();
-    }
-
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      widget.onTapChannel?.call(newModel); // 执行频道切换回调
-    });
-  }
-
   @override
   void dispose() {
     _debounceTimer?.cancel(); // 清理定时器
@@ -464,7 +463,7 @@ void _initializeChannelData() {
     double channelListWidth = isPortrait
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
         : 160; // 横屏时频道列表宽度为固定160
-    double epgListWidth = isPortrait ? 0 : 280; // 竖屏时不显示EPG，横屏时宽度为280
+    double epgListWidth = isPortrait ? 0 : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth; // EPG列表宽度
 
     return Container(
       key: _viewPortKey,
@@ -485,7 +484,7 @@ void _initializeChannelData() {
               onCategoryTap: _onCategoryTap, // 分类点击事件
             ),
           ),
-          VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
+          verticalDivider, // 分割线
           SizedBox(
             width: groupWidth,
             child: GroupList(
@@ -493,18 +492,10 @@ void _initializeChannelData() {
               scrollController: _scrollController,
               itemHeight: _itemHeight,
               selectedGroupIndex: _groupIndex,
-              onGroupTap: (index) {
-                setState(() {
-                  _groupIndex = index;
-                  final name = _values[_groupIndex].keys.first;
-                  _onTapChannelThrottled(_values[_groupIndex][name]);
-                  _scrollChannelController.animateTo(0,
-                      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
-                });
-              },
+              onGroupTap: _onGroupTap, // 分组点击事件
             ),
           ),
-          VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
+          verticalDivider, // 分割线
           if (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
             SizedBox(
               width: channelListWidth, // 频道列表宽度
@@ -513,12 +504,11 @@ void _initializeChannelData() {
                 scrollController: _scrollChannelController,
                 itemHeight: _itemHeight,
                 selectedChannelName: widget.playModel?.title,
-                onChannelTap: (newModel) => _onTapChannelThrottled(newModel),
+                onChannelTap: _onChannelTap, // 频道点击事件
               ),
             ),
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
-            VerticalDivider(width: 0.1, color: Colors.white.withOpacity(0.1)), // 分割线
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) {  
+            verticalDivider, // 分割线
             SizedBox(
               width: epgListWidth, // EPG显示区宽度
               child: EPGList(
@@ -529,6 +519,7 @@ void _initializeChannelData() {
                 }),
               ),
             ),
+          },  
         ],
       ),
     );
