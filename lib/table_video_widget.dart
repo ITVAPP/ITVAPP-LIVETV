@@ -164,7 +164,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 频道列表按钮，点击打开抽屉菜单
                   IconButton(
                     tooltip: S.current.tipChannelList,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.list_alt, color: Colors.white),
                     onPressed: () {
                       LogUtil.safeExecute(() {
@@ -177,7 +177,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 切换频道源按钮，调用 changeChannelSources 回调
                   IconButton(
                     tooltip: S.current.tipChangeLine,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.legend_toggle, color: Colors.white),
                     onPressed: () {
                       LogUtil.safeExecute(() {
@@ -190,7 +190,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 设置按钮，点击进入设置页面
                   IconButton(
                     tooltip: S.current.settings,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.settings, color: Colors.white),
                     onPressed: () {
                       LogUtil.safeExecute(() {
@@ -205,7 +205,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 切换竖屏按钮，调整为竖屏模式
                   IconButton(
                     tooltip: S.current.portrait,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
                     icon: const Icon(Icons.screen_rotation, color: Colors.white),
                     onPressed: () async {
                       LogUtil.safeExecute(() async {
@@ -226,7 +226,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   if (!EnvUtil.isMobile)
                     IconButton(
                       tooltip: S.current.fullScreen,
-                      style: IconButton.styleFrom(backgroundColor: Colors.black87, side: const BorderSide(color: Colors.white)),
+                      style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
                       icon: FutureBuilder<bool>(
                         future: windowManager.isFullScreen(),
                         builder: (context, snapshot) {
@@ -259,8 +259,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             child: IconButton(
               tooltip: S.current.landscape,
               style: IconButton.styleFrom( // 添加和横屏按钮相同的样式
-                      backgroundColor: Colors.black87,
+                      backgroundColor: Colors.black45,
                       side: const BorderSide(color: Colors.white),
+                      padding: const EdgeInsets.all(5), // 设置padding为5，以使背景大小为28
               ),
               icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18),
               onPressed: () async {
