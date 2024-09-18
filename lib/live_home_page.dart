@@ -504,67 +504,85 @@ class _LiveHomePageState extends State<LiveHomePage> {
 Future<void> _changeChannelSources() async {
   List<String>? sources;
 
-  // 判断播放列表是二层结构还是三层结构
-  final groupMap = _videoMap!.playList![_currentChannel!.group];
-  if (groupMap is Map<String, PlayModel>) {
-    // 二层结构
-    final channel = groupMap[_currentChannel!.title];
-    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-      sources = channel.urls;
+  try {
+    // 判断播放列表是二层结构还是三层结构
+    final groupMap = _videoMap!.playList![_currentChannel!.group];
+    if (groupMap is Map<String, PlayModel>) {
+      // 二层结构
+      final channel = groupMap[_currentChannel!.title];
+      if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+        sources = channel.urls;
+      }
+    } else if (groupMap is Map<String, Map<String, PlayModel>>) {
+      // 三层结构
+      final groupChannels = groupMap[_currentChannel!.group]; // 获取组下的频道 Map
+      final channel = groupChannels?[_currentChannel!.title]; // 获取具体的频道 PlayModel 实例
+      if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+        sources = channel.urls; // 获取频道的 urls
+      } else {
+        LogUtil.e('三层结构: 未找到有效的频道 URL');
+      }
     }
-  } else if (groupMap is Map<String, Map<String, PlayModel>>) {
-    // 三层结构
-    final groupChannels = groupMap[_currentChannel!.group]; // 获取组下的频道 Map
-    final channel = groupChannels?[_currentChannel!.title]; // 获取具体的频道 PlayModel 实例
-    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-      sources = channel.urls; // 获取频道的 urls
+
+    // 如果未找到有效的 source，则返回
+    if (sources == null || sources.isEmpty) {
+      LogUtil.e('未找到有效的视频源');
+      return;
     }
-  }
 
-  // 如果未找到有效的 source，则返回
-  if (sources == null || sources.isEmpty) {
-    return;
-  }
-
-  final selectedIndex = await showModalBottomSheet(
-      context: context,
-      useRootNavigator: true,
-      barrierColor: Colors.transparent,
-      backgroundColor: Colors.black87,
-      builder: (BuildContext context) {
-        return SingleChildScrollView(
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
-            color: Colors.transparent,
-            child: Wrap(
+    try {
+      final selectedIndex = await showModalBottomSheet(
+        context: context,
+        useRootNavigator: true,
+        barrierColor: Colors.transparent,
+        backgroundColor: Colors.black87,
+        builder: (BuildContext context) {
+          return SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
+              color: Colors.transparent,
+              child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: List.generate(sources.length, (index) {
+                children: List.generate(sources?.length ?? 0, (index) { // 处理 sources 可能为 null 的情况
                   return OutlinedButton(
-                      autofocus: _sourceIndex == index,
-                      style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                          foregroundColor: Colors.redAccent),
-                      onPressed: _sourceIndex == index
-                          ? null
-                          : () {
-                              Navigator.pop(context, index);
-                            },
-                      child: Text(
-                        S.current.lineIndex(index + 1),
-                        style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
-                      ));
-                })),
-          ),
-        );
-      });
+                    autofocus: _sourceIndex == index,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
+                      foregroundColor: Colors.redAccent,
+                    ),
+                    onPressed: _sourceIndex == index
+                        ? null
+                        : () {
+                            Navigator.pop(context, index);
+                          },
+                    child: Text(
+                      S.current.lineIndex(index + 1),
+                      style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          );
+        },
+      );
 
-  // 切换到选中的视频源并开始播放
-  if (selectedIndex != null && _sourceIndex != selectedIndex) {
-    _sourceIndex = selectedIndex;
-    _playVideo();
+      // 切换到选中的视频源并开始播放
+      if (selectedIndex != null && _sourceIndex != selectedIndex) {
+        _sourceIndex = selectedIndex;
+        _playVideo();
+      } else {
+        LogUtil.e('未选择新的视频源或选中的索引未发生变化');
+      }
+    } catch (modalError, modalStackTrace) {
+      // 记录弹出窗口的错误日志
+      LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('切换视频源时出错', e, stackTrace); // 捕获并记录所有错误
   }
 }
 }
