@@ -8,7 +8,7 @@
       "channel": {}
     }
   },
-  "playError": "此线路暂时无法播放，请等待修复",
+  "playError": "此频道暂时无法播放，请等待修复",
   "switchLine": "切换线路{line} ...",
   "@switchLine": {
     "placeholders": {
@@ -85,7 +85,7 @@
   "noEPG": "暂无节目信息",
   "logtitle": "日志查看器",
   "SwitchTitle": "记录日志",
-  "logSubtitle": "如非开发人员调试，无需打开日志开关",
+  "logSubtitle": "如非开发人员，无需打开日志开关",
   "filterAll": "所有",
   "filterVerbose": "详细",
   "filterError": "错误",
