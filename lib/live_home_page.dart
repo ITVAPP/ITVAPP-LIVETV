@@ -225,7 +225,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _retryCount += 1;
 
     // 在重试前释放播放器资源
-    _disposePlayer(); // 确保释放旧的播放器资源
+    await _disposePlayer(); // 确保释放旧的播放器资源
 
     if (_retryCount <= maxRetries) {
       setState(() {
@@ -289,7 +289,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
-      _disposePlayer(); // 确保在出错时释放播放器资源
+     await _disposePlayer(); // 确保在出错时释放播放器资源
       _retryPlayback(); // 调用失败处理逻辑
       return;
     }
@@ -315,6 +315,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 处理频道切换操作
   /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
   Future<void> _onTapChannel(PlayModel? model) async {
+     await _disposePlayer();
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
     _retryCount = 0; // 重置重试次数计数器
@@ -395,7 +396,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } else {
       setState(() {
         _currentChannel = null;
-        _disposePlayer();
+        await _disposePlayer(); 
         toastString = 'UNKNOWN'; // 显示未知错误提示
       });
     }
@@ -408,7 +409,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isDisposing = true; // 标记正在释放资源
     // 释放播放器和 StreamUrl 资源
-    _disposePlayer();
+    await _disposePlayer(); 
     super.dispose();
   }
 
