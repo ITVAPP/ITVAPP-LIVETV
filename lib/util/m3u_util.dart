@@ -198,15 +198,24 @@ class M3uUtil {
             // 合并同组同频道名的播放地址
             channels.forEach((channelName, channelModel) {
               if (mergedPlaylist.playList![category]![groupTitle]!.containsKey(channelName)) {
-                // 如果频道已经存在，合并播放地址，并去重
-                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls =
-                    mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls!
-                        .followedBy(channelModel.urls ?? []).toSet().toList();
+                // 如果频道已经存在，合并播放地址，确保不重复，保持顺序
+                List<String> existingUrls = mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls ?? [];
+                List<String> newUrls = channelModel.urls ?? [];
+
+                // 手动去重，保留原有顺序
+                for (String url in newUrls) {
+                  if (!existingUrls.contains(url)) {
+                    existingUrls.add(url);
+                  }
+                }
+
+                // 更新频道的播放地址列表
+                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls = existingUrls;
               } else {
                 // 如果频道不存在，直接添加
                 mergedPlaylist.playList![category]![groupTitle]![channelName] = channelModel;
                 mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls =
-                    channelModel.urls?.toSet().toList() ?? [];
+                    channelModel.urls?.toList() ?? [];  // 直接使用原始列表
               }
             });
           });
