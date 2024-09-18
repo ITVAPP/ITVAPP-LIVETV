@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart'; // 引入剪贴板相关的包
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import '../generated/l10n.dart';
@@ -23,6 +24,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 为 TV 焦点管理增加焦点节点
   final List<FocusNode> _focusNodes = List.generate(5, (index) => FocusNode());
+  final FocusNode _clearLogsButtonFocusNode = FocusNode(); // 清空日志按钮焦点
+  final FocusNode _copyButtonFocusNode = FocusNode(); // 复制按钮焦点
 
   @override
   void initState() {
@@ -37,6 +40,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
     for (var node in _focusNodes) {
       node.dispose();
     }
+    _clearLogsButtonFocusNode.dispose();
+    _copyButtonFocusNode.dispose();
     super.dispose();
   }
 
@@ -122,17 +127,19 @@ class _SettinglogPageState extends State<SettinglogPage> {
                   Expanded(
                     child: Column(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _buildFilterButton('all', S.of(context).filterAll, 0),
-                              _buildFilterButton('v', S.of(context).filterVerbose, 1),
-                              _buildFilterButton('e', S.of(context).filterError, 2),
-                              _buildFilterButton('i', S.of(context).filterInfo, 3),
-                              _buildFilterButton('d', S.of(context).filterDebug, 4),
-                            ],
+                        FocusTraversalGroup( // 增加 FocusTraversalGroup 来管理焦点顺序
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildFilterButton('all', S.of(context).filterAll, 0),
+                                _buildFilterButton('v', S.of(context).filterVerbose, 1),
+                                _buildFilterButton('e', S.of(context).filterError, 2),
+                                _buildFilterButton('i', S.of(context).filterInfo, 3),
+                                _buildFilterButton('d', S.of(context).filterDebug, 4),
+                              ],
+                            ),
                           ),
                         ),
                         Flexible(
@@ -158,13 +165,35 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                 children: [
                                                   Padding(
                                                     padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                                    child: Text(
-                                                      formatDateTime(log['time']!), // 第一行时间
-                                                      style: const TextStyle(
-                                                          fontWeight: FontWeight.bold, fontSize: 16),
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Text(
+                                                          formatDateTime(log['time']!), // 第一行时间
+                                                          style: const TextStyle(
+                                                              fontWeight: FontWeight.bold, fontSize: 16),
+                                                        ),
+                                                        IconButton(
+                                                          focusNode: _copyButtonFocusNode, // 为复制按钮添加焦点
+                                                          icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
+                                                          onPressed: () {
+                                                            // 将该条日志的内容复制到剪贴板
+                                                            String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
+                                                            Clipboard.setData(ClipboardData(text: logContent));
+
+                                                            // 显示复制成功的提示
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(content: Text(S.of(context).logCopied)),  // 日志已复制
+                                                            );
+                                                          },
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                  Text(LogUtil.parseLogMessage(log['message']!)), // 第二行日志信息
+                                                  SelectableText(
+                                                    LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
+                                                    style: const TextStyle(fontSize: 14),
+                                                  ),
                                                   const Divider(), // 分隔符
                                                 ],
                                               ))
@@ -176,6 +205,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
                           child: ElevatedButton(
+                            focusNode: _clearLogsButtonFocusNode, // 为清空日志按钮添加焦点
                             onPressed: () {
                               setState(() {
                                 LogUtil.clearLogs();
