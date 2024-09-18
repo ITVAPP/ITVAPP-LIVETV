@@ -92,10 +92,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _playVideo() async {
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
-    _isSwitchingChannel = true;
-
     // 在开始播放新视频之前，释放旧的资源
     await _disposePlayer();
+    
+    _isSwitchingChannel = true;
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -180,16 +180,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
 
-    if (_playerController != null && !_isDisposing) {
+    if (!_isDisposing) {
       _isDisposing = true;
-
       try {
-        if (_playerController!.value.isPlaying) {
-          await _playerController!.pause(); // 确保视频暂停
-        }
         _timeoutActive = false; // 停止超时检测，避免后续重试
-        _playerController!.removeListener(_videoListener); // 移除监听器
-        await _playerController!.dispose(); // 释放资源
+        _playerController?.removeListener(_videoListener); // 移除监听器
+        await _playerController?.dispose(); // 释放资源
       } catch (e, stackTrace) {
         LogUtil.logError('释放播放器资源时出错', e, stackTrace); // 记录错误
       } finally {
@@ -223,9 +219,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback() {
     _timeoutActive = false; // 处理失败，取消超时
     _retryCount += 1;
-
-    // 在重试前释放播放器资源
-    _disposePlayer(); // 确保释放旧的播放器资源
 
     if (_retryCount <= maxRetries) {
       setState(() {
@@ -289,7 +282,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 如果发生播放错误，则切换到下一个视频源
     if (_playerController!.value.hasError) {
-     _disposePlayer(); // 确保在出错时释放播放器资源
       _retryPlayback(); // 调用失败处理逻辑
       return;
     }
@@ -396,7 +388,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } else {
       setState(() {
         _currentChannel = null;
-        _disposePlayer(); 
         toastString = 'UNKNOWN'; // 显示未知错误提示
       });
     }
@@ -511,7 +502,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
   Future<void> _changeChannelSources() async {
-    List<String> sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
+    List<String> sources;
+    
+    // 判断播放列表是二层结构还是三层结构
+    if (_videoMap!.playList![_currentChannel!.group] is Map<String, PlayModel>) {
+      // 二层结构
+      sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
+    } else if (_videoMap!.playList![_currentChannel!.group] is Map<String, Map<String, PlayModel>>) {
+      // 三层结构
+      sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
+    } else {
+      // 无效结构或错误
+      return;
+    }
+
     final selectedIndex = await showModalBottomSheet(
         context: context,
         useRootNavigator: true,
