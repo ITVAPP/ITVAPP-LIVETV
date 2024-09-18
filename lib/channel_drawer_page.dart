@@ -11,9 +11,9 @@ import 'generated/l10n.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 
 // 分割线样式
-const verticalDivider = VerticalDivider(
+final verticalDivider = VerticalDivider(
   width: 0.1,
-  color: Colors.white54,
+  color: Colors.white.withOpacity(0.1),
 );
 
 // 通用列表项构建函数
@@ -25,14 +25,19 @@ Widget buildListItem({
   double? minHeight, // 允许传入一个可选的最小高度
   EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
   Color selectedColor = Colors.red,
+  bool isTV = false, // 是否为 TV 设备
+  Function(bool)? onFocusChange, // 焦点改变时的回调
 }) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
+    padding: const EdgeInsets.symmetric(vertical: 0),  // 分类、分组、频道、EPG 列表项的上下外边距
     child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         splashColor: Colors.white.withOpacity(0.3),
+        canRequestFocus: isTV, // 仅在 TV 上允许请求焦点
+        onFocusChange: onFocusChange,
+        overlayColor: isTV ? MaterialStateProperty.all(Colors.greenAccent.withOpacity(0.2)) : null, // TV 焦点颜色变化
         child: Container(
           constraints: BoxConstraints(minHeight: minHeight ?? 38.0), // 默认最小高度为 38.0
           padding: padding,
@@ -70,12 +75,14 @@ class CategoryList extends StatelessWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
+  final bool isTV;
 
   const CategoryList({
     super.key,
     required this.categories,
     required this.selectedCategoryIndex,
     required this.onCategoryTap,
+    required this.isTV,
   });
 
   @override
@@ -88,7 +95,13 @@ class CategoryList extends StatelessWidget {
           isSelected: selectedCategoryIndex == index,
           onTap: () => onCategoryTap(index),
           isCentered: true, // 分类列表项居中
-          minHeight: 38.0, // 设置分类列表项的最小高度
+          minHeight: 48.0, // 设置分类列表项的最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
         );
       },
     );
@@ -102,6 +115,7 @@ class GroupList extends StatelessWidget {
   final double itemHeight;
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
+  final bool isTV;
 
   const GroupList({
     super.key,
@@ -110,6 +124,7 @@ class GroupList extends StatelessWidget {
     required this.itemHeight,
     required this.selectedGroupIndex,
     required this.onGroupTap,
+    required this.isTV,
   });
 
   @override
@@ -126,6 +141,12 @@ class GroupList extends StatelessWidget {
           onTap: () => onGroupTap(index),
           isCentered: true, // 分组列表项居中
           minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
         );
       },
     );
@@ -139,6 +160,7 @@ class ChannelList extends StatelessWidget {
   final double itemHeight;
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
+  final bool isTV;
 
   const ChannelList({
     super.key,
@@ -147,6 +169,7 @@ class ChannelList extends StatelessWidget {
     required this.itemHeight,
     required this.onChannelTap,
     this.selectedChannelName,
+    required this.isTV,
   });
 
   @override
@@ -165,6 +188,12 @@ class ChannelList extends StatelessWidget {
           onTap: () => onChannelTap(channels[channelName]),
           isCentered: true, // 频道列表项居中
           minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
         );
       },
     );
@@ -175,13 +204,13 @@ class ChannelList extends StatelessWidget {
 class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
-  final Function(int index) onSelectEPG;
+  final bool isTV;
 
   const EPGList({
     super.key,
     required this.epgData,
     required this.selectedIndex,
-    required this.onSelectEPG,
+    required this.isTV,
   });
 
   @override
@@ -213,11 +242,17 @@ class EPGList extends StatelessWidget {
               return buildListItem(
                 title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
                 isSelected: isSelect,
-                onTap: () => onSelectEPG(index),
+                onTap: () {}, // 禁用点击事件，EPG项不可点击
                 isCentered: false, // EPG列表项左对齐
                 minHeight: 48.0, // 固定的最小高度
                 padding: const EdgeInsets.all(10),
                 selectedColor: Colors.redAccent,
+                isTV: isTV,
+                onFocusChange: (focus) {
+                  if (isTV && focus) {
+                    Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
+                  }
+                },
               );
             },
           ),
@@ -483,6 +518,7 @@ void _initializeChannelData() {
               categories: _categories,
               selectedCategoryIndex: _categoryIndex,
               onCategoryTap: _onCategoryTap, // 分类点击事件
+              isTV: isTV, // 是否为 TV 设备
             ),
           ),
           verticalDivider, // 分割线
@@ -494,6 +530,7 @@ void _initializeChannelData() {
               itemHeight: _itemHeight,
               selectedGroupIndex: _groupIndex,
               onGroupTap: _onGroupTap, // 分组点击事件
+              isTV: isTV, // 是否为 TV 设备
             ),
           ),
           verticalDivider, // 分割线
@@ -506,6 +543,7 @@ void _initializeChannelData() {
                 itemHeight: _itemHeight,
                 selectedChannelName: widget.playModel?.title,
                 onChannelTap: _onChannelTap, // 频道点击事件
+                isTV: isTV, // 是否为 TV 设备
               ),
             ),
           if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) 
@@ -515,9 +553,7 @@ void _initializeChannelData() {
               child: EPGList(
                 epgData: _epgData,
                 selectedIndex: _selEPGIndex,
-                onSelectEPG: (index) => setState(() {
-                  _selEPGIndex = index;
-                }),
+                isTV: isTV, // 是否为 TV 设备
               ),
             ),
         ],
