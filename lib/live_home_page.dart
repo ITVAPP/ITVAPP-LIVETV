@@ -501,60 +501,69 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
-  Future<void> _changeChannelSources() async {
-    List<String> sources;
-    
-    // 判断播放列表是二层结构还是三层结构
-    if (_videoMap!.playList![_currentChannel!.group] is Map<String, PlayModel>) {
-      // 二层结构
-      sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
-    } else if (_videoMap!.playList![_currentChannel!.group] is Map<String, Map<String, PlayModel>>) {
-      // 三层结构
-      sources = _videoMap!.playList![_currentChannel!.group]![_currentChannel!.title]!.urls!;
-    } else {
-      // 无效结构或错误
-      return;
+Future<void> _changeChannelSources() async {
+  List<String>? sources;
+
+  // 判断播放列表是二层结构还是三层结构
+  final groupMap = _videoMap!.playList![_currentChannel!.group];
+  if (groupMap is Map<String, PlayModel>) {
+    // 二层结构
+    final channel = groupMap[_currentChannel!.title];
+    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+      sources = channel.urls;
     }
-
-    final selectedIndex = await showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        barrierColor: Colors.transparent,
-        backgroundColor: Colors.black87,
-        builder: (BuildContext context) {
-          return SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
-              color: Colors.transparent,
-              child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: List.generate(sources.length, (index) {
-                    return OutlinedButton(
-                        autofocus: _sourceIndex == index,
-                        style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                            foregroundColor: Colors.redAccent),
-                        onPressed: _sourceIndex == index
-                            ? null
-                            : () {
-                                Navigator.pop(context, index);
-                              },
-                        child: Text(
-                          S.current.lineIndex(index + 1),
-                          style: TextStyle(fontSize: 12, color: _sourceIndex == index ? Colors.red : Colors.white),
-                        ));
-                  })),
-            ),
-          );
-        });
-
-    // 切换到选中的视频源并开始播放
-    if (selectedIndex != null && _sourceIndex != selectedIndex) {
-      _sourceIndex = selectedIndex;
-      _playVideo();
+  } else if (groupMap is Map<String, Map<String, PlayModel>>) {
+    // 三层结构
+    final groupChannels = groupMap[_currentChannel!.title];
+    if (groupChannels?.urls != null && groupChannels!.urls!.isNotEmpty) {
+      sources = groupChannels.urls;
     }
   }
+
+  // 如果未找到有效的 source，则返回
+  if (sources == null || sources.isEmpty) {
+    return;
+  }
+
+  final selectedIndex = await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.black87,
+      builder: (BuildContext context) {
+        return SingleChildScrollView(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
+            color: Colors.transparent,
+            child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: List.generate(sources.length, (index) {
+                  return OutlinedButton(
+                      autofocus: _sourceIndex == index,
+                      style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
+                          foregroundColor: Colors.redAccent),
+                      onPressed: _sourceIndex == index
+                          ? null
+                          : () {
+                              Navigator.pop(context, index);
+                            },
+                      child: Text(
+                        S.current.lineIndex(index + 1),
+                        style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
+                      ));
+                })),
+          ),
+        );
+      });
+
+  // 切换到选中的视频源并开始播放
+  if (selectedIndex != null && _sourceIndex != selectedIndex) {
+    _sourceIndex = selectedIndex;
+    _playVideo();
+  }
+}
 }
