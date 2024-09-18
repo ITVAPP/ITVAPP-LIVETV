@@ -514,9 +514,10 @@ Future<void> _changeChannelSources() async {
     }
   } else if (groupMap is Map<String, Map<String, PlayModel>>) {
     // 三层结构
-    final groupChannels = groupMap[_currentChannel!.title];
-    if (groupChannels?.urls != null && groupChannels!.urls!.isNotEmpty) {
-      sources = groupChannels.urls;
+    final groupChannels = groupMap[_currentChannel!.group]; // 获取组下的频道 Map
+    final channel = groupChannels?[_currentChannel!.title]; // 获取具体的频道 PlayModel 实例
+    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+      sources = channel.urls; // 获取频道的 urls
     }
   }
 
