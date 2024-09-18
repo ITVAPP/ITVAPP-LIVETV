@@ -56,8 +56,9 @@ Widget buildListItem({
             child: Text(
               title,
               style: TextStyle(
-                color: isSelected ? selectedColor : Colors.white,
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: isSelected ? 18 : 14, // 选中时稍大
               ),
               softWrap: true,
               maxLines: null,
@@ -487,7 +488,6 @@ void _initializeChannelData() {
   Widget build(BuildContext context) {
     // 从 ThemeProvider 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-
     return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
   }
 
