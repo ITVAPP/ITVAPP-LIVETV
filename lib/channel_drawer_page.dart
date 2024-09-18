@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -507,7 +508,7 @@ void _initializeChannelData() {
                 onChannelTap: _onChannelTap, // 频道点击事件
               ),
             ),
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) {  
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) 
             verticalDivider, // 分割线
             SizedBox(
               width: epgListWidth, // EPG显示区宽度
@@ -519,7 +520,6 @@ void _initializeChannelData() {
                 }),
               ),
             ),
-          },  
         ],
       ),
     );
