@@ -173,7 +173,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '切换频道发生错误');
                     },
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 3),
                   // 切换频道源按钮，调用 changeChannelSources 回调
                   IconButton(
                     tooltip: S.current.tipChangeLine,
@@ -186,7 +186,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '切换频道源按钮发生错误');
                     },
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 3),
                   // 设置按钮，点击进入设置页面
                   IconButton(
                     tooltip: S.current.settings,
@@ -201,7 +201,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '进入设置页面发生错误');
                     },
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 3),
                   // 切换竖屏按钮，调整为竖屏模式
                   IconButton(
                     tooltip: S.current.portrait,
@@ -221,7 +221,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '切换为竖屏时发生错误');
                     },
                   ),
-                  if (!EnvUtil.isMobile) const SizedBox(width: 12),
+                  if (!EnvUtil.isMobile) const SizedBox(width: 6),
                   // 全屏切换按钮，显示或退出全屏
                   if (!EnvUtil.isMobile)
                     IconButton(
@@ -258,6 +258,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             bottom: 15,
             child: IconButton(
               tooltip: S.current.landscape,
+              style: IconButton.styleFrom( // 添加和横屏按钮相同的样式
+                      backgroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.white),
+              ),
               icon: const Icon(Icons.screen_rotation, color: Colors.white),
               onPressed: () async {
                 LogUtil.safeExecute(() async {
