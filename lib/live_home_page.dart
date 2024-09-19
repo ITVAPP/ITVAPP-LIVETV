@@ -90,18 +90,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
 Future<void> _playVideo() async {
-  LogUtil.i('触发播放前检查频道：$_currentChannel');
-  LogUtil.i('触发播放前检查竞态条件：$_isSwitchingChannel');
-  LogUtil.i('触发播放前检查资源释放：$_isDisposing');
+  	
+LogUtil.e('触发播放前检查频道：$_currentChannel');
+LogUtil.e('触发播放前检查竞态条件：$_isSwitchingChannel');
+LogUtil.e('触发播放前检查资源释放：$_isDisposing');
 
-  // 如果当前频道为空，或正在切换频道，或正在释放资源，直接返回
-  if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
+    if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
-  _isSwitchingChannel = true;  // 尽早标记为正在切换频道
-
-  try {
     // 在开始播放新视频之前，释放旧的资源
     await _disposePlayer();
+    
+    _isSwitchingChannel = true;
 
     // 更新界面上的加载提示文字，表明当前正在加载的流信息
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -112,65 +111,76 @@ Future<void> _playVideo() async {
 
     // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
     _streamUrl = StreamUrl(url);
-    
-    // 获取解析后的有效视频 URL
-    String parsedUrl = await _streamUrl!.getStreamUrl();
+    try {
+      // 获取解析后的有效视频 URL
+      String parsedUrl = await _streamUrl!.getStreamUrl();
 
-    // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
-    if (parsedUrl == 'ERROR') {
+      // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
+      if (parsedUrl == 'ERROR') {
+        setState(() {
+          toastString = S.current.playError; // 更新 UI 显示播放错误提示
+        });
+        return;
+      }
+
+      // 如果解析成功，使用解析后的 URL
+      url = parsedUrl;
+
+      // 如果处于调试模式，则弹出确认对话框，允许用户确认是否播放该视频流
+      if (isDebugMode) {
+        bool shouldPlay = await _showConfirmationDialog(context, url);
+        if (!shouldPlay) {
+          return; 
+        }
+      }
+    } catch (e, stackTrace) {
+      // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
+      LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
-        toastString = S.current.playError; // 显示播放错误提示
+        toastString = S.current.playError; // 显示错误提示
       });
       return;
     }
 
-    // 使用解析后的 URL
-    url = parsedUrl;
+    try {
+      // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
+      _playerController = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        videoPlayerOptions: VideoPlayerOptions(
+          allowBackgroundPlayback: false,
+          mixWithOthers: false,
+          webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
+        ),
+      )..setVolume(1.0); // 设置音量
 
-    // 如果处于调试模式，则弹出确认对话框，允许用户确认是否播放该视频流
-    if (isDebugMode) {
-      bool shouldPlay = await _showConfirmationDialog(context, url);
-      if (!shouldPlay) return; // 用户取消播放，退出函数
+      // 初始化播放器，开始播放视频
+      await _playerController?.initialize();
+      _playerController?.play();
+      setState(() {
+        toastString = S.current.loading; // 更新 UI，显示加载状态
+      });
+
+      // 播放成功，重置重试次数计数器
+      _retryCount = 0;
+      _timeoutActive = false; // 播放成功，取消超时检测
+      _playerController?.addListener(_videoListener); // 添加播放监听
+
+      // 添加超时检测机制
+      _startTimeoutCheck();
+    } catch (e, stackTrace) {
+      // 如果播放过程中发生异常，处理播放失败逻辑
+      LogUtil.logError('播放出错', e, stackTrace);
+      _retryPlayback(); // 调用处理方法
+    } finally {
+      _isSwitchingChannel = false; 
     }
-
-    // 创建视频播放器控制器并初始化，使用解析后的 URL 播放视频
-    _playerController = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      videoPlayerOptions: VideoPlayerOptions(
-        allowBackgroundPlayback: false,
-        mixWithOthers: false,
-        webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
-      ),
-    )..setVolume(1.0); // 设置音量
-
-    // 初始化播放器，开始播放视频
-    await _playerController?.initialize();
-    _playerController?.play();
-    setState(() {
-      toastString = S.current.loading; // 更新 UI，显示加载状态
-    });
-
-    // 播放成功，重置重试次数计数器
-    _retryCount = 0;
-    _timeoutActive = false; // 播放成功，取消超时检测
-    _playerController?.addListener(_videoListener); // 添加播放监听
-
-    // 添加超时检测机制
-    _startTimeoutCheck();
-  } catch (e, stackTrace) {
-    // 如果播放过程中发生异常，处理播放失败逻辑
-    LogUtil.logError('播放出错', e, stackTrace);
-    _retryPlayback(); // 调用处理方法
-  } finally {
-    _isSwitchingChannel = false;  // 始终重置切换状态
   }
-}
 
   /// 优化播放器资源释放
   Future<void> _disposePlayer() async {
     // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
-    
+
     if (!_isDisposing) {
       _isDisposing = true;
       try {
@@ -207,45 +217,36 @@ Future<void> _playVideo() async {
   }
 
   /// 处理播放失败的逻辑，进行重试或切换线路
-void _retryPlayback() {
-  _timeoutActive = false;  // 取消超时检测
-  _retryCount += 1;  // 增加重试计数
+  void _retryPlayback() {
+    _timeoutActive = false; // 处理失败，取消超时
+    _retryCount += 1;
 
-  if (_retryCount <= maxRetries) {
-    setState(() {
-      toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
-    });
-    Future.delayed(const Duration(seconds: 2), () async {
-      if (_isDisposing) return;  // 检查是否正在释放资源
-      try {
-        await _playVideo();        // 执行播放重试
-      } finally {
-        _isSwitchingChannel = false;  // 重置切换状态，确保操作完成后允许用户操作
-      }
-    });
-  } else {
-    _sourceIndex += 1;  // 切换到下一个视频源
-    if (_sourceIndex >= _currentChannel!.urls!.length) {
-      _sourceIndex = _currentChannel!.urls!.length - 1;  // 已经是最后一个线路，不能再增加
+    if (_retryCount <= maxRetries) {
       setState(() {
-        toastString = S.current.playError;  // 显示播放错误
+        toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
       });
-      _isSwitchingChannel = false;  // 重置频道切换状态
+      Future.delayed(const Duration(seconds: 2), () {
+        if (_isDisposing) return; // 添加_isDisposing检查
+        _playVideo();
+      });
     } else {
-      setState(() {
-        toastString = S.current.switchLine(_sourceIndex + 1);  // 切换到下一个线路
-      });
-      Future.delayed(const Duration(seconds: 2), () async {
-        if (_isDisposing) return;  // 检查是否正在释放资源
-        try {
-          await _playVideo();        // 切换线路后重新播放
-        } finally {
-          _isSwitchingChannel = false;  // 重置切换状态
-        }
-      });
+      _sourceIndex += 1;
+      if (_sourceIndex > _currentChannel!.urls!.length - 1) {
+        _sourceIndex = _currentChannel!.urls!.length - 1;
+        setState(() {
+          toastString = S.current.playError;
+        });
+      } else {
+        setState(() {
+          toastString = S.current.switchLine(_sourceIndex + 1);
+        });
+        Future.delayed(const Duration(seconds: 2), () {
+          if (_isDisposing) return; // 添加_isDisposing检查
+          _playVideo();
+        });
+      }
     }
   }
-}
 
   /// 显示播放确认对话框，用户可以选择是否播放当前视频流
   Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
@@ -306,26 +307,14 @@ void _retryPlayback() {
 
   /// 处理频道切换操作
   /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
-Future<void> _onTapChannel(PlayModel? model) async {
-  if (_isSwitchingChannel || _isDisposing) return;  // 避免重复操作
-
-  _isSwitchingChannel = true;  // 标记正在切换频道
-  try {
-    await _disposePlayer();  // 释放资源
-    _currentChannel = model;  // 更新当前频道
-    _sourceIndex = 0;         // 重置视频源
-    _retryCount = 0;          // 重置重试计数
-    _timeoutActive = false;   // 停止超时检测
-    await _playVideo();       // 播放新频道
-  } catch (e, stackTrace) {
-    LogUtil.logError('切换频道时出错', e, stackTrace);
-    setState(() {
-      toastString = '切换频道时出错';
-    });
-  } finally {
-    _isSwitchingChannel = false;  // 重置切换状态
+  Future<void> _onTapChannel(PlayModel? model) async {
+     _isSwitchingChannel = false; 
+    _currentChannel = model;
+    _sourceIndex = 0; // 重置视频源索引
+    _retryCount = 0; // 重置重试次数计数器
+    _timeoutActive = false; // 取消超时检测
+    _playVideo(); // 开始播放选中的频道
   }
-}
 
   @override
   void initState() {
@@ -536,7 +525,7 @@ Future<void> _changeChannelSources() async {
             color: Colors.transparent,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8, // 限制最大宽度为屏幕宽度的90%
+                maxWidth: MediaQuery.of(context).size.width * 0.7, // 限制最大宽度为屏幕宽度的70%
               ),
               child: Wrap(
                 spacing: 10,   // 设置按钮之间的水平间距
