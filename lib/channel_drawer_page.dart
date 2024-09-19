@@ -49,16 +49,18 @@ Widget buildListItem({
                       selectedColor.withOpacity(0.3),
                     ],
                   )
-                : null,
+                : BoxDecoration(
+                       color: Colors.black38, // 未选中时背景色
+                  ),
           ),
           child: Align(
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             child: Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: isSelected ? 16 : 15, // 选中时稍大
+                fontSize: isSelected ? 16 : 15, // 选中时文字稍大
               ),
               softWrap: true,
               maxLines: null,
@@ -228,7 +230,7 @@ class EPGList extends StatelessWidget {
           ),
           child: Text(
             S.of(context).programListTitle, // 节目单列表
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold), // 加粗样式
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
           ),
         ),
         verticalDivider, // 分割线
