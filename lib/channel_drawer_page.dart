@@ -56,7 +56,7 @@ Widget buildListItem({
             child: Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),  // 未选中文字颜色
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: isSelected ? 16 : 15, // 选中时文字稍大
               ),
@@ -202,7 +202,7 @@ class ChannelList extends StatelessWidget {
 }
 
 // EPG列表组件
-class EPGList extends StatefulWidget {
+class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
@@ -213,36 +213,6 @@ class EPGList extends StatefulWidget {
     required this.selectedIndex,
     required this.isTV,
   });
-
-  @override
-  _EPGListState createState() => _EPGListState();
-}
-
-class _EPGListState extends State<EPGList> {
-  late List<FocusNode> _focusNodes;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNodes = List.generate(widget.epgData?.length ?? 0, (index) => FocusNode());
-  }
-
-  @override
-  void didUpdateWidget(covariant EPGList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.selectedIndex != oldWidget.selectedIndex) {
-      // 确保焦点在选中的项目上
-      _focusNodes[widget.selectedIndex].requestFocus();
-    }
-  }
-
-  @override
-  void dispose() {
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -264,29 +234,26 @@ class _EPGListState extends State<EPGList> {
         verticalDivider, // 分割线
         Flexible(
           child: ScrollablePositionedList.builder(
-            initialScrollIndex: widget.selectedIndex, // 初始滚动到选中的频道项
-            itemCount: widget.epgData?.length ?? 0,
+            initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
+            itemCount: epgData?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
-              final data = widget.epgData?[index];
+              final data = epgData?[index];
               if (data == null) return const SizedBox.shrink();
-              final isSelect = index == widget.selectedIndex;
-              return Focus(
-                focusNode: _focusNodes[index],
-                child: buildListItem(
-                  title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
-                  isSelected: isSelect,
-                  onTap: () {}, // 禁用点击事件，EPG项不可点击
-                  isCentered: false, // EPG列表项左对齐
-                  minHeight: 48.0, // 固定的最小高度
-                  padding: const EdgeInsets.all(10),
-                  selectedColor: Colors.redAccent,
-                  isTV: widget.isTV,
-                  onFocusChange: (focus) {
-                    if (widget.isTV && focus) {
-                      Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
-                    }
-                  },
-                ),
+              final isSelect = index == selectedIndex;
+              return buildListItem(
+                title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
+                isSelected: isSelect,
+                onTap: () {}, // 禁用点击事件，EPG项不可点击
+                isCentered: false, // EPG列表项左对齐
+                minHeight: 48.0, // 固定的最小高度
+                padding: const EdgeInsets.all(10),
+                selectedColor: Colors.redAccent,
+                isTV: isTV,
+                onFocusChange: (focus) {
+                  if (isTV && focus) {
+                    Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
+                  }
+                },
               );
             },
           ),
