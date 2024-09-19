@@ -8,7 +8,7 @@ typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 class MessageLookup extends MessageLookupByLibrary {
   String get localeName => 'zh_TW';
 
-  static String m0(index) => "連線線路${index}...";
+  static String m0(index) => "線路${index}";
 
   static String m1(line, channel) => "開始連線: ${channel} 線路${line}";
 
