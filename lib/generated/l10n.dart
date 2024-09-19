@@ -98,7 +98,7 @@ class S {
 
   String lineIndex(Object index) {
     return Intl.message(
-      '连接线路$index...',
+      '线路$index',
       name: 'lineIndex',
       desc: '',
       args: [index],
