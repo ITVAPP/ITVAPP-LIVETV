@@ -254,8 +254,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 非横屏时右下角的旋转按钮，点击切换为横屏
         if (!widget.isLandscape)
           Positioned(
-            right: 15,
-            bottom: 15,
+            right: 12,
+            bottom: 10,
             child: IconButton(
               tooltip: S.current.landscape,
               style: IconButton.styleFrom( // 添加和横屏按钮相同的样式
