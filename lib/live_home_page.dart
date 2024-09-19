@@ -326,19 +326,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
   }
 
-  /// 从播放列表中动态提取频道，处理两层和三层结构
-  PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
-    String category = playList.keys.first;
-    if (playList[category] is Map<String, Map<String, PlayModel>>) {
-      // 三层结构处理
-      String group = (playList[category] as Map<String, Map<String, PlayModel>>).keys.first;
-      String channel = (playList[category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
-      return (playList[category] as Map<String, Map<String, PlayModel>>)[group]![channel];
-    } else if (playList[category] is Map<String, PlayModel>) {
-      // 两层结构处理
-      String channel = (playList[category] as Map<String, PlayModel>).keys.first;
-      return (playList[category] as Map<String, PlayModel>)[channel];
+  /// 从播放列表中获取频道的通用方法，处理两层和三层结构
+  PlayModel? getChannel(Map<String, dynamic> playList, String group, String title) {
+    // 先尝试处理两层结构
+    if (playList[group] is Map<String, PlayModel>) {
+      final groupMap = playList[group] as Map<String, PlayModel>;
+      return groupMap[title];
+    } 
+    // 再尝试处理三层结构
+    else if (playList[group] is Map<String, Map<String, PlayModel>>) {
+      final groupMap = playList[group] as Map<String, Map<String, PlayModel>>;
+      final groupChannels = groupMap[group];
+      return groupChannels?[title];
     }
+    // 如果结构不匹配，返回 null
     return null;
   }
 
@@ -375,7 +376,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       setState(() {
-        _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
+        _currentChannel = getChannel(_videoMap!.playList!, _videoMap!.playList!.keys.first, _videoMap!.playList!.values.first.keys.first);
         _playVideo(); // 播放第一个频道
       });
 
@@ -505,26 +506,14 @@ Future<void> _changeChannelSources() async {
   List<String>? sources;
 
   try {
-    // 判断播放列表是二层结构还是三层结构
-    final groupMap = _videoMap!.playList![_currentChannel!.group];
-    if (groupMap is Map<String, PlayModel>) {
-      // 二层结构
-      final channel = groupMap[_currentChannel!.title];
-      if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-        sources = channel.urls;
-      }
-    } else if (groupMap is Map<String, Map<String, PlayModel>>) {
-      // 三层结构
-      final groupChannels = groupMap[_currentChannel!.group]; // 获取组下的频道 Map
-      final channel = groupChannels?[_currentChannel!.title]; // 获取具体的频道 PlayModel 实例
-      if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-        sources = channel.urls; // 获取频道的 urls
-      } else {
-        LogUtil.e('三层结构: 未找到有效的频道 URL');
-      }
+    // 使用通用方法来获取当前频道
+    final PlayModel? channel = getChannel(_videoMap!.playList!, _currentChannel!.group, _currentChannel!.title);
+    
+    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+      sources = channel.urls;
     }
 
-    // 如果未找到有效的 source，则返回
+    // 如果未找到有效的视频源，记录日志并返回
     if (sources == null || sources.isEmpty) {
       LogUtil.e('未找到有效的视频源');
       return;
