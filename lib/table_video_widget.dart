@@ -261,7 +261,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               style: IconButton.styleFrom( // 添加和横屏按钮相同的样式
                       backgroundColor: Colors.black45,
                       side: const BorderSide(color: Colors.white),
-                      padding: const EdgeInsets.all(5), // 设置padding为5，以使背景大小为28
+                      padding: const EdgeInsets.all(2), 
               ),
               icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18),
               onPressed: () async {
