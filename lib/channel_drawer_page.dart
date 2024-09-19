@@ -457,9 +457,27 @@ void _initializeChannelData() {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
       });
+
+      // 确保在EPG数据加载完成后滚动到选中的EPG节目
+      _scrollToSelectedEPG();
+
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
     }
+  }
+
+  // 滚动到选中的EPG节目
+  void _scrollToSelectedEPG() {
+    WidgetsBinding.instance?.addPostFrameCallback((_) {
+      if (_selEPGIndex >= 0) {
+        Scrollable.ensureVisible(
+          _viewPortKey.currentContext!,
+          alignment: 0.3, // 调整滚动位置到视图的 30% 处
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   @override
