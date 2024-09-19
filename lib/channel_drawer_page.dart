@@ -208,6 +208,7 @@ class ChannelList extends StatelessWidget {
 class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
+  final ItemScrollController epgScrollController; // 添加的滚动控制器
   final bool isTV;
 
   const EPGList({
@@ -215,6 +216,7 @@ class EPGList extends StatelessWidget {
     required this.epgData,
     required this.selectedIndex,
     required this.isTV,
+    required this.epgScrollController, // 添加的滚动控制器
   });
 
   @override
@@ -238,6 +240,7 @@ class EPGList extends StatelessWidget {
         Flexible(
           child: ScrollablePositionedList.builder(
             initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
+            itemScrollController: epgScrollController, // 使用的滚动控制器
             itemCount: epgData?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
               final data = epgData?[index];
@@ -288,6 +291,7 @@ class ChannelDrawerPage extends StatefulWidget {
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   final ScrollController _scrollController = ScrollController(); // 分组列表的滚动控制器
   final ScrollController _scrollChannelController = ScrollController(); // 频道列表的滚动控制器
+  final ItemScrollController _epgScrollController = ItemScrollController(); // 添加的EPG滚动控制器
   List<EpgData>? _epgData; // 节目单数据
   int _selEPGIndex = 0; // 当前选中的节目单索引
 
@@ -320,41 +324,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化频道数据
-void _initializeChannelData() {
-  final selectedCategory = _categories[_categoryIndex];
+  void _initializeChannelData() {
+    final selectedCategory = _categories[_categoryIndex];
   
-  // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
-  final categoryMap = widget.videoMap?.playList[selectedCategory];
+    // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
   
-  if (categoryMap is Map<String, Map<String, PlayModel>>) {
-    // 三层结构：处理分组 -> 频道
-    _keys = categoryMap.keys.toList(); // 获取分组
-    _values = categoryMap.values.toList(); // 获取每个分组下的频道
+    if (categoryMap is Map<String, Map<String, PlayModel>>) {
+      // 三层结构：处理分组 -> 频道
+      _keys = categoryMap.keys.toList(); // 获取分组
+      _values = categoryMap.values.toList(); // 获取每个分组下的频道
     
-    // 对每个分组中的频道按名字进行 Unicode 排序
-    for (int i = 0; i < _values.length; i++) {
-      _values[i] = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
-      );
+      // 对每个分组中的频道按名字进行 Unicode 排序
+      for (int i = 0; i < _values.length; i++) {
+        _values[i] = Map<String, PlayModel>.fromEntries(
+          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
+        );
+      }
+    
+      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
+      _channelIndex = _groupIndex != -1
+          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+          : 0; // 获取当前选中的频道索引
+    } else if (categoryMap is Map<String, PlayModel>) {
+      // 两层结构：直接处理频道
+      _keys = ['所有频道']; // 使用一个默认分组
+      _values = [categoryMap]; // 频道直接作为值
+    
+      _groupIndex = 0; // 没有分组，固定为 0
+      _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
-    
-    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
-    _channelIndex = _groupIndex != -1
-        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-        : 0; // 获取当前选中的频道索引
-  } else if (categoryMap is Map<String, PlayModel>) {
-    // 两层结构：直接处理频道
-    _keys = ['所有频道']; // 使用一个默认分组
-    _values = [categoryMap]; // 频道直接作为值
-    
-    _groupIndex = 0; // 没有分组，固定为 0
-    _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
-  }
 
-  // 默认值处理
-  if (_groupIndex == -1) _groupIndex = 0;
-  if (_channelIndex == -1) _channelIndex = 0;
-}
+    // 默认值处理
+    if (_groupIndex == -1) _groupIndex = 0;
+    if (_channelIndex == -1) _channelIndex = 0;
+  }
 
   // 通用节流点击处理
   void _onTapThrottled(Function action) {
@@ -460,6 +464,13 @@ void _initializeChannelData() {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
       });
+
+      // 显式滚动到选中的节目单项
+      _epgScrollController.scrollTo(
+        index: _selEPGIndex,
+        alignment: 0.3,
+        duration: const Duration(milliseconds: 300),
+      );
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
     }
@@ -557,6 +568,7 @@ void _initializeChannelData() {
                 epgData: _epgData,
                 selectedIndex: _selEPGIndex,
                 isTV: isTV, // 是否为 TV 设备
+                epgScrollController: _epgScrollController, // 传递滚动控制器
               ),
             ),
         ],
