@@ -547,11 +547,11 @@ Future<void> _changeChannelSources() async {
                     child: OutlinedButton(
                       autofocus: _sourceIndex == index,
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 2, horizontal: 5),  // 设置按钮内边距
-                        side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                        foregroundColor: Colors.redAccent,
+                        padding: EdgeInsets.symmetric(vertical: 1, horizontal: 5),  // 设置按钮内边距
+                        backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300], // 选中和未选中状态的背景色
+                        side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]), // 边框颜色
                         shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6), 
+                          borderRadius: BorderRadius.circular(6), 
                         ),
                       ),
                       onPressed: _sourceIndex == index
@@ -562,7 +562,10 @@ Future<void> _changeChannelSources() async {
                       child: Text(
                         S.current.lineIndex(index + 1),
                         textAlign: TextAlign.center, // 确保文字居中
-                        style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _sourceIndex == index ? Colors.white : Colors.black, // 选中和未选中状态的文字颜色
+                        ),
                       ),
                     ),
                   );
