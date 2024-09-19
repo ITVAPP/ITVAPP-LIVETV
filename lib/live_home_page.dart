@@ -90,6 +90,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
   Future<void> _playVideo() async {
+  	
+LogUtil.e('触发播放前检查频道：$_currentChannel');
+LogUtil.e('触发播放前检查竞态条件：$_isSwitchingChannel');
+LogUtil.e('触发播放前检查资源释放：$_isDisposing');
+
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
     // 在开始播放新视频之前，释放旧的资源
