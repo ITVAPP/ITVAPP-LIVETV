@@ -49,7 +49,7 @@ Widget buildListItem({
                       selectedColor.withOpacity(0.3),
                     ],
                   )
-                : null, // 未选中项不再设置背景颜色
+                : null,
           ),
           child: Align(
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
@@ -88,26 +88,23 @@ class CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black38, // 设置分类列表的容器背景色
-      child: ListView.builder(
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          return buildListItem(
-            title: categories[index],
-            isSelected: selectedCategoryIndex == index,
-            onTap: () => onCategoryTap(index),
-            isCentered: true, // 分类列表项居中
-            minHeight: 48.0, // 设置分类列表项的最小高度
-            isTV: isTV, // 是否为 TV 设备
-            onFocusChange: (focus) {
-              if (isTV && focus) {
-                Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-              }
-            },
-          );
-        },
-      ),
+    return ListView.builder(
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        return buildListItem(
+          title: categories[index],
+          isSelected: selectedCategoryIndex == index,
+          onTap: () => onCategoryTap(index),
+          isCentered: true, // 分类列表项居中
+          minHeight: 48.0, // 设置分类列表项的最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
+        );
+      },
     );
   }
 }
@@ -133,29 +130,26 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black38, // 设置分组列表的容器背景色
-      child: ListView.builder(
-        cacheExtent: itemHeight, // 预缓存区域
-        padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
-        controller: scrollController, // 使用滚动控制器
-        itemCount: keys.length, // 分组数目
-        itemBuilder: (context, index) {
-          return buildListItem(
-            title: keys[index],
-            isSelected: selectedGroupIndex == index,
-            onTap: () => onGroupTap(index),
-            isCentered: true, // 分组列表项居中
-            minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
-            isTV: isTV, // 是否为 TV 设备
-            onFocusChange: (focus) {
-              if (isTV && focus) {
-                Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-              }
-            },
-          );
-        },
-      ),
+    return ListView.builder(
+      cacheExtent: itemHeight, // 预缓存区域
+      padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
+      controller: scrollController, // 使用滚动控制器
+      itemCount: keys.length, // 分组数目
+      itemBuilder: (context, index) {
+        return buildListItem(
+          title: keys[index],
+          isSelected: selectedGroupIndex == index,
+          onTap: () => onGroupTap(index),
+          isCentered: true, // 分组列表项居中
+          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
+        );
+      },
     );
   }
 }
@@ -181,31 +175,28 @@ class ChannelList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black38, // 设置频道列表的容器背景色
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 100.0),
-        cacheExtent: itemHeight, // 预缓存区域
-        controller: scrollController, // 使用滚动控制器
-        itemCount: channels.length,
-        itemBuilder: (context, index) {
-          final channelName = channels.keys.toList()[index];
-          final isSelect = selectedChannelName == channelName;
-          return buildListItem(
-            title: channelName,
-            isSelected: isSelect,
-            onTap: () => onChannelTap(channels[channelName]),
-            isCentered: true, // 频道列表项居中
-            minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
-            isTV: isTV, // 是否为 TV 设备
-            onFocusChange: (focus) {
-              if (isTV && focus) {
-                Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-              }
-            },
-          );
-        },
-      ),
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 100.0),
+      cacheExtent: itemHeight, // 预缓存区域
+      controller: scrollController, // 使用滚动控制器
+      itemCount: channels.length,
+      itemBuilder: (context, index) {
+        final channelName = channels.keys.toList()[index];
+        final isSelect = selectedChannelName == channelName;
+        return buildListItem(
+          title: channelName,
+          isSelected: isSelect,
+          onTap: () => onChannelTap(channels[channelName]),
+          isCentered: true, // 频道列表项居中
+          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
+          isTV: isTV, // 是否为 TV 设备
+          onFocusChange: (focus) {
+            if (isTV && focus) {
+              Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
+            }
+          },
+        );
+      },
     );
   }
 }
@@ -255,55 +246,52 @@ class _EPGListState extends State<EPGList> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black38, // 设置EPG列表的容器背景色
-      child: Column(
-        children: [
-          Container(
-            height: 48,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 8),  // 添加左边距
-            decoration: BoxDecoration(
-              color: Colors.black38, // 设置节目单标题背景色
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(
-              S.of(context).programListTitle, // 节目单列表
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
-            ),
+    return Column(
+      children: [
+        Container(
+          height: 48,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 8),  // 添加左边距
+          decoration: BoxDecoration(
+            color: Colors.black38, // 设置背景色
+            borderRadius: BorderRadius.circular(5),
           ),
-          verticalDivider, // 分割线
-          Flexible(
-            child: ScrollablePositionedList.builder(
-              initialScrollIndex: widget.selectedIndex, // 初始滚动到选中的频道项
-              itemCount: widget.epgData?.length ?? 0,
-              itemBuilder: (BuildContext context, int index) {
-                final data = widget.epgData?[index];
-                if (data == null) return const SizedBox.shrink();
-                final isSelect = index == widget.selectedIndex;
-                return Focus(
-                  focusNode: _focusNodes[index],
-                  child: buildListItem(
-                    title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
-                    isSelected: isSelect,
-                    onTap: () {}, // 禁用点击事件，EPG项不可点击
-                    isCentered: false, // EPG列表项左对齐
-                    minHeight: 48.0, // 固定的最小高度
-                    padding: const EdgeInsets.all(10),
-                    selectedColor: Colors.redAccent,
-                    isTV: widget.isTV,
-                    onFocusChange: (focus) {
-                      if (widget.isTV && focus) {
-                        Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
-                      }
-                    },
-                  ),
-                );
-              },
-            ),
+          child: Text(
+            S.of(context).programListTitle, // 节目单列表
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
           ),
-        ],
-      ),
+        ),
+        verticalDivider, // 分割线
+        Flexible(
+          child: ScrollablePositionedList.builder(
+            initialScrollIndex: widget.selectedIndex, // 初始滚动到选中的频道项
+            itemCount: widget.epgData?.length ?? 0,
+            itemBuilder: (BuildContext context, int index) {
+              final data = widget.epgData?[index];
+              if (data == null) return const SizedBox.shrink();
+              final isSelect = index == widget.selectedIndex;
+              return Focus(
+                focusNode: _focusNodes[index],
+                child: buildListItem(
+                  title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
+                  isSelected: isSelect,
+                  onTap: () {}, // 禁用点击事件，EPG项不可点击
+                  isCentered: false, // EPG列表项左对齐
+                  minHeight: 48.0, // 固定的最小高度
+                  padding: const EdgeInsets.all(10),
+                  selectedColor: Colors.redAccent,
+                  isTV: widget.isTV,
+                  onFocusChange: (focus) {
+                    if (widget.isTV && focus) {
+                      Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -362,41 +350,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化频道数据
-  void _initializeChannelData() {
-    final selectedCategory = _categories[_categoryIndex];
+void _initializeChannelData() {
+  final selectedCategory = _categories[_categoryIndex];
   
-    // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
-    final categoryMap = widget.videoMap?.playList[selectedCategory];
+  // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
+  final categoryMap = widget.videoMap?.playList[selectedCategory];
   
-    if (categoryMap is Map<String, Map<String, PlayModel>>) {
-      // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList(); // 获取分组
-      _values = categoryMap.values.toList(); // 获取每个分组下的频道
+  if (categoryMap is Map<String, Map<String, PlayModel>>) {
+    // 三层结构：处理分组 -> 频道
+    _keys = categoryMap.keys.toList(); // 获取分组
+    _values = categoryMap.values.toList(); // 获取每个分组下的频道
     
-      // 对每个分组中的频道按名字进行 Unicode 排序
-      for (int i = 0; i < _values.length; i++) {
-        _values[i] = Map<String, PlayModel>.fromEntries(
-          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
-        );
-      }
-    
-      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
-      _channelIndex = _groupIndex != -1
-          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-          : 0; // 获取当前选中的频道索引
-    } else if (categoryMap is Map<String, PlayModel>) {
-      // 两层结构：直接处理频道
-      _keys = ['所有频道']; // 使用一个默认分组
-      _values = [categoryMap]; // 频道直接作为值
-    
-      _groupIndex = 0; // 没有分组，固定为 0
-      _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
+    // 对每个分组中的频道按名字进行 Unicode 排序
+    for (int i = 0; i < _values.length; i++) {
+      _values[i] = Map<String, PlayModel>.fromEntries(
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
+      );
     }
-
-    // 默认值处理
-    if (_groupIndex == -1) _groupIndex = 0;
-    if (_channelIndex == -1) _channelIndex = 0;
+    
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
+    _channelIndex = _groupIndex != -1
+        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+        : 0; // 获取当前选中的频道索引
+  } else if (categoryMap is Map<String, PlayModel>) {
+    // 两层结构：直接处理频道
+    _keys = ['所有频道']; // 使用一个默认分组
+    _values = [categoryMap]; // 频道直接作为值
+    
+    _groupIndex = 0; // 没有分组，固定为 0
+    _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
   }
+
+  // 默认值处理
+  if (_groupIndex == -1) _groupIndex = 0;
+  if (_channelIndex == -1) _channelIndex = 0;
+}
 
   // 通用节流点击处理
   void _onTapThrottled(Function action) {
