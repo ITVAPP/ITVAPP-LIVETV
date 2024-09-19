@@ -507,8 +507,12 @@ Future<void> _changeChannelSources() async {
 
   try {
     // 使用通用方法来获取当前频道
-    final PlayModel? channel = getChannel(_videoMap!.playList!, _currentChannel!.group, _currentChannel!.title);
-    
+    final PlayModel? channel = getChannel(
+      _videoMap!.playList!,
+      _currentChannel?.group ?? 'defaultGroup',  // 如果 group 为 null，使用默认值
+      _currentChannel?.title ?? 'defaultTitle'   // 如果 title 为 null，使用默认值
+    );
+
     if (channel?.urls != null && channel!.urls!.isNotEmpty) {
       sources = channel.urls;
     }
