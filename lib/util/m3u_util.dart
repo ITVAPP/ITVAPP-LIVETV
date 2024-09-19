@@ -51,45 +51,24 @@ class M3uUtil {
   static Future<M3uResult> getDefaultM3uData({Function(int attempt)? onRetry}) async {
     return _handleErrors(() async {
       String m3uData = '';
-      final models = await getLocalData();  // 获取本地存储的订阅数据
 
-      if (models.isNotEmpty) {
-        // 本地有订阅数据，优先使用本地数据
-        final defaultModel = models.firstWhere((element) => element.selected ?? false, orElse: () => models.first);
-
-        // 尝试通过重试机制从远程获取M3U数据
-        final newRes = await _retryRequest<String>(() async {
-          return await HttpUtil().getRequest(defaultModel.link == 'default'
-              ? EnvUtil.videoDefaultChannelHost()
-              : defaultModel.link!);
-        }, onRetry: onRetry);
-
-        if (newRes != null) {
-          m3uData = newRes;
-          await _saveCachedM3uData(m3uData);  // 保存到缓存中
-        } else {
-          m3uData = await _getCachedM3uData();  // 如果远程获取失败，尝试使用本地缓存
-          if (m3uData.isEmpty) {
-            LogUtil.logError('无法获取数据，本地缓存和网络请求都失败', 'm3uData为空');
-            return M3uResult(errorMessage: '无法从本地缓存和网络中获取数据。');
-          }
-        }
-      } else {
-        // 没有本地数据，从网络获取
-        m3uData = (await _retryRequest<String>(_fetchData, onRetry: onRetry)) ?? '';
-        if (m3uData.isEmpty) {
-          LogUtil.logError('网络数据获取失败', 'm3uData为空');
-          return M3uResult(errorMessage: '从网络获取数据失败。');
-        }
-
-        // 保存新订阅数据到本地
-        await saveLocalData([
-          SubScribeModel(
-              time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
-              link: 'default',
-              selected: true)
-        ]);
+      // 尝试通过重试机制从远程获取M3U数据
+      m3uData = (await _retryRequest<String>(_fetchData, onRetry: onRetry)) ?? '';
+      if (m3uData.isEmpty) {
+        LogUtil.logError('网络数据获取失败', 'm3uData为空');
+        return M3uResult(errorMessage: '从网络获取数据失败。');
       }
+
+      // 保存远程M3U数据到缓存，覆盖本地数据
+      await _saveCachedM3uData(m3uData);
+
+      // 保存新订阅数据到本地
+      await saveLocalData([
+        SubScribeModel(
+            time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full),
+            link: 'default',
+            selected: true)
+      ]);
 
       // 尝试解析M3U数据
       final parsedData = await _parseM3u(m3uData);
