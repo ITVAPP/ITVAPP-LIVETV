@@ -528,19 +528,19 @@ Future<void> _changeChannelSources() async {
                 maxWidth: MediaQuery.of(context).size.width * 0.7, // 限制最大宽度为屏幕宽度的70%
               ),
               child: Wrap(
-                spacing: 10,   // 设置按钮之间的水平间距
-                runSpacing: 20, // 设置按钮之间的垂直间距
+                spacing: 5,   // 设置按钮之间的水平间距
+                runSpacing: 10, // 设置按钮之间的垂直间距
                 children: List.generate(sources.length, (index) {
                   return ConstrainedBox(
                     constraints: BoxConstraints(minWidth: 60), // 设置最小宽度
                     child: OutlinedButton(
                       autofocus: _sourceIndex == index,
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 1, horizontal: 5),  // 设置按钮内边距
-                        backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!, // 修复背景色可空问题
-                        side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!), // 修复边框颜色可空问题
+                        padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6),  // 设置按钮内边距为上下 8, 左右 16
+                        backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!, 
+                        side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6), 
+                          borderRadius: BorderRadius.circular(12), 
                         ),
                       ),
                       onPressed: _sourceIndex == index
@@ -552,7 +552,7 @@ Future<void> _changeChannelSources() async {
                         S.current.lineIndex(index + 1),
                         textAlign: TextAlign.center, // 确保文字居中
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 14,
                           color: _sourceIndex == index ? Colors.white : Colors.black, // 选中和未选中状态的文字颜色
                         ),
                       ),
