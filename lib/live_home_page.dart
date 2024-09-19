@@ -548,8 +548,8 @@ Future<void> _changeChannelSources() async {
                       autofocus: _sourceIndex == index,
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 1, horizontal: 5),  // 设置按钮内边距
-                        backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300], // 选中和未选中状态的背景色
-                        side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]), // 边框颜色
+                        backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!, // 修复背景色可空问题
+                        side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!), // 修复边框颜色可空问题
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6), 
                         ),
