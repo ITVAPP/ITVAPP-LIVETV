@@ -1,3 +1,5 @@
+下面代码日志提示 未找到有效的视频源 ，可以确定视频源是存在的，因为可以正确播放，只是 _changeChannelSources部分有问题！
+
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -503,79 +505,65 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
 Future<void> _changeChannelSources() async {
-  List<String>? sources;
+  List<String>? sources = _currentChannel?.urls;  // 直接从 currentChannel 获取视频源
+
+  // 如果 sources 为空或不存在，记录日志
+  if (sources == null || sources.isEmpty) {
+    LogUtil.e('未找到有效的视频源');
+    return;
+  }
 
   try {
-    // 使用通用方法来获取当前频道
-    final PlayModel? channel = getChannel(
-      _videoMap!.playList!,
-      _currentChannel?.group ?? 'defaultGroup',  // 如果 group 为 null，使用默认值
-      _currentChannel?.title ?? 'defaultTitle'   // 如果 title 为 null，使用默认值
+    // 显示选择线路的弹窗
+    final selectedIndex = await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.black87,
+      builder: (BuildContext context) {
+        return SingleChildScrollView(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
+            color: Colors.transparent,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: List.generate(sources.length, (index) {
+                return OutlinedButton(
+                  autofocus: _sourceIndex == index,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  onPressed: _sourceIndex == index
+                      ? null
+                      : () {
+                          Navigator.pop(context, index);
+                        },
+                  child: Text(
+                    S.current.lineIndex(index + 1),
+                    style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
+                  ),
+                );
+              }),
+            ),
+          ),
+        );
+      },
     );
 
-    if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-      sources = channel.urls;
+    // 切换到选中的视频源并播放
+    if (selectedIndex != null && _sourceIndex != selectedIndex) {
+      _sourceIndex = selectedIndex;
+      _playVideo();
+    } else {
+      LogUtil.e('未选择新的视频源或选中的索引未发生变化');
     }
-
-    // 如果未找到有效的视频源，记录日志并返回
-    if (sources == null || sources.isEmpty) {
-      LogUtil.e('未找到有效的视频源');
-      return;
-    }
-
-    try {
-      final selectedIndex = await showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        barrierColor: Colors.transparent,
-        backgroundColor: Colors.black87,
-        builder: (BuildContext context) {
-          return SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
-              color: Colors.transparent,
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: List.generate(sources?.length ?? 0, (index) { // 处理 sources 可能为 null 的情况
-                  return OutlinedButton(
-                    autofocus: _sourceIndex == index,
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                      foregroundColor: Colors.redAccent,
-                    ),
-                    onPressed: _sourceIndex == index
-                        ? null
-                        : () {
-                            Navigator.pop(context, index);
-                          },
-                    child: Text(
-                      S.current.lineIndex(index + 1),
-                      style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          );
-        },
-      );
-
-      // 切换到选中的视频源并开始播放
-      if (selectedIndex != null && _sourceIndex != selectedIndex) {
-        _sourceIndex = selectedIndex;
-        _playVideo();
-      } else {
-        LogUtil.e('未选择新的视频源或选中的索引未发生变化');
-      }
-    } catch (modalError, modalStackTrace) {
-      // 记录弹出窗口的错误日志
-      LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
-    }
-  } catch (e, stackTrace) {
-    LogUtil.logError('切换视频源时出错', e, stackTrace); // 捕获并记录所有错误
+  } catch (modalError, modalStackTrace) {
+    // 捕获弹窗异常并记录日志
+    LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
   }
 }
 }
