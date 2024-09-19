@@ -1,5 +1,3 @@
-下面代码日志提示 未找到有效的视频源 ，可以确定视频源是存在的，因为可以正确播放，只是 _changeChannelSources部分有问题！
-
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
