@@ -49,9 +49,10 @@ Widget buildListItem({
                       selectedColor.withOpacity(0.3),
                     ],
                   )
-                : BoxDecoration(
-                       color: Colors.black38, // 未选中时背景色
-                  ),
+                : null,
+            color: isSelected
+                ? null  // 选中时不使用颜色，因为使用了渐变
+                : Colors.black38, // 未选中时使用纯色背景
           ),
           child: Align(
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
