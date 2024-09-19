@@ -514,16 +514,16 @@ Future<void> _changeChannelSources() async {
       context: context,
       useRootNavigator: true,
       barrierColor: Colors.transparent,
-      backgroundColor: Colors.black38,
+      backgroundColor: Colors.black45,
       builder: (BuildContext context) {
         return SingleChildScrollView(
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
+            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
             color: Colors.transparent,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.9, // 限制最大宽度为屏幕宽度的90%
+                maxWidth: MediaQuery.of(context).size.width * 0.8, // 限制最大宽度为屏幕宽度的90%
               ),
               child: Wrap(
                 spacing: 10,   // 设置按钮之间的水平间距
@@ -534,9 +534,12 @@ Future<void> _changeChannelSources() async {
                     child: OutlinedButton(
                       autofocus: _sourceIndex == index,
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 3, horizontal: 6),  // 设置按钮内边距
+                        padding: EdgeInsets.symmetric(vertical: 2, horizontal: 5),  // 设置按钮内边距
                         side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
                         foregroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6), 
+                        ),
                       ),
                       onPressed: _sourceIndex == index
                           ? null
