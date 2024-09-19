@@ -325,20 +325,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
   }
 
-  /// 从播放列表中获取频道的通用方法，处理两层和三层结构
-  PlayModel? getChannel(Map<String, dynamic> playList, String group, String title) {
-    // 先尝试处理两层结构
-    if (playList[group] is Map<String, PlayModel>) {
-      final groupMap = playList[group] as Map<String, PlayModel>;
-      return groupMap[title];
-    } 
-    // 再尝试处理三层结构
-    else if (playList[group] is Map<String, Map<String, PlayModel>>) {
-      final groupMap = playList[group] as Map<String, Map<String, PlayModel>>;
-      final groupChannels = groupMap[group];
-      return groupChannels?[title];
+  /// 从播放列表中动态提取频道，处理两层和三层结构
+  PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
+    String category = playList.keys.first;
+    if (playList[category] is Map<String, Map<String, PlayModel>>) {
+      // 三层结构处理
+      String group = (playList[category] as Map<String, Map<String, PlayModel>>).keys.first;
+      String channel = (playList[category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
+      return (playList[category] as Map<String, Map<String, PlayModel>>)[group]![channel];
+    } else if (playList[category] is Map<String, PlayModel>) {
+      // 两层结构处理
+      String channel = (playList[category] as Map<String, PlayModel>).keys.first;
+      return (playList[category] as Map<String, PlayModel>)[channel];
     }
-    // 如果结构不匹配，返回 null
     return null;
   }
 
@@ -375,7 +374,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       setState(() {
-        _currentChannel = getChannel(_videoMap!.playList!, _videoMap!.playList!.keys.first, _videoMap!.playList!.values.first.keys.first);
+        _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
         _playVideo(); // 播放第一个频道
       });
 
@@ -503,7 +502,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
 Future<void> _changeChannelSources() async {
   List<String>? sources = _currentChannel?.urls;  // 直接从 currentChannel 获取视频源
-
   // 如果 sources 为空或不存在，记录日志
   if (sources == null || sources.isEmpty) {
     LogUtil.e('未找到有效的视频源');
@@ -516,7 +514,7 @@ Future<void> _changeChannelSources() async {
       context: context,
       useRootNavigator: true,
       barrierColor: Colors.transparent,
-      backgroundColor: Colors.black87,
+      backgroundColor: Colors.black38,
       builder: (BuildContext context) {
         return SingleChildScrollView(
           child: Container(
