@@ -206,14 +206,12 @@ class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
-  final ItemScrollController epgScrollController; // 添加ItemScrollController控制器
 
   const EPGList({
     super.key,
     required this.epgData,
     required this.selectedIndex,
     required this.isTV,
-    required this.epgScrollController, // 添加控制器
   });
 
   @override
@@ -236,9 +234,7 @@ class EPGList extends StatelessWidget {
         verticalDivider, // 分割线
         Flexible(
           child: ScrollablePositionedList.builder(
-            itemScrollController: epgScrollController, // 使用ItemScrollController控制器
             initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
-            initialAlignment: 0.3, // 初始对齐方式
             itemCount: epgData?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
               final data = epgData?[index];
@@ -255,11 +251,7 @@ class EPGList extends StatelessWidget {
                 isTV: isTV,
                 onFocusChange: (focus) {
                   if (isTV && focus) {
-                    epgScrollController.scrollTo(
-                      index: index,
-                      alignment: 0.3,
-                      duration: const Duration(milliseconds: 220),
-                    );
+                    Scrollable.ensureVisible(context, alignment: 0.3, duration: const Duration(milliseconds: 220));
                   }
                 },
               );
@@ -293,7 +285,7 @@ class ChannelDrawerPage extends StatefulWidget {
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   final ScrollController _scrollController = ScrollController(); // 分组列表的滚动控制器
   final ScrollController _scrollChannelController = ScrollController(); // 频道列表的滚动控制器
-  final ItemScrollController _epgScrollController = ItemScrollController(); // EPG列表滚动控制器
+  final ItemScrollController _epgItemScrollController = ItemScrollController(); // EPG列表的滚动控制器
   List<EpgData>? _epgData; // 节目单数据
   int _selEPGIndex = 0; // 当前选中的节目单索引
 
@@ -465,16 +457,13 @@ void _initializeChannelData() {
           orElse: () => _epgData!.first, // 如果未找到，默认选中第一个节目
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
-      });
-
-      // 确保在EPG数据加载完成后滚动到选中的EPG节目
-      Future.delayed(Duration.zero, () {
-        _epgScrollController.jumpTo(
+        // 在节目单数据更新后滚动到当前选中的节目项
+        _epgItemScrollController.scrollTo(
           index: _selEPGIndex,
-          alignment: 0.3,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
         );
       });
-
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
     }
@@ -572,7 +561,6 @@ void _initializeChannelData() {
                 epgData: _epgData,
                 selectedIndex: _selEPGIndex,
                 isTV: isTV, // 是否为 TV 设备
-                epgScrollController: _epgScrollController, // 传递滚动控制器
               ),
             ),
         ],
