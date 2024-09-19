@@ -16,7 +16,7 @@
     }
   },
   "playReconnect": "An error occurred, trying to reconnect...",
-  "lineIndex": "Connecting to line {index}...",
+  "lineIndex": "line {index}",
   "@lineIndex": {
     "placeholders": {
       "index": {}
