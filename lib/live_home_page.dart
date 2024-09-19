@@ -160,7 +160,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       // 播放成功，重置重试次数计数器
       _retryCount = 0;
-      _sourceIndex = 0; // 重置视频源索引
       _timeoutActive = false; // 播放成功，取消超时检测
       _playerController?.addListener(_videoListener); // 添加播放监听
 
@@ -524,28 +523,37 @@ Future<void> _changeChannelSources() async {
             width: double.infinity,
             padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 40),
             color: Colors.transparent,
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: List.generate(sources.length, (index) {
-                return OutlinedButton(
-                  autofocus: _sourceIndex == index,
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
-                    foregroundColor: Colors.redAccent,
-                  ),
-                  onPressed: _sourceIndex == index
-                      ? null
-                      : () {
-                          Navigator.pop(context, index);
-                        },
-                  child: Text(
-                    S.current.lineIndex(index + 1),
-                    style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
-                  ),
-                );
-              }),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.9, // 限制最大宽度为屏幕宽度的90%
+              ),
+              child: Wrap(
+                spacing: 10,   // 设置按钮之间的水平间距
+                runSpacing: 20, // 设置按钮之间的垂直间距
+                children: List.generate(sources.length, (index) {
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: 60), // 设置最小宽度
+                    child: OutlinedButton(
+                      autofocus: _sourceIndex == index,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 3, horizontal: 6),  // 设置按钮内边距
+                        side: BorderSide(color: _sourceIndex == index ? Colors.red : Colors.white),
+                        foregroundColor: Colors.redAccent,
+                      ),
+                      onPressed: _sourceIndex == index
+                          ? null
+                          : () {
+                              Navigator.pop(context, index);
+                            },
+                      child: Text(
+                        S.current.lineIndex(index + 1),
+                        textAlign: TextAlign.center, // 确保文字居中
+                        style: TextStyle(fontSize: 13, color: _sourceIndex == index ? Colors.red : Colors.white),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             ),
           ),
         );
