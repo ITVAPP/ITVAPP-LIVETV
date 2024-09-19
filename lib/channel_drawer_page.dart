@@ -384,8 +384,7 @@ void _initializeChannelData() {
     _onTapThrottled(() {
       setState(() {
         _groupIndex = index;
-        final name = _values[_groupIndex].keys.first;
-        _onChannelTap(_values[_groupIndex][name]);
+        _channelIndex = 0;    // 重置频道索引
         _scrollToTop(_scrollChannelController);
       });
     });
