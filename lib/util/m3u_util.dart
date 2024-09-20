@@ -199,19 +199,25 @@ class M3uUtil {
     });
   }
 
-  /// 更新“我的收藏”中单个频道的播放地址
-  static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteCategory, String groupTitle, String channelName, PlayModel remoteChannel) {
-    favoriteCategory[groupTitle] ??= {};
-
-    final favoriteChannel = favoriteCategory[groupTitle]?[channelName];
-    if (favoriteChannel != null && remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
-      // 进一步验证远程频道播放地址是否有效
-      final validUrls = remoteChannel.urls!.where((url) => isValidUrl(url)).toList();
-      if (validUrls.isNotEmpty) {
-        favoriteChannel.urls = validUrls;
+/// 更新“我的收藏”中单个频道的播放地址
+static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteCategory, String tvgId, PlayModel remoteChannel) {
+  // 遍历“我的收藏”中的所有组和频道，找到对应的 tvg-id 进行更新
+  favoriteCategory.forEach((groupTitle, channels) {
+    channels.forEach((channelName, favoriteChannel) {
+      // 如果收藏中的频道与远程频道的 tvg-id 匹配，则进行更新
+      if (favoriteChannel.id == tvgId) {
+        // 确保远程频道有有效的播放地址
+        if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
+          // 验证并更新播放地址
+          final validUrls = remoteChannel.urls!.where((url) => isValidUrl(url)).toList();
+          if (validUrls.isNotEmpty) {
+            favoriteChannel.urls = validUrls;
+          }
+        }
       }
-    }
-  }
+    });
+  });
+}
 
   /// 验证 URL 是否有效的辅助方法
   static bool isValidUrl(String url) {
@@ -303,9 +309,6 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     PlaylistModel mergedPlaylist = PlaylistModel();
     mergedPlaylist.playList = {};
 
-    // 创建一个存储 tvg-id 和频道的 Map，用来合并基于 tvg-id 的播放地址
-    Map<String, PlayModel> tvgIdChannelMap = {};
-
     for (PlaylistModel playlist in playlists) {
       playlist.playList?.forEach((category, groups) {
         mergedPlaylist.playList ??= {};
@@ -315,48 +318,36 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
           mergedPlaylist.playList![category]![groupTitle] ??= {};
 
           channels.forEach((channelName, channelModel) {
-            // 检查 tvg-id 是否存在并且不为空
+            // 检查频道是否存在并且不为空
             if (channelModel.id != null && channelModel.id!.isNotEmpty) {
               String tvgId = channelModel.id!;
 
-              // 如果该频道的播放地址为空，则跳过
+              // 如果频道的播放地址为空，则跳过
               if (channelModel.urls == null || channelModel.urls!.isEmpty) {
                 return; // 跳过当前频道
               }
 
-              // 如果该 tvg-id 已经存在，则合并播放地址
-              if (tvgIdChannelMap.containsKey(tvgId)) {
-                PlayModel existingChannel = tvgIdChannelMap[tvgId]!;
+              // 如果该频道已经存在，合并播放地址
+              if (mergedPlaylist.playList![category]![groupTitle]!.containsKey(tvgId)) {
+                PlayModel existingChannel = mergedPlaylist.playList![category]![groupTitle]![tvgId]!;
 
-                // 使用Set来合并并去重播放地址
+                // 使用 Set 来去重并合并播放地址
                 Set<String> existingUrls = existingChannel.urls?.toSet() ?? {};
                 Set<String> newUrls = channelModel.urls?.toSet() ?? {};
                 existingUrls.addAll(newUrls);
 
                 // 更新合并后的播放地址
                 existingChannel.urls = existingUrls.toList();
-                tvgIdChannelMap[tvgId] = existingChannel;
-
+                mergedPlaylist.playList![category]![groupTitle]![tvgId] = existingChannel;
               } else {
-                // 如果该 tvg-id 不存在，直接加入
-                tvgIdChannelMap[tvgId] = channelModel;
+                // 如果该频道不存在，直接添加
+                mergedPlaylist.playList![category]![groupTitle]![tvgId] = channelModel;
               }
-
-              // 在当前组中也存储该频道
-              mergedPlaylist.playList![category]![groupTitle]![channelName] = channelModel;
             }
           });
         });
       });
     }
-
-    // 将 tvg-id 映射的频道写回到最终的播放列表中
-    tvgIdChannelMap.forEach((tvgId, channelModel) {
-      mergedPlaylist.playList![channelModel.group] ??= {};
-      mergedPlaylist.playList![channelModel.group]![channelModel.title] = {
-        channelModel.title: channelModel,
-      };
-    });
 
     return mergedPlaylist;
   } catch (e, stackTrace) {
