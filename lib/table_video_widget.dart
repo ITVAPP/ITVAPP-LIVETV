@@ -262,7 +262,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               style: IconButton.styleFrom(
                       backgroundColor: Colors.black45,
                       side: const BorderSide(color: Colors.white),
-                      padding: const EdgeInsets.all(2), 
+                      padding: const EdgeInsets.all(1), 
               ),
               icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18),
               onPressed: () async {
