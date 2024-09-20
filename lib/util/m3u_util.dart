@@ -33,7 +33,7 @@ class M3uUtil {
         return await getDefaultM3uData();
       }
       // 本地保存的已经是 PlaylistModel，直接返回
-      return M3uResult(data: m3uDataString);
+      return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地播放列表', e, stackTrace);
       return M3uResult(errorMessage: '获取播放列表失败');
@@ -52,7 +52,7 @@ class M3uUtil {
         LogUtil.logError('远程获取M3U数据失败，尝试获取本地缓存数据', 'm3uData为空');
 
         // 尝试从本地缓存获取 PlaylistModel 数据
-        final PlaylistModel cachedData = await _getCachedM3uData();
+        final PlaylistModel cachedData = PlaylistModel.fromString(await _getCachedM3uData());
 
         // 检查本地缓存是否为空
         if (cachedData == null || cachedData.playList == null) {
@@ -86,10 +86,10 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData);
 
       // 将“我的收藏”列表加入到播放列表中，并设置为第一个分类
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
+      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, favoritePlaylist);
 
       // 保存播放列表到本地缓存
-      await _saveCachedM3uData(parsedData);
+      await _saveCachedM3uData(parsedData.toString());
 
       // 保存新订阅数据到本地
       await saveLocalData([
@@ -118,8 +118,8 @@ class M3uUtil {
       };
       return favoritePlaylist;
     } else {
-      // 如果本地已有缓存数据，解析并返回“我的收藏”列表
-      return favoriteData;
+      // 如果本地已有缓存数据转换为 PlaylistModel，解析并返回“我的收藏”列表
+      return PlaylistModel.fromString(favoriteData);
     }
   }
 
@@ -145,7 +145,7 @@ class M3uUtil {
 
   /// 保存更新后的“我的收藏”列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    await SpUtil.putString(favoriteCacheKey, _convertPlaylistToString(favoritePlaylist));
+    await SpUtil.putString(favoriteCacheKey, favoritePlaylist);
   }
 
   /// 从本地缓存中获取“我的收藏”列表
