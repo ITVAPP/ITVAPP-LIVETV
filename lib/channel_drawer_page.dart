@@ -206,12 +206,14 @@ class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
+  final ItemScrollController epgScrollController; // 新增的控制器参数
 
   const EPGList({
     super.key,
     required this.epgData,
     required this.selectedIndex,
     required this.isTV,
+    required this.epgScrollController, // 传入控制器
   });
 
   @override
@@ -235,6 +237,7 @@ class EPGList extends StatelessWidget {
         Flexible(
           child: ScrollablePositionedList.builder(
             initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
+            itemScrollController: epgScrollController, // 传入控制器
             itemCount: epgData?.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
               final data = epgData?[index];
@@ -318,41 +321,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化频道数据
-void _initializeChannelData() {
-  final selectedCategory = _categories[_categoryIndex];
+  void _initializeChannelData() {
+    final selectedCategory = _categories[_categoryIndex];
   
-  // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
-  final categoryMap = widget.videoMap?.playList[selectedCategory];
+    // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
   
-  if (categoryMap is Map<String, Map<String, PlayModel>>) {
-    // 三层结构：处理分组 -> 频道
-    _keys = categoryMap.keys.toList(); // 获取分组
-    _values = categoryMap.values.toList(); // 获取每个分组下的频道
+    if (categoryMap is Map<String, Map<String, PlayModel>>) {
+      // 三层结构：处理分组 -> 频道
+      _keys = categoryMap.keys.toList(); // 获取分组
+      _values = categoryMap.values.toList(); // 获取每个分组下的频道
     
-    // 对每个分组中的频道按名字进行 Unicode 排序
-    for (int i = 0; i < _values.length; i++) {
-      _values[i] = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
-      );
+      // 对每个分组中的频道按名字进行 Unicode 排序
+      for (int i = 0; i < _values.length; i++) {
+        _values[i] = Map<String, PlayModel>.fromEntries(
+          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
+        );
+      }
+    
+      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
+      _channelIndex = _groupIndex != -1
+          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+          : 0; // 获取当前选中的频道索引
+    } else if (categoryMap is Map<String, PlayModel>) {
+      // 两层结构：直接处理频道
+      _keys = ['所有频道']; // 使用一个默认分组
+      _values = [categoryMap]; // 频道直接作为值
+    
+      _groupIndex = 0; // 没有分组，固定为 0
+      _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
-    
-    _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
-    _channelIndex = _groupIndex != -1
-        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-        : 0; // 获取当前选中的频道索引
-  } else if (categoryMap is Map<String, PlayModel>) {
-    // 两层结构：直接处理频道
-    _keys = ['所有频道']; // 使用一个默认分组
-    _values = [categoryMap]; // 频道直接作为值
-    
-    _groupIndex = 0; // 没有分组，固定为 0
-    _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
-  }
 
-  // 默认值处理
-  if (_groupIndex == -1) _groupIndex = 0;
-  if (_channelIndex == -1) _channelIndex = 0;
-}
+    // 默认值处理
+    if (_groupIndex == -1) _groupIndex = 0;
+    if (_channelIndex == -1) _channelIndex = 0;
+  }
 
   // 通用节流点击处理
   void _onTapThrottled(Function action) {
@@ -384,8 +387,7 @@ void _initializeChannelData() {
     _onTapThrottled(() {
       setState(() {
         _groupIndex = index;
-        final name = _values[_groupIndex].keys.first;
-        _onChannelTap(_values[_groupIndex][name]);
+        _channelIndex = 0;    // 重置频道索引
         _scrollToTop(_scrollChannelController);
       });
     });
@@ -502,18 +504,28 @@ void _initializeChannelData() {
   Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     double categoryWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分类列表宽度
-    double groupWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分组列表宽度
-    double channelListWidth = isPortrait
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
-        : 160; // 横屏时频道列表宽度为固定160
-    double epgListWidth = isPortrait ? 0 : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth; // EPG列表宽度
+
+    // 设置分组列表宽度，只有当 _keys 非空时显示
+    double groupWidth = (_keys.isNotEmpty) ? 110 * context.read<ThemeProvider>().textScaleFactor : 0;
+
+    // 设置频道列表宽度，只有当 _values 和 _groupIndex 下有频道时显示
+    double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
+        ? (isPortrait
+            ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
+            : 160) // 横屏时频道列表宽度为固定160
+        : 0;
+
+    // 设置 EPG 列表宽度，只有当有 EPG 数据时显示
+    double epgListWidth = (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
+        : 0;
 
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape 
-          ? categoryWidth + groupWidth + channelListWidth + epgListWidth 
-          : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
+           ? categoryWidth + groupWidth + channelListWidth + (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty ? epgListWidth : 0)
+           : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
       ),
@@ -529,19 +541,20 @@ void _initializeChannelData() {
             ),
           ),
           verticalDivider, // 分割线
-          SizedBox(
-            width: groupWidth,
-            child: GroupList(
-              keys: _keys,
-              scrollController: _scrollController,
-              itemHeight: _itemHeight,
-              selectedGroupIndex: _groupIndex,
-              onGroupTap: _onGroupTap, // 分组点击事件
-              isTV: isTV, // 是否为 TV 设备
+          if (groupWidth > 0)
+            SizedBox(
+              width: groupWidth,
+              child: GroupList(
+                keys: _keys,
+                scrollController: _scrollController,
+                itemHeight: _itemHeight,
+                selectedGroupIndex: _groupIndex,
+                onGroupTap: _onGroupTap, // 分组点击事件
+                isTV: isTV, // 是否为 TV 设备
+              ),
             ),
-          ),
           verticalDivider, // 分割线
-          if (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
+          if (channelListWidth > 0)
             SizedBox(
               width: channelListWidth, // 频道列表宽度
               child: ChannelList(
@@ -553,16 +566,18 @@ void _initializeChannelData() {
                 isTV: isTV, // 是否为 TV 设备
               ),
             ),
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) 
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
             verticalDivider, // 分割线
-            SizedBox(
-              width: epgListWidth, // EPG显示区宽度
-              child: EPGList(
-                epgData: _epgData,
-                selectedIndex: _selEPGIndex,
-                isTV: isTV, // 是否为 TV 设备
+            if (epgListWidth > 0)
+              SizedBox(
+                width: epgListWidth, // EPG显示区宽度
+                child: EPGList(
+                  epgData: _epgData,
+                  selectedIndex: _selEPGIndex,
+                  isTV: isTV, // 是否为 TV 设备
+                  epgScrollController: _epgItemScrollController, // 传递滚动控制器
+                ),
               ),
-            ),
         ],
       ),
     );
