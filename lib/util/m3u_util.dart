@@ -93,11 +93,7 @@ class M3uUtil {
       cacheKey: m3uCacheKey,
       parseData: (data) async {
         PlaylistModel parsedData;
-        if (data.contains('||')) {
-          parsedData = await fetchAndMergeM3uData(data) ?? PlaylistModel();
-        } else {
-          parsedData = await _parseM3u(data);
-        }
+        parsedData = await _parseM3u(data);
 
         // 如果播放列表为空，返回错误信息
         if (parsedData.playList == null) {
