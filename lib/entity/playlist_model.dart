@@ -58,6 +58,21 @@ class PlaylistModel {
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
 
+  /// 从字符串解析 [PlaylistModel] 实例（通常从缓存中读取）
+  static PlaylistModel fromString(String data) {
+    final Map<String, dynamic> jsonData = jsonDecode(data);
+    return PlaylistModel.fromJson(jsonData);
+  }
+
+  /// 将 [PlaylistModel] 实例转换为字符串（通常用于存储到缓存中）
+  @override
+  String toString() {
+    return jsonEncode({
+      'epgUrl': epgUrl,
+      'playList': playList,
+    });
+  }
+
   /// 自动判断并解析播放列表结构（两层或三层）
   static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
     // 检测是三层结构还是两层结构
