@@ -194,6 +194,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     icon: const Icon(Icons.settings, color: Colors.white),
                     onPressed: () {
                       LogUtil.safeExecute(() {
+                        setState(() => _isShowMenuBar = false);
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => SettingPage()),
@@ -258,7 +259,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             bottom: 10,
             child: IconButton(
               tooltip: S.current.landscape,
-              style: IconButton.styleFrom( // 添加和横屏按钮相同的样式
+              style: IconButton.styleFrom(
                       backgroundColor: Colors.black45,
                       side: const BorderSide(color: Colors.white),
                       padding: const EdgeInsets.all(2), 
