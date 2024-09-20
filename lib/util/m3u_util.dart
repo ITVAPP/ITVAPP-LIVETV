@@ -172,14 +172,28 @@ class M3uUtil {
   }
 
   /// 更新“我的收藏”列表中的频道播放地址（仅当远程列表有更新）
-  static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
+  static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) { 
+    // 获取“我的收藏”分类中的频道
     final favoriteCategory = favoritePlaylist.playList?["我的收藏"];
     if (favoriteCategory == null) return;
 
+    // 使用 Set 来记录已更新的 tvg-id，避免重复更新
+    final Set<String> updatedTvgIds = {};
+
+    // 遍历远程播放列表中的每个频道，基于 tvg-id 进行对比和更新
     remotePlaylist.playList?.forEach((category, groups) {
       groups.forEach((groupTitle, channels) {
         channels.forEach((channelName, remoteChannel) {
-          _updateFavoriteChannel(favoriteCategory, groupTitle, channelName, remoteChannel);
+          if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
+            // 如果这个 tvg-id 已经被更新过，则跳过
+            if (updatedTvgIds.contains(remoteChannel.id!)) return;
+
+            // 使用 tvg-id 来更新频道
+            _updateFavoriteChannel(favoriteCategory, remoteChannel.id!, remoteChannel);
+
+            // 记录已经更新的 tvg-id
+            updatedTvgIds.add(remoteChannel.id!);
+          }
         });
       });
     });
@@ -284,48 +298,72 @@ class M3uUtil {
   }
 
   /// 合并多个 PlaylistModel，避免重复的播放地址
-  static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
-    try {
-      PlaylistModel mergedPlaylist = PlaylistModel();
-      mergedPlaylist.playList = {};
+static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
+  try {
+    PlaylistModel mergedPlaylist = PlaylistModel();
+    mergedPlaylist.playList = {};
 
-      for (PlaylistModel playlist in playlists) {
-        playlist.playList?.forEach((category, groups) {
-          mergedPlaylist.playList ??= {};
-          mergedPlaylist.playList![category] ??= {};
+    // 创建一个存储 tvg-id 和频道的 Map，用来合并基于 tvg-id 的播放地址
+    Map<String, PlayModel> tvgIdChannelMap = {};
 
-          groups.forEach((groupTitle, channels) {
-            mergedPlaylist.playList![category]![groupTitle] ??= {};
+    for (PlaylistModel playlist in playlists) {
+      playlist.playList?.forEach((category, groups) {
+        mergedPlaylist.playList ??= {};
+        mergedPlaylist.playList![category] ??= {};
 
-            // 合并同组同频道名的播放地址，使用 Set 来避免重复
-            channels.forEach((channelName, channelModel) {
-              if (mergedPlaylist.playList![category]![groupTitle]!.containsKey(channelName)) {
-                // 如果频道已经存在，使用Set去重
-                Set<String> existingUrls = mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls?.toSet() ?? {};
+        groups.forEach((groupTitle, channels) {
+          mergedPlaylist.playList![category]![groupTitle] ??= {};
+
+          channels.forEach((channelName, channelModel) {
+            // 检查 tvg-id 是否存在并且不为空
+            if (channelModel.id != null && channelModel.id!.isNotEmpty) {
+              String tvgId = channelModel.id!;
+
+              // 如果该频道的播放地址为空，则跳过
+              if (channelModel.urls == null || channelModel.urls!.isEmpty) {
+                return; // 跳过当前频道
+              }
+
+              // 如果该 tvg-id 已经存在，则合并播放地址
+              if (tvgIdChannelMap.containsKey(tvgId)) {
+                PlayModel existingChannel = tvgIdChannelMap[tvgId]!;
+
+                // 使用Set来合并并去重播放地址
+                Set<String> existingUrls = existingChannel.urls?.toSet() ?? {};
                 Set<String> newUrls = channelModel.urls?.toSet() ?? {};
-
-                // 合并去重后的地址
                 existingUrls.addAll(newUrls);
 
-                // 更新频道的播放地址列表
-                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls = existingUrls.toList();
+                // 更新合并后的播放地址
+                existingChannel.urls = existingUrls.toList();
+                tvgIdChannelMap[tvgId] = existingChannel;
+
               } else {
-                // 如果频道不存在，直接添加
-                mergedPlaylist.playList![category]![groupTitle]![channelName] = channelModel;
-                mergedPlaylist.playList![category]![groupTitle]![channelName]!.urls =
-                    channelModel.urls?.toSet().toList() ?? [];  // 使用Set去重
+                // 如果该 tvg-id 不存在，直接加入
+                tvgIdChannelMap[tvgId] = channelModel;
               }
-            });
+
+              // 在当前组中也存储该频道
+              mergedPlaylist.playList![category]![groupTitle]![channelName] = channelModel;
+            }
           });
         });
-      }
-
-      return mergedPlaylist;
-    } catch (e, stackTrace) {
-      LogUtil.logError('合并播放列表失败', e, stackTrace);
-      return PlaylistModel();
+      });
     }
+
+    // 将 tvg-id 映射的频道写回到最终的播放列表中
+    tvgIdChannelMap.forEach((tvgId, channelModel) {
+      mergedPlaylist.playList![channelModel.group] ??= {};
+      mergedPlaylist.playList![channelModel.group]![channelModel.title] = {
+        channelModel.title: channelModel,
+      };
+    });
+
+    return mergedPlaylist;
+  } catch (e, stackTrace) {
+    LogUtil.logError('合并播放列表失败', e, stackTrace);
+    return PlaylistModel();
   }
+}
 
   /// 获取本地缓存播放列表
   static Future<String> _getCachedM3uData() async {
