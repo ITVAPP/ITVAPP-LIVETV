@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
@@ -145,7 +146,7 @@ class M3uUtil {
 
   /// 保存更新后的“我的收藏”列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    await SpUtil.putString(favoriteCacheKey, favoritePlaylist);
+    await SpUtil.putString(favoriteCacheKey, favoritePlaylist.toString());
   }
 
   /// 从本地缓存中获取“我的收藏”列表
