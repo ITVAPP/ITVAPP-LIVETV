@@ -384,7 +384,8 @@ void _initializeChannelData() {
     _onTapThrottled(() {
       setState(() {
         _groupIndex = index;
-        _channelIndex = 0;    // 重置频道索引
+        final name = _values[_groupIndex].keys.first;
+        _onChannelTap(_values[_groupIndex][name]);
         _scrollToTop(_scrollChannelController);
       });
     });
@@ -457,13 +458,11 @@ void _initializeChannelData() {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
         // 在节目单数据更新后滚动到当前选中的节目项
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _epgItemScrollController.scrollTo(
-            index: _selEPGIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        });
+        _epgItemScrollController.scrollTo(
+          index: _selEPGIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
       });
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
@@ -513,7 +512,7 @@ void _initializeChannelData() {
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape 
-           ? categoryWidth + groupWidth + channelListWidth + (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty ? epgListWidth : 0)
+          ? categoryWidth + groupWidth + channelListWidth + epgListWidth 
           : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
