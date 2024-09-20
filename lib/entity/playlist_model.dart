@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
 class PlaylistModel {
   /// 构造函数，用于创建一个 [PlaylistModel] 实例。
@@ -16,18 +18,19 @@ class PlaylistModel {
   /// ```
   /// #EXTM3U x-tvg-url=" http://example.com/e.xml"
   ///
-  /// # 央视频道分类
+  /// #CATEGORY:央视频道
   /// #EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1 综合" tvg-logo=" http://example.com/CCTV1.png" group-title="央视频道",CCTV-1 综合
   /// http://example.com/cctv1.m3u8
-  ///
+  /// 
+  /// #CATEGORY:央视频道
   /// #EXTINF:-1 tvg-id="CCTV2" tvg-name="CCTV-2 财经" tvg-logo=" http://example.com/CCTV2.png" group-title="央视频道",CCTV-2 财经
   /// http://example.com/cctv2.m3u8
   ///
-  /// # 娱乐频道分类
+  /// #CATEGORY:娱乐频道
   /// #EXTINF:-1 tvg-id="HunanTV" tvg-name="湖南卫视" tvg-logo=" http://example.com/HunanTV.png" group-title="娱乐频道",湖南卫视
   /// http://example.com/hunantv.m3u8
   ///
-  /// # 体育频道分类
+  /// #CATEGORY:体育频道
   /// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
   /// http://example.com/cctv5.m3u8
   /// ```
