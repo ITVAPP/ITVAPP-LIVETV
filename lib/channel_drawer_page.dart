@@ -516,15 +516,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         : 0;
 
     // 设置 EPG 列表宽度，只有当有 EPG 数据时显示
-    double epgListWidth = (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
-        : 0;
+    double epgListWidth = (isPortrait || _epgData == null || _epgData!.isEmpty)
+        ? 0
+        : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth;
 
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape 
-           ? categoryWidth + groupWidth + channelListWidth + (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty ? epgListWidth : 0)
+           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
            : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
