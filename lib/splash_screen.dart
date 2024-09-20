@@ -13,6 +13,51 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+	
+	
+	
+// 弹出显示日志的对话框
+void _showErrorLogs(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      // 获取所有日志
+      List<Map<String, String>> logs = LogUtil.getLogs();
+
+      return AlertDialog(
+        title: Text('错误日志'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: logs.map((log) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Text(
+                  '[${log['time']}] ${log['level']}: ${log['message']}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // 关闭对话框
+            },
+            child: Text('关闭'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
+
+
+
+
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
   int _retryCount = 0;  // 重试次数
   String _message = '';  // 用于显示当前的提示信息
@@ -130,6 +175,9 @@ class _SplashScreenState extends State<SplashScreen> {
                   FocusScope.of(context).requestFocus(_retryButtonFocusNode);
                 });
                 
+   // 弹出日志对话框显示所有日志
+  _showErrorLogs(context);
+                 
                 // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               } else if (snapshot.hasData && snapshot.data?.data != null) {
@@ -148,6 +196,10 @@ class _SplashScreenState extends State<SplashScreen> {
                   isLoading: true,
                 );
               } else {
+              	
+              	  // 弹出日志对话框显示所有日志
+  _showErrorLogs(context);
+  
                 // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               }
