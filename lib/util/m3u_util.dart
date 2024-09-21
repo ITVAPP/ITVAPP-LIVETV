@@ -36,7 +36,6 @@ class M3uUtil {
       // 本地保存的已经是 PlaylistModel，直接返回
       return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
-      LogUtil.logError('获取本地播放列表', e, stackTrace);
       return M3uResult(errorMessage: '获取播放列表失败');
     }
   }
@@ -164,7 +163,7 @@ class M3uUtil {
   /// 从本地缓存中获取“我的收藏”列表
   static Future<String> _getCachedFavoriteM3uData() async {
     try {
-      return SpUtil.getString(favoriteCacheKey, defValue: '');
+      return SpUtil.getString(favoriteCacheKey, defValue: '') ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地缓存的“我的收藏”列表失败', e, stackTrace);
       return '';
