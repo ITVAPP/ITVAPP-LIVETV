@@ -86,7 +86,7 @@ class M3uUtil {
       // 在 updateFavoriteChannelsWithRemoteData 之前记录 parsedData
       LogUtil.i('解析后的 parsedData.playList 类型: ${parsedData.playList.runtimeType}');
       LogUtil.i('解析后的 parsedData.playList 内容: ${jsonEncode(parsedData.playList)}');
-      LogUtil.i('我的收藏列表: ${jsonEncode(favoritePlaylist)}');
+      LogUtil.i('获取我的收藏列表: ${jsonEncode(favoritePlaylist)}');
 
       // 更新“我的收藏”列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData);
@@ -124,6 +124,7 @@ class M3uUtil {
           "我的收藏": <String, Map<String, PlayModel>>{}, // 确保类型为 Map<String, Map<String, PlayModel>>
         },
       );
+      LogUtil.i('创建了新的我的收藏列表: ${jsonEncode(favoritePlaylist)}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
@@ -163,7 +164,7 @@ class M3uUtil {
   /// 从本地缓存中获取“我的收藏”列表
   static Future<String> _getCachedFavoriteM3uData() async {
     try {
-      return SpUtil.getString(favoriteCacheKey, defValue: '') ?? '';
+      return SpUtil.getString(favoriteCacheKey, defValue: '');
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地缓存的“我的收藏”列表失败', e, stackTrace);
       return '';
