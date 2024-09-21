@@ -93,10 +93,6 @@ class CheckVersionUtil {
           apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
         );
       },
-      negativeButtonLabel: 'Cancel',
-      onNegativePressed: () {
-        Navigator.of(context).pop(false);  // 关闭对话框
-      },
       isDismissible: false,  // 禁止点击对话框外部关闭
     );
   }
