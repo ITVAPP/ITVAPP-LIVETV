@@ -101,7 +101,6 @@ class _SplashScreenState extends State<SplashScreen> {
       });
 
       if (result.data != null) {
-        LogUtil.i('M3U 数据获取成功');
         return result;  // 直接返回 M3uResult 的 data
       } else {
         setState(() {
@@ -228,7 +227,6 @@ class _SplashScreenState extends State<SplashScreen> {
                     setState(() {
                       _retryCount = 0;  // 重置重试次数
                       _m3uDataFuture = _fetchData(); // 重新发起请求获取数据
-                      LogUtil.i('重新尝试获取 M3U 数据');
                     });
                   }, '重试获取 M3U 数据时发生错误');
                 },
