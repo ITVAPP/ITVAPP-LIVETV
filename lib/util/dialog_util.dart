@@ -87,13 +87,15 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Focus(
-            child: IconButton(
-              onPressed: () {
+          // 去掉 Focus 包裹，直接使用 IconButton
+          child: IconButton(
+            onPressed: () async {
+              // 异步关闭弹窗，避免 UI 阻塞
+              Future.microtask(() {
                 Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
-              },
-              icon: const Icon(Icons.close),
-            ),
+              });
+            },
+            icon: const Icon(Icons.close),
           ),
         ),
       ],
@@ -107,10 +109,15 @@ class DialogUtil {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 10),
-        SelectableText(
-          content ?? 'No content available',  // 动态内容，使用 SelectableText 启用复制
-          style: const TextStyle(fontSize: 14),
-          enableInteractiveSelection: true,  // 启用文本选择
+        TextField(
+          controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
+          readOnly: true,  // 设置为只读
+          maxLines: null,  // 允许多行显示
+          decoration: const InputDecoration(
+            border: InputBorder.none,  // 去掉边框
+          ),
+          style: const TextStyle(fontSize: 14),  // 设置文本样式
+          enableInteractiveSelection: true,  // 启用交互式选择
         ),
       ],
     );
@@ -133,7 +140,9 @@ class DialogUtil {
               if (onNegativePressed != null) {
                 onNegativePressed();
               }
-              Navigator.of(context).pop(false);  // 点击后关闭对话框
+              Future.microtask(() {
+                Navigator.of(context).pop(false);  // 点击后关闭对话框
+              });
             },
             child: Text(negativeButtonLabel),
           ),
@@ -142,7 +151,9 @@ class DialogUtil {
             if (onPositivePressed != null) {
               onPositivePressed();
             }
-            Navigator.of(context).pop(true);  // 点击后关闭对话框
+            Future.microtask(() {
+              Navigator.of(context).pop(true);  // 点击后关闭对话框
+            });
           },
           child: Text(positiveButtonLabel ?? 'OK'),  // 正向按钮，文本默认为 'OK'
         ),
