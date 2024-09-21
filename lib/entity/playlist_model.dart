@@ -3,7 +3,6 @@ import 'dart:convert';
 /// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
 class PlaylistModel {
   /// 构造函数，用于创建一个 [PlaylistModel] 实例。
-  ///
   /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
   /// [playList] 是一个三层嵌套的Map，其中：
   /// - 第一层 `String` 键是分类（例如：“区域”或“语言”），如果没有提供，则默认为 "所有频道"。
@@ -142,8 +141,7 @@ class PlaylistModel {
 
       // 尝试从 "所有频道" 中查找
       if (playList.containsKey('所有频道')) {
-        return (playList['所有频道']
-                as Map<String, Map<String, PlayModel>>)[group]?[channelName];
+        return (playList['所有频道'] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
       }
 
       // 如果分类不存在，直接查找组和频道
@@ -160,8 +158,7 @@ class PlaylistModel {
 
       // 从三层结构查找
       if (playList[category] is Map<String, Map<String, PlayModel>>) {
-        return (playList[category]
-                as Map<String, Map<String, PlayModel>>)[group]?[channel];
+        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
       }
     }
 
