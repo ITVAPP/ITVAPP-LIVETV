@@ -53,12 +53,12 @@ class DialogUtil {
                   Expanded(
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                         child: _buildDialogContent(content: content), // 调用封装的内容部分
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   _buildActionButtons(
                     context,
                     positiveButtonLabel: positiveButtonLabel,
@@ -86,7 +86,7 @@ class DialogUtil {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(10),
           alignment: Alignment.center,
           child: Text(
             title ?? 'Notification 🚀',  // 动态标题
@@ -131,6 +131,17 @@ class DialogUtil {
     );
   }
 
+  // 提取重复的按钮样式
+  static ButtonStyle _buttonStyle() {
+    return ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFEB144C),  // 按钮背景颜色
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),  // 设置圆角
+      ),
+      textStyle: const TextStyle(fontSize: 15),  // 按钮文字大小
+    );
+  }
+
   // 动态生成按钮
   static Widget _buildActionButtons(
     BuildContext context, {
@@ -148,34 +159,38 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           ElevatedButton(
+            style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               if (onNegativePressed != null) {
                 onNegativePressed();
               }
             },
-            child: Text(negativeButtonLabel),
+            child: Text(negativeButtonLabel!, style: const TextStyle(color: Colors.white)),
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
           ElevatedButton(
+            style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               if (onPositivePressed != null) {
                 onPositivePressed();
               }
             },
-            child: Text(positiveButtonLabel),
+            child: Text(positiveButtonLabel!, style: const TextStyle(color: Colors.white)),
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
           ElevatedButton(
+            style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('已复制到剪贴板')),
               );
             },
-            child: Text('复制'),
+            child: const Text('复制', style: TextStyle(color: Colors.white)),
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
+            style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               if (onClosePressed != null) {
                 onClosePressed();  // 点击关闭按钮时执行的回调
@@ -183,7 +198,7 @@ class DialogUtil {
                 Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
               }
             },
-            child: Text(closeButtonLabel),
+            child: Text(closeButtonLabel!, style: const TextStyle(color: Colors.white)),
           ),
       ],
     );
