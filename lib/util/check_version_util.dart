@@ -2,14 +2,13 @@ import 'dart:io';
 import 'package:itvapp_live_tv/widget/update_download_btn.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:url_launcher/url_launcher.dart'; 
 import '../generated/l10n.dart';
-import '../provider/theme_provider.dart';
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
+import 'dialog_util.dart'; // 引入复用弹窗工具
 
 class CheckVersionUtil {
   static const version = '1.5.8';  // 当前应用版本号
@@ -81,116 +80,24 @@ class CheckVersionUtil {
 
   // 显示版本更新的对话框
   static Future<bool?> showUpdateDialog(BuildContext context) async {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,  // 禁止点击对话框外关闭
-      builder: (BuildContext context) {
-        
-        // 获取屏幕的宽度和高度
-        final screenWidth = MediaQuery.of(context).size.width;
-        final screenHeight = MediaQuery.of(context).size.height;
-        // 判断屏幕方向，决定对话框宽度比例
-        final isPortrait = screenHeight > screenWidth;
-        final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
-        final maxDialogHeight = screenHeight * 0.8;  // 设置对话框的最大高度为屏幕高度的80%
+    if (latestVersionEntity == null) return null;
 
-        return Center(
-          child: Container(
-            width: dialogWidth,  // 设置对话框宽度
-            constraints: BoxConstraints(
-              maxHeight: maxDialogHeight,  // 限制对话框最大高度
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B2D30),
-              borderRadius: BorderRadius.circular(8),
-              gradient: const LinearGradient(
-                colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], 
-                begin: Alignment.topCenter, 
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: FocusTraversalGroup(
-              policy: WidgetOrderTraversalPolicy(), // TV端焦点遍历策略
-              child: Column(
-                mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
-                children: [
-                  // 调用封装的标题和关闭按钮部分
-                  _buildDialogHeader(context),
-                  // 内容区域，启用滚动，焦点可以在TV端上/下键切换
-                  Expanded(  // 使用Expanded替换Flexible，使内容区域更高效使用空间
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: _buildDialogContent(), // 调用封装的内容部分
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // 更新按钮，使用 Focus 控件包裹以支持 TV 焦点导航
-                  _buildActionButton(), // 调用封装的按钮部分
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
-          ),
+    return ReusableDialogUtil.showCustomDialog(
+      context,
+      title: '${S.current.findNewVersion}🚀',
+      content: CheckVersionUtil.latestVersionEntity!.latestMsg,
+      positiveButtonLabel: 'Update Now',
+      onPositivePressed: () {
+        // 点击更新按钮，下载APK
+        UpdateDownloadBtn(
+          apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
         );
       },
-    );
-  }
-
-  // 封装的标题部分，包含关闭按钮
-  static Widget _buildDialogHeader(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          alignment: Alignment.center,
-          child: Text(
-            '${S.current.findNewVersion}🚀',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-          ),
-        ),
-        Positioned(
-          right: 0,
-          child: Focus(
-            child: IconButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
-              },
-              icon: const Icon(Icons.close),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 封装的内容部分
-  static Widget _buildDialogContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '🎒 v${CheckVersionUtil.latestVersionEntity!.latestVersion}${S.current.updateContent}',  // 显示版本号
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          CheckVersionUtil.latestVersionEntity!.latestMsg ?? '',  // 显示版本更新日志
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
-
-  // 封装的更新按钮部分
-  static Widget _buildActionButton() {
-    return Focus(
-      child: UpdateDownloadBtn(
-        apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
-      ),
+      negativeButtonLabel: 'Cancel',
+      onNegativePressed: () {
+        Navigator.of(context).pop(false);  // 关闭对话框
+      },
+      isDismissible: false,  // 禁止点击对话框外部关闭
     );
   }
 
