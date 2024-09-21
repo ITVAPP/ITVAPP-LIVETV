@@ -166,7 +166,7 @@ class StreamUrl {
       final response = await _client.get(  // 使用 _client 进行请求
         Uri.parse(youtubeUrl),
         headers: {'User-Agent': 'Mozilla/5.0'},
-      ).timeout(Duration(seconds: 10));
+      ).timeout(Duration(seconds: 8));
       if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
