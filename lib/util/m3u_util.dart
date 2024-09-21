@@ -4,10 +4,10 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:sp_util/sp_util.dart';
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
-import 'log_util.dart';
 
 /// 封装 M3U 数据
 class M3uResult {
