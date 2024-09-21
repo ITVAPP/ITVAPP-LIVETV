@@ -167,6 +167,10 @@ class _SplashScreenState extends State<SplashScreen> {
                  
                 // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
+                // 根据调试模式弹出日志
+                if (isDebugMode) {
+                  _showErrorLogs(context);
+                }
               } else if (snapshot.hasData && snapshot.data?.data != null) {
                 // 如果加载成功，延迟 3 秒后导航到主页面，并传递获取到的数据
                 Future.delayed(Duration(seconds: 3), () {
@@ -185,6 +189,10 @@ class _SplashScreenState extends State<SplashScreen> {
               } else {
                 // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
+                // 根据调试模式弹出日志
+                if (isDebugMode) {
+                  _showErrorLogs(context);
+                }
               }
             },
           ),
