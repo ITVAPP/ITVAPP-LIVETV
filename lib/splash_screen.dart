@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:provider/provider.dart'; 
 import 'package:itvapp_live_tv/provider/theme_provider.dart'; 
 import 'package:itvapp_live_tv/util/log_util.dart'; 
@@ -29,9 +30,17 @@ class _SplashScreenState extends State<SplashScreen> {
         content: logs.map((log) {
           return '[${log['time']}] ${log['level']}: ${log['message']}';
         }).join('\n'), // 将所有日志拼接成字符串显示
-        positiveButtonLabel: '关闭',
+        positiveButtonLabel: '复制',
         onPositivePressed: () {
-          Navigator.of(context).pop(); // 关闭对话框
+          // 复制日志内容到剪贴板
+          Clipboard.setData(ClipboardData(text: logs.map((log) {
+            return '[${log['time']}] ${log['level']}: ${log['message']}';
+          }).join('\n')));
+
+          // 显示已复制提示
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('日志已复制到剪贴板')),
+          );
         },
       );
     }
