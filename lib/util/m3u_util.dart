@@ -83,6 +83,11 @@ class M3uUtil {
       // 获取或创建“我的收藏”列表
       final favoritePlaylist = await getOrCreateFavoriteList();
 
+      // 在 updateFavoriteChannelsWithRemoteData 之前记录 parsedData
+      LogUtil.i('解析后的 parsedData.playList 类型: ${parsedData.playList.runtimeType}');
+      LogUtil.i('解析后的 parsedData.playList 内容: ${jsonEncode(parsedData.playList)}');
+      LogUtil.i('我的收藏列表: ${jsonEncode(favoritePlaylist)}');
+
       // 更新“我的收藏”列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData);
 
