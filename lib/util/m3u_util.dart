@@ -116,42 +116,44 @@ class M3uUtil {
   /// 获取或创建本地的“我的收藏”列表
   static Future<PlaylistModel> getOrCreateFavoriteList() async {
     final favoriteData = await _getCachedFavoriteM3uData();
+  
     if (favoriteData.isEmpty) {
       // 如果没有缓存数据，创建一个新的“我的收藏”列表
-      PlaylistModel favoritePlaylist = PlaylistModel();
-      favoritePlaylist.playList = {
-        "我的收藏": {},
-      };
+      PlaylistModel favoritePlaylist = PlaylistModel(
+        playList: {
+          "我的收藏": <String, Map<String, PlayModel>>{}, // 确保类型为 Map<String, Map<String, PlayModel>>
+        },
+      );
       return favoritePlaylist;
     } else {
-      // 如果本地已有缓存数据转换为 PlaylistModel，解析并返回“我的收藏”列表
+      // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
       return PlaylistModel.fromString(favoriteData);
     }
   }
 
   /// 将“我的收藏”列表插入为播放列表的第一个分类
-static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
-    Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
-    PlaylistModel favoritePlaylist) {
-  // 创建新的播放列表结构，确保“我的收藏”位于第一个位置
-  final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
+      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
+      PlaylistModel favoritePlaylist) {
+    // 创建新的播放列表结构，确保“我的收藏”位于第一个位置
+    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
 
-  // 检查并插入“我的收藏”分类到第一个位置
-  if (favoritePlaylist.playList?["我的收藏"] != null && favoritePlaylist.playList!["我的收藏"]!.isNotEmpty) {
-    updatedPlaylist["我的收藏"] = favoritePlaylist.playList!["我的收藏"]!;
-  } else {
-    updatedPlaylist["我的收藏"] = {}; // 插入一个空的收藏列表
-  }
-
-  // 将其余分类添加到新播放列表中
-  originalPlaylist?.forEach((key, value) {
-    if (key != "我的收藏") {
-      updatedPlaylist[key] = value;
+    // 检查并插入“我的收藏”分类到第一个位置
+    if (favoritePlaylist.playList?["我的收藏"] != null && favoritePlaylist.playList!["我的收藏"]!.isNotEmpty) {
+      updatedPlaylist["我的收藏"] = favoritePlaylist.playList!["我的收藏"]!;
+    } else {
+      updatedPlaylist["我的收藏"] = {}; // 插入一个空的收藏列表
     }
-  });
 
-  return updatedPlaylist;
-}
+    // 将其余分类添加到新播放列表中
+    originalPlaylist?.forEach((key, value) {
+      if (key != "我的收藏") {
+        updatedPlaylist[key] = value;
+      }
+    });
+
+    return updatedPlaylist;
+  }
 
   /// 保存更新后的“我的收藏”列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
