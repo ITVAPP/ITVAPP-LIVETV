@@ -70,7 +70,7 @@ class DialogUtil {
                     content: content,  // 传递内容用于复制
                     isCopyButton: isCopyButton,  // 控制是否显示复制按钮
                   ),  // 动态按钮处理
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
