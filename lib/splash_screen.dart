@@ -4,6 +4,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/m3u_util.dart'; 
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:itvapp_live_tv/util/dialog_util.dart'; 
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
@@ -13,50 +14,28 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-	
-	
-	
-// 弹出显示日志的对话框
-void _showErrorLogs(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      // 获取所有日志
-      List<Map<String, String>> logs = LogUtil.getLogs();
+  
+  // 调试模式开关，生产环境设为 false，生产环境下不弹出对话框
+  bool isDebugMode = true;
+  
+  // 弹出显示日志的对话框，使用 DialogUtil
+  void _showErrorLogs(BuildContext context) {
+    if (isDebugMode) {
+      List<Map<String, String>> logs = LogUtil.getLogs(); // 获取所有日志
 
-      return AlertDialog(
-        title: Text('错误日志'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: logs.map((log) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Text(
-                  '[${log['time']}] ${log['level']}: ${log['message']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // 关闭对话框
-            },
-            child: Text('关闭'),
-          ),
-        ],
+      DialogUtil.showCustomDialog(
+        context,
+        title: '系统日志',
+        content: logs.map((log) {
+          return '[${log['time']}] ${log['level']}: ${log['message']}';
+        }).join('\n'), // 将所有日志拼接成字符串显示
+        positiveButtonLabel: '关闭',
+        onPositivePressed: () {
+          Navigator.of(context).pop(); // 关闭对话框
+        },
       );
-    },
-  );
-}
-
-
-
-
-
+    }
+  }
 
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
   int _retryCount = 0;  // 重试次数
@@ -102,6 +81,11 @@ void _showErrorLogs(BuildContext context) {
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
+
+      // 在发生错误时根据调试模式弹出日志
+      if (isDebugMode) {
+        _showErrorLogs(context); // 调试模式下弹出日志
+      }
     }
   }
 
@@ -139,6 +123,12 @@ void _showErrorLogs(BuildContext context) {
         _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
+
+      // 根据调试模式弹出日志
+      if (isDebugMode) {
+        _showErrorLogs(context);
+      }
+
       return M3uResult(errorMessage: '发生错误: $e');
     }
   }
@@ -174,9 +164,6 @@ void _showErrorLogs(BuildContext context) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   FocusScope.of(context).requestFocus(_retryButtonFocusNode);
                 });
-                
-   // 弹出日志对话框显示所有日志
-  _showErrorLogs(context);
                  
                 // 如果加载失败，显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
@@ -196,10 +183,6 @@ void _showErrorLogs(BuildContext context) {
                   isLoading: true,
                 );
               } else {
-              	
-              	  // 弹出日志对话框显示所有日志
-  _showErrorLogs(context);
-  
                 // 处理其他情况，默认显示错误信息和刷新按钮
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               }
