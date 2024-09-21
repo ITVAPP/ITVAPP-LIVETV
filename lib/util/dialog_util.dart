@@ -68,7 +68,7 @@ class DialogUtil {
                   Expanded(
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
                         child: _buildDialogContent(content: content), // 调用封装的内容部分
                       ),
                     ),
@@ -101,7 +101,7 @@ class DialogUtil {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(15),
           alignment: Alignment.center,
           child: Text(
             title ?? 'Notification 🚀',  // 动态标题
