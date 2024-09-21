@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 用于复制到剪贴板
+import 'package:itvapp_live_tv/util/log_util.dart'; // 假设你需要导入日志工具
 
 class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -10,12 +11,26 @@ class DialogUtil {
     String? positiveButtonLabel,  // 正向按钮文本
     VoidCallback? onPositivePressed,  // 正向按钮点击回调
     String? negativeButtonLabel,  // 负向按钮文本（可选）
-    VoidCallback? onNegativePressed,  // 负向按钮点击回调
+    VoidCallback? onNegativePressed,  // 负向按钮点击回调（可选）
     String? closeButtonLabel,  // 底部关闭按钮文本（可选）
     VoidCallback? onClosePressed,  // 关闭按钮点击回调（可选）
     bool isDismissible = true,  // 是否允许点击对话框外部关闭
     bool isCopyButton = false,  // 新增参数：是否显示复制按钮
   }) {
+    // 检查 content 是否为 "showlog"，如果是则显示日志
+    if (content == "showlog") {
+      List<Map<String, String>> logs = LogUtil.getLogs();
+      // 日志条目反转，确保最新日志在最前面
+      logs = logs.reversed.toList();
+      
+      // 格式化日志，简化时间显示为 [HH:mm] 格式，并更新日志内容
+      content = logs.map((log) {
+        DateTime time = DateTime.parse(log['time']!);
+        String formattedTime = DateFormat('HH:mm').format(time);  // 仅显示小时和分钟
+        return '[$formattedTime] ${log['message']}';
+      }).join('\n');  // 拼接日志内容为字符串显示
+    } 
+    
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,  // 是否允许点击对话框外部关闭
@@ -95,14 +110,10 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          // 去掉 Focus 包裹，直接使用 IconButton
           child: IconButton(
-            onPressed: () async {
-              // 异步关闭弹窗，避免 UI 阻塞
-              Future.microtask(() {
-                Navigator.of(context).pop();  // 直接关闭对话框，不传递 false
-              });
-            },
+            onPressed: () {
+               Navigator.of(context).pop();  // 直接关闭对话框，不传递 false
+           },
             icon: const Icon(Icons.close),
           ),
         ),
@@ -110,7 +121,7 @@ class DialogUtil {
     );
   }
 
-  // 封装的内容部分，禁用复制功能
+  // 封装的内容部分，禁用选择功能
   static Widget _buildDialogContent({String? content}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
