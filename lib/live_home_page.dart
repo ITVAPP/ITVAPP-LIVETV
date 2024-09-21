@@ -1,8 +1,8 @@
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart'; // 导入Provider包
-import 'provider/theme_provider.dart'; // 引入ThemeProvider
+import 'package:provider/provider.dart'; 
+import 'provider/theme_provider.dart'; 
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -570,9 +570,7 @@ Future<void> _changeChannelSources() async {
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
       _playVideo();
-    } else {
-      LogUtil.e('未选择新的视频源或选中的索引未发生变化');
-    }
+    } 
   } catch (modalError, modalStackTrace) {
     // 捕获弹窗异常并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
