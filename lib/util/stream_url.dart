@@ -17,24 +17,20 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
-      // 优化：如果不是 YouTube URL，尽早返回原始 URL，避免后续处理
+      // 如果不是 YouTube URL，返回原始 URL，避免后续处理
       if (!_isYouTubeUrl(url)) {
         return url; // 如果不是 YouTube 链接，直接返回原始 URL
       }
-
-      LogUtil.i('尝试获取视频流地址: $url');
       
       // 如果是 YouTube URL，判断是直播流还是普通视频
       if (url.contains('ytlive')) {
-        LogUtil.i('检测到 YouTube 直播流');
         return await _getYouTubeLiveStreamUrl().timeout(Duration(seconds: 10), onTimeout: () {
-          LogUtil.e('获取 YouTube 直播流超时');
+          LogUtil.e('获取 YT 直播流超时');
           return 'ERROR';
         }) ?? 'ERROR';  // 处理 YouTube 直播视频
       } else {
-        LogUtil.i('检测到普通 YouTube 视频');
         return await _getYouTubeVideoUrl().timeout(Duration(seconds: 10), onTimeout: () {
-          LogUtil.e('获取 YouTube 视频流超时');
+          LogUtil.e('获取 YT 视频流超时');
           return 'ERROR';
         }) ?? 'ERROR';  // 处理普通 YouTube 视频
       }
@@ -57,22 +53,19 @@ class StreamUrl {
     // 如果有未完成的异步任务，取消它
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
-      LogUtil.i('取消未完成的异步操作');
     }
 
     LogUtil.safeExecute(() {
       // 关闭 YouTube API 实例，终止未完成的请求
       try {
         yt.close();
-        LogUtil.i('YouTubeExplode 实例已关闭，未完成的 YouTube 请求将被清除');
       } catch (e, stackTrace) {
-        LogUtil.logError('释放 YouTubeExplode 实例时发生错误', e, stackTrace);
+        LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
       }
 
       // 关闭 HTTP 客户端，终止未完成的 HTTP 请求
       try {
         _client.close();
-        LogUtil.i('HTTP 客户端已关闭，未完成的 HTTP 请求将被清除');
       } catch (e, stackTrace) {
         LogUtil.logError('释放 HTTP 客户端时发生错误', e, stackTrace);
       }
@@ -89,17 +82,17 @@ class StreamUrl {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     String? m3u8Url;
     try {
-      for (int i = 0; i < 2; i++) {
+      for (int i = 0; i < 2; i++) { // 尝试获取两次直播流地址
         if (_completer?.isCompleted == true) return null; // 检查任务是否取消
         m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
         if (m3u8Url != null) break;  // 如果获取成功，跳出循环
         if (_isDisposed) return null;  // 资源释放后立即退出
       }
-      LogUtil.i('获取到 YouTube 直播流地址: $m3u8Url');
+      // LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
       return m3u8Url;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        LogUtil.logError('获取 YouTube 直播流地址时发生错误', e, stackTrace);
+      // LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
       return null;
     }
@@ -109,23 +102,38 @@ class StreamUrl {
   Future<String?> _getYouTubeVideoUrl() async {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      var video = await yt.videos.get(url);  // 获取视频详细信息
-      if (_isDisposed) return null;  // 如果资源被释放，立即退出
-      LogUtil.d('获取视频数据成功: ${video.id}');
-      
-      if (video.isLive) {
-        return await _getYouTubeLiveStreamUrl();
-      } else {
-        var manifest = await yt.videos.streamsClient.getManifest(video.id);
-        var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
-        return streamInfo?.url.toString();
+      for (int attempt = 0; attempt < 2; attempt++) {  // 最多尝试两次
+        try {
+          var video = await yt.videos.get(url).timeout(Duration(seconds: 10));  // 设置10秒超时
+          if (_isDisposed) return null;  // 如果资源被释放，立即退出
+          
+          if (video.isLive) {
+            return await _getYouTubeLiveStreamUrl();
+          } else {
+            var manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(Duration(seconds: 10));  // 设置10秒超时
+            var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
+            var streamUrl = streamInfo?.url.toString();
+            
+            if (streamUrl != null && streamUrl.contains('http')) {
+              // 如果解析成功，返回 URL
+              return streamUrl;
+            }
+
+          }
+        } catch (e, stackTrace) {
+          // 如果捕获异常，且重试次数为0，继续重试
+          if (attempt == 0) continue;
+        }
+        // 如果失败后再重试一次，超过第二次就返回 null
+        if (attempt == 1) break;
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        LogUtil.logError('获取 YouTube 视频流地址时发生错误', e, stackTrace);
+        return null;
       }
       return null;
     }
+    return null;  // 最终未成功，返回 null
   }
 
   // 根据指定的清晰度列表，获取最佳的视频流信息
@@ -138,16 +146,14 @@ class StreamUrl {
           orElse: () => manifest.muxed.last,
         );
         if (streamInfo != null) {
-          LogUtil.i('找到最佳质量的视频流: $quality');
           return streamInfo;
         }
         if (_isDisposed) return null;  // 资源释放后立即退出
       }
-      LogUtil.e('没有找到匹配的质量，使用默认流');
       return null;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
+        return null;
       }
       return null;
     }
@@ -176,7 +182,7 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        LogUtil.logError('获取 YouTube m3u8 地址时发生错误', e, stackTrace);
+        return null;
       }
     }
     return null;
@@ -209,19 +215,17 @@ class StreamUrl {
 
         for (var preferredQuality in preferredQualities) {
           if (qualityUrls.containsKey(preferredQuality)) {
-            LogUtil.d('找到匹配的分辨率: $preferredQuality');
             return qualityUrls[preferredQuality];
           }
         }
 
         if (qualityUrls.isNotEmpty) {
-          LogUtil.e('没有找到匹配的分辨率，使用默认流');
           return qualityUrls.values.first;
         }
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        LogUtil.logError('获取最合适的 m3u8 地址时发生错误', e, stackTrace);
+        return null;
       }
     }
     return null;
@@ -234,10 +238,8 @@ class StreamUrl {
     final match = regex.firstMatch(extInfLine);
 
     if (match != null) {
-      LogUtil.d('提取到的分辨率: ${match.group(1)}');
       return match.group(1);
     }
-    LogUtil.e('未能提取到分辨率: $extInfLine');
     return null;
   }
 }
