@@ -22,26 +22,11 @@ class _SplashScreenState extends State<SplashScreen> {
   // 弹出显示日志的对话框，使用 DialogUtil
   void _showErrorLogs(BuildContext context) {
     if (isDebugMode) {
-      List<Map<String, String>> logs = LogUtil.getLogs(); // 获取所有日志
-
       DialogUtil.showCustomDialog(
         context,
         title: S.of(context).logtitle,
-        content: logs.map((log) {
-          return '[${log['time']}] ${log['level']}: ${log['message']}';
-        }).join('\n'), // 将所有日志拼接成字符串显示
+        content: 'showlog', // 显示日志
         positiveButtonLabel: '复制',
-        onPositivePressed: () {
-          // 复制日志内容到剪贴板
-          Clipboard.setData(ClipboardData(text: logs.map((log) {
-            return '[${log['time']}] ${log['level']}: ${log['message']}';
-          }).join('\n')));
-
-          // 显示已复制提示
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(S.of(context).logCopied)),
-          );
-        },
       );
     }
   }
