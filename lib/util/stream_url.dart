@@ -17,22 +17,15 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
-      // 如果不是 YouTube URL，返回原始 URL，避免后续处理
       if (!_isYouTubeUrl(url)) {
         return url; // 如果不是 YouTube 链接，直接返回原始 URL
       }
       
       // 如果是 YouTube URL，判断是直播流还是普通视频
       if (url.contains('ytlive')) {
-        return await _getYouTubeLiveStreamUrl().timeout(Duration(seconds: 8), onTimeout: () {
-          LogUtil.e('获取 YT 直播流超时');
-          return 'ERROR';
-        }) ?? 'ERROR';  // 处理 YouTube 直播视频
+        return await _handleTimeout(_getYouTubeLiveStreamUrl(), '获取 YT 直播流超时');
       } else {
-        return await _getYouTubeVideoUrl().timeout(Duration(seconds: 8), onTimeout: () {
-          LogUtil.e('获取 YT 视频流超时');
-          return 'ERROR';
-        }) ?? 'ERROR';  // 处理普通 YouTube 视频
+        return await _handleTimeout(_getYouTubeVideoUrl(), '获取 YT 视频流超时');
       }
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
@@ -43,6 +36,28 @@ class StreamUrl {
       }
       _completer = null; // 清除 completer
     }
+  }
+
+  // 处理超时逻辑的通用方法
+  FutureOr<String> _handleTimeout(FutureOr<String?> task, String errorMessage) async {
+    return (await task.timeout(Duration(seconds: 8), onTimeout: () {
+      LogUtil.e(errorMessage);
+      return 'ERROR';
+    })) ?? 'ERROR';
+  }
+
+  // 处理重试逻辑的通用方法
+  Future<T?> _retry<T>(Future<T?> Function() action, int retryCount) async {
+    for (int attempt = 0; attempt < retryCount; attempt++) {
+      try {
+        return await action(); // 执行传入的操作
+      } catch (e) {
+        if (attempt == retryCount - 1) {
+          rethrow; // 最后一次重试失败则抛出异常
+        }
+      }
+    }
+    return null;
   }
 
   // 释放资源（关闭 YouTube API 实例和 HTTP 客户端），防止重复调用
@@ -72,7 +87,7 @@ class StreamUrl {
     }, '关闭资源时发生错误');
   }
 
-  // 判断 URL 是否为 YouTube 链接（检测是否包含 'youtube.com' 或 'youtu.be'）
+  // 判断 URL 是否为 YouTube 链接
   bool _isYouTubeUrl(String url) {
     return url.contains('youtube.com') || url.contains('youtu.be');
   }
@@ -82,17 +97,14 @@ class StreamUrl {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     String? m3u8Url;
     try {
-      for (int i = 0; i < 2; i++) { // 尝试获取两次直播流地址
+      m3u8Url = await _retry(() async {
         if (_completer?.isCompleted == true) return null; // 检查任务是否取消
-        m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-        if (m3u8Url != null) break;  // 如果获取成功，跳出循环
-        if (_isDisposed) return null;  // 资源释放后立即退出
-      }
-      // LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
+        return await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+      }, 2); // 重试两次
       return m3u8Url;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-      // LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
+        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
       return null;
     }
@@ -102,36 +114,27 @@ class StreamUrl {
   Future<String?> _getYouTubeVideoUrl() async {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      for (int attempt = 0; attempt < 2; attempt++) {  // 最多尝试两次
-        try {
-          var video = await yt.videos.get(url).timeout(Duration(seconds: 8));  
-          if (_isDisposed) return null;  // 如果资源被释放，立即退出
+      return await _retry(() async {
+        var video = await _handleTimeout(yt.videos.get(url), '获取视频信息超时');
+        if (_isDisposed) return null;  // 如果资源被释放，立即退出
           
-          if (video.isLive) {
-            return await _getYouTubeLiveStreamUrl();
-          } else {
-            var manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(Duration(seconds: 8));  
-            var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
-            var streamUrl = streamInfo?.url.toString();
+        if (video?.isLive ?? false) {
+          return await _getYouTubeLiveStreamUrl();
+        } else {
+          var manifest = await _handleTimeout(yt.videos.streamsClient.getManifest(video!.id), '获取视频流信息超时');
+          var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
+          var streamUrl = streamInfo?.url.toString();
             
-            if (streamUrl != null && streamUrl.contains('http')) {
-              // 如果解析成功，返回 URL
-              return streamUrl;
-            }
-
+          if (streamUrl != null && streamUrl.contains('http')) {
+            return streamUrl;
           }
-        } catch (e, stackTrace) {
-          // 如果捕获异常，且重试次数为0，继续重试
-          if (attempt == 0) continue;
         }
-        // 如果失败后再重试一次，超过第二次就返回 null
-        if (attempt == 1) break;
-      }
+        return null;
+      }, 2); // 重试两次
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       }
-      return null;
     }
     return null;  // 最终未成功，返回 null
   }
@@ -153,7 +156,7 @@ class StreamUrl {
       return null;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取最佳视频流时发生错误', e, stackTrace);
       }
       return null;
     }
@@ -163,10 +166,13 @@ class StreamUrl {
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      final response = await _client.get(  // 使用 _client 进行请求
-        Uri.parse(youtubeUrl),
-        headers: {'User-Agent': 'Mozilla/5.0'},
-      ).timeout(Duration(seconds: 10));
+      final response = await _handleTimeout(
+        _client.get(
+          Uri.parse(youtubeUrl),
+          headers: {'User-Agent': 'Mozilla/5.0'},
+        ), 
+        '获取 m3u8 地址超时'
+      );
       if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
@@ -182,7 +188,7 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取 m3u8 地址时发生错误', e, stackTrace);
       }
     }
     return null;
@@ -192,8 +198,10 @@ class StreamUrl {
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      final response = await _client.get(Uri.parse(indexM3u8Url))  // 使用 _client 进行请求
-          .timeout(Duration(seconds: 8));  // 添加超时处理
+      final response = await _handleTimeout(
+        _client.get(Uri.parse(indexM3u8Url)),
+        '获取 m3u8 清单超时'
+      );
       if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
@@ -225,7 +233,7 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取质量清单时发生错误', e, stackTrace);
       }
     }
     return null;
