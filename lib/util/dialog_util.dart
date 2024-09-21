@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 用于复制到剪贴板
-import 'package:itvapp_live_tv/util/log_util.dart'; // 假设你需要导入日志工具
+import 'package:flutter/services.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 
 class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -26,7 +26,8 @@ class DialogUtil {
       // 格式化日志，简化时间显示为 [HH:mm] 格式，并更新日志内容
       content = logs.map((log) {
         DateTime time = DateTime.parse(log['time']!);
-        String formattedTime = DateFormat('HH:mm').format(time);  // 仅显示小时和分钟
+        // 使用 Dart 原生方法格式化时间为 HH:mm
+        String formattedTime = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
         return '[$formattedTime] ${log['message']}';
       }).join('\n');  // 拼接日志内容为字符串显示
     } 
