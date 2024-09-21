@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class ReusableDialogUtil {
+class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
   static Future<bool?> showCustomDialog(
     BuildContext context, {
