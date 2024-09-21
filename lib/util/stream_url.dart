@@ -24,12 +24,12 @@ class StreamUrl {
       
       // 如果是 YouTube URL，判断是直播流还是普通视频
       if (url.contains('ytlive')) {
-        return await _getYouTubeLiveStreamUrl().timeout(Duration(seconds: 10), onTimeout: () {
+        return await _getYouTubeLiveStreamUrl().timeout(Duration(seconds: 8), onTimeout: () {
           LogUtil.e('获取 YT 直播流超时');
           return 'ERROR';
         }) ?? 'ERROR';  // 处理 YouTube 直播视频
       } else {
-        return await _getYouTubeVideoUrl().timeout(Duration(seconds: 10), onTimeout: () {
+        return await _getYouTubeVideoUrl().timeout(Duration(seconds: 8), onTimeout: () {
           LogUtil.e('获取 YT 视频流超时');
           return 'ERROR';
         }) ?? 'ERROR';  // 处理普通 YouTube 视频
@@ -104,13 +104,13 @@ class StreamUrl {
     try {
       for (int attempt = 0; attempt < 2; attempt++) {  // 最多尝试两次
         try {
-          var video = await yt.videos.get(url).timeout(Duration(seconds: 10));  // 设置10秒超时
+          var video = await yt.videos.get(url).timeout(Duration(seconds: 8));  
           if (_isDisposed) return null;  // 如果资源被释放，立即退出
           
           if (video.isLive) {
             return await _getYouTubeLiveStreamUrl();
           } else {
-            var manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(Duration(seconds: 10));  // 设置10秒超时
+            var manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(Duration(seconds: 8));  
             var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
             var streamUrl = streamInfo?.url.toString();
             
@@ -193,7 +193,7 @@ class StreamUrl {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
       final response = await _client.get(Uri.parse(indexM3u8Url))  // 使用 _client 进行请求
-          .timeout(Duration(seconds: 10));  // 添加超时处理
+          .timeout(Duration(seconds: 8));  // 添加超时处理
       if (_isDisposed) return null;  // 资源释放后立即退出
 
       if (response.statusCode == 200) {
