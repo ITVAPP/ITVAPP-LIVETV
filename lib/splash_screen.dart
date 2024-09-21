@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       DialogUtil.showCustomDialog(
         context,
-        title: Text(S.of(context).logtitle),
+        title: S.of(context).logtitle,
         content: logs.map((log) {
           return '[${log['time']}] ${log['level']}: ${log['message']}';
         }).join('\n'), // 将所有日志拼接成字符串显示
@@ -39,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
           // 显示已复制提示
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(Text(S.of(context).logCopied))),
+            SnackBar(content: Text(S.of(context).logCopied)),
           );
         },
       );
