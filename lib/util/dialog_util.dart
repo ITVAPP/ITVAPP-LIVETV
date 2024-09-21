@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 用于复制到剪贴板
 
 class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -10,7 +11,10 @@ class DialogUtil {
     VoidCallback? onPositivePressed,  // 正向按钮点击回调
     String? negativeButtonLabel,  // 负向按钮文本（可选）
     VoidCallback? onNegativePressed,  // 负向按钮点击回调
+    String? closeButtonLabel,  // 底部关闭按钮文本（可选）
+    VoidCallback? onClosePressed,  // 关闭按钮点击回调（可选）
     bool isDismissible = true,  // 是否允许点击对话框外部关闭
+    bool isCopyButton = false,  // 新增参数：是否显示复制按钮
   }) {
     return showDialog<bool>(
       context: context,
@@ -61,6 +65,10 @@ class DialogUtil {
                     onPositivePressed: onPositivePressed,
                     negativeButtonLabel: negativeButtonLabel,
                     onNegativePressed: onNegativePressed,
+                    closeButtonLabel: closeButtonLabel,
+                    onClosePressed: onClosePressed,
+                    content: content,  // 传递内容用于复制
+                    isCopyButton: isCopyButton,  // 控制是否显示复制按钮
                   ),  // 动态按钮处理
                   const SizedBox(height: 30),
                 ],
@@ -92,7 +100,7 @@ class DialogUtil {
             onPressed: () async {
               // 异步关闭弹窗，避免 UI 阻塞
               Future.microtask(() {
-                Navigator.of(context).pop(false);  // 点击关闭按钮，关闭对话框
+                Navigator.of(context).pop();  // 直接关闭对话框，不传递 false
               });
             },
             icon: const Icon(Icons.close),
@@ -102,7 +110,7 @@ class DialogUtil {
     );
   }
 
-  // 封装的内容部分，允许内容复制
+  // 封装的内容部分，禁用复制功能
   static Widget _buildDialogContent({String? content}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +125,7 @@ class DialogUtil {
             border: InputBorder.none,  // 去掉边框
           ),
           style: const TextStyle(fontSize: 14),  // 设置文本样式
-          enableInteractiveSelection: true,  // 启用交互式选择
+          enableInteractiveSelection: false,  // 禁用交互式选择功能，取消复制功能
         ),
       ],
     );
@@ -130,6 +138,10 @@ class DialogUtil {
     VoidCallback? onPositivePressed,
     String? negativeButtonLabel,
     VoidCallback? onNegativePressed,
+    String? closeButtonLabel,  // 关闭按钮文本
+    VoidCallback? onClosePressed,  // 关闭按钮点击事件
+    String? content,  // 传递的内容，用于复制
+    bool isCopyButton = false,  // 控制是否显示复制按钮
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -140,23 +152,39 @@ class DialogUtil {
               if (onNegativePressed != null) {
                 onNegativePressed();
               }
-              Future.microtask(() {
-                Navigator.of(context).pop(false);  // 点击后关闭对话框
-              });
             },
             child: Text(negativeButtonLabel),
           ),
-        ElevatedButton(
-          onPressed: () {
-            if (onPositivePressed != null) {
-              onPositivePressed();
-            }
-            Future.microtask(() {
-              Navigator.of(context).pop(true);  // 点击后关闭对话框
-            });
-          },
-          child: Text(positiveButtonLabel ?? 'OK'),  // 正向按钮，文本默认为 'OK'
-        ),
+        if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
+          ElevatedButton(
+            onPressed: () {
+              if (onPositivePressed != null) {
+                onPositivePressed();
+              }
+            },
+            child: Text(positiveButtonLabel),
+          ),
+        if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
+          ElevatedButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('已复制到剪贴板')),
+              );
+            },
+            child: Text('复制'),
+          ),
+        if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
+          ElevatedButton(
+            onPressed: () {
+              if (onClosePressed != null) {
+                onClosePressed();  // 点击关闭按钮时执行的回调
+              } else {
+                Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
+              }
+            },
+            child: Text(closeButtonLabel),
+          ),
       ],
     );
   }
