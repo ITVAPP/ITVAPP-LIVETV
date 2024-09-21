@@ -75,11 +75,6 @@ class _SplashScreenState extends State<SplashScreen> {
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
-
-      // 在发生错误时根据调试模式弹出日志
-      if (isDebugMode) {
-        _showErrorLogs(context); // 调试模式下弹出日志
-      }
     }
   }
 
@@ -116,12 +111,6 @@ class _SplashScreenState extends State<SplashScreen> {
         _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
-
-      // 根据调试模式弹出日志
-      if (isDebugMode) {
-        _showErrorLogs(context);
-      }
-
       return M3uResult(errorMessage: '发生错误: $e');
     }
   }
