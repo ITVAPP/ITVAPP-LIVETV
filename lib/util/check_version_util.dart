@@ -8,7 +8,7 @@ import '../generated/l10n.dart';
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
-import 'dialog_util.dart'; // 引入复用弹窗工具
+import 'dialog_util.dart'; 
 
 class CheckVersionUtil {
   static const version = '1.5.8';  // 当前应用版本号
@@ -82,7 +82,7 @@ class CheckVersionUtil {
   static Future<bool?> showUpdateDialog(BuildContext context) async {
     if (latestVersionEntity == null) return null;
 
-    return ReusableDialogUtil.showCustomDialog(
+    return DialogUtil.showCustomDialog(
       context,
       title: '${S.current.findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
