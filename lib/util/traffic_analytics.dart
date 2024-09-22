@@ -1,79 +1,105 @@
 import 'dart:convert';
-import 'dart:io'; // 导入 dart:io 来获取设备操作系统信息
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-
-/**
- * 使用说明：
- * 1. 初始化 TrafficAnalytics 类
- *    在页面中实例化 TrafficAnalytics 类，用于调用统计功能。
- *
- *    示例：
- *    final TrafficAnalytics trafficAnalytics = TrafficAnalytics();
- *
- * 2. 调用 sendPageView 方法记录页面访问
- *    在页面加载时，调用 sendPageView 方法将页面的访问数据发送到 Umami 进行统计。
- *    需要传入 BuildContext、页面的 url 和 referrer（引荐来源）。
- *
- *    示例：
- *    trafficAnalytics.sendPageView(context, 'https://your-app-domain.com/home', 'https://referrer.com');
- *
- * 3. IP 和位置信息自动获取
- *    TrafficAnalytics 类会自动获取用户的 IP 地址和地理位置信息，并将这些信息与页面的 URL 一起发送到 Umami。
- *
- * 4. 屏幕尺寸自动获取
- *    TrafficAnalytics 类会根据设备的 MediaQuery 自动获取当前屏幕的宽高，并发送到 Umami 进行记录。
- */
+import 'log_util.dart'; 
 
 class TrafficAnalytics {
-  // Umami API 端点
-  final String umamiUrl = 'https://umami.yourdomain.com/api/collect'; 
-  // 从 Umami 控制台获取的 websiteId
-  final String websiteId = 'your-website-id'; 
-  // 最大重试次数
+  final String umamiUrl = 'https://umami.yourdomain.com/api/collect';
+  final String websiteId = 'your-website-id';
   final int maxRetries = 3;
 
-  /// 获取用户的IP地址和地理位置信息
+  /// 获取用户的IP地址和地理位置信息，逐个尝试多个API
   Future<Map<String, dynamic>> getUserIpAndLocation() async {
-    // 发送请求获取用户IP和地理信息
-    final response = await http.get(Uri.parse('http://ip-api.com/json'));
-    
-    if (response.statusCode == 200) {
-      // 成功获取到数据，返回解析后的数据
-      final data = json.decode(response.body);
-      return {
-        'ip': data['query'],
-        'country': data['country'],
-        'region': data['regionName'],
-        'city': data['city'],
-        'lat': data['lat'],
-        'lon': data['lon'],
-      };
-    } else {
-      // 请求失败，抛出异常
-      throw Exception('获取 IP 和地理位置信息失败');
+    // 定义要使用的API列表，按照优先级排列
+    final apiList = [
+      {
+        'url': 'https://api.vvhan.com/api/ipInfo',
+        'parseData': (data) {
+          return {
+            'ip': data['ip'] ?? 'Unknown IP',
+            'country': data['info']['country'] ?? 'Unknown Country',
+            'region': data['info']['prov'] ?? 'Unknown Region',
+            'city': data['info']['city'] ?? 'Unknown City',
+          };
+        }
+      },
+      {
+        'url': 'https://ip.useragentinfo.com/json',
+        'parseData': (data) {
+          return {
+            'ip': data['ip'] ?? 'Unknown IP',
+            'country': data['country'] ?? 'Unknown Country',
+            'region': data['province'] ?? 'Unknown Region',
+            'city': data['city'] ?? 'Unknown City',
+          };
+        }
+      },
+      {
+        'url': 'https://open.saintic.com/ip/rest',
+        'parseData': (data) {
+          return {
+            'ip': data['data']['ip'] ?? 'Unknown IP',
+            'country': data['data']['country'] ?? 'Unknown Country',
+            'region': data['data']['province'] ?? 'Unknown Region',
+            'city': data['data']['city'] ?? 'Unknown City',
+          };
+        }
+      },
+      {
+        'url': 'http://ip-api.com/json',
+        'parseData': (data) {
+          return {
+            'ip': data['query'] ?? 'Unknown IP',
+            'country': data['country'] ?? 'Unknown Country',
+            'region': data['regionName'] ?? 'Unknown Region',
+            'city': data['city'] ?? 'Unknown City',
+            // 在这里增加了null检查，确保lat和lon解析失败时不会出错
+            'lat': data.containsKey('lat') ? data['lat'] : null,
+            'lon': data.containsKey('lon') ? data['lon'] : null,
+          };
+        }
+      }
+    ];
+
+    for (var api in apiList) {
+      try {
+        // 发送请求到当前API
+        final response = await http.get(Uri.parse(api['url']));
+        if (response.statusCode == 200) {
+          // 成功获取到数据，解析并返回
+          final data = json.decode(response.body);
+          return api['parseData'](data);
+        } else {
+          LogUtil.e('API请求失败: ${api['url']} 状态码: ${response.statusCode}');
+        }
+      } catch (e, stackTrace) {
+        LogUtil.logError('请求 ${api['url']} 失败', e, stackTrace);
+      }
     }
+
+    // 如果所有API都失败，抛出异常
+    throw Exception('所有API请求失败，无法获取IP和地理位置信息');
   }
 
   /// 获取屏幕尺寸
   String getScreenSize(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    // 返回屏幕宽高字符串
     return '${size.width.toInt()}x${size.height.toInt()}';
   }
 
   /// 获取设备信息（操作系统类型）
   String getDeviceInfo() {
-    return Platform.operatingSystem;  // 返回当前操作系统 (Android, iOS, etc.)
+    return Platform.operatingSystem;
   }
 
   /// 发送页面访问统计数据到 Umami，带重试机制
   Future<void> sendPageView(BuildContext context, String url, String referrer) async {
-    final String screenSize = getScreenSize(context); // 获取屏幕尺寸
-    final String deviceInfo = getDeviceInfo(); // 获取设备信息
+    final String screenSize = getScreenSize(context);
+    final String deviceInfo = getDeviceInfo();
 
     try {
-      final Map<String, dynamic> ipData = await getUserIpAndLocation(); // 获取IP和地理位置
+      final Map<String, dynamic> ipData = await getUserIpAndLocation();
 
       // 构造要发送的统计数据
       final Map<String, dynamic> payload = {
@@ -83,19 +109,23 @@ class TrafficAnalytics {
           'url': url,
           'referrer': referrer,
           'hostname': 'your-app-domain.com',
-          'language': 'en-US',  // 语言可以根据实际情况调整
-          'screen': screenSize,  // 屏幕尺寸
-          'ip': ipData['ip'],  // 用户IP
-          'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',  // 用户地理位置信息
-          'coordinates': '${ipData['lat']}, ${ipData['lon']}',  // 经纬度
-          'device': deviceInfo,  // 设备信息
+          'language': 'en-US',
+          'screen': screenSize,
+          'ip': ipData['ip'],
+          // 在地理位置信息中处理可能缺失的字段
+          'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
+          // 确保当lat和lon为null时不会导致错误
+          'coordinates': (ipData['lat'] != null && ipData['lon'] != null)
+              ? '${ipData['lat']}, ${ipData['lon']}'
+              : '',
+          'device': deviceInfo,
         }
       };
 
-      await _sendWithRetry(payload); // 调用重试机制发送数据
+      await _sendWithRetry(payload);
 
-    } catch (error) {
-      print('获取用户 IP 或发送页面访问数据时发生错误: $error');  // 打印错误信息
+    } catch (error, stackTrace) {
+      LogUtil.logError('获取用户 IP 或发送页面访问数据时发生错误', error, stackTrace);
     }
   }
 
@@ -107,32 +137,29 @@ class TrafficAnalytics {
     while (attempt < maxRetries && !success) {
       attempt++;
       try {
-        // 发送POST请求到 Umami
         final response = await http.post(
           Uri.parse(umamiUrl),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(payload),
         );
 
-        // 判断请求是否成功
         if (response.statusCode == 200) {
-          print('页面访问统计数据发送成功');  // 打印成功信息
-          success = true;  // 成功后跳出循环
+          LogUtil.i('页面访问统计数据发送成功');
+          success = true;
         } else {
-          print('页面访问统计数据发送失败: ${response.statusCode}');  // 打印失败状态码
+          LogUtil.e('页面访问统计数据发送失败: ${response.statusCode}');
         }
-      } catch (error) {
-        print('发送数据时发生错误，正在进行第 $attempt 次重试: $error');  // 打印错误并重试
+      } catch (error, stackTrace) {
+        LogUtil.logError('发送数据时发生错误，正在进行第 $attempt 次重试', error, stackTrace);
       }
 
-      // 如果发送失败且未达到最大重试次数，等待一段时间再尝试
       if (!success && attempt < maxRetries) {
         await Future.delayed(Duration(seconds: 2));
       }
     }
 
     if (!success) {
-      print('达到最大重试次数，发送失败');
+      LogUtil.e('达到最大重试次数，发送失败');
     }
   }
 }
