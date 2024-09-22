@@ -66,7 +66,7 @@ class DialogUtil {
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
                   _buildDialogHeader(context, title: title),  // 调用封装的标题部分
-                  Expanded(
+                  Flexible( // 用 Flexible 替换 Expanded
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -150,7 +150,7 @@ class DialogUtil {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(30),  // 设置圆角
       ),
-      textStyle: const TextStyle(fontSize: 15),  // 按钮文字大小
+      textStyle: const TextStyle(fontSize: 16),  // 按钮文字大小
     );
   }
 
