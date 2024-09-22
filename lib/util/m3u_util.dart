@@ -120,10 +120,10 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的“我的收藏”列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          "我的收藏": <String, Map<String, PlayModel>>{{{}}}, // 确保类型为 Map<String, Map<String, PlayModel>>
+          "我的收藏": <String, Map<String, PlayModel>>{}, 
         }
       );
-      LogUtil.i('创建了新的我的收藏列表: ${jsonEncode(favoritePlaylist)}');
+      LogUtil.i('创建了新的我的收藏列表: ${favoritePlaylist.toString()}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
