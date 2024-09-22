@@ -87,11 +87,11 @@ class StreamUrl {
     String? m3u8Url;
     try {
       m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-      // LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
+       LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
       return m3u8Url;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        // LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
+        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
       return null;
     }
@@ -113,10 +113,12 @@ class StreamUrl {
             
         if (streamUrl != null && streamUrl.contains('http')) {
           // 如果解析成功，返回 URL
+          LogUtil.i('获取到 YT 直播流地址: $streamUrl');
           return streamUrl;
         }
       }
     } catch (e, stackTrace) {
+      LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);	
       return null;
     }
     return null;  // 最终未成功，返回 null
