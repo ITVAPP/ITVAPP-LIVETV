@@ -257,36 +257,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           Positioned(
             right: 12,
             bottom: 10,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black45, // 背景颜色
-                shape: BoxShape.circle, // 设置为圆形背景
-                border: Border.all(color: Colors.white, width: 2), // 白色边框
-              ),
-              child: IconButton(
-                tooltip: S.current.landscape, // 提示“切换到横屏”
-                icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18), // 旋转屏幕图标
-                constraints: const BoxConstraints(
-                  minWidth: 22,
-                  minHeight: 22,
-                ), // 设置最小尺寸
-                padding: const EdgeInsets.all(2), // 调整内边距
-                onPressed: () async {
-                  LogUtil.safeExecute(() async {
-                    if (EnvUtil.isMobile) {
-                      // 移动设备切换为横屏
-                      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                    } else {
-                      // 桌面设备调整窗口大小为横屏
-                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                    }
-                  }, '切换为横屏时发生错误');
-                },
-              ),
+            child: IconButton(
+              tooltip: S.current.landscape,
+              onPressed: () async {
+                if (EnvUtil.isMobile) {
+                  SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+                  return;
+                }
+                await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+              },
+              style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 20),
+              icon: const Icon(Icons.screen_rotation, color: Colors.white),
             ),
-          ),
+          )
       ],
     );
   }
