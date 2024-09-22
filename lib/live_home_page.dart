@@ -19,6 +19,7 @@ import 'util/check_version_util.dart';
 import 'util/log_util.dart';
 import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
+import 'util/dialog_util.dart';
 import 'widget/empty_page.dart';
 
 /// 主页面类，展示直播流
@@ -65,7 +66,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _drawerIsOpen = false;
 
   // 调试模式开关，调试时为 true，生产环境为 false
-  bool isDebugMode = false;
+  bool isDebugMode = true;
 
   // 重试次数计数器，记录当前播放重试的次数
   int _retryCount = 0;
@@ -91,9 +92,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
 Future<void> _playVideo() async {
   	
-LogUtil.e('触发播放前检查频道：$_currentChannel');
-LogUtil.e('触发播放前检查竞态条件：$_isSwitchingChannel');
-LogUtil.e('触发播放前检查资源释放：$_isDisposing');
+LogUtil.i('触发播放前检查频道：$_currentChannel');
+LogUtil.i('触发播放前检查竞态条件：$_isSwitchingChannel');
+LogUtil.i('触发播放前检查资源释放：$_isDisposing');
 
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
@@ -210,7 +211,6 @@ LogUtil.e('触发播放前检查资源释放：$_isDisposing');
     Future.delayed(Duration(seconds: timeoutSeconds), () {
       if (_isDisposing) return; // 添加_isDisposing检查
       if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
-        LogUtil.v('超时未播放，自动重试');
         _retryPlayback();
       }
     });
@@ -249,32 +249,22 @@ LogUtil.e('触发播放前检查资源释放：$_isDisposing');
   }
 
   /// 显示播放确认对话框，用户可以选择是否播放当前视频流
-  Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text(S.of(context).foundStreamTitle),  //找到视频流
-              content: Text(S.of(context).streamUrlContent(url)), // 你想播放这个流吗
-              actions: <Widget>[
-                TextButton(
-                  child: Text(S.of(context).cancelButton),  //取消
-                  onPressed: () {
-                    Navigator.of(context).pop(false); // 用户取消播放
-                  },
-                ),
-                TextButton(
-                  child: Text(S.of(context).playButton),  //播放
-                  onPressed: () {
-                    Navigator.of(context).pop(true); // 用户确认播放
-                  },
-                ),
-              ],
-            );
-          },
-        ) ??
-        false; // 如果对话框意外关闭，返回 false
-  }
+Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
+  return await DialogUtil.showCustomDialog(
+    context,
+    title: S.of(context).foundStreamTitle,  // 动态传入标题
+    content: S.of(context).streamUrlContent(url),  // 动态传入内容
+    positiveButtonLabel: S.of(context).playButton,  // 正向按钮文本：播放
+    onPositivePressed: () {
+      Navigator.of(context).pop(true);  // 用户确认播放
+    },
+    negativeButtonLabel: S.of(context).cancelButton,  // 负向按钮文本：取消
+    onNegativePressed: () {
+      Navigator.of(context).pop(false);  // 用户取消播放
+    },
+    isDismissible: false,  // 禁止点击对话框外部关闭
+  ) ?? false;  // 如果对话框意外关闭，返回 false
+}
 
   /// 监听视频播放状态的变化
   /// 包括检测缓冲状态、播放状态以及播放出错的情况
@@ -328,20 +318,38 @@ LogUtil.e('触发播放前检查资源释放：$_isDisposing');
   }
 
   /// 从播放列表中动态提取频道，处理两层和三层结构
-  PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
-    String category = playList.keys.first;
+PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
+  // 遍历每个分类
+  for (String category in playList.keys) {
     if (playList[category] is Map<String, Map<String, PlayModel>>) {
       // 三层结构处理
-      String group = (playList[category] as Map<String, Map<String, PlayModel>>).keys.first;
-      String channel = (playList[category] as Map<String, Map<String, PlayModel>>)[group]!.keys.first;
-      return (playList[category] as Map<String, Map<String, PlayModel>>)[group]![channel];
+      Map<String, Map<String, PlayModel>> groupMap = playList[category];
+
+      // 遍历每个组
+      for (String group in groupMap.keys) {
+        Map<String, PlayModel> channelMap = groupMap[group];
+
+        // 遍历每个频道，返回第一个有有效播放地址的频道
+        for (PlayModel? channel in channelMap.values) {
+          if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+            return channel;  // 找到第一个可用的频道，立即返回
+          }
+        }
+      }
     } else if (playList[category] is Map<String, PlayModel>) {
       // 两层结构处理
-      String channel = (playList[category] as Map<String, PlayModel>).keys.first;
-      return (playList[category] as Map<String, PlayModel>)[channel];
+      Map<String, PlayModel> channelMap = playList[category];
+
+      // 遍历每个频道，返回第一个有有效播放地址的频道
+      for (PlayModel? channel in channelMap.values) {
+        if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+          return channel;  // 找到第一个可用的频道，立即返回
+        }
+      }
     }
-    return null;
   }
+  return null;  // 如果遍历所有频道都没有找到可用的，返回 null
+}
 
   /// 异步加载视频数据和版本检测
   _loadData() async {
