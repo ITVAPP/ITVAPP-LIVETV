@@ -68,99 +68,102 @@ class _SettingFontPageState extends State<SettingFontPage> {
           constraints: BoxConstraints(
             maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity, // 限制最大宽度
           ),
-          child: FocusTraversalGroup( // 在 TV 模式下，使用焦点组管理方向键焦点切换
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // 子组件从左对齐
-              children: [
-                // 字体大小设置部分
-                Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 17)), // 字体大小标题
-                      const SizedBox(height: 10), // 间距
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10, // 选项排列方式
-                        children: List.generate(
-                          _fontScales.length,
-                          (index) => ChoiceChip(
-                            label: Text(
-                              '${_fontScales[index]}', // 显示字体缩放比例
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                    ? Colors.white // 选中状态的文字颜色
-                                    : Colors.black, // 未选中状态的文字颜色
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10.0), // 添加左右内边距
+            child: FocusTraversalGroup( // 在 TV 模式下，使用焦点组管理方向键焦点切换
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, // 子组件从左对齐
+                children: [
+                  // 字体大小设置部分
+                  Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 17)), // 字体大小标题
+                        const SizedBox(height: 10), // 间距
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10, // 选项排列方式
+                          children: List.generate(
+                            _fontScales.length,
+                            (index) => ChoiceChip(
+                              label: Text(
+                                '${_fontScales[index]}', // 显示字体缩放比例
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                      ? Colors.white // 选中状态的文字颜色
+                                      : Colors.black, // 未选中状态的文字颜色
+                                ),
+                              ),
+                              selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
+                              onSelected: (bool selected) {
+                                context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
+                              },
+                              selectedColor: _selectedColor, // 选中状态颜色
+                              backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                  ? _selectedColor // 选中状态颜色
+                                  : _unselectedColor, // 未选中状态颜色
+                              shape: _buttonShape, // 统一的圆角外形
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12), // 间距
+
+                  // 语言选择部分
+                  Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 17)), // 语言选择标题
+                        const SizedBox(height: 6), // 间距
+                        Column(
+                          children: List.generate(
+                            _languages.length,
+                            (index) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
+                                children: [
+                                  Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
+                                  ChoiceChip(
+                                    label: Text(
+                                      context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                          ? S.of(context).inUse // 已选中的显示 "使用中"
+                                          : S.of(context).use, // 未选中的显示 "使用"
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                            ? Colors.white // 选中状态的文字颜色
+                                            : Colors.black, // 未选中状态的文字颜色
+                                      ),
+                                    ),
+                                    selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
+                                    onSelected: (bool selected) {
+                                      // 切换语言，点击即触发，不判断是否已选中
+                                      context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
+                                    },
+                                    selectedColor: _selectedColor, // 选中状态颜色
+                                    backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                        ? _selectedColor // 已选中状态颜色
+                                        : _unselectedColor, // 未选中状态的颜色
+                                    shape: _buttonShape, // 统一的圆角外形
+                                  ),
+                                ],
                               ),
                             ),
-                            selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
-                            onSelected: (bool selected) {
-                              context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
-                            },
-                            selectedColor: _selectedColor, // 选中状态颜色
-                            backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                ? _selectedColor // 选中状态颜色
-                                : _unselectedColor, // 未选中状态颜色
-                            shape: _buttonShape, // 统一的圆角外形
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12), // 间距
-
-                // 语言选择部分
-                Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(S.of(context).languageSelection, style: TextStyle(fontSize: 17)), // 语言选择标题
-                      const SizedBox(height: 6), // 间距
-                      Column(
-                        children: List.generate(
-                          _languages.length,
-                          (index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
-                              children: [
-                                Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
-                                ChoiceChip(
-                                  label: Text(
-                                    context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                        ? S.of(context).inUse // 已选中的显示 "使用中"
-                                        : S.of(context).use, // 未选中的显示 "使用"
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                          ? Colors.white // 选中状态的文字颜色
-                                          : Colors.black, // 未选中状态的文字颜色
-                                    ),
-                                  ),
-                                  selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
-                                  onSelected: (bool selected) {
-                                    // 切换语言，点击即触发，不判断是否已选中
-                                    context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
-                                  },
-                                  selectedColor: _selectedColor, // 选中状态颜色
-                                  backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                      ? _selectedColor // 已选中状态颜色
-                                      : _unselectedColor, // 未选中状态的颜色
-                                  shape: _buttonShape, // 统一的圆角外形
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
