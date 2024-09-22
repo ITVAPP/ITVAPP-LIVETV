@@ -258,7 +258,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             right: 12,
             bottom: 10,
             child: Container(
-              padding: const EdgeInsets.all(3),  // 控制图标的外边距
+              padding: const EdgeInsets.all(0),  // 控制图标的外边距
               decoration: BoxDecoration(
                 color: Colors.black45,  // 背景颜色
                 shape: BoxShape.circle,  // 设置为圆形背景
@@ -266,7 +266,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               ),
               child: IconButton(
                 tooltip: S.current.landscape,  // 提示“切换到横屏”
-                icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18), // 旋转图标，颜色为白色，尺寸为18
+                icon: const Icon(Icons.screen_rotation, color: Colors.white, size: 18), // 旋转屏幕图标
                 onPressed: () async {
                   LogUtil.safeExecute(() async {
                     if (EnvUtil.isMobile) {
