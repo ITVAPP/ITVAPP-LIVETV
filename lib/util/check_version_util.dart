@@ -82,7 +82,7 @@ class CheckVersionUtil {
   static Future<bool?> showUpdateDialog(BuildContext context) async {
     if (latestVersionEntity == null) return null;
 
-    // 修改后的代码：直接传递 UpdateDownloadBtn 作为对话框的一部分
+    // 直接传递 UpdateDownloadBtn 作为对话框的一部分
     return DialogUtil.showCustomDialog(
       context,
       title: '${S.current.findNewVersion}🚀',
