@@ -82,17 +82,14 @@ class CheckVersionUtil {
   static Future<bool?> showUpdateDialog(BuildContext context) async {
     if (latestVersionEntity == null) return null;
 
+    // 修改后的代码：直接传递 UpdateDownloadBtn 作为对话框的一部分
     return DialogUtil.showCustomDialog(
       context,
       title: '${S.current.findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
-      positiveButtonLabel: 'Update Now',
-      onPositivePressed: () {
-        // 点击更新按钮，下载APK
-        UpdateDownloadBtn(
-          apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
-        );
-      },
+      child: UpdateDownloadBtn(  // 将 UpdateDownloadBtn 作为自定义按钮传递
+        apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+      ),
       isDismissible: false,  // 禁止点击对话框外部关闭
     );
   }
