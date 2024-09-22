@@ -25,11 +25,11 @@ Widget buildListItem({
   double? minHeight, // 允许传入一个可选的最小高度
   EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
   Color selectedColor = Colors.red,
-  bool isTV = false, // 是否为 TV 设备
+  bool isTV = false,
   Function(bool)? onFocusChange, // 焦点改变时的回调
 }) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 0),  // 分类、分组、频道、EPG 列表项的上下外边距
+    padding: const EdgeInsets.symmetric(vertical: 0),  // 列表项的上下外边距
     child: Material(
       color: Colors.transparent,
       child: InkWell(
@@ -96,8 +96,8 @@ class CategoryList extends StatelessWidget {
           isSelected: selectedCategoryIndex == index,
           onTap: () => onCategoryTap(index),
           isCentered: true, // 分类列表项居中
-          minHeight: 48.0, // 设置分类列表项的最小高度
-          isTV: isTV, // 是否为 TV 设备
+          minHeight: 48.0,
+          isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
               Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
@@ -141,8 +141,8 @@ class GroupList extends StatelessWidget {
           isSelected: selectedGroupIndex == index,
           onTap: () => onGroupTap(index),
           isCentered: true, // 分组列表项居中
-          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
-          isTV: isTV, // 是否为 TV 设备
+          minHeight: itemHeight,
+          isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
               Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
@@ -188,8 +188,8 @@ class ChannelList extends StatelessWidget {
           isSelected: isSelect,
           onTap: () => onChannelTap(channels[channelName]),
           isCentered: true, // 频道列表项居中
-          minHeight: itemHeight, // 使用传入的 itemHeight 设置最小高度
-          isTV: isTV, // 是否为 TV 设备
+          minHeight: itemHeight, 
+          isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
               Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
@@ -206,7 +206,7 @@ class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
-  final ItemScrollController epgScrollController; // 新增的控制器参数
+  final ItemScrollController epgScrollController; 
 
   const EPGList({
     super.key,
@@ -223,17 +223,17 @@ class EPGList extends StatelessWidget {
         Container(
           height: 48,
           alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 8),  // 添加左边距
+          padding: const EdgeInsets.only(left: 8), 
           decoration: BoxDecoration(
-            color: Colors.black38, // 设置背景色
+            color: Colors.black38,
             borderRadius: BorderRadius.circular(5),
           ),
           child: Text(
             S.of(context).programListTitle, // 节目单列表
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-        verticalDivider, // 分割线
+        verticalDivider,
         Flexible(
           child: ScrollablePositionedList.builder(
             initialScrollIndex: selectedIndex, // 初始滚动到选中的频道项
@@ -311,20 +311,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
     _calculateViewportHeight(); // 计算视图窗口的高度
-    _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
+
+    // 只有当分类非空且有频道数据时加载 EPG
+    if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
+      _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
+    }
   }
 
   // 初始化分类数据
   void _initializeCategoryData() {
     _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类的键
-    _categoryIndex = 0; // 初始化选中的分类索引
+
+    // 查找第一个非空的分类，并在找到后停止遍历
+    for (int i = 0; i < _categories.length; i++) {
+      final categoryMap = widget.videoMap?.playList[_categories[i]];
+      
+      // 如果分类不为空，立即设置为选中的分类并退出循环
+      if (categoryMap != null && categoryMap.isNotEmpty) {
+        _categoryIndex = i; // 选中第一个非空分类
+        break; // 找到后立即退出循环
+      }
+    }
   }
 
   // 初始化频道数据
   void _initializeChannelData() {
     final selectedCategory = _categories[_categoryIndex];
     
-    // 修改部分：判断是否为空分类
+    // 判断是否为空分类
     final categoryMap = widget.videoMap?.playList[selectedCategory];
     
     if (categoryMap == null || categoryMap.isEmpty) {
@@ -333,6 +347,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       _values = [];
       _groupIndex = 0;
       _channelIndex = 0;
+
+      // 空分类不加载 EPG 数据
+      _epgData = null; // 确保 EPG 数据为空
+      _selEPGIndex = 0;
       return;  // 直接返回，避免后续无效处理
     }
 
@@ -387,6 +405,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         _channelIndex = 0; // 重置频道索引
         _scrollToTop(_scrollController);
         _scrollToTop(_scrollChannelController);
+
+        // 只有在非空分组和频道的情况下加载 EPG 数据
+        if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
+          _loadEPGMsg(widget.playModel); // 加载EPG数据
+        } else {
+          _epgData = null; // 清空 EPG 数据
+          _selEPGIndex = 0;
+        }
       });
     });
   }
@@ -398,6 +424,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         _groupIndex = index;
         _channelIndex = 0;    // 重置频道索引
         _scrollToTop(_scrollChannelController);
+        
+        // 根据当前分组是否有频道决定是否加载 EPG 数据
+        if (_values[_groupIndex].isNotEmpty) {
+          _loadEPGMsg(widget.playModel);
+        } else {
+          _epgData = null; // 清空 EPG 数据
+          _selEPGIndex = 0;
+        }
       });
     });
   }
@@ -405,14 +439,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
     _onTapThrottled(() {
-      widget.onTapChannel?.call(newModel); // 执行频道切换回调
+      widget.onTapChannel?.call(newModel);
     });
   }
 
   // 滚动到顶部
   void _scrollToTop(ScrollController controller) {
     controller.animateTo(0,
-      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
+      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
   // 计算视图窗口的高度
@@ -432,16 +466,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
-    _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
+    _scrollToPosition(_scrollController, _groupIndex);
+    _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
-  // 根据索引调整滚动位置，使用动画滚动
+  // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
     if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent; // 最大滚动范围
+    final maxScrollExtent = controller.position.maxScrollExtent;
     final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; // 计算偏移量
+    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5;
     controller.animateTo(
       shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
       duration: const Duration(milliseconds: 300),
@@ -451,11 +485,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 加载EPG（节目单）数据
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
-    if (playModel == null) return;
-    setState(() {
-      _epgData = null; // 清空当前节目单数据
-      _selEPGIndex = 0; // 重置选中的节目单索引
-    });
     try {
       final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
       if (res?.epgData == null || res!.epgData!.isEmpty) return;
@@ -497,7 +526,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     super.didUpdateWidget(oldWidget);
     if (widget.playModel != oldWidget.playModel) {
       _initializeChannelData();
-      _loadEPGMsg(widget.playModel);
+      // 只有在有效分组和频道数据时加载 EPG
+      if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
+        _loadEPGMsg(widget.playModel);
+      }
       _calculateViewportHeight();
     }
   }
@@ -521,7 +553,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
         ? (isPortrait
             ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
-            : 160) // 横屏时频道列表宽度为固定160
+            : 160) // 横屏时频道列表宽度为160
         : 0;
 
     // 设置 EPG 列表宽度，只有当有 EPG 数据时显示
@@ -534,9 +566,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape 
            ? categoryWidth + groupWidth + channelListWidth + epgListWidth
-           : MediaQuery.of(context).size.width, // 使用 MediaQuery 来获取屏幕宽度
+           : MediaQuery.of(context).size.width, // 获取屏幕宽度
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), // 渐变背景
+        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
       ),
       child: Row(
         children: [
@@ -546,10 +578,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               categories: _categories,
               selectedCategoryIndex: _categoryIndex,
               onCategoryTap: _onCategoryTap, // 分类点击事件
-              isTV: isTV, // 是否为 TV 设备
+              isTV: isTV,
             ),
           ),
-          verticalDivider, // 分割线
+          verticalDivider,
           if (groupWidth > 0)
             SizedBox(
               width: groupWidth,
@@ -559,10 +591,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 itemHeight: _itemHeight,
                 selectedGroupIndex: _groupIndex,
                 onGroupTap: _onGroupTap, // 分组点击事件
-                isTV: isTV, // 是否为 TV 设备
+                isTV: isTV,
               ),
             ),
-          verticalDivider, // 分割线
+          verticalDivider,
           if (channelListWidth > 0)
             SizedBox(
               width: channelListWidth, // 频道列表宽度
@@ -572,18 +604,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 itemHeight: _itemHeight,
                 selectedChannelName: widget.playModel?.title,
                 onChannelTap: _onChannelTap, // 频道点击事件
-                isTV: isTV, // 是否为 TV 设备
+                isTV: isTV,
               ),
             ),
           if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
-            verticalDivider, // 分割线
+            verticalDivider,
             if (epgListWidth > 0)
               SizedBox(
-                width: epgListWidth, // EPG显示区宽度
+                width: epgListWidth, // EPG列表宽度
                 child: EPGList(
                   epgData: _epgData,
                   selectedIndex: _selEPGIndex,
-                  isTV: isTV, // 是否为 TV 设备
+                  isTV: isTV,
                   epgScrollController: _epgItemScrollController, // 传递滚动控制器
                 ),
               ),
