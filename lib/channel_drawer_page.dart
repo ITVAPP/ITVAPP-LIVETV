@@ -498,7 +498,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
         // 在节目单数据更新后滚动到当前选中的节目项
-        if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty && _selEPGIndex >= 0 && _selEPGIndex < _epgData!.length) {
+        if (_epgData != null && _epgData!.isNotEmpty && _selEPGIndex >= 0 && _selEPGIndex < _epgData!.length) {
           _epgItemScrollController.scrollTo(
             index: _selEPGIndex,
             duration: const Duration(milliseconds: 300),
