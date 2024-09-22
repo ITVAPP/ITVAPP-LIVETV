@@ -88,7 +88,8 @@ class CheckVersionUtil {
       title: '${S.current.findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
       child: UpdateDownloadBtn(  // 将 UpdateDownloadBtn 作为自定义按钮传递
-        apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+        // apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
+        apkUrl: 'https://github.com/aiyakuaile/easy_tv_live/releases/download/2.7.7/easyTV-2.7.7.apk',
       ),
       isDismissible: false,  // 禁止点击对话框外部关闭
     );
