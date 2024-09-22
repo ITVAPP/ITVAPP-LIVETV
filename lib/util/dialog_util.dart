@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:itvapp_live_tv/util/log_util.dart'; 
+import '../generated/l10n.dart';
 
 class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -76,7 +77,7 @@ class DialogUtil {
                           children: [
                             // 如果有 content，显示内容
                             if (content != null) _buildDialogContent(content: content),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 15),
                             // 如果传递了自定义组件，则显示该组件
                             if (child != null) child,
                           ],
@@ -84,7 +85,7 @@ class DialogUtil {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 15),
                   // 如果没有传入自定义组件，则显示按钮
                   if (child == null)
                     _buildActionButtons(
@@ -98,7 +99,7 @@ class DialogUtil {
                       content: content,  // 传递内容用于复制
                       isCopyButton: isCopyButton,  // 控制是否显示复制按钮
                     ),  // 动态按钮处理
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -186,7 +187,7 @@ class DialogUtil {
             style: _buttonStyle().copyWith(
               backgroundColor: MaterialStateProperty.resolveWith<Color>(
                 (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.pressed)) return Colors.redAccent;  // 点击时效果
+                  if (states.contains(MaterialState.pressed)) return Colors.redAccent;
                   return const Color(0xFFEB144C);  // 默认颜色
                 },
               ),
@@ -203,7 +204,7 @@ class DialogUtil {
             style: _buttonStyle().copyWith(
               backgroundColor: MaterialStateProperty.resolveWith<Color>(
                 (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.pressed)) return Colors.greenAccent;  // 点击时效果
+                  if (states.contains(MaterialState.pressed)) return Colors.redAccent;
                   return const Color(0xFFEB144C);  // 默认颜色
                 },
               ),
@@ -223,8 +224,6 @@ class DialogUtil {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('已复制到剪贴板')),
               );
-              // 在调试模式下输出复制的内容日志
-              debugPrint('Copied content: $content');
             },
             child: const Text('复制', style: TextStyle(color: Colors.white)),
           ),
@@ -233,7 +232,7 @@ class DialogUtil {
             style: _buttonStyle().copyWith(
               backgroundColor: MaterialStateProperty.resolveWith<Color>(
                 (Set<MaterialState> states) {
-                  if (states.contains(MaterialState.pressed)) return Colors.blueAccent;  // 点击时效果
+                  if (states.contains(MaterialState.pressed)) return Colors.redAccent;
                   return const Color(0xFFEB144C);  // 默认颜色
                 },
               ),
