@@ -32,6 +32,13 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // 获取屏幕宽度，动态设置调节条的宽度
+    double screenWidth = MediaQuery.of(context).size.width;
+
+    // 动态设置宽度为屏幕宽度的 30%，高度保持为固定值 38
+    double containerWidth = screenWidth * 0.3;
+    double containerHeight = 38;
+
     return Padding(
       padding: const EdgeInsets.all(44),
       child: GestureDetector(
@@ -71,8 +78,8 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
           child: _controlType == 0
               ? null
               : Container(
-                  width: 150,
-                  height: 30,
+                  width: containerWidth, // 动态宽度
+                  height: containerHeight, // 固定高度
                   padding:
                       const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
                   decoration: BoxDecoration(
