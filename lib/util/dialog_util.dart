@@ -16,6 +16,7 @@ class DialogUtil {
     VoidCallback? onClosePressed,  // 关闭按钮点击回调（可选）
     bool isDismissible = true,  // 是否允许点击对话框外部关闭
     bool isCopyButton = false,  // 新增参数：是否显示复制按钮
+    Widget? child,  // 新增参数：自定义Widget（如按钮）
   }) {
     // 检查 content 是否为 "showlog"，如果是则显示日志
     if (content == "showlog") {
@@ -70,22 +71,24 @@ class DialogUtil {
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
-                        child: _buildDialogContent(content: content), // 调用封装的内容部分
+                        // 如果传递了自定义组件，则显示该组件，否则显示对话框内容
+                        child: child ?? _buildDialogContent(content: content),  // 调用封装的内容部分
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _buildActionButtons(
-                    context,
-                    positiveButtonLabel: positiveButtonLabel,
-                    onPositivePressed: onPositivePressed,
-                    negativeButtonLabel: negativeButtonLabel,
-                    onNegativePressed: onNegativePressed,
-                    closeButtonLabel: closeButtonLabel,
-                    onClosePressed: onClosePressed,
-                    content: content,  // 传递内容用于复制
-                    isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                  ),  // 动态按钮处理
+                  if (child == null) // 如果没有传入自定义组件，则显示按钮
+                    _buildActionButtons(
+                      context,
+                      positiveButtonLabel: positiveButtonLabel,
+                      onPositivePressed: onPositivePressed,
+                      negativeButtonLabel: negativeButtonLabel,
+                      onNegativePressed: onNegativePressed,
+                      closeButtonLabel: closeButtonLabel,
+                      onClosePressed: onClosePressed,
+                      content: content,  // 传递内容用于复制
+                      isCopyButton: isCopyButton,  // 控制是否显示复制按钮
+                    ),  // 动态按钮处理
                   const SizedBox(height: 15),
                 ],
               ),
@@ -154,7 +157,7 @@ class DialogUtil {
     );
   }
 
-  // 动态生成按钮
+  // 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
     BuildContext context, {
     String? positiveButtonLabel,
@@ -171,7 +174,14 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           ElevatedButton(
-            style: _buttonStyle(),  // 复用按钮样式
+            style: _buttonStyle().copyWith(
+              backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                (Set<MaterialState> states) {
+                  if (states.contains(MaterialState.pressed)) return Colors.redAccent;  // 点击时效果
+                  return const Color(0xFFEB144C);  // 默认颜色
+                },
+              ),
+            ),
             onPressed: () {
               if (onNegativePressed != null) {
                 onNegativePressed();
@@ -181,7 +191,14 @@ class DialogUtil {
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
           ElevatedButton(
-            style: _buttonStyle(),  // 复用按钮样式
+            style: _buttonStyle().copyWith(
+              backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                (Set<MaterialState> states) {
+                  if (states.contains(MaterialState.pressed)) return Colors.greenAccent;  // 点击时效果
+                  return const Color(0xFFEB144C);  // 默认颜色
+                },
+              ),
+            ),
             onPressed: () {
               if (onPositivePressed != null) {
                 onPositivePressed();
@@ -204,7 +221,14 @@ class DialogUtil {
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
-            style: _buttonStyle(),  // 复用按钮样式
+            style: _buttonStyle().copyWith(
+              backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                (Set<MaterialState> states) {
+                  if (states.contains(MaterialState.pressed)) return Colors.blueAccent;  // 点击时效果
+                  return const Color(0xFFEB144C);  // 默认颜色
+                },
+              ),
+            ),
             onPressed: () {
               if (onClosePressed != null) {
                 onClosePressed();  // 点击关闭按钮时执行的回调
