@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
 import 'package:provider/provider.dart'; 
 import 'package:itvapp_live_tv/provider/theme_provider.dart'; 
 import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/m3u_util.dart'; 
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
-import 'package:itvapp_live_tv/util/dialog_util.dart'; 
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
@@ -15,21 +13,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  
-  // 调试模式开关，生产环境设为 false，生产环境下不弹出对话框
-  bool isDebugMode = true;
-  
-  // 弹出显示日志的对话框，使用 DialogUtil
-  void _showErrorLogs(BuildContext context) {
-    if (isDebugMode) {
-      DialogUtil.showCustomDialog(
-        context,
-        title: S.of(context).logtitle,
-        content: 'showlog', // 显示日志
-        isCopyButton: true,  // 显示复制按钮
-      );
-    }
-  }
 
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
   int _retryCount = 0;  // 重试次数
@@ -148,10 +131,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 });
                  
                 // 如果加载失败，显示错误信息和刷新按钮
-                // 根据调试模式弹出日志
-                if (isDebugMode) {
-                  _showErrorLogs(context);
-                }
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
 
               } else if (snapshot.hasData && snapshot.data?.data != null) {
@@ -171,10 +150,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 );
               } else {
                 // 处理其他情况，默认显示错误信息和刷新按钮
-                // 根据调试模式弹出日志
-                if (isDebugMode) {
-                  _showErrorLogs(context);
-                }
                 return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
               }
             },
