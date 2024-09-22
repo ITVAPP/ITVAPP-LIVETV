@@ -323,10 +323,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 初始化频道数据
   void _initializeChannelData() {
     final selectedCategory = _categories[_categoryIndex];
-  
-    // 判断数据结构是否是三层结构，即 Map<String, Map<String, PlayModel>>
+    
+    // 修改部分：判断是否为空分类
     final categoryMap = widget.videoMap?.playList[selectedCategory];
-  
+    
+    if (categoryMap == null || categoryMap.isEmpty) {
+      // 如果分类是空的，设置空的 keys 和 values
+      _keys = [];
+      _values = [];
+      _groupIndex = 0;
+      _channelIndex = 0;
+      return;  // 直接返回，避免后续无效处理
+    }
+
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
       _keys = categoryMap.keys.toList(); // 获取分组
@@ -335,7 +344,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       // 对每个分组中的频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
         _values[i] = Map<String, PlayModel>.fromEntries(
-          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key))
+          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
         );
       }
     
