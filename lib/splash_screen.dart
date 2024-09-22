@@ -26,7 +26,6 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         title: S.of(context).logtitle,
         content: 'showlog', // 显示日志
-        positiveButtonLabel: '复制',
         isCopyButton: true,  // 显示复制按钮
       );
     }
