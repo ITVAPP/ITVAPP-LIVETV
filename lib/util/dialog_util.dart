@@ -16,7 +16,6 @@ class DialogUtil {
     VoidCallback? onClosePressed,  // 关闭按钮点击回调（可选）
     bool isDismissible = true,  // 是否允许点击对话框外部关闭
     bool isCopyButton = false,  // 新增参数：是否显示复制按钮
-    BuildContext? scaffoldContext,  // 新增参数：传递 Scaffold 上下文
   }) {
     // 检查 content 是否为 "showlog"，如果是则显示日志
     if (content == "showlog") {
@@ -78,7 +77,6 @@ class DialogUtil {
                   const SizedBox(height: 10),
                   _buildActionButtons(
                     context,
-                    scaffoldContext: scaffoldContext,  // 传递 Scaffold 上下文
                     positiveButtonLabel: positiveButtonLabel,
                     onPositivePressed: onPositivePressed,
                     negativeButtonLabel: negativeButtonLabel,
@@ -124,7 +122,7 @@ class DialogUtil {
     );
   }
 
-  // 封装的内容部分，禁用选择功能
+  // 封装的内容部分，允许选择和复制功能
   static Widget _buildDialogContent({String? content}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +137,7 @@ class DialogUtil {
             border: InputBorder.none,  // 去掉边框
           ),
           style: const TextStyle(fontSize: 14),  // 设置文本样式
-          enableInteractiveSelection: false,  // 禁用交互式选择功能，取消复制功能
+          enableInteractiveSelection: true,  // 启用交互式选择功能，允许复制
         ),
       ],
     );
@@ -167,7 +165,6 @@ class DialogUtil {
     VoidCallback? onClosePressed,  // 关闭按钮点击事件
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
-    BuildContext? scaffoldContext,  // 新增参数：传递 Scaffold 上下文
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -197,11 +194,11 @@ class DialogUtil {
             style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-              if (scaffoldContext != null) {  // 使用传递的 Scaffold 上下文显示 SnackBar
-                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                  const SnackBar(content: Text('已复制到剪贴板')),
-                );
-              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('已复制到剪贴板')),
+              );
+              // 在调试模式下输出复制的内容日志
+              debugPrint('Copied content: $content');
             },
             child: const Text('复制', style: TextStyle(color: Colors.white)),
           ),
