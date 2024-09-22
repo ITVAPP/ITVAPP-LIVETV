@@ -92,7 +92,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             icon: const Icon(Icons.add),  // 添加频道的图标
           ),
           // 以控制图标间距
-          const SizedBox(width: 8),
+          const SizedBox(width: 5),
           // 设置按钮
           IconButton(
             onPressed: () async {
