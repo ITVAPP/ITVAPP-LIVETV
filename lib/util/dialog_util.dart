@@ -71,13 +71,22 @@ class DialogUtil {
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
-                        // 如果传递了自定义组件，则显示该组件，否则显示对话框内容
-                        child: child ?? _buildDialogContent(content: content),  // 调用封装的内容部分
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 如果有 content，显示内容
+                            if (content != null) _buildDialogContent(content: content),
+                            const SizedBox(height: 10),
+                            // 如果传递了自定义组件，则显示该组件
+                            if (child != null) child,
+                          ],
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  if (child == null) // 如果没有传入自定义组件，则显示按钮
+                  // 如果没有传入自定义组件，则显示按钮
+                  if (child == null)
                     _buildActionButtons(
                       context,
                       positiveButtonLabel: positiveButtonLabel,
