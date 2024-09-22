@@ -5,7 +5,6 @@ import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,31 +25,16 @@ import 'setting/setting_beautify_page.dart';
 import 'setting/setting_log_page.dart';
 import 'setting/setting_page.dart';
 
-// 调试模式开关
-bool isDebugMode = true;
-
-// 弹出显示日志的对话框，使用 DialogUtil
-void _showErrorLogs(BuildContext context) {
-  if (isDebugMode) {
-    DialogUtil.showCustomDialog(
-      context,
-      title: '日志',
-      content: 'showlog', // 显示日志
-      isCopyButton: true,  // 显示复制按钮
-    );
-  }
-}
-
 // 入口函数，使用 async 关键字确保异步操作可以在程序启动时完成
 void main() async {
   // 确保 WidgetsFlutterBinding 已经初始化，必要时会为应用的生命周期提供必要的绑定。
   WidgetsFlutterBinding.ensureInitialized();
-
+  
   // 如果当前环境不是移动端
   if (!EnvUtil.isMobile) {
     // 初始化窗口管理器（用于桌面端窗口管理）
     await windowManager.ensureInitialized();
-
+    
     // 设置窗口的选项，如窗口大小、最小大小、是否居中、背景透明等
     WindowOptions windowOptions = const WindowOptions(
       size: Size(414, 414 * 16 / 9),  // 窗口初始大小
@@ -61,7 +45,7 @@ void main() async {
       titleBarStyle: TitleBarStyle.hidden,  // 隐藏标题栏
       title: 'ITVAPP LIVETV',  // 窗口标题
     );
-
+    
     // 等待窗口准备好后展示并聚焦
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();  // 显示窗口
@@ -71,10 +55,10 @@ void main() async {
 
   // 启用 WakelockPlus 以防止屏幕锁定（用于移动设备）
   WakelockPlus.enable();
-
+  
   // 初始化共享存储的工具实例，用于管理存储操作
   await SpUtil.getInstance();
-
+  
   // 注册 FVP 播放器，支持不同平台和解码器
   fvp.registerWith(options: {
     'platforms': ['android', 'ios'],  // 支持的平台
@@ -116,10 +100,10 @@ class _MyAppState extends State<MyApp> {
 
     // 获取 ThemeProvider 实例
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-
+    
     // 只在启动时检测 TV 状态并设置
     themeProvider.checkAndSetIsTV(); // 只检测一次
-
+    
     // 初始化日志开关，但不自动触发 UI 更新
     LogUtil.updateDebugModeFromProvider(context);
   }
@@ -127,7 +111,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     // 获取当前语言设置
-    final languageProvider = Provider.of<LanguageProvider>(context);
+    final languageProvider = Provider.of<LanguageProvider>(context);  
 
     // 使用 Selector 来监听主题相关的状态，并根据字体和文本缩放比例进行更新
     return Selector<ThemeProvider, ({String fontFamily, double textScaleFactor})>(
@@ -142,23 +126,23 @@ class _MyAppState extends State<MyApp> {
         // 返回 MaterialApp，配置应用的主题、语言、路由等
         return MaterialApp(
           title: 'ITVAPP LIVETV',  // 应用标题
-
+          
           // 设置应用的主题，包括亮度、颜色方案、字体和其他 UI 样式
           theme: ThemeData(
-            brightness: Brightness.dark,  // 使用暗色主题
-            fontFamily: fontFamily,  // 设置字体
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent, brightness: Brightness.dark),  // 基于种子颜色生成色系
-            scaffoldBackgroundColor: Colors.black,  // 背景色设为黑色
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.black,  // AppBar 背景色
-              foregroundColor: Colors.white,  // AppBar 文字颜色
-              elevation: 0,  // 移除阴影
-              centerTitle: true,  // 标题居中
-            ),
-            useMaterial3: true),  // 使用 Material Design 3
+              brightness: Brightness.dark,  // 使用暗色主题
+              fontFamily: fontFamily,  // 设置字体
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.redAccent, brightness: Brightness.dark),  // 基于种子颜色生成色系
+              scaffoldBackgroundColor: Colors.black,  // 背景色设为黑色
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Colors.black,  // AppBar 背景色
+                foregroundColor: Colors.white,  // AppBar 文字颜色
+                elevation: 0,  // 移除阴影
+                centerTitle: true,  // 标题居中
+              ),
+              useMaterial3: true),  // 使用 Material Design 3
 
           // 设置应用的语言
-          locale: languageProvider.currentLocale,
+          locale: languageProvider.currentLocale,  
 
           // 定义路由配置
           routes: {
@@ -176,7 +160,7 @@ class _MyAppState extends State<MyApp> {
             GlobalCupertinoLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate
           ],
-
+          
           // 支持的语言列表
           supportedLocales: S.delegate.supportedLocales,
 
@@ -184,7 +168,8 @@ class _MyAppState extends State<MyApp> {
           localeResolutionCallback: (locale, supportedLocales) {
             if (locale != null) {
               // 处理中文的特殊区域
-              if (locale.languageCode == 'zh' && (locale.countryCode == 'TW' || locale.countryCode == 'HK' || locale.countryCode == 'MO')) {
+              if (locale.languageCode == 'zh' && 
+                  (locale.countryCode == 'TW' || locale.countryCode == 'HK' || locale.countryCode == 'MO')) {
                 return const Locale('zh', 'TW');  // 繁体中文
               }
               // 处理简体中文
@@ -206,28 +191,7 @@ class _MyAppState extends State<MyApp> {
           debugShowCheckedModeBanner: false,
 
           // 使用 SplashScreen 作为启动页
-          home: Scaffold(
-            appBar: AppBar(
-              title: const Text('ITVAPP LIVETV'),
-            ),
-            body: Stack(
-              children: [
-                SplashScreen(),  // 原有页面内容
-                
-                // 如果调试模式启用，显示浮动按钮
-                if (isDebugMode)
-                  Positioned(
-                    bottom: 20,
-                    right: 20,
-                    child: FloatingActionButton(
-                      onPressed: () => _showErrorLogs(context),  // 点击显示日志弹窗
-                      child: const Icon(Icons.bug_report),  // 使用 Bug 图标
-                      tooltip: '查看日志',
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          home: SplashScreen(),
 
           // 全局构建器，处理文本缩放和加载动画
           builder: (context, child) {
