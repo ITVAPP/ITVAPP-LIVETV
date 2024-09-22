@@ -327,7 +327,7 @@ PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
 
       // 遍历每个组
       for (String group in groupMap.keys) {
-        Map<String, PlayModel> channelMap = groupMap[group];
+        Map<String, PlayModel> channelMap = groupMap[group] ?? {};
 
         // 遍历每个频道，返回第一个有有效播放地址的频道
         for (PlayModel? channel in channelMap.values) {
@@ -338,7 +338,7 @@ PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
       }
     } else if (playList[category] is Map<String, PlayModel>) {
       // 两层结构处理
-      Map<String, PlayModel> channelMap = playList[category];
+      Map<String, PlayModel> channelMap = playList[category] ?? {};
 
       // 遍历每个频道，返回第一个有有效播放地址的频道
       for (PlayModel? channel in channelMap.values) {
@@ -381,26 +381,35 @@ PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
   }
 
   /// 处理播放列表和 EPG 数据的通用逻辑
-  Future<void> _handlePlaylist() async {
-    if (_videoMap?.playList?.isNotEmpty ?? false) {
-      setState(() {
-        _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
-        _playVideo(); // 播放第一个频道
-      });
+Future<void> _handlePlaylist() async {
+  if (_videoMap?.playList?.isNotEmpty ?? false) {
+    // 获取第一个可用的频道，如果该分类为空，跳过它
+    _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
-      // 如果存在 EPG（节目预告）数据，则加载
-      if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
-        EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
-      } else {
-        EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
-      }
+    if (_currentChannel != null) {
+      // 播放第一个可用的频道
+      setState(() {
+        _playVideo();
+      });
     } else {
       setState(() {
-        _currentChannel = null;
-        toastString = 'UNKNOWN'; // 显示未知错误提示
+        toastString = S.current.noChannelsAvailable; // 如果没有可用的频道，显示提示
       });
     }
+
+    // 如果存在 EPG（节目预告）数据，则加载
+    if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
+      EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+    } else {
+      EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+    }
+  } else {
+    setState(() {
+      _currentChannel = null;
+      toastString = 'UNKNOWN'; // 显示未知错误提示
+    });
   }
+}
 
   @override
   void dispose() {
