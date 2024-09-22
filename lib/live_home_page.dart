@@ -33,10 +33,12 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
+  
   // 超时重试次数
   static const int defaultMaxRetries = 1;
+  
   // 超时检测的时间
-  static const int defaultTimeoutSeconds = 12;
+  static const int defaultTimeoutSeconds = 8;
 
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
@@ -66,7 +68,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _drawerIsOpen = false;
 
   // 调试模式开关，调试时为 true，生产环境为 false
-  bool isDebugMode = true;
+  bool isDebugMode = false;
 
   // 重试次数计数器，记录当前播放重试的次数
   int _retryCount = 0;
