@@ -73,13 +73,16 @@ class DialogUtil {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容居中
                           children: [
                             // 如果有 content，显示内容
                             if (content != null) _buildDialogContent(content: content),
                             const SizedBox(height: 15),
-                            // 如果传递了自定义组件，则显示该组件
-                            if (child != null) child,
+                            // 如果传递了自定义组件，则显示该组件并居中
+                            if (child != null) 
+                              Center(  // 将 child 居中
+                                child: child,
+                              ),
                           ],
                         ),
                       ),
@@ -138,7 +141,7 @@ class DialogUtil {
   // 封装的内容部分，允许选择和复制功能
   static Widget _buildDialogContent({String? content}) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,  // 内容居中
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 10),
@@ -146,6 +149,7 @@ class DialogUtil {
           controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
           readOnly: true,  // 设置为只读
           maxLines: null,  // 允许多行显示
+          textAlign: TextAlign.center,  // 文本水平居中
           decoration: const InputDecoration(
             border: InputBorder.none,  // 去掉边框
           ),
@@ -180,7 +184,7 @@ class DialogUtil {
     bool isCopyButton = false,  // 控制是否显示复制按钮
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           ElevatedButton(
@@ -200,6 +204,8 @@ class DialogUtil {
             child: Text(negativeButtonLabel!, style: const TextStyle(color: Colors.white)),
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
+          const SizedBox(width: 10),  // 添加按钮之间的间距
+        if (positiveButtonLabel != null)
           ElevatedButton(
             style: _buttonStyle().copyWith(
               backgroundColor: MaterialStateProperty.resolveWith<Color>(
