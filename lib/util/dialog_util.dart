@@ -108,7 +108,7 @@ class DialogUtil {
           padding: const EdgeInsets.all(15),
           alignment: Alignment.center,
           child: Text(
-            title ?? 'Notification ✉',  // 动态标题
+            title ?? 'Notification 🔔',  // 动态标题
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           ),
         ),
