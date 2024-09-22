@@ -100,7 +100,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity, // 限制最大宽度
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), // 增加整体的内边距
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // 增加整体的内边距
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 内容左对齐
               children: [
