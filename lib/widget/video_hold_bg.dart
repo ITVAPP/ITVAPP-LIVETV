@@ -148,7 +148,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
                       width: progressBarWidth, // 进度条宽度根据屏幕方向动态调整
                       height: 5, // 进度条的高度固定为5
                     ),
-                    const SizedBox(height: 15), // 进度条与文本之间的间隔
+                    const SizedBox(height: 10), // 进度条与文本之间的间隔
                     // 使用FittedBox自适应的文本框，用于显示加载提示或错误信息
                     FittedBox(
                       child: Padding(
