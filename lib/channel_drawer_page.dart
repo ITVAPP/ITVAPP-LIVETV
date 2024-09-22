@@ -26,7 +26,7 @@ Widget buildListItem({
   EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
   Color selectedColor = Colors.red,
   bool isTV = false,
-  Function(bool)? onFocusChange, // 焦点改变时的回调
+  Function(bool)? onFocusChange, 
 }) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 0),  // 列表项的上下外边距
@@ -96,7 +96,7 @@ class CategoryList extends StatelessWidget {
           isSelected: selectedCategoryIndex == index,
           onTap: () => onCategoryTap(index),
           isCentered: true, // 分类列表项居中
-          minHeight: 48.0,
+          minHeight: 48.0, // 分类列表项的最小高度
           isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
@@ -141,7 +141,7 @@ class GroupList extends StatelessWidget {
           isSelected: selectedGroupIndex == index,
           onTap: () => onGroupTap(index),
           isCentered: true, // 分组列表项居中
-          minHeight: itemHeight,
+          minHeight: itemHeight, // 使用传入的最小高度
           isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
@@ -188,7 +188,7 @@ class ChannelList extends StatelessWidget {
           isSelected: isSelect,
           onTap: () => onChannelTap(channels[channelName]),
           isCentered: true, // 频道列表项居中
-          minHeight: itemHeight, 
+          minHeight: itemHeight, // 使用传入的最小高度
           isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
@@ -206,7 +206,7 @@ class EPGList extends StatelessWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
-  final ItemScrollController epgScrollController; 
+  final ItemScrollController epgScrollController; // 新增的控制器参数
 
   const EPGList({
     super.key,
@@ -223,14 +223,14 @@ class EPGList extends StatelessWidget {
         Container(
           height: 48,
           alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 8), 
+          padding: const EdgeInsets.only(left: 8),  // 添加左边距
           decoration: BoxDecoration(
-            color: Colors.black38,
+            color: Colors.black38, 
             borderRadius: BorderRadius.circular(5),
           ),
           child: Text(
             S.of(context).programListTitle, // 节目单列表
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
           ),
         ),
         verticalDivider,
@@ -439,14 +439,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
     _onTapThrottled(() {
-      widget.onTapChannel?.call(newModel);
+      widget.onTapChannel?.call(newModel); // 执行频道切换回调
     });
   }
 
   // 滚动到顶部
   void _scrollToTop(ScrollController controller) {
     controller.animateTo(0,
-      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // 平滑滚动到顶部
   }
 
   // 计算视图窗口的高度
@@ -466,16 +466,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex);
-    _scrollToPosition(_scrollChannelController, _channelIndex);
+    _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
+    _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
   }
 
-  // 根据索引调整滚动位置
+  // 根据索引调整滚动位置，使用动画滚动
   void _scrollToPosition(ScrollController controller, int index) {
     if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent;
+    final maxScrollExtent = controller.position.maxScrollExtent; 
     final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5;
+    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; 
     controller.animateTo(
       shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
       duration: const Duration(milliseconds: 300),
@@ -485,6 +485,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 加载EPG（节目单）数据
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
+    if (playModel == null) return;
+    setState(() {
+      _epgData = null; // 清空当前节目单数据
+      _selEPGIndex = 0; // 重置选中的节目单索引
+    });
     try {
       final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
       if (res?.epgData == null || res!.epgData!.isEmpty) return;
@@ -498,7 +503,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         ).start;
         _selEPGIndex = _epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
         // 在节目单数据更新后滚动到当前选中的节目项
-        if (_epgData != null && _epgData!.isNotEmpty && _selEPGIndex >= 0 && _selEPGIndex < _epgData!.length) {
+        if (_epgData != null && _epgData!.isNotEmpty && _selEPGIndex < _epgData!.length) {
           _epgItemScrollController.scrollTo(
             index: _selEPGIndex,
             duration: const Duration(milliseconds: 300),
@@ -555,7 +560,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
         ? (isPortrait
             ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
-            : 160) // 横屏时频道列表宽度为160
+            : 160) // 横屏时频道列表宽度为固定160
         : 0;
 
     // 设置 EPG 列表宽度，只有当有 EPG 数据时显示
@@ -570,7 +575,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
            ? categoryWidth + groupWidth + channelListWidth + epgListWidth
            : MediaQuery.of(context).size.width, // 获取屏幕宽度
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
+        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), 
       ),
       child: Row(
         children: [
