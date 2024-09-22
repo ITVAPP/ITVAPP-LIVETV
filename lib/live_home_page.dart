@@ -387,25 +387,33 @@ Future<void> _handlePlaylist() async {
     _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
     if (_currentChannel != null) {
-      // 播放第一个可用的频道
-      setState(() {
-        _playVideo();
-      });
+      // 确保不会重复调用播放方法
+      if (!_isSwitchingChannel && !_isDisposing) {
+        setState(() {
+          _playVideo(); // 播放第一个可用的频道
+        });
+      }
     } else {
+      // 没有可用的频道
       setState(() {
-        toastString = S.current.noChannelsAvailable; // 如果没有可用的频道，显示提示
+        toastString = 'UNKNOWN'; // 显示未知错误提示
       });
     }
 
-    // 如果存在 EPG（节目预告）数据，则加载
+    // 处理 EPG 数据加载
     if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
-      EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
+      try {
+        EpgUtil.loadEPGXML(_videoMap!.epgUrl!); // 加载EPG数据
+      } catch (e, stackTrace) {
+        LogUtil.logError('加载EPG数据时出错', e, stackTrace); // 捕获并记录错误
+      }
     } else {
-      EpgUtil.resetEPGXML(); // 如果没有 EPG 数据，重置
+      EpgUtil.resetEPGXML(); // 重置EPG数据
     }
   } else {
+    // 播放列表为空
     setState(() {
-      _currentChannel = null;
+      _currentChannel = null; 
       toastString = 'UNKNOWN'; // 显示未知错误提示
     });
   }
