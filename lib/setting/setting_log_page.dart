@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/services.dart'; // 引入剪贴板相关的包
+import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import '../generated/l10n.dart';
@@ -100,7 +100,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity, // 限制最大宽度
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10), // 增加整体的内边距
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), // 增加整体的内边距
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 内容左对齐
               children: [
@@ -142,69 +142,65 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             ),
                           ),
                         ),
-                        // 日志表单部分增加左右边距
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10), 
-                          child: Flexible(
-                            child: logs.isEmpty
-                                ? Center(
+                        Flexible(
+                          child: logs.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.info_outline, size: 60, color: Colors.grey),
+                                      SizedBox(height: 10),
+                                      Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
+                                    ],
+                                  ),
+                                )
+                              : Scrollbar(
+                                  thumbVisibility: true,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.vertical, // 去掉水平滚动，仅保留垂直滚动
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.info_outline, size: 60, color: Colors.grey),
-                                        SizedBox(height: 10),
-                                        Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
-                                      ],
-                                    ),
-                                  )
-                                : Scrollbar(
-                                    thumbVisibility: true,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.vertical, // 去掉水平滚动，仅保留垂直滚动
-                                      child: Column(
-                                        children: logs
-                                            .map((log) => Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Padding(
-                                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                                      child: Row(
-                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                        children: [
-                                                          Text(
-                                                            formatDateTime(log['time']!), // 第一行时间
-                                                            style: const TextStyle(
-                                                                fontWeight: FontWeight.bold, fontSize: 16),
-                                                          ),
-                                                          IconButton(
-                                                            focusNode: _copyButtonFocusNode, // 为复制按钮添加焦点
-                                                            icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
-                                                            onPressed: () {
-                                                              // 将该条日志的内容复制到剪贴板
-                                                              String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
-                                                              Clipboard.setData(ClipboardData(text: logContent));
+                                      children: logs
+                                          .map((log) => Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Text(
+                                                          formatDateTime(log['time']!), // 第一行时间
+                                                          style: const TextStyle(
+                                                              fontWeight: FontWeight.bold, fontSize: 16),
+                                                        ),
+                                                        IconButton(
+                                                          focusNode: _copyButtonFocusNode, // 为复制按钮添加焦点
+                                                          icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
+                                                          onPressed: () {
+                                                            // 将该条日志的内容复制到剪贴板
+                                                            String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
+                                                            Clipboard.setData(ClipboardData(text: logContent));
 
-                                                              // 显示复制成功的提示
-                                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                                SnackBar(content: Text(S.of(context).logCopied)),  // 日志已复制
-                                                              );
-                                                            },
-                                                          ),
-                                                        ],
-                                                      ),
+                                                            // 显示复制成功的提示
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(content: Text(S.of(context).logCopied)),  // 日志已复制
+                                                            );
+                                                          },
+                                                        ),
+                                                      ],
                                                     ),
-                                                    SelectableText(
-                                                      LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
-                                                      style: const TextStyle(fontSize: 14),
-                                                    ),
-                                                    const Divider(), // 分隔符
-                                                  ],
-                                                ))
-                                            .toList(),
-                                      ),
+                                                  ),
+                                                  SelectableText(
+                                                    LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
+                                                    style: const TextStyle(fontSize: 14),
+                                                  ),
+                                                  const Divider(), // 分隔符
+                                                ],
+                                              ))
+                                          .toList(),
                                     ),
                                   ),
-                          ),
+                                ),
                         ),
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
