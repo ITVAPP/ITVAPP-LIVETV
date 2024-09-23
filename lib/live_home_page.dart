@@ -354,7 +354,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 保存更新后的“我的收藏”列表到本地缓存
+  /// 保存更新后的“我的收藏”到本地缓存
   static Future<void> _saveFavoriteList(PlaylistModel favoritePlaylist) async {
     try {
       await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
@@ -421,8 +421,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
       try {
-        await _saveFavoriteList(favoriteList); // 确保存储操作完成
-        setState(() {});  // 更新UI状态
+        await _saveFavoriteList(favoriteList); 
+        setState(() {}); 
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
@@ -432,9 +432,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 从播放列表中动态提取频道，处理两层和三层结构
+  /// 从播放列表中动态提取频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
-    // 遍历每个分类
     for (String category in playList.keys) {
       if (playList[category] is Map<String, Map<String, PlayModel>>) {
         // 三层结构处理
@@ -443,7 +442,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         for (String group in groupMap.keys) {
           Map<String, PlayModel> channelMap = groupMap[group] ?? {};
 
-          // 遍历频道返回第一个有效播放地址
+          // 返回第一个有效播放地址
           for (PlayModel? channel in channelMap.values) {
             if (channel?.urls != null && channel!.urls!.isNotEmpty) {
               return channel;  
@@ -454,7 +453,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 两层结构处理
         Map<String, PlayModel> channelMap = playList[category] ?? {};
 
-        // 遍历频道返回第一个有效播放地址
+        // 返回第一个有效播放地址
         for (PlayModel? channel in channelMap.values) {
           if (channel?.urls != null && channel!.urls!.isNotEmpty) {
             return channel; 
@@ -478,7 +477,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 解析并加载本地播放列表数据
+  /// 解析并加载本地播放列表
   Future<void> _parseData() async {
     try {
       final resMap = await M3uUtil.getLocalM3uData();
@@ -490,16 +489,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 处理播放列表和 EPG 数据的通用逻辑
+  /// 处理播放列表和 EPG 数据
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
-      // 获取第一个可用的频道，如果该分类为空，跳过它
+      // 获取第一个可用的频道
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
       if (_currentChannel != null) {
         if (!_isSwitchingChannel && !_isDisposing) {
           setState(() {
-            _playVideo(); // 播放第一个可用的频道
+            _playVideo();
           });
         }
       } else {
@@ -517,7 +516,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           LogUtil.logError('加载EPG数据时出错', e, stackTrace); 
         }
       } else {
-        EpgUtil.resetEPGXML(); // 重置EPG数据
+        EpgUtil.resetEPGXML(); 
       }
     } else {
       // 播放列表为空
@@ -557,7 +556,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
 
-    // 电视设备加载不同的 UI 布局
+    // 电视加载不同的布局
     if (isTV) {
       return TvPage(
         videoMap: _videoMap,
@@ -573,7 +572,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
     }
 
-    // 如果不是电视设备，加载移动设备布局
+    // 如果不是电视的布局
     return Material(
       child: OrientationLayoutBuilder(
         portrait: (context) {
@@ -700,7 +699,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         },
       );
 
-      // 切换到选中的视频源并播放
+      // 切换到选中的视频播放
       if (selectedIndex != null && _sourceIndex != selectedIndex) {
         _sourceIndex = selectedIndex;
         _playVideo();
