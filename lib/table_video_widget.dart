@@ -21,8 +21,6 @@ class TableVideoWidget extends StatefulWidget {
   final bool drawerIsOpen; // 标识抽屉菜单是否已打开
   final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
-  final Function(String) toggleFavorite;  // 添加 toggleFavorite 回调
-  final bool Function(String) isChannelFavorite;  // 添加 isChannelFavorite 回调
 
   const TableVideoWidget({
     super.key,
