@@ -7,7 +7,6 @@ import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
@@ -19,6 +18,8 @@ class TableVideoWidget extends StatefulWidget {
   final bool isPlaying; // 标识视频是否正在播放
   final double aspectRatio; // 视频的宽高比
   final bool drawerIsOpen; // 标识抽屉菜单是否已打开
+  final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
+  final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
 
   const TableVideoWidget({
     super.key,
@@ -27,6 +28,8 @@ class TableVideoWidget extends StatefulWidget {
     required this.isPlaying,
     required this.aspectRatio,
     required this.drawerIsOpen,
+    required this.toggleFavorite,
+    required this.isChannelFavorite,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -92,6 +95,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   Widget build(BuildContext context) {
+    String currentChannelId = 'exampleChannelId'; // 获取当前播放频道的ID，实际需要传递或获取该ID
+
     return Stack(
       children: [
         // 视频播放区域
@@ -200,6 +205,20 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           MaterialPageRoute(builder: (context) => SettingPage()),
                         );
                       }, '进入设置页面发生错误');
+                    },
+                  ),
+                  const SizedBox(width: 3),
+                  // 收藏按钮
+                  IconButton(
+                    tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
+                    icon: Icon(
+                      widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
+                      color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
+                    ),
+                    onPressed: () {
+                      widget.toggleFavorite(currentChannelId); // 切换收藏状态
+                      setState(() {}); // 刷新UI以更新图标状态
                     },
                   ),
                   const SizedBox(width: 3),
