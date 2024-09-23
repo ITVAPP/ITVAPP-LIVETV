@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
+import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'generated/l10n.dart';
@@ -20,6 +21,8 @@ class TableVideoWidget extends StatefulWidget {
   final bool drawerIsOpen; // 标识抽屉菜单是否已打开
   final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
+  final Function(String) toggleFavorite;  // 添加 toggleFavorite 回调
+  final bool Function(String) isChannelFavorite;  // 添加 isChannelFavorite 回调
 
   const TableVideoWidget({
     super.key,
