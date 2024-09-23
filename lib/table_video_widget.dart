@@ -98,6 +98,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   Widget buildFavoriteButton(String currentChannelId) {
     return IconButton(
       tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.black45, // 与其他按钮一致的背景颜色
+        side: const BorderSide(color: Colors.white), // 与其他按钮一致的边框
+      ),
       icon: Icon(
         widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
         color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
@@ -286,7 +290,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               children: [
                 // 收藏按钮
                 buildFavoriteButton(currentChannelId),
-                const SizedBox(height: 10),
+                const SizedBox(height: 5),
                 // 旋转按钮
                 IconButton(
                   tooltip: S.current.landscape,
@@ -300,7 +304,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
                     Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                   },
-                  style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 18),
+                  style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 20),
                   icon: const Icon(Icons.screen_rotation, color: Colors.white),
                 ),
               ],
