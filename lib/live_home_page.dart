@@ -1,4 +1,4 @@
-import 'package:itvapp_live_tv/util/epg_util.dart';
+import 'package:sp_util/sp_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,11 +9,10 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'channel_drawer_page.dart';
-import 'entity/playlist_model.dart';
-import 'generated/l10n.dart';
 import 'mobile_video_widget.dart';
 import 'table_video_widget.dart';
 import 'tv/tv_page.dart';
+import 'util/epg_util.dart';
 import 'util/env_util.dart';
 import 'util/check_version_util.dart';
 import 'util/log_util.dart';
@@ -21,12 +20,19 @@ import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
 import 'util/dialog_util.dart';
 import 'widget/empty_page.dart';
+import 'entity/playlist_model.dart';
+import 'generated/l10n.dart';
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
+  
+  /// 定义“我的收藏”列表的本地缓存键
+  const String favoriteCacheKey = 'favorite_m3u_cache';
+  /// 定义播放列表的本地缓存键
+  const String m3uCacheKey = 'm3u_cache';
 
   @override
   State<LiveHomePage> createState() => _LiveHomePageState();
@@ -222,7 +228,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       setState(() {
         toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
       });
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: 3), () {
         if (_isDisposing) return;
         _playVideo();
       });
@@ -237,7 +243,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           toastString = S.current.switchLine(_sourceIndex + 1);
         });
-        Future.delayed(const Duration(seconds: 2), () {
+        Future.delayed(const Duration(seconds: 3), () {
           if (_isDisposing) return; 
           _playVideo();
         });
@@ -379,7 +385,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 取消收藏
       favoriteList.playList['我的收藏']!.remove(channelId);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 2))
+        SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
     } else {
@@ -393,21 +399,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       favoriteList.playList['我的收藏']![channelId] = newFavorite;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 2))
+        SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
     }
 
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
-      _saveFavoriteList(favoriteList).then((success) {
-        if (success) {
-          setState(() {});  // 更新UI状态
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('保存收藏状态失败'), duration: Duration(seconds: 2))
-          );
-        }
+      _saveFavoriteList(favoriteList).then((_) {
+        setState(() {});  // 更新UI状态
+      }).catchError((error) {
+        // 如果保存收藏状态失败，显示错误信息
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
+        );
       });
     }
   }
@@ -604,6 +609,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       aspectRatio: aspectRatio,
                       drawerIsOpen: _drawerIsOpen,
                       changeChannelSources: _changeChannelSources,
+                      isChannelFavorite: isChannelFavorite, 
+                      toggleFavorite: toggleFavorite, 
                       isLandscape: true),
             ),
           );
