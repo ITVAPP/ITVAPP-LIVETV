@@ -304,7 +304,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
                     Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                   },
-                  style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black45, 
+                    side: const BorderSide(color: Colors.white), 
+                    iconSize: 24,
+                  ),
                   icon: const Icon(Icons.screen_rotation, color: Colors.white),
                 ),
               ],
