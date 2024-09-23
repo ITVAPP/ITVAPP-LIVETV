@@ -555,7 +555,7 @@ Future<void> _changeChannelSources() async {
                 maxWidth: MediaQuery.of(context).size.width * 0.7, // 限制最大宽度为屏幕宽度的70%
               ),
               child: Wrap(
-                spacing: 5,   // 设置按钮之间的水平间距
+                spacing: 10,   // 设置按钮之间的水平间距
                 runSpacing: 10, // 设置按钮之间的垂直间距
                 children: List.generate(sources.length, (index) {
                   return ConstrainedBox(
