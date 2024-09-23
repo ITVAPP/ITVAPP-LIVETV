@@ -1,8 +1,8 @@
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart'; 
-import 'provider/theme_provider.dart'; 
+import 'package:provider/provider.dart';
+import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -88,9 +88,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
-  StreamUrl? _streamUrl; // 用于存储当前的 StreamUrl 实例
+  StreamUrl? _streamUrl; 
 
-  /// 播放视频的核心方法
   /// 每次播放新视频前，解析当前频道的视频源，并进行播放。
 Future<void> _playVideo() async {
   	
@@ -112,7 +111,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
     // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
 
-    // 使用 StreamUrl 类解析并处理一些特定的视频源（例如 YouTube）
+    // 使用 StreamUrl 类解析并处理一些特定的视频源
     _streamUrl = StreamUrl(url);
     try {
       // 获取解析后的有效视频 URL
@@ -121,7 +120,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
       // 如果解析失败，返回 'ERROR'，则显示错误信息并终止播放
       if (parsedUrl == 'ERROR') {
         setState(() {
-          toastString = S.current.playError; // 更新 UI 显示播放错误提示
+          toastString = S.current.playError;
         });
         return;
       }
@@ -137,10 +136,9 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
         }
       }
     } catch (e, stackTrace) {
-      // 如果解析视频流 URL 时发生异常，记录日志并显示错误提示
       LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
-        toastString = S.current.playError; // 显示错误提示
+        toastString = S.current.playError;
       });
       return;
     }
@@ -171,7 +169,6 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
       // 添加超时检测机制
       _startTimeoutCheck();
     } catch (e, stackTrace) {
-      // 如果播放过程中发生异常，处理播放失败逻辑
       LogUtil.logError('播放出错', e, stackTrace);
       _retryPlayback(); // 调用处理方法
     } finally {
@@ -191,7 +188,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
         _playerController?.removeListener(_videoListener); // 移除监听器
         await _playerController?.dispose(); // 释放资源
       } catch (e, stackTrace) {
-        LogUtil.logError('释放播放器资源时出错', e, stackTrace); // 记录错误
+        LogUtil.logError('释放播放器资源时出错', e, stackTrace); 
       } finally {
         _playerController = null; // 确保播放器控制器置空
         _isDisposing = false;
@@ -202,8 +199,8 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
   /// 释放 StreamUrl 实例
   void _disposeStreamUrl() {
     if (_streamUrl != null) {
-      _streamUrl!.dispose();  // 调用 StreamUrl 的 dispose 方法释放资源
-      _streamUrl = null;       // 释放后将其置空
+      _streamUrl!.dispose(); 
+      _streamUrl = null;   
     }
   }
 
@@ -211,7 +208,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
   void _startTimeoutCheck() {
     _timeoutActive = true; // 开始超时检测
     Future.delayed(Duration(seconds: timeoutSeconds), () {
-      if (_isDisposing) return; // 添加_isDisposing检查
+      if (_isDisposing) return;
       if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
         _retryPlayback();
       }
@@ -228,7 +225,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
         toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
       });
       Future.delayed(const Duration(seconds: 2), () {
-        if (_isDisposing) return; // 添加_isDisposing检查
+        if (_isDisposing) return;
         _playVideo();
       });
     } else {
@@ -243,7 +240,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
           toastString = S.current.switchLine(_sourceIndex + 1);
         });
         Future.delayed(const Duration(seconds: 2), () {
-          if (_isDisposing) return; // 添加_isDisposing检查
+          if (_isDisposing) return; 
           _playVideo();
         });
       }
@@ -269,7 +266,6 @@ Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
 }
 
   /// 监听视频播放状态的变化
-  /// 包括检测缓冲状态、播放状态以及播放出错的情况
   void _videoListener() {
     if (_playerController == null || _isDisposing) return;
 
@@ -291,14 +287,13 @@ Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
       setState(() {
         isPlaying = _playerController!.value.isPlaying;
         if (isPlaying) {
-          aspectRatio = _playerController?.value.aspectRatio ?? 1.78; // 仅在开始播放时更新宽高比
+          aspectRatio = _playerController?.value.aspectRatio ?? 1.78;
         }
       });
     }
   }
 
   /// 处理频道切换操作
-  /// 用户选择不同的频道时，重置视频源索引，并播放新频道的视频
   Future<void> _onTapChannel(PlayModel? model) async {
      _isSwitchingChannel = false; 
     _currentChannel = model;
@@ -358,10 +353,7 @@ PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     try {
       _videoMap = widget.m3uData;
       _sourceIndex = 0;
-
       await _handlePlaylist(); // 处理播放列表和 EPG 数据
-
-      // 版本检测
       CheckVersionUtil.checkVersion(context, false, false);
     } catch (e, stackTrace) {
       LogUtil.logError('加载数据时出错', e, stackTrace);
@@ -405,9 +397,9 @@ Future<void> _handlePlaylist() async {
     // 处理 EPG 数据加载
     if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
       try {
-        EpgUtil.loadEPGXML(_videoMap!.epgUrl!); // 加载EPG数据
+        EpgUtil.loadEPGXML(_videoMap!.epgUrl!); 
       } catch (e, stackTrace) {
-        LogUtil.logError('加载EPG数据时出错', e, stackTrace); // 捕获并记录错误
+        LogUtil.logError('加载EPG数据时出错', e, stackTrace); 
       }
     } else {
       EpgUtil.resetEPGXML(); // 重置EPG数据
@@ -450,7 +442,6 @@ Future<void> _handlePlaylist() async {
 
   @override
   Widget build(BuildContext context) {
-    // 使用 Provider 获取 isTV 值
     bool isTV = context.watch<ThemeProvider>().isTV;
 
     // 检测设备是否为电视设备，加载不同的 UI 布局
@@ -530,7 +521,7 @@ Future<void> _handlePlaylist() async {
 
   /// 切换视频源的方法，通过底部弹出框选择不同的视频源
 Future<void> _changeChannelSources() async {
-  List<String>? sources = _currentChannel?.urls;  // 直接从 currentChannel 获取视频源
+  List<String>? sources = _currentChannel?.urls; 
   // 如果 sources 为空或不存在，记录日志
   if (sources == null || sources.isEmpty) {
     LogUtil.e('未找到有效的视频源');
@@ -552,18 +543,18 @@ Future<void> _changeChannelSources() async {
             color: Colors.transparent,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.7, // 限制最大宽度为屏幕宽度的70%
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
               ),
               child: Wrap(
-                spacing: 10,   // 设置按钮之间的水平间距
-                runSpacing: 10, // 设置按钮之间的垂直间距
+                spacing: 10,   
+                runSpacing: 10, 
                 children: List.generate(sources.length, (index) {
                   return ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: 60), // 设置最小宽度
+                    constraints: BoxConstraints(minWidth: 60), 
                     child: OutlinedButton(
                       autofocus: _sourceIndex == index,
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6),  // 设置按钮内边距为上下 8, 左右 16
+                        padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), 
                         backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!, 
                         side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!),
                         shape: RoundedRectangleBorder(
@@ -577,10 +568,10 @@ Future<void> _changeChannelSources() async {
                             },
                       child: Text(
                         S.current.lineIndex(index + 1),
-                        textAlign: TextAlign.center, // 确保文字居中
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
-                          color: _sourceIndex == index ? Colors.white : Colors.black, // 选中和未选中状态的文字颜色
+                          color: _sourceIndex == index ? Colors.white : Colors.black, 
                         ),
                       ),
                     ),
@@ -599,7 +590,6 @@ Future<void> _changeChannelSources() async {
       _playVideo();
     } 
   } catch (modalError, modalStackTrace) {
-    // 捕获弹窗异常并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
   }
 }
