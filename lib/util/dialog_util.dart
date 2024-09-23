@@ -73,7 +73,7 @@ class DialogUtil {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容居中
+                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
                           children: [
                             // 如果有 content，显示内容
                             if (content != null) _buildDialogContent(content: content),
@@ -141,7 +141,7 @@ class DialogUtil {
   // 封装的内容部分，允许选择和复制功能
   static Widget _buildDialogContent({String? content}) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,  // 内容居中
+      crossAxisAlignment: CrossAxisAlignment.start,  // 调整内容文本为默认左对齐
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 10),
@@ -149,7 +149,7 @@ class DialogUtil {
           controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
           readOnly: true,  // 设置为只读
           maxLines: null,  // 允许多行显示
-          textAlign: TextAlign.center,  // 文本水平居中
+          textAlign: TextAlign.start,  // 文本水平默认左对齐
           decoration: const InputDecoration(
             border: InputBorder.none,  // 去掉边框
           ),
