@@ -21,6 +21,8 @@ class MobileVideoWidget extends StatefulWidget {
   final bool isPlaying; // 是否正在播放
   final double aspectRatio; // 视频宽高比
   final GestureTapCallback onChangeSubSource; // 数据源更改回调
+  final Function(String) toggleFavorite; 
+  final bool Function(String) isChannelFavorite;
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -31,6 +33,8 @@ class MobileVideoWidget extends StatefulWidget {
     required this.isPlaying,
     required this.aspectRatio,
     required this.onChangeSubSource,
+    required this.toggleFavorite, 
+    required this.isChannelFavorite,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -141,6 +145,8 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               isBuffering: widget.isBuffering,  // 是否缓冲
               isPlaying: widget.isPlaying,  // 是否正在播放
               drawerIsOpen: false,  // 抽屉菜单关闭状态
+              toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
+              isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
