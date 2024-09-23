@@ -392,7 +392,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (favoriteList.playList['我的收藏'] == null) {
       favoriteList.playList['我的收藏'] = {};
     }
-
+    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');
     bool isFavoriteChanged = false;
 
     if (isChannelFavorite(channelId)) {
@@ -416,8 +416,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
+      LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList.playList)}');
     }
-
+    
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
       try {
