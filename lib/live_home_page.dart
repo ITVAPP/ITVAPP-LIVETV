@@ -340,7 +340,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从本地缓存中获取“我的收藏”列表
   static Future<String> _getCachedFavoriteM3uData() async {
     try {
-      return SpUtil.getString(favoriteCacheKey, defValue: '') ?? '';
+      return SpUtil.getString(LiveHomePage.favoriteCacheKey, defValue: '') ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地缓存的“我的收藏”列表失败', e, stackTrace);
       return '';
@@ -349,7 +349,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 保存更新后的“我的收藏”列表到本地缓存
   static Future<void> _saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    await SpUtil.putString(favoriteCacheKey, favoritePlaylist.toString());
+    await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
   }
 
   // 获取当前频道的分组名字
