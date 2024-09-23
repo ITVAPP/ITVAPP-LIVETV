@@ -30,9 +30,9 @@ class LiveHomePage extends StatefulWidget {
   const LiveHomePage({super.key, required this.m3uData});
   
   /// 定义“我的收藏”列表的本地缓存键
-  const String favoriteCacheKey = 'favorite_m3u_cache';
+  static const String favoriteCacheKey = 'favorite_m3u_cache';
   /// 定义播放列表的本地缓存键
-  const String m3uCacheKey = 'm3u_cache';
+  static const String m3uCacheKey = 'm3u_cache';
 
   @override
   State<LiveHomePage> createState() => _LiveHomePageState();
