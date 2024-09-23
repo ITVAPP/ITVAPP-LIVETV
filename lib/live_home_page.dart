@@ -99,12 +99,12 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
 
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
-    // 在开始播放新视频之前，释放旧的资源
+    // 在开始播放之前，释放旧的资源
     await _disposePlayer();
     
     _isSwitchingChannel = true;
 
-    // 更新界面上的加载提示文字，表明当前正在加载的流信息
+    // 更新界面上的加载提示文字
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
 
@@ -128,7 +128,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
       // 如果解析成功，使用解析后的 URL
       url = parsedUrl;
 
-      // 如果处于调试模式，则弹出确认对话框，允许用户确认是否播放该视频流
+      // 如果处于调试模式，则弹出确认对话框
       if (isDebugMode) {
         bool shouldPlay = await _showConfirmationDialog(context, url);
         if (!shouldPlay) {
@@ -153,8 +153,6 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
           webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
         ),
       )..setVolume(1.0); // 设置音量
-
-      // 初始化播放器，开始播放视频
       await _playerController?.initialize();
       _playerController?.play();
       setState(() {
@@ -164,7 +162,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
       // 播放成功，重置重试次数计数器
       _retryCount = 0;
       _timeoutActive = false; // 播放成功，取消超时检测
-      _playerController?.addListener(_videoListener); // 添加播放监听
+      _playerController?.addListener(_videoListener); 
 
       // 添加超时检测机制
       _startTimeoutCheck();
@@ -176,7 +174,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
     }
   }
 
-  /// 优化播放器资源释放
+  /// 播放器资源释放
   Future<void> _disposePlayer() async {
     // 释放旧的 StreamUrl 实例
     _disposeStreamUrl();
@@ -206,7 +204,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
 
   /// 超时检测，超时后未播放则自动重试
   void _startTimeoutCheck() {
-    _timeoutActive = true; // 开始超时检测
+    _timeoutActive = true;
     Future.delayed(Duration(seconds: timeoutSeconds), () {
       if (_isDisposing) return;
       if (_timeoutActive && _playerController != null && !_playerController!.value.isPlaying) {
@@ -247,7 +245,7 @@ LogUtil.i('触发播放前检查资源释放：$_isDisposing');
     }
   }
 
-  /// 显示播放确认对话框，用户可以选择是否播放当前视频流
+  /// 显示播放确认对话框
 Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
   return await DialogUtil.showCustomDialog(
     context,
@@ -390,7 +388,7 @@ Future<void> _handlePlaylist() async {
     } else {
       // 没有可用的频道
       setState(() {
-        toastString = 'UNKNOWN'; // 显示未知错误提示
+        toastString = 'UNKNOWN';
       });
     }
 
@@ -408,7 +406,7 @@ Future<void> _handlePlaylist() async {
     // 播放列表为空
     setState(() {
       _currentChannel = null; 
-      toastString = 'UNKNOWN'; // 显示未知错误提示
+      toastString = 'UNKNOWN';
     });
   }
 }
@@ -417,9 +415,7 @@ Future<void> _handlePlaylist() async {
   void dispose() {
     // 禁用保持屏幕唤醒功能
     WakelockPlus.disable();
-
-    _isDisposing = true; // 标记正在释放资源
-    // 释放播放器和 StreamUrl 资源
+    _isDisposing = true; 
     _disposePlayer(); 
     super.dispose();
   }
@@ -444,7 +440,7 @@ Future<void> _handlePlaylist() async {
   Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
 
-    // 检测设备是否为电视设备，加载不同的 UI 布局
+    // 电视设备加载不同的 UI 布局
     if (isTV) {
       return TvPage(
         videoMap: _videoMap,
@@ -519,7 +515,7 @@ Future<void> _handlePlaylist() async {
     );
   }
 
-  /// 切换视频源的方法，通过底部弹出框选择不同的视频源
+  /// 通过底部弹出框选择不同的视频源
 Future<void> _changeChannelSources() async {
   List<String>? sources = _currentChannel?.urls; 
   // 如果 sources 为空或不存在，记录日志
