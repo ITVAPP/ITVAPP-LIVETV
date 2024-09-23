@@ -358,6 +358,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static Future<void> _saveFavoriteList(PlaylistModel favoritePlaylist) async {
     try {
       await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
+      LogUtil.i('新的收藏列表: ${jsonEncode(favoritePlaylist.playList)}');
       LogUtil.i('收藏列表成功保存到本地缓存');
     } catch (e, stackTrace) {
       LogUtil.logError('保存收藏列表到本地缓存失败', e, stackTrace);
