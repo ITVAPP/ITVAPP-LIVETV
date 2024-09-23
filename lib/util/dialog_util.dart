@@ -71,7 +71,7 @@ class DialogUtil {
                   Flexible( // 用 Flexible 替换 Expanded
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
                           children: [
@@ -118,7 +118,7 @@ class DialogUtil {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(20),
           alignment: Alignment.center,
           child: Text(
             title ?? 'Notification 🔔',  // 动态标题
@@ -144,7 +144,7 @@ class DialogUtil {
       crossAxisAlignment: CrossAxisAlignment.start,  // 调整内容文本为默认左对齐
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 10),
+        const SizedBox(height: 5),
         TextField(
           controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
           readOnly: true,  // 设置为只读
