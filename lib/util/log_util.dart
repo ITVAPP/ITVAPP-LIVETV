@@ -1,7 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart'; // 引入 ThemeProvider
+import 'dart:async'; // 用于 StackTrace
 
 class LogUtil {
   static const String _defTag = 'common_utils';
@@ -41,9 +41,7 @@ class LogUtil {
     }
 
     final timestamp = DateTime.now().toIso8601String();
-    LogUtil.e('[$timestamp] 错误: $message');
-    LogUtil.e('错误详情: $error');
-    LogUtil.e('堆栈信息: $stackTrace');
+    _log('e', '[$timestamp] 错误: $message\n错误详情: $error\n堆栈信息: $stackTrace', _defTag);
   }
 
   // 安全执行方法，捕获并记录异常
@@ -82,7 +80,9 @@ class LogUtil {
     if (!debugMode || object == null) return;
 
     String time = DateTime.now().toString();
-    String logMessage = '${tag ?? _defTag} $level | ${object.toString()}';
+    String fileInfo = _getFileAndLine(); // 获取文件和行号信息
+    // 安全处理 object，避免出现 null 值导致错误
+    String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'} - $fileInfo';
 
     // 限制日志的数量，如果超过最大数量，则移除最旧的日志
     if (_logs.length >= _maxLogs) {
@@ -91,6 +91,23 @@ class LogUtil {
 
     _logs.add({'time': time, 'level': level, 'message': logMessage});
     developer.log(logMessage);
+  }
+
+  // 获取文件名和行号
+  static String _getFileAndLine() {
+    try {
+      final frames = StackTrace.current.toString().split('\n');
+      if (frames.length > 1) {
+        final frame = frames[2]; // 获取第 2 帧，跳过当前帧
+        final match = RegExp(r'[^/]+\.dart:\d+:\d+').firstMatch(frame);
+        if (match != null) {
+          return match.group(0) ?? 'Unknown';
+        }
+      }
+    } catch (e) {
+      return 'Unknown'; // 捕获任何异常，避免日志记录失败
+    }
+    return 'Unknown';
   }
 
   // 获取所有日志
@@ -108,9 +125,13 @@ class LogUtil {
     _logs.clear();
   }
 
-  // 解析日志消息，展示实际内容时只提取消息部分
+  // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
   static String parseLogMessage(String message) {
-    // 按 '|' 分割，返回第二部分，即实际的日志内容
-    return message.split('|').last.trim();
+    // 按 '|' 分割，返回第二部分，即实际的日志内容和文件名行号
+    List<String> parts = message.split('|');
+    if (parts.length >= 2) {
+      return parts[1].trim(); // 保留文件名和行号信息
+    }
+    return message; // 如果日志格式不符，返回原始信息
   }
 }
