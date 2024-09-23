@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:sp_util/sp_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -318,7 +320,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
     
     // 加载收藏列表
-    _loadFavorites();
+    _loadFavorites().then((_) {
+      setState(() {});  // 收藏加载完成后刷新 UI
+    }).catchError((error) {
+      LogUtil.logError('初始化收藏列表时出错', error);
+    });
   }
 
   /// 加载或初始化“我的收藏”列表
@@ -334,6 +340,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果有缓存数据，解析并加载“我的收藏”列表
       favoriteList = PlaylistModel.fromString(favoriteData);
     }
+    LogUtil.i('初始收藏列表: ${jsonEncode(favoriteList.playList)}');
     setState(() {});
   }
 
@@ -349,7 +356,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 保存更新后的“我的收藏”列表到本地缓存
   static Future<void> _saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
+    try {
+      await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
+      LogUtil.i('收藏列表成功保存到本地缓存');
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存收藏列表到本地缓存失败', e, stackTrace);
+      throw '收藏保存失败'; // 确保错误被捕获并处理
+    }
   }
 
   // 获取当前频道的分组名字
@@ -373,7 +386,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 添加或取消收藏
-  void toggleFavorite(String channelId) {
+  void toggleFavorite(String channelId) async {
     // 确保 '我的收藏' 结构已存在
     if (favoriteList.playList['我的收藏'] == null) {
       favoriteList.playList['我的收藏'] = {};
@@ -406,14 +419,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
-      _saveFavoriteList(favoriteList).then((_) {
+      try {
+        await _saveFavoriteList(favoriteList); // 确保存储操作完成
         setState(() {});  // 更新UI状态
-      }).catchError((error) {
-        // 如果保存收藏状态失败，显示错误信息
+      } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
         );
-      });
+        LogUtil.logError('收藏状态保存失败', error);
+      }
     }
   }
 
@@ -447,7 +461,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
       }
     }
-    return null;  // 如果所有频道都没有找到可用的
+    return null; 
   }
 
   /// 异步加载视频数据和版本检测
@@ -466,7 +480,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 解析并加载本地播放列表数据
   Future<void> _parseData() async {
     try {
-      final resMap = await M3uUtil.getLocalM3uData(); // 获取播放列表数据
+      final resMap = await M3uUtil.getLocalM3uData();
       _videoMap = resMap.data;
       _sourceIndex = 0;
       await _handlePlaylist();
@@ -522,7 +536,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     super.dispose();
   }
 
-  /// 播放器参数公共属性
+  /// 播放器公共属性
   Map<String, dynamic> _buildCommonProps() {
     return {
       'videoMap': _videoMap,
@@ -578,8 +592,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
               onTapChannel: _onTapChannel,
               isLandscape: false,
             ),
-          toggleFavorite: toggleFavorite,  // 传递收藏回调
-          isChannelFavorite: isChannelFavorite,  // 传递判断收藏状态回调
+          toggleFavorite: toggleFavorite, 
+          isChannelFavorite: isChannelFavorite,
           );
         },
         landscape: (context) {
