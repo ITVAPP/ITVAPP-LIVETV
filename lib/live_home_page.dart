@@ -578,6 +578,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
               onTapChannel: _onTapChannel,
               isLandscape: false,
             ),
+          toggleFavorite: toggleFavorite,  // 传递收藏回调
+          isChannelFavorite: isChannelFavorite,  // 传递判断收藏状态回调
           );
         },
         landscape: (context) {
