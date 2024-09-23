@@ -94,6 +94,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '调整窗口大小时发生错误');
   }
 
+  // 将收藏按钮的逻辑提取为一个独立的函数，以便在横屏和竖屏中复用
+  Widget buildFavoriteButton(String currentChannelId) {
+    return IconButton(
+      tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
+      icon: Icon(
+        widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
+        color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
+      ),
+      onPressed: () {
+        widget.toggleFavorite(currentChannelId); // 切换收藏状态
+        setState(() {}); // 刷新UI以更新图标状态
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     String currentChannelId = 'exampleChannelId'; // 获取当前播放频道的ID，实际需要传递或获取该ID
@@ -180,6 +195,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     },
                   ),
                   const SizedBox(width: 3),
+                  // 调用复用的收藏按钮
+                  buildFavoriteButton(currentChannelId),
+                  const SizedBox(width: 3),
                   // 切换频道源按钮，调用 changeChannelSources 回调
                   IconButton(
                     tooltip: S.current.tipChangeLine,
@@ -206,20 +224,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           MaterialPageRoute(builder: (context) => SettingPage()),
                         );
                       }, '进入设置页面发生错误');
-                    },
-                  ),
-                  const SizedBox(width: 3),
-                  // 收藏按钮
-                  IconButton(
-                    tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
-                    icon: Icon(
-                      widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
-                      color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
-                    ),
-                    onPressed: () {
-                      widget.toggleFavorite(currentChannelId); // 切换收藏状态
-                      setState(() {}); // 刷新UI以更新图标状态
                     },
                   ),
                   const SizedBox(width: 3),
@@ -272,24 +276,34 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               ),
             ),
           ),
-        // 非横屏时右下角的旋转按钮，点击切换为横屏
+        // 非横屏时右下角的旋转按钮和收藏按钮
         if (!widget.isLandscape)
           Positioned(
             right: 12,
             bottom: 10,
-            child: IconButton(
-              tooltip: S.current.landscape,
-              onPressed: () async {
-                if (EnvUtil.isMobile) {
-                  SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                  return;
-                }
-                await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-              },
-              style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 18),
-              icon: const Icon(Icons.screen_rotation, color: Colors.white),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // 收藏按钮
+                buildFavoriteButton(currentChannelId),
+                const SizedBox(height: 10),
+                // 旋转按钮
+                IconButton(
+                  tooltip: S.current.landscape,
+                  onPressed: () async {
+                    if (EnvUtil.isMobile) {
+                      SystemChrome.setPreferredOrientations(
+                          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+                      return;
+                    }
+                    await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                    await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                    Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                  },
+                  style: IconButton.styleFrom(backgroundColor: Colors.black45, iconSize: 18),
+                  icon: const Icon(Icons.screen_rotation, color: Colors.white),
+                ),
+              ],
             ),
           )
       ],
