@@ -125,11 +125,12 @@ class M3uUtil {
           "我的收藏": <String, Map<String, PlayModel>>{}, 
         }
       );
+      LogUtil.i('创建我的收藏列表内容: ${jsonEncode(favoritePlaylist.playList)}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
-      LogUtil.i('本地我的收藏列表内容: ${favoriteData}');
-      LogUtil.i('解析后的我的收藏列表内容: ${PlaylistModel.fromString(favoriteData)}');
+      LogUtil.i('本地我的收藏类型: ${favoriteData.playList.runtimeType}');
+      LogUtil.i('本地我的收藏列表内容: ${jsonEncode(favoriteData.playList)}');
       return PlaylistModel.fromString(favoriteData);
     }
   }
@@ -498,8 +499,6 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               playListModel.playList![currentCategory] = categoryMap;
               i += 2;  // 跳过已经处理的后两行
             }
-
-            // 处理完当前频道后，重置 hasCategory，但保留 currentCategory
             hasCategory = false;
           }
         } else if (isLiveLink(line)) {
