@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
-import 'dart:async'; // 用于 StackTrace
 
 class LogUtil {
   static const String _defTag = 'common_utils';
@@ -94,10 +94,15 @@ class LogUtil {
     developer.log(logMessage);
   }
 
-  // 获取文件名和行号
+  // 获取文件名和行号，记录 frames
   static String _getFileAndLine() {
     try {
       final frames = StackTrace.current.toString().split('\n');
+      
+      // 记录 frames 到日志
+      String frameInfo = frames.join('\n'); // 将 frames 转换为字符串
+      developer.log('堆栈信息:\n$frameInfo'); // 记录到日志
+
       if (frames.length > 1) {
         final frame = frames[1]; // 获取第 1 帧，跳过当前帧
         final match = RegExp(r'([^/]+\.dart):(\d+):(\d+)').firstMatch(frame);
