@@ -103,11 +103,15 @@ class LogUtil {
       String frameInfo = frames.join('\n'); // 将 frames 转换为字符串
       developer.log('堆栈信息:\n$frameInfo'); // 记录到日志
 
-      if (frames.length > 1) {
-        final frame = frames[1]; // 获取第 1 帧，跳过当前帧
-        final match = RegExp(r'([^/]+\.dart):(\d+):(\d+)').firstMatch(frame);
+      // 从第二帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
+      for (int i = 1; i < frames.length; i++) {
+        final frame = frames[i]; // 获取当前帧
+
+        // 修改后的正则表达式，忽略列号，只捕获文件名和行号
+        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
         if (match != null) {
-          return '${match.group(1)}:${match.group(2)}'; // 返回文件名和行号
+          // 返回捕获到的文件名和行号
+          return '${match.group(1)}:${match.group(2)}';
         }
       }
     } catch (e) {
