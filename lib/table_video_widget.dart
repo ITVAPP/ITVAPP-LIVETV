@@ -94,14 +94,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '调整窗口大小时发生错误');
   }
 
-  // 将收藏按钮的逻辑提取为一个独立的函数，以便在横屏和竖屏中复用
-  Widget buildFavoriteButton(String currentChannelId) {
+  // 收藏按钮的逻辑
+  Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
     return IconButton(
       tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.black45, // 与其他按钮一致的背景颜色
-        side: const BorderSide(color: Colors.white), // 与其他按钮一致的边框
-      ),
+      style: showBackground
+          ? IconButton.styleFrom(
+              backgroundColor: Colors.black45, // 与其他按钮一致的背景颜色
+              side: const BorderSide(color: Colors.white), // 与其他按钮一致的边框
+            )
+          : null,
       icon: Icon(
         widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
         color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
@@ -199,8 +201,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     },
                   ),
                   const SizedBox(width: 3),
-                  // 调用复用的收藏按钮
-                  buildFavoriteButton(currentChannelId),
+                  // 收藏按钮
+                  buildFavoriteButton(currentChannelId, true),
                   const SizedBox(width: 3),
                   // 切换频道源按钮，调用 changeChannelSources 回调
                   IconButton(
@@ -289,7 +291,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // 收藏按钮
-                buildFavoriteButton(currentChannelId),
+                buildFavoriteButton(currentChannelId, false),
                 const SizedBox(height: 5),
                 // 旋转按钮
                 IconButton(
@@ -304,12 +306,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
                     Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                   },
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.black45, 
-                    side: const BorderSide(color: Colors.white), 
-                    iconSize: 24,
-                  ),
-                  icon: const Icon(Icons.screen_rotation, color: Colors.white),
+                  icon: const Icon(Icons.screen_rotation, color: Colors.white), 
                 ),
               ],
             ),
