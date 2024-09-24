@@ -8,7 +8,7 @@ class LogUtil {
   static const String _defTag = 'common_utils';
   static bool debugMode = false; // 控制是否记录日志 true 或 false
   static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
-  static const int _maxLogs = 500; // 设置最大日志条目数
+  static const int _maxLogs = 800; // 设置最大日志条目数
 
   // 设置 debugMode 状态，供外部调用
   static void setDebugMode(bool isEnabled) {
