@@ -98,13 +98,13 @@ class LogUtil {
   static String _getFileAndLine() {
     try {
       final frames = StackTrace.current.toString().split('\n');
-      
+
       // 记录 frames 到日志
       String frameInfo = frames.join('\n'); // 将 frames 转换为字符串
       developer.log('堆栈信息:\n$frameInfo'); // 记录到日志
 
-      // 从第二帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
-      for (int i = 1; i < frames.length; i++) {
+      // 从第三帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
+      for (int i = 2; i < frames.length; i++) {
         final frame = frames[i]; // 获取当前帧
 
         // 修改后的正则表达式，忽略列号，只捕获文件名和行号
@@ -130,9 +130,13 @@ class LogUtil {
     return _logs.where((log) => log['level'] == level).toList();
   }
 
-  // 清空日志
-  static void clearLogs() {
-    _logs.clear();
+  // 清空日志，支持传入参数来清空特定类型的日志
+  static void clearLogs([String? level]) {
+    if (level == null) {
+      _logs.clear(); // 清空所有日志
+    } else {
+      _logs.removeWhere((log) => log['level'] == level); // 清空特定类型的日志
+    }
   }
 
   // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
