@@ -23,6 +23,7 @@ class MobileVideoWidget extends StatefulWidget {
   final GestureTapCallback onChangeSubSource; // 数据源更改回调
   final Function(String) toggleFavorite; 
   final bool Function(String) isChannelFavorite;
+  final String currentChannelId; 
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -53,7 +54,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     bool isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
 
     // 获取当前频道 ID，确保传递给 TableVideoWidget
-    String currentChannelId = widget.controller?.value.id ?? 'exampleChannelId'; // 动态获取当前频道ID
+    String currentChannelId = widget.currentChannelId;
 
     return Scaffold(
       appBar: AppBar(
@@ -150,6 +151,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               drawerIsOpen: false,  // 抽屉菜单关闭状态
               toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
               isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
+              currentChannelId: currentChannelId,  // 传递当前频道ID
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
