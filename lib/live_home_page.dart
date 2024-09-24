@@ -30,7 +30,7 @@ class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
-  
+
   /// 定义“我的收藏”列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
   /// 定义播放列表的本地缓存键
@@ -41,10 +41,10 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-  
+
   // 超时重试次数
   static const int defaultMaxRetries = 1;
-  
+
   // 超时检测的时间
   static const int defaultTimeoutSeconds = 8;
 
@@ -96,10 +96,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
 
-  StreamUrl? _streamUrl; 
+  StreamUrl? _streamUrl;
 
   // 收藏列表相关
-  PlaylistModel favoriteList = PlaylistModel(playList: {}); 
+  PlaylistModel favoriteList = PlaylistModel(playList: {});
 
   /// 播放新视频前，解析当前频道的视频源
   Future<void> _playVideo() async {
@@ -111,7 +111,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 释放旧的资源
     await _disposePlayer();
-    
+
     _isSwitchingChannel = true;
 
     // 更新界面上的加载提示文字
@@ -142,7 +142,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (isDebugMode) {
         bool shouldPlay = await _showConfirmationDialog(context, url);
         if (!shouldPlay) {
-          return; 
+          return;
         }
       }
     } catch (e, stackTrace) {
@@ -172,7 +172,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 播放成功，重置重试次数计数器
       _retryCount = 0;
       _timeoutActive = false;
-      _playerController?.addListener(_videoListener); 
+      _playerController?.addListener(_videoListener);
 
       // 添加超时检测机制
       _startTimeoutCheck();
@@ -180,7 +180,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.logError('播放出错', e, stackTrace);
       _retryPlayback(); // 调用处理方法
     } finally {
-      _isSwitchingChannel = false; 
+      _isSwitchingChannel = false;
     }
   }
 
@@ -194,7 +194,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playerController?.removeListener(_videoListener); // 移除监听器
         await _playerController?.dispose(); // 释放资源
       } catch (e, stackTrace) {
-        LogUtil.logError('释放播放器资源时出错', e, stackTrace); 
+        LogUtil.logError('释放播放器资源时出错', e, stackTrace);
       } finally {
         _playerController = null; // 确保播放器控制器置空
         _isDisposing = false;
@@ -205,8 +205,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 释放 StreamUrl 实例
   void _disposeStreamUrl() {
     if (_streamUrl != null) {
-      _streamUrl!.dispose(); 
-      _streamUrl = null;   
+      _streamUrl!.dispose();
+      _streamUrl = null;
     }
   }
 
@@ -246,7 +246,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = S.current.switchLine(_sourceIndex + 1);
         });
         Future.delayed(const Duration(seconds: 3), () {
-          if (_isDisposing) return; 
+          if (_isDisposing) return;
           _playVideo();
         });
       }
@@ -259,16 +259,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
       context,
       title: S.of(context).foundStreamTitle,  // 动态传入标题
       content: S.of(context).streamUrlContent(url),  // 动态传入内容
-      positiveButtonLabel: S.of(context).playButton, 
+      positiveButtonLabel: S.of(context).playButton,
       onPositivePressed: () {
         Navigator.of(context).pop(true);  // 用户确认播放
       },
-      negativeButtonLabel: S.of(context).cancelButton, 
+      negativeButtonLabel: S.of(context).cancelButton,
       onNegativePressed: () {
         Navigator.of(context).pop(false);  // 用户取消播放
       },
       isDismissible: false,  // 禁止点击外部关闭
-    ) ?? false; 
+    ) ?? false;
   }
 
   /// 监听视频播放状态的变化
@@ -301,7 +301,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 处理频道切换操作
   Future<void> _onTapChannel(PlayModel? model) async {
-     _isSwitchingChannel = false; 
+    _isSwitchingChannel = false;
     _currentChannel = model;
     _sourceIndex = 0; // 重置视频源索引
     _retryCount = 0; // 重置重试次数计数器
@@ -318,7 +318,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 加载播放列表数据和版本检测
     _loadData();
-    
+
     // 加载收藏列表
     _loadFavorites().then((_) {
       setState(() {});  // 收藏加载完成后刷新 UI
@@ -330,7 +330,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 加载或初始化“我的收藏”列表
   Future<void> _loadFavorites() async {
     final favoriteData = await _getCachedFavoriteM3uData();
-  
+
     if (favoriteData.isEmpty) {
       // 如果没有缓存数据，初始化空的收藏列表
       favoriteList = PlaylistModel(
@@ -383,7 +383,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 检查当前频道是否已收藏
   bool isChannelFavorite(String channelId) {
-    return favoriteList.playList['我的收藏']?.containsKey(channelId) ?? false;
+    String groupName = getGroupName(channelId);
+    String channelName = getChannelName(channelId);
+    return favoriteList.playList['我的收藏']?[groupName]?.containsKey(channelName) ?? false;
   }
 
   // 添加或取消收藏
@@ -397,33 +399,45 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (isChannelFavorite(channelId)) {
       // 取消收藏
-      favoriteList.playList['我的收藏']!.remove(channelId);
+      String groupName = getGroupName(channelId);
+      String channelName = getChannelName(channelId);
+      favoriteList.playList['我的收藏']![groupName]?.remove(channelName);
+      if (favoriteList.playList['我的收藏']![groupName]?.isEmpty ?? true) {
+        favoriteList.playList['我的收藏']!.remove(groupName);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
     } else {
       // 添加收藏
+      String groupName = getGroupName(channelId);
+      String channelName = getChannelName(channelId);
+
+      if (favoriteList.playList['我的收藏']![groupName] == null) {
+        favoriteList.playList['我的收藏']![groupName] = {};
+      }
+
       PlayModel newFavorite = PlayModel(
         id: channelId,
-        title: getChannelName(channelId),
-        group: getGroupName(channelId),
+        title: channelName,
+        group: groupName,
         urls: getPlayUrls(channelId),
         logo: _currentChannel?.logo,
       );
-      favoriteList.playList['我的收藏']![channelId] = newFavorite;
+      favoriteList.playList['我的收藏']![groupName]![channelName] = newFavorite;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
       LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList.playList)}');
     }
-    
+
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
       try {
-        await _saveFavoriteList(favoriteList); 
-        setState(() {}); 
+        await _saveFavoriteList(favoriteList);
+        setState(() {});
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
@@ -446,7 +460,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           // 返回第一个有效播放地址
           for (PlayModel? channel in channelMap.values) {
             if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-              return channel;  
+              return channel;
             }
           }
         }
@@ -457,12 +471,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 返回第一个有效播放地址
         for (PlayModel? channel in channelMap.values) {
           if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-            return channel; 
+            return channel;
           }
         }
       }
     }
-    return null; 
+    return null;
   }
 
   /// 异步加载视频数据和版本检测
@@ -512,17 +526,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 处理 EPG 数据加载
       if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
         try {
-          EpgUtil.loadEPGXML(_videoMap!.epgUrl!); 
+          EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
         } catch (e, stackTrace) {
-          LogUtil.logError('加载EPG数据时出错', e, stackTrace); 
+          LogUtil.logError('加载EPG数据时出错', e, stackTrace);
         }
       } else {
-        EpgUtil.resetEPGXML(); 
+        EpgUtil.resetEPGXML();
       }
     } else {
       // 播放列表为空
       setState(() {
-        _currentChannel = null; 
+        _currentChannel = null;
         toastString = 'UNKNOWN';
       });
     }
@@ -532,8 +546,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void dispose() {
     // 禁用保持屏幕唤醒功能
     WakelockPlus.disable();
-    _isDisposing = true; 
-    _disposePlayer(); 
+    _isDisposing = true;
+    _disposePlayer();
     super.dispose();
   }
 
@@ -593,7 +607,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               onTapChannel: _onTapChannel,
               isLandscape: false,
             ),
-          toggleFavorite: toggleFavorite, 
+          toggleFavorite: toggleFavorite,
           isChannelFavorite: isChannelFavorite,
           );
         },
@@ -626,8 +640,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       aspectRatio: aspectRatio,
                       drawerIsOpen: _drawerIsOpen,
                       changeChannelSources: _changeChannelSources,
-                      isChannelFavorite: isChannelFavorite, 
-                      toggleFavorite: toggleFavorite, 
+                      isChannelFavorite: isChannelFavorite,
+                      toggleFavorite: toggleFavorite,
                       isLandscape: true),
             ),
           );
@@ -638,7 +652,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 通过底部弹出框选择不同的视频源
   Future<void> _changeChannelSources() async {
-    List<String>? sources = _currentChannel?.urls; 
+    List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
       LogUtil.e('未找到有效的视频源');
       return;
@@ -662,19 +676,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   maxWidth: MediaQuery.of(context).size.width * 0.7,
                 ),
                 child: Wrap(
-                  spacing: 10,   
-                  runSpacing: 10, 
+                  spacing: 10,
+                  runSpacing: 10,
                   children: List.generate(sources.length, (index) {
                     return ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: 60), 
+                      constraints: BoxConstraints(minWidth: 60),
                       child: OutlinedButton(
                         autofocus: _sourceIndex == index,
                         style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), 
-                          backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!, 
+                          padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6),
+                          backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!,
                           side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12), 
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         onPressed: _sourceIndex == index
@@ -687,7 +701,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 15,
-                            color: _sourceIndex == index ? Colors.white : Colors.black, 
+                            color: _sourceIndex == index ? Colors.white : Colors.black,
                           ),
                         ),
                       ),
@@ -704,7 +718,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (selectedIndex != null && _sourceIndex != selectedIndex) {
         _sourceIndex = selectedIndex;
         _playVideo();
-      } 
+      }
     } catch (modalError, modalStackTrace) {
       LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     }
