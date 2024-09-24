@@ -90,7 +90,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 是否处于释放状态
   bool _isDisposing = false;
 
-  // 快速切换时的竞态条件
+  // 切换时的竞态条件
   bool _isSwitchingChannel = false;
 
   // 超时检测时间
@@ -101,15 +101,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 收藏列表相关
   PlaylistModel favoriteList = PlaylistModel(playList: {});
 
-  /// 播放新视频前，解析当前频道的视频源
+  /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
 
-    LogUtil.i('播放前检查竞态条件：$_isSwitchingChannel');
-    LogUtil.i('播放前检查资源释放：$_isDisposing');
+    LogUtil.i('检查竞态条件：$_isSwitchingChannel');
+    LogUtil.i('检查资源释放：$_isDisposing');
 
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
-    // 释放旧的资源
+    // 释放旧资源
     await _disposePlayer();
 
     _isSwitchingChannel = true;
@@ -169,7 +169,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         toastString = S.current.loading; // 显示加载状态
       });
 
-      // 播放成功，重置重试次数计数器
+      // 播放成功，重置重试计数器
       _retryCount = 0;
       _timeoutActive = false;
       _playerController?.addListener(_videoListener);
@@ -190,7 +190,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (!_isDisposing) {
       _isDisposing = true;
       try {
-        _timeoutActive = false; // 停止超时检测，避免后续重试
+        _timeoutActive = false; // 停止超时检测
         _playerController?.removeListener(_videoListener); // 移除监听器
         await _playerController?.dispose(); // 释放资源
       } catch (e, stackTrace) {
@@ -210,7 +210,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 超时检测，超时后未播放则自动重试
+  /// 超时检测，超时自动重试
   void _startTimeoutCheck() {
     _timeoutActive = true;
     Future.delayed(Duration(seconds: timeoutSeconds), () {
@@ -223,7 +223,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 处理播放失败的逻辑，进行重试或切换线路
   void _retryPlayback() {
-    _timeoutActive = false; // 处理失败，取消超时
+    _timeoutActive = false;
     _retryCount += 1;
 
     if (_retryCount <= maxRetries) {
@@ -257,15 +257,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
     return await DialogUtil.showCustomDialog(
       context,
-      title: S.of(context).foundStreamTitle,  // 动态传入标题
-      content: S.of(context).streamUrlContent(url),  // 动态传入内容
+      title: S.of(context).foundStreamTitle,  // 传入标题
+      content: S.of(context).streamUrlContent(url),  // 传入内容
       positiveButtonLabel: S.of(context).playButton,
       onPositivePressed: () {
-        Navigator.of(context).pop(true);  // 用户确认播放
+        Navigator.of(context).pop(true);  // 确认播放
       },
       negativeButtonLabel: S.of(context).cancelButton,
       onNegativePressed: () {
-        Navigator.of(context).pop(false);  // 用户取消播放
+        Navigator.of(context).pop(false);  // 取消播放
       },
       isDismissible: false,  // 禁止点击外部关闭
     ) ?? false;
@@ -396,11 +396,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');
     bool isFavoriteChanged = false;
+    String actualChannelId = _currentChannel?.id ?? channelId;
 
-    if (isChannelFavorite(channelId)) {
+    if (isChannelFavorite(actualChannelId)) {
       // 取消收藏
-      String groupName = getGroupName(channelId);
-      String channelName = getChannelName(channelId);
+      String groupName = getGroupName(actualChannelId);
+      String channelName = getChannelName(actualChannelId);
       favoriteList.playList['我的收藏']![groupName]?.remove(channelName);
       if (favoriteList.playList['我的收藏']![groupName]?.isEmpty ?? true) {
         favoriteList.playList['我的收藏']!.remove(groupName);
@@ -411,18 +412,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
       isFavoriteChanged = true;
     } else {
       // 添加收藏
-      String groupName = getGroupName(channelId);
-      String channelName = getChannelName(channelId);
+      String groupName = getGroupName(actualChannelId);
+      String channelName = getChannelName(actualChannelId);
 
       if (favoriteList.playList['我的收藏']![groupName] == null) {
         favoriteList.playList['我的收藏']![groupName] = {};
       }
 
       PlayModel newFavorite = PlayModel(
-        id: channelId,
+        id: actualChannelId, 
         title: channelName,
         group: groupName,
-        urls: getPlayUrls(channelId),
+        urls: getPlayUrls(actualChannelId),
         logo: _currentChannel?.logo,
       );
       favoriteList.playList['我的收藏']![groupName]![channelName] = newFavorite;
