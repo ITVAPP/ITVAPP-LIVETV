@@ -52,6 +52,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     // 优先使用传入的 isLandscape 参数，如果为空，则动态判断当前设备的方向
     bool isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
 
+    // 获取当前频道 ID，确保传递给 TableVideoWidget
+    String currentChannelId = widget.controller?.value.id ?? 'exampleChannelId'; // 动态获取当前频道ID
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.black,  // 顶部 AppBar 背景为黑色
