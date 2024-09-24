@@ -208,7 +208,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             focusNode: _clearLogsButtonFocusNode, // 为清空日志按钮添加焦点
                             onPressed: () {
                               setState(() {
-                                LogUtil.clearLogs();
+                                if (_selectedLevel == 'all') {
+                                  LogUtil.clearLogs(); // 清空所有日志
+                                } else {
+                                  LogUtil.clearLogs(_selectedLevel); // 清空特定类型的日志
+                                }
                               });
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -248,7 +252,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
         },
         child: Text(label),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 2.0), // 调整按钮的左右内边距	
+          padding: const EdgeInsets.symmetric(horizontal: 2.0), // 调整按钮的左右内边距
           shape: _buttonShape, // 统一圆角样式
           side: BorderSide(color: _selectedLevel == level ? _selectedColor : _unselectedColor),
           backgroundColor: _selectedLevel == level ? _selectedColor.withOpacity(0.1) : Colors.transparent,
