@@ -354,6 +354,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 添加或取消收藏
   void toggleFavorite(String channelId) async {
+    LogUtil.i('修改前的收藏列表类型: ${favoriteList.playList.runtimeType}');
     LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');	
     // 确保 '我的收藏' 结构已存在
     if (favoriteList.playList['我的收藏'] == null) {
