@@ -329,41 +329,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 加载或初始化“我的收藏”列表
   Future<void> _loadFavorites() async {
-    final favoriteData = await _getCachedFavoriteM3uData();
-
-    if (favoriteData.isEmpty) {
-      // 如果没有缓存数据，初始化空的收藏列表
-      favoriteList = PlaylistModel(
-        playList: {"我的收藏": <String, Map<String, PlayModel>>{}},
-      );
-    } else {
-      // 如果有缓存数据，解析并加载“我的收藏”列表
-      favoriteList = PlaylistModel.fromString(favoriteData);
-    }
+    favoriteList = await M3uUtil.getOrCreateFavoriteList();
     LogUtil.i('初始收藏列表: ${jsonEncode(favoriteList.playList)}');
     setState(() {});
-  }
-
-  /// 从本地缓存中获取“我的收藏”列表
-  static Future<String> _getCachedFavoriteM3uData() async {
-    try {
-      return SpUtil.getString(LiveHomePage.favoriteCacheKey, defValue: '') ?? '';
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取本地缓存的“我的收藏”列表失败', e, stackTrace);
-      return '';
-    }
-  }
-
-  /// 保存更新后的“我的收藏”到本地缓存
-  static Future<void> _saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    try {
-      await SpUtil.putString(LiveHomePage.favoriteCacheKey, favoritePlaylist.toString());
-      LogUtil.i('新的收藏列表: ${jsonEncode(favoritePlaylist.playList)}');
-      LogUtil.i('收藏列表成功保存到本地缓存');
-    } catch (e, stackTrace) {
-      LogUtil.logError('保存收藏列表到本地缓存失败', e, stackTrace);
-      throw '收藏保存失败'; // 确保错误被捕获并处理
-    }
   }
 
   // 获取当前频道的分组名字
@@ -420,7 +388,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
 
       PlayModel newFavorite = PlayModel(
-        id: actualChannelId, 
+        id: actualChannelId,
         title: channelName,
         group: groupName,
         urls: getPlayUrls(actualChannelId),
@@ -437,7 +405,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
       try {
-        await _saveFavoriteList(favoriteList);
+        await M3uUtil.saveFavoriteList(favoriteList);
         setState(() {});
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -608,10 +576,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
               onTapChannel: _onTapChannel,
               isLandscape: false,
             ),
-          toggleFavorite: toggleFavorite,
-          currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
-          isChannelFavorite: isChannelFavorite,
-          );
+            toggleFavorite: toggleFavorite,
+            currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+            isChannelFavorite: isChannelFavorite,
+            );
         },
         landscape: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
