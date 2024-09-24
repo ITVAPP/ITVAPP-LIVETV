@@ -609,6 +609,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               isLandscape: false,
             ),
           toggleFavorite: toggleFavorite,
+          currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
           isChannelFavorite: isChannelFavorite,
           );
         },
@@ -642,6 +643,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       drawerIsOpen: _drawerIsOpen,
                       changeChannelSources: _changeChannelSources,
                       isChannelFavorite: isChannelFavorite,
+                      currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
                       toggleFavorite: toggleFavorite,
                       isLandscape: true),
             ),
