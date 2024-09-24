@@ -115,7 +115,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   Widget build(BuildContext context) {
-    String currentChannelId = 'exampleChannelId'; // 获取当前播放频道的ID，实际需要传递或获取该ID
+    String currentChannelId = widget.controller?.value.id ?? 'exampleChannelId'; // 获取当前播放频道的ID，确保动态更新
 
     return Stack(
       children: [
