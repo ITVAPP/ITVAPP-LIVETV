@@ -328,7 +328,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 加载或初始化“我的收藏”列表
   Future<void> _loadFavorites() async {
     favoriteList = await M3uUtil.getOrCreateFavoriteList();
-    LogUtil.i('初始收藏列表: ${jsonEncode(favoriteList.playList)}');
   }
 
   // 获取当前频道的分组名字
@@ -355,6 +354,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 添加或取消收藏
   void toggleFavorite(String channelId) async {
+    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');	
     // 确保 '我的收藏' 结构已存在
     if (favoriteList.playList['我的收藏'] == null) {
       favoriteList.playList['我的收藏'] = {};
