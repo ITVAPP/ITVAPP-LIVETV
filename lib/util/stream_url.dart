@@ -1,7 +1,8 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'dart:async';
 
 class StreamUrl {
   final String url;
@@ -87,7 +88,7 @@ class StreamUrl {
     String? m3u8Url;
     try {
       m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-       LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
+      LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
       return m3u8Url;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
@@ -153,7 +154,7 @@ class StreamUrl {
     try {
       final response = await _client.get(  // 使用 _client 进行请求
         Uri.parse(youtubeUrl),
-        headers: {'User-Agent': 'Mozilla/5.0'},
+        headers: _getRequestHeaders(),
       ).timeout(timeoutDuration);
       if (_isDisposed) return null;  // 资源释放后立即退出
 
@@ -243,5 +244,16 @@ class StreamUrl {
       }
     }
     return null;
+  }
+
+  // 提取 User-Agent 和其他 HTTP 请求头
+  Map<String, String> _getRequestHeaders() {
+    return {
+      HttpHeaders.userAgentHeader:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      HttpHeaders.acceptEncodingHeader: 'gzip, deflate, br',
+      HttpHeaders.acceptHeader: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      HttpHeaders.connectionHeader: 'keep-alive',
+    };
   }
 }
