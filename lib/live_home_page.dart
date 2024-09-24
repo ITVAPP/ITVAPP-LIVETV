@@ -359,7 +359,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (favoriteList.playList['我的收藏'] == null) {
       favoriteList.playList['我的收藏'] = {};
     }
-    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
 
@@ -399,11 +398,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList.playList)}');
     }
 
-    // 仅在收藏状态改变时更新UI
     if (isFavoriteChanged) {
       try {
         await M3uUtil.saveFavoriteList(favoriteList);
-        setState(() {});
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
