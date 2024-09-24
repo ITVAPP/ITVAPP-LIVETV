@@ -85,8 +85,6 @@ class M3uUtil {
       // 在 updateFavoriteChannelsWithRemoteData 之前记录 parsedData
       LogUtil.i('解析后的播放列表类型: ${parsedData.playList.runtimeType}');
       LogUtil.i('解析后的播放列表内容: ${jsonEncode(parsedData.playList)}');
-      LogUtil.i('解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
-      LogUtil.i('获取我的收藏列表内容: ${jsonEncode(favoritePlaylist.playList)}');
 
       // 更新“我的收藏”列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData);
@@ -130,6 +128,8 @@ class M3uUtil {
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
+      LogUtil.i('本地我的收藏列表内容: ${favoriteData}');
+      LogUtil.i('解析后的我的收藏列表内容: ${PlaylistModel.fromString(favoriteData)}');
       return PlaylistModel.fromString(favoriteData);
     }
   }
