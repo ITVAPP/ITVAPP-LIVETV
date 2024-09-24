@@ -320,10 +320,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
 
     // 加载收藏列表
-    _loadFavorites().then((_) {
-      setState(() {});  // 收藏加载完成后刷新 UI
-    }).catchError((error) {
-      LogUtil.logError('初始化收藏列表时出错', error);
+    _loadFavorites().catchError((error) {
+      LogUtil.e('初始化收藏列表时出错');
     });
   }
 
@@ -331,7 +329,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _loadFavorites() async {
     favoriteList = await M3uUtil.getOrCreateFavoriteList();
     LogUtil.i('初始收藏列表: ${jsonEncode(favoriteList.playList)}');
-    setState(() {});
   }
 
   // 获取当前频道的分组名字
