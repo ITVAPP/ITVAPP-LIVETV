@@ -27,7 +27,7 @@ class HttpUtil {
       ..interceptors.add(LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: LogUtil.v, // 使用自定义的日志工具打印日志
+        // logPrint: LogUtil.v, // 使用自定义的日志工具打印日志
       ));
   }
 
@@ -75,8 +75,6 @@ class HttpUtil {
       {ValueChanged<double>? progressCallback}) async {
     Response? response;
     try {
-      LogUtil.i('开始下载文件: $url');
-      
       // 执行下载操作
       response = await _dio.download(
         url,
@@ -111,7 +109,6 @@ class HttpUtil {
 
 // 错误处理方法，记录日志并显示不同的提示
 void formatError(DioException e) {
-  LogUtil.v('DioException>>>>>$e');
   LogUtil.safeExecute(() {
     if (e.type == DioExceptionType.connectionTimeout) {
       // 连接超时
