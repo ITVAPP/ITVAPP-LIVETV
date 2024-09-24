@@ -23,7 +23,7 @@ class MobileVideoWidget extends StatefulWidget {
   final GestureTapCallback onChangeSubSource; // 数据源更改回调
   final Function(String) toggleFavorite; 
   final bool Function(String) isChannelFavorite;
-  final String currentChannelId; 
+  final String currentChannelId; // 当前频道ID
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -36,6 +36,7 @@ class MobileVideoWidget extends StatefulWidget {
     required this.onChangeSubSource,
     required this.toggleFavorite, 
     required this.isChannelFavorite,
+    required this.currentChannelId,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
