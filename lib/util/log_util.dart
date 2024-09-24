@@ -42,20 +42,20 @@ class LogUtil {
     }
 
     final timestamp = DateTime.now().toIso8601String();
-    _log('e', '[$timestamp] 错误: $message\n错误详情: $error\n堆栈信息: $stackTrace', _defTag);
+    _log('e', '[$timestamp] 错误: $message\n错误详情: $error\n堆栈信息: ${_processStackTrace(stackTrace)}', _defTag);
   }
 
   // 安全执行方法，捕获并记录异常
-  static void safeExecute(void Function()? action, String errorMessage) {
+  static void safeExecute(void Function()? action, String errorMessage, [StackTrace? stackTrace]) {
     if (action == null) {
-      logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', StackTrace.current);
+      logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', stackTrace ?? StackTrace.current);
       return;
     }
 
     try {
       action(); // 执行传入的函数
-    } catch (error, stackTrace) {
-      logError(errorMessage, error, stackTrace); // 捕获并记录异常
+    } catch (error, st) {
+      logError(errorMessage, error, st); // 捕获并记录异常
     }
   }
 
@@ -109,7 +109,9 @@ class LogUtil {
 
         // 修改后的正则表达式，忽略列号，只捕获文件名和行号
         final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
-        if (match != null) {
+
+        // 过滤掉与 LogUtil 相关的堆栈帧
+        if (match != null && !frame.contains('log_util.dart')) {
           // 返回捕获到的文件名和行号
           return '${match.group(1)}:${match.group(2)}';
         }
@@ -117,6 +119,23 @@ class LogUtil {
     } catch (e) {
       return 'Unknown'; // 捕获任何异常，避免日志记录失败
     }
+    return 'Unknown';
+  }
+
+  // 提取和处理堆栈信息，过滤掉无关帧
+  static String _processStackTrace(StackTrace stackTrace) {
+    final frames = stackTrace.toString().split('\n');
+  
+    for (int i = 2; i < frames.length; i++) {
+      final frame = frames[i];
+
+      // 忽略 log_util.dart 中的堆栈信息
+      final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
+      if (match != null && !frame.contains('log_util.dart')) {
+        return '${match.group(1)}:${match.group(2)}'; // 返回业务代码文件和行号
+      }
+    }
+
     return 'Unknown';
   }
 
