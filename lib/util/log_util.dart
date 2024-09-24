@@ -99,10 +99,10 @@ class LogUtil {
     try {
       final frames = StackTrace.current.toString().split('\n');
       if (frames.length > 1) {
-        final frame = frames[2]; // 获取第 2 帧，跳过当前帧
-        final match = RegExp(r'[^/]+\.dart:\d+:\d+').firstMatch(frame);
+        final frame = frames[1]; // 获取第 1 帧，跳过当前帧
+        final match = RegExp(r'([^/]+\.dart):(\d+):(\d+)').firstMatch(frame);
         if (match != null) {
-          return match.group(0) ?? 'Unknown';
+          return '${match.group(1)}:${match.group(2)}'; // 返回文件名和行号
         }
       }
     } catch (e) {
