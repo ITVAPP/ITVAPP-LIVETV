@@ -287,14 +287,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 非横屏时右下角的旋转按钮和收藏按钮
         if (!widget.isLandscape)
           Positioned(
-            right: 12,
-            bottom: 10,
+            right: 8,
+            bottom: 5,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // 收藏按钮
                 buildFavoriteButton(currentChannelId, false),
-                const SizedBox(height: 5),
+                const SizedBox(height: 0),
                 // 旋转按钮
                 IconButton(
                   tooltip: S.current.landscape,
