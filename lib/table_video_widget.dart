@@ -31,6 +31,7 @@ class TableVideoWidget extends StatefulWidget {
     required this.drawerIsOpen,
     required this.toggleFavorite,
     required this.isChannelFavorite,
+    required this.currentChannelId,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -117,7 +118,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   Widget build(BuildContext context) {
-    String currentChannelId = widget.controller?.value.id ?? 'exampleChannelId'; // 获取当前播放频道的ID，确保动态更新
+    String currentChannelId = widget.currentChannelId;
 
     return Stack(
       children: [
