@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:sp_util/sp_util.dart';
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
+import '../config.dart';
 
 /// 封装 M3U 数据
 class M3uResult {
@@ -19,11 +20,6 @@ class M3uResult {
 
 class M3uUtil {
   M3uUtil._();
-
-  /// 定义收藏列表的本地缓存键
-  static const String favoriteCacheKey = 'favorite_m3u_cache';
-  /// 定义播放列表的本地缓存键
-  static const String m3uCacheKey = 'm3u_cache';
 
   /// 获取本地播放列表，如果本地缓存数据为空，则尝试获取远程播放列表
   static Future<M3uResult> getLocalM3uData() async {
@@ -68,7 +64,6 @@ class M3uUtil {
         // 如果有多个 URL，调用 fetchAndMergeM3uData 进行合并
         parsedData = await fetchAndMergeM3uData(m3uData) ?? PlaylistModel();
       } else {
-        // 仅有一个 URL，正常解析
         parsedData = await _parseM3u(m3uData);
       }
 
@@ -118,7 +113,7 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          "我的收藏": <String, Map<String, PlayModel>>{}, 
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, 
         }
       );
       LogUtil.i('创建收藏列表: ${jsonEncode(favoritePlaylist.playList)}');
@@ -137,15 +132,15 @@ class M3uUtil {
       Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
       PlaylistModel favoritePlaylist) {
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-    if (favoritePlaylist.playList?["我的收藏"] != null && favoritePlaylist.playList!["我的收藏"]!.isNotEmpty) {
-      updatedPlaylist["我的收藏"] = favoritePlaylist.playList!["我的收藏"]!;
+    if (favoritePlaylist.playList?[Config.myFavoriteKey] != null && favoritePlaylist.playList![Config.myFavoriteKey]!.isNotEmpty) {
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     } else {
-      updatedPlaylist["我的收藏"] = {}; // 插入一个空的收藏列表
+      updatedPlaylist[Config.myFavoriteKey] = {}; // 插入一个空的收藏列表
     }
 
     // 将其余分类添加到新播放列表中
     originalPlaylist?.forEach((key, value) {
-      if (key != "我的收藏") {
+      if (key != Config.myFavoriteKey) {
         updatedPlaylist[key] = value;
       }
     });
@@ -155,13 +150,13 @@ class M3uUtil {
 
   /// 保存更新后的收藏列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    await SpUtil.putString(favoriteCacheKey, favoritePlaylist.toString());
+    await SpUtil.putString(Config.favoriteCacheKey, favoritePlaylist.toString());
   }
 
   /// 从本地缓存中获取收藏列表
   static Future<String> _getCachedFavoriteM3uData() async {
     try {
-      return SpUtil.getString(favoriteCacheKey, defValue: '') ?? '';
+      return SpUtil.getString(Config.favoriteCacheKey, defValue: '') ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地收藏列表失败', e, stackTrace);
       return '';
@@ -183,7 +178,7 @@ class M3uUtil {
   /// 更新收藏列表中的频道播放地址（仅当远程列表有更新）
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) { 
     // 获取收藏分类中的频道
-    final favoriteCategory = favoritePlaylist.playList?["我的收藏"];
+    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
 
     // 使用 Set 来记录已更新的 id，避免重复更新
@@ -361,7 +356,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
   /// 获取本地缓存播放列表
   static Future<String> _getCachedM3uData() async {
     try {
-      return SpUtil.getString(m3uCacheKey, defValue: '') ?? '';
+      return SpUtil.getString(Config.m3uCacheKey, defValue: '') ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地缓存M3U数据失败', e, stackTrace);
       return '';
@@ -371,7 +366,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
   /// 保存播放列表到本地缓存
   static Future<void> _saveCachedM3uData(String data) async {
     try {
-      await SpUtil.putString(m3uCacheKey, data);
+      await SpUtil.putString(Config.m3uCacheKey, data);
     } catch (e, stackTrace) {
       LogUtil.logError('保存播放列表到本地缓存失败', e, stackTrace);
     }
@@ -395,7 +390,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     final playListModel = PlaylistModel();
     playListModel.playList = <String, Map<String, Map<String, PlayModel>>>{};
 
-    String currentCategory = '所有频道';  // 初始化分类为默认 "所有频道"
+    String currentCategory = Config.allChannelsKey;  // 初始化分类为默认 "所有频道"
     bool hasCategory = false;  // 标记是否有 #CATEGORY 行
 
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
@@ -416,7 +411,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           currentCategory = line.replaceFirst('#CATEGORY:', '').trim();
           hasCategory = true;
           if (currentCategory.isEmpty) {
-            currentCategory = '所有频道'; // 如果为空则回归默认分类
+            currentCategory = Config.allChannelsKey; // 如果为空则回归默认分类
           }
         } else if (line.startsWith('#EXTINF:')) {
           if (line.startsWith('#EXTINF:-1,')) {
@@ -454,7 +449,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
 
           // 确保在没有 #CATEGORY 时，currentCategory 始终是 '所有频道'
           if (!hasCategory) {
-            currentCategory = '所有频道';
+            currentCategory = Config.allChannelsKey;
           }
 
           if (groupStr.isNotEmpty) {
