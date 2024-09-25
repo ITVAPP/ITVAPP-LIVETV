@@ -78,7 +78,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
               ? null
               : Container(
                   width: containerWidth, // 动态宽度
-                  height: 30, // 调节条加背景的总高度
+                  height: 28, // 调节条加背景的总高度
                   padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.5),
@@ -99,7 +99,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
                       ),
                       Expanded(
                         child: SizedBox(
-                          height: 18,  // 调节条高度设置为18
+                          height: 16,  // 调节条高度设置为18
                           child: LinearProgressIndicator(
                             value: _controlType == 1 ? _brightness : _volume,
                             backgroundColor: Colors.white.withOpacity(0.5),
