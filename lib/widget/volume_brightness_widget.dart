@@ -73,13 +73,13 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
         },
         child: Container(
           alignment: Alignment.topCenter,  // 确保调节条水平居中
-          padding: const EdgeInsets.only(top: 20),  // 调节条距离顶部20
+          padding: const EdgeInsets.only(top: 10),  // 调节条距离顶部10
           child: _controlType == 0
               ? null
               : Container(
                   width: containerWidth, // 动态宽度
-                  height: 28, // 调节条加背景的总高度
-                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                  height: 30, // 调节条加背景的总高度
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(15),
