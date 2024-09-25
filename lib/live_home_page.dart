@@ -409,13 +409,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       try {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(favoriteList);
+        final Map<String, Map<String, Map<String, PlayModel>>> newfavoriteList = favoriteList;
       LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.playList.runtimeType}');
       LogUtil.i('更新收藏检查播放列表: ${_videoMap?.playList[Config.myFavoriteKey]}');
-      LogUtil.i('更新收藏检查收藏列表类型: ${favoriteList.playList.runtimeType}');
-      LogUtil.i('更新收藏检查收藏列表: ${favoriteList.playList[Config.myFavoriteKey]}');
+      LogUtil.i('更新收藏检查收藏列表类型: ${newfavoriteList.playList.runtimeType}');
+      LogUtil.i('更新收藏检查收藏列表: ${newfavoriteList.playList[Config.myFavoriteKey]}');
         // 更新播放列表中的收藏部分
-        if (_videoMap?.playList[Config.myFavoriteKey] != null && favoriteList.playList[Config.myFavoriteKey] != null) {
-          _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]!;
+        if (_videoMap?.playList[Config.myFavoriteKey] != null && newfavoriteList.playList[Config.myFavoriteKey] != null) {
+          _videoMap?.playList[Config.myFavoriteKey] = newfavoriteList.playList[Config.myFavoriteKey]!;
         }
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap!.toString());
