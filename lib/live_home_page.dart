@@ -410,7 +410,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(favoriteList);
         // 更新播放列表中的收藏部分
-        _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]! as Map<String, Map<String, PlayModel>>;
+        if (widget.m3uData?.playList != null && favoriteList.playList[Config.myFavoriteKey] != null) {
+          widget.m3uData?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]!;
+        }
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap!.toString());
         setState(() {}); // 重新渲染频道列表
@@ -470,7 +472,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 解析并加载本地播放列表
   Future<void> _parseData() async {
     try {
-      LogUtil.i('接收传递的播放列表不正确，重新加载');
       final resMap = await M3uUtil.getLocalM3uData();
       _videoMap = resMap.data;
       _sourceIndex = 0;
