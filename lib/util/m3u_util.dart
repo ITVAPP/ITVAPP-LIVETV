@@ -78,7 +78,7 @@ class M3uUtil {
       LogUtil.i('解析后的播放列表内容: ${jsonEncode(parsedData.playList)}');
 
       // 更新收藏列表中的频道播放地址
-      await updateFavoriteChannelsWithRemoteData(parsedData);
+      await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, favoritePlaylist);
@@ -163,10 +163,9 @@ class M3uUtil {
   }
 
   /// 更新本地收藏列表中的频道播放地址
-  static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist) async {
+  static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist, PlaylistModel favoritePlaylist) async {
     // 更新收藏列表中的频道播放地址
     _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
-
     // 保存更新后的收藏列表
     await saveFavoriteList(favoritePlaylist);
   }
