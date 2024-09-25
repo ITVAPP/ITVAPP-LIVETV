@@ -24,17 +24,13 @@ import 'util/dialog_util.dart';
 import 'widget/empty_page.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
+import '../config.dart';
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
-
-  /// 定义“我的收藏”列表的本地缓存键
-  static const String favoriteCacheKey = 'favorite_m3u_cache';
-  /// 定义播放列表的本地缓存键
-  static const String m3uCacheKey = 'm3u_cache';
 
   @override
   State<LiveHomePage> createState() => _LiveHomePageState();
@@ -325,7 +321,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  /// 加载或初始化“我的收藏”列表
+  /// 加载或初始化收藏列表
   Future<void> _loadFavorites() async {
     favoriteList = await M3uUtil.getOrCreateFavoriteList();
   }
@@ -349,16 +345,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
-    return favoriteList.playList['我的收藏']?[groupName]?.containsKey(channelName) ?? false;
+    return favoriteList.playList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
   }
 
   // 添加或取消收藏
   void toggleFavorite(String channelId) async {
     LogUtil.i('修改前的收藏列表类型: ${favoriteList.playList.runtimeType}');
-    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');	
-    // 确保 '我的收藏' 结构已存在
-    if (favoriteList.playList['我的收藏'] == null) {
-      favoriteList.playList['我的收藏'] = {};
+    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');
+    if (favoriteList.playList[Config.myFavoriteKey] == null) {
+      favoriteList.playList[Config.myFavoriteKey] = {};
     }
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
@@ -367,9 +362,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 取消收藏
       String groupName = getGroupName(actualChannelId);
       String channelName = getChannelName(actualChannelId);
-      favoriteList.playList['我的收藏']![groupName]?.remove(channelName);
-      if (favoriteList.playList['我的收藏']![groupName]?.isEmpty ?? true) {
-        favoriteList.playList['我的收藏']!.remove(groupName);
+      favoriteList.playList[Config.myFavoriteKey]![groupName]?.remove(channelName);
+      if (favoriteList.playList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
+        favoriteList.playList[Config.myFavoriteKey]!.remove(groupName);
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 3))
@@ -380,8 +375,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String groupName = getGroupName(actualChannelId);
       String channelName = getChannelName(actualChannelId);
 
-      if (favoriteList.playList['我的收藏']![groupName] == null) {
-        favoriteList.playList['我的收藏']![groupName] = {};
+      if (favoriteList.playList[Config.myFavoriteKey]![groupName] == null) {
+        favoriteList.playList[Config.myFavoriteKey]![groupName] = {};
       }
 
       PlayModel newFavorite = PlayModel(
@@ -391,11 +386,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         urls: getPlayUrls(actualChannelId),
         logo: _currentChannel?.logo,
       );
-      favoriteList.playList['我的收藏']![groupName]![channelName] = newFavorite;
+      favoriteList.playList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
+      LogUtil.i('修改后的收藏列表类型: ${favoriteList.playList.runtimeType}');
       LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList.playList)}');
     }
 
