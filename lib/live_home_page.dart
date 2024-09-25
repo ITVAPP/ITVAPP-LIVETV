@@ -24,7 +24,7 @@ import 'util/dialog_util.dart';
 import 'widget/empty_page.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
-import '../config.dart';
+import 'config.dart';
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
