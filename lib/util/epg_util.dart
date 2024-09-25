@@ -60,7 +60,10 @@ class EpgUtil {
     }
 
     // 发起新的网络请求获取EPG数据
-    cancelToken?.cancel();  // 如果传入了 cancelToken，取消之前的请求
+    if (cancelToken?.isCancelled == true) {
+      return null;
+    }
+    
     final epgRes = await HttpUtil().getRequest(
       'https://epg.v1.mk/json?ch=$channel&date=$date',
       cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
