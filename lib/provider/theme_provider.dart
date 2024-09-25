@@ -1,25 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../util/font_util.dart';
-import '../util/env_util.dart'; // 导入用于检测设备的工具类
-import '../util/log_util.dart'; // 导入日志工具
+import '../util/env_util.dart';
+import '../util/log_util.dart';
+import '../config.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  String _fontFamily = 'system'; // 默认字体为系统字体
-  double _textScaleFactor = 1.0; // 默认文本缩放比例为 1.0
+  String _fontFamily = Config.defaultFontFamily; // 默认字体
+  double _textScaleFactor = Config.defaultTextScaleFactor; // 默认文本缩放比例
+  bool _isLogOn = Config.defaultLogOn; // 默认日志开关状态
+  bool _isBingBg = Config.defaultBingBg; // 默认Bing背景设置
   String _fontUrl = ''; // 默认字体 URL 为空
-  bool _isBingBg = false; // 默认不启用 Bing 背景
   bool _isTV = false; // 默认不是 TV 设备
-  bool _isLogOn = true; // 默认日志功能开启
   SharedPreferences? _prefs; // 缓存 SharedPreferences 实例
 
   // 标记是否需要通知 UI 更新，避免不必要的重绘
   bool _shouldNotify = false;
 
-  // 新增：标记初始化是否完成
+  // 标记初始化是否完成
   bool _isInitialized = false;
 
-  bool get isInitialized => _isInitialized; // 新增：获取初始化状态
+  bool get isInitialized => _isInitialized; // 获取初始化状态
 
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
@@ -47,23 +48,23 @@ class ThemeProvider extends ChangeNotifier {
         await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
 
         // 读取各项设置的值，读取不到则使用默认值
-        _fontFamily = _prefs?.getString('appFontFamily') ?? 'system'; // 读取字体，默认'system'
+        _fontFamily = _prefs?.getString('appFontFamily') ?? Config.defaultFontFamily; // 使用默认字体
         _fontUrl = _prefs?.getString('appFontUrl') ?? ''; // 读取字体URL，默认空
-        _textScaleFactor = _prefs?.getDouble('fontScale') ?? 1.0; // 读取文本缩放，默认 1.0
-        _isBingBg = _prefs?.getBool('bingBg') ?? false; // 读取 Bing 背景设置，默认 false
+        _textScaleFactor = _prefs?.getDouble('fontScale') ?? Config.defaultTextScaleFactor; // 使用默认文本缩放比例
+        _isBingBg = _prefs?.getBool('bingBg') ?? Config.defaultBingBg; // 使用默认 Bing 背景设置
         _isTV = _prefs?.getBool('isTV') ?? false; // 读取是否 TV 设备设置，默认 false
-        _isLogOn = _prefs?.getBool('LogOn') ?? true; // 读取日志开关，默认 true
+        _isLogOn = _prefs?.getBool('LogOn') ?? Config.defaultLogOn; // 使用默认日志开关
 
         // 设置日志记录开关
         LogUtil.setDebugMode(_isLogOn);
 
         // 如果字体不是系统默认字体，则加载自定义字体
-        if (_fontFamily != 'system') {
+        if (_fontFamily != Config.defaultFontFamily) {
           FontUtil().loadFont(_fontUrl, _fontFamily);
         }
 
         _shouldNotify = true; // 标记数据已更新，需要通知 UI
-        _isInitialized = true; // 新增：标记初始化完成
+        _isInitialized = true; // 标记初始化完成
         _notifyIfNeeded(); // 通知 UI 更新
       }, '初始化 ThemeProvider 时出错');
     } catch (e, stackTrace) {
