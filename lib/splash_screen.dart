@@ -50,7 +50,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // 获取设备类型并存储到 Provider 中
         await themeProvider.checkAndSetIsTV();
-        LogUtil.i('设备类型检查成功并已存储');
 
         // 然后获取 M3U 数据
         setState(() {
