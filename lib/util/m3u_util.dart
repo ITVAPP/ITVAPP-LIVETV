@@ -85,7 +85,7 @@ class M3uUtil {
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, favoritePlaylist);
 
       // 保存播放列表到本地缓存
-      await _saveCachedM3uData(parsedData.toString());
+      await saveCachedM3uData(parsedData.toString());
 
       LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}');
       LogUtil.i('保存后的播放列表内容: ${jsonEncode(parsedData.playList)}');
@@ -364,7 +364,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
   }
 
   /// 保存播放列表到本地缓存
-  static Future<void> _saveCachedM3uData(String data) async {
+  static Future<void> saveCachedM3uData(String data) async {
     try {
       await SpUtil.putString(Config.m3uCacheKey, data);
     } catch (e, stackTrace) {
