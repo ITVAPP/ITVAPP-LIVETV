@@ -55,7 +55,7 @@ class M3uUtil {
         final PlaylistModel cachedData = PlaylistModel.fromString(await _getCachedM3uData());
 
         // 检查本地缓存是否为空
-        if (cachedData == null || cachedData.playList.isEmpty) {
+        if (cachedData == null || cachedData.playList == null) {
           return M3uResult(errorMessage: '获取播放列表失败');
         }
 
@@ -75,7 +75,7 @@ class M3uUtil {
       }
 
       // 检查是否成功解析数据
-      if (parsedData.playList.isEmpty) {
+      if (parsedData == null || parsedData.playList == null) {
         return M3uResult(errorMessage: '解析播放列表失败');
       }
 
@@ -90,7 +90,7 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData);
 
       // 将“我的收藏”列表加入到播放列表中，并设置为第一个分类
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
+      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, favoritePlaylist);
 
       // 保存播放列表到本地缓存
       await _saveCachedM3uData(parsedData.toString());
@@ -122,7 +122,7 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的“我的收藏”列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          "我的收藏": <String, dynamic>{}, 
+          "我的收藏": <String, Map<String, PlayModel>>{}, 
         }
       );
       LogUtil.i('创建我的收藏列表内容: ${jsonEncode(favoritePlaylist.playList)}');
@@ -138,15 +138,15 @@ class M3uUtil {
   }
 
   /// 将“我的收藏”列表插入为播放列表的第一个分类
-  static Map<String, dynamic> _insertFavoritePlaylistFirst(
-      Map<String, dynamic>? originalPlaylist,
+  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
+      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
       PlaylistModel favoritePlaylist) {
     // 创建新的播放列表结构，确保“我的收藏”位于第一个位置
-    final updatedPlaylist = <String, dynamic>{};
+    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
 
     // 检查并插入“我的收藏”分类到第一个位置
-    if (favoritePlaylist.playList["我的收藏"] != null && favoritePlaylist.playList["我的收藏"]!.isNotEmpty) {
-      updatedPlaylist["我的收藏"] = favoritePlaylist.playList["我的收藏"]!;
+    if (favoritePlaylist.playList?["我的收藏"] != null && favoritePlaylist.playList!["我的收藏"]!.isNotEmpty) {
+      updatedPlaylist["我的收藏"] = favoritePlaylist.playList!["我的收藏"]!;
     } else {
       updatedPlaylist["我的收藏"] = {}; // 插入一个空的收藏列表
     }
@@ -191,54 +191,48 @@ class M3uUtil {
   /// 更新“我的收藏”列表中的频道播放地址（仅当远程列表有更新）
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) { 
     // 获取“我的收藏”分类中的频道
-    final favoriteCategory = favoritePlaylist.playList["我的收藏"];
+    final favoriteCategory = favoritePlaylist.playList?["我的收藏"];
     if (favoriteCategory == null) return;
 
     // 使用 Set 来记录已更新的 id，避免重复更新
     final Set<String> updatedTvgIds = {};
 
     // 遍历远程播放列表中的每个频道，基于 id 进行对比和更新
-    remotePlaylist.playList.forEach((category, groups) {
-      if (groups is Map<String, dynamic>) {
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map<String, PlayModel>) {
-            channels.forEach((channelName, remoteChannel) {
-              if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
-                // 如果这个 id 已经被更新过，则跳过
-                if (updatedTvgIds.contains(remoteChannel.id!)) return;
+    remotePlaylist.playList?.forEach((category, groups) {
+      groups.forEach((groupTitle, channels) {
+        channels.forEach((channelName, remoteChannel) {
+          if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
+            // 如果这个 id 已经被更新过，则跳过
+            if (updatedTvgIds.contains(remoteChannel.id!)) return;
 
-                // 使用 id 来更新频道
-                _updateFavoriteChannel(favoriteCategory, remoteChannel.id!, remoteChannel);
+            // 使用 id 来更新频道
+            _updateFavoriteChannel(favoriteCategory, remoteChannel.id!, remoteChannel);
 
-                // 记录已经更新的 id
-                updatedTvgIds.add(remoteChannel.id!);
-              }
-            });
+            // 记录已经更新的 id
+            updatedTvgIds.add(remoteChannel.id!);
           }
         });
-      }
+      });
     });
   }
 
 /// 更新“我的收藏”中单个频道的播放地址
-static void _updateFavoriteChannel(Map<String, dynamic> favoriteCategory, String tvgId, PlayModel remoteChannel) {
+static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteCategory, String tvgId, PlayModel remoteChannel) {
   // 遍历“我的收藏”中的所有组和频道，找到对应的 id 进行更新
   favoriteCategory.forEach((groupTitle, channels) {
-    if (channels is Map<String, PlayModel>) {
-      channels.forEach((channelName, favoriteChannel) {
-        // 如果收藏中的频道与远程频道的 id 匹配，则进行更新
-        if (favoriteChannel.id == tvgId) {
-          // 确保远程频道有有效的播放地址
-          if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
-            // 验证并更新播放地址
-            final validUrls = remoteChannel.urls!.where((url) => isLiveLink(url)).toList();
-            if (validUrls.isNotEmpty) {
-              favoriteChannel.urls = validUrls;
-            }
+    channels.forEach((channelName, favoriteChannel) {
+      // 如果收藏中的频道与远程频道的 id 匹配，则进行更新
+      if (favoriteChannel.id == tvgId) {
+        // 确保远程频道有有效的播放地址
+        if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
+          // 验证并更新播放地址
+          final validUrls = remoteChannel.urls!.where((url) => isLiveLink(url)).toList();
+          if (validUrls.isNotEmpty) {
+            favoriteChannel.urls = validUrls;
           }
         }
-      });
-    }
+      }
+    });
   });
 }
 
@@ -330,49 +324,46 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     Map<String, PlayModel> mergedChannelsById = {};
 
     for (PlaylistModel playlist in playlists) {
-      playlist.playList.forEach((category, groups) {
-        if (groups is Map<String, dynamic>) {
-          mergedPlaylist.playList[category] ??= {};
+      playlist.playList?.forEach((category, groups) {
+        mergedPlaylist.playList ??= {};
+        mergedPlaylist.playList![category] ??= {};
 
-          groups.forEach((groupTitle, channels) {
-            if (channels is Map<String, PlayModel>) {
-              mergedPlaylist.playList[category][groupTitle] ??= {};
+        groups.forEach((groupTitle, channels) {
+          mergedPlaylist.playList![category]![groupTitle] ??= {};
 
-              channels.forEach((channelName, channelModel) {
-                // 检查频道的 ID 是否有效
-                if (channelModel.id != null && channelModel.id!.isNotEmpty) {
-                  String tvgId = channelModel.id!;
+          channels.forEach((channelName, channelModel) {
+            // 检查频道的 ID 是否有效
+            if (channelModel.id != null && channelModel.id!.isNotEmpty) {
+              String tvgId = channelModel.id!;
 
-                  // 如果频道的播放地址为空，则跳过
-                  if (channelModel.urls == null || channelModel.urls!.isEmpty) {
-                    return; // 跳过当前频道
-                  }
+              // 如果频道的播放地址为空，则跳过
+              if (channelModel.urls == null || channelModel.urls!.isEmpty) {
+                return; // 跳过当前频道
+              }
 
-                  // 判断是否已经合并过此 ID 的频道
-                  if (mergedChannelsById.containsKey(tvgId)) {
-                    PlayModel existingChannel = mergedChannelsById[tvgId]!;
+              // 判断是否已经合并过此 ID 的频道
+              if (mergedChannelsById.containsKey(tvgId)) {
+                PlayModel existingChannel = mergedChannelsById[tvgId]!;
 
-                    // 合并播放地址，使用 Set 去重
-                    Set<String> existingUrls = existingChannel.urls?.toSet() ?? {};
-                    Set<String> newUrls = channelModel.urls?.toSet() ?? {};
-                    existingUrls.addAll(newUrls);
+                // 合并播放地址，使用 Set 去重
+                Set<String> existingUrls = existingChannel.urls?.toSet() ?? {};
+                Set<String> newUrls = channelModel.urls?.toSet() ?? {};
+                existingUrls.addAll(newUrls);
 
-                    // 更新合并后的播放地址
-                    existingChannel.urls = existingUrls.toList();
-                    mergedChannelsById[tvgId] = existingChannel;
-                  } else {
-                    // 如果该频道 ID 尚未被合并，直接添加
-                    mergedChannelsById[tvgId] = channelModel;
-                  }
+                // 更新合并后的播放地址
+                existingChannel.urls = existingUrls.toList();
+                mergedChannelsById[tvgId] = existingChannel;
+              } else {
+                // 如果该频道 ID 尚未被合并，直接添加
+                mergedChannelsById[tvgId] = channelModel;
+              }
 
-                  // 将合并后的频道放回原来的分组和分类结构中
-                  // 这里使用 channelName 作为键，以保留原始的频道名结构
-                  mergedPlaylist.playList[category][groupTitle][channelName] = mergedChannelsById[tvgId]!;
-                }
-              });
+              // 将合并后的频道放回原来的分组和分类结构中
+              // 这里使用 channelName 作为键，以保留原始的频道名结构
+              mergedPlaylist.playList![category]![groupTitle]![channelName] = mergedChannelsById[tvgId]!;
             }
           });
-        }
+        });
       });
     }
 
@@ -418,7 +409,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     // 处理不同的换行符，支持 \r\n 和 \n
     final lines = m3u.split(RegExp(r'\r?\n'));
     final playListModel = PlaylistModel();
-    playListModel.playList = <String, dynamic>{};
+    playListModel.playList = <String, Map<String, Map<String, PlayModel>>>{};
 
     String currentCategory = '所有频道';  // 初始化分类为默认 "所有频道"
     bool hasCategory = false;  // 标记是否有 #CATEGORY 行
@@ -486,7 +477,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             tempGroupTitle = groupStr.split('=').last;
             tempChannelName = lineList.last;
 
-            Map<String, dynamic> categoryMap = playListModel.playList[currentCategory] ?? {};
+            Map<String, Map<String, PlayModel>> categoryMap = playListModel.playList?[currentCategory] ?? {};
             Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? {};
             PlayModel channel = groupMap[tempChannelName] ?? PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
@@ -498,7 +489,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               }
               groupMap[tempChannelName] = channel;
               categoryMap[tempGroupTitle] = groupMap;
-              playListModel.playList[currentCategory] = categoryMap;
+              playListModel.playList![currentCategory] = categoryMap;
               i += 1;  // 跳过已经处理的下一行
             } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
               channel.urls ??= [];
@@ -507,15 +498,15 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               }
               groupMap[tempChannelName] = channel;
               categoryMap[tempGroupTitle] = groupMap;
-              playListModel.playList[currentCategory] = categoryMap;
+              playListModel.playList![currentCategory] = categoryMap;
               i += 2;  // 跳过已经处理的后两行
             }
             hasCategory = false;
           }
         } else if (isLiveLink(line)) {
-          playListModel.playList[currentCategory]?[tempGroupTitle]?[tempChannelName]?.urls ??= [];
+          playListModel.playList?[currentCategory]?[tempGroupTitle]?[tempChannelName]?.urls ??= [];
           if (line.isNotEmpty) {
-            playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
+            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
           }
         }
       }
@@ -529,7 +520,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           final groupTitle = lineList[0];
           final channelLink = lineList[1];
           if (isLiveLink(channelLink)) {
-            Map<String, dynamic> categoryMap = playListModel.playList[tempGroup] ?? {};
+            Map<String, Map<String, PlayModel>> categoryMap = playListModel.playList?[tempGroup] ?? {};
             Map<String, PlayModel> groupMap = categoryMap[groupTitle] ?? {};
             final channel = groupMap[groupTitle] ?? PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
             channel.urls ??= [];
@@ -538,11 +529,11 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             }
             groupMap[groupTitle] = channel;
             categoryMap[groupTitle] = groupMap;
-            playListModel.playList[tempGroup] = categoryMap;
+            playListModel.playList![tempGroup] = categoryMap;
           } else {
             tempGroup = groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
-            if (playListModel.playList[tempGroup] == null) {
-              playListModel.playList[tempGroup] = <String, dynamic>{};
+            if (playListModel.playList![tempGroup] == null) {
+              playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
             }
           }
         }
