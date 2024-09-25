@@ -180,17 +180,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 播放器资源释放
   Future<void> _disposePlayer() async {
-    _disposeStreamUrl();
     if (!_isDisposing) {
-      _isDisposing = true;
+      _isDisposing = true;  // 标记为正在释放资源
+      // 取消超时检测和重试逻辑
+      _timeoutActive = false;
+      _retryCount = 0;
+      // 移除与播放器相关的监听器
+      _playerController?.removeListener(_videoListener);
       try {
-        _timeoutActive = false; // 停止超时检测
-        _playerController?.removeListener(_videoListener); // 移除监听器
-        await _playerController?.dispose(); // 释放资源
+        _disposeStreamUrl();  // 释放 StreamUrl 相关资源
+        await _playerController?.dispose();  // 释放播放器资源
       } catch (e, stackTrace) {
         LogUtil.logError('释放播放器资源时出错', e, stackTrace);
       } finally {
-        _playerController = null; // 确保播放器控制器置空
+        _playerController = null;
         _isDisposing = false;
       }
     }
@@ -315,6 +318,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 加载收藏列表
     _extractFavoriteList();
+    
+    // 延迟1分钟后执行版本检测
+    Future.delayed(Duration(minutes: 1), () {
+      CheckVersionUtil.checkVersion(context, false, false);
+    });
   }
 
   /// 从传递的播放列表中提取“我的收藏”部分
@@ -453,7 +461,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _videoMap = widget.m3uData;
       _sourceIndex = 0;
       await _handlePlaylist();
-      CheckVersionUtil.checkVersion(context, false, false);
     } catch (e, stackTrace) {
       LogUtil.logError('加载数据时出错', e, stackTrace);
       await _parseData();
