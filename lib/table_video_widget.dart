@@ -300,8 +300,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 // 旋转按钮
                 IconButton(
                   tooltip: S.current.landscape,
-                  padding: EdgeInsets.zero,  // 紧凑模式移除内边距
-                  constraints: const BoxConstraints(),  // 紧凑模式移除默认大小限制
+                  padding: EdgeInsets.zero,  // 移除内边距
+                  constraints: const BoxConstraints(),  // 移除默认大小限制
                   onPressed: () async {
                     if (EnvUtil.isMobile) {
                       SystemChrome.setPreferredOrientations(
