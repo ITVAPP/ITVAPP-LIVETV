@@ -47,7 +47,7 @@ class PlaylistModel {
 
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    if (json['epgUrl'] == null || json['playList'] == null) {
+    if (json['playList'] == null) {
       return PlaylistModel(epgUrl: json['epgUrl'], playList: {});
     }
 
