@@ -72,6 +72,9 @@ class M3uUtil {
         return M3uResult(errorMessage: '解析播放列表失败');
       }
 
+      // 获取或创建收藏列表
+      final favoritePlaylist = await getOrCreateFavoriteList();
+      
       LogUtil.i('解析后的播放列表内容: ${jsonEncode(parsedData.playList)}');
 
       // 更新收藏列表中的频道播放地址
@@ -161,9 +164,6 @@ class M3uUtil {
 
   /// 更新本地收藏列表中的频道播放地址
   static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist) async {
-    // 获取本地的收藏列表
-    PlaylistModel favoritePlaylist = await getOrCreateFavoriteList();
-
     // 更新收藏列表中的频道播放地址
     _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
 
