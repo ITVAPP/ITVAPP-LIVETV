@@ -54,8 +54,9 @@ class PlaylistModel {
     String? epgUrl = json['epgUrl'] as String?;
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
 
-    // 自动解析播放列表，支持两层或三层结构
+    // 判断数据结构，并解析
     Map<String, dynamic> playList = _parsePlayList(playListJson);
+    // Map<String, Map<String, Map<String, PlayModel>>> playList = _parsePlayList(playListJson);
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
@@ -63,6 +64,7 @@ class PlaylistModel {
   /// 从字符串解析 [PlaylistModel] 实例（通常从缓存中读取）
   static PlaylistModel fromString(String data) {
     final Map<String, dynamic> jsonData = jsonDecode(data);
+    // final Map<String, Map<String, Map<String, PlayModel>>> jsonData = jsonDecode(data);
     return PlaylistModel.fromJson(jsonData);
   }
 
@@ -86,19 +88,22 @@ class PlaylistModel {
   }
 
   /// 解析三层结构的播放列表
-  static Map<String, dynamic> _parseThreeLayer(Map<String, dynamic> json) {
-    Map<String, dynamic> result = {};
+  static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
+      Map<String, dynamic> json) {
+    Map<String, Map<String, Map<String, PlayModel>>> result = {};
     json.forEach((categoryKey, groupMapJson) {
       String category = categoryKey.isNotEmpty ? categoryKey : '所有频道';
 
       if (groupMapJson is Map<String, dynamic>) {
-        Map<String, dynamic> groupMap = {};
+        Map<String, Map<String, PlayModel>> groupMap = {};
         groupMapJson.forEach((groupTitle, channelMapJson) {
           if (channelMapJson is Map<String, dynamic>) {
             Map<String, PlayModel> channelMap = {};
             channelMapJson.forEach((channelName, channelData) {
-              PlayModel playModel = PlayModel.fromJson(channelData);
-              channelMap[channelName] = playModel;
+              PlayModel? playModel = PlayModel.fromJson(channelData);
+              if (playModel != null) {
+                channelMap[channelName] = playModel;
+              }
             });
             groupMap[groupTitle] = channelMap;
           }
@@ -110,14 +115,17 @@ class PlaylistModel {
   }
 
   /// 解析两层结构的播放列表
-  static Map<String, dynamic> _parseTwoLayer(Map<String, dynamic> json) {
-    Map<String, dynamic> result = {};
+  static Map<String, Map<String, PlayModel>> _parseTwoLayer(
+      Map<String, dynamic> json) {
+    Map<String, Map<String, PlayModel>> result = {};
     json.forEach((groupTitle, channelMapJson) {
       if (channelMapJson is Map<String, dynamic>) {
         Map<String, PlayModel> channelMap = {};
         channelMapJson.forEach((channelName, channelData) {
-          PlayModel playModel = PlayModel.fromJson(channelData);
-          channelMap[channelName] = playModel;
+          PlayModel? playModel = PlayModel.fromJson(channelData);
+          if (playModel != null) {
+            channelMap[channelName] = playModel;
+          }
         });
         result[groupTitle] = channelMap;
       }
@@ -135,12 +143,12 @@ class PlaylistModel {
 
       // 尝试从 "所有频道" 中查找
       if (playList.containsKey('所有频道')) {
-        return (playList['所有频道'] as Map<String, dynamic>)[group]?[channelName];
+        return (playList['所有频道'] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
       }
 
       // 如果分类不存在，直接查找组和频道
       for (var categoryMap in playList.values) {
-        if (categoryMap is Map<String, dynamic> &&
+        if (categoryMap is Map<String, Map<String, PlayModel>> &&
             categoryMap.containsKey(group)) {
           return categoryMap[group]?[channelName];
         }
@@ -151,8 +159,8 @@ class PlaylistModel {
       String group = groupOrChannel;
 
       // 从三层结构查找
-      if (playList[category] is Map<String, dynamic>) {
-        return (playList[category] as Map<String, dynamic>)[group]?[channel];
+      if (playList[category] is Map<String, Map<String, PlayModel>>) {
+        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
       }
     }
 
@@ -164,9 +172,9 @@ class PlaylistModel {
   List<PlayModel> searchChannels(String keyword) {
     List<PlayModel> results = [];
     for (var groupMap in playList.values) {
-      if (groupMap is Map<String, dynamic>) {
+      if (groupMap is Map<String, Map<String, PlayModel>>) {
         for (var channelMap in groupMap.values) {
-          for (var channel in (channelMap as Map<String, PlayModel>).values) {
+          for (var channel in channelMap.values) {
             if ((channel.title?.contains(keyword) ?? false) ||
                 (channel.group?.contains(keyword) ?? false)) {
               results.add(channel);
