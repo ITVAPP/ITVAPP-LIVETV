@@ -296,7 +296,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               children: [
                 // 收藏按钮
                 buildFavoriteButton(currentChannelId, false),
-                const SizedBox(height: 3), // 间距
                 // 旋转按钮
                 IconButton(
                   tooltip: S.current.landscape,
