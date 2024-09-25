@@ -79,6 +79,7 @@ class LogUtil {
   static void _log(String level, Object? object, String? tag) {
     if (!debugMode || object == null) return;
 
+    String time = DateTime.now().toString();
     String fileInfo = _getFileAndLine(); // 获取文件和行号信息
     // 安全处理 object，避免出现 null 值导致错误
     String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'} - $fileInfo';
@@ -88,7 +89,7 @@ class LogUtil {
       _logs.removeAt(0); // 移除最旧的一条日志
     }
 
-    _logs.add({'level': level, 'message': logMessage});
+    _logs.add({'time': time, 'level': level, 'message': logMessage});
     developer.log(logMessage);
   }
 
