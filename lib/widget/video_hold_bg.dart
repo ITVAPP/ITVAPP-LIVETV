@@ -139,7 +139,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 25.0),
+                padding: const EdgeInsets.only(bottom: 20.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min, // 列表组件占最小高度，居于底部显示
                   children: [
