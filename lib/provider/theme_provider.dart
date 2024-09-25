@@ -160,10 +160,10 @@ class ThemeProvider extends ChangeNotifier {
         if (_isTV != deviceIsTV) {
           _isTV = deviceIsTV;
           await _prefs?.setBool('isTV', _isTV); // 使用缓存的 SharedPreferences 实例
-          LogUtil.i('设备检测结果: 该设备${_isTV ? "是" : "不是"}TV');
           _shouldNotify = true; // 标记需要通知 UI
           _notifyIfNeeded(); // 通知监听器更新界面
         }
+        LogUtil.i('设备检测结果: 该设备${deviceIsTV ? "是" : "不是"}TV');
       }, '检测并设置设备为 TV 时出错');
     } catch (error, stackTrace) {
       LogUtil.logError('检测并设置设备为 TV 时出错', error, stackTrace);
