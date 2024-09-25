@@ -35,9 +35,8 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
     // 获取屏幕宽度，动态设置调节条的宽度
     double screenWidth = MediaQuery.of(context).size.width;
 
-    // 动态设置宽度为屏幕宽度的 30%，高度保持为固定值 38
+    // 动态设置宽度为屏幕宽度的 30%
     double containerWidth = screenWidth * 0.3;
-    double containerHeight = 38;
 
     return Padding(
       padding: const EdgeInsets.all(44),
@@ -73,15 +72,14 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
           });
         },
         child: Container(
-          alignment: Alignment.topCenter,
-          padding: const EdgeInsets.only(top: 20),
+          alignment: Alignment.topCenter,  // 确保调节条水平居中
+          padding: const EdgeInsets.only(top: 20),  // 调节条距离顶部20
           child: _controlType == 0
               ? null
               : Container(
                   width: containerWidth, // 动态宽度
-                  height: containerHeight, // 固定高度
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                  height: 28, // 调节条加背景的总高度
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(15),
@@ -100,13 +98,16 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
                         width: 5,
                       ),
                       Expanded(
-                        child: LinearProgressIndicator(
-                          value: _controlType == 1 ? _brightness : _volume,
-                          backgroundColor: Colors.white.withOpacity(0.5),
-                          color: Colors.redAccent,
-                          borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          height: 18,  // 调节条高度设置为18
+                          child: LinearProgressIndicator(
+                            value: _controlType == 1 ? _brightness : _volume,
+                            backgroundColor: Colors.white.withOpacity(0.5),
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      )
+                      ),
                     ],
                   ),
                 ),
