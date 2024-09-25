@@ -37,7 +37,6 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-
   // 超时重试次数
   static const int defaultMaxRetries = 1;
 
@@ -99,7 +98,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
-
     LogUtil.i('检查竞态条件：$_isSwitchingChannel');
     LogUtil.i('检查资源释放：$_isDisposing');
 
@@ -316,14 +314,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData();
 
     // 加载收藏列表
-    _loadFavorites().catchError((error) {
-      LogUtil.e('初始化收藏列表时出错');
-    });
+    _extractFavoriteList();
   }
 
-  /// 加载或初始化收藏列表
-  Future<void> _loadFavorites() async {
-    favoriteList = await M3uUtil.getOrCreateFavoriteList();
+  /// 从传递的播放列表中提取“我的收藏”部分
+  void _extractFavoriteList() {
+    if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
+      favoriteList = PlaylistModel(
+        playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
+      );
+    } else {
+      favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: {}});
+    }
   }
 
   // 获取当前频道的分组名字
@@ -397,7 +399,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (isFavoriteChanged) {
       try {
+        // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(favoriteList);
+        // 更新播放列表中的收藏部分
+        _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]!;
+        // 保存更新后的播放列表到缓存
+        await M3uUtil.saveCachedM3uData(_videoMap!.toString());
+        setState(() {}); // 重新渲染频道列表
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
@@ -570,7 +578,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             toggleFavorite: toggleFavorite,
             currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
             isChannelFavorite: isChannelFavorite,
-            );
+          );
         },
         landscape: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
