@@ -470,6 +470,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 解析并加载本地播放列表
   Future<void> _parseData() async {
     try {
+      LogUtil.i('接收传递的播放列表不正确，重新加载');
       final resMap = await M3uUtil.getLocalM3uData();
       _videoMap = resMap.data;
       _sourceIndex = 0;
