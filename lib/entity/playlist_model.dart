@@ -62,32 +62,9 @@ class PlaylistModel {
 
   /// 从字符串解析 [PlaylistModel] 实例（通常从缓存中读取）
   static PlaylistModel fromString(String data) {
-    final Map<String, dynamic> jsonData = jsonDecode(data);
-
-    // 确保 JSON 数据中的 playList 正确解析为嵌套的结构
-    if (jsonData['playList'] != null) {
-      Map<String, Map<String, Map<String, PlayModel>>> playList = 
-        (jsonData['playList'] as Map<String, dynamic>).map((categoryKey, groupMap) {
-          return MapEntry(
-            categoryKey,
-            (groupMap as Map<String, dynamic>).map((groupTitle, channelMap) {
-              return MapEntry(
-                groupTitle,
-                (channelMap as Map<String, dynamic>).map((channelName, channelData) {
-                  return MapEntry(channelName, PlayModel.fromJson(channelData));
-                }),
-              );
-            }),
-          );
-        });
-
-      return PlaylistModel(
-        epgUrl: jsonData['epgUrl'],
-        playList: playList,
-      );
-    }
-
-    return PlaylistModel(epgUrl: jsonData['epgUrl'], playList: {});
+    // final Map<String, dynamic> jsonData = jsonDecode(data);
+    final Map<String, Map<String, Map<String, PlayModel>>> jsonData = jsonDecode(data);
+    return PlaylistModel.fromJson(jsonData);
   }
 
   /// 将 [PlaylistModel] 实例转换为字符串（通常用于存储到缓存中）
