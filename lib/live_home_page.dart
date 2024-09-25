@@ -414,33 +414,32 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从播放列表中动态提取频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     for (String category in playList.keys) {
-      if (playList[category] is Map<String, Map<String, PlayModel>>) {
-        // 三层结构处理
-        Map<String, Map<String, PlayModel>> groupMap = playList[category];
+      if (playList[category] is Map<String, dynamic>) {
+        // 三层或两层结构处理
+        Map<String, dynamic> groupMap = playList[category];
 
         for (String group in groupMap.keys) {
-          Map<String, PlayModel> channelMap = groupMap[group] ?? {};
+          if (groupMap[group] is Map<String, PlayModel>) {
+            // 如果是三层结构
+            Map<String, PlayModel> channelMap = groupMap[group] as Map<String, PlayModel>;
 
-          // 返回第一个有效播放地址
-          for (PlayModel? channel in channelMap.values) {
+            // 返回第一个有效播放地址
+            for (PlayModel? channel in channelMap.values) {
+              if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+                return channel;
+              }
+            }
+          } else if (groupMap[group] is PlayModel) {
+            // 如果是两层结构，直接处理 PlayModel
+            PlayModel? channel = groupMap[group] as PlayModel?;
             if (channel?.urls != null && channel!.urls!.isNotEmpty) {
               return channel;
             }
           }
         }
-      } else if (playList[category] is Map<String, PlayModel>) {
-        // 两层结构处理
-        Map<String, PlayModel> channelMap = playList[category] ?? {};
-
-        // 返回第一个有效播放地址
-        for (PlayModel? channel in channelMap.values) {
-          if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-            return channel;
-          }
-        }
       }
     }
-    return null;
+  return null;
   }
 
   /// 异步加载视频数据和版本检测
