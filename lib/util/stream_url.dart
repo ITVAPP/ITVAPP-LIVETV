@@ -249,11 +249,7 @@ class StreamUrl {
   // 提取 User-Agent 和其他 HTTP 请求头
   Map<String, String> _getRequestHeaders() {
     return {
-      HttpHeaders.userAgentHeader:
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      HttpHeaders.acceptEncodingHeader: 'gzip, deflate, br',
-      HttpHeaders.acceptHeader: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      HttpHeaders.connectionHeader: 'keep-alive',
+      HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124',
     };
   }
 }
