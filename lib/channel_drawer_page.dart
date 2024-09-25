@@ -9,6 +9,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
+import 'config.dart';
 
 // 分割线样式
 final verticalDivider = VerticalDivider(
@@ -351,7 +352,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       // 空分类不加载 EPG 数据
       _epgData = null; // 确保 EPG 数据为空
       _selEPGIndex = 0;
-      return;  // 直接返回，避免后续无效处理
+      return; 
     }
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
@@ -372,14 +373,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
           : 0; // 获取当前选中的频道索引
     } else if (categoryMap is Map<String, PlayModel>) {
       // 两层结构：直接处理频道
-      _keys = ['所有频道']; // 使用一个默认分组
+      _keys = [Config.allChannelsKey]; // 使用一个默认分组
       _values = [categoryMap]; // 频道直接作为值
     
       _groupIndex = 0; // 没有分组，固定为 0
       _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
 
-    // 默认值处理
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
   }
