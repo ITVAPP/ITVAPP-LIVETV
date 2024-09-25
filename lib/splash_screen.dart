@@ -17,9 +17,9 @@ class _SplashScreenState extends State<SplashScreen> {
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
   int _retryCount = 0;  // 重试次数
   String _message = '';  // 用于显示当前的提示信息
+  final FocusNode _retryButtonFocusNode = FocusNode(); // 用于控制焦点的 FocusNode
 
-  // 用于控制焦点的 FocusNode
-  final FocusNode _retryButtonFocusNode = FocusNode();
+  bool isDebugMode = true;  // 调试模式开关，生产环境设为 false
 
   @override
   void initState() {
@@ -98,6 +98,18 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // 显示日志的自定义对话框
+  void _showErrorLogs(BuildContext context) {
+    if (isDebugMode) {
+      DialogUtil.showCustomDialog(
+        context,
+        title: S.of(context).logtitle,
+        content: 'showlog', // 显示日志
+        isCopyButton: true,  // 显示复制按钮
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var orientation = MediaQuery.of(context).orientation;
@@ -156,6 +168,16 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         ],
       ),
+      // 如果处于调试模式，显示悬浮按钮
+      floatingActionButton: isDebugMode
+          ? FloatingActionButton(
+              onPressed: () {
+                _showErrorLogs(context); // 点击按钮后显示日志弹窗
+              },
+              child: Icon(Icons.bug_report), // 使用一个 bug 图标表示调试模式
+              backgroundColor: Colors.redAccent, // 按钮背景颜色
+            )
+          : null, // 非调试模式不显示悬浮按钮
     );
   }
 
