@@ -20,7 +20,7 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  /// 定义“我的收藏”列表的本地缓存键
+  /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
   /// 定义播放列表的本地缓存键
   static const String m3uCacheKey = 'm3u_cache';
@@ -33,23 +33,22 @@ class M3uUtil {
         // 如果本地缓存没有播放列表，返回远程数据
         return await getDefaultM3uData();
       }
-      // 本地保存的已经是 PlaylistModel，直接返回
       return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
       return M3uResult(errorMessage: '获取播放列表失败');
     }
   }
 
-  /// 获取远程播放列表，支持重试机制
+  /// 获取远程播放列表
   static Future<M3uResult> getDefaultM3uData({Function(int attempt)? onRetry}) async {
     try {
       String m3uData = '';
 
-      // 尝试通过重试机制从远程获取M3U数据
+      // 尝试通过重试机制获取远程播放列表
       m3uData = (await _retryRequest<String>(_fetchData, onRetry: onRetry)) ?? '';
 
       if (m3uData.isEmpty) {
-        LogUtil.logError('远程获取M3U数据失败，尝试获取本地缓存数据', 'm3uData为空');
+        LogUtil.logError('获取远程播放列表失败，尝试获取本地缓存数据', 'm3uData为空');
 
         // 尝试从本地缓存获取 PlaylistModel 数据
         final PlaylistModel cachedData = PlaylistModel.fromString(await _getCachedM3uData());
@@ -58,8 +57,7 @@ class M3uUtil {
         if (cachedData == null || cachedData.playList == null) {
           return M3uResult(errorMessage: '获取播放列表失败');
         }
-
-        // 返回本地缓存的 PlaylistModel 数据
+        
         return M3uResult(data: cachedData);
       }
 
@@ -79,17 +77,16 @@ class M3uUtil {
         return M3uResult(errorMessage: '解析播放列表失败');
       }
 
-      // 获取或创建“我的收藏”列表
+      // 获取或创建收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
 
       // 在 updateFavoriteChannelsWithRemoteData 之前记录 parsedData
-      LogUtil.i('解析后的播放列表类型: ${parsedData.playList.runtimeType}');
       LogUtil.i('解析后的播放列表内容: ${jsonEncode(parsedData.playList)}');
 
-      // 更新“我的收藏”列表中的频道播放地址
+      // 更新收藏列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData);
 
-      // 将“我的收藏”列表加入到播放列表中，并设置为第一个分类
+      // 将收藏列表加入到播放列表中，并设置为第一个分类
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, favoritePlaylist);
 
       // 保存播放列表到本地缓存
@@ -109,42 +106,37 @@ class M3uUtil {
 
       return M3uResult(data: parsedData);
     } catch (e, stackTrace) {
-      LogUtil.logError('获取远程播放列表失败', e, stackTrace);
       return M3uResult(errorMessage: '获取远程播放列表失败');
     }
   }
 
-  /// 获取或创建本地的“我的收藏”列表
+  /// 获取或创建本地的收藏列表
   static Future<PlaylistModel> getOrCreateFavoriteList() async {
     final favoriteData = await _getCachedFavoriteM3uData();
   
     if (favoriteData.isEmpty) {
-      // 如果没有缓存数据，创建一个新的“我的收藏”列表
+      // 如果没有缓存数据，创建一个新的收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
           "我的收藏": <String, Map<String, PlayModel>>{}, 
         }
       );
-      LogUtil.i('创建我的收藏列表内容: ${jsonEncode(favoritePlaylist.playList)}');
+      LogUtil.i('创建收藏列表: ${jsonEncode(favoritePlaylist.playList)}');
       return favoritePlaylist;
     } else {
-      // 如果本地已有缓存数据，转换为 PlaylistModel，解析并返回“我的收藏”列表
-      LogUtil.i('本地我的收藏内容: ${favoriteData}');
+      // 如果本地已有缓存数据，转换为 PlaylistModel
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      LogUtil.i('本地我的收藏类型: ${favoritePlaylist.playList.runtimeType}');
-      LogUtil.i('本地我的收藏列表内容: ${jsonEncode(favoritePlaylist.playList)}');
+      LogUtil.i('本地收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
+      LogUtil.i('本地收藏列表: ${jsonEncode(favoritePlaylist.playList)}');
       return favoritePlaylist;
     }
   }
 
-  /// 将“我的收藏”列表插入为播放列表的第一个分类
+  /// 将收藏列表插入为播放列表的第一个分类
   static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
       Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
       PlaylistModel favoritePlaylist) {
-    // 创建新的播放列表结构，确保“我的收藏”位于第一个位置
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-
-    // 检查并插入“我的收藏”分类到第一个位置
     if (favoritePlaylist.playList?["我的收藏"] != null && favoritePlaylist.playList!["我的收藏"]!.isNotEmpty) {
       updatedPlaylist["我的收藏"] = favoritePlaylist.playList!["我的收藏"]!;
     } else {
@@ -161,36 +153,36 @@ class M3uUtil {
     return updatedPlaylist;
   }
 
-  /// 保存更新后的“我的收藏”列表到本地缓存
+  /// 保存更新后的收藏列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
     await SpUtil.putString(favoriteCacheKey, favoritePlaylist.toString());
   }
 
-  /// 从本地缓存中获取“我的收藏”列表
+  /// 从本地缓存中获取收藏列表
   static Future<String> _getCachedFavoriteM3uData() async {
     try {
       return SpUtil.getString(favoriteCacheKey, defValue: '') ?? '';
     } catch (e, stackTrace) {
-      LogUtil.logError('获取本地缓存的“我的收藏”列表失败', e, stackTrace);
+      LogUtil.logError('获取本地收藏列表失败', e, stackTrace);
       return '';
     }
   }
 
-  /// 更新本地“我的收藏”列表中的频道播放地址
+  /// 更新本地收藏列表中的频道播放地址
   static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist) async {
-    // 获取本地的“我的收藏”列表
+    // 获取本地的收藏列表
     PlaylistModel favoritePlaylist = await getOrCreateFavoriteList();
 
-    // 更新“我的收藏”中的频道播放地址
+    // 更新收藏列表中的频道播放地址
     _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
 
-    // 保存更新后的“我的收藏”列表
+    // 保存更新后的收藏列表
     await saveFavoriteList(favoritePlaylist);
   }
 
-  /// 更新“我的收藏”列表中的频道播放地址（仅当远程列表有更新）
+  /// 更新收藏列表中的频道播放地址（仅当远程列表有更新）
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) { 
-    // 获取“我的收藏”分类中的频道
+    // 获取收藏分类中的频道
     final favoriteCategory = favoritePlaylist.playList?["我的收藏"];
     if (favoriteCategory == null) return;
 
@@ -204,11 +196,7 @@ class M3uUtil {
           if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
             // 如果这个 id 已经被更新过，则跳过
             if (updatedTvgIds.contains(remoteChannel.id!)) return;
-
-            // 使用 id 来更新频道
             _updateFavoriteChannel(favoriteCategory, remoteChannel.id!, remoteChannel);
-
-            // 记录已经更新的 id
             updatedTvgIds.add(remoteChannel.id!);
           }
         });
@@ -221,11 +209,8 @@ static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteC
   // 遍历“我的收藏”中的所有组和频道，找到对应的 id 进行更新
   favoriteCategory.forEach((groupTitle, channels) {
     channels.forEach((channelName, favoriteChannel) {
-      // 如果收藏中的频道与远程频道的 id 匹配，则进行更新
       if (favoriteChannel.id == tvgId) {
-        // 确保远程频道有有效的播放地址
         if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
-          // 验证并更新播放地址
           final validUrls = remoteChannel.urls!.where((url) => isLiveLink(url)).toList();
           if (validUrls.isNotEmpty) {
             favoriteChannel.urls = validUrls;
@@ -236,7 +221,7 @@ static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteC
   });
 }
 
-  /// 封装的重试机制，最多重试 `retries` 次，并在达到最大重试次数时返回 null
+  /// 重试机制，最多重试 `retries` 次
   static Future<T?> _retryRequest<T>(
     Future<T?> Function() request, 
     {int retries = 3, Duration retryDelay = const Duration(seconds: 2), Function(int attempt)? onRetry}) async {
@@ -268,14 +253,14 @@ static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteC
     }
   }
 
-  /// 获取远程的默认M3U文件数据
+  /// 获取远程播放列表
   static Future<String> _fetchData() async {
     try {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
       final res = await HttpUtil().getRequest(defaultM3u);
       return res ?? '';  // 返回空字符串表示获取失败
     } catch (e, stackTrace) {
-      LogUtil.logError('远程获取默认M3U文件失败', e, stackTrace);
+      LogUtil.logError('获取远程播放列表失败', e, stackTrace);
       return '';
     }
   }
@@ -295,21 +280,21 @@ static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteC
         }
       }
 
-      if (playlists.isEmpty) return null;  // 如果没有解析到任何数据，返回null
+      if (playlists.isEmpty) return null;
 
       return _mergePlaylists(playlists);  // 合并解析后的播放列表
     } catch (e, stackTrace) {
-      LogUtil.logError('获取并合并M3U数据失败', e, stackTrace);
+      LogUtil.logError('合并播放列表失败', e, stackTrace);
       return null;
     }
   }
 
-  /// 获取M3U数据，设置8秒的超时时间，并使用重试机制
+  /// 获取远程播放列表，设置8秒的超时时间，并使用重试机制
   static Future<String?> _fetchM3uData(String url) async {
     try {
       return await _retryRequest<String>(() async => await HttpUtil().getRequest(url).timeout(Duration(seconds: 8)));
     } catch (e, stackTrace) {
-      LogUtil.logError('获取M3U数据失败', e, stackTrace);
+      LogUtil.logError('获取远程播放列表', e, stackTrace);
       return null;
     }
   }
@@ -338,14 +323,14 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
 
               // 如果频道的播放地址为空，则跳过
               if (channelModel.urls == null || channelModel.urls!.isEmpty) {
-                return; // 跳过当前频道
+                return;
               }
 
               // 判断是否已经合并过此 ID 的频道
               if (mergedChannelsById.containsKey(tvgId)) {
                 PlayModel existingChannel = mergedChannelsById[tvgId]!;
 
-                // 合并播放地址，使用 Set 去重
+                // 合并播放地址
                 Set<String> existingUrls = existingChannel.urls?.toSet() ?? {};
                 Set<String> newUrls = channelModel.urls?.toSet() ?? {};
                 existingUrls.addAll(newUrls);
@@ -359,7 +344,6 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
               }
 
               // 将合并后的频道放回原来的分组和分类结构中
-              // 这里使用 channelName 作为键，以保留原始的频道名结构
               mergedPlaylist.playList![category]![groupTitle]![channelName] = mergedChannelsById[tvgId]!;
             }
           });
@@ -418,7 +402,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
       String tempGroupTitle = '';
       String tempChannelName = '';
 
-      for (int i = 0; i < lines.length; i++) {  // 修改循环终止条件，确保遍历所有行
+      for (int i = 0; i < lines.length; i++) {
         String line = lines[i];
 
         if (line.startsWith('#EXTM3U')) {
@@ -490,7 +474,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               groupMap[tempChannelName] = channel;
               categoryMap[tempGroupTitle] = groupMap;
               playListModel.playList![currentCategory] = categoryMap;
-              i += 1;  // 跳过已经处理的下一行
+              i += 1;
             } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
               channel.urls ??= [];
               if (lines[i + 2].isNotEmpty) {
@@ -499,7 +483,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               groupMap[tempChannelName] = channel;
               categoryMap[tempGroupTitle] = groupMap;
               playListModel.playList![currentCategory] = categoryMap;
-              i += 2;  // 跳过已经处理的后两行
+              i += 2;
             }
             hasCategory = false;
           }
@@ -513,7 +497,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     } else {
       // 处理非标准M3U文件
       String tempGroup = S.current.defaultText;
-      for (int i = 0; i < lines.length; i++) {  // 修改循环终止条件，确保遍历所有行
+      for (int i = 0; i < lines.length; i++) {
         final line = lines[i];
         final lineList = line.split(',');
         if (lineList.length >= 2) {
@@ -546,7 +530,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
   }
 }
 
-  /// 通过遍历协议列表判断链接是否为有效的直播链接
+  /// 判断链接是否为有效的直播链接
   static bool isLiveLink(String link) {
     const protocols = ['http', 'https', 'rtmp', 'rtsp', 'mms', 'ftp'];
     return protocols.any((protocol) => link.toLowerCase().startsWith(protocol));
