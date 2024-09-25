@@ -1,13 +1,14 @@
 import 'dart:convert';
+import '../config.dart';
 
 /// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
 class PlaylistModel {
   /// 构造函数，用于创建一个 [PlaylistModel] 实例。
   /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
   /// [playList] 是一个三层嵌套的Map，其中：
-  /// - 第一层 `String` 键是分类（例如：“区域”或“语言”），如果没有提供，则默认为 "所有频道"。
-  ///   - 示例：对于 M3U 中未指定分类信息的情况，使用 "所有频道" 作为默认分类。
-  ///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用 "所有频道" 作为分类。
+  /// - 第一层 `String` 键是分类（例如：“区域”或“语言”）
+  ///   - 示例：对于 M3U 中未指定分类信息的情况，使用默认分类。
+  ///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用默认分类。
   /// - 第二层 `String` 键是组的标题（例如："体育"，"新闻"），从 `group-title` 提取。
   ///   - 示例：`group-title="央视频道"`，提取 "央视频道" 作为第二层键。
   /// - 第三层 `Map` 将频道名称（`String`）与对应的 [PlayModel] 实例关联。
@@ -39,7 +40,7 @@ class PlaylistModel {
     Map<String, dynamic>? playList,
   }) : playList = playList ?? {};
 
-  /// 电子节目指南（EPG）的URL，用于获取节目相关信息。
+  /// 节目（EPG）的URL，用于获取节目相关信息。
   String? epgUrl;
 
   /// 存储播放列表的数据结构，支持两层和三层结构
@@ -53,22 +54,20 @@ class PlaylistModel {
 
     String? epgUrl = json['epgUrl'] as String?;
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
-
-    // 判断数据结构，并解析
     Map<String, dynamic> playList = _parsePlayList(playListJson);
     // Map<String, Map<String, Map<String, PlayModel>>> playList = _parsePlayList(playListJson);
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
 
-  /// 从字符串解析 [PlaylistModel] 实例（通常从缓存中读取）
+  /// 从字符串解析 [PlaylistModel] 实例
   static PlaylistModel fromString(String data) {
     final Map<String, dynamic> jsonData = jsonDecode(data);
     // final Map<String, Map<String, Map<String, PlayModel>>> jsonData = jsonDecode(data);
     return PlaylistModel.fromJson(jsonData);
   }
 
-  /// 将 [PlaylistModel] 实例转换为字符串（通常用于存储到缓存中）
+  /// 将 [PlaylistModel] 实例转换为字符串
   @override
   String toString() {
     return jsonEncode({
@@ -92,7 +91,7 @@ class PlaylistModel {
       Map<String, dynamic> json) {
     Map<String, Map<String, Map<String, PlayModel>>> result = {};
     json.forEach((categoryKey, groupMapJson) {
-      String category = categoryKey.isNotEmpty ? categoryKey : '所有频道';
+      String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
 
       if (groupMapJson is Map<String, dynamic>) {
         Map<String, Map<String, PlayModel>> groupMap = {};
@@ -141,9 +140,9 @@ class PlaylistModel {
       String group = categoryOrGroup;
       String channelName = groupOrChannel;
 
-      // 尝试从 "所有频道" 中查找
-      if (playList.containsKey('所有频道')) {
-        return (playList['所有频道'] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
+      // 尝试从默认分类中查找
+      if (playList.containsKey(Config.allChannelsKey)) {
+        return (playList[Config.allChannelsKey] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
       }
 
       // 如果分类不存在，直接查找组和频道
@@ -163,8 +162,6 @@ class PlaylistModel {
         return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
       }
     }
-
-    // 如果找不到频道，返回 null
     return null;
   }
 
@@ -205,12 +202,12 @@ class PlayModel {
 
   factory PlayModel.fromJson(dynamic json) {
     if (json['id'] == null || json['urls'] == null) {
-      return PlayModel(); // 返回默认实例而不是null
+      return PlayModel();
     }
 
     List<String> urlsList = List<String>.from(json['urls'] ?? []);
     if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-      return PlayModel(); // 返回默认实例而不是null
+      return PlayModel(); 
     }
 
     return PlayModel(
