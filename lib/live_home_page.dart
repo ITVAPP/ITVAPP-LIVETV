@@ -329,8 +329,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       PlaylistModel favoriteList = PlaylistModel(
-        // playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
-        playList: {Config.myFavoriteKey: (widget.m3uData.playList![Config.myFavoriteKey]! as Map<String, Map<String, PlayModel>>)}
+        playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
       );
     } else {
       PlaylistModel favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}});
@@ -411,7 +410,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(favoriteList);
         // 更新播放列表中的收藏部分
-        _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]!;
+        _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey]! as Map<String, Map<String, PlayModel>>;
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap!.toString());
         setState(() {}); // 重新渲染频道列表
