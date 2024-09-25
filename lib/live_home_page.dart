@@ -329,7 +329,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       PlaylistModel favoriteList = PlaylistModel(
-        playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
+        // playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
+        playList: {Config.myFavoriteKey: (widget.m3uData.playList![Config.myFavoriteKey]! as Map<String, Map<String, PlayModel>>)}
       );
     } else {
       PlaylistModel favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}});
