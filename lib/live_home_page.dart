@@ -328,11 +328,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从传递的播放列表中提取“我的收藏”部分
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
-      favoriteList = PlaylistModel(
+      PlaylistModel favoriteList = PlaylistModel(
         playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
       );
     } else {
-      favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: {}});
+      PlaylistModel favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}});
     }
   }
 
