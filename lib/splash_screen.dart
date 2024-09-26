@@ -20,7 +20,7 @@ class _SplashScreenState extends State<SplashScreen> {
   String _message = '';  // 用于显示当前的提示信息
   final FocusNode _retryButtonFocusNode = FocusNode(); // 用于控制焦点的 FocusNode
 
-  bool isDebugMode = false;  // 调试模式开关，false/true
+  bool isDebugMode = true;  // 调试模式开关，false/true
 
   @override
   void initState() {
