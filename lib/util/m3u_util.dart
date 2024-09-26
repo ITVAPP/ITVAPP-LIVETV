@@ -75,7 +75,7 @@ class M3uUtil {
       // 获取或创建收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
       
-      LogUtil.i('解析后的播放列表内容: ${jsonEncode(parsedData)}');
+      LogUtil.i('解析后的播放列表内容: ${parsedData}');
 
       // 更新收藏列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
@@ -87,7 +87,7 @@ class M3uUtil {
       await saveCachedM3uData(parsedData.toString());
 
       LogUtil.i('保存后的播放列表类型: ${parsedData.runtimeType}');
-      LogUtil.i('保存后的播放列表内容: ${jsonEncode(parsedData)}');
+      LogUtil.i('保存后的播放列表内容: ${parsedData}');
       
       // 保存新订阅数据到本地
       await saveLocalData([
@@ -115,13 +115,13 @@ class M3uUtil {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, 
         }
       );
-      LogUtil.i('创建收藏列表: ${jsonEncode(favoritePlaylist)}');
+      LogUtil.i('创建收藏列表: ${favoritePlaylist}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
       LogUtil.i('本地收藏列表类型: ${favoritePlaylist.runtimeType}');
-      LogUtil.i('本地收藏列表: ${jsonEncode(favoritePlaylist)}');
+      LogUtil.i('本地收藏列表: ${favoritePlaylist}');
       return favoritePlaylist;
     }
   }
