@@ -90,7 +90,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
-  
+
   // 标记是否需要更新宽高比
   bool _shouldUpdateAspectRatio = true;
 
@@ -187,7 +187,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _isDisposing = true;  // 标记为正在释放资源
       // 取消超时检测和重试逻辑
       _timeoutActive = false;
-      _retryCount = 0;
       // 移除与播放器相关的监听器
       _playerController?.removeListener(_videoListener);
       try {
@@ -228,7 +227,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (_retryCount <= maxRetries) {
       setState(() {
-        toastString = '正在重试播放 ($_retryCount / $maxRetries)...';
+        toastString = '正在重试连接...';
       });
       Future.delayed(const Duration(seconds: 3), () {
         if (_isDisposing) return;
@@ -333,12 +332,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从传递的播放列表中提取“我的收藏”部分
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
-      favoriteList = {
-        Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!
-      };
+       PlaylistModel favoriteList = PlaylistModel(
+        playList: {
+          Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!
+        }
+      );
     } else {
-      favoriteList = {Config.myFavoriteKey: {}};
+       PlaylistModel favoriteList = PlaylistModel(
+        playList: {
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
+        }
+      );
     }
+    LogUtil.i('初始化的收藏列表: ${favoriteList}');
   }
 
   // 获取当前频道的分组名字
@@ -346,7 +352,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return _currentChannel?.group ?? '';
   }
 
-  // 获取当前频道的名字
+  // 获取当前频道名字
   String getChannelName(String channelId) {
     return _currentChannel?.title ?? '';
   }
@@ -360,6 +366,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
+    // 验证分组名字、频道名字是否正确
+    if (groupName.isEmpty || channelName.isEmpty) {
+      return false;
+    }
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
   }
 
@@ -367,6 +377,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
+
+    // 验证分组名字、频道名字和播放地址是否正确
+    if (!isChannelFavorite(actualChannelId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('当前频道无法收藏'), duration: Duration(seconds: 3))
+      );
+      return;
+    }
 
     if (isChannelFavorite(actualChannelId)) {
       // 取消收藏
@@ -410,9 +428,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('保存后的收藏列表: ${favoriteList}');
 
         // 更新播放列表中的收藏部分
-       _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
-        
-       LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
+        _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
+
+        LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
