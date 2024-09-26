@@ -554,7 +554,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double categoryWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分类列表宽度
 
     // 设置分组列表宽度，只有当 _keys 非空时显示
-    double groupWidth = (_keys.isNotEmpty) ? 110 * context.read<ThemeProvider>().textScaleFactor : 0;
+    double groupWidth = (_keys.isNotEmpty) ? 120 * context.read<ThemeProvider>().textScaleFactor : 0;
 
     // 设置频道列表宽度，只有当 _values 和 _groupIndex 下有频道时显示
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
