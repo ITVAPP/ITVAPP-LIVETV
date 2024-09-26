@@ -407,9 +407,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
 
-      LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.playList.runtimeType}');
+      LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.runtimeType}');
       LogUtil.i('更新收藏检查播放列表: ${_videoMap}');
-      LogUtil.i('更新收藏检查收藏列表类型: ${favoriteList?.playList.runtimeType}');
+      LogUtil.i('更新收藏检查收藏列表类型: ${favoriteList?.runtimeType}');
       LogUtil.i('更新收藏检查收藏列表: ${favoriteList}');
 
         // 更新播放列表中的收藏部分
