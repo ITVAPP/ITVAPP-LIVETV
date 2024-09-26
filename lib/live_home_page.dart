@@ -413,7 +413,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('更新收藏检查收藏列表: ${favoriteList}');
 
         // 更新播放列表中的收藏部分
-       _videoMap?['playList']?[Config.myFavoriteKey] = favoriteList?['playList']?[Config.myFavoriteKey];
+       _videoMap?['playList']?[Config.myFavoriteKey] = favoriteList?.playList?[Config.myFavoriteKey];
         
       LogUtil.i('修改收藏后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
