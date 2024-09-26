@@ -94,7 +94,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl;
 
   // 收藏列表相关
-  PlaylistModel favoriteList = PlaylistModel(playList: {});
+  Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {};
 
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
@@ -318,7 +318,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 加载收藏列表
     _extractFavoriteList();
-    
+
     // 延迟1分钟后执行版本检测
     Future.delayed(Duration(minutes: 1), () {
       CheckVersionUtil.checkVersion(context, false, false);
@@ -328,11 +328,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从传递的播放列表中提取“我的收藏”部分
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
-      PlaylistModel favoriteList = PlaylistModel(
-        playList: {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!}
-      );
+      favoriteList = {
+        Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!
+      };
     } else {
-      PlaylistModel favoriteList = PlaylistModel(playList: {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}});
+      favoriteList = {Config.myFavoriteKey: {}};
     }
   }
 
@@ -355,16 +355,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
-    return favoriteList.playList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
+    return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
   }
 
   // 添加或取消收藏
   void toggleFavorite(String channelId) async {
-    LogUtil.i('修改前的收藏列表类型: ${favoriteList.playList.runtimeType}');
-    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList.playList)}');
-    if (favoriteList.playList[Config.myFavoriteKey] == null) {
-      favoriteList.playList[Config.myFavoriteKey] = {};
-    }
+    LogUtil.i('修改前的收藏列表类型: ${favoriteList.runtimeType}');
+    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList)}');
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
 
@@ -372,9 +369,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 取消收藏
       String groupName = getGroupName(actualChannelId);
       String channelName = getChannelName(actualChannelId);
-      favoriteList.playList[Config.myFavoriteKey]![groupName]?.remove(channelName);
-      if (favoriteList.playList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
-        favoriteList.playList[Config.myFavoriteKey]!.remove(groupName);
+      favoriteList[Config.myFavoriteKey]![groupName]?.remove(channelName);
+      if (favoriteList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
+        favoriteList[Config.myFavoriteKey]!.remove(groupName);
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 3))
@@ -385,8 +382,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String groupName = getGroupName(actualChannelId);
       String channelName = getChannelName(actualChannelId);
 
-      if (favoriteList.playList[Config.myFavoriteKey]![groupName] == null) {
-        favoriteList.playList[Config.myFavoriteKey]![groupName] = {};
+      if (favoriteList[Config.myFavoriteKey]![groupName] == null) {
+        favoriteList[Config.myFavoriteKey]![groupName] = {};
       }
 
       PlayModel newFavorite = PlayModel(
@@ -396,33 +393,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
         title: channelName,
         urls: getPlayUrls(actualChannelId),
       );
-      favoriteList.playList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
+      favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
       );
       isFavoriteChanged = true;
     }
-      LogUtil.i('修改后的收藏列表类型: ${favoriteList.playList.runtimeType}');
-      LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList.playList)}');
+      LogUtil.i('修改后的收藏列表类型: ${favoriteList.runtimeType}');
+      LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList)}');
 
     if (isFavoriteChanged) {
       try {
         // 保存收藏列表到缓存
-        await M3uUtil.saveFavoriteList(favoriteList);
-        final favoriteItem = favoriteList.playList[Config.myFavoriteKey];
+        await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
+        final favoriteItem = favoriteList[Config.myFavoriteKey];
 
       LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.playList.runtimeType}');
       LogUtil.i('更新收藏检查播放列表: ${_videoMap}');
       LogUtil.i('更新收藏检查收藏列表类型: ${favoriteItem.runtimeType}');
       LogUtil.i('更新收藏检查收藏列表: ${favoriteItem}');
-        
+
         // 更新播放列表中的收藏部分
         if (favoriteItem is Map<String, Map<String, PlayModel>>) {
           // 如果 favoriteItem 是 Map<String, Map<String, PlayModel>> 类型
           _videoMap?.playList[Config.myFavoriteKey] = favoriteItem;
         } else  {
           _videoMap?.playList[Config.myFavoriteKey] = favoriteItem.cast<String, Map<String, PlayModel>>();
-        } 
+        }
       LogUtil.i('修改收藏后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
