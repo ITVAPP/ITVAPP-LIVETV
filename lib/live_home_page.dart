@@ -407,11 +407,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       try {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
+        LogUtil.i('保存后的收藏列表: ${favoriteList}');
 
         // 更新播放列表中的收藏部分
        _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         
-      LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
+       LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
