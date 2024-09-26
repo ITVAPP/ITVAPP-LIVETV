@@ -425,7 +425,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } 
       LogUtil.i('修改收藏后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
-        await M3uUtil.saveCachedM3uData(_videoMap);
+        await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
