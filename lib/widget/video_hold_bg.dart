@@ -1,12 +1,12 @@
-import 'dart:async'; 
+import 'dart:async';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
-import '../gradient_progress_bar.dart'; 
-import '../util/log_util.dart'; 
+import '../gradient_progress_bar.dart';
+import '../util/log_util.dart';
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
@@ -24,6 +24,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   int _currentImgIndex = 0;  // 当前显示的背景图片索引
   Timer? _timer;  // 定时器，用于切换背景图片
   bool _isBingLoaded = false;  // 用于判断是否已经加载过 Bing 背景
+
+  late AnimationController _textAnimationController; // 文字滚动动画控制器
+  late Animation<Offset> _textAnimation; // 文字滚动动画
+  double _textWidth = 0;
+  double _containerWidth = 0;
 
   @override
   void initState() {
@@ -46,6 +51,25 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     if (isPlayingAudio && !_isBingLoaded) {
       _loadBingBackgrounds();
     }
+
+    // 初始化文字滚动动画控制器
+    _textAnimationController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    );
+    _textAnimation = Tween<Offset>(
+      begin: Offset(1.0, 0.0),
+      end: Offset(-1.0, 0.0),
+    ).animate(_textAnimationController);
+
+    _textAnimationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _textAnimationController.reset();
+        _textAnimationController.forward();
+      }
+    });
+
+    _textAnimationController.forward();
   }
 
   // 处理视频播放状态变化，仅在状态变化时更新 UI
@@ -90,6 +114,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   @override
   void dispose() {
     _animationController.dispose(); // 销毁动画控制器
+    _textAnimationController.dispose(); // 销毁文字滚动动画控制器
     _timer?.cancel();  // 销毁定时器
     _timer = null;  // 将定时器置空，防止多次调用
     widget.videoController.removeListener(_handleVideoUpdate); // 移除监听器，防止内存泄漏
@@ -139,7 +164,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
+                padding: const EdgeInsets.only(bottom: 15.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min, // 列表组件占最小高度，居于底部显示
                   children: [
@@ -148,17 +173,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
                       width: progressBarWidth, // 进度条宽度根据屏幕方向动态调整
                       height: 5, // 进度条的高度固定为5
                     ),
-                    const SizedBox(height: 10), // 进度条与文本之间的间隔
+                    const SizedBox(height: 8), // 进度条与文本之间的间隔
                     // 使用FittedBox自适应的文本框，用于显示加载提示或错误信息
-                    FittedBox(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        // 显示toastString，如果未提供则显示国际化的“加载中”提示
-                        child: Text(
-                          widget.toastString ?? S.current.loading,
-                          style: const TextStyle(color: Colors.white, fontSize: 16), // 白色文字，字号16
-                        ),
-                      ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        _containerWidth = constraints.maxWidth;
+                        return _buildToast();
+                      },
                     ),
                   ],
                 ),
@@ -168,6 +189,36 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         );
       },
     );
+  }
+
+  Widget _buildToast() {
+    final text = widget.toastString ?? S.current.loading;
+    final textStyle = const TextStyle(color: Colors.white, fontSize: 16);
+    final textSpan = TextSpan(text: text, style: textStyle);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(minWidth: 0, maxWidth: double.infinity);
+    _textWidth = textPainter.width;
+
+    if (_textWidth > _containerWidth) {
+      return SlideTransition(
+        position: _textAnimation,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Text(
+            text,
+            style: textStyle,
+          ),
+        ),
+      );
+    } else {
+      return Text(
+        text,
+        style: textStyle,
+      );
+    }
   }
 
   // 动态加载Bing图片背景，支持多张图片轮换展示
