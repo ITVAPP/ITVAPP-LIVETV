@@ -44,6 +44,8 @@ class TableVideoWidget extends StatefulWidget {
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
   bool _isShowMenuBar = true; // 控制是否显示底部菜单栏
+  bool _isShowPauseIcon = false; // 控制是否显示暂停图标
+  Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
 
   @override
   void initState() {
@@ -60,6 +62,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
+    _pauseIconTimer?.cancel(); // 取消计时器
     super.dispose();
   }
 
@@ -127,17 +130,29 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       children: [
         // 视频播放区域
         GestureDetector(
-          onTap: widget.isLandscape
-              ? () {
-                  if (_isShowMenuBar) {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted) setState(() => _isShowMenuBar = !_isShowMenuBar);
-                    });
-                  } else {
-                    setState(() => _isShowMenuBar = !_isShowMenuBar);
-                  }
+          onTap: () {
+            if (_isShowPauseIcon) {
+              // 如果暂停图标已显示，则暂停视频
+              widget.controller?.pause();
+              _pauseIconTimer?.cancel(); // 取消计时器
+              setState(() {
+                _isShowPauseIcon = false;
+              });
+            } else {
+              // 显示暂停图标并启动计时器
+              setState(() {
+                _isShowPauseIcon = true;
+              });
+              _pauseIconTimer?.cancel(); // 取消之前的计时器
+              _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _isShowPauseIcon = false;
+                  });
                 }
-              : null,
+              });
+            }
+          },
           // 双击播放/暂停视频
           onDoubleTap: () {
             LogUtil.safeExecute(() {
@@ -165,6 +180,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           },
                           child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
                         ),
+                      // 显示暂停图标
+                      if (_isShowPauseIcon)
+                        const Icon(Icons.pause_circle_outline, color: Colors.white, size: 50),
                     ],
                   )
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
