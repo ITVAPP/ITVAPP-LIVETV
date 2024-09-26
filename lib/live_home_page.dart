@@ -412,25 +412,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final favoriteItem = favoriteList.playList[Config.myFavoriteKey];
 
       LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.playList.runtimeType}');
-      LogUtil.i('更新收藏检查播放列表: ${_videoMap?}');
+      LogUtil.i('更新收藏检查播放列表: ${_videoMap}');
       LogUtil.i('更新收藏检查收藏列表类型: ${favoriteItem.runtimeType}');
       LogUtil.i('更新收藏检查收藏列表: ${favoriteItem}');
         
         // 更新播放列表中的收藏部分
         if (favoriteItem is Map<String, Map<String, PlayModel>>) {
           // 如果 favoriteItem 是 Map<String, Map<String, PlayModel>> 类型
-          _videoMap?.playList[Config.myFavoriteKey] = favoriteList.playList[Config.myFavoriteKey];
-        } else if (favoriteItem is Map<String, dynamic>) {
-          // 如果 favoriteItem 是 Map<String, dynamic> 类型
-          _videoMap?.playList[Config.myFavoriteKey] = 
-              favoriteItem.cast<String, Map<String, PlayModel>>();
-        } else if (favoriteItem is Map<dynamic, dynamic>) {
-          // 如果 favoriteItem 是 Map<dynamic, dynamic> 类型
-          _videoMap?.playList[Config.myFavoriteKey] = 
-              favoriteItem.cast<String, Map<String, PlayModel>>();
-        }
+          _videoMap?.playList[Config.myFavoriteKey] = favoriteItem;
+        } else  {
+          _videoMap?.playList[Config.myFavoriteKey] = favoriteItem.cast<String, Map<String, PlayModel>>();
+        } 
+      LogUtil.i('修改收藏后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
-        await M3uUtil.saveCachedM3uData(_videoMap!);
+        await M3uUtil.saveCachedM3uData(_videoMap);
         setState(() {}); // 重新渲染频道列表
       } catch (error) {
         ScaffoldMessenger.of(context).showSnackBar(
