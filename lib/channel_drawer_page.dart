@@ -27,7 +27,7 @@ Widget buildListItem({
   EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
   Color selectedColor = Colors.red,
   bool isTV = false,
-  Function(bool)? onFocusChange, 
+  Function(bool)? onFocusChange,
 }) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 0),  // 列表项的上下外边距
@@ -118,6 +118,7 @@ class GroupList extends StatelessWidget {
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
   final bool isTV;
+  final bool isFavoriteCategory; // 新增参数，用于标识是否为收藏分类
 
   const GroupList({
     super.key,
@@ -127,6 +128,7 @@ class GroupList extends StatelessWidget {
     required this.selectedGroupIndex,
     required this.onGroupTap,
     required this.isTV,
+    this.isFavoriteCategory = false, // 默认为 false
   });
 
   @override
@@ -135,8 +137,19 @@ class GroupList extends StatelessWidget {
       cacheExtent: itemHeight, // 预缓存区域
       padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
       controller: scrollController, // 使用滚动控制器
-      itemCount: keys.length, // 分组数目
+      itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length, // 分组数目
       itemBuilder: (context, index) {
+        if (keys.isEmpty && isFavoriteCategory) {
+          return Center(
+            child: Text(
+              '暂无收藏频道',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 16,
+              ),
+            ),
+          );
+        }
         return buildListItem(
           title: keys[index],
           isSelected: selectedGroupIndex == index,
@@ -226,7 +239,7 @@ class EPGList extends StatelessWidget {
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.only(left: 8),  // 添加左边距
           decoration: BoxDecoration(
-            color: Colors.black38, 
+            color: Colors.black38,
             borderRadius: BorderRadius.circular(5),
           ),
           child: Text(
@@ -326,7 +339,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     // 查找第一个非空的分类，并在找到后停止遍历
     for (int i = 0; i < _categories.length; i++) {
       final categoryMap = widget.videoMap?.playList[_categories[i]];
-      
+
       // 如果分类不为空，立即设置为选中的分类并退出循环
       if (categoryMap != null && categoryMap.isNotEmpty) {
         _categoryIndex = i; // 选中第一个非空分类
@@ -338,10 +351,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 初始化频道数据
   void _initializeChannelData() {
     final selectedCategory = _categories[_categoryIndex];
-    
+
     // 判断是否为空分类
     final categoryMap = widget.videoMap?.playList[selectedCategory];
-    
+
     if (categoryMap == null || categoryMap.isEmpty) {
       // 如果分类是空的，设置空的 keys 和 values
       _keys = [];
@@ -352,21 +365,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       // 空分类不加载 EPG 数据
       _epgData = null; // 确保 EPG 数据为空
       _selEPGIndex = 0;
-      return; 
+      return;
     }
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
       _keys = categoryMap.keys.toList(); // 获取分组
       _values = categoryMap.values.toList(); // 获取每个分组下的频道
-    
+
       // 对每个分组中的频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
         _values[i] = Map<String, PlayModel>.fromEntries(
           _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
         );
       }
-    
+
       _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
       _channelIndex = _groupIndex != -1
           ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
@@ -375,7 +388,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       // 两层结构：直接处理频道
       _keys = [Config.allChannelsKey]; // 使用一个默认分组
       _values = [categoryMap]; // 频道直接作为值
-    
+
       _groupIndex = 0; // 没有分组，固定为 0
       _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
@@ -424,7 +437,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         _groupIndex = index;
         _channelIndex = 0;    // 重置频道索引
         _scrollToTop(_scrollChannelController);
-        
+
         // 根据当前分组是否有频道决定是否加载 EPG 数据
         if (_values[_groupIndex].isNotEmpty) {
           _loadEPGMsg(widget.playModel);
@@ -473,9 +486,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 根据索引调整滚动位置，使用动画滚动
   void _scrollToPosition(ScrollController controller, int index) {
     if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent; 
+    final maxScrollExtent = controller.position.maxScrollExtent;
     final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5; 
+    final shouldOffset = index * _itemHeight - viewPortHeight + _itemHeight * 0.5;
     controller.animateTo(
       shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
       duration: const Duration(milliseconds: 300),
@@ -554,7 +567,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double categoryWidth = 110 * context.read<ThemeProvider>().textScaleFactor; // 分类列表宽度
 
     // 设置分组列表宽度，只有当 _keys 非空时显示
-    double groupWidth = (_keys.isNotEmpty) ? 120 * context.read<ThemeProvider>().textScaleFactor : 0;
+    double groupWidth = (_keys.isNotEmpty || _categories[_categoryIndex] == Config.myFavoriteKey) ? 120 * context.read<ThemeProvider>().textScaleFactor : 0;
 
     // 设置频道列表宽度，只有当 _values 和 _groupIndex 下有频道时显示
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
@@ -571,11 +584,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      width: widget.isLandscape 
+      width: widget.isLandscape
            ? categoryWidth + groupWidth + channelListWidth + epgListWidth
            : MediaQuery.of(context).size.width, // 获取屏幕宽度
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]), 
+        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
       ),
       child: Row(
         children: [
@@ -599,6 +612,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 selectedGroupIndex: _groupIndex,
                 onGroupTap: _onGroupTap, // 分组点击事件
                 isTV: isTV,
+                isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey, // 传递是否为收藏分类的标识
               ),
             ),
           verticalDivider,
