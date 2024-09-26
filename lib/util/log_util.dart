@@ -82,7 +82,7 @@ class LogUtil {
     String time = DateTime.now().toString();
     String fileInfo = _getFileAndLine(); // 获取文件和行号信息
     // 安全处理 object，避免出现 null 值导致错误
-    String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'} - $fileInfo';
+    String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'}\n$fileInfo';
 
     // 限制日志的数量，如果超过最大数量，则移除最旧的日志
     if (_logs.length >= _maxLogs) {
