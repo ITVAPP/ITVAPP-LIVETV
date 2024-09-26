@@ -41,7 +41,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1;
 
   // 超时检测的时间
-  static const int defaultTimeoutSeconds = 8;
+  static const int defaultTimeoutSeconds = 18;
 
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
@@ -90,6 +90,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 超时检测时间
   final int timeoutSeconds = defaultTimeoutSeconds;
+  
+  // 标记是否需要更新宽高比
+  bool _shouldUpdateAspectRatio = true;
 
   StreamUrl? _streamUrl;
 
@@ -289,8 +292,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (isPlaying != _playerController!.value.isPlaying) {
       setState(() {
         isPlaying = _playerController!.value.isPlaying;
-        if (isPlaying) {
+        if (isPlaying && _shouldUpdateAspectRatio)  {
           aspectRatio = _playerController?.value.aspectRatio ?? 1.78;
+          _shouldUpdateAspectRatio = false;
         }
       });
     }
@@ -303,6 +307,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _sourceIndex = 0; // 重置视频源索引
     _retryCount = 0; // 重置重试次数计数器
     _timeoutActive = false; // 取消超时检测
+    _shouldUpdateAspectRatio = true; // 重置宽高比标志位
     _playVideo(); // 开始播放选中的频道
   }
 
@@ -360,8 +365,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 添加或取消收藏
   void toggleFavorite(String channelId) async {
-    LogUtil.i('修改前的收藏列表类型: ${favoriteList.runtimeType}');
-    LogUtil.i('修改前的收藏列表: ${jsonEncode(favoriteList)}');
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
 
@@ -399,23 +402,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       isFavoriteChanged = true;
     }
-      LogUtil.i('修改后的收藏列表类型: ${favoriteList.runtimeType}');
-      LogUtil.i('修改后的收藏列表: ${jsonEncode(favoriteList)}');
 
     if (isFavoriteChanged) {
       try {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
 
-      LogUtil.i('更新收藏检查播放列表类型: ${_videoMap?.runtimeType}');
-      LogUtil.i('更新收藏检查播放列表: ${_videoMap}');
-      LogUtil.i('更新收藏检查收藏列表类型: ${favoriteList?.runtimeType}');
-      LogUtil.i('更新收藏检查收藏列表: ${favoriteList}');
-
         // 更新播放列表中的收藏部分
        _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         
-      LogUtil.i('修改收藏后的播放列表: ${_videoMap}');
+      LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
