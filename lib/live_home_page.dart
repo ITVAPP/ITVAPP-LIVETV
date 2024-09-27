@@ -98,8 +98,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
-    Config.myFavoriteKey: {
-      "": <String, PlayModel>{} // 确保为三层嵌套结构
+    Config.myFavoriteKey: {<String, PlayModel>{} // 确保为三层嵌套结构
     },
   };
   
@@ -341,7 +340,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
        };
     } else {
        favoriteList = {
-          Config.myFavoriteKey: {"": <String, PlayModel>{} // 确保为三层嵌套结构
+          Config.myFavoriteKey: {<String, PlayModel>{} // 确保为三层嵌套结构
           },
        };
     }
