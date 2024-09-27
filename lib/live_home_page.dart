@@ -366,10 +366,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
-    // 验证分组名字、频道名字是否正确
-    if (groupName.isEmpty || channelName.isEmpty) {
-      return false;
-    }
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
   }
 
@@ -377,9 +373,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
+    String groupName = getGroupName(actualChannelId);
+    String channelName = getChannelName(actualChannelId);
+
 
     // 验证分组名字、频道名字和播放地址是否正确
-    if (!isChannelFavorite(actualChannelId)) {
+    if (groupName.isEmpty || channelName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('当前频道无法收藏'), duration: Duration(seconds: 3))
       );
@@ -388,8 +387,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (isChannelFavorite(actualChannelId)) {
       // 取消收藏
-      String groupName = getGroupName(actualChannelId);
-      String channelName = getChannelName(actualChannelId);
       favoriteList[Config.myFavoriteKey]![groupName]?.remove(channelName);
       if (favoriteList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
         favoriteList[Config.myFavoriteKey]!.remove(groupName);
@@ -400,9 +397,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       isFavoriteChanged = true;
     } else {
       // 添加收藏
-      String groupName = getGroupName(actualChannelId);
-      String channelName = getChannelName(actualChannelId);
-
       if (favoriteList[Config.myFavoriteKey]![groupName] == null) {
         favoriteList[Config.myFavoriteKey]![groupName] = {};
       }
