@@ -14,7 +14,7 @@ class LogUtil {
   static void setDebugMode(bool isEnabled) {
     debugMode = isEnabled;
     if (!isEnabled) {
-     //  clearLogs(); // 如果关闭日志记录，则清空已有日志
+      clearLogs(); // 如果关闭日志记录，则清空已有日志
     }
   }
 
