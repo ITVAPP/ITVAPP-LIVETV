@@ -21,6 +21,30 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
+  /// 检查并确保播放列表或收藏列表为三层结构
+  static Map<String, Map<String, Map<String, PlayModel>>> _ensureThreeLayerStructure(Map<String, dynamic> playList) {
+    final fixedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+
+    playList.forEach((categoryKey, groupMapJson) {
+      if (groupMapJson is Map<String, dynamic>) {
+        final groupMap = <String, Map<String, PlayModel>>{};
+        groupMapJson.forEach((groupTitle, channelMapJson) {
+          if (channelMapJson is Map<String, dynamic>) {
+            final channelMap = <String, PlayModel>{};
+            channelMapJson.forEach((channelName, channelData) {
+              if (channelData is Map<String, dynamic>) {
+                channelMap[channelName] = PlayModel.fromJson(channelData);
+              }
+            });
+            groupMap[groupTitle] = channelMap;
+          }
+        });
+        fixedPlaylist[categoryKey] = groupMap;
+      }
+    });
+    return fixedPlaylist;
+  }
+
   /// 获取本地播放列表，如果本地缓存数据为空，则尝试获取远程播放列表
   static Future<M3uResult> getLocalM3uData() async {
     try {
@@ -86,7 +110,8 @@ class M3uUtil {
           parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>,
           favoritePlaylist);
 
-      // 保存播放列表到本地缓存
+      // 保存播放列表到本地缓存，确保三层结构
+      parsedData.playList = _ensureThreeLayerStructure(parsedData.playList);
       await saveCachedM3uData(parsedData.toString());
 
       LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}');
@@ -155,21 +180,10 @@ class M3uUtil {
     return updatedPlaylist;
   }
 
-  /// 保存更新后的收藏列表到本地缓存
+  /// 保存更新后的收藏列表到本地缓存，确保三层结构
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    // 检查并确保收藏列表是三层结构
     favoritePlaylist.playList = _ensureThreeLayerStructure(favoritePlaylist.playList);
     await SpUtil.putString(Config.favoriteCacheKey, favoritePlaylist.toString());
-  }
-
-  /// 保存播放列表到本地缓存
-  static Future<void> saveCachedM3uData(String data) async {
-    PlaylistModel playlistModel = PlaylistModel.fromString(data);
-    
-    // 检查并确保播放列表是三层结构
-    playlistModel.playList = _ensureThreeLayerStructure(playlistModel.playList);
-
-    await SpUtil.putString(Config.m3uCacheKey, playlistModel.toString());
   }
 
   /// 从本地缓存中获取收藏列表
@@ -236,31 +250,7 @@ class M3uUtil {
     });
   }
 
-  /// 确保 playList 是三层结构
-  static Map<String, dynamic> _ensureThreeLayerStructure(Map<String, dynamic> playList) {
-    Map<String, dynamic> result = {};
-    
-    playList.forEach((category, groupMap) {
-      if (groupMap is Map<String, dynamic>) {
-        bool isThreeLayer = groupMap.values.first is Map<String, PlayModel>;
-        if (!isThreeLayer) {
-          Map<String, Map<String, PlayModel>> newGroupMap = {};
-          groupMap.forEach((groupTitle, channelMap) {
-            if (channelMap is Map<String, PlayModel>) {
-              newGroupMap[groupTitle] = channelMap;
-            }
-          });
-          result[category] = newGroupMap;
-        } else {
-          result[category] = groupMap;
-        }
-      }
-    });
-
-    return result;
-  }
-
-  /// 重试机制，最多重试 `retries` 次
+  /// 重试机制，最多重试 retries 次
   static Future<T?> _retryRequest<T>(Future<T?> Function() request,
       {int retries = 3,
       Duration retryDelay = const Duration(seconds: 2),
@@ -412,14 +402,11 @@ class M3uUtil {
     }
   }
 
-  /// 保存播放列表到本地缓存
+  /// 保存播放列表到本地缓存，确保三层结构
   static Future<void> saveCachedM3uData(String data) async {
-    PlaylistModel playlistModel = PlaylistModel.fromString(data);
-    
-    // 检查并确保播放列表是三层结构
-    playlistModel.playList = _ensureThreeLayerStructure(playlistModel.playList);
-
-    await SpUtil.putString(Config.m3uCacheKey, playlistModel.toString());
+    PlaylistModel playlist = PlaylistModel.fromString(data);
+    playlist.playList = _ensureThreeLayerStructure(playlist.playList);
+    await SpUtil.putString(Config.m3uCacheKey, playlist.toString());
   }
 
   /// 保存订阅模型数据到本地缓存
