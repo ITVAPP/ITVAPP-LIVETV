@@ -75,8 +75,8 @@ class M3uUtil {
       // 获取或创建收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
 
-      LogUtil.i('解析后的播放列表内容: ${parsedData}');
-      LogUtil.i('解析后的播放列表类型: ${parsedData.runtimeType}');
+      LogUtil.i('解析后的播放列表内容: ${parsedData.playList}');
+      LogUtil.i('解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 更新收藏列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
@@ -89,8 +89,8 @@ class M3uUtil {
       // 保存播放列表到本地缓存
       await saveCachedM3uData(parsedData.toString());
 
-      LogUtil.i('保存后的播放列表类型: ${parsedData.runtimeType}');
-      LogUtil.i('保存后的播放列表内容: ${parsedData}');
+      LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}');
+      LogUtil.i('保存后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地
       await saveLocalData([
@@ -115,17 +115,17 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          Config.myFavoriteKey: {}, // 确保结构一致
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
         },
       );
-      LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.runtimeType}');
-      LogUtil.i('创建的收藏列表: ${favoritePlaylist}');
+      LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
+      LogUtil.i('创建的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      LogUtil.i('缓存的收藏列表类型: ${favoritePlaylist.runtimeType}');
-      LogUtil.i('缓存的收藏列表: ${favoritePlaylist}');
+      LogUtil.i('缓存的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
+      LogUtil.i('缓存的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     }
   }
@@ -136,11 +136,12 @@ class M3uUtil {
       PlaylistModel favoritePlaylist) {
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
 
-    // 如果 parsedData.playList 中已有同名的收藏列表，直接替换，不合并
+    // 如果 parsedData.playList 中已有同名的收藏列表，直接替换
     if (originalPlaylist?[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
-    } else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null &&
-        favoritePlaylist.playList![Config.myFavoriteKey]!.isNotEmpty) {
+    } 
+    // 检查并确保即使为空也能插入收藏分类
+    else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     }
 
