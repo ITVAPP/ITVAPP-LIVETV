@@ -30,7 +30,7 @@ class DialogUtil {
         String time = log['time']!;
         String parsedMessage = LogUtil.parseLogMessage(log['message']!);
         return '$time\n$parsedMessage';  // 每条日志的时间和内容分两行显示
-      }).join('\n\n');  // 在每条日志之间增加换行
+      }).join('\n');  // 在每条日志之间增加换行
     } 
     
     return showDialog<bool>(
