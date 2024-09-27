@@ -35,14 +35,14 @@ class _SplashScreenState extends State<SplashScreen> {
     super.dispose();
   }
 
-  // 初始化应用，包括获取设备类型和数据
+  // 初始化应用
   Future<void> _initializeApp() async {
     try {
       LogUtil.safeExecute(() async {
-
+        // 获取 ThemeProvider 实例
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
         // 获取设备类型并存储到 Provider 中
         await themeProvider.checkAndSetIsTV();
-
         // 然后获取 M3U 数据
         setState(() {
           _m3uDataFuture = _fetchData(); // 初始化完成后再开始获取 M3U 数据
