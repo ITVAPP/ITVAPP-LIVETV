@@ -39,15 +39,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       LogUtil.safeExecute(() async {
-        // 先确保 ThemeProvider 的初始化完成
-        ThemeProvider themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-
-        // 等待 ThemeProvider 初始化完成
-        while (!themeProvider.isInitialized) {
-          await Future.delayed(Duration(milliseconds: 500)); // 每隔500ms检查一次
-        }
-
-        LogUtil.i('ThemeProvider 初始化完成');
 
         // 获取设备类型并存储到 Provider 中
         await themeProvider.checkAndSetIsTV();
