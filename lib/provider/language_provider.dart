@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../util/log_util.dart'; // 引入日志工具类
+import 'package:sp_util/sp_util.dart';
+import '../util/log_util.dart';
 
 class LanguageProvider with ChangeNotifier {
   Locale _currentLocale = WidgetsBinding.instance.window.locale ?? const Locale('en'); // 默认使用系统语言
@@ -13,13 +13,12 @@ class LanguageProvider with ChangeNotifier {
     Future.microtask(() => _loadSavedLanguage());
   }
 
-  // 从 SharedPreferences 加载已保存的语言设置
+  // 从 SpUtil 加载已保存的语言设置
   Future<void> _loadSavedLanguage() async {
     try {
       LogUtil.safeExecute(() async {
-        SharedPreferences prefs = await SharedPreferences.getInstance(); // 获取 SharedPreferences 实例
-        String? languageCode = prefs.getString('languageCode'); // 获取已保存的语言代码
-        String? countryCode = prefs.getString('countryCode'); // 获取已保存的国家代码
+        String? languageCode = SpUtil.getString('languageCode'); // 获取已保存的语言代码
+        String? countryCode = SpUtil.getString('countryCode'); // 获取已保存的国家代码
 
         if (languageCode != null && languageCode.isNotEmpty) {
           // 检查并设置语言代码和国家代码
@@ -35,7 +34,7 @@ class LanguageProvider with ChangeNotifier {
         }
       }, '加载已保存语言设置时发生错误');
     } catch (e, stackTrace) {
-      LogUtil.logError('从 SharedPreferences 加载语言设置时发生错误', e, stackTrace);
+      LogUtil.logError('从 SpUtil 加载语言设置时发生错误', e, stackTrace);
     }
   }
 
@@ -62,18 +61,17 @@ class LanguageProvider with ChangeNotifier {
       notifyListeners(); // 通知所有监听器，语言已更改
       LogUtil.v('语言已更改为: $languageCode');
 
-      // 保存设置到 SharedPreferences
+      // 保存设置到 SpUtil
       try {
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('languageCode', _currentLocale.languageCode);
+        SpUtil.putString('languageCode', _currentLocale.languageCode); // 保存语言代码
         if (_currentLocale.countryCode != null) {
-          await prefs.setString('countryCode', _currentLocale.countryCode!);
+          SpUtil.putString('countryCode', _currentLocale.countryCode!); // 保存国家代码
         } else {
-          await prefs.remove('countryCode'); // 如果没有国家代码，则移除
+          SpUtil.remove('countryCode'); // 如果没有国家代码，则移除
         }
-        LogUtil.v('语言设置已保存到 SharedPreferences');
+        LogUtil.v('语言设置已保存到 SpUtil');
       } catch (e, stackTrace) {
-        LogUtil.logError('保存语言设置到 SharedPreferences 时发生错误', e, stackTrace);
+        LogUtil.logError('保存语言设置到 SpUtil 时发生错误', e, stackTrace);
       }
     }, '更改语言设置时发生错误');
   }
