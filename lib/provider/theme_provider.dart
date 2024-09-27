@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sp_util/sp_util.dart';
 import '../util/font_util.dart';
 import '../util/env_util.dart';
 import '../util/log_util.dart';
@@ -12,7 +12,6 @@ class ThemeProvider extends ChangeNotifier {
   bool _isBingBg = Config.defaultBingBg; // 默认Bing背景设置
   String _fontUrl = ''; // 默认字体 URL 为空
   bool _isTV = false; // 默认不是 TV 设备
-  SharedPreferences? _prefs; // 缓存 SharedPreferences 实例
 
   // 标记是否需要通知 UI 更新，避免不必要的重绘
   bool _shouldNotify = false;
@@ -31,29 +30,20 @@ class ThemeProvider extends ChangeNotifier {
 
   // 构造函数，在初始化时从缓存中加载数据
   ThemeProvider() {
-    Future.microtask(() => _initialize()); // 使用 Future.microtask 确保异步任务在构造函数完成后执行
-  }
-
-  // 确保 SharedPreferences 已初始化
-  Future<void> _ensurePrefsInitialized() async {
-    if (_prefs == null) {
-      _prefs = await SharedPreferences.getInstance();
-    }
+    _initialize(); // 使用 _initialize 进行同步初始化
   }
 
   // 初始化方法，捕获并记录初始化中的异常
   Future<void> _initialize() async {
     try {
       LogUtil.safeExecute(() async {
-        await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
-
-        // 读取各项设置的值，读取不到则使用默认值
-        _fontFamily = _prefs?.getString('appFontFamily') ?? Config.defaultFontFamily; // 使用默认字体
-        _fontUrl = _prefs?.getString('appFontUrl') ?? ''; // 读取字体URL，默认空
-        _textScaleFactor = _prefs?.getDouble('fontScale') ?? Config.defaultTextScaleFactor; // 使用默认文本缩放比例
-        _isBingBg = _prefs?.getBool('bingBg') ?? Config.defaultBingBg; // 使用默认 Bing 背景设置
-        _isTV = _prefs?.getBool('isTV') ?? false; // 读取是否 TV 设备设置，默认 false
-        _isLogOn = _prefs?.getBool('LogOn') ?? Config.defaultLogOn; // 使用默认日志开关
+        // 使用 SpUtil 代替 SharedPreferences
+        _fontFamily = SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily) ?? Config.defaultFontFamily;
+        _fontUrl = SpUtil.getString('appFontUrl') ?? '';
+        _textScaleFactor = SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor) ?? Config.defaultTextScaleFactor;
+        _isBingBg = SpUtil.getBool('bingBg', defValue: Config.defaultBingBg) ?? Config.defaultBingBg;
+        _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
+        _isLogOn = SpUtil.getBool('LogOn', defValue: Config.defaultLogOn) ?? Config.defaultLogOn;
 
         // 设置日志记录开关
         LogUtil.setDebugMode(_isLogOn);
@@ -63,9 +53,8 @@ class ThemeProvider extends ChangeNotifier {
           FontUtil().loadFont(_fontUrl, _fontFamily);
         }
 
-        _shouldNotify = true; // 标记数据已更新，需要通知 UI
         _isInitialized = true; // 标记初始化完成
-        _notifyIfNeeded(); // 通知 UI 更新
+        notifyListeners(); // 通知 UI 更新
       }, '初始化 ThemeProvider 时出错');
     } catch (e, stackTrace) {
       LogUtil.logError('初始化 ThemeProvider 时出错', e, stackTrace);
@@ -83,15 +72,11 @@ class ThemeProvider extends ChangeNotifier {
   // 设置日志开关状态，捕获并记录异步操作中的异常
   Future<void> setLogOn(bool isOpen) async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isLogOn != isOpen) {
-        LogUtil.safeExecute(() async {
-          await _prefs?.setBool('LogOn', isOpen); // 使用已缓存的 SharedPreferences 实例
-          _isLogOn = isOpen;
-          LogUtil.setDebugMode(_isLogOn); // 在修改日志开关状态后再次设置日志开关
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知 UI 更新
-        }, '设置日志开关状态时出错');
+        _isLogOn = isOpen;
+        SpUtil.putBool('LogOn', isOpen); // 使用 SpUtil 存储日志开关状态
+        LogUtil.setDebugMode(_isLogOn); // 在修改日志开关状态后再次设置日志开关
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置日志开关状态时出错', e, stackTrace);
@@ -101,33 +86,25 @@ class ThemeProvider extends ChangeNotifier {
   // 设置字体相关的方法，捕获并记录异步操作中的异常
   Future<void> setFontFamily(String fontFamilyName, [String fontFullUrl = '']) async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_fontFamily != fontFamilyName || _fontUrl != fontFullUrl) {
-        LogUtil.safeExecute(() async {
-          await _prefs?.setString('appFontFamily', fontFamilyName); // 使用缓存的 SharedPreferences 实例
-          await _prefs?.setString('appFontUrl', fontFullUrl);
-          _fontFamily = fontFamilyName;
-          _fontUrl = fontFullUrl;
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知 UI 更新
-        }, '设置字体时出错');
+        _fontFamily = fontFamilyName;
+        _fontUrl = fontFullUrl;
+        SpUtil.putString('appFontFamily', fontFamilyName); // 使用 SpUtil 存储字体
+        SpUtil.putString('appFontUrl', fontFullUrl);
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置字体时出错', e, stackTrace);
     }
   }
 
-  // 设置文本缩放，捕获并记录异步操作中的异常
+  // 设置文本缩放比例，捕获并记录异步操作中的异常
   Future<void> setTextScale(double textScaleFactor) async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_textScaleFactor != textScaleFactor) {
-        LogUtil.safeExecute(() async {
-          await _prefs?.setDouble('fontScale', textScaleFactor); // 使用缓存的 SharedPreferences 实例
-          _textScaleFactor = textScaleFactor;
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知 UI 更新
-        }, '设置文本缩放时出错');
+        _textScaleFactor = textScaleFactor;
+        SpUtil.putDouble('fontScale', textScaleFactor); // 使用 SpUtil 存储文本缩放比例
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置文本缩放时出错', e, stackTrace);
@@ -137,14 +114,10 @@ class ThemeProvider extends ChangeNotifier {
   // 设置每日 Bing 背景图片的开关状态，捕获并记录异步操作中的异常
   Future<void> setBingBg(bool isOpen) async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isBingBg != isOpen) {
-        LogUtil.safeExecute(() async {
-          await _prefs?.setBool('bingBg', isOpen); // 使用缓存的 SharedPreferences 实例
-          _isBingBg = isOpen;
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知 UI 更新
-        }, '设置每日 Bing 背景时出错');
+        _isBingBg = isOpen;
+        SpUtil.putBool('bingBg', isOpen); // 使用 SpUtil 存储 Bing 背景开关状态
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置每日 Bing 背景时出错', e, stackTrace);
@@ -154,17 +127,12 @@ class ThemeProvider extends ChangeNotifier {
   // 检测并设置设备是否为 TV，捕获并记录异步操作中的异常
   Future<void> checkAndSetIsTV() async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
-      LogUtil.safeExecute(() async {
-        bool deviceIsTV = await EnvUtil.isTV(); // 调用工具类检测是否为 TV
-        if (_isTV != deviceIsTV) {
-          _isTV = deviceIsTV;
-          await _prefs?.setBool('isTV', _isTV); // 使用缓存的 SharedPreferences 实例
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知监听器更新界面
-        }
-        LogUtil.i('设备检测结果: 该设备${deviceIsTV ? "是" : "不是"}TV');
-      }, '检测并设置设备为 TV 时出错');
+      bool deviceIsTV = await EnvUtil.isTV();
+      if (_isTV != deviceIsTV) {
+        _isTV = deviceIsTV;
+        SpUtil.putBool('isTV', _isTV); // 使用 SpUtil 存储是否为 TV 的状态
+        notifyListeners(); // 通知 UI 更新
+      }
     } catch (error, stackTrace) {
       LogUtil.logError('检测并设置设备为 TV 时出错', error, stackTrace);
     }
@@ -173,14 +141,10 @@ class ThemeProvider extends ChangeNotifier {
   // 手动设置是否为 TV，捕获并记录异步操作中的异常
   Future<void> setIsTV(bool isTV) async {
     try {
-      await _ensurePrefsInitialized(); // 确保 SharedPreferences 已初始化
       if (_isTV != isTV) {
-        LogUtil.safeExecute(() async {
-          _isTV = isTV;
-          await _prefs?.setBool('isTV', _isTV);  // 使用缓存的 SharedPreferences 实例
-          _shouldNotify = true; // 标记需要通知 UI
-          _notifyIfNeeded(); // 通知监听器更新界面
-        }, '手动设置 TV 状态时出错');
+        _isTV = isTV;
+        SpUtil.putBool('isTV', _isTV); // 使用 SpUtil 存储 TV 状态
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (error, stackTrace) {
       LogUtil.logError('手动设置 TV 状态时出错', error, stackTrace);
