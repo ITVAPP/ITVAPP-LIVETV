@@ -85,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
           _retryCount++;
           _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount 次)'; // 显示错误信息
         });
-        LogUtil.e('M3U 数据获取失败: ${result.errorMessage}'); // 添加错误日志
+        LogUtil.i('M3U 数据获取失败: ${result.data}'); // 失败时记录数据
         return M3uResult(errorMessage: result.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e, stackTrace) {
@@ -94,6 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
+      LogUtil.i('发生错误时的 M3U 数据: $result.data'); // 记录异常时的数据
       return M3uResult(errorMessage: '发生错误: $e');
     }
   }
