@@ -55,7 +55,6 @@ class PlaylistModel {
     String? epgUrl = json['epgUrl'] as String?;
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
     Map<String, dynamic> playList = _parsePlayList(playListJson);
-    // Map<String, Map<String, Map<String, PlayModel>>> playList = _parsePlayList(playListJson);
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
@@ -63,7 +62,6 @@ class PlaylistModel {
   /// 从字符串解析 [PlaylistModel] 实例
   static PlaylistModel fromString(String data) {
     final Map<String, dynamic> jsonData = jsonDecode(data);
-    // final Map<String, Map<String, Map<String, PlayModel>>> jsonData = jsonDecode(data);
     return PlaylistModel.fromJson(jsonData);
   }
 
