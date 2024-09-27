@@ -25,14 +25,12 @@ class DialogUtil {
       // 日志条目反转，确保最新日志在最前面
       logs = logs.reversed.toList();
       
-      // 格式化日志，简化时间显示为 [HH:mm] 格式，并使用 parseLogMessage 解析日志内容
+      // 时间和内容分别占两行
       content = logs.map((log) {
-        DateTime time = DateTime.parse(log['time']!);
-        // 使用 Dart 原生方法格式化时间为 HH:mm
-        String formattedTime = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+        String time = log['time']!;
         String parsedMessage = LogUtil.parseLogMessage(log['message']!);
-        return '[$formattedTime] $parsedMessage';
-      }).join('\n');  // 拼接日志内容为字符串显示
+        return '$time\n$parsedMessage';  // 每条日志的时间和内容分两行显示
+      }).join('\n\n');  // 在每条日志之间增加换行
     } 
     
     return showDialog<bool>(
