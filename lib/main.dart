@@ -29,6 +29,23 @@ import 'setting/setting_page.dart';
 void main() async {
   // 确保 WidgetsFlutterBinding 已经初始化，必要时会为应用的生命周期提供必要的绑定。
   WidgetsFlutterBinding.ensureInitialized();
+
+  
+  // 启用 WakelockPlus 以防止屏幕锁定（用于移动设备）
+  WakelockPlus.enable();
+  
+  // 初始化共享存储的工具实例，用于管理存储操作
+  await SpUtil.getInstance();
+
+  // 初始化 ThemeProvider 并确保它的初始化完成
+  ThemeProvider themeProvider = ThemeProvider();
+  await themeProvider.initialize();  // 等待 ThemeProvider 完全初始化
+  
+  // 注册 FVP 播放器，支持不同平台和解码器
+  fvp.registerWith(options: {
+    'platforms': ['android', 'ios'],  // 支持的平台
+    'video.decoders': ['FFmpeg']  // 使用 FFmpeg 进行视频解码
+  });
   
   // 如果当前环境不是移动端
   if (!EnvUtil.isMobile) {
@@ -52,18 +69,6 @@ void main() async {
       await windowManager.focus();  // 聚焦窗口
     });
   }
-
-  // 启用 WakelockPlus 以防止屏幕锁定（用于移动设备）
-  WakelockPlus.enable();
-  
-  // 初始化共享存储的工具实例，用于管理存储操作
-  await SpUtil.getInstance();
-  
-  // 注册 FVP 播放器，支持不同平台和解码器
-  fvp.registerWith(options: {
-    'platforms': ['android', 'ios'],  // 支持的平台
-    'video.decoders': ['FFmpeg']  // 使用 FFmpeg 进行视频解码
-  });
 
   // 运行应用，并使用 MultiProvider 来进行全局状态管理
   runApp(MultiProvider(
