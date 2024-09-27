@@ -16,6 +16,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
 
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
+  M3uResult? result;  // 直接在类中定义 result，用于捕获异常时访问
   int _retryCount = 0;  // 重试次数
   String _message = '';  // 用于显示当前的提示信息
   final FocusNode _retryButtonFocusNode = FocusNode(); // 用于控制焦点的 FocusNode
@@ -70,7 +71,7 @@ class _SplashScreenState extends State<SplashScreen> {
         });
       }, '获取 M3U 数据时发生错误');
 
-      final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
+      result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
         setState(() {
           _retryCount = attempt;
           _message = '错误: 获取失败\n重试中 ($_retryCount 次)'; // 更新重试次数提示信息
@@ -78,15 +79,15 @@ class _SplashScreenState extends State<SplashScreen> {
         LogUtil.e('获取 M3U 数据失败，重试中 ($attempt 次)'); // 添加重试日志
       });
 
-      if (result.data != null) {
-        return result;  // 直接返回 M3uResult 的 data
+      if (result!.data != null) {
+        return result!;  // 直接返回 M3uResult 的 data
       } else {
         setState(() {
           _retryCount++;
-          _message = '错误: ${result.errorMessage}\n重试中 ($_retryCount 次)'; // 显示错误信息
+          _message = '错误: ${result!.errorMessage}\n重试中 ($_retryCount 次)'; // 显示错误信息
         });
-        LogUtil.i('M3U 数据获取失败: ${result.data}'); // 失败时记录数据
-        return M3uResult(errorMessage: result.errorMessage);  // 返回带错误信息的 M3uResult
+        LogUtil.i('M3U 数据获取失败: ${result!.data}'); // 失败时记录数据
+        return M3uResult(errorMessage: result!.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e, stackTrace) {
       setState(() {
@@ -94,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
-      LogUtil.i('发生错误时的 M3U 数据: $result.data'); // 记录异常时的数据
+      LogUtil.i('发生错误时的 M3U 数据: ${result?.data}'); // 记录异常时的数据
       return M3uResult(errorMessage: '发生错误: $e');
     }
   }
