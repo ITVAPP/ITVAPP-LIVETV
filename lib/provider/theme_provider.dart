@@ -30,14 +30,13 @@ class ThemeProvider extends ChangeNotifier {
 
   // 构造函数，在初始化时从缓存中加载数据
   ThemeProvider() {
-    _initialize(); // 使用 _initialize 进行同步初始化
+    initialize(); // 使用 _initialize 进行同步初始化
   }
 
   // 初始化方法，捕获并记录初始化中的异常
-  Future<void> _initialize() async {
+  Future<void> initialize() async {
     try {
       LogUtil.safeExecute(() async {
-        // 使用 SpUtil 代替 SharedPreferences
         _fontFamily = SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily) ?? Config.defaultFontFamily;
         _fontUrl = SpUtil.getString('appFontUrl') ?? '';
         _textScaleFactor = SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor) ?? Config.defaultTextScaleFactor;
