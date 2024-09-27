@@ -157,7 +157,19 @@ class M3uUtil {
 
   /// 保存更新后的收藏列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
+    // 检查并确保收藏列表是三层结构
+    favoritePlaylist.playList = _ensureThreeLayerStructure(favoritePlaylist.playList);
     await SpUtil.putString(Config.favoriteCacheKey, favoritePlaylist.toString());
+  }
+
+  /// 保存播放列表到本地缓存
+  static Future<void> saveCachedM3uData(String data) async {
+    PlaylistModel playlistModel = PlaylistModel.fromString(data);
+    
+    // 检查并确保播放列表是三层结构
+    playlistModel.playList = _ensureThreeLayerStructure(playlistModel.playList);
+
+    await SpUtil.putString(Config.m3uCacheKey, playlistModel.toString());
   }
 
   /// 从本地缓存中获取收藏列表
@@ -222,6 +234,30 @@ class M3uUtil {
         }
       });
     });
+  }
+
+  /// 确保 playList 是三层结构
+  static Map<String, dynamic> _ensureThreeLayerStructure(Map<String, dynamic> playList) {
+    Map<String, dynamic> result = {};
+    
+    playList.forEach((category, groupMap) {
+      if (groupMap is Map<String, dynamic>) {
+        bool isThreeLayer = groupMap.values.first is Map<String, PlayModel>;
+        if (!isThreeLayer) {
+          Map<String, Map<String, PlayModel>> newGroupMap = {};
+          groupMap.forEach((groupTitle, channelMap) {
+            if (channelMap is Map<String, PlayModel>) {
+              newGroupMap[groupTitle] = channelMap;
+            }
+          });
+          result[category] = newGroupMap;
+        } else {
+          result[category] = groupMap;
+        }
+      }
+    });
+
+    return result;
   }
 
   /// 重试机制，最多重试 `retries` 次
@@ -378,11 +414,12 @@ class M3uUtil {
 
   /// 保存播放列表到本地缓存
   static Future<void> saveCachedM3uData(String data) async {
-    try {
-      await SpUtil.putString(Config.m3uCacheKey, data);
-    } catch (e, stackTrace) {
-      LogUtil.logError('保存播放列表到本地缓存失败', e, stackTrace);
-    }
+    PlaylistModel playlistModel = PlaylistModel.fromString(data);
+    
+    // 检查并确保播放列表是三层结构
+    playlistModel.playList = _ensureThreeLayerStructure(playlistModel.playList);
+
+    await SpUtil.putString(Config.m3uCacheKey, playlistModel.toString());
   }
 
   /// 保存订阅模型数据到本地缓存
