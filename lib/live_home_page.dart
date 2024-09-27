@@ -97,8 +97,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl;
 
   // 收藏列表相关
-  Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {};
-
+  Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
+    Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
+  };
+  
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
     LogUtil.i('检查竞态条件：$_isSwitchingChannel');
@@ -332,17 +334,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 从传递的播放列表中提取“我的收藏”部分
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
-       PlaylistModel favoriteList = PlaylistModel(
-        playList: {
+       favoriteList = {
           Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!
-        }
-      );
+       };
     } else {
-       PlaylistModel favoriteList = PlaylistModel(
-        playList: {
+       favoriteList = {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
-        }
-      );
+       };
     }
     LogUtil.i('初始化的收藏列表: ${favoriteList}');
   }
@@ -375,7 +373,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = getGroupName(actualChannelId);
     String channelName = getChannelName(actualChannelId);
-
 
     // 验证分组名字、频道名字和播放地址是否正确
     if (groupName.isEmpty || channelName.isEmpty) {
