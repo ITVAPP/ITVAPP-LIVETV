@@ -140,8 +140,7 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          Config.myFavoriteKey: {
-            "": <String, PlayModel>{} // 确保创建时为三层结构
+          Config.myFavoriteKey: {<String, PlayModel>{} // 确保创建时为三层结构
           },
         },
       );
