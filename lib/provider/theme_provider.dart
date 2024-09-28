@@ -44,6 +44,14 @@ class ThemeProvider extends ChangeNotifier {
         _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
         _isLogOn = SpUtil.getBool('LogOn', defValue: Config.defaultLogOn) ?? Config.defaultLogOn;
 
+        // 记录初始化的各个值到日志（中文）
+        LogUtil.i('字体: $_fontFamily');
+        LogUtil.i('字体 URL: $_fontUrl');
+        LogUtil.i('文本缩放比例: $_textScaleFactor');
+        LogUtil.i('Bing 背景启用: ${_isBingBg ? "启用" : "未启用"}');
+        LogUtil.i('是否为 TV: ${_isTV ? "是 TV 设备" : "不是 TV 设备"}');
+        LogUtil.i('日志开关状态: ${_isLogOn ? "已开启" : "已关闭"}');
+
         // 设置日志记录开关
         LogUtil.setDebugMode(_isLogOn);
 
@@ -132,6 +140,7 @@ class ThemeProvider extends ChangeNotifier {
         SpUtil.putBool('isTV', _isTV); // 使用 SpUtil 存储是否为 TV 的状态
         notifyListeners(); // 通知 UI 更新
       }
+      LogUtil.i('设备检测结果: 该设备${deviceIsTV ? "是" : "不是"}TV');
     } catch (error, stackTrace) {
       LogUtil.logError('检测并设置设备为 TV 时出错', error, stackTrace);
     }
