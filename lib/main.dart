@@ -73,8 +73,9 @@ void main() async {
   // 运行应用，并使用 MultiProvider 来进行全局状态管理
   runApp(MultiProvider(
     providers: [
-      // 状态管理：动态创建 ThemeProvider
-      ChangeNotifierProvider(create: (_) => ThemeProvider()), 
+      // 使用已经初始化的 themeProvider 实例
+      // ChangeNotifierProvider(create: (_) => ThemeProvider()), 
+      ChangeNotifierProvider.value(value: themeProvider), 
       // 状态管理：下载管理提供者
       ChangeNotifierProvider(create: (_) => DownloadProvider()), 
       // 状态管理：语言提供者
