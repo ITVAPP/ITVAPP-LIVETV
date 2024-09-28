@@ -141,7 +141,20 @@ class _MyAppState extends State<MyApp> {
                 elevation: 0,  // 移除阴影
                 centerTitle: true,  // 标题居中
               ),
-              useMaterial3: true),  // 使用 Material Design 3
+              useMaterial3: true,  // 使用 Material Design 3
+              
+              // SnackBar 主题
+              snackBarTheme: SnackBarThemeData(
+                backgroundColor: Colors.transparent, // 背景透明，显示自定义渐变
+                behavior: SnackBarBehavior.floating, // 设为浮动样式
+                elevation: 0, // 无阴影
+                contentTextStyle: TextStyle(
+                  color: Colors.white,  // 定义文字颜色
+                  fontSize: 16,  // 定义文字大小
+                  fontWeight: FontWeight.bold,  // 字体加粗
+                ),
+              )
+          ),
 
           // 设置应用的语言
           locale: languageProvider.currentLocale,  
@@ -206,4 +219,20 @@ class _MyAppState extends State<MyApp> {
       },
     );
   }
+}
+
+// 触发自定义 SnackBar 的函数
+void showCustomSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 5),  // 自定义显示时间为5秒
+      behavior: SnackBarBehavior.floating,  // 浮动的 SnackBar 样式
+      animation: CurvedAnimation(
+        parent: ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text(''))).animation!,
+        curve: Curves.easeInOut,  // 自定义动画
+      ),
+    ),
+  );
 }
