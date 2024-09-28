@@ -141,11 +141,17 @@ class GroupList extends StatelessWidget {
       itemBuilder: (context, index) {
         if (keys.isEmpty && isFavoriteCategory) {
           return Center(
-            child: Text(
-              '暂无收藏频道',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
-                fontSize: 16,
+            child: Container( 
+              constraints: BoxConstraints(minHeight: itemHeight),
+              child: Center(
+                child: Text(
+                  '暂无收藏',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           );
