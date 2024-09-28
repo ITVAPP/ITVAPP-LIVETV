@@ -50,20 +50,32 @@ class PlaylistModel {
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
   /// [json] 包含播放列表信息的 JSON 格式数据。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    String? epgUrl = json['epgUrl'] as String?;
-    Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
+    try {
+      LogUtil.i('fromString处理传入的数据： ${json}');
+      String? epgUrl = json['epgUrl'] as String?;
+      Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
 
-    // 使用 _parsePlayList 方法处理结构
-    Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
+      // 使用 _parsePlayList 方法处理结构
+      Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
 
-    return PlaylistModel(epgUrl: epgUrl, playList: playList);
+      return PlaylistModel(epgUrl: epgUrl, playList: playList);
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析 PlaylistModel 时出错', e, stackTrace);
+      return PlaylistModel(); // 返回一个空的 PlaylistModel
+    }
   }
 
   /// 从字符串解析 [PlaylistModel] 实例
   /// [data] 是包含播放列表 JSON 格式的字符串。
   static PlaylistModel fromString(String data) {
-    final Map<String, dynamic> jsonData = jsonDecode(data);
-    return PlaylistModel.fromJson(jsonData);
+    try {
+      LogUtil.i('fromString处理传入的数据： ${data}');
+      final Map<String, dynamic> jsonData = jsonDecode(data);
+      return PlaylistModel.fromJson(jsonData);
+    } catch (e, stackTrace) {
+      LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
+      return PlaylistModel(); // 返回一个空的 PlaylistModel
+    }
   }
 
   /// 将 [PlaylistModel] 实例转换为 JSON 字符串格式
@@ -79,34 +91,35 @@ class PlaylistModel {
   /// [json] 是包含播放列表的 Map。
   /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
   static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
-    // 检测是三层结构还是两层结构
-    bool isThreeLayer = json.values.first is Map<String, dynamic> &&
-        (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>;
+    try {
+      LogUtil.i('parsePlayList处理传入的数据： ${json}');
+      // 检测是三层结构还是两层结构
+      bool isThreeLayer = json.values.first is Map<String, dynamic> &&
+          (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>;
 
-    if (isThreeLayer) {
-      // 如果是三层结构，解析为三层
-      return _parseThreeLayer(json);
-    } else {
-      // 如果是两层结构，进一步判断是否为空的两层结构
-      bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
-
-      if (isEmptyTwoLayer) {
-        // 如果是空的两层结构，按初始创建的收藏列表结构处理
-        // 动态选择分类键，确保结构一致
-        LogUtil.i('处理空结构的收藏列表');
-        String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
-        return PlaylistModel(
-          playList: {
-            dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
-          },
-        ).playList;
-        // return {
-        //     dynamicCategoryKey: <String, Map<String, PlayModel>>{}
-        //   }.map((key, value) => MapEntry(key, <String, Map<String, PlayModel>>{})); 
+      if (isThreeLayer) {
+        // 如果是三层结构，解析为三层
+        return _parseThreeLayer(json);
       } else {
-        // 如果不是空的两层结构，按两层结构解析
-        return _parseTwoLayer(json);
+        // 如果是两层结构，进一步判断是否为空的两层结构
+        bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
+
+        if (isEmptyTwoLayer) {
+          LogUtil.i('处理空结构的收藏列表');
+          String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
+          return PlaylistModel(
+            playList: {
+              dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
+            },
+          ).playList;
+        } else {
+          // 如果不是空的两层结构，按两层结构解析
+          return _parseTwoLayer(json);
+        }
       }
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
+      return {}; // 返回一个空的 Map 以防止程序崩溃
     }
   }
 
@@ -119,26 +132,30 @@ class PlaylistModel {
   static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
       Map<String, dynamic> json) {
     Map<String, Map<String, Map<String, PlayModel>>> result = {};
-    json.forEach((categoryKey, groupMapJson) {
-      String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
+    try {
+      json.forEach((categoryKey, groupMapJson) {
+        String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
 
-      if (groupMapJson is Map<String, dynamic>) {
-        Map<String, Map<String, PlayModel>> groupMap = {};
-        groupMapJson.forEach((groupTitle, channelMapJson) {
-          if (channelMapJson is Map<String, dynamic>) {
-            Map<String, PlayModel> channelMap = {};
-            channelMapJson.forEach((channelName, channelData) {
-              PlayModel? playModel = PlayModel.fromJson(channelData);
-              if (playModel != null) {
-                channelMap[channelName] = playModel;
-              }
-            });
-            groupMap[groupTitle] = channelMap;
-          }
-        });
-        result[category] = groupMap;
-      }
-    });
+        if (groupMapJson is Map<String, dynamic>) {
+          Map<String, Map<String, PlayModel>> groupMap = {};
+          groupMapJson.forEach((groupTitle, channelMapJson) {
+            if (channelMapJson is Map<String, dynamic>) {
+              Map<String, PlayModel> channelMap = {};
+              channelMapJson.forEach((channelName, channelData) {
+                PlayModel? playModel = PlayModel.fromJson(channelData);
+                if (playModel != null) {
+                  channelMap[channelName] = playModel;
+                }
+              });
+              groupMap[groupTitle] = channelMap;
+            }
+          });
+          result[category] = groupMap;
+        }
+      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
+    }
     return result;
   }
 
@@ -150,18 +167,22 @@ class PlaylistModel {
   static Map<String, Map<String, PlayModel>> _parseTwoLayer(
       Map<String, dynamic> json) {
     Map<String, Map<String, PlayModel>> result = {};
-    json.forEach((groupTitle, channelMapJson) {
-      if (channelMapJson is Map<String, dynamic>) {
-        Map<String, PlayModel> channelMap = {};
-        channelMapJson.forEach((channelName, channelData) {
-          PlayModel? playModel = PlayModel.fromJson(channelData);
-          if (playModel != null) {
-            channelMap[channelName] = playModel;
-          }
-        });
-        result[groupTitle] = channelMap;
-      }
-    });
+    try {
+      json.forEach((groupTitle, channelMapJson) {
+        if (channelMapJson is Map<String, dynamic>) {
+          Map<String, PlayModel> channelMap = {};
+          channelMapJson.forEach((channelName, channelData) {
+            PlayModel? playModel = PlayModel.fromJson(channelData);
+            if (playModel != null) {
+              channelMap[channelName] = playModel;
+            }
+          });
+          result[groupTitle] = channelMap;
+        }
+      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
+    }
     return result;
   }
 
@@ -241,22 +262,29 @@ class PlayModel {
 
   /// 从 JSON 数据创建 [PlayModel] 实例
   factory PlayModel.fromJson(dynamic json) {
-    if (json['id'] == null || json['urls'] == null) {
-      return PlayModel();
-    }
+    try {
+      if (json['id'] == null || json['urls'] == null) {
+        LogUtil.i('PlayModel JSON 缺少必需字段');
+        return PlayModel();
+      }
 
-    List<String> urlsList = List<String>.from(json['urls'] ?? []);
-    if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-      return PlayModel(); 
-    }
+      List<String> urlsList = List<String>.from(json['urls'] ?? []);
+      if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
+        LogUtil.i('PlayModel JSON 包含无效或空的 URL');
+        return PlayModel();
+      }
 
-    return PlayModel(
-      id: json['id'] as String?,
-      logo: json['logo'] as String?,
-      title: json['title'] as String?,
-      group: json['group'] as String?,
-      urls: urlsList,
-    );
+      return PlayModel(
+        id: json['id'] as String?,
+        logo: json['logo'] as String?,
+        title: json['title'] as String?,
+        group: json['group'] as String?,
+        urls: urlsList,
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
+      return PlayModel(); // 返回一个空的 PlayModel
+    }
   }
 
   /// 创建一个新的 [PlayModel] 实例，保留当前实例的属性，并用新值覆盖
