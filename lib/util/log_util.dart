@@ -79,18 +79,22 @@ class LogUtil {
   static void _log(String level, Object? object, String? tag) {
     if (!debugMode || object == null) return;
 
-    String time = DateTime.now().toString();
-    String fileInfo = _getFileAndLine(); // 获取文件和行号信息
-    // 安全处理 object，避免出现 null 值导致错误
-    String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'}\n$fileInfo';
+    try {
+      String time = DateTime.now().toString();
+      String fileInfo = _getFileAndLine(); // 获取文件和行号信息
+      // 安全处理 object，避免出现 null 值导致错误
+      String logMessage = '${tag ?? _defTag} $level | ${object?.toString() ?? 'null'}\n$fileInfo';
 
-    // 限制日志的数量，如果超过最大数量，则移除最旧的日志
-    if (_logs.length >= _maxLogs) {
-      _logs.removeAt(0); // 移除最旧的一条日志
+      // 限制日志的数量，如果超过最大数量，则移除最旧的日志
+      if (_logs.length >= _maxLogs) {
+        _logs.removeAt(0); // 移除最旧的一条日志
+      }
+
+      _logs.add({'time': time, 'level': level, 'message': logMessage});
+      developer.log(logMessage);
+    } catch (e) {
+      developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
     }
-
-    _logs.add({'time': time, 'level': level, 'message': logMessage});
-    developer.log(logMessage);
   }
 
   // 获取文件名和行号，记录 frames
@@ -123,16 +127,19 @@ class LogUtil {
 
   // 提取和处理堆栈信息，过滤掉无关帧
   static String _processStackTrace(StackTrace stackTrace) {
-    final frames = stackTrace.toString().split('\n');
-  
-    for (int i = 2; i < frames.length; i++) {
-      final frame = frames[i];
+    try {
+      final frames = stackTrace.toString().split('\n');
+      for (int i = 2; i < frames.length; i++) {
+        final frame = frames[i];
 
-      // 忽略 log_util.dart 中的堆栈信息
-      final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
-      if (match != null && !frame.contains('log_util.dart')) {
-        return '${match.group(1)}:${match.group(2)}'; // 返回业务代码文件和行号
+        // 忽略 log_util.dart 中的堆栈信息
+        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
+        if (match != null && !frame.contains('log_util.dart')) {
+          return '${match.group(1)}:${match.group(2)}'; // 返回业务代码文件和行号
+        }
       }
+    } catch (e) {
+      return 'Unknown'; // 捕获任何异常，避免日志记录失败
     }
 
     return 'Unknown';
