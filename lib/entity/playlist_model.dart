@@ -92,6 +92,7 @@ class PlaylistModel {
       if (isEmptyTwoLayer) {
         // 如果是空的两层结构，按初始创建的收藏列表结构处理
         // 动态选择分类键，确保结构一致
+        LogUtil.i('处理空结构的收藏列表');
         String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
         return PlaylistModel(
           playList: {
