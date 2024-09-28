@@ -94,8 +94,8 @@ class PlaylistModel {
         // 动态选择分类键，确保结构一致
         String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
         return {
-          dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 使用动态选择的键值
-        };
+            dynamicCategoryKey: <String, Map<String, PlayModel>>{}
+          }.map((key, value) => MapEntry(key, <String, Map<String, PlayModel>>{})); 
       } else {
         // 如果不是空的两层结构，按两层结构解析
         return _parseTwoLayer(json);
