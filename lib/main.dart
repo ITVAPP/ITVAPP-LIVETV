@@ -226,13 +226,8 @@ void showCustomSnackBar(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message),
-      duration: const Duration(seconds: 5),  // 自定义显示时间为5秒
-      behavior: SnackBarBehavior.floating,  // 浮动的 SnackBar 样式
-      animation: CurvedAnimation(
-        parent: ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text(''))).animation!,
-        curve: Curves.easeInOut,  // 自定义动画
-      ),
+      duration: const Duration(seconds: 5),
+      behavior: SnackBarBehavior.floating,
     ),
   );
 }
