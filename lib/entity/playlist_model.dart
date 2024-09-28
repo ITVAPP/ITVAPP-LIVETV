@@ -50,12 +50,10 @@ class PlaylistModel {
   /// [json] 包含播放列表信息的 JSON 格式数据。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     String? epgUrl = json['epgUrl'] as String?;
-    
-    // 添加 null 检查，确保 playListJson 不为 null。如果为 null，则赋值为空的 Map。
     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
 
     // 使用 _parsePlayList 方法处理结构
-    Map<String, dynamic> playList = _parsePlayList(playListJson);
+    Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
@@ -90,11 +88,13 @@ class PlaylistModel {
     } else {
       // 如果是两层结构，进一步判断是否为空的两层结构
       bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
-      
+
       if (isEmptyTwoLayer) {
         // 如果是空的两层结构，按初始创建的收藏列表结构处理
+        // 动态选择分类键，确保结构一致
+        String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
         return {
-          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构一致
+          dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 使用动态选择的键值
         };
       } else {
         // 如果不是空的两层结构，按两层结构解析
