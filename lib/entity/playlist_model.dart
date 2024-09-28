@@ -51,7 +51,7 @@ class PlaylistModel {
   /// [json] 包含播放列表信息的 JSON 格式数据。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
     try {
-      LogUtil.i('fromString处理传入的数据： ${json}');
+      LogUtil.i('fromJson处理传入的数据： ${json}');
       String? epgUrl = json['epgUrl'] as String?;
       Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
 
@@ -93,11 +93,21 @@ class PlaylistModel {
   static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
     try {
       LogUtil.i('parsePlayList处理传入的数据： ${json}');
+      
+      // 如果json为空或者json中的所有值为空，直接返回json
+      if (json.isEmpty || json.values.every((value) => value is Map<String, dynamic> && value.isEmpty)) {
+        LogUtil.i('空的播放列表结构，直接返回原始json');
+        return json;
+      }
+
       // 检测是三层结构还是两层结构
-      bool isThreeLayer = json.values.first is Map<String, dynamic> &&
+      bool isThreeLayer = json.values.isNotEmpty &&
+          json.values.first is Map<String, dynamic> &&
+          (json.values.first as Map<String, dynamic>).values.isNotEmpty &&
           (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>;
 
       if (isThreeLayer) {
+        LogUtil.i('处理三层结构的播放列表');
         // 如果是三层结构，解析为三层
         return _parseThreeLayer(json);
       } else {
@@ -105,14 +115,10 @@ class PlaylistModel {
         bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
 
         if (isEmptyTwoLayer) {
-          LogUtil.i('处理空结构的收藏列表');
-          String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
-          return PlaylistModel(
-            playList: {
-              dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
-            },
-          ).playList;
+          LogUtil.i('处理两层结构空结构的播放列表');
+          return json; // 保留空结构的分类信息
         } else {
+          LogUtil.i('处理两层结构的播放列表');
           // 如果不是空的两层结构，按两层结构解析
           return _parseTwoLayer(json);
         }
