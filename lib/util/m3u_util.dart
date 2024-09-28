@@ -21,30 +21,6 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  /// 检查并确保播放列表或收藏列表为三层结构
-  static Map<String, Map<String, Map<String, PlayModel>>> _ensureThreeLayerStructure(Map<String, dynamic> playList) {
-    final fixedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-
-    playList.forEach((categoryKey, groupMapJson) {
-      if (groupMapJson is Map<String, dynamic>) {
-        final groupMap = <String, Map<String, PlayModel>>{};
-        groupMapJson.forEach((groupTitle, channelMapJson) {
-          if (channelMapJson is Map<String, dynamic>) {
-            final channelMap = <String, PlayModel>{};
-            channelMapJson.forEach((channelName, channelData) {
-              if (channelData is Map<String, dynamic>) {
-                channelMap[channelName] = PlayModel.fromJson(channelData);
-              }
-            });
-            groupMap[groupTitle] = channelMap;
-          }
-        });
-        fixedPlaylist[categoryKey] = groupMap;
-      }
-    });
-    return fixedPlaylist;
-  }
-
   /// 获取本地播放列表，如果本地缓存数据为空，则尝试获取远程播放列表
   static Future<M3uResult> getLocalM3uData() async {
     try {
@@ -110,8 +86,7 @@ class M3uUtil {
           parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>,
           favoritePlaylist);
 
-      // 保存播放列表到本地缓存，确保三层结构
-      parsedData.playList = _ensureThreeLayerStructure(parsedData.playList);
+      // 保存播放列表到本地缓存
       await saveCachedM3uData(parsedData.toString());
 
       LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}');
@@ -180,9 +155,8 @@ class M3uUtil {
     return updatedPlaylist;
   }
 
-  /// 保存更新后的收藏列表到本地缓存，确保三层结构
+  /// 保存更新后的收藏列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
-    favoritePlaylist.playList = _ensureThreeLayerStructure(favoritePlaylist.playList);
     await SpUtil.putString(Config.favoriteCacheKey, favoritePlaylist.toString());
   }
 
@@ -250,7 +224,7 @@ class M3uUtil {
     });
   }
 
-  /// 重试机制，最多重试 retries 次
+  /// 重试机制，最多重试 `retries` 次
   static Future<T?> _retryRequest<T>(Future<T?> Function() request,
       {int retries = 3,
       Duration retryDelay = const Duration(seconds: 2),
@@ -402,11 +376,13 @@ class M3uUtil {
     }
   }
 
-  /// 保存播放列表到本地缓存，确保三层结构
+  /// 保存播放列表到本地缓存
   static Future<void> saveCachedM3uData(String data) async {
-    PlaylistModel playlist = PlaylistModel.fromString(data);
-    playlist.playList = _ensureThreeLayerStructure(playlist.playList);
-    await SpUtil.putString(Config.m3uCacheKey, playlist.toString());
+    try {
+      await SpUtil.putString(Config.m3uCacheKey, data);
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存播放列表到本地缓存失败', e, stackTrace);
+    }
   }
 
   /// 保存订阅模型数据到本地缓存
