@@ -72,11 +72,11 @@ class M3uUtil {
         return M3uResult(errorMessage: '解析播放列表失败');
       }
 
-      // 获取或创建收藏列表
-      final favoritePlaylist = await getOrCreateFavoriteList();
-
       LogUtil.i('解析后的播放列表内容: ${parsedData.playList}');
       LogUtil.i('解析后的播放列表类型: ${parsedData.playList.runtimeType}');
+
+      // 获取或创建收藏列表
+      final favoritePlaylist = await getOrCreateFavoriteList();
 
       // 更新收藏列表中的频道播放地址
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
@@ -123,9 +123,9 @@ class M3uUtil {
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel
+      LogUtil.i('缓存的收藏列表: ${favoritePlaylist}');
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
       LogUtil.i('缓存的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
-      LogUtil.i('缓存的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     }
   }
