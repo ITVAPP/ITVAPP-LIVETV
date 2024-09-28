@@ -95,7 +95,7 @@ class PlaylistModel {
       LogUtil.i('parsePlayList处理传入的数据： ${json}');
       
       // 如果json为空或者json中的所有值为空，直接返回json
-      if (json.isEmpty || json.values.every((value) => value is Map<String, dynamic> && value.isEmpty)) {
+      if (json.isEmpty) {
         LogUtil.i('空的播放列表结构，直接返回原始json');
         return json;
       }
