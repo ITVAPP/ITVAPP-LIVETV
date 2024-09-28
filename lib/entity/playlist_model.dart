@@ -93,9 +93,14 @@ class PlaylistModel {
         // 如果是空的两层结构，按初始创建的收藏列表结构处理
         // 动态选择分类键，确保结构一致
         String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
-        return {
-            dynamicCategoryKey: <String, Map<String, PlayModel>>{}
-          }.map((key, value) => MapEntry(key, <String, Map<String, PlayModel>>{})); 
+        return PlaylistModel(
+          playList: {
+            dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
+          },
+        ).playList;
+        // return {
+        //     dynamicCategoryKey: <String, Map<String, PlayModel>>{}
+        //   }.map((key, value) => MapEntry(key, <String, Map<String, PlayModel>>{})); 
       } else {
         // 如果不是空的两层结构，按两层结构解析
         return _parseTwoLayer(json);
