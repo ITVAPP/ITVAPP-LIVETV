@@ -153,8 +153,8 @@ class PlaylistModel {
             if (channelMapJson is Map<String, dynamic>) {
               Map<String, PlayModel> channelMap = {};
               channelMapJson.forEach((channelName, channelData) {
-                PlayModel? playModel = PlayModel.fromJson(channelData);
-                if (playModel != null) {
+                PlayModel playModel = PlayModel.fromJson(channelData);
+                if (playModel.isValid) { // 检查 PlayModel 是否有效
                   channelMap[channelName] = playModel;
                 }
               });
@@ -185,8 +185,8 @@ class PlaylistModel {
         if (channelMapJson is Map<String, dynamic>) {
           Map<String, PlayModel> channelMap = {};
           channelMapJson.forEach((channelName, channelData) {
-            PlayModel? playModel = PlayModel.fromJson(channelData);
-            if (playModel != null) {
+            PlayModel playModel = PlayModel.fromJson(channelData);
+            if (playModel.isValid) { // 检查 PlayModel 是否有效
               channelMap[channelName] = playModel;
             }
           });
@@ -205,7 +205,6 @@ class PlaylistModel {
   /// [categoryOrGroup] 可以是分类（String）或组（String）。
   /// [groupOrChannel] 如果 [categoryOrGroup] 是分类，则表示组名；如果是组，则表示频道名。
   /// [channel] 仅在使用三层结构时提供，用于指定频道名称。
-  /// 返回匹配的 [PlayModel] 实例，如果找不到则返回 null。
   PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel,
       [String? channel]) {
     if (channel == null && categoryOrGroup is String) {
@@ -278,13 +277,12 @@ class PlayModel {
   /// 从 JSON 数据创建 [PlayModel] 实例
   factory PlayModel.fromJson(dynamic json) {
     try {
-      // 确保 id 存在并且非空，否则返回 null
+      // 确保 id 存在并且非空，否则返回一个无效的 PlayModel 实例
       if (json['id'] == null || (json['id'] as String).isEmpty) {
         LogUtil.i('PlayModel JSON 缺少必需的 ID 字段');
-        return null; // 返回 null 表示此频道无效
+        return PlayModel.invalid(); // 返回无效 PlayModel
       }
 
-      // 允许 urls 为空，解析其他字段
       List<String> urlsList = List<String>.from(json['urls'] ?? []);
 
       return PlayModel(
@@ -296,9 +294,23 @@ class PlayModel {
       );
     } catch (e, stackTrace) {
       LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
-      return null; // 返回 null 表示解析失败
+      return PlayModel.invalid(); // 解析失败时返回无效 PlayModel
     }
   }
+
+  /// 返回一个无效的 PlayModel 实例
+  factory PlayModel.invalid() {
+    return PlayModel(
+      id: 'invalid', // 设定特殊的 ID 标识无效
+      title: 'Invalid Channel',
+      logo: '',
+      group: '',
+      urls: [],
+    );
+  }
+
+  /// 检查 PlayModel 是否有效
+  bool get isValid => id != 'invalid';
 
   /// 创建一个新的 [PlayModel] 实例，保留当前实例的属性，并用新值覆盖
   PlayModel copyWith({
