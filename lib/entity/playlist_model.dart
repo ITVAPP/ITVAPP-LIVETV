@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import '../config.dart';
 
 /// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
