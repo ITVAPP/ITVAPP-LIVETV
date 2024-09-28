@@ -123,19 +123,8 @@ class M3uUtil {
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel
-
-      
-      LogUtil.i('缓存的收藏列表: ${favoriteData}');
-
-      
-            PlaylistModel favoritePlaylist = PlaylistModel(
-        playList: {
-          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
-        },
-      );
-
-      
-      // PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
+      LogUtil.i('缓存的收藏列表: ${favoriteData}');      
+      PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
       LogUtil.i('缓存的收藏列表类型: ${favoritePlaylist.runtimeType}');
       return favoritePlaylist;
     }
