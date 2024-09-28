@@ -98,8 +98,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
-    Config.myFavoriteKey: {<String, PlayModel>{} // 确保为三层嵌套结构
-    },
+    Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
   
   /// 播放前解析频道的视频源
@@ -340,8 +339,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
        };
     } else {
        favoriteList = {
-          Config.myFavoriteKey: {<String, PlayModel>{} // 确保为三层嵌套结构
-          },
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
        };
     }
     LogUtil.i('初始化的收藏列表: ${favoriteList}');
