@@ -49,13 +49,11 @@ class PlaylistModel {
   /// 从远程播放列表数据创建 [PlaylistModel] 实例。
   /// [json] 包含播放列表信息的 JSON 格式数据。
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    if (json['playList'] == null) {
-      return PlaylistModel(epgUrl: json['epgUrl'], playList: {});
-    }
-
     String? epgUrl = json['epgUrl'] as String?;
-    Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>;
-    Map<String, dynamic> playList = _parsePlayList(playListJson);
+    Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>?;
+
+    // 使用 _parsePlayList 方法处理结构
+    Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
 
     return PlaylistModel(epgUrl: epgUrl, playList: playList);
   }
@@ -82,7 +80,7 @@ class PlaylistModel {
   static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
     // 检测是三层结构还是两层结构
     bool isThreeLayer = json.values.first is Map<String, dynamic> &&
-        (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>;
+        (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>;
 
     if (isThreeLayer) {
       // 如果是三层结构，解析为三层
@@ -90,33 +88,19 @@ class PlaylistModel {
     } else {
       // 如果是两层结构，进一步判断是否为空的两层结构
       bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
-      
+
       if (isEmptyTwoLayer) {
-        // 如果是空的两层结构，解析为三层结构
-        return _parseEmptyTwoLayerToThreeLayer(json);
+        // 如果是空的两层结构，按初始创建的收藏列表结构处理
+        // 动态选择分类键，确保结构一致
+        String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
+        return {
+          dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 使用动态选择的键值
+        };
       } else {
         // 如果不是空的两层结构，按两层结构解析
         return _parseTwoLayer(json);
       }
     }
-  }
-
-  /// 将空的两层结构解析为三层结构
-  /// [json] 是包含播放列表的 Map。
-  /// 为每个分类创建一个空的组，确保符合三层结构的定义。
-  static Map<String, Map<String, Map<String, PlayModel>>> _parseEmptyTwoLayerToThreeLayer(
-      Map<String, dynamic> json) {
-    Map<String, Map<String, Map<String, PlayModel>>> result = {};
-    json.forEach((categoryKey, groupMapJson) {
-      String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
-
-      // 创建一个空的 Map<String, Map<String, PlayModel>> 确保符合三层结构
-      Map<String, Map<String, PlayModel>> groupMap = {};
-      groupMap[""] = <String, PlayModel>{}; // 空的组键，表示此分类下没有具体组。
-
-      result[category] = groupMap;
-    });
-    return result;
   }
 
   /// 解析三层结构的播放列表
