@@ -38,7 +38,7 @@ void main() async {
   await SpUtil.getInstance();
 
   // 初始化 ThemeProvider 并确保它的初始化完成
-  // ThemeProvider themeProvider = ThemeProvider();
+  ThemeProvider themeProvider = ThemeProvider();
   await themeProvider.initialize();  // 等待 ThemeProvider 完全初始化
   
   // 注册 FVP 播放器，支持不同平台和解码器
