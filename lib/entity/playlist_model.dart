@@ -66,7 +66,6 @@ class PlaylistModel {
   }
 
   /// 从字符串解析 [PlaylistModel] 实例
-  /// [data] 是包含播放列表 JSON 格式的字符串。
   static PlaylistModel fromString(String data) {
     try {
       LogUtil.i('fromString处理传入的数据： ${data}');
@@ -88,12 +87,11 @@ class PlaylistModel {
   }
 
   /// 自动判断并解析播放列表结构（两层或三层）
-  /// [json] 是包含播放列表的 Map。
   /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
   static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
     try {
       LogUtil.i('parsePlayList处理传入的数据： ${json}');
-      
+
       // 如果json为空或者json中的所有值为空，直接返回json
       if (json.isEmpty) {
         LogUtil.i('空的播放列表结构，直接返回原始json');
@@ -103,9 +101,9 @@ class PlaylistModel {
       // 检测是三层结构还是两层结构，增加安全检查
       bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
           json.values.first is Map<String, dynamic> &&
-          (json.values.first as Map<String, dynamic>).isNotEmpty &&  // 检查第一层嵌套不为空
+          (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
           (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
-          (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>; // 确保是三层结构
+          (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
 
       if (isThreeLayer) {
         LogUtil.i('处理三层结构的播放列表');
@@ -118,7 +116,7 @@ class PlaylistModel {
 
         if (isEmptyTwoLayer) {
           LogUtil.i('处理两层结构空结构的播放列表');
-          
+
           // 返回一个带有默认分类或动态分类键的空播放列表
           String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
           return PlaylistModel(
@@ -126,7 +124,7 @@ class PlaylistModel {
               dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
             },
           ).playList;
-          
+
         } else {
           // 如果不是空的两层结构，按两层结构解析
           return _parseTwoLayer(json);
@@ -139,8 +137,6 @@ class PlaylistModel {
   }
 
   /// 解析三层结构的播放列表
-  /// [json] 是包含三层结构的播放列表的 Map。
-  /// 返回的结果是一个三层嵌套的 Map，其中：
   /// - 第一层为分类
   /// - 第二层为组
   /// - 第三层为频道
@@ -162,10 +158,14 @@ class PlaylistModel {
                   channelMap[channelName] = playModel;
                 }
               });
-              groupMap[groupTitle] = channelMap;
+              if (channelMap.isNotEmpty) {
+                groupMap[groupTitle] = channelMap;
+              }
             }
           });
-          result[category] = groupMap;
+          if (groupMap.isNotEmpty) {
+            result[category] = groupMap;
+          }
         }
       });
     } catch (e, stackTrace) {
@@ -175,8 +175,6 @@ class PlaylistModel {
   }
 
   /// 解析两层结构的播放列表
-  /// [json] 是包含两层结构的播放列表的 Map。
-  /// 返回的结果是一个两层嵌套的 Map，其中：
   /// - 第一层为组
   /// - 第二层为频道
   static Map<String, Map<String, PlayModel>> _parseTwoLayer(
@@ -192,7 +190,9 @@ class PlaylistModel {
               channelMap[channelName] = playModel;
             }
           });
-          result[groupTitle] = channelMap;
+          if (channelMap.isNotEmpty) {
+            result[groupTitle] = channelMap;
+          }
         }
       });
     } catch (e, stackTrace) {
@@ -278,27 +278,25 @@ class PlayModel {
   /// 从 JSON 数据创建 [PlayModel] 实例
   factory PlayModel.fromJson(dynamic json) {
     try {
-      if (json['id'] == null || json['urls'] == null) {
-        LogUtil.i('PlayModel JSON 缺少必需字段');
-        return PlayModel();
+      // 确保 id 存在并且非空，否则返回 null
+      if (json['id'] == null || (json['id'] as String).isEmpty) {
+        LogUtil.i('PlayModel JSON 缺少必需的 ID 字段');
+        return null; // 返回 null 表示此频道无效
       }
 
+      // 允许 urls 为空，解析其他字段
       List<String> urlsList = List<String>.from(json['urls'] ?? []);
-      if (urlsList.isEmpty || urlsList.any((url) => url.isEmpty)) {
-        LogUtil.i('PlayModel JSON 包含无效或空的 URL');
-        return PlayModel();
-      }
 
       return PlayModel(
         id: json['id'] as String?,
         logo: json['logo'] as String?,
         title: json['title'] as String?,
         group: json['group'] as String?,
-        urls: urlsList,
+        urls: urlsList.isEmpty ? null : urlsList, // 保留 urls 为空的情况
       );
     } catch (e, stackTrace) {
       LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
-      return PlayModel(); // 返回一个空的 PlayModel
+      return null; // 返回 null 表示解析失败
     }
   }
 
