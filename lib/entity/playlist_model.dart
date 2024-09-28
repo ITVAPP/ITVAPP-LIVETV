@@ -100,25 +100,34 @@ class PlaylistModel {
         return json;
       }
 
-      // 检测是三层结构还是两层结构
-      bool isThreeLayer = json.values.isNotEmpty &&
+      // 检测是三层结构还是两层结构，增加安全检查
+      bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
           json.values.first is Map<String, dynamic> &&
-          (json.values.first as Map<String, dynamic>).values.isNotEmpty &&
-          (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>;
+          (json.values.first as Map<String, dynamic>).isNotEmpty &&  // 检查第一层嵌套不为空
+          (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
+          (json.values.first as Map<String, dynamic>).values.first is Map<String, PlayModel>; // 确保是三层结构
 
       if (isThreeLayer) {
         LogUtil.i('处理三层结构的播放列表');
         // 如果是三层结构，解析为三层
         return _parseThreeLayer(json);
       } else {
+        LogUtil.i('处理两层结构的播放列表');
         // 如果是两层结构，进一步判断是否为空的两层结构
         bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
 
         if (isEmptyTwoLayer) {
           LogUtil.i('处理两层结构空结构的播放列表');
-          return json; // 保留空结构的分类信息
+          
+          // 返回一个带有默认分类或动态分类键的空播放列表
+          String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
+          return PlaylistModel(
+            playList: {
+              dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
+            },
+          ).playList;
+          
         } else {
-          LogUtil.i('处理两层结构的播放列表');
           // 如果不是空的两层结构，按两层结构解析
           return _parseTwoLayer(json);
         }
