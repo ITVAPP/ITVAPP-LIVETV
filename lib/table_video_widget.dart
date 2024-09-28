@@ -132,26 +132,31 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 视频播放区域
         GestureDetector(
           onTap: () {
-            if (_isShowPauseIcon) {
-              // 如果暂停图标已显示，则暂停视频
-              widget.controller?.pause();
-              _pauseIconTimer?.cancel(); // 取消计时器
-              setState(() {
-                _isShowPauseIcon = false;
-              });
+            // 如果视频已暂停，单击继续播放视频
+            if (!widget.isPlaying) {
+              widget.controller?.play();
             } else {
-              // 显示暂停图标并启动计时器
-              setState(() {
-                _isShowPauseIcon = true;
-              });
-              _pauseIconTimer?.cancel(); // 取消之前的计时器
-              _pauseIconTimer = Timer(const Duration(seconds: 2), () {
-                if (mounted) {
-                  setState(() {
-                    _isShowPauseIcon = false;
-                  });
-                }
-              });
+              if (_isShowPauseIcon) {
+                // 如果暂停图标已显示，则暂停视频
+                widget.controller?.pause();
+                _pauseIconTimer?.cancel(); // 取消计时器
+                setState(() {
+                  _isShowPauseIcon = false;
+                });
+              } else {
+                // 显示暂停图标并启动计时器
+                setState(() {
+                  _isShowPauseIcon = true;
+                });
+                _pauseIconTimer?.cancel(); // 取消之前的计时器
+                _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+                  if (mounted) {
+                    setState(() {
+                      _isShowPauseIcon = false;
+                    });
+                  }
+                });
+              }
             }
           },
           // 双击播放/暂停视频
@@ -179,11 +184,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           onTap: () {
                             LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
                           },
-                          child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
+                          child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 98),
                         ),
                       // 显示暂停图标
                       if (_isShowPauseIcon)
-                        const Icon(Icons.pause_circle_outline, color: Colors.white, size: 50),
+                        const Icon(Icons.pause_circle_outline, color: Colors.white, size: 98),
                     ],
                   )
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
