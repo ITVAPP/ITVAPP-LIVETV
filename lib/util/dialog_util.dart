@@ -143,7 +143,6 @@ class DialogUtil {
       crossAxisAlignment: CrossAxisAlignment.start,  // 调整内容文本为默认左对齐
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 5),
         TextField(
           controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
           readOnly: true,  // 设置为只读
@@ -152,7 +151,7 @@ class DialogUtil {
           decoration: const InputDecoration(
             border: InputBorder.none,  // 去掉边框
           ),
-          style: const TextStyle(fontSize: 14),  // 设置文本样式
+          style: const TextStyle(fontSize: 16),  // 设置文本样式
           enableInteractiveSelection: true,  // 启用交互式选择功能，允许复制
         ),
       ],
@@ -166,7 +165,7 @@ class DialogUtil {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(30),  // 设置圆角
       ),
-      textStyle: const TextStyle(fontSize: 16),  // 按钮文字大小
+      textStyle: const TextStyle(fontSize: 18),  // 按钮文字大小
     );
   }
 
