@@ -220,7 +220,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                 context,
                                 Text(S.of(context).logCleared),  //日志已清空
                                 duration: Duration(seconds: 4), 
-                              ),
                               );
                             },
                             child: Text(S.of(context).clearLogs),   //清空日志
