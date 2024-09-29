@@ -666,7 +666,7 @@ class S {
 
   String downloading(Object progress) {
     return Intl.message(
-      '下载中...$progress%',
+      '下载中...',
       name: 'downloading',
       desc: '',
       args: [progress],
