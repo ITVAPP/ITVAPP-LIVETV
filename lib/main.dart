@@ -145,10 +145,13 @@ class _MyAppState extends State<MyApp> {
               
               // SnackBar 主题
               snackBarTheme: SnackBarThemeData(
-                backgroundColor: Colors.transparent, // 背景透明，显示自定义渐变
+                backgroundColor: Colors.transparent, // 背景透明，将使用自定义渐变背景
                 behavior: SnackBarBehavior.floating, // 设为浮动样式
-                elevation: 0, // 无阴影
-                contentTextStyle: TextStyle(
+                elevation: 10, // 提升阴影效果
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16), // 设定圆角
+                ),
+                contentTextStyle: const TextStyle(
                   color: Colors.white,  // 定义文字颜色
                   fontSize: 16,  // 定义文字大小
                   fontWeight: FontWeight.bold,  // 字体加粗
@@ -225,9 +228,29 @@ class _MyAppState extends State<MyApp> {
 void showCustomSnackBar(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
+      content: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xff6D6875),Color(0xffB4838D), Color(0xffE5989B)], // 渐变背景
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16), // 给背景添加圆角
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Center(  // 使用 Center 水平和垂直居中文本
+          child: Text(
+            message,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+      ),
       duration: const Duration(seconds: 5),
-      behavior: SnackBarBehavior.floating,
+      behavior: SnackBarBehavior.floating, // 悬浮样式
+      elevation: 10, // 阴影效果
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16), // SnackBar 本身也应用圆角
+      ),
     ),
   );
 }
