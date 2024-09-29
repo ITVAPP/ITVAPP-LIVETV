@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import '../generated/l10n.dart';
 
@@ -180,10 +181,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                             // 将该条日志的内容复制到剪贴板
                                                             String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
                                                             Clipboard.setData(ClipboardData(text: logContent));
-
                                                             // 显示复制成功的提示
-                                                            ScaffoldMessenger.of(context).showSnackBar(
-                                                              SnackBar(content: Text(S.of(context).logCopied)),  // 日志已复制
+                                                            CustomSnackBar.showSnackBar(
+                                                              context,
+                                                              Text(S.of(context).logCopied),  // 日志已复制
+                                                              duration: Duration(seconds: 4),
                                                             );
                                                           },
                                                         ),
@@ -214,10 +216,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   LogUtil.clearLogs(_selectedLevel); // 清空特定类型的日志
                                 }
                               });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(S.of(context).logCleared),  //日志已清空
-                                ),
+                              CustomSnackBar.showSnackBar(
+                                context,
+                                Text(S.of(context).logCleared),  //日志已清空
+                                duration: Duration(seconds: 4), 
+                              ),
                               );
                             },
                             child: Text(S.of(context).clearLogs),   //清空日志
