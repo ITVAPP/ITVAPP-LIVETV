@@ -99,7 +99,7 @@
   "streamUrlContent": "流URL: {url}\n\n你想播放這個流嗎？",
   "cancelButton": "取消",
   "playButton": "播放",
-  "downloading": "下載中...{progress}%",
+  "downloading": "下載中...",
   "fontTitle": "字型",
   "backgroundImageTitle": "背景圖",
   "slogTitle": "日誌",
