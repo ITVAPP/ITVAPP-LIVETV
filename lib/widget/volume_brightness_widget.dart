@@ -16,6 +16,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   // 1.brightness
   // 2.volume
   int _controlType = 0;
+  final double _verticalDragThreshold = 10;  // 阈值，避免水平滑动也触发
 
   @override
   void initState() {
@@ -43,32 +44,42 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onVerticalDragStart: (DragStartDetails details) {
+          // 仅当用户垂直滑动时才处理手势
           final width = MediaQuery.of(context).size.width;
           if (details.localPosition.dx > width / 2) {
-            _controlType = 2;
+            _controlType = 2;  // 右侧调节音量
           } else {
-            _controlType = 1;
+            _controlType = 1;  // 左侧调节亮度
           }
         },
         onVerticalDragUpdate: (DragUpdateDetails details) {
-          if (_controlType == 2) {
-            _volume = (_volume + (-details.delta.dy / 500)).clamp(0.0, 1.0);
-            FlutterVolumeController.setVolume(_volume);
-          } else {
-            _brightness =
-                (_brightness + (-details.delta.dy / 500)).clamp(0.0, 1.0);
-            ScreenBrightness().setScreenBrightness(_brightness);
+          // 只处理垂直滑动，忽略水平滑动
+          if (details.delta.dy.abs() > _verticalDragThreshold) {
+            if (_controlType == 2) {
+              _volume = (_volume + (-details.delta.dy / 500)).clamp(0.0, 1.0);
+              FlutterVolumeController.setVolume(_volume);
+            } else {
+              _brightness =
+                  (_brightness + (-details.delta.dy / 500)).clamp(0.0, 1.0);
+              ScreenBrightness().setScreenBrightness(_brightness);
+            }
+            setState(() {});
           }
-          setState(() {});
         },
         onVerticalDragEnd: (DragEndDetails details) {
-          setState(() {
-            _controlType = 0;
+          // 增加延迟500毫秒后隐藏调节条
+          Future.delayed(const Duration(milliseconds: 500), () {
+            setState(() {
+              _controlType = 0;
+            });
           });
         },
         onVerticalDragCancel: () {
-          setState(() {
-            _controlType = 0;
+          // 增加延迟500毫秒后隐藏调节条
+          Future.delayed(const Duration(milliseconds: 500), () {
+            setState(() {
+              _controlType = 0;
+            });
           });
         },
         child: Container(
