@@ -3,9 +3,9 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart';  // 导入 ThemeProvider
+import '../provider/theme_provider.dart'; 
 import '../generated/l10n.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';  // 导入 LogUtil 用于日志记录
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 
 class UpdateDownloadBtn extends StatefulWidget {
   final String apkUrl;
@@ -60,7 +60,9 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           fixedSize: Size(btnWidth, 48),
           backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
           elevation: _isFocusDownload ? 10 : 0,
-          overlayColor: Colors.transparent,
+          // 修改点击时按钮的水波纹效果和颜色变化
+          onPrimary: Colors.white,  // 设置点击时水波纹的颜色
+          shadowColor: Colors.redAccent,  // 设置阴影颜色匹配背景
         ),
         autofocus: true,
         onFocusChange: (bool isFocus) {
@@ -87,7 +89,12 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
         },
         child: Text(
           S.current.update,
-          style: const TextStyle(color: Colors.white),
+          // 修改按钮文字样式：粗体，18 号大小
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,  // 文字粗体
+            fontSize: 18,  // 文字大小设置为 18
+          ),
         ),
       ),
     );
