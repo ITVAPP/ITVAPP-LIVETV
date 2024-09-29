@@ -514,7 +514,7 @@ class _SubScribePageState extends State<SubScribePage> {
   void _showErrorSnackBar(BuildContext context, String message) {
       CustomSnackBar.showSnackBar(
         context,
-        Text(message),
+        message,  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
   }
