@@ -70,7 +70,7 @@ class DialogUtil {
                   Flexible( // 用 Flexible 替换 Expanded
                     child: SingleChildScrollView(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
                           children: [
