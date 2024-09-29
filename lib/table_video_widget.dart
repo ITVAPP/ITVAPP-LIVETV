@@ -132,6 +132,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 视频播放区域
         GestureDetector(
           onTap: () {
+            // 切换菜单栏和图标的显示/隐藏
+            setState(() {
+              _isShowMenuBar = !_isShowMenuBar;  // 切换菜单栏显示/隐藏状态
+            });
+            
             // 如果视频已暂停，单击继续播放视频
             if (!widget.isPlaying) {
               widget.controller?.play();
@@ -149,7 +154,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   _isShowPauseIcon = true;
                 });
                 _pauseIconTimer?.cancel(); // 取消之前的计时器
-                _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+                _pauseIconTimer = Timer(const Duration(seconds: 3), () {
                   if (mounted) {
                     setState(() {
                       _isShowPauseIcon = false;
@@ -184,11 +189,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           onTap: () {
                             LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
                           },
-                          child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 98),
+                          child: Opacity(
+                            opacity: 0.7, // 设置透明度为 70%
+                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 88),
+                          ),
                         ),
                       // 显示暂停图标
                       if (_isShowPauseIcon)
-                        const Icon(Icons.pause_circle_outline, color: Colors.white, size: 98),
+                        Opacity(
+                          opacity: 0.7, // 设置透明度为 70%
+                          child: const Icon(Icons.pause_circle_outline, color: Colors.white, size: 88),
+                        ),
                     ],
                   )
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
@@ -198,8 +209,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   ),
           ),
         ),
-        // 显示时间和日期的组件，当抽屉菜单打开或显示菜单栏时才显示
-        if (widget.drawerIsOpen || (!widget.drawerIsOpen && _isShowMenuBar && widget.isLandscape))
+        // 显示时间和日期的组件，当菜单栏显示时才显示
+        if (_isShowMenuBar && widget.isLandscape)
           const DatePositionWidget(),
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
@@ -311,7 +322,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             ),
           ),
         // 非横屏时右下角的旋转按钮和收藏按钮
-        if (!widget.isLandscape)
+        if (!widget.isLandscape && _isShowMenuBar)
           Positioned(
             right: 8,
             bottom: 5,
