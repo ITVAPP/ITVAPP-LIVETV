@@ -664,12 +664,12 @@ class S {
     );
   }
 
-  String downloading(Object progress) {
+  String get downloading {
     return Intl.message(
       '下载中...',
       name: 'downloading',
       desc: '',
-      args: [progress],
+      args: [],
     );
   }
 
