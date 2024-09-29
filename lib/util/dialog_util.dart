@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:itvapp_live_tv/util/log_util.dart'; 
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import '../generated/l10n.dart';
 
 class DialogUtil {
@@ -225,9 +226,11 @@ class DialogUtil {
             style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('已复制到剪贴板')),
-              );
+               CustomSnackBar.showSnackBar(
+                 context,
+                 '已复制到剪贴板',
+                 duration: Duration(seconds: 4),
+               );
             },
             child: const Text('复制', style: TextStyle(color: Colors.white)),
           ),
