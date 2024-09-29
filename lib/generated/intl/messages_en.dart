@@ -119,8 +119,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "Stream URL: ${url}\n\nDo you want to play this stream?",
         "cancelButton": MessageLookupByLibrary.simpleMessage("Cancel"),
         "playButton": MessageLookupByLibrary.simpleMessage("Play"),
-        "downloading": (progress) =>
-            "Downloading... ${progress}%",
+        "downloading": MessageLookupByLibrary.simpleMessage("Downloading..."), 
         "fontTitle": MessageLookupByLibrary.simpleMessage("Font"),
         "backgroundImageTitle":
             MessageLookupByLibrary.simpleMessage("Background Image"),
