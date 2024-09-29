@@ -75,7 +75,7 @@ class _TvPageState extends State<TvPage> {
       _isError = true; // 设置错误状态，用于控制UI显示
       CustomSnackBar.showSnackBar(
         context,
-        Text(message),
+        message,  // 直接传递字符串，而不是 Text 小部件
         duration: Duration(seconds: 4),
       );
       // 捕获当前堆栈信息并传递给 logError
