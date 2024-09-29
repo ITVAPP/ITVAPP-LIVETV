@@ -61,7 +61,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
           elevation: _isFocusDownload ? 10 : 0,
           // 修改点击时按钮的水波纹效果和颜色变化
-          onPrimary: Colors.white,  // 设置点击时水波纹的颜色
+          foregroundColor: Colors.white,  // 设置点击时水波纹的颜色（使用 foregroundColor 替代 onPrimary）
           shadowColor: Colors.redAccent,  // 设置阴影颜色匹配背景
         ),
         autofocus: true,
