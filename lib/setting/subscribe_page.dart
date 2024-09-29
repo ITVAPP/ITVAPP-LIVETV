@@ -5,16 +5,17 @@ import 'package:itvapp_live_tv/tv/html_string.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
+import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:provider/provider.dart';  // 引入 Provider，支持状态管理
-import '../provider/theme_provider.dart';  // 引入 ThemeProvider，用于获取当前主题和TV模式
+import 'package:provider/provider.dart';
+import '../provider/theme_provider.dart';
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
-import '../util/env_util.dart';
 
 class SubScribePage extends StatefulWidget {
   const SubScribePage({super.key});
@@ -511,7 +512,11 @@ class _SubScribePageState extends State<SubScribePage> {
 
   // 显示错误提示
   void _showErrorSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      CustomSnackBar.showSnackBar(
+        context,
+        Text(message),
+        duration: Duration(seconds: 4),
+      );
   }
 }
 
