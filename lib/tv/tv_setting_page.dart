@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
@@ -35,14 +35,14 @@ Future<void> _checkForUpdates() async {
     if (_latestVersionEntity != null) {
       CustomSnackBar.showSnackBar(
         context,
-        Text(S.of(context).newVersion(_latestVersionEntity!.latestVersion!)),
+        S.of(context).newVersion(_latestVersionEntity!.latestVersion!),  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
     } else {
       // 没有最新版本
       CustomSnackBar.showSnackBar(
         context,
-        Text(S.of(context).latestVersion),  // 已经是最新版本
+        S.of(context).latestVersion,  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
     }
@@ -50,7 +50,7 @@ Future<void> _checkForUpdates() async {
     // 版本检查失败
       CustomSnackBar.showSnackBar(
         context,
-        Text(S.of(context).netReceiveTimeout),  //版本检查失败
+        S.of(context).netReceiveTimeout,  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
   }
