@@ -101,7 +101,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "流URL: ${url}\n\n你想播放这个流吗？",
         "cancelButton": MessageLookupByLibrary.simpleMessage("取消"),
         "playButton": MessageLookupByLibrary.simpleMessage("播放"),
-        "downloading": (progress) => "下载中...${progress}%",
+        "downloading":  MessageLookupByLibrary.simpleMessage("下载中..."),
         "fontTitle": MessageLookupByLibrary.simpleMessage("字体"),
         "backgroundImageTitle": MessageLookupByLibrary.simpleMessage("背景图"),
         "slogTitle": MessageLookupByLibrary.simpleMessage("日志"),
