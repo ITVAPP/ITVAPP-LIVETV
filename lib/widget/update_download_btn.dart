@@ -46,7 +46,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
                         ),
                       ),
                       Text(
-                        '${S.of(context).downloading}...${(provider.progress * 100).toStringAsFixed(1)}%',
+                        '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
                         style: const TextStyle(color: Colors.white),
                       )
                     ],
