@@ -99,7 +99,7 @@
   "streamUrlContent": "Stream URL: {url}\n\nDo you want to play this stream?",
   "cancelButton": "Cancel",
   "playButton": "Play",
-  "downloading": "Downloading... {progress}%",
+  "downloading": "Downloading...",
   "fontTitle": "Font",
   "backgroundImageTitle": "Background Image",
   "slogTitle": "Logs",
