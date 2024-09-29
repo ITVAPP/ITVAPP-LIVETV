@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
 import 'package:itvapp_live_tv/util/check_version_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart'; // 导入日志工具
-import 'package:itvapp_live_tv/setting/setting_font_page.dart'; // 字体设置页面
-import 'package:itvapp_live_tv/setting/subscribe_page.dart'; // 订阅页面
-import '../setting/setting_beautify_page.dart'; // 美化设置页面
-import '../setting/setting_log_page.dart'; // 导入日志页面
+import 'package:itvapp_live_tv/util/log_util.dart'; 
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/setting/setting_font_page.dart'; 
+import 'package:itvapp_live_tv/setting/subscribe_page.dart'; 
+import '../setting/setting_beautify_page.dart';
+import '../setting/setting_log_page.dart'; 
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -32,30 +33,30 @@ Future<void> _checkForUpdates() async {
 
     // 如果有最新版本
     if (_latestVersionEntity != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(S.of(context).newVersion(_latestVersionEntity!.latestVersion!)),
-        ),
+      CustomSnackBar.showSnackBar(
+        context,
+        Text(S.of(context).newVersion(_latestVersionEntity!.latestVersion!)),
+        duration: Duration(seconds: 4),
       );
     } else {
       // 没有最新版本
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(S.of(context).latestVersion), // 已经是最新版本
-        ),
+      CustomSnackBar.showSnackBar(
+        context,
+        Text(S.of(context).latestVersion),  // 已经是最新版本
+        duration: Duration(seconds: 4),
       );
     }
   } catch (e) {
     // 版本检查失败
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(S.of(context).netReceiveTimeout),  //版本检查失败
-      ),
-    );
+      CustomSnackBar.showSnackBar(
+        context,
+        Text(S.of(context).netReceiveTimeout),  //版本检查失败
+        duration: Duration(seconds: 4),
+      );
   }
 }
 
-  // 通用的buildListTile方法，减少重复代码
+  // 通用的buildListTile方法
   Widget buildListTile({
     required IconData icon, 
     required String title, 
