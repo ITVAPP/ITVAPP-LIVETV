@@ -241,16 +241,14 @@ void showCustomSnackBar(BuildContext context, String message) {
         child: Center(  // 使用 Center 水平和垂直居中文本
           child: Text(
             message,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: Theme.of(context).snackBarTheme.contentTextStyle, // 使用主题文本样式
           ),
         ),
       ),
       duration: const Duration(seconds: 5),
       behavior: SnackBarBehavior.floating, // 悬浮样式
-      elevation: 10, // 阴影效果
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16), // SnackBar 本身也应用圆角
-      ),
+      elevation: Theme.of(context).snackBarTheme.elevation, // 使用主题阴影效果
+      shape: Theme.of(context).snackBarTheme.shape, // 使用主题形状
     ),
   );
 }
