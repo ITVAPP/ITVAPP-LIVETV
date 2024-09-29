@@ -21,6 +21,7 @@ import 'util/log_util.dart';
 import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
 import 'util/dialog_util.dart';
+import 'util/custom_snackbar.dart';
 import 'widget/empty_page.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
@@ -376,8 +377,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 验证分组名字、频道名字和播放地址是否正确
     if (groupName.isEmpty || channelName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('当前频道无法收藏'), duration: Duration(seconds: 3))
+      CustomSnackBar.showSnackBar(
+        context,
+        '当前频道无法收藏',
+        duration: Duration(seconds: 4),  // 自定义持续时间
       );
       return;
     }
@@ -388,8 +391,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (favoriteList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
         favoriteList[Config.myFavoriteKey]!.remove(groupName);
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('频道已从收藏中移除'), duration: Duration(seconds: 3))
+      CustomSnackBar.showSnackBar(
+        context,
+        '频道已从收藏中移除',
+        duration: Duration(seconds: 4),  // 自定义持续时间
       );
       isFavoriteChanged = true;
     } else {
@@ -406,8 +411,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         urls: getPlayUrls(actualChannelId),
       );
       favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('频道已添加到收藏'), duration: Duration(seconds: 3))
+      CustomSnackBar.showSnackBar(
+        context,
+        '频道已添加到收藏',
+        duration: Duration(seconds: 4),  // 自定义持续时间
       );
       isFavoriteChanged = true;
     }
@@ -426,9 +433,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
       } catch (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存收藏状态失败: $error'), duration: Duration(seconds: 3))
-        );
+      CustomSnackBar.showSnackBar(
+        context,
+        '添加收藏失败',
+        duration: Duration(seconds: 4),  // 自定义持续时间
+      );
         LogUtil.logError('收藏状态保存失败', error);
       }
     }
