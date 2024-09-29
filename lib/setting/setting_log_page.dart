@@ -184,7 +184,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                             // 显示复制成功的提示
                                                             CustomSnackBar.showSnackBar(
                                                               context,
-                                                              Text(S.of(context).logCopied),  // 日志已复制
+                                                              S.of(context).logCopied,  // 日志已复制
                                                               duration: Duration(seconds: 4),
                                                             );
                                                           },
@@ -218,7 +218,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               });
                               CustomSnackBar.showSnackBar(
                                 context,
-                                Text(S.of(context).logCleared),  //日志已清空
+                                S.of(context).logCleared,  //日志已清空
                                 duration: Duration(seconds: 4), 
                               );
                             },
