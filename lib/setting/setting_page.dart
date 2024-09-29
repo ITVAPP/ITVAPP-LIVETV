@@ -155,7 +155,7 @@ class _SettingPageState extends State<SettingPage> {
                   if (_latestVersionEntity == null) {
                     CustomSnackBar.showSnackBar(
                       context,
-                      Text(S.of(context).latestVersion),  // “当前已是最新版本”的提示
+                      S.of(context).latestVersion,  // “当前已是最新版本”的提示
                       duration: Duration(seconds: 4),
                     );
                   }
