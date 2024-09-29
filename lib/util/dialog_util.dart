@@ -121,7 +121,7 @@ class DialogUtil {
           alignment: Alignment.center,
           child: Text(
             title ?? 'Notification 🔔',  // 动态标题
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
           ),
         ),
         Positioned(
