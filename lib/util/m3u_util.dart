@@ -21,12 +21,11 @@ class M3uResult {
 class M3uUtil {
   M3uUtil._();
 
-  /// 获取本地播放列表，如果本地缓存数据为空，则尝试获取远程播放列表
+  /// 获取本地播放列表，如数据为空，则尝试获取远程播放列表
   static Future<M3uResult> getLocalM3uData() async {
     try {
       final m3uDataString = await _getCachedM3uData();
       if (m3uDataString.isEmpty) {
-        // 如果本地缓存没有播放列表，返回远程数据
         return await getDefaultM3uData();
       }
       return M3uResult(data: PlaylistModel.fromString(m3uDataString));
@@ -72,8 +71,7 @@ class M3uUtil {
         return M3uResult(errorMessage: '解析播放列表失败');
       }
 
-      LogUtil.i('解析后的播放列表内容: ${parsedData.playList}');
-      LogUtil.i('解析后的播放列表类型: ${parsedData.playList.runtimeType}');
+      LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 获取或创建收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
@@ -88,9 +86,8 @@ class M3uUtil {
 
       // 保存播放列表到本地缓存
       await saveCachedM3uData(parsedData.toString());
-
-      LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}');
-      LogUtil.i('保存后的播放列表内容: ${parsedData.playList}');
+      
+      LogUtil.i('保存后的播放列表类型: ${parsedData.playList.runtimeType}\n保存后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地
       await saveLocalData([
@@ -118,15 +115,12 @@ class M3uUtil {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
         },
       );
-      LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
-      LogUtil.i('创建的收藏列表: ${favoritePlaylist.playList}');
+      LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}\n创建的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，转换为 PlaylistModel
-      LogUtil.i('缓存的收藏列表: ${favoriteData}');      
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      LogUtil.i('解析后的收藏列表: ${favoritePlaylist}'); 
-      LogUtil.i('解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
+      LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
     }
   }
