@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import '../channel_drawer_page.dart';
 import '../entity/playlist_model.dart';
 import '../util/log_util.dart';
+import '../util/custom_snackbar.dart';
 import '../widget/video_hold_bg.dart';
 import '../generated/l10n.dart';
 
@@ -72,10 +73,11 @@ class _TvPageState extends State<TvPage> {
   void _showError(String message) {
     setState(() {
       _isError = true; // 设置错误状态，用于控制UI显示
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)), // 显示错误提示
+      CustomSnackBar.showSnackBar(
+        context,
+        Text(message),
+        duration: Duration(seconds: 4),
       );
-
       // 捕获当前堆栈信息并传递给 logError
       try {
         throw Exception(message);
