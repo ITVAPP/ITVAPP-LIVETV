@@ -80,8 +80,9 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
         onVerticalDragUpdate: (DragUpdateDetails details) {
           // 只处理垂直滑动，忽略水平滑动
           if (details.delta.dy.abs() > _verticalDragThreshold && details.delta.dy.abs() > details.delta.dx.abs()) {
-            // 根据滑动速度动态调整步长
-            final adjustment = (details.delta.dy / 1000) * (details.primaryDelta ?? 1.0).abs();
+            // 根据屏幕高度计算滑动比例，使滑动更大范围调节音量或亮度
+            final screenHeight = MediaQuery.of(context).size.height;
+            final adjustment = (details.delta.dy / screenHeight) * 2;  // 通过比例调整灵敏度
 
             // 即时响应拖动操作，持续调整，并且实时更新进度条
             setState(() {
