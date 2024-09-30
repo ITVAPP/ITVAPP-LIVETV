@@ -49,17 +49,6 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
     super.dispose();
   }
 
-  // 添加节流机制以防止频繁调用系统调节方法
-  void _throttleAdjustments(Function callback, Duration duration) {
-    if (!_isCooldown) {
-      _isCooldown = true;
-      callback(); // 执行音量或亮度调节
-      Future.delayed(duration, () {
-        _isCooldown = false;  // 冷却时间过后，允许下一次调节
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // 获取屏幕宽度，动态设置调节条的宽度
@@ -89,16 +78,15 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
             // 根据滑动速度动态调整步长
             final adjustment = (details.delta.dy / 1000) * (details.primaryDelta ?? 1.0).abs();
 
-            _throttleAdjustments(() {
-              if (_controlType == 2) {
-                _volume = (_volume - adjustment).clamp(0.0, 1.0);
-                FlutterVolumeController.setVolume(_volume); // 调整音量
-              } else {
-                _brightness = (_brightness - adjustment).clamp(0.0, 1.0);
-                ScreenBrightness().setScreenBrightness(_brightness); // 调整亮度
-              }
-              setState(() {}); // 更新界面
-            }, const Duration(milliseconds: 100)); // 设置节流频率为100毫秒
+            // 即时响应拖动操作，持续调整
+            if (_controlType == 2) {
+              _volume = (_volume - adjustment).clamp(0.0, 1.0);
+              FlutterVolumeController.setVolume(_volume); // 调整音量
+            } else {
+              _brightness = (_brightness - adjustment).clamp(0.0, 1.0);
+              ScreenBrightness().setScreenBrightness(_brightness); // 调整亮度
+            }
+            setState(() {}); // 更新界面
           }
         },
         onVerticalDragEnd: (DragEndDetails details) {
