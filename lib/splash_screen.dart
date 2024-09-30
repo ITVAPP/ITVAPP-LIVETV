@@ -52,13 +52,13 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<M3uResult> _fetchData() async {
     try {
       setState(() {
-        _message = S.of(context).getm3uData; // 使用国际化翻译
+        _message = S.current.getm3uData; // 使用国际化翻译
       });
 
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
         setState(() {
           _retryCount = attempt;
-          _message = S.of(context).getm3udataerror;  // 更新重试提示信息
+          _message = S.current.getm3udataerror;  // 更新重试提示信息
         });
         LogUtil.e('获取 M3U 数据失败，开始重试'); // 添加重试日志
       });
@@ -68,14 +68,14 @@ class _SplashScreenState extends State<SplashScreen> {
       } else {
         setState(() {
           _retryCount++;
-          _message = S.of(context).getm3udataerror; // 显示错误信息
+          _message = S.current.getm3udataerror; // 显示错误信息
         });
         return M3uResult(errorMessage: result?.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e, stackTrace) {
       setState(() {
         _retryCount++;  // 更新重试次数
-        _message = S.of(context).getm3udataerror; // 更新错误信息
+        _message = S.current.getm3udataerror; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
       return M3uResult(errorMessage: ': $e');
@@ -87,7 +87,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (isDebugMode) {
       DialogUtil.showCustomDialog(
         context,
-        title: S.of(context).logtitle,
+        title: S.current.logtitle,
         content: 'showlog', // 显示日志
         isCopyButton: true,  // 显示复制按钮
       );
@@ -134,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // 显示加载动画和重试次数
       return _buildMessageUI(
         _retryCount == 0 
-            ? '${S.of(context).loading} ${S.of(context).tipChannelList}...'  // 拼接两个本地化字符串
+            ? '${S.current.loading} ${S.current.tipChannelList}...'  // 拼接两个本地化字符串
             : _message, // 根据重试次数动态显示消息
         isLoading: true,
       );
@@ -147,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen> {
       });
       
       // 如果加载失败，显示错误信息和刷新按钮
-      return _buildMessageUI(S.of(context).getDefaultError, showRetryButton: true);
+      return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
     } else if (snapshot.hasData && snapshot.data?.data != null) {
       // 如果加载成功，延迟 3 秒后导航到主页面，并传递获取到的数据
       Future.delayed(Duration(seconds: 3), () {
@@ -159,12 +159,12 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       });
       return _buildMessageUI(
-        '${S.of(context).loading} ${S.of(context).tipChannelList}...',
+        '${S.current.loading} ${S.current.tipChannelList}...',
         isLoading: true,
       );
     } else {
       // 处理其他情况，默认显示错误信息和刷新按钮
-      return _buildMessageUI(S.of(context).getDefaultError, showRetryButton: true);
+      return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
     }
   }
 
@@ -211,7 +211,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     borderRadius: BorderRadius.circular(30.0), // 圆角按钮设计
                   ),
                 ),
-                child: Text(S.of(context).refresh, style: const TextStyle(fontSize: 18)), // 按钮上的文本
+                child: Text(S.current.refresh, style: const TextStyle(fontSize: 18)), // 按钮上的文本
               ),
             ],
           ],
