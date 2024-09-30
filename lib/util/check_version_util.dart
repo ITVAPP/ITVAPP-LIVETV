@@ -9,9 +9,10 @@ import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
 import 'dialog_util.dart'; 
+import '../config.dart'; 
 
 class CheckVersionUtil {
-  static const version = '1.5.8';  // 当前应用版本号
+  static const version = Config.version;  // 当前应用版本号
   static final versionHost = EnvUtil.checkVersionHost();  // 版本检查的API地址
   static final downloadLink = EnvUtil.sourceDownloadHost();  // 应用下载链接的基础URL
   static final releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL
@@ -68,7 +69,7 @@ class CheckVersionUtil {
           latestVersionEntity = VersionEntity(latestVersion: latestVersion, latestMsg: latestMsg);  // 存储新版本信息
           return latestVersionEntity;  // 返回最新版本信息
         } else {
-          if (isShowLatestToast) EasyLoading.showToast(S.current.latestVersion);  // 如果是最新版本，显示提示
+          if (isShowLatestToast) EasyLoading.showToast(S.of(context).latestVersion);  // 如果是最新版本，显示提示
         }
       }
       return null;  // 如果没有新版本，返回 null
@@ -85,7 +86,7 @@ class CheckVersionUtil {
     // 直接传递 UpdateDownloadBtn 作为对话框的一部分
     return DialogUtil.showCustomDialog(
       context,
-      title: '${S.current.findNewVersion}🚀',
+      title: '${S.of(context).findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
       child: UpdateDownloadBtn(  // 将 UpdateDownloadBtn 作为自定义按钮传递
         // apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
