@@ -65,10 +65,16 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                       child: SwitchListTile(
                         focusNode: _bingFocusNode, // 将焦点节点绑定到该组件
                         title: Text(
-                          S.of(context).dailyBing,  // 修正的部分：直接使用 S.of(context).dailyBing 返回的字符串
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          S.of(context).dailyBing,  // 使用 S.of(context).dailyBing 返回的字符串
+                          style: TextStyle(
+                            fontSize: 18, // 设置字体大小为 18
+                            fontWeight: FontWeight.bold,
+                          ),
                         ), // 设置标题加粗
-                        subtitle: Text(S.of(context).backgroundImageDescription),  // 提示信息
+                        subtitle: Text(
+                          S.of(context).backgroundImageDescription, // 提示信息
+                          style: TextStyle(fontSize: 16), // 设置字体大小为 16
+                        ),
                         value: context.watch<ThemeProvider>().isBingBg, // 读取 Bing 背景状态
                         onChanged: (value) {
                           LogUtil.safeExecute(() {
