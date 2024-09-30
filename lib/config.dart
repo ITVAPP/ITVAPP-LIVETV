@@ -9,10 +9,10 @@ class Config {
   static const String m3uCacheKey = 'm3u_cache';
 
   /// 定义收藏列表的分类名称
-  static const String myFavoriteKey = '我的收藏';
+  static const String myFavoriteKey = 'myFavorite';
 
   /// 定义播放列表无分类时的分类名称
-  static const String allChannelsKey = '所有频道';
+  static const String allChannelsKey = 'allChannels';
 
   /// 默认的日志功能开关
   static const bool defaultLogOn = true;
