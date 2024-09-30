@@ -228,11 +228,11 @@ class DialogUtil {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
                CustomSnackBar.showSnackBar(
                  context,
-                 S.of(context).copyok,
+                 S.current.copyok,
                  duration: Duration(seconds: 4),
                );
             },
-            child: const Text(S.of(context).copy, style: TextStyle(color: Colors.white)),
+            child: const Text(S.current.copy, style: TextStyle(color: Colors.white)),
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
