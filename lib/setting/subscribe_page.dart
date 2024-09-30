@@ -263,7 +263,7 @@ class _SubScribePageState extends State<SubScribePage> {
                                     '${S.of(context).createTime}：${model.time}',
                                     style: TextStyle(
                                         color: Colors.white.withOpacity(0.5),
-                                        fontSize: 12),
+                                        fontSize: 14),  // 调整后的字号为 14
                                   ),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -414,7 +414,7 @@ class _SubScribePageState extends State<SubScribePage> {
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   S.of(context).pasterContent,  // 非TV端显示的提示信息
-                  style: const TextStyle(color: Color(0xFF999999)),
+                  style: const TextStyle(color: Color(0xFF999999), fontSize: 16),  // 调整后的字号为 16
                 ),
               ),
             // 调整底部边距，防止UI遮挡
@@ -468,6 +468,7 @@ class _SubScribePageState extends State<SubScribePage> {
                           decoration: InputDecoration(
                             hintText: S.of(context).addFiledHintText,  // 提示用户输入
                             border: InputBorder.none,
+                            hintStyle: const TextStyle(fontSize: 16),  // 调整后的提示文字字号为 16
                           ),
                         ),
                       ),
