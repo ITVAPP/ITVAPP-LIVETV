@@ -52,7 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<M3uResult> _fetchData() async {
     try {
       setState(() {
-        _message = S.current.getm3uData; // 使用国际化翻译
+        _message = S.current.getm3udata;
       });
 
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
