@@ -95,6 +95,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 标记是否需要更新宽高比
   bool _shouldUpdateAspectRatio = true;
 
+  // 声明变量，存储 StreamUrl 类的实例
   StreamUrl? _streamUrl;
 
   // 收藏列表相关
@@ -129,7 +130,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果解析失败，返回 'ERROR'
       if (parsedUrl == 'ERROR') {
         setState(() {
-          toastString = S.current.playError;
+          toastString = S.current.vpnplayError;
         });
         return;
       }
@@ -147,7 +148,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
-        toastString = S.current.playError;
+        toastString = S.current.vpnplayError;
       });
       return;
     }
@@ -229,7 +230,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (_retryCount <= maxRetries) {
       setState(() {
-        toastString = '正在重试连接...';
+        toastString = S.current.retryplay;
       });
       Future.delayed(const Duration(seconds: 3), () {
         if (_isDisposing) return;
@@ -378,8 +379,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (groupName.isEmpty || channelName.isEmpty) {
       CustomSnackBar.showSnackBar(
         context,
-        '当前频道无法收藏',
-        duration: Duration(seconds: 4),  // 自定义持续时间
+        S.current.channelnofavorite,
+        duration: Duration(seconds: 4),
       );
       return;
     }
@@ -392,8 +393,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       CustomSnackBar.showSnackBar(
         context,
-        '频道已从收藏中移除',
-        duration: Duration(seconds: 4),  // 自定义持续时间
+        S.current.removefavorite,
+        duration: Duration(seconds: 4),
       );
       isFavoriteChanged = true;
     } else {
@@ -412,8 +413,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
       CustomSnackBar.showSnackBar(
         context,
-        '频道已添加到收藏',
-        duration: Duration(seconds: 4),  // 自定义持续时间
+        S.current.newfavorite,
+        duration: Duration(seconds: 4),
       );
       isFavoriteChanged = true;
     }
@@ -434,8 +435,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       } catch (error) {
       CustomSnackBar.showSnackBar(
         context,
-        '添加收藏失败',
-        duration: Duration(seconds: 4),  // 自定义持续时间
+        S.current.newfavoriteerror,
+        duration: Duration(seconds: 4),
       );
         LogUtil.logError('收藏状态保存失败', error);
       }
@@ -474,7 +475,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return null;
   }
 
-  /// 异步加载视频数据和版本检测
+  /// 异步加载视频数据
   _loadData() async {
     try {
       _videoMap = widget.m3uData;
@@ -498,7 +499,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 处理播放列表和 EPG 数据
+  /// 处理播放列表
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       // 获取第一个可用的频道
