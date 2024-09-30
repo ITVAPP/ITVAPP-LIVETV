@@ -111,6 +111,21 @@
   "use": "Use",
   "languageSelection": "Language Selection",
   "fontSizeTitle": "Font Size",
-  "logCopied": "The log has been copied to the clipboard"
-  "clipboardDataFetchError": "Failed to fetch clipboard data"
+  "logCopied": "The log has been copied to the clipboard",
+  "clipboardDataFetchError": "Failed to fetch clipboard data",
+  "nofavorite": "No favorites",
+  "vpnplayError": "This channel requires a VPN in some regions",
+  "retryplay": "Connection error, retrying...",
+  "channelnofavorite": "This channel cannot be added to favorites",
+  "removefavorite": "Channel removed from favorites",
+  "newfavorite": "Channel added to favorites",
+  "newfavoriteerror": "Failed to add to favorites",
+  "getm3udata": "Fetching playback data...",
+  "getm3udataerror": "Failed to fetch playback data...",
+  "myfavorite": "My favorites",
+  "allchannels": "Other channels",
+  "copy": "Copy",
+  "copyok": "Content copied to clipboard",
+  "startsurlerror": "Failed to parse URL",
+  "gethttperror": "Local network configuration failed"
 }
