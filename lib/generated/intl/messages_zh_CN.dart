@@ -111,6 +111,21 @@ class MessageLookup extends MessageLookupByLibrary {
         "dailyBing": MessageLookupByLibrary.simpleMessage("开启背景切换"),
         "logCopied": MessageLookupByLibrary.simpleMessage("日志已复制到剪贴板"),
         "clipboardDataFetchError":
-            MessageLookupByLibrary.simpleMessage("获取剪贴板数据失败")
+            MessageLookupByLibrary.simpleMessage("获取剪贴板数据失败"),
+        "nofavorite": MessageLookupByLibrary.simpleMessage("暂无收藏"),
+        "vpnplayError": MessageLookupByLibrary.simpleMessage("此频道在部分地区需要VPN才可以观看"),
+        "retryplay": MessageLookupByLibrary.simpleMessage("连接出错，正在重试..."),
+        "channelnofavorite": MessageLookupByLibrary.simpleMessage("当前频道无法收藏"),
+        "removefavorite": MessageLookupByLibrary.simpleMessage("频道已从收藏中移除"),
+        "newfavorite": MessageLookupByLibrary.simpleMessage("频道已添加到收藏"),
+        "newfavoriteerror": MessageLookupByLibrary.simpleMessage("添加收藏失败"),
+        "getm3udata": MessageLookupByLibrary.simpleMessage("正在获取播放数据..."),
+        "getm3udataerror": MessageLookupByLibrary.simpleMessage("获取播放数据失败..."),
+        "myfavorite": MessageLookupByLibrary.simpleMessage("我的收藏"),
+        "allchannels": MessageLookupByLibrary.simpleMessage("其它频道"),
+        "copy": MessageLookupByLibrary.simpleMessage("复制"),
+        "copyok": MessageLookupByLibrary.simpleMessage("内容已复制到剪贴板"),
+        "startsurlerror": MessageLookupByLibrary.simpleMessage("解析 URL 失败"),
+        "gethttperror": MessageLookupByLibrary.simpleMessage("本地网络配置失败")
       };
 }
