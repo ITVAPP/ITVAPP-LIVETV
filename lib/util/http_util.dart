@@ -111,19 +111,19 @@ void formatError(DioException e) {
   LogUtil.safeExecute(() {
     if (e.type == DioExceptionType.connectionTimeout) {
       // 连接超时
-      LogUtil.v(S.of(context).netTimeOut);
+      LogUtil.v(S.current.netTimeOut);
     } else if (e.type == DioExceptionType.sendTimeout) {
       // 发送超时
-      LogUtil.v(S.of(context).netSendTimeout);
+      LogUtil.v(S.current.netSendTimeout);
     } else if (e.type == DioExceptionType.receiveTimeout) {
       // 接收超时
-      LogUtil.v(S.of(context).netReceiveTimeout);
+      LogUtil.v(S.current.netReceiveTimeout);
     } else if (e.type == DioExceptionType.badResponse) {
       // 错误响应
-      LogUtil.v(S.of(context).netBadResponse(e.response?.statusCode ?? ''));
+      LogUtil.v(S.current.netBadResponse(e.response?.statusCode ?? ''));
     } else if (e.type == DioExceptionType.cancel) {
       // 请求取消
-      LogUtil.v(S.of(context).netCancel);
+      LogUtil.v(S.current.netCancel);
     } else {
       // 其他错误类型
       LogUtil.v(e.message.toString());
