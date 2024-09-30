@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'entity/playlist_model.dart';
-import 'generated/l10n.dart';
+import 'generated/l10n.dart'; // 国际化库的导入
 import 'config.dart';
 
 // 分割线样式
@@ -92,8 +92,18 @@ class CategoryList extends StatelessWidget {
     return ListView.builder(
       itemCount: categories.length,
       itemBuilder: (context, index) {
+        // 检查分类是否为 "我的收藏" 或 "所有频道"，并使用国际化文本
+        String displayTitle;
+        if (categories[index] == Config.myFavoriteKey) {
+          displayTitle = S.of(context).myfavorite;
+        } else if (categories[index] == Config.allChannelsKey) {
+          displayTitle = S.of(context).allchannels;
+        } else {
+          displayTitle = categories[index]; // 使用原始分类名
+        }
+
         return buildListItem(
-          title: categories[index],
+          title: displayTitle,
           isSelected: selectedCategoryIndex == index,
           onTap: () => onCategoryTap(index),
           isCentered: true, // 分类列表项居中
@@ -145,7 +155,7 @@ class GroupList extends StatelessWidget {
               constraints: BoxConstraints(minHeight: itemHeight),
               child: Center(
                 child: Text(
-                  S.current.nofavorite,  // 暂无收藏
+                  S.of(context).nofavorite,  // 暂无收藏
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 16,
