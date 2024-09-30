@@ -13,7 +13,7 @@ class CustomSnackBar {
         margin: EdgeInsets.only(
           left: MediaQuery.of(context).size.width * 0.06,  // 左右边距占屏幕 6%
           right: MediaQuery.of(context).size.width * 0.06,
-          bottom: 30,  // 距离底部 30px
+          bottom: 58,  // 距离底部 58px
         ),
         duration: duration ?? Duration(seconds: 4),  // 使用传入的持续时间，默认为 4 秒
         padding: EdgeInsets.zero,  // 去掉 SnackBar 的内边距，使渐变色更平滑
@@ -37,26 +37,30 @@ class CustomSnackBar {
             ],
           ),
           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内容区域的内边距
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
-            mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
-            children: [
-              Icon(Icons.notifications, color: Colors.white),  // 🔔 图标，白色
-              SizedBox(width: 10),  // 图标与文字的间距
-              Flexible(
-                child: Text(
-                  message,  // 动态消息
-                  style: TextStyle(
-                    color: Colors.white, 
-                    fontSize: 16,  // 字体大小
-                    fontWeight: FontWeight.bold,  // 加粗
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
+              mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
+              children: [
+                // 取消默认图标：删除 Icon 小部件
+                Flexible(
+                  child: Text(
+                    message,  // 动态消息
+                    style: TextStyle(
+                      color: Colors.white, 
+                      fontSize: 16,  // 字体大小
+                      fontWeight: FontWeight.bold,  // 加粗
+                    ),
+                    maxLines: null,  // 允许多行显示
+                    softWrap: true,  // 自动换行
+                    overflow: TextOverflow.visible,  // 处理溢出
                   ),
-                  maxLines: null,  // 允许多行显示
-                  softWrap: true,  // 自动换行
-                  overflow: TextOverflow.visible,  // 处理溢出
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
