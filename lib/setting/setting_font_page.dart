@@ -12,7 +12,7 @@ class SettingFontPage extends StatefulWidget {
 }
 
 class _SettingFontPageState extends State<SettingFontPage> {
-  final _fontScales = [1.0, 1.1, 1.2, 1.3, 1.5]; // 字体缩放比例
+  final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 字体缩放比例
   final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 语言代码
 
@@ -80,18 +80,18 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 17)), // 字体大小标题
+                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 18)), // 字体大小标题
                         const SizedBox(height: 10), // 间距
                         Wrap(
-                          spacing: 10,
-                          runSpacing: 10, // 选项排列方式
+                          spacing: 5,
+                          runSpacing: 8, // 选项排列方式
                           children: List.generate(
                             _fontScales.length,
                             (index) => ChoiceChip(
                               label: Text(
                                 '${_fontScales[index]}', // 显示字体缩放比例
                                 style: TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   color: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
                                       ? Colors.white // 选中状态的文字颜色
                                       : Colors.black, // 未选中状态的文字颜色
@@ -120,7 +120,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 17)), // 语言选择标题
+                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 18)), // 语言选择标题
                         const SizedBox(height: 6), // 间距
                         Column(
                           children: List.generate(
@@ -130,14 +130,14 @@ class _SettingFontPageState extends State<SettingFontPage> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
                                 children: [
-                                  Text(_languages[index], style: const TextStyle(fontSize: 15)), // 显示语言名称
+                                  Text(_languages[index], style: const TextStyle(fontSize: 16)), // 显示语言名称
                                   ChoiceChip(
                                     label: Text(
                                       context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                           ? S.of(context).inUse // 已选中的显示 "使用中"
                                           : S.of(context).use, // 未选中的显示 "使用"
                                       style: TextStyle(
-                                        fontSize: 15,
+                                        fontSize: 16,
                                         color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                             ? Colors.white // 选中状态的文字颜色
                                             : Colors.black, // 未选中状态的文字颜色
