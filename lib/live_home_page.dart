@@ -104,8 +104,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
-    LogUtil.i('检查竞态条件：$_isSwitchingChannel');
-    LogUtil.i('检查资源释放：$_isDisposing');
+    LogUtil.i('检查竞态条件：$_isSwitchingChannel\n检查资源释放：$_isDisposing');
 
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
