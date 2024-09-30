@@ -35,6 +35,7 @@ class _SettingPageState extends State<SettingPage> {
 
     // 设置页面内容的最大宽度（适用于大屏幕设备）
     double maxContainerWidth = 580;
+    double containerWidth = screenWidth > maxContainerWidth ? maxContainerWidth : double.infinity;
 
     return Scaffold(
       appBar: AppBar(
@@ -55,7 +56,7 @@ class _SettingPageState extends State<SettingPage> {
               ),
               const SizedBox(height: 12), // Logo 与应用名称之间的间距
               Stack(
-                clipBehavior: Clip.none, // 子组件溢出时不裁剪
+                clipBehavior: Clip.hardEdge, // 防止 Stack 子组件溢出
                 children: [
                   // 显示应用名称，使用粗体和较大的字号
                   Text(
@@ -84,134 +85,116 @@ class _SettingPageState extends State<SettingPage> {
             ],
           ),
           // 居中显示的设置项，具体宽度根据屏幕尺寸调整
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏设备时限制宽度为 580
-              padding: const EdgeInsets.symmetric(horizontal: 16), // 内边距
-              child: ListTile(
-                title: Text(S.of(context).homePage), // 使用国际化语言显示主页选项
-                leading: const Icon(Icons.home_filled), // 显示图标
-                trailing: const Icon(Icons.arrow_right), // 显示向右箭头
-                onTap: () {
-                  // 点击时打开主页链接
-                  CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.homeLink);
-                },
-              ),
-            ),
+          buildSettingOption(
+            icon: Icons.home_filled,
+            title: S.of(context).homePage,
+            containerWidth: containerWidth,
+            onTap: () {
+              CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.homeLink);
+            },
           ),
           // 发布历史选项
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 根据屏幕宽度限制最大宽度
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ListTile(
-                title: Text(S.of(context).releaseHistory), // 使用国际化语言显示发布历史标题
-                leading: const Icon(Icons.history), // 显示图标
-                trailing: const Icon(Icons.arrow_right), // 显示向右箭头
-                onTap: () {
-                  // 点击时打开发布历史链接
-                  CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink);
-                },
-              ),
-            ),
+          buildSettingOption(
+            icon: Icons.history,
+            title: S.of(context).releaseHistory,
+            containerWidth: containerWidth,
+            onTap: () {
+              CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink);
+            },
           ),
           // 检查更新选项
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏设备时限制宽度
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ListTile(
-                title: Text(S.of(context).checkUpdate), // 使用国际化语言显示检查更新标题
-                leading: const Icon(Icons.tips_and_updates), // 显示检查更新图标
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min, // 使子组件占据最小空间
-                  children: [
-                    if (_latestVersionEntity != null) // 如果存在新版本信息
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent, // 设置背景颜色为红色
-                          borderRadius: BorderRadius.circular(30), // 设置圆角效果
-                        ),
-                        // 显示最新版本的提示
-                        child: Text(
-                          S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 使用国际化语言显示新版本号
-                          style: const TextStyle(fontSize: 12, color: Colors.white),
-                        ),
-                      ),
-                    const SizedBox(width: 10), // 新版本信息和箭头图标之间的间距
-                    const Icon(Icons.arrow_right), // 显示向右箭头
-                  ],
-                ),
-                onTap: () async {
-                  // 调用版本检查工具，检查是否有新版本
-                  await CheckVersionUtil.checkVersion(context, true, true, true);
-                  setState(() {
-                    // 更新页面以显示最新的版本信息
-                    _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
-                  });
-
-                  // 如果没有新版本，显示SnackBar提示
-                  if (_latestVersionEntity == null) {
-                    CustomSnackBar.showSnackBar(
-                      context,
-                      S.of(context).latestVersion,  // “当前已是最新版本”的提示
-                      duration: Duration(seconds: 4),
-                    );
-                  }
-                },
-              ),
+          buildSettingOption(
+            icon: Icons.tips_and_updates,
+            title: S.of(context).checkUpdate,
+            containerWidth: containerWidth,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_latestVersionEntity != null) // 如果存在新版本信息
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent, // 设置背景颜色为红色
+                      borderRadius: BorderRadius.circular(30), // 设置圆角效果
+                    ),
+                    // 显示最新版本的提示
+                    child: Text(
+                      S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 使用国际化语言显示新版本号
+                      style: const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                  ),
+                const SizedBox(width: 10), // 新版本信息和箭头图标之间的间距
+                const Icon(Icons.arrow_right), // 显示向右箭头
+              ],
             ),
+            onTap: () async {
+              await CheckVersionUtil.checkVersion(context, true, true, true);
+              if (mounted) { // 在调用 setState 前检查 mounted
+                setState(() {
+                  _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
+                });
+              }
+
+              // 如果没有新版本，显示SnackBar提示
+              if (_latestVersionEntity == null) {
+                CustomSnackBar.showSnackBar(
+                  context,
+                  S.of(context).latestVersion,  // “当前已是最新版本”的提示
+                  duration: const Duration(seconds: 4),
+                );
+              }
+            },
           ),
           // 字体设置选项
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 根据屏幕大小调整宽度
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ListTile(
-                title: Text(S.of(context).fontTitle), // 设置标题
-                leading: const Icon(Icons.text_fields), // 显示图标
-                trailing: const Icon(Icons.arrow_right), // 显示向右箭头
-                onTap: () {
-                  // 导航到字体设置页面
-                  Navigator.pushNamed(context, RouterKeys.settingFont);
-                },
-              ),
-            ),
+          buildSettingOption(
+            icon: Icons.text_fields,
+            title: S.of(context).fontTitle,
+            containerWidth: containerWidth,
+            onTap: () {
+              Navigator.pushNamed(context, RouterKeys.settingFont);
+            },
           ),
           // 美化设置选项
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏时限制最大宽度
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ListTile(
-                title: Text(S.of(context).backgroundImageTitle), // 设置标题
-                leading: const Icon(Icons.ac_unit), // 显示图标
-                trailing: const Icon(Icons.arrow_right), // 显示向右箭头
-                onTap: () {
-                  // 导航到美化设置页面
-                  Navigator.pushNamed(context, RouterKeys.settingBeautify);
-                },
-              ),
-            ),
+          buildSettingOption(
+            icon: Icons.ac_unit,
+            title: S.of(context).backgroundImageTitle,
+            containerWidth: containerWidth,
+            onTap: () {
+              Navigator.pushNamed(context, RouterKeys.settingBeautify);
+            },
           ),
           // 日志设置选项
-          Center(
-            child: Container(
-              width: screenWidth > 580 ? maxContainerWidth : double.infinity, // 大屏时限制最大宽度
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ListTile(
-                title: Text(S.of(context).slogTitle), // 设置标题
-                leading: const Icon(Icons.view_list), // 显示图标
-                trailing: const Icon(Icons.arrow_right), // 显示向右箭头
-                onTap: () {
-                  // 导航到日志设置页面
-                  Navigator.pushNamed(context, RouterKeys.settinglog);
-                },
-              ),
-            ),
+          buildSettingOption(
+            icon: Icons.view_list,
+            title: S.of(context).slogTitle,
+            containerWidth: containerWidth,
+            onTap: () {
+              Navigator.pushNamed(context, RouterKeys.settinglog);
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  // 公共设置项构建方法
+  Widget buildSettingOption({
+    required IconData icon,
+    required String title,
+    required double containerWidth,
+    required Function onTap,
+    Widget? trailing,
+  }) {
+    return Center(
+      child: Container(
+        width: containerWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: ListTile(
+          title: Text(title), // 使用国际化语言显示标题
+          leading: Icon(icon),
+          trailing: trailing ?? const Icon(Icons.arrow_right), // 使用 const 优化性能
+          onTap: () => onTap(),
+        ),
       ),
     );
   }
