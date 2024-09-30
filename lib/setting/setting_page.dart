@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart'; 
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import '../generated/l10n.dart'; 
+import '../config.dart'; 
 
 // 设置页面的主类，继承自 StatefulWidget
 class SettingPage extends StatefulWidget {
@@ -60,7 +61,7 @@ class _SettingPageState extends State<SettingPage> {
                 children: [
                   // 显示应用名称，使用粗体和较大的字号
                   Text(
-                    S.of(context).appName, // 使用国际化语言显示应用名称
+                    S.of(context).appName, // 显示应用名称
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -71,9 +72,9 @@ class _SettingPageState extends State<SettingPage> {
                     top: 0,
                     right: -45, // 版本号右移 -45，确保与文本分离
                     child: Text(
-                      'v${CheckVersionUtil.version}', // 从版本检查工具获取当前应用版本号
+                      'v${Config.version}', // 获取当前应用版本号
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.redAccent,
                         fontWeight: FontWeight.bold,
                       ),
@@ -119,7 +120,7 @@ class _SettingPageState extends State<SettingPage> {
                     ),
                     // 显示最新版本的提示
                     child: Text(
-                      S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 使用国际化语言显示新版本号
+                      S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 显示新版本号
                       style: const TextStyle(fontSize: 12, color: Colors.white),
                     ),
                   ),
