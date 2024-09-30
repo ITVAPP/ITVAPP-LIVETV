@@ -322,7 +322,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             ),
           ),
         // 非横屏时右下角的旋转按钮和收藏按钮
-        if (!widget.isLandscape && _isShowMenuBar)
+        if (!widget.isLandscape)
           Positioned(
             right: 8,
             bottom: 5,
