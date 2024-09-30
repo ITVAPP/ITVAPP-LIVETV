@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:itvapp_live_tv/util/bing_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
-import '../util/log_util.dart';
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
@@ -123,7 +123,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    // 获取当前屏幕的宽度和方向，确定是竖屏还是横屏
     final mediaQuery = MediaQuery.of(context);
     final bool isPortrait = mediaQuery.orientation == Orientation.portrait;
 
@@ -192,7 +191,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   }
 
   Widget _buildToast() {
-    final text = widget.toastString ?? S.current.loading;
+    final text = widget.toastString ?? S.of(context).loading;
     final textStyle = const TextStyle(color: Colors.white, fontSize: 16);
     final textSpan = TextSpan(text: text, style: textStyle);
     final textPainter = TextPainter(
