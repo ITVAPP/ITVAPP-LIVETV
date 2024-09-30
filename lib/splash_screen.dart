@@ -16,7 +16,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
 
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
-  M3uResult? result;  // 直接在类中定义 result，用于捕获异常时访问
+  M3uResult? result;  // 用于捕获异常时访问
   int _retryCount = 0;  // 重试次数
   String _message = '';  // 用于显示当前的提示信息
   final FocusNode _retryButtonFocusNode = FocusNode(); // 用于控制焦点的 FocusNode
@@ -25,6 +25,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void initState() {
+    super.initState();
     _initializeApp(); // 播放列表数据获取
   }
 
@@ -50,33 +51,31 @@ class _SplashScreenState extends State<SplashScreen> {
   // 统一错误处理的获取数据方法
   Future<M3uResult> _fetchData() async {
     try {
-      LogUtil.safeExecute(() {
-        setState(() {
-          _message = S.current.getm3uData; // 显示数据获取提示
-        });
-      }, '获取 M3U 数据时发生错误');
+      setState(() {
+        _message = S.of(context).getm3uData; // 使用国际化翻译
+      });
 
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
         setState(() {
           _retryCount = attempt;
-          _message = S.current.getm3udataerror;  // 更新重试提示信息
+          _message = S.of(context).getm3udataerror;  // 更新重试提示信息
         });
         LogUtil.e('获取 M3U 数据失败，开始重试'); // 添加重试日志
       });
 
-      if (result!.data != null) {
-        return result!;  // 直接返回 M3uResult 的 data
+      if (result?.data != null) {
+        return result!;  // 返回 M3uResult 的 data
       } else {
         setState(() {
           _retryCount++;
-          _message = S.current.getm3udataerror; // 显示错误信息
+          _message = S.of(context).getm3udataerror; // 显示错误信息
         });
-        return M3uResult(errorMessage: result!.errorMessage);  // 返回带错误信息的 M3uResult
+        return M3uResult(errorMessage: result?.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e, stackTrace) {
       setState(() {
         _retryCount++;  // 更新重试次数
-        _message = S.current.getm3udataerror; // 更新错误信息
+        _message = S.of(context).getm3udataerror; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
       return M3uResult(errorMessage: ': $e');
@@ -111,44 +110,7 @@ class _SplashScreenState extends State<SplashScreen> {
           FutureBuilder<M3uResult>(
             future: _m3uDataFuture, // 传入异步计算的 Future
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                // 显示加载动画和重试次数
-                return _buildMessageUI(
-                  _retryCount == 0 
-                      ? '${S.current.loading} ${S.current.tipChannelList}...'  // 拼接两个本地化字符串
-                      : _message, // 根据重试次数动态显示消息
-                  isLoading: true,
-                );
-              } else if (snapshot.hasError || (snapshot.hasData && snapshot.data?.data == null)) {
-                LogUtil.e('加载 M3U 数据时发生错误或数据为空'); // 添加错误日志
-                
-                // 聚焦重试按钮
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  FocusScope.of(context).requestFocus(_retryButtonFocusNode);
-                });
-                 
-                // 如果加载失败，显示错误信息和刷新按钮
-                return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
-
-              } else if (snapshot.hasData && snapshot.data?.data != null) {
-                // 如果加载成功，延迟 3 秒后导航到主页面，并传递获取到的数据
-                Future.delayed(Duration(seconds: 3), () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      // 提取 M3uResult 中的 PlaylistModel 数据
-                      builder: (context) => LiveHomePage(m3uData: snapshot.data!.data!), // 传递 PlaylistModel 数据
-                    ),
-                  );
-                });
-                // 保持加载动画显示，直到页面跳转
-                return _buildMessageUI(
-                  '${S.current.loading} ${S.current.tipChannelList}...',
-                  isLoading: true,
-                );
-              } else {
-                // 处理其他情况，默认显示错误信息和刷新按钮
-                return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
-              }
+              return _buildFutureBuilderContent(context, snapshot); // 提取逻辑到单独的方法
             },
           ),
         ],
@@ -164,6 +126,46 @@ class _SplashScreenState extends State<SplashScreen> {
             )
           : null, // 非调试模式不显示悬浮按钮
     );
+  }
+
+  // 处理 FutureBuilder 中的状态显示逻辑
+  Widget _buildFutureBuilderContent(BuildContext context, AsyncSnapshot<M3uResult> snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      // 显示加载动画和重试次数
+      return _buildMessageUI(
+        _retryCount == 0 
+            ? '${S.of(context).loading} ${S.of(context).tipChannelList}...'  // 拼接两个本地化字符串
+            : _message, // 根据重试次数动态显示消息
+        isLoading: true,
+      );
+    } else if (snapshot.hasError || (snapshot.hasData && snapshot.data?.data == null)) {
+      LogUtil.e('加载 M3U 数据时发生错误或数据为空'); // 添加错误日志
+      
+      // 聚焦重试按钮
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FocusScope.of(context).requestFocus(_retryButtonFocusNode);
+      });
+      
+      // 如果加载失败，显示错误信息和刷新按钮
+      return _buildMessageUI(S.of(context).getDefaultError, showRetryButton: true);
+    } else if (snapshot.hasData && snapshot.data?.data != null) {
+      // 如果加载成功，延迟 3 秒后导航到主页面，并传递获取到的数据
+      Future.delayed(Duration(seconds: 3), () {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            // 提取 M3uResult 中的 PlaylistModel 数据
+            builder: (context) => LiveHomePage(m3uData: snapshot.data!.data!), // 传递 PlaylistModel 数据
+          ),
+        );
+      });
+      return _buildMessageUI(
+        '${S.of(context).loading} ${S.of(context).tipChannelList}...',
+        isLoading: true,
+      );
+    } else {
+      // 处理其他情况，默认显示错误信息和刷新按钮
+      return _buildMessageUI(S.of(context).getDefaultError, showRetryButton: true);
+    }
   }
 
   // 构建加载动画和提示 UI 的方法
@@ -209,7 +211,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     borderRadius: BorderRadius.circular(30.0), // 圆角按钮设计
                   ),
                 ),
-                child: Text(S.current.refresh, style: const TextStyle(fontSize: 18)), // 按钮上的文本
+                child: Text(S.of(context).refresh, style: const TextStyle(fontSize: 18)), // 按钮上的文本
               ),
             ],
           ],
