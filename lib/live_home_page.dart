@@ -44,7 +44,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultTimeoutSeconds = 18;
 
   // 存储加载状态的提示文字
-  String toastString = S.current.loading;
+  String toastString = S.of(context).loading;
 
   // 视频播放列表的数据模型
   PlaylistModel? _videoMap;
@@ -114,7 +114,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _isSwitchingChannel = true;
 
     // 更新界面上的加载提示文字
-    toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+    toastString = S.of(context).lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
 
     // 获取当前视频源的 URL
@@ -129,7 +129,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果解析失败，返回 'ERROR'
       if (parsedUrl == 'ERROR') {
         setState(() {
-          toastString = S.current.vpnplayError;
+          toastString = S.of(context).vpnplayError;
         });
         return;
       }
@@ -147,7 +147,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('解析视频地址出错', e, stackTrace);
       setState(() {
-        toastString = S.current.vpnplayError;
+        toastString = S.of(context).vpnplayError;
       });
       return;
     }
@@ -165,7 +165,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _playerController?.initialize();
       _playerController?.play();
       setState(() {
-        toastString = S.current.loading; // 显示加载状态
+        toastString = S.of(context).loading; // 显示加载状态
       });
 
       // 播放成功，重置重试计数器
@@ -229,7 +229,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     if (_retryCount <= maxRetries) {
       setState(() {
-        toastString = S.current.retryplay;
+        toastString = S.of(context).retryplay;
       });
       Future.delayed(const Duration(seconds: 3), () {
         if (_isDisposing) return;
@@ -240,11 +240,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_sourceIndex > _currentChannel!.urls!.length - 1) {
         _sourceIndex = _currentChannel!.urls!.length - 1;
         setState(() {
-          toastString = S.current.playError;
+          toastString = S.of(context).playError;
         });
       } else {
         setState(() {
-          toastString = S.current.switchLine(_sourceIndex + 1);
+          toastString = S.of(context).switchLine(_sourceIndex + 1);
         });
         Future.delayed(const Duration(seconds: 3), () {
           if (_isDisposing) return;
@@ -378,7 +378,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (groupName.isEmpty || channelName.isEmpty) {
       CustomSnackBar.showSnackBar(
         context,
-        S.current.channelnofavorite,
+        S.of(context).channelnofavorite,
         duration: Duration(seconds: 4),
       );
       return;
@@ -392,7 +392,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       CustomSnackBar.showSnackBar(
         context,
-        S.current.removefavorite,
+        S.of(context).removefavorite,
         duration: Duration(seconds: 4),
       );
       isFavoriteChanged = true;
@@ -412,7 +412,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
       CustomSnackBar.showSnackBar(
         context,
-        S.current.newfavorite,
+        S.of(context).newfavorite,
         duration: Duration(seconds: 4),
       );
       isFavoriteChanged = true;
@@ -434,7 +434,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       } catch (error) {
       CustomSnackBar.showSnackBar(
         context,
-        S.current.newfavoriteerror,
+        S.of(context).newfavoriteerror,
         duration: Duration(seconds: 4),
       );
         LogUtil.logError('收藏状态保存失败', error);
@@ -682,7 +682,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                                 Navigator.pop(context, index);
                               },
                         child: Text(
-                          S.current.lineIndex(index + 1),
+                          S.of(context).lineIndex(index + 1),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 15,
