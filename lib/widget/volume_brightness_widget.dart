@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:volume_controller/volume_controller.dart';
+import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
 class VolumeBrightnessWidget extends StatefulWidget {
@@ -38,19 +38,19 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
     }
 
     try {
-      _volume = (await VolumeController().getVolume()).clamp(0.0, 1.0);  // 使用正确的音量控制获取方式
+      _volume = (await FlutterVolumeController.getVolume()).clamp(0.0, 1.0);  // 使用正确的音量控制获取方式
       _tempVolume = _volume; // 初始化临时音量值
     } catch (e) {
       _volume = 0.5;  // 如果读取音量失败，使用默认值
     }
 
-    VolumeController().showSystemUI = false;  // 禁用系统音量UI，使用正确方法
+    FlutterVolumeController.showSystemUI = false;  // 禁用系统音量UI，使用正确方法
     setState(() {});
   }
 
   @override
   void dispose() {
-    VolumeController().showSystemUI = true;  // 恢复系统音量UI，使用正确方法
+    FlutterVolumeController.showSystemUI = true;  // 恢复系统音量UI，使用正确方法
     super.dispose();
   }
 
@@ -98,7 +98,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
         onVerticalDragEnd: (DragEndDetails details) {
           _isDragging = false; // 手势结束
           if (_controlType == 2) {
-            VolumeController().setVolume(_volume);  // 手势结束时更新系统音量，提升性能
+            FlutterVolumeController.setVolume(_volume);  // 手势结束时更新系统音量，提升性能
           } else {
             ScreenBrightness().setScreenBrightness(_brightness);  // 手势结束时更新系统亮度，提升性能
           }
