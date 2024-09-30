@@ -129,6 +129,21 @@ class MessageLookup extends MessageLookupByLibrary {
         "backgroundImageDescription": MessageLookupByLibrary.simpleMessage("Automatically change background when playing audio"),
         "dailyBing": MessageLookupByLibrary.simpleMessage("Enable background switching"),
         "logCopied": MessageLookupByLibrary.simpleMessage("The log has been copied to the clipboard"),
-        "clipboardDataFetchError": MessageLookupByLibrary.simpleMessage("Failed to fetch clipboard data")
+        "clipboardDataFetchError": MessageLookupByLibrary.simpleMessage("Failed to fetch clipboard data"),
+        "nofavorite": MessageLookupByLibrary.simpleMessage("No favorites"),
+        "vpnplayError": MessageLookupByLibrary.simpleMessage("This channel requires a VPN in some regions"),
+        "retryplay": MessageLookupByLibrary.simpleMessage("Connection error, retrying..."),
+        "channelnofavorite": MessageLookupByLibrary.simpleMessage("This channel cannot be added to favorites"),
+        "removefavorite": MessageLookupByLibrary.simpleMessage("Channel removed from favorites"),
+        "newfavorite": MessageLookupByLibrary.simpleMessage("Channel added to favorites"),
+        "newfavoriteerror": MessageLookupByLibrary.simpleMessage("Failed to add to favorites"),
+        "getm3udata": MessageLookupByLibrary.simpleMessage("Fetching playback data..."),
+        "getm3udataerror": MessageLookupByLibrary.simpleMessage("Failed to fetch playback data..."),
+        "myfavorite": MessageLookupByLibrary.simpleMessage("My favorites"),
+        "allchannels": MessageLookupByLibrary.simpleMessage("Other channels"),
+        "copy": MessageLookupByLibrary.simpleMessage("Copy"),
+        "copyok": MessageLookupByLibrary.simpleMessage("Content copied to clipboard"),
+        "startsurlerror": MessageLookupByLibrary.simpleMessage("Failed to parse URL"),
+        "gethttperror": MessageLookupByLibrary.simpleMessage("Local network configuration failed")
       };
 }
