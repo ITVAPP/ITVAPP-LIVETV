@@ -127,7 +127,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     final bool isPortrait = mediaQuery.orientation == Orientation.portrait;
 
     // 根据屏幕方向设置进度条的宽度，竖屏时进度条较宽，横屏时较窄
-    double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.6 : mediaQuery.size.width * 0.4;
+    double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
 
     return Selector<ThemeProvider, bool>(
       // 使用Selector从ThemeProvider中选择isBingBg属性，确定是否启用Bing背景
