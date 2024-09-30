@@ -69,7 +69,7 @@ class CheckVersionUtil {
           latestVersionEntity = VersionEntity(latestVersion: latestVersion, latestMsg: latestMsg);  // 存储新版本信息
           return latestVersionEntity;  // 返回最新版本信息
         } else {
-          if (isShowLatestToast) EasyLoading.showToast(S.of(context).latestVersion);  // 如果是最新版本，显示提示
+          if (isShowLatestToast) EasyLoading.showToast(S.current.latestVersion);  // 如果是最新版本，显示提示
         }
       }
       return null;  // 如果没有新版本，返回 null
@@ -86,7 +86,7 @@ class CheckVersionUtil {
     // 直接传递 UpdateDownloadBtn 作为对话框的一部分
     return DialogUtil.showCustomDialog(
       context,
-      title: '${S.of(context).findNewVersion}🚀',
+      title: '${S.current.findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
       child: UpdateDownloadBtn(  // 将 UpdateDownloadBtn 作为自定义按钮传递
         // apkUrl: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
