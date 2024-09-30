@@ -60,8 +60,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           fixedSize: Size(btnWidth, 48),
           backgroundColor: _isFocusDownload ? Colors.redAccent : Colors.redAccent.withOpacity(0.3),
           elevation: _isFocusDownload ? 10 : 0,
-          // 修改点击时按钮的水波纹效果和颜色变化
-          foregroundColor: Colors.white,  // 设置点击时水波纹的颜色（使用 foregroundColor 替代 onPrimary）
+          foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
           shadowColor: Colors.redAccent,  // 设置阴影颜色匹配背景
         ),
         autofocus: true,
@@ -76,7 +75,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
               try {
                 context.read<DownloadProvider>().downloadApk(widget.apkUrl);
               } catch (e, stackTrace) {
-                LogUtil.logError('下载 APK 时发生错误', e, stackTrace);  // 异常日志记录
+                LogUtil.logError('下载时发生错误', e, stackTrace);  // 异常日志记录
               }
             } else {
               try {
@@ -88,12 +87,11 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           }, '点击下载按钮时发生错误');
         },
         child: Text(
-          S.current.update,
-          // 修改按钮文字样式：粗体，18 号大小
+          S.of(context).update,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,  // 文字粗体
-            fontSize: 18,  // 文字大小设置为 18
+            fontSize: 18,  // 文字大小
           ),
         ),
       ),
