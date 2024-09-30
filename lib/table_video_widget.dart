@@ -190,14 +190,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                             LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
                           },
                           child: Opacity(
-                            opacity: 0.7, // 设置透明度为 70%
+                            opacity: 0.6, // 设置透明度为 60%
                             child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 88),
                           ),
                         ),
                       // 显示暂停图标
                       if (_isShowPauseIcon)
                         Opacity(
-                          opacity: 0.7, // 设置透明度为 70%
+                          opacity: 0.6, // 设置透明度为 60%
                           child: const Icon(Icons.pause_circle_outline, color: Colors.white, size: 88),
                         ),
                     ],
