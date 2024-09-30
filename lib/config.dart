@@ -1,4 +1,7 @@
 class Config {
+  /// 当前应用版本
+  static const String version = '1.5.8';
+  
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
 
