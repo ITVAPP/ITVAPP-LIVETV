@@ -6,9 +6,9 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/date_util.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
-import 'package:itvapp_live_tv/util/date_util.dart';
 import 'config.dart';
 
 // 分割线样式
@@ -97,7 +97,7 @@ class CategoryList extends StatelessWidget {
           isSelected: selectedCategoryIndex == index,
           onTap: () => onCategoryTap(index),
           isCentered: true, // 分类列表项居中
-          minHeight: 48.0, // 分类列表项的最小高度
+          minHeight: 42.0, // 分类列表项的最小高度
           isTV: isTV,
           onFocusChange: (focus) {
             if (isTV && focus) {
@@ -118,7 +118,7 @@ class GroupList extends StatelessWidget {
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
   final bool isTV;
-  final bool isFavoriteCategory; // 新增参数，用于标识是否为收藏分类
+  final bool isFavoriteCategory; // 标识是否为收藏分类
 
   const GroupList({
     super.key,
@@ -128,16 +128,16 @@ class GroupList extends StatelessWidget {
     required this.selectedGroupIndex,
     required this.onGroupTap,
     required this.isTV,
-    this.isFavoriteCategory = false, // 默认为 false
+    this.isFavoriteCategory = false, 
   });
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      cacheExtent: itemHeight, // 预缓存区域
-      padding: const EdgeInsets.only(bottom: 100.0), // 列表底部留白
+      cacheExtent: itemHeight, 
+      padding: const EdgeInsets.only(bottom: 100.0), 
       controller: scrollController, // 使用滚动控制器
-      itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length, // 分组数目
+      itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length,
       itemBuilder: (context, index) {
         if (keys.isEmpty && isFavoriteCategory) {
           return Center(
@@ -145,7 +145,7 @@ class GroupList extends StatelessWidget {
               constraints: BoxConstraints(minHeight: itemHeight),
               child: Center(
                 child: Text(
-                  '暂无收藏',
+                  S.current.nofavorite,  // 暂无收藏
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 16,
@@ -227,7 +227,6 @@ class EPGList extends StatelessWidget {
   final int selectedIndex;
   final bool isTV;
   final ItemScrollController epgScrollController; // 新增的控制器参数
-
   const EPGList({
     super.key,
     required this.epgData,
@@ -241,7 +240,7 @@ class EPGList extends StatelessWidget {
     return Column(
       children: [
         Container(
-          height: 48,
+          height: 42,
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.only(left: 8),  // 添加左边距
           decoration: BoxDecoration(
@@ -268,7 +267,7 @@ class EPGList extends StatelessWidget {
                 isSelected: isSelect,
                 onTap: () {}, // 禁用点击事件，EPG项不可点击
                 isCentered: false, // EPG列表项左对齐
-                minHeight: 48.0, // 固定的最小高度
+                minHeight: 42.0, // 固定的最小高度
                 padding: const EdgeInsets.all(10),
                 selectedColor: Colors.redAccent,
                 isTV: isTV,
@@ -319,7 +318,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<Map<String, PlayModel>> _values; // 视频分组的值列表
   late int _groupIndex; // 当前分组的索引
   late int _channelIndex; // 当前频道的索引
-  final double _itemHeight = 48.0; // 每个列表项的高度
+  final double _itemHeight = 42.0; // 每个列表项的高度
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
@@ -562,7 +561,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 从 ThemeProvider 获取 isTV 状态
+    // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
     return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
   }
