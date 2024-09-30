@@ -14,7 +14,6 @@ import 'channel_drawer_page.dart';
 import 'mobile_video_widget.dart';
 import 'table_video_widget.dart';
 import 'tv/tv_page.dart';
-import 'util/epg_util.dart';
 import 'util/env_util.dart';
 import 'util/check_version_util.dart';
 import 'util/log_util.dart';
@@ -516,17 +515,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           toastString = 'UNKNOWN';
         });
-      }
-
-      // 处理 EPG 数据加载
-      if (_videoMap?.epgUrl?.isNotEmpty ?? false) {
-        try {
-          EpgUtil.loadEPGXML(_videoMap!.epgUrl!);
-        } catch (e, stackTrace) {
-          LogUtil.logError('加载EPG数据时出错', e, stackTrace);
-        }
-      } else {
-        EpgUtil.resetEPGXML();
       }
     } else {
       // 播放列表为空
