@@ -30,7 +30,7 @@ class M3uUtil {
       }
       return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
-      return M3uResult(errorMessage: '获取播放列表失败');
+      return M3uResult(errorMessage: S.of(context).getm3udataerror);
     }
   }
 
@@ -50,7 +50,7 @@ class M3uUtil {
 
         // 检查本地缓存是否为空
         if (cachedData == null || cachedData.playList == null) {
-          return M3uResult(errorMessage: '获取播放列表失败');
+          return M3uResult(errorMessage: S.of(context).getm3udataerror);
         }
 
         return M3uResult(data: cachedData);
@@ -68,7 +68,7 @@ class M3uUtil {
 
       // 检查是否成功解析数据
       if (parsedData == null || parsedData.playList == null) {
-        return M3uResult(errorMessage: '解析播放列表失败');
+        return M3uResult(errorMessage: S.of(context).getm3udataerror);
       }
 
       LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
@@ -100,7 +100,7 @@ class M3uUtil {
 
       return M3uResult(data: parsedData);
     } catch (e, stackTrace) {
-      return M3uResult(errorMessage: '获取远程播放列表失败');
+      return M3uResult(errorMessage: S.of(context).getm3udataerror);
     }
   }
 
@@ -437,7 +437,7 @@ class M3uUtil {
             final groupStr = params.firstWhere(
                 (element) => element.startsWith('group-title='),
                 orElse: () =>
-                    'group-title=${S.current.defaultText}'); // 组名称
+                    'group-title=${S.of(context).defaultText}'); // 组名称
             if (groupStr.isNotEmpty && groupStr.contains('=')) {
               tempGroupTitle = groupStr.split('=').last;
             }
@@ -525,7 +525,7 @@ class M3uUtil {
         }
       } else {
         // 处理非标准M3U文件
-        String tempGroup = S.current.defaultText;
+        String tempGroup = S.of(context).defaultText;
         for (int i = 0; i < lines.length; i++) {
           final line = lines[i];
           final lineList = line.split(',');
@@ -548,7 +548,7 @@ class M3uUtil {
               playListModel.playList![tempGroup] = categoryMap;
             } else {
               tempGroup =
-                  groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
+                  groupTitle == '' ? '${S.of(context).defaultText}${i + 1}' : groupTitle;
               if (playListModel.playList![tempGroup] == null) {
                 playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
               }
