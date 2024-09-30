@@ -8,7 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'generated/l10n.dart';
 import 'util/env_util.dart';
-import 'util/log_util.dart';  // 导入日志工具
+import 'util/log_util.dart'; 
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
@@ -46,7 +46,7 @@ class MobileVideoWidget extends StatefulWidget {
   State<MobileVideoWidget> createState() => _MobileVideoWidgetState();
 }
 
-// State 类，用于管理 MobileVideoWidget 的状态
+// 管理 MobileVideoWidget 的状态
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
   @override
@@ -137,7 +137,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       body: Column(
         children: [
-          // 视频播放器的展示区域，直接渲染播放器区域，不再处理加载动画
           AspectRatio(
             aspectRatio: widget.controller?.value.isInitialized == true
                 ? widget.controller!.value.aspectRatio  // 视频初始化后，设置实际宽高比
