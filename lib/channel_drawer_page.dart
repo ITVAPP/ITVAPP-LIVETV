@@ -59,7 +59,7 @@ Widget buildListItem({
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: isSelected ? 16 : 15, // 选中时文字稍大
+                fontSize: isSelected ? 17 : 16, // 选中时文字稍大
               ),
               softWrap: true,
               maxLines: null,
