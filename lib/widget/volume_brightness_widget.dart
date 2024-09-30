@@ -38,7 +38,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
     }
 
     try {
-      _volume = (await FlutterVolumeController.getVolume()).clamp(0.0, 1.0);  // 使用正确的音量控制获取方式
+      _volume = ((await FlutterVolumeController.getVolume()) ?? 0.5).clamp(0.0, 1.0) as double;
       _tempVolume = _volume; // 初始化临时音量值
     } catch (e) {
       _volume = 0.5;  // 如果读取音量失败，使用默认值
