@@ -111,6 +111,21 @@ class MessageLookup extends MessageLookupByLibrary {
         "dailyBing": MessageLookupByLibrary.simpleMessage("開啟背景切換"),
         "logCopied": MessageLookupByLibrary.simpleMessage("日誌已複製到剪貼簿"),
         "clipboardDataFetchError":
-            MessageLookupByLibrary.simpleMessage("獲取剪貼簿資料失敗")
+            MessageLookupByLibrary.simpleMessage("獲取剪貼簿資料失敗"),
+        "nofavorite": MessageLookupByLibrary.simpleMessage("暫無收藏"),
+        "vpnplayError": MessageLookupByLibrary.simpleMessage("此頻道在部分地區需要VPN纔可以觀看"),
+        "retryplay": MessageLookupByLibrary.simpleMessage("連線出錯，正在重試..."),
+        "channelnofavorite": MessageLookupByLibrary.simpleMessage("當前頻道無法收藏"),
+        "removefavorite": MessageLookupByLibrary.simpleMessage("頻道已從收藏中移除"),
+        "newfavorite": MessageLookupByLibrary.simpleMessage("頻道已新增到收藏"),
+        "newfavoriteerror": MessageLookupByLibrary.simpleMessage("新增收藏失敗"),
+        "getm3udata": MessageLookupByLibrary.simpleMessage("正在獲取播放資料..."),
+        "getm3udataerror": MessageLookupByLibrary.simpleMessage("獲取播放資料失敗..."),
+        "myfavorite": MessageLookupByLibrary.simpleMessage("我的收藏"),
+        "allchannels": MessageLookupByLibrary.simpleMessage("其它頻道"),
+        "copy": MessageLookupByLibrary.simpleMessage("複製"),
+        "copyok": MessageLookupByLibrary.simpleMessage("內容已複製到剪貼簿"),
+        "startsurlerror": MessageLookupByLibrary.simpleMessage("解析 URL 失敗"),
+        "gethttperror": MessageLookupByLibrary.simpleMessage("本地網路配置失敗"),
       };
 }
