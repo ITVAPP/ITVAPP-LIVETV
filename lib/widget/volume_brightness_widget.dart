@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_volume_controller/flutter_volume_controller.dart';
+import 'package:volume_controller/volume_controller.dart'; // 修改为正确的包路径
 import 'package:screen_brightness/screen_brightness.dart';
 
 class VolumeBrightnessWidget extends StatefulWidget {
@@ -12,6 +12,8 @@ class VolumeBrightnessWidget extends StatefulWidget {
 class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   double _volume = 0.5;
   double _brightness = 0.5;
+  double _tempVolume = 0.5;    // 临时变量存储实时调整的音量值
+  double _tempBrightness = 0.5; // 临时变量存储实时调整的亮度值
 
   // 1.brightness
   // 2.volume
@@ -19,6 +21,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   final double _verticalDragThreshold = 15;  // 提高阈值，避免误触发
   bool _isDragging = false; // 用来标记是否在拖动
   bool _isCooldown = false; // 增加一个冷却标志位
+  final double _minAdjustmentStep = 0.02;  // 设置最小调节步长，提高调节精度
 
   @override
   void initState() {
@@ -29,23 +32,25 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   _loadSystemData() async {
     try {
       _brightness = (await ScreenBrightness().current).clamp(0.0, 1.0);  // 确保亮度在合理范围
+      _tempBrightness = _brightness; // 初始化临时亮度值
     } catch (e) {
       _brightness = 0.5;  // 如果读取亮度失败，使用默认值
     }
 
     try {
-      _volume = (await FlutterVolumeController.getVolume() ?? 0.5).clamp(0.0, 1.0);  // 确保音量在合理范围
+      _volume = (await VolumeController().getVolume()).clamp(0.0, 1.0);  // 使用正确的音量控制获取方式
+      _tempVolume = _volume; // 初始化临时音量值
     } catch (e) {
       _volume = 0.5;  // 如果读取音量失败，使用默认值
     }
 
-    await FlutterVolumeController.updateShowSystemUI(false);  // 禁用系统音量UI
+    VolumeController().showSystemUI = false;  // 禁用系统音量UI，使用正确方法
     setState(() {});
   }
 
   @override
   void dispose() {
-    FlutterVolumeController.updateShowSystemUI(true);  // 恢复系统音量UI
+    VolumeController().showSystemUI = true;  // 恢复系统音量UI，使用正确方法
     super.dispose();
   }
 
@@ -78,21 +83,27 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
             // 根据滑动速度动态调整步长
             final adjustment = (details.delta.dy / 1000) * (details.primaryDelta ?? 1.0).abs();
 
-            // 即时响应拖动操作，持续调整
-            if (_controlType == 2) {
-              _volume = (_volume - adjustment).clamp(0.0, 1.0);
-              FlutterVolumeController.setVolume(_volume); // 调整音量
-            } else {
-              _brightness = (_brightness - adjustment).clamp(0.0, 1.0);
-              ScreenBrightness().setScreenBrightness(_brightness); // 调整亮度
-            }
-            setState(() {}); // 更新界面
+            // 即时响应拖动操作，持续调整，并且实时更新进度条
+            setState(() {
+              if (_controlType == 2) {
+                _tempVolume = (_tempVolume - adjustment).clamp(0.0, 1.0);
+                _volume = _tempVolume;  // 实时更新音量条
+              } else {
+                _tempBrightness = (_tempBrightness - adjustment).clamp(0.0, 1.0);
+                _brightness = _tempBrightness;  // 实时更新亮度条
+              }
+            });
           }
         },
         onVerticalDragEnd: (DragEndDetails details) {
           _isDragging = false; // 手势结束
-          // 增加延迟500毫秒后隐藏调节条，并设置冷却期
-          Future.delayed(const Duration(milliseconds: 500), () {
+          if (_controlType == 2) {
+            VolumeController().setVolume(_volume);  // 手势结束时更新系统音量，提升性能
+          } else {
+            ScreenBrightness().setScreenBrightness(_brightness);  // 手势结束时更新系统亮度，提升性能
+          }
+          // 增加延迟隐藏调节条，并设置冷却期
+          Future.delayed(const Duration(milliseconds: 1000), () {
             if (!_isDragging && !_isCooldown) {  // 只有不在拖动时且冷却期结束才隐藏调节条
               _isCooldown = true;  // 进入冷却期
               setState(() {
@@ -106,8 +117,8 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
         },
         onVerticalDragCancel: () {
           _isDragging = false; // 手势取消
-          // 增加延迟500毫秒后隐藏调节条，并设置冷却期
-          Future.delayed(const Duration(milliseconds: 500), () {
+          // 增加延迟隐藏调节条，并设置冷却期
+          Future.delayed(const Duration(milliseconds: 1000), () {
             if (!_isDragging && !_isCooldown) {  // 只有不在拖动时且冷却期结束才隐藏调节条
               _isCooldown = true;  // 进入冷却期
               setState(() {
