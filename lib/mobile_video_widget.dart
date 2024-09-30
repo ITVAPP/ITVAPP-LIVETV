@@ -61,7 +61,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       appBar: AppBar(
         backgroundColor: Colors.black,  // 顶部 AppBar 背景为黑色
         centerTitle: true,  // 标题居中显示
-        title: Text(S.current.appName),  // 动态获取应用名称
+        title: Text(S.of(context).appName),  // 动态获取应用名称
         actions: [
           // 添加按钮
           IconButton(
