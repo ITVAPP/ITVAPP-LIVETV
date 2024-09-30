@@ -232,7 +232,7 @@ class DialogUtil {
                  duration: Duration(seconds: 4),
                );
             },
-            child: const Text(S.current.copy, style: TextStyle(color: Colors.white)),
+            child: Text(S.current.copy, style: TextStyle(color: Colors.white)),
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
