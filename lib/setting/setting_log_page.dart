@@ -109,8 +109,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10.0),
                   child: SwitchListTile(
-                    title: Text(S.of(context).SwitchTitle, style: TextStyle(fontWeight: FontWeight.bold)), // 选项标题
-                    subtitle: Text(S.of(context).logSubtitle), // 选项的说明文字
+                    title: Text(
+                      S.of(context).SwitchTitle,
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18), // 修改后的字号为 18
+                    ), 
+                    subtitle: Text(
+                      S.of(context).logSubtitle,
+                      style: TextStyle(fontSize: 16), // 修改后的字号为 16
+                    ),
                     value: isLogOn,
                     onChanged: (value) {
                       LogUtil.safeExecute(() {
@@ -149,7 +155,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.info_outline, size: 60, color: Colors.grey),
+                                      Icon(Icons.info_outline, size: 50, color: Colors.grey),
                                       SizedBox(height: 10),
                                       Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
                                     ],
