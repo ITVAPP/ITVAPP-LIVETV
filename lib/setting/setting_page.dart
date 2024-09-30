@@ -125,7 +125,10 @@ class _SettingPageState extends State<SettingPage> {
                     ),
                   ),
                 const SizedBox(width: 10), // 新版本信息和箭头图标之间的间距
-                const Icon(Icons.arrow_right), // 显示向右箭头
+                const Icon(
+                  Icons.arrow_right, 
+                  color: Color(0xFFEB144C), // 修改为你需要的颜色
+                ), // 显示向右箭头
               ],
             ),
             onTap: () async {
@@ -191,9 +194,15 @@ class _SettingPageState extends State<SettingPage> {
         width: containerWidth,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: ListTile(
-          title: Text(title), // 使用国际化语言显示标题
+          title: Text(
+            title,
+            style: TextStyle(fontSize: 18), // 设置字体大小
+          ), // 显示标题
           leading: Icon(icon),
-          trailing: trailing ?? const Icon(Icons.arrow_right), // 使用 const 优化性能
+          trailing: trailing ?? const Icon(
+            Icons.arrow_right, 
+            color: Color(0xFFEB144C),
+          ),
           onTap: () => onTap(),
         ),
       ),
