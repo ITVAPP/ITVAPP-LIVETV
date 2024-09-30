@@ -780,6 +780,142 @@ class S {
       args: [],
     );
   }
+
+  String get nofavorite {
+  return Intl.message(
+    '暂无收藏',
+    name: 'nofavorite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get vpnplayError {
+  return Intl.message(
+    '此频道在部分地区需要VPN才可以观看',
+    name: 'vpnplayError',
+    desc: '',
+    args: [],
+  );
+}
+
+String get retryplay {
+  return Intl.message(
+    '连接出错，正在重试...',
+    name: 'retryplay',
+    desc: '',
+    args: [],
+  );
+}
+
+String get channelnofavorite {
+  return Intl.message(
+    '当前频道无法收藏',
+    name: 'channelnofavorite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get removefavorite {
+  return Intl.message(
+    '频道已从收藏中移除',
+    name: 'removefavorite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get newfavorite {
+  return Intl.message(
+    '频道已添加到收藏',
+    name: 'newfavorite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get newfavoriteerror {
+  return Intl.message(
+    '添加收藏失败',
+    name: 'newfavoriteerror',
+    desc: '',
+    args: [],
+  );
+}
+
+String get getm3udata {
+  return Intl.message(
+    '正在获取播放数据...',
+    name: 'getm3udata',
+    desc: '',
+    args: [],
+  );
+}
+
+String get getm3udataerror {
+  return Intl.message(
+    '获取播放数据失败...',
+    name: 'getm3udataerror',
+    desc: '',
+    args: [],
+  );
+}
+
+String get myfavorite {
+  return Intl.message(
+    '我的收藏',
+    name: 'myfavorite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get allchannels {
+  return Intl.message(
+    '其它频道',
+    name: 'allchannels',
+    desc: '',
+    args: [],
+  );
+}
+
+String get copy {
+  return Intl.message(
+    '复制',
+    name: 'copy',
+    desc: '',
+    args: [],
+  );
+}
+
+String get copyok {
+  return Intl.message(
+    '内容已复制到剪贴板',
+    name: 'copyok',
+    desc: '',
+    args: [],
+  );
+}
+
+String get startsurlerror {
+  return Intl.message(
+    '解析 URL 失败',
+    name: 'startsurlerror',
+    desc: '',
+    args: [],
+  );
+}
+
+String get gethttperror {
+  return Intl.message(
+    '本地网络配置失败',
+    name: 'gethttperror',
+    desc: '',
+    args: [],
+  );
+}
+
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<S> {
