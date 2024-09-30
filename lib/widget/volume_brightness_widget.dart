@@ -16,7 +16,9 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   // 1.brightness
   // 2.volume
   int _controlType = 0;
-  final double _verticalDragThreshold = 10;  // 阈值，避免水平滑动也触发
+  final double _verticalDragThreshold = 15;  // 提高阈值，避免误触发
+  bool _isDragging = false; // 用来标记是否在拖动
+  bool _isCooldown = false; // 增加一个冷却标志位
 
   @override
   void initState() {
@@ -25,10 +27,37 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
   }
 
   _loadSystemData() async {
-    _brightness = await ScreenBrightness().current;
-    _volume = await FlutterVolumeController.getVolume() ?? 0.5;
-    await FlutterVolumeController.updateShowSystemUI(false);
+    try {
+      _brightness = (await ScreenBrightness().current).clamp(0.0, 1.0);  // 确保亮度在合理范围
+    } catch (e) {
+      _brightness = 0.5;  // 如果读取亮度失败，使用默认值
+    }
+
+    try {
+      _volume = (await FlutterVolumeController.getVolume() ?? 0.5).clamp(0.0, 1.0);  // 确保音量在合理范围
+    } catch (e) {
+      _volume = 0.5;  // 如果读取音量失败，使用默认值
+    }
+
+    await FlutterVolumeController.updateShowSystemUI(false);  // 禁用系统音量UI
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    FlutterVolumeController.updateShowSystemUI(true);  // 恢复系统音量UI
+    super.dispose();
+  }
+
+  // 添加节流机制以防止频繁调用系统调节方法
+  void _throttleAdjustments(Function callback, Duration duration) {
+    if (!_isCooldown) {
+      _isCooldown = true;
+      callback(); // 执行音量或亮度调节
+      Future.delayed(duration, () {
+        _isCooldown = false;  // 冷却时间过后，允许下一次调节
+      });
+    }
   }
 
   @override
@@ -51,35 +80,55 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
           } else {
             _controlType = 1;  // 左侧调节亮度
           }
+          _isDragging = true; // 开始拖动
+          setState(() {});
         },
         onVerticalDragUpdate: (DragUpdateDetails details) {
           // 只处理垂直滑动，忽略水平滑动
-          if (details.delta.dy.abs() > _verticalDragThreshold) {
-            if (_controlType == 2) {
-              _volume = (_volume + (-details.delta.dy / 500)).clamp(0.0, 1.0);
-              FlutterVolumeController.setVolume(_volume);
-            } else {
-              _brightness =
-                  (_brightness + (-details.delta.dy / 500)).clamp(0.0, 1.0);
-              ScreenBrightness().setScreenBrightness(_brightness);
-            }
-            setState(() {});
+          if (details.delta.dy.abs() > _verticalDragThreshold && details.delta.dy.abs() > details.delta.dx.abs()) {
+            // 根据滑动速度动态调整步长
+            final adjustment = (details.delta.dy / 1000) * (details.primaryDelta ?? 1.0).abs();
+
+            _throttleAdjustments(() {
+              if (_controlType == 2) {
+                _volume = (_volume - adjustment).clamp(0.0, 1.0);
+                FlutterVolumeController.setVolume(_volume); // 调整音量
+              } else {
+                _brightness = (_brightness - adjustment).clamp(0.0, 1.0);
+                ScreenBrightness().setScreenBrightness(_brightness); // 调整亮度
+              }
+              setState(() {}); // 更新界面
+            }, const Duration(milliseconds: 100)); // 设置节流频率为100毫秒
           }
         },
         onVerticalDragEnd: (DragEndDetails details) {
-          // 增加延迟500毫秒后隐藏调节条
+          _isDragging = false; // 手势结束
+          // 增加延迟500毫秒后隐藏调节条，并设置冷却期
           Future.delayed(const Duration(milliseconds: 500), () {
-            setState(() {
-              _controlType = 0;
-            });
+            if (!_isDragging && !_isCooldown) {  // 只有不在拖动时且冷却期结束才隐藏调节条
+              _isCooldown = true;  // 进入冷却期
+              setState(() {
+                _controlType = 0;
+              });
+              Future.delayed(const Duration(milliseconds: 200), () {
+                _isCooldown = false;  // 冷却期结束
+              });
+            }
           });
         },
         onVerticalDragCancel: () {
-          // 增加延迟500毫秒后隐藏调节条
+          _isDragging = false; // 手势取消
+          // 增加延迟500毫秒后隐藏调节条，并设置冷却期
           Future.delayed(const Duration(milliseconds: 500), () {
-            setState(() {
-              _controlType = 0;
-            });
+            if (!_isDragging && !_isCooldown) {  // 只有不在拖动时且冷却期结束才隐藏调节条
+              _isCooldown = true;  // 进入冷却期
+              setState(() {
+                _controlType = 0;
+              });
+              Future.delayed(const Duration(milliseconds: 200), () {
+                _isCooldown = false;  // 冷却期结束
+              });
+            }
           });
         },
         child: Container(
@@ -110,7 +159,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> {
                       ),
                       Expanded(
                         child: SizedBox(
-                          height: 16,  // 调节条高度设置为18
+                          height: 16,  // 调节条高度
                           child: LinearProgressIndicator(
                             value: _controlType == 1 ? _brightness : _volume,
                             backgroundColor: Colors.white.withOpacity(0.5),
