@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> {
   String _message = '';  // 用于显示当前的提示信息
   final FocusNode _retryButtonFocusNode = FocusNode(); // 用于控制焦点的 FocusNode
 
-  bool isDebugMode = true;  // 调试模式开关，false/true
+  bool isDebugMode = false;  // 调试模式开关，false/true
 
   @override
   void initState() {
@@ -38,9 +38,8 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       LogUtil.safeExecute(() async {
-        // 然后获取 M3U 数据
         setState(() {
-          _m3uDataFuture = _fetchData(); // 初始化完成后再开始获取 M3U 数据
+          _m3uDataFuture = _fetchData(); // 获取 M3U 数据
         });
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
@@ -53,16 +52,16 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       LogUtil.safeExecute(() {
         setState(() {
-          _message = '正在获取数据...'; // 显示数据获取提示
+          _message = S.current.getm3uData; // 显示数据获取提示
         });
       }, '获取 M3U 数据时发生错误');
 
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
         setState(() {
           _retryCount = attempt;
-          _message = '错误: 获取失败\n重试中 ($_retryCount 次)'; // 更新重试次数提示信息
+          _message = S.current.getm3udataerror;  // 更新重试提示信息
         });
-        LogUtil.e('获取 M3U 数据失败，重试中 ($attempt 次)'); // 添加重试日志
+        LogUtil.e('获取 M3U 数据失败，开始重试'); // 添加重试日志
       });
 
       if (result!.data != null) {
@@ -70,17 +69,17 @@ class _SplashScreenState extends State<SplashScreen> {
       } else {
         setState(() {
           _retryCount++;
-          _message = '错误: ${result!.errorMessage}\n重试中 ($_retryCount 次)'; // 显示错误信息
+          _message = S.current.getm3udataerror; // 显示错误信息
         });
         return M3uResult(errorMessage: result!.errorMessage);  // 返回带错误信息的 M3uResult
       }
     } catch (e, stackTrace) {
       setState(() {
         _retryCount++;  // 更新重试次数
-        _message = '发生错误: $e\n重试中 ($_retryCount 次)'; // 更新错误信息
+        _message = S.current.getm3udataerror; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常
-      return M3uResult(errorMessage: '发生错误: $e');
+      return M3uResult(errorMessage: ': $e');
     }
   }
 
@@ -136,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 Future.delayed(Duration(seconds: 3), () {
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
-                      // 修改此处，提取 M3uResult 中的 PlaylistModel 数据
+                      // 提取 M3uResult 中的 PlaylistModel 数据
                       builder: (context) => LiveHomePage(m3uData: snapshot.data!.data!), // 传递 PlaylistModel 数据
                     ),
                   );
