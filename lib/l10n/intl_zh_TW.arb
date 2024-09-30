@@ -112,5 +112,20 @@
   "languageSelection": "語言選擇",
   "fontSizeTitle": "字型大小",
   "logCopied": "日誌已複製到剪貼簿",
-  "clipboardDataFetchError": "獲取剪貼簿資料失敗"
+  "clipboardDataFetchError": "獲取剪貼簿資料失敗",
+  "nofavorite": "暫無收藏",
+  "vpnplayError": "此頻道在部分地區需要VPN纔可以觀看",
+  "retryplay": "連線出錯，正在重試...",
+  "channelnofavorite": "當前頻道無法收藏",
+  "removefavorite": "頻道已從收藏中移除",
+  "newfavorite": "頻道已新增到收藏",
+  "newfavoriteerror": "新增收藏失敗",
+  "getm3udata": "正在獲取播放資料...",
+  "getm3udataerror": "獲取播放資料失敗...",
+  "myfavorite": "我的收藏",
+  "allchannels": "其它頻道",
+  "copy": "複製",
+  "copyok": "內容已複製到剪貼簿",
+  "startsurlerror": "解析 URL 失敗",
+  "gethttperror": "本地網路配置失敗"
 }
