@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:volume_controller/volume_controller.dart'; // 修改为正确的包路径
+import 'package:volume_controller/volume_controller.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
 class VolumeBrightnessWidget extends StatefulWidget {
