@@ -76,22 +76,22 @@ class _SubScribePageState extends State<SubScribePage> {
             builder: (BuildContext context) {
               return AlertDialog(
                 backgroundColor: const Color(0xff3C3F41),
-                title: Text(S.current.dialogTitle),  // 弹窗标题
-                content: Text('${S.current.dataSourceContent}\n$clipText'),  // 显示剪贴板内容
+                title: Text(S.of(context).dialogTitle),  // 弹窗标题
+                content: Text('${S.of(context).dataSourceContent}\n$clipText'),  // 显示剪贴板内容
                 actions: [
                   // 取消按钮
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop(false);
                     },
-                    child: Text(S.current.dialogCancel),
+                    child: Text(S.of(context).dialogCancel),
                   ),
                   // 确认按钮
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop(true);
                     },
-                    child: Text(S.current.dialogConfirm),
+                    child: Text(S.of(context).dialogConfirm),
                   ),
                 ],
               );
@@ -135,16 +135,16 @@ class _SubScribePageState extends State<SubScribePage> {
           // 处理POST请求中的JSON数据
           String content = await utf8.decoder.bind(request).join();
           Map<String, dynamic> data = jsonDecode(content);
-          String rMsg = S.current.tvParseParma;  // 默认的响应消息
+          String rMsg = S.of(context).tvParseParma;  // 默认的响应消息
 
           if (data.containsKey('url')) {
             final url = data['url'] as String?;
             // 检查URL是否合法
             if (url == '' || url == null || !url.startsWith('http')) {
-              EasyLoading.showError(S.current.tvParsePushError);
-              rMsg = S.current.tvParsePushError;
+              EasyLoading.showError(S.of(context).tvParsePushError);
+              rMsg = S.of(context).tvParsePushError;
             } else {
-              rMsg = S.current.tvParseSuccess;
+              rMsg = S.of(context).tvParseSuccess;
               await _pareUrl(url);  // 解析并处理URL
             }
           } else {
@@ -168,7 +168,7 @@ class _SubScribePageState extends State<SubScribePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('本地网络配置时发生错误', e, stackTrace);
-      _showErrorSnackBar(context, '本地网络配置失败');  // 捕获异常并提示用户
+      _showErrorSnackBar(context, S.of(context).gethttperror);  // 捕获异常并提示用户
     }
   }
 
@@ -181,7 +181,7 @@ class _SubScribePageState extends State<SubScribePage> {
       });
     } catch (e, stackTrace) {
       LogUtil.logError('获取本地数据时发生错误', e, stackTrace);
-      _showErrorSnackBar(context, '获取本地数据失败');  // 捕获异常并提示用户
+      _showErrorSnackBar(context, S.of(context).getm3udataerror);  // 捕获异常并提示用户
     }
   }
 
@@ -205,7 +205,7 @@ class _SubScribePageState extends State<SubScribePage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,  // TV端背景色
         appBar: AppBar(
           backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-          title: Text(S.current.subscribe),  // 页面标题
+          title: Text(S.of(context).subscribe),  // 页面标题
           centerTitle: true,  // 标题居中
           leading: isTV ? const SizedBox.shrink() : null,  // TV端隐藏返回按钮
           actions: isTV
@@ -260,7 +260,7 @@ class _SubScribePageState extends State<SubScribePage> {
                                   const SizedBox(height: 20),
                                   // 显示创建时间
                                   Text(
-                                    '${S.current.createTime}：${model.time}',
+                                    '${S.of(context).createTime}：${model.time}',
                                     style: TextStyle(
                                         color: Colors.white.withOpacity(0.5),
                                         fontSize: 12),
@@ -330,7 +330,7 @@ class _SubScribePageState extends State<SubScribePage> {
                                                 setState(() {});
                                               }
                                             },
-                                            child: Text(S.current.delete)),
+                                            child: Text(S.of(context).delete)),
                                       // 设为默认按钮
                                       TextButton(
                                         onPressed: model.selected != true
@@ -350,8 +350,8 @@ class _SubScribePageState extends State<SubScribePage> {
                                               }
                                             : null,
                                         child: Text(model.selected != true
-                                            ? S.current.setDefault
-                                            : S.current.inUse),
+                                            ? S.of(context).setDefault
+                                            : S.of(context).inUse),
                                       ),
                                     ],
                                   )
@@ -376,7 +376,7 @@ class _SubScribePageState extends State<SubScribePage> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            S.current.tvScanTip,  // 提示信息
+                            S.of(context).tvScanTip,  // 提示信息
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.bold),
                           ),
@@ -401,8 +401,8 @@ class _SubScribePageState extends State<SubScribePage> {
                           if (_address != null)
                             Container(
                                 margin: const EdgeInsets.only(bottom: 20),
-                                child: Text(S.current.pushAddress(_address ?? ''))),  // 显示推送地址
-                          Text(S.current.tvPushContent),  // 提示推送功能
+                                child: Text(S.of(context).pushAddress(_address ?? ''))),  // 显示推送地址
+                          Text(S.of(context).tvPushContent),  // 提示推送功能
                         ],
                       ),
                     ))
@@ -413,7 +413,7 @@ class _SubScribePageState extends State<SubScribePage> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  S.current.pasterContent,  // 非TV端显示的提示信息
+                  S.of(context).pasterContent,  // 非TV端显示的提示信息
                   style: const TextStyle(color: Color(0xFF999999)),
                 ),
               ),
@@ -445,7 +445,7 @@ class _SubScribePageState extends State<SubScribePage> {
                       child: AppBar(
                         elevation: 0,
                         backgroundColor: Colors.transparent,  // 透明背景
-                        title: Text(S.current.addDataSource),  // 弹窗标题
+                        title: Text(S.of(context).addDataSource),  // 弹窗标题
                         centerTitle: true,
                         automaticallyImplyLeading: false,  // 不显示返回按钮
                         actions: [
@@ -453,7 +453,7 @@ class _SubScribePageState extends State<SubScribePage> {
                               onPressed: () {
                                 Navigator.pop(context, _textController.text);  // 返回输入的M3U地址
                               },
-                              child: Text(S.current.dialogConfirm))
+                              child: Text(S.of(context).dialogConfirm))
                         ],
                       ),
                     ),
@@ -466,7 +466,7 @@ class _SubScribePageState extends State<SubScribePage> {
                           autofocus: true,
                           maxLines: 1,
                           decoration: InputDecoration(
-                            hintText: S.current.addFiledHintText,  // 提示用户输入
+                            hintText: S.of(context).addFiledHintText,  // 提示用户输入
                             border: InputBorder.none,
                           ),
                         ),
@@ -490,7 +490,7 @@ class _SubScribePageState extends State<SubScribePage> {
     try {
       final hasIndex = _m3uList.indexWhere((element) => element.link == res);  // 检查是否已存在
       if (hasIndex != -1) {
-        EasyLoading.showToast(S.current.addRepeat);  // 提示重复添加
+        EasyLoading.showToast(S.of(context).addRepeat);  // 提示重复添加
         return;
       }
       if (res.startsWith('http') && hasIndex == -1) {
@@ -502,11 +502,11 @@ class _SubScribePageState extends State<SubScribePage> {
         await M3uUtil.saveLocalData(_m3uList);  // 保存到本地
         setState(() {});
       } else {
-        EasyLoading.showToast(S.current.addNoHttpLink);  // 提示不是合法的HTTP链接
+        EasyLoading.showToast(S.of(context).addNoHttpLink);  // 提示不是合法的HTTP链接
       }
     } catch (e, stackTrace) {
       LogUtil.logError('解析 URL 时发生错误', e, stackTrace);
-      _showErrorSnackBar(context, '解析 URL 失败');  // 捕获异常并提示用户
+      _showErrorSnackBar(context, S.of(context).startsurlerror);  // 捕获异常并提示用户
     }
   }
 
