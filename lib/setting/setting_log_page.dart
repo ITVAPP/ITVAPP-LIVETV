@@ -228,7 +228,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                 duration: Duration(seconds: 4), 
                               );
                             },
-                            child: Text(S.of(context).clearLogs),   //清空日志
+                            child: Text(
+                              S.of(context).clearLogs,  //清空日志
+                              style: TextStyle(fontSize: 18), // 设置字体大小
+                            ),
                             style: ElevatedButton.styleFrom(
                               shape: _buttonShape, // 统一圆角样式
                               backgroundColor: _selectedColor,
