@@ -46,8 +46,8 @@ Widget buildListItem({
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      selectedColor.withOpacity(0.6),
-                      selectedColor.withOpacity(0.3),
+                      selectedColor.withRed(255).withGreen(180).withBlue(180),
+                      selectedColor.withRed(150).withGreen(50).withBlue(50),
                     ],
                   )
                 : null,
@@ -57,7 +57,7 @@ Widget buildListItem({
             child: Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),  // 未选中文字颜色
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: isSelected ? 17 : 16, // 选中时文字稍大
               ),
@@ -162,7 +162,7 @@ class GroupList extends StatelessWidget {
                   child: Text(
                     S.of(context).nofavorite,  // 暂无收藏
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withOpacity(0.8),
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
