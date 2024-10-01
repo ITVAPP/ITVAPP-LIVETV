@@ -104,18 +104,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
+    // 更新界面上的加载提示文字
+    toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+    setState(() {});
+    
     LogUtil.i('检查竞态条件：$_isSwitchingChannel\n检查资源释放：$_isDisposing');
-
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
     // 释放旧资源
     await _disposePlayer();
 
     _isSwitchingChannel = true;
-
-    // 更新界面上的加载提示文字
-    toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
-    setState(() {});
 
     // 获取当前视频源的 URL
     String url = _currentChannel!.urls![_sourceIndex].toString();
