@@ -871,6 +871,24 @@ String get myfavorite {
   );
 }
 
+String get addToFavorites {
+  return Intl.message(
+    '添加收藏',
+    name: 'addToFavorites',
+    desc: '',
+    args: [],
+  );
+}
+
+String get removeFromFavorites {
+  return Intl.message(
+    '取消收藏',
+    name: 'removeFromFavorites',
+    desc: '',
+    args: [],
+  );
+}
+
 String get allchannels {
   return Intl.message(
     '其它频道',
