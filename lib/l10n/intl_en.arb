@@ -123,6 +123,8 @@
   "getm3udata": "Fetching playback data...",
   "getm3udataerror": "Failed to fetch playback data...",
   "myfavorite": "My favorites",
+  "addToFavorites": "Add to Favorites",
+  "removeFromFavorites": "Remove from Favorites",
   "allchannels": "Other channels",
   "copy": "Copy",
   "copyok": "Content copied to clipboard",
