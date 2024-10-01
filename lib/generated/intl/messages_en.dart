@@ -140,6 +140,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "getm3udata": MessageLookupByLibrary.simpleMessage("Fetching playback data..."),
         "getm3udataerror": MessageLookupByLibrary.simpleMessage("Failed to fetch playback data..."),
         "myfavorite": MessageLookupByLibrary.simpleMessage("My favorites"),
+        "addToFavorites": MessageLookupByLibrary.simpleMessage("Add to Favorites"),
+        "removeFromFavorites": MessageLookupByLibrary.simpleMessage("Remove from Favorites"),
         "allchannels": MessageLookupByLibrary.simpleMessage("Other channels"),
         "copy": MessageLookupByLibrary.simpleMessage("Copy"),
         "copyok": MessageLookupByLibrary.simpleMessage("Content copied to clipboard"),
