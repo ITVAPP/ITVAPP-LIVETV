@@ -291,7 +291,9 @@ class EPGList extends StatelessWidget {
                 return buildListItem(
                   title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
                   isSelected: isSelect,
-                  onTap: () {}, // 禁用点击事件，EPG项不可点击
+                  onTap: () {
+                    Navigator.pop(context); // 点击节目单项时关闭抽屉
+                  },
                   isCentered: false, // EPG列表项左对齐
                   minHeight: 42.0, // 固定的最小高度
                   padding: const EdgeInsets.all(10),
@@ -596,8 +598,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建抽屉视图
   Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-
-    // 取消 textScaleFactor 动态调整，改为固定宽度
     double categoryWidth = 110; // 固定分类列表宽度
 
     // 设置分组列表宽度，只有当 _keys 非空时显示，取消 textScaleFactor
