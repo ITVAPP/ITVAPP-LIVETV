@@ -212,12 +212,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
         // 横屏模式下的底部菜单栏按钮
-        if (widget.isLandscape && !widget.drawerIsOpen) ...[
+        if (widget.isLandscape && !widget.drawerIsOpen && _isShowMenuBar) ...[
           const DatePositionWidget(),  // 显示时间和日期的组件
           AnimatedPositioned(
             left: 0,
             right: 0,
-            bottom: _isShowMenuBar || !widget.isPlaying ? 20 : -50, // 根据播放状态调整菜单栏的显示/隐藏
+            bottom: _isShowMenuBar ? 20 : -50, // 根据播放状态调整菜单栏的显示/隐藏
             duration: const Duration(milliseconds: 100),
             child: Container(
               height: 50,
