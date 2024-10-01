@@ -103,7 +103,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 收藏按钮的逻辑
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
     return IconButton(
-      tooltip: widget.isChannelFavorite(currentChannelId) ? '取消收藏' : '添加收藏',
+      tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
       padding: showBackground ? null : EdgeInsets.zero,  // 竖屏下移除内边距
       constraints: showBackground ? null : const BoxConstraints(),  // 竖屏下移除默认大小限制
       style: showBackground
@@ -209,13 +209,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   ),
           ),
         ),
-        // 显示时间和日期的组件，当菜单栏显示时才显示
-        if (_isShowMenuBar && widget.isLandscape)
-          const DatePositionWidget(),
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
         // 横屏模式下的底部菜单栏按钮
-        if (widget.isLandscape && !widget.drawerIsOpen)
+        if (widget.isLandscape && !widget.drawerIsOpen) ...[
+          const DatePositionWidget(),  // 显示时间和日期的组件
           AnimatedPositioned(
             left: 0,
             right: 0,
@@ -321,6 +319,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               ),
             ),
           ),
+        ],
         // 非横屏时右下角的旋转按钮和收藏按钮
         if (!widget.isLandscape)
           Positioned(
