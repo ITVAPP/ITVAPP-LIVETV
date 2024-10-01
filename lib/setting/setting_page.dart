@@ -75,7 +75,7 @@ class _SettingPageState extends State<SettingPage> {
                       'v${Config.version}', // 获取当前应用版本号
                       style: const TextStyle(
                         fontSize: 13,
-                        color: Colors.redAccent,
+                        color: Color(0xFFEB144C),,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -115,19 +115,18 @@ class _SettingPageState extends State<SettingPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.redAccent, // 设置背景颜色为红色
+                      color: Color(0xFFEB144C), 
                       borderRadius: BorderRadius.circular(30), // 设置圆角效果
                     ),
                     // 显示最新版本的提示
                     child: Text(
                       S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 显示新版本号
-                      style: const TextStyle(fontSize: 12, color: Colors.white),
+                      style: const TextStyle(fontSize: 13, color: Colors.white),
                     ),
                   ),
                 const SizedBox(width: 10), // 新版本信息和箭头图标之间的间距
                 const Icon(
                   Icons.arrow_right, 
-                  color: Color(0xFFEB144C), // 修改为你需要的颜色
                 ), // 显示向右箭头
               ],
             ),
@@ -201,7 +200,6 @@ class _SettingPageState extends State<SettingPage> {
           leading: Icon(icon),
           trailing: trailing ?? const Icon(
             Icons.arrow_right, 
-            // color: Color(0xFFEB144C),
           ),
           onTap: () => onTap(),
         ),
