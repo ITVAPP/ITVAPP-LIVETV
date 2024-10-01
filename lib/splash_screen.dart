@@ -134,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // 显示加载动画和重试次数
       return _buildMessageUI(
         _retryCount == 0 
-            ? '${S.current.loading} ${S.current.tipChannelList}...'  // 拼接两个本地化字符串
+            ? '${S.current.loading}' 
             : _message, // 根据重试次数动态显示消息
         isLoading: true,
       );
