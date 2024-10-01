@@ -1,10 +1,12 @@
+import '../generated/l10n.dart';
+
 String getHtmlString(String ipAddress) => '''
 <!DOCTYPE html>
 <html lang="zh_CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ITVAPP LIVETV</title>
+<title>${S.current.appName}</title>
     <style>
         body {
             padding: 40px;
@@ -67,7 +69,7 @@ String getHtmlString(String ipAddress) => '''
 
         // 检查用户输入是否为空
         if (!userInput.trim()) {
-            alert("订阅源不能为空！");
+            alert("${S.current.addFiledHintText}");
             return;
         }
 
@@ -77,7 +79,7 @@ String getHtmlString(String ipAddress) => '''
         // 提交按钮禁用，避免重复提交
         var submitButton = document.querySelector("button");
         submitButton.disabled = true;
-        submitButton.textContent = "推送中...";
+        submitButton.textContent = "${S.current.downloading}";
 
         fetch(url, {
             method: "POST",
@@ -88,11 +90,11 @@ String getHtmlString(String ipAddress) => '''
         })
         .then(response => {
             submitButton.disabled = false;
-            submitButton.textContent = "立即推送";
+            submitButton.textContent = "${S.current.dataSourceContent}";
 
             // 检查响应状态
             if (!response.ok) {
-                throw new Error('网络响应不正常');
+                throw new Error('${S.current.netTimeOut}');
             }
             return response.json();
         })
@@ -101,17 +103,17 @@ String getHtmlString(String ipAddress) => '''
         })
         .catch(error => {
             // 显示错误信息
-            alert("请求失败: " + error.message);
+            alert("${S.current.filterError}: " + error.message);
         });
     }
 </script>
 </head>
 <body>
-    <h2>添加订阅源</h2>
+    <h2>${S.current.addDataSource}</h2>
     <!-- 增加 tabindex 使文本框和按钮可以通过遥控器聚焦 -->
-    <textarea id="userInput" placeholder="请输入订阅源" oninput="autoResize(this)" tabindex="1"></textarea>
+    <textarea id="userInput" placeholder="${S.current.addFiledHintText}" oninput="autoResize(this)" tabindex="1"></textarea>
     <br><br>
-    <button onclick="sendPostRequest()" tabindex="2">立即推送</button>
+    <button onclick="sendPostRequest()" tabindex="2">${S.current.dialogConfirm}</button>
 </body>
 </html>
 ''';
