@@ -42,7 +42,7 @@ class _SettingPageState extends State<SettingPage> {
       appBar: AppBar(
         title: Consumer<LanguageProvider>(
           builder: (context, languageProvider, child) {
-            return Text(S.of(context).settings); // 使用国际化语言资源设置 AppBar 的标题
+            return Text(S.of(context).settings); // AppBar 的标题
           },
         ),
       ),
@@ -57,7 +57,7 @@ class _SettingPageState extends State<SettingPage> {
               ),
               const SizedBox(height: 12), // Logo 与应用名称之间的间距
               Stack(
-                clipBehavior: Clip.hardEdge, // 防止 Stack 子组件溢出
+                clipBehavior: Clip.none, 
                 children: [
                   // 显示应用名称，使用粗体和较大的字号
                   Text(
