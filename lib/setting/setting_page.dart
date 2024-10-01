@@ -201,7 +201,7 @@ class _SettingPageState extends State<SettingPage> {
           leading: Icon(icon),
           trailing: trailing ?? const Icon(
             Icons.arrow_right, 
-            color: Color(0xFFEB144C),
+            // color: Color(0xFFEB144C),
           ),
           onTap: () => onTap(),
         ),
