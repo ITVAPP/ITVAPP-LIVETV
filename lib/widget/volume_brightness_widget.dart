@@ -19,6 +19,10 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   final int _maxLevel = 10;  // 最大级别为10级
   final int _minLevel = 0;  // 最低级别为0
 
+  // 滑动相关的常量
+  final double _dragSensitivity = 10.0;  // 触发调节的最小滑动距离
+  double _dragDistance = 0.0;  // 累积滑动距离
+
   // 1：亮度 2：音量，用于确定当前调节的类型
   int _controlType = 0;
   bool _isDragging = false;  // 标记是否在拖动过程中
@@ -98,22 +102,29 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
         },
         // 手指拖动时，实时更新音量或亮度
         onVerticalDragUpdate: (DragUpdateDetails details) {
-          // 忽略滑动距离，只根据滑动方向增加或减少一级
-          if (details.delta.dy < 0) {
-            _increaseLevel();  // 上滑增加一级
-          } else if (details.delta.dy > 0) {
-            _decreaseLevel();  // 下滑减少一级
+          _dragDistance += details.delta.dy;
+
+          // 只有滑动超过灵敏度时才增加或减少级别
+          if (_dragDistance.abs() >= _dragSensitivity) {
+            if (_dragDistance < 0) {
+              _increaseLevel();  // 上滑增加一级
+            } else if (_dragDistance > 0) {
+              _decreaseLevel();  // 下滑减少一级
+            }
+            _dragDistance = 0.0;  // 重置累计滑动距离
           }
         },
         // 手势结束时，触发调节条的冷却动画
         onVerticalDragEnd: (DragEndDetails details) {
           _isDragging = false;  // 结束拖动
           _startCooldown();  // 启动冷却倒计时
+          _dragDistance = 0.0;  // 重置累计滑动距离
         },
         // 手势取消时，触发冷却动画
         onVerticalDragCancel: () {
           _isDragging = false;  // 取消拖动
           _startCooldown();  // 启动冷却倒计时
+          _dragDistance = 0.0;  // 重置累计滑动距离
         },
         child: FadeTransition(
           opacity: _fadeAnimationController!,  // 控制调节条的显隐动画
