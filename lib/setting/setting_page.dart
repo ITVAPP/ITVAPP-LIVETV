@@ -75,7 +75,7 @@ class _SettingPageState extends State<SettingPage> {
                       'v${Config.version}', // 获取当前应用版本号
                       style: const TextStyle(
                         fontSize: 13,
-                        color: Color(0xFFEB144C),,
+                        color: Color(0xFFEB144C),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
