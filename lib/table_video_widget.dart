@@ -154,7 +154,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   _isShowPauseIcon = true;
                 });
                 _pauseIconTimer?.cancel(); // 取消之前的计时器
-                _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+                _pauseIconTimer = Timer(const Duration(seconds: 2), () {
                   if (mounted) {
                     setState(() {
                       _isShowPauseIcon = false;
@@ -190,14 +190,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                             LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
                           },
                           child: Opacity(
-                            opacity: 0.6, // 设置透明度为 60%
+                            opacity: 0.5, // 设置透明度
                             child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 88),
                           ),
                         ),
                       // 显示暂停图标
                       if (_isShowPauseIcon)
                         Opacity(
-                          opacity: 0.6, // 设置透明度为 60%
+                          opacity: 0.5, // 设置透明度
                           child: const Icon(Icons.pause_circle_outline, color: Colors.white, size: 88),
                         ),
                     ],
