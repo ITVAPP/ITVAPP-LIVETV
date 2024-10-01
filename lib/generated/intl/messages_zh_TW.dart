@@ -122,6 +122,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "getm3udata": MessageLookupByLibrary.simpleMessage("正在獲取播放資料..."),
         "getm3udataerror": MessageLookupByLibrary.simpleMessage("獲取播放資料失敗..."),
         "myfavorite": MessageLookupByLibrary.simpleMessage("我的收藏"),
+        "addToFavorites": MessageLookupByLibrary.simpleMessage("添加收藏"),
+        "removeFromFavorites": MessageLookupByLibrary.simpleMessage("取消收藏"),
         "allchannels": MessageLookupByLibrary.simpleMessage("其它頻道"),
         "copy": MessageLookupByLibrary.simpleMessage("複製"),
         "copyok": MessageLookupByLibrary.simpleMessage("內容已複製到剪貼簿"),
