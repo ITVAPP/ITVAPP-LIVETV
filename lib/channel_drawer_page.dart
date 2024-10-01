@@ -43,7 +43,6 @@ Widget buildListItem({
           constraints: BoxConstraints(minHeight: minHeight ?? 38.0), // 默认最小高度为 38.0
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.black38, // 设置背景色为黑色45
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
@@ -58,7 +57,7 @@ Widget buildListItem({
             child: Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),  // 未选中文字颜色
+                color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: isSelected ? 17 : 16, // 选中时文字稍大
               ),
@@ -163,7 +162,7 @@ class GroupList extends StatelessWidget {
                   child: Text(
                     S.of(context).nofavorite,  // 暂无收藏
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withOpacity(0.9),
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
