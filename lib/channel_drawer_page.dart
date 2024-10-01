@@ -46,8 +46,9 @@ Widget buildListItem({
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      selectedColor.withRed(255).withGreen(180).withBlue(180),
-                      selectedColor.withRed(150).withGreen(50).withBlue(50),
+                      Color(0xFFFFC1C1),
+                      Color(0xFFEB144C),
+                      Color(0xFFB00020),
                     ],
                   )
                 : null,
@@ -60,6 +61,15 @@ Widget buildListItem({
                 color: isSelected ? Colors.white : Colors.white.withOpacity(0.8),  // 未选中文字颜色
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: isSelected ? 17 : 16, // 选中时文字稍大
+                shadows: isSelected
+                    ? [ // 给选中的文字加阴影，使其在浅色背景上更清晰
+                    Shadow(
+                    offset: Offset(1.0, 1.0), // 阴影偏移
+                    blurRadius: 3.0, // 模糊半径
+                    color: Colors.black.withOpacity(0.5), // 阴影颜色
+                ),
+                      ]
+                    : null,
               ),
               softWrap: true, // 自动换行
               maxLines: null, // 不限制行数
