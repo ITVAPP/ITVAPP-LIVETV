@@ -73,12 +73,12 @@ void main() async {
   runApp(MultiProvider(
     providers: [
       // 使用已经初始化的 themeProvider 实例
-      // ChangeNotifierProvider(create: (_) => ThemeProvider()), 
-      ChangeNotifierProvider.value(value: themeProvider), 
+      // ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ChangeNotifierProvider.value(value: themeProvider),
       // 状态管理：下载管理提供者
-      ChangeNotifierProvider(create: (_) => DownloadProvider()), 
+      ChangeNotifierProvider(create: (_) => DownloadProvider()),
       // 状态管理：语言提供者
-      ChangeNotifierProvider(create: (_) => LanguageProvider()), 
+      ChangeNotifierProvider(create: (_) => LanguageProvider()),
     ],
     // 指定应用的根 widget 为 MyApp
     child: const MyApp(),
@@ -115,7 +115,7 @@ class _MyAppState extends State<MyApp> {
   Future<bool> _handleBackPress(BuildContext context) async {
     // 检查当前页面是否是 SplashScreen 或者即将返回的上一页是 SplashScreen
     bool isSplashScreen = ModalRoute.of(context)?.settings.name == SplashScreen().toString();
-    bool willPopToSplashScreen = !Navigator.canPop(context) || 
+    bool willPopToSplashScreen = !Navigator.canPop(context) ||
       ModalRoute.of(context)?.settings.name == SplashScreen().toString();
 
     // 如果是 SplashScreen，直接退出应用
@@ -229,7 +229,10 @@ class _MyAppState extends State<MyApp> {
           debugShowCheckedModeBanner: false,
 
           // 使用 SplashScreen 作为启动页
-          home: SplashScreen(),
+          home: WillPopScope(
+            onWillPop: () => _handleBackPress(context),
+            child: SplashScreen(),
+          ),
 
           // 全局构建器，处理文本缩放和加载动画
           builder: (context, child) {
