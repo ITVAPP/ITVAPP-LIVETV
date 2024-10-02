@@ -46,8 +46,8 @@ Widget buildListItem({
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      selectedColor.withOpacity(0.8),
                       selectedColor.withOpacity(0.6),
+                      selectedColor.withOpacity(0.3),
                     ],
                   )
                 : null,
