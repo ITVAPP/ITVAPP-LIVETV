@@ -23,8 +23,11 @@ class EnvUtil {
         final isTVDevice = androidInfo.isPhysicalDevice &&
                            (androidInfo.brand == 'Android' &&
                             androidInfo.model.contains('TV'));
+        // 检查设备是否具有 Leanback 特性
+        final hasLeanbackFeature = androidInfo.systemFeatures.contains('android.software.leanback');
         LogUtil.d('通过 Android 设备信息判断是否为 TV: $isTVDevice'); // 输出调试信息
-        return isTVDevice;
+        LogUtil.d('通过 Android 设备信息判断是否具有 Leanback 特性: $hasLeanbackFeature'); // 输出调试信息
+        return isTVDevice || hasLeanbackFeature;
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         // 检查设备型号是否为 Apple TV
