@@ -45,7 +45,7 @@ class ThemeProvider extends ChangeNotifier {
         _isLogOn = SpUtil.getBool('LogOn', defValue: Config.defaultLogOn) ?? Config.defaultLogOn;
 
         // 记录初始化的各个值到日志
-        LogUtil.i(
+        LogUtil.d(
           '字体: $_fontFamily\n'
           '字体 URL: $_fontUrl\n'
           '文本缩放比例: $_textScaleFactor\n'
