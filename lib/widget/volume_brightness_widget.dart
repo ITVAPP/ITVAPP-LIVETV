@@ -20,7 +20,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   final int _minLevel = 0;  // 最低级别为0
 
   // 滑动相关的常量
-  final double _dragSensitivity = 10.0;  // 触发调节的最小滑动距离
+  final double _dragSensitivity = 30.0;  // 触发调节的最小滑动距离
   double _dragDistance = 0.0;  // 累积滑动距离
 
   // 1：亮度 2：音量，用于确定当前调节的类型
@@ -83,7 +83,15 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;  // 获取屏幕的宽度
-    double containerWidth = screenWidth * 0.3;  // 动态设置调节条宽度为屏幕宽度的30%
+    Orientation orientation = MediaQuery.of(context).orientation;  // 获取当前屏幕方向
+
+    // 根据屏幕方向设置调节条宽度
+    double containerWidth;
+    if (orientation == Orientation.portrait) {
+      containerWidth = screenWidth * 0.5;  // 竖屏时调节条宽度
+    } else {
+      containerWidth = screenWidth * 0.3;  // 横屏时调节条宽度
+    }
 
     return Padding(
       padding: const EdgeInsets.all(44),
@@ -135,12 +143,12 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
             child: _controlType == 0
                 ? null
                 : Container(
-                    width: containerWidth,
-                    height: 28,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    width: containerWidth,  // 使用动态设置的调节条宽度
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.5),  // 半透明背景
-                      borderRadius: BorderRadius.circular(15),  // 圆角矩形
+                      borderRadius: BorderRadius.circular(12),  // 圆角矩形
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -222,7 +230,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   // 冷却期触发逻辑封装，当手指离开后触发冷却期，隐藏调节条
   void _startCooldown() {
     _hideTimer?.cancel();  // 取消之前的定时器，避免多次调用
-    _hideTimer = Timer(const Duration(seconds: 3), () {
+    _hideTimer = Timer(const Duration(seconds: 2), () {
       if (!_isDragging && !_isCooldown) {
         _isCooldown = true;  // 进入冷却期
         _fadeAnimationController?.reverse();  // 启动隐藏调节条的动画
