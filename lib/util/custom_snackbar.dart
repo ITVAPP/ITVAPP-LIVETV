@@ -8,7 +8,7 @@ class CustomSnackBar {
         backgroundColor: Colors.transparent,  // 背景设置为透明，以便显示渐变背景
         behavior: SnackBarBehavior.floating,  // 浮动的 SnackBar
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),  // 四个角的圆角
+          borderRadius: BorderRadius.circular(12),  // 四个角的圆角
         ),
         margin: EdgeInsets.only(
           left: MediaQuery.of(context).size.width * 0.06,  // 左右边距占屏幕 6%
@@ -36,28 +36,31 @@ class CustomSnackBar {
               ),
             ],
           ),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
-          ),
           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内容区域的内边距
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
-            mainAxisSize: MainAxisSize.min,  // 使 Row 自适应宽度
-            children: [
-              Flexible(
-                child: Text(
-                  message,  // 动态消息
-                  style: TextStyle(
-                    color: Colors.white, 
-                    fontSize: 16,  // 字体大小
-                    fontWeight: FontWeight.bold,  // 加粗
+          child: ConstrainedBox(  // 限制最大宽度
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
+              mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
+              children: [
+                Flexible(
+                  child: Text(
+                    message,  // 动态消息
+                    style: TextStyle(
+                      color: Colors.white, 
+                      fontSize: 16,  // 字体大小
+                      fontWeight: FontWeight.bold,  // 加粗
+                    ),
+                    textAlign: TextAlign.center,  // 文本内容水平居中
+                    maxLines: null,  // 允许多行显示
+                    softWrap: true,  // 自动换行
+                    overflow: TextOverflow.visible,  // 处理溢出
                   ),
-                  maxLines: 3,  // 限制最大行数
-                  softWrap: true,  // 自动换行
-                  overflow: TextOverflow.ellipsis,  // 处理溢出
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
