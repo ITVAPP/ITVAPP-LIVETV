@@ -1,8 +1,8 @@
-import 'dart:io'; 
-import 'dart:ui';  
-import 'package:flutter/services.dart';  
+import 'dart:io';
+import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:device_info_plus/device_info_plus.dart'; // 引入 device_info_plus 包
+import 'package:device_info_plus/device_info_plus.dart';
 
 // EnvUtil 类用于提供设备、环境和语言的检测以及不同资源地址的获取
 class EnvUtil {
@@ -12,6 +12,7 @@ class EnvUtil {
   static Future<bool> isTV() async {
     try {
       final bool isTV = await _channel.invokeMethod('isTV'); // 通过 Platform Channel 调用 Android 原生 isTV 方法
+      LogUtil.d('通过 Platform Channel 调用 Android 原生 isTV 方法: $isTV'); // 输出调试信息
       if (isTV) return true; // 如果原生判断为 TV，直接返回 true
 
       // 使用 device_info_plus 获取设备信息
@@ -19,13 +20,17 @@ class EnvUtil {
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfo.androidInfo;
         // 判断品牌和型号
-        return androidInfo.isPhysicalDevice && 
-               (androidInfo.brand == 'Android' && 
-                androidInfo.model.contains('TV'));
+        final isTVDevice = androidInfo.isPhysicalDevice &&
+                           (androidInfo.brand == 'Android' &&
+                            androidInfo.model.contains('TV'));
+        LogUtil.d('通过 Android 设备信息判断是否为 TV: $isTVDevice'); // 输出调试信息
+        return isTVDevice;
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         // 检查设备型号是否为 Apple TV
-        return iosInfo.model.contains('Apple TV');
+        final isTVDevice = iosInfo.model.contains('Apple TV');
+        LogUtil.d('通过 iOS 设备信息判断是否为 Apple TV: $isTVDevice'); // 输出调试信息
+        return isTVDevice;
       }
       return false; // 对于其他平台默认返回 false
     } on PlatformException catch (e) {
@@ -58,12 +63,12 @@ class EnvUtil {
 
   // 获取下载源的基础地址，用于下载资源
   static String sourceDownloadHost() {
-    return 'https://www.itvapp.net'; 
+    return 'https://www.itvapp.net';
   }
 
   // 获取发布版本的基础地址，用于查看项目发布的版本
   static String sourceReleaseHost() {
-    return 'https://www.itvapp.net'; 
+    return 'https://www.itvapp.net';
   }
 
   // 获取项目主页地址
@@ -97,7 +102,7 @@ class EnvUtil {
 
   // 获取版本检查地址，用于检测软件更新
   static String checkVersionHost() {
-    return 'https://api.github.com/repos/aiyakuaile/easy_tv_live/releases/latest'; 
+    return 'https://api.github.com/repos/aiyakuaile/easy_tv_live/releases/latest';
   }
 
   // 获取字体资源的基础地址
