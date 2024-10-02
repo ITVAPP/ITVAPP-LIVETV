@@ -52,7 +52,7 @@ class DatePositionWidget extends StatelessWidget {
                 Text(
                   "$formattedDate $formattedWeekday",
                   style: TextStyle(
-                    fontSize: isLandscape ? 19 : 9, // 横屏时日期字体更大
+                    fontSize: isLandscape ? 18 : 9, // 横屏时日期字体更大
                     color: Colors.white70,
                     shadows: const [
                       Shadow(
@@ -64,12 +64,12 @@ class DatePositionWidget extends StatelessWidget {
                   ),
                 ),
                 // 使用 SizedBox 减少日期和时间之间的间距
-                SizedBox(height: isLandscape ? 1 : 0.5), // 控制日期和时间之间的间距
+                SizedBox(height: isLandscape ? 0.5 : 0.2), // 控制日期和时间之间的间距
                 // 第二行显示时间
                 Text(
                   formattedTime,
                   style: TextStyle(
-                    fontSize: isLandscape ? 42 : 32, // 横屏时时间字体更大
+                    fontSize: isLandscape ? 48 : 32, // 横屏时时间字体更大
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     shadows: const [
