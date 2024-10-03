@@ -22,6 +22,8 @@
       "index": {}
     }
   },
+  "exitTitle": "退出應用確認",
+  "exitMessage": "你確定要離開電視寶直播嗎?",
   "tipChannelList": "頻道列表",
   "tipChangeLine": "切換線路",
   "portrait": "豎屏模式",
