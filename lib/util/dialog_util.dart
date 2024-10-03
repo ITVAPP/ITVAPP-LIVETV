@@ -77,8 +77,8 @@ class DialogUtil {
                     child: FocusableActionDetector(
                       focusNode: contentFocusNode,
                       shortcuts: {
-                        LogicalKeySet(LogicalKeyboardKey.arrowUp): Intent(ScrollIntent(direction: AxisDirection.up)),
-                        LogicalKeySet(LogicalKeyboardKey.arrowDown): Intent(ScrollIntent(direction: AxisDirection.down)),
+                        LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
+                        LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
                       },
                       actions: {
                         ScrollIntent: CallbackAction<ScrollIntent>(
