@@ -124,6 +124,11 @@ class _TvPageState extends State<TvPage> {
     _handleDebounce(() async {
       if (e is! KeyUpEvent) return; // 只处理按键释放事件
 
+      // 如果抽屉是打开的，忽略全局的方向键事件，保持焦点在 ChannelDrawerPage 内
+      if (_drawerIsOpen) {
+        return; // 阻止方向键在抽屉打开时响应全局事件
+      }
+
       // 根据按键的不同逻辑键值执行相应的操作
       switch (e.logicalKey) {
         case LogicalKeyboardKey.arrowRight:
