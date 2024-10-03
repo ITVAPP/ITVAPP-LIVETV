@@ -21,24 +21,28 @@ class _SettingFontPageState extends State<SettingFontPage> {
     borderRadius: BorderRadius.circular(30), // 设置圆角
   );
 
-  // 统一的按钮选中颜色
-  final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = Colors.grey[300]; // 未选中时颜色
+  // 按钮颜色更新
+  final _selectedColor = const Color(0xFFFE8401); // 选中时颜色（#FE8401）
+  final _unselectedColor = const Color(0xFFEB144C); // 未选中时颜色（#EB144C）
 
   // 焦点节点列表，用于 TV 端焦点管理
-  final List<FocusNode> _focusNodes = List.generate(5, (index) => FocusNode());
+  final List<FocusNode> _fontFocusNodes = List.generate(5, (index) => FocusNode());
+  final List<FocusNode> _languageFocusNodes = List.generate(3, (index) => FocusNode());
 
   @override
   void initState() {
     super.initState();
-    // 页面加载时，将焦点默认设置到第一个过滤按钮
-    _focusNodes[0].requestFocus();
+    // 页面加载时，将焦点默认设置到第一个字体按钮
+    _fontFocusNodes[0].requestFocus();
   }
 
   @override
   void dispose() {
     // 释放所有焦点节点资源，防止内存泄漏
-    for (var node in _focusNodes) {
+    for (var node in _fontFocusNodes) {
+      node.dispose();
+    }
+    for (var node in _languageFocusNodes) {
       node.dispose();
     }
     super.dispose();
@@ -87,25 +91,29 @@ class _SettingFontPageState extends State<SettingFontPage> {
                           runSpacing: 8, // 选项排列方式
                           children: List.generate(
                             _fontScales.length,
-                            (index) => ChoiceChip(
-                              label: Text(
-                                '${_fontScales[index]}', // 显示字体缩放比例
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                      ? Colors.white // 选中状态的文字颜色
-                                      : Colors.black, // 未选中状态的文字颜色
+                            (index) => Focus(
+                              focusNode: _fontFocusNodes[index], // 为每个按钮设置焦点节点
+                              child: ChoiceChip(
+                                label: Text(
+                                  '${_fontScales[index]}', // 显示字体缩放比例
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white, // 文字颜色统一为白色
+                                    fontWeight: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                        ? FontWeight.bold // 选中状态加粗
+                                        : FontWeight.normal, // 未选中状态正常
+                                  ),
                                 ),
+                                selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
+                                onSelected: (bool selected) {
+                                  context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
+                                },
+                                selectedColor: _selectedColor, // 选中或焦点颜色为 #FE8401
+                                backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                    ? _selectedColor // 选中状态颜色
+                                    : _unselectedColor, // 未选中状态颜色为 #EB144C
+                                shape: _buttonShape, // 统一的圆角外形
                               ),
-                              selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
-                              onSelected: (bool selected) {
-                                context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
-                              },
-                              selectedColor: _selectedColor, // 选中状态颜色
-                              backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                  ? _selectedColor // 选中状态颜色
-                                  : _unselectedColor, // 未选中状态颜色
-                              shape: _buttonShape, // 统一的圆角外形
                             ),
                           ),
                         ),
@@ -125,36 +133,40 @@ class _SettingFontPageState extends State<SettingFontPage> {
                         Column(
                           children: List.generate(
                             _languages.length,
-                            (index) => Padding(
-                              padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
-                                children: [
-                                  Text(_languages[index], style: const TextStyle(fontSize: 16)), // 显示语言名称
-                                  ChoiceChip(
-                                    label: Text(
-                                      context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                          ? S.of(context).inUse // 已选中的显示 "使用中"
-                                          : S.of(context).use, // 未选中的显示 "使用"
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                            ? Colors.white // 选中状态的文字颜色
-                                            : Colors.black, // 未选中状态的文字颜色
+                            (index) => Focus(
+                              focusNode: _languageFocusNodes[index], // 为每个语言按钮设置焦点节点
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
+                                  children: [
+                                    Text(_languages[index], style: const TextStyle(fontSize: 16)), // 显示语言名称
+                                    ChoiceChip(
+                                      label: Text(
+                                        context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                            ? S.of(context).inUse // 已选中的显示 "使用中"
+                                            : S.of(context).use, // 未选中的显示 "使用"
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.white, // 文字颜色统一为白色
+                                          fontWeight: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                              ? FontWeight.bold // 选中状态加粗
+                                              : FontWeight.normal, // 未选中状态正常
+                                        ),
                                       ),
+                                      selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
+                                      onSelected: (bool selected) {
+                                        // 切换语言，点击即触发，不判断是否已选中
+                                        context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
+                                      },
+                                      selectedColor: _selectedColor, // 选中状态颜色为 #FE8401
+                                      backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                          ? _selectedColor // 已选中状态颜色
+                                          : _unselectedColor, // 未选中状态颜色为 #EB144C
+                                      shape: _buttonShape, // 统一的圆角外形
                                     ),
-                                    selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
-                                    onSelected: (bool selected) {
-                                      // 切换语言，点击即触发，不判断是否已选中
-                                      context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
-                                    },
-                                    selectedColor: _selectedColor, // 选中状态颜色
-                                    backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                        ? _selectedColor // 已选中状态颜色
-                                        : _unselectedColor, // 未选中状态的颜色
-                                    shape: _buttonShape, // 统一的圆角外形
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
