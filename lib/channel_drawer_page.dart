@@ -59,7 +59,7 @@ Widget buildListItem({
           canRequestFocus: isTV, // 仅在 TV 上允许请求焦点
           onFocusChange: onFocusChange,
           overlayColor: isTV
-              ? MaterialStateProperty.all(Colors.greenAccent.withOpacity(0.2))
+              ? MaterialStateProperty.all(Color(0xFFEB144C).withOpacity(0.3))
               : null, // TV 焦点颜色变化
           child: Container(
             constraints: BoxConstraints(minHeight: minHeight ?? 38.0), // 默认最小高度为 38.0
