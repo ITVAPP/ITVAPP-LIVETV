@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:is_tv/is_tv.dart';
 
 // EnvUtil 类用于提供设备、环境和语言的检测以及不同资源地址的获取
 class EnvUtil {
@@ -16,14 +15,6 @@ class EnvUtil {
       final bool isTV = await _channel.invokeMethod('isTV'); // 通过 Platform Channel 调用 Android 原生 isTV 方法
       LogUtil.d('Platform Channel返回: $isTV'); // 输出调试信息
       if (isTV) return true; // 如果原生判断为 TV，直接返回 true
-
-      // 使用 is_tv 插件进行检测
-      LogUtil.d('通过 is_tv 插件判断设备');
-      final bool? isTvDevice = await IsTV().check(); // 使用 is_tv 插件判断设备是否为电视
-      if (isTvDevice == true) {
-        LogUtil.d('is_tv 插件判断设备为TV');
-        return true;  // 如果 is_tv 插件检测到设备为电视，返回 true
-      }
 
       // 使用 device_info_plus 获取设备信息
       LogUtil.d('通过 device_info_plus 判断设备'); 
