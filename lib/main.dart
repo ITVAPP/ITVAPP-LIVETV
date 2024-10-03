@@ -105,6 +105,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     // 只在启动时检测 TV 状态并设置
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     themeProvider.checkAndSetIsTV();
 
     // 初始化日志开关，但不自动触发 UI 更新
