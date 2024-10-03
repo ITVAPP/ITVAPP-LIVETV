@@ -157,14 +157,7 @@ class DialogUtil {
           child: Theme(
             data: Theme.of(context).copyWith(
               iconTheme: IconThemeData(
-                color: MaterialStateProperty.resolveWith<Color>(
-                  (Set<MaterialState> states) {
-                    if (states.contains(MaterialState.focused) || states.contains(MaterialState.pressed)) {
-                      return const Color(0xFFFE8401);  // 焦点或按下时的颜色
-                    }
-                    return Colors.white;  // 默认颜色为白色
-                  },
-                ),
+                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
               ),
             ),
             child: IconButton(
@@ -220,7 +213,7 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           ElevatedButton(
-            style: _buttonStyle(),
+            style: _buttonStyle(buttonFocusNode),
             onPressed: () {
               if (onNegativePressed != null) {
                 onNegativePressed();
@@ -232,7 +225,7 @@ class DialogUtil {
           const SizedBox(width: 10),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
           ElevatedButton(
-            style: _buttonStyle(),
+            style: _buttonStyle(buttonFocusNode),
             focusNode: buttonFocusNode,  // 传递按钮的焦点节点
             onPressed: () {
               if (onPositivePressed != null) {
@@ -243,7 +236,7 @@ class DialogUtil {
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
           ElevatedButton(
-            style: _buttonStyle(),  // 复用按钮样式
+            style: _buttonStyle(buttonFocusNode),  // 复用按钮样式
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
               CustomSnackBar.showSnackBar(
@@ -256,7 +249,7 @@ class DialogUtil {
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
-            style: _buttonStyle(),
+            style: _buttonStyle(buttonFocusNode),
             onPressed: () {
               if (onClosePressed != null) {
                 onClosePressed();  // 点击关闭按钮时执行的回调
@@ -270,21 +263,35 @@ class DialogUtil {
     );
   }
 
-  // 按钮样式
-  static ButtonStyle _buttonStyle() {
+  // 动态设置按钮样式
+  static ButtonStyle _buttonStyle(FocusNode? focusNode) {
     return ElevatedButton.styleFrom(
-      backgroundColor: MaterialStateProperty.resolveWith<Color>(
-        (Set<MaterialState> states) {
-          if (states.contains(MaterialState.pressed)) return const Color(0xFFFE8401);  // 按下时的颜色
-          if (states.contains(MaterialState.focused)) return const Color(0xFFFE8401);  // 获得焦点时的颜色
-          return const Color(0xFFEB144C);  // 默认颜色
-        },
-      ),
-      foregroundColor: MaterialStateProperty.all(Colors.white),  // 设置按钮文本的颜色为白色
+      backgroundColor: _getButtonColor(focusNode),
+      foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30),  // 设置圆角
+        borderRadius: BorderRadius.circular(30),  // 设置按钮圆角
       ),
-      textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),  // 按钮文字大小和字重
+      textStyle: TextStyle(
+        fontSize: 18,  // 设置按钮文字大小
+        fontWeight: (focusNode != null && focusNode.hasFocus)
+            ? FontWeight.bold  // 选中时文字加粗
+            : FontWeight.normal,  // 未选中时文字正常
+      ),
+      alignment: Alignment.center,  // 文字在按钮内部居中对齐
     );
+  }
+
+  // 获取按钮的背景颜色，根据焦点状态进行切换
+  static Color _getButtonColor(FocusNode? focusNode) {
+    return focusNode != null && focusNode.hasFocus
+        ? const Color(0xFFFE8401)  // 焦点状态下的颜色
+        : const Color(0xFFEB144C);  // 默认未选中时的颜色
+  }
+
+  // 获取关闭按钮的颜色，动态设置焦点状态
+  static Color _closeIconColor(FocusNode? focusNode) {
+    return focusNode != null && focusNode.hasFocus
+        ? const Color(0xFFFE8401)  // 焦点状态下的颜色
+        : Colors.white;  // 默认颜色为白色
   }
 }
