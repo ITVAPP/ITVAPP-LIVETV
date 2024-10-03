@@ -23,7 +23,7 @@ bool isOutOfView(BuildContext context) {
   if (renderObject is RenderBox) {
     final RenderAbstractViewport? viewport = RenderAbstractViewport.of(renderObject);
     final double? offset = viewport?.getOffsetToReveal(renderObject, 0.5).offset;
-    return offset != null && offset < 0.0;
+    return offset != null && (offset < 0.0 || offset > viewport.size.height);
   }
   return false;
 }
@@ -273,8 +273,7 @@ class _ChannelListState extends State<ChannelList> {
           Scrollable.ensureVisible(
             context,
             alignment: 0.5,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeIn,
+            duration: Duration.zero,
           );
         }
       });
@@ -303,10 +302,11 @@ class _ChannelListState extends State<ChannelList> {
               isTV: widget.isTV,
               onFocusChange: (focus) {
                 if (widget.isTV && focus && isOutOfView(context)) {
-                  Scrollable.ensureVisible(context,
-                      alignment: 0.5,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeIn);
+                  Scrollable.ensureVisible(
+                    context,
+                    alignment: 0.5,
+                    duration: Duration.zero,
+                  );
                 }
               },
             );
@@ -393,7 +393,7 @@ class _EPGListState extends State<EPGList> {
                       if (widget.isTV && focus && isOutOfView(context)) {
                         Scrollable.ensureVisible(context,
                             alignment: 0.3,
-                            duration: const Duration(milliseconds: 220));
+                            duration: Duration.zero);
                       }
                     },
                   );
@@ -545,14 +545,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         _channelIndex = 0; // 重置频道索引
         _scrollToTop(_scrollController);
         _scrollToTop(_scrollChannelController);
-
-        // 只有在非空分组和频道的情况下加载 EPG 数据
-        if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
-          _loadEPGMsg(widget.playModel); // 加载EPG数据
-        } else {
-          _epgData = null; // 清空 EPG 数据
-          _selEPGIndex = 0;
-        }
       });
     });
   }
@@ -564,14 +556,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         _groupIndex = index;
         _channelIndex = 0; // 重置频道索引
         _scrollToTop(_scrollChannelController);
-
-        // 根据当前分组是否有频道决定是否加载 EPG 数据
-        if (_values[_groupIndex].isNotEmpty) {
-          _loadEPGMsg(widget.playModel);
-        } else {
-          _epgData = null; // 清空 EPG 数据
-          _selEPGIndex = 0;
-        }
       });
     });
   }
@@ -580,6 +564,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   void _onChannelTap(PlayModel? newModel) {
     _onTapThrottled(() {
       widget.onTapChannel?.call(newModel); // 执行频道切换回调
+       _loadEPGMsg(newModel); // 加载EPG数据
     });
   }
 
@@ -655,8 +640,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       if (_epgData!.isNotEmpty && _selEPGIndex < _epgData!.length) {
         _epgItemScrollController.scrollTo(
           index: _selEPGIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          duration: Duration.zero,
         );
       }
     } catch (e, stackTrace) {
@@ -703,13 +687,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     double categoryWidth = 110; // 固定分类列表宽度
 
-    // 设置分组列表宽度，只有当 _keys 非空时显示，取消 textScaleFactor
+    // 设置分组列表宽度
     double groupWidth = (_keys.isNotEmpty ||
             _categories[_categoryIndex] == Config.myFavoriteKey)
         ? 120
         : 0;
 
-    // 设置频道列表宽度，只有当 _values 和 _groupIndex 下有频道时显示
+    // 设置频道列表宽度
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
         ? (isPortrait
             ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
