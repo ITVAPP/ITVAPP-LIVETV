@@ -1,16 +1,39 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
+    final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
+
+    // 使用TextPainter测量文本大小
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(
+        text: message,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(minWidth: 0, maxWidth: maxWidth);
+
+    // 计算文本宽度并考虑边距
+    final double textWidth = textPainter.width + 32;  // 加上水平边距
+
+    // 确定最终宽度，确保不超过屏幕的80%
+    final double finalWidth = math.min(textWidth, maxWidth);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.transparent,  // 背景设置为透明，以便显示渐变背景
-        behavior: SnackBarBehavior.floating,  // 使 SnackBar 悬浮
+        behavior: SnackBarBehavior.floating,  // 使SnackBar悬浮
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),  // 四个角的圆角
         ),
-        width: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
-        duration: duration ?? const Duration(seconds: 4),  // 默认持续 4 秒
+        width: finalWidth,  // 使用计算出的宽度
+        duration: duration ?? const Duration(seconds: 4),  // 默认持续4秒
         padding: EdgeInsets.zero,  // 去掉内边距
         elevation: 0,  // 去掉阴影
         content: Container(
@@ -26,8 +49,8 @@ class CustomSnackBar {
             boxShadow: const [
               BoxShadow(
                 color: Colors.black26,  // 阴影颜色
-                offset: Offset(0, 4),   // 阴影位置 (x, y)
-                blurRadius: 8,          // 模糊半径
+                offset: Offset(0, 4),  // 阴影位置 (x, y)
+                blurRadius: 8,  // 模糊半径
               ),
             ],
           ),
@@ -39,7 +62,7 @@ class CustomSnackBar {
                 child: Text(
                   message,  // 动态消息
                   style: const TextStyle(
-                    color: Colors.white, 
+                    color: Colors.white,
                     fontSize: 16,  // 字体大小
                     fontWeight: FontWeight.bold,  // 加粗
                   ),
