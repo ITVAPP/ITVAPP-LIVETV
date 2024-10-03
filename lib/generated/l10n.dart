@@ -105,6 +105,24 @@ class S {
     );
   }
 
+  String get exitTitle {
+    return Intl.message(
+      '退出应用确认',
+      name: 'exitTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get exitMessage {
+    return Intl.message(
+      '你确定要离开电视宝直播吗?',
+      name: 'exitMessage',
+      desc: '',
+      args: [],
+    );
+  }
+
   String get tipChannelList {
     return Intl.message(
       '频道列表',
