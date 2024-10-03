@@ -21,7 +21,7 @@ final verticalDivider = VerticalDivider(
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
   if (renderObject is RenderBox) {
-    final RenderAbstractViewport? viewport = RenderAbstractViewport.of(renderObject);
+    final RenderViewport? viewport = RenderViewport.of(renderObject);
     final double? offset = viewport?.getOffsetToReveal(renderObject, 0.5).offset;
     return offset != null && (offset < 0.0 || offset > viewport.size.height);
   }
