@@ -21,7 +21,9 @@ import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
 import 'util/dialog_util.dart';
 import 'util/custom_snackbar.dart';
+import 'util/channel_util.dart';
 import 'widget/empty_page.dart';
+import 'widget/show_exit_confirm.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
@@ -534,7 +536,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       return false;
     }
-    return true; // 退出页面或返回上级
+    // 在此处弹出退出确认对话框
+    return await ShowExitConfirm.ExitConfirm(context);
   }
 
   @override
@@ -652,69 +655,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    try {
-      // 显示选择线路的弹窗
-      final selectedIndex = await showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        barrierColor: Colors.transparent,
-        backgroundColor: Colors.black45,
-        builder: (BuildContext context) {
-          return SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
-              color: Colors.transparent,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.7,
-                ),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: List.generate(sources.length, (index) {
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: 60),
-                      child: OutlinedButton(
-                        autofocus: _sourceIndex == index,
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6),
-                          backgroundColor: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!,
-                          side: BorderSide(color: _sourceIndex == index ? Color(0xFFEB144C) : Colors.grey[300]!),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: _sourceIndex == index
-                            ? null
-                            : () {
-                                Navigator.pop(context, index);
-                              },
-                        child: Text(
-                          S.current.lineIndex(index + 1),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _sourceIndex == index ? Colors.white : Colors.black,
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-          );
-        },
-      );
+    final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
 
-      // 切换到选中的视频播放
-      if (selectedIndex != null && _sourceIndex != selectedIndex) {
-        _sourceIndex = selectedIndex;
-        _playVideo();
-      }
-    } catch (modalError, modalStackTrace) {
-      LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
+    // 切换到选中的视频播放
+    if (selectedIndex != null && _sourceIndex != selectedIndex) {
+      _sourceIndex = selectedIndex;
+      _playVideo();
     }
   }
 }
