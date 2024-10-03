@@ -524,6 +524,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  /// 处理返回按键逻辑
+  Future<bool> _handleBackPress(BuildContext context) async {
+    if (_drawerIsOpen) {
+      // 如果抽屉打开则关闭抽屉
+      Navigator.of(context).pop();
+      setState(() {
+        _drawerIsOpen = false;
+      });
+      return false;
+    }
+    return true; // 退出页面或返回上级
+  }
+
   @override
   void dispose() {
     // 禁用保持屏幕唤醒功能
@@ -596,14 +609,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         },
         landscape: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-          return PopScope(
-            canPop: false,
-            onPopInvoked: (didPop) {
-              if (!didPop) {
-                SystemChrome.setPreferredOrientations(
-                    [DeviceOrientation.portraitUp, DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-              }
-            },
+          return WillPopScope(
+            onWillPop: () => _handleBackPress(context),
             child: Scaffold(
               drawer: ChannelDrawerPage(videoMap: _videoMap, playModel: _currentChannel, onTapChannel: _onTapChannel, isLandscape: true),
               drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.3,
@@ -684,7 +691,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           S.current.lineIndex(index + 1),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 16,
                             color: _sourceIndex == index ? Colors.white : Colors.black,
                           ),
                         ),
