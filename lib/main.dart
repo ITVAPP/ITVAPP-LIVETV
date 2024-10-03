@@ -146,13 +146,13 @@ class _MyAppState extends State<MyApp> {
   Future<bool> _showExitConfirmationDialog(BuildContext context) async {
     bool? exitConfirmed = await DialogUtil.showCustomDialog(
       context,
-      title: S.of(context).exitTitle,  // 退出提示标题
-      content: S.of(context).exitMessage,  // 退出提示内容
-      positiveButtonLabel: S.of(context).dialogConfirm,  // 确认按钮文本
+      title: '${S.current.exitTitle}💡',  // 退出提示标题
+      content: S.current.exitMessage,  // 退出提示内容
+      positiveButtonLabel: S.current.dialogConfirm,  // 确认按钮文本
       onPositivePressed: () {
         Navigator.of(context).pop(true);  // 返回 true 表示确认退出
       },
-      negativeButtonLabel: S.of(context).dialogCancel,  // 取消按钮文本
+      negativeButtonLabel: S.current.dialogCancel,  // 取消按钮文本
       onNegativePressed: () {
         Navigator.of(context).pop(false);  // 返回 false，表示不退出
       },
