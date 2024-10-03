@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -121,12 +122,7 @@ class _MyAppState extends State<MyApp> {
 
     // 如果是 SplashScreen，直接退出应用
     if (isSplashScreen || willPopToSplashScreen) {
-      try {
-        SystemNavigator.pop();  // 尝试退出应用
-      } catch (e) {
-        LogUtil.e('退出应用错误: $e');
-      }
-      return true;  // 退出应用
+      return await _showExitConfirmationDialog(context);
     }
 
     // 获取当前的屏幕方向
@@ -138,12 +134,42 @@ class _MyAppState extends State<MyApp> {
     // 再次获取屏幕方向
     var currentOrientation = MediaQuery.of(context).orientation;
 
-    // 如果屏幕方向没有改变且不是 SplashScreen，执行默认行为
-    if (currentOrientation == initialOrientation) {
-      return !Navigator.canPop(context);  // 退出应用或返回上一页
+    // 如果屏幕方向没有改变且没有可返回的页面（即将退出应用），弹出确认对话框
+    if (currentOrientation == initialOrientation && !Navigator.canPop(context)) {
+      return await _showExitConfirmationDialog(context);
     }
 
     return false;  // 阻止返回
+  }
+
+  // 复用的退出确认对话框方法
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    bool? exitConfirmed = await DialogUtil.showCustomDialog(
+      context,
+      title: S.of(context).exitTitle,  // 退出提示标题
+      content: S.of(context).exitMessage,  // 退出提示内容
+      positiveButtonLabel: S.of(context).dialogConfirm,  // 确认按钮文本
+      onPositivePressed: () {
+        Navigator.of(context).pop(true);  // 返回 true 表示确认退出
+      },
+      negativeButtonLabel: S.of(context).dialogCancel,  // 取消按钮文本
+      onNegativePressed: () {
+        Navigator.of(context).pop(false);  // 返回 false，表示不退出
+      },
+      isDismissible: false,  // 点击对话框外部不关闭弹窗
+    );
+
+    // 如果用户确认退出，执行退出逻辑
+    if (exitConfirmed == true) {
+      try {
+        SystemNavigator.pop();  // 尝试退出应用
+      } catch (e) {
+        LogUtil.e('退出应用错误: $e');
+      }
+      return true;  // 返回 true 表示退出
+    } else {
+      return false;  // 返回 false 表示不退出
+    }
   }
 
   @override
