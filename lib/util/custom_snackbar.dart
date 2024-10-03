@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class CustomSnackBar {
-  // 创建一个静态方法，允许传入自定义的内容和持续时间
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -37,30 +36,34 @@ class CustomSnackBar {
             ],
           ),
           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内容区域的内边距
-          child: ConstrainedBox(  // 限制最大宽度
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
-              mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
-              children: [
-                Flexible(
-                  child: Text(
-                    message,  // 动态消息
-                    style: TextStyle(
-                      color: Colors.white, 
-                      fontSize: 16,  // 字体大小
-                      fontWeight: FontWeight.bold,  // 加粗
-                    ),
-                    textAlign: TextAlign.center,  // 文本内容水平居中
-                    maxLines: null,  // 允许多行显示
-                    softWrap: true,  // 自动换行
-                    overflow: TextOverflow.visible,  // 处理溢出
-                  ),
+          child: LayoutBuilder(  // 动态调整宽度
+            builder: (context, constraints) {
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * 0.8,  // 最大宽度为屏幕的 80%
                 ),
-              ],
-            ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
+                  mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
+                  children: [
+                    Flexible(
+                      child: Text(
+                        message,  // 动态消息
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontSize: 16,  // 字体大小
+                          fontWeight: FontWeight.bold,  // 加粗
+                        ),
+                        textAlign: TextAlign.center,  // 文本内容水平居中
+                        maxLines: null,  // 允许多行显示
+                        softWrap: true,  // 自动换行
+                        overflow: TextOverflow.visible,  // 处理溢出
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
