@@ -587,24 +587,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
       child: OrientationLayoutBuilder(
         portrait: (context) {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-          return MobileVideoWidget(
-            toastString: toastString,
-            controller: _playerController,
-            changeChannelSources: _changeChannelSources,
-            isLandscape: false,
-            isBuffering: isBuffering,
-            isPlaying: isPlaying,
-            aspectRatio: aspectRatio,
-            onChangeSubSource: _parseData,
-            drawChild: ChannelDrawerPage(
-              videoMap: _videoMap,
-              playModel: _currentChannel,
-              onTapChannel: _onTapChannel,
+          return WillPopScope(
+            onWillPop: () => _handleBackPress(context),
+            child: MobileVideoWidget(
+              toastString: toastString,
+              controller: _playerController,
+              changeChannelSources: _changeChannelSources,
               isLandscape: false,
+              isBuffering: isBuffering,
+              isPlaying: isPlaying,
+              aspectRatio: aspectRatio,
+              onChangeSubSource: _parseData,
+              drawChild: ChannelDrawerPage(
+                videoMap: _videoMap,
+                playModel: _currentChannel,
+                onTapChannel: _onTapChannel,
+                isLandscape: false,
+              ),
+              toggleFavorite: toggleFavorite,
+              currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+              isChannelFavorite: isChannelFavorite,
             ),
-            toggleFavorite: toggleFavorite,
-            currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
-            isChannelFavorite: isChannelFavorite,
           );
         },
         landscape: (context) {
