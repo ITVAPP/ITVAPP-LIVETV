@@ -19,11 +19,25 @@ final verticalDivider = VerticalDivider(
 
 // 通用判断是否超出可视区域函数
 bool isOutOfView(BuildContext context) {
+  // 获取渲染对象
   RenderObject? renderObject = context.findRenderObject();
+  
   if (renderObject is RenderBox) {
-    final RenderViewport? viewport = RenderViewport.of(renderObject);
-    final double? offset = viewport?.getOffsetToReveal(renderObject, 0.5).offset;
-    return offset != null && (offset < 0.0 || offset > viewport.size.height);
+    // 获取最近的滚动状态
+    final ScrollableState? scrollableState = Scrollable.of(context);
+    if (scrollableState != null) {
+      final ScrollPosition position = scrollableState.position;
+      
+      // 获取渲染对象相对于滚动视图的可见区域
+      final double offset = position.pixels; 
+      final double viewportHeight = position.viewportDimension;
+
+      // 获取该对象相对于父级视图的位置
+      final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+
+      // 判断对象是否超出可视区域
+      return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
+    }
   }
   return false;
 }
