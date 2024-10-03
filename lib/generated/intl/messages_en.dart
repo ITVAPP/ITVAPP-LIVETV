@@ -70,6 +70,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "noEPG": MessageLookupByLibrary.simpleMessage(
             "No program information available"),
         "okRefresh": MessageLookupByLibrary.simpleMessage("[OK] to Refresh"),
+        "exitTitle": MessageLookupByLibrary.simpleMessage("Exit Application Confirmation"),
+        "exitMessage": MessageLookupByLibrary.simpleMessage("Are you sure you want to leave ITV Live TV?"),
         "parseError":
             MessageLookupByLibrary.simpleMessage("Error parsing data source"),
         "pasterContent": MessageLookupByLibrary.simpleMessage(
