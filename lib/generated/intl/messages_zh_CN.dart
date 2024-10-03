@@ -70,6 +70,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "settings": MessageLookupByLibrary.simpleMessage("设置"),
         "subscribe": MessageLookupByLibrary.simpleMessage("订阅"),
         "switchLine": m5,
+        "exitTitle": MessageLookupByLibrary.simpleMessage("退出应用确认"),
+        "exitMessage": MessageLookupByLibrary.simpleMessage("你确定要离开电视宝直播吗?"),
         "tipChangeLine": MessageLookupByLibrary.simpleMessage("切换线路"),
         "tipChannelList": MessageLookupByLibrary.simpleMessage("频道列表"),
         "tvParseParma": MessageLookupByLibrary.simpleMessage("参数错误"),
