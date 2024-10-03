@@ -188,7 +188,7 @@ class DialogUtil {
       mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
-          controller: TextEditingController(text: content ?? 'No content available'),  // 显示的内容
+          controller: TextEditingController(text: content ?? ''),  // 显示内容，没有则显示为空
           readOnly: true,  // 设置为只读
           maxLines: null,  // 允许多行显示
           textAlign: TextAlign.start,  // 文本水平默认左对齐
