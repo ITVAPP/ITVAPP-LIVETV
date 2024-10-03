@@ -22,6 +22,8 @@
       "index": {}
     }
   },
+  "exitTitle": "Exit Application Confirmation",
+  "exitMessage": "Are you sure you want to leave ITVAPP LIVETV?"
   "tipChannelList": "Channel List",
   "tipChangeLine": "Switch Line",
   "portrait": "Portrait Mode",
