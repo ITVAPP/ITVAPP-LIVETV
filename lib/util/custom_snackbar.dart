@@ -5,21 +5,17 @@ class CustomSnackBar {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.transparent,  // 背景设置为透明，以便显示渐变背景
-        behavior: SnackBarBehavior.floating,  // 浮动的 SnackBar
+        behavior: SnackBarBehavior.floating,  // 使 SnackBar 悬浮
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),  // 四个角的圆角
         ),
-        margin: EdgeInsets.only(
-          left: MediaQuery.of(context).size.width * 0.06,  // 左右边距占屏幕 6%
-          right: MediaQuery.of(context).size.width * 0.06,
-          bottom: 58,  // 距离底部 58px
-        ),
-        duration: duration ?? Duration(seconds: 4),  // 使用传入的持续时间，默认为 4 秒
-        padding: EdgeInsets.zero,  // 去掉 SnackBar 的内边距，使渐变色更平滑
+        width: MediaQuery.of(context).size.width * 0.8,  // 最大宽度为屏幕的 80%
+        duration: duration ?? const Duration(seconds: 4),  // 默认持续 4 秒
+        padding: EdgeInsets.zero,  // 去掉内边距
         elevation: 0,  // 去掉阴影
         content: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               colors: [
                 Color(0xff6D6875),  // 渐变颜色1
                 Color(0xffB4838D),  // 渐变颜色2
@@ -27,7 +23,7 @@ class CustomSnackBar {
               ],
             ),
             borderRadius: BorderRadius.circular(20),  // 圆角边框
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
                 color: Colors.black26,  // 阴影颜色
                 offset: Offset(0, 4),   // 阴影位置 (x, y)
@@ -35,35 +31,24 @@ class CustomSnackBar {
               ),
             ],
           ),
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内容区域的内边距
-          child: LayoutBuilder(  // 动态调整宽度
-            builder: (context, constraints) {
-              return ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth * 0.8,  // 最大宽度为屏幕的 80%
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 内容内边距
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  message,  // 动态消息
+                  style: const TextStyle(
+                    color: Colors.white, 
+                    fontSize: 16,  // 字体大小
+                    fontWeight: FontWeight.bold,  // 加粗
+                  ),
+                  textAlign: TextAlign.center,  // 文本内容水平居中
+                  maxLines: null,  // 允许多行显示
+                  softWrap: true,  // 自动换行
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,  // 垂直居中对齐
-                  mainAxisAlignment: MainAxisAlignment.center,  // 水平居中对齐
-                  children: [
-                    Flexible(
-                      child: Text(
-                        message,  // 动态消息
-                        style: TextStyle(
-                          color: Colors.white, 
-                          fontSize: 16,  // 字体大小
-                          fontWeight: FontWeight.bold,  // 加粗
-                        ),
-                        textAlign: TextAlign.center,  // 文本内容水平居中
-                        maxLines: null,  // 允许多行显示
-                        softWrap: true,  // 自动换行
-                        overflow: TextOverflow.visible,  // 处理溢出
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+              ),
+            ],
           ),
         ),
       ),
