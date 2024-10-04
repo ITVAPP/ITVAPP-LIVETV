@@ -102,7 +102,7 @@ class DialogUtil {
                             children: [
                               // 如果有 content，显示内容
                               if (content != null) _buildDialogContent(content: content),
-                              const SizedBox(height: 15),
+                              const SizedBox(height: 10),
                               // 如果传递了自定义组件，则显示该组件并居中
                               if (child != null) 
                                 Center(  // 将 child 居中
@@ -114,7 +114,7 @@ class DialogUtil {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 10),
                   // 如果没有传入自定义组件，则显示按钮
                   if (child == null)
                     _buildActionButtons(
@@ -188,7 +188,7 @@ class DialogUtil {
           decoration: const InputDecoration(
             border: InputBorder.none,  // 去掉边框
           ),
-          style: const TextStyle(fontSize: 16),  // 设置文本样式
+          style: const TextStyle(fontSize: 18),  // 设置文本样式
           enableInteractiveSelection: true,  // 启用交互式选择功能，允许复制
         ),
       ],
@@ -269,7 +269,7 @@ class DialogUtil {
       backgroundColor: _getButtonColor(focusNode),
       foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30),  // 设置按钮圆角
+        borderRadius: BorderRadius.circular(16),  // 设置按钮圆角
       ),
       textStyle: TextStyle(
         fontSize: 18,  // 设置按钮文字大小
@@ -284,14 +284,14 @@ class DialogUtil {
   // 获取按钮的背景颜色，根据焦点状态进行切换
   static Color _getButtonColor(FocusNode? focusNode) {
     return focusNode != null && focusNode.hasFocus
-        ? const Color(0xFFFE8401)  // 焦点状态下的颜色
-        : const Color(0xFFEB144C);  // 默认未选中时的颜色
+        ? const Color(0xFFEB144C)  // 焦点状态下的颜色
+        : const Color(0xFFE0E0E0);  // 默认未选中时的颜色
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
   static Color _closeIconColor(FocusNode? focusNode) {
     return focusNode != null && focusNode.hasFocus
-        ? const Color(0xFFFE8401)  // 焦点状态下的颜色
+        ? const Color(0xFFEB144C)  // 焦点状态下的颜色
         : Colors.white;  // 默认颜色为白色
   }
 }
