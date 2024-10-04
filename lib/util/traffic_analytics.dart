@@ -2,25 +2,41 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'log_util.dart'; 
+import 'package:device_info_plus/device_info_plus.dart'; 
+import 'package:provider/provider.dart'; 
+import 'package:itvapp_live_tv/provider/language_provider.dart';
+import 'log_util.dart';
+import '../config.dart';
 
 class TrafficAnalytics {
-  final String umamiUrl = 'https://umami.yourdomain.com/api/collect';
-  final String websiteId = 'your-website-id';
+  final String hostname = Config.hostname;
+  final String packagename = Config.packagename;  
+  final String appversion = Config.version; 
+  final String umamiUrl = 'https://ws.itvapp.net/api/send';
+  final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
   final int maxRetries = 3;
+
+  // 用于缓存设备信息，避免重复获取
+  String? _cachedDeviceInfo;
+  
+  // 用于缓存IP地址和地理位置信息，避免重复请求
+  Map<String, dynamic>? _cachedIpData;
 
   /// 获取用户的IP地址和地理位置信息，逐个尝试多个API
   Future<Map<String, dynamic>> getUserIpAndLocation() async {
-    // 定义要使用的API列表，按照优先级排列
+    if (_cachedIpData != null) {
+      return _cachedIpData!;  // 如果缓存存在，直接返回缓存的数据
+    }
+
     final apiList = [
       {
         'url': 'https://api.vvhan.com/api/ipInfo',
         'parseData': (data) {
           return {
             'ip': data['ip'] ?? 'Unknown IP',
-            'country': data['info']['country'] ?? 'Unknown Country',
-            'region': data['info']['prov'] ?? 'Unknown Region',
-            'city': data['info']['city'] ?? 'Unknown City',
+            'country': data['info']?['country'] ?? 'Unknown Country',  // 加强 null 检查
+            'region': data['info']?['prov'] ?? 'Unknown Region',
+            'city': data['info']?['city'] ?? 'Unknown City',
           };
         }
       },
@@ -39,10 +55,10 @@ class TrafficAnalytics {
         'url': 'https://open.saintic.com/ip/rest',
         'parseData': (data) {
           return {
-            'ip': data['data']['ip'] ?? 'Unknown IP',
-            'country': data['data']['country'] ?? 'Unknown Country',
-            'region': data['data']['province'] ?? 'Unknown Region',
-            'city': data['data']['city'] ?? 'Unknown City',
+            'ip': data['data']?['ip'] ?? 'Unknown IP',
+            'country': data['data']?['country'] ?? 'Unknown Country',
+            'region': data['data']?['province'] ?? 'Unknown Region',
+            'city': data['data']?['city'] ?? 'Unknown City',
           };
         }
       },
@@ -54,9 +70,8 @@ class TrafficAnalytics {
             'country': data['country'] ?? 'Unknown Country',
             'region': data['regionName'] ?? 'Unknown Region',
             'city': data['city'] ?? 'Unknown City',
-            // 在这里增加了null检查，确保lat和lon解析失败时不会出错
-            'lat': data.containsKey('lat') ? data['lat'] : null,
-            'lon': data.containsKey('lon') ? data['lon'] : null,
+            'lat': data['lat'] ?? null,  // null 检查
+            'lon': data['lon'] ?? null,
           };
         }
       }
@@ -64,12 +79,13 @@ class TrafficAnalytics {
 
     for (var api in apiList) {
       try {
-        // 发送请求到当前API
-        final response = await http.get(Uri.parse(api['url']));
+        // 设置超时限制，防止请求卡住
+        final response = await http.get(Uri.parse(api['url'])).timeout(Duration(seconds: 5));
         if (response.statusCode == 200) {
-          // 成功获取到数据，解析并返回
           final data = json.decode(response.body);
-          return api['parseData'](data);
+          // 缓存获取到的IP数据
+          _cachedIpData = api['parseData'](data);
+          return _cachedIpData!;
         } else {
           LogUtil.e('API请求失败: ${api['url']} 状态码: ${response.statusCode}');
         }
@@ -88,58 +104,101 @@ class TrafficAnalytics {
     return '${size.width.toInt()}x${size.height.toInt()}';
   }
 
-  /// 获取设备信息（操作系统类型）
-  String getDeviceInfo() {
-    return Platform.operatingSystem;
+  /// 获取设备信息（详细的设备型号、系统版本等）
+  Future<String> getDeviceInfo() async {
+    if (_cachedDeviceInfo != null) {
+      return _cachedDeviceInfo!;  // 如果缓存不为空，直接返回
+    }
+
+    final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo androidInfo = await deviceInfoPlugin.androidInfo;
+      _cachedDeviceInfo = '${androidInfo.model} (${androidInfo.version.release})';
+    } else if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await deviceInfoPlugin.iosInfo;
+      _cachedDeviceInfo = '${iosInfo.utsname.machine} (${iosInfo.systemVersion})';
+    } else {
+      _cachedDeviceInfo = Platform.operatingSystem;
+    }
+    return _cachedDeviceInfo!;
   }
 
   /// 发送页面访问统计数据到 Umami，带重试机制
-  Future<void> sendPageView(BuildContext context, String url, String referrer) async {
+  Future<void> sendPageView(BuildContext context, String referrer) async {
     final String screenSize = getScreenSize(context);
-    final String deviceInfo = getDeviceInfo();
+    final String deviceInfo = await getDeviceInfo();  // 使用 getDeviceInfo 方法
+
+    // 获取当前页面的路由名作为 URL
+    String url = ModalRoute.of(context)?.settings.name ?? '/unknown-page';
+
+    // 动态生成 User-Agent，包含应用版本信息和应用名称
+    String userAgent;
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo androidInfo = await DeviceInfoPlugin().androidInfo;
+      userAgent = '$packagename/$appversion (Android; ${androidInfo.version.release})';  
+    } else if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await DeviceInfoPlugin().iosInfo;
+      userAgent = '$packagename/$appversion (iOS; ${iosInfo.systemVersion})'; 
+    } else {
+      userAgent = '$packagename/$appversion (Unknown Platform)'; 
+    }
+
+    // 获取当前语言设置
+    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en';  // 使用当前设置的语言
 
     try {
       final Map<String, dynamic> ipData = await getUserIpAndLocation();
 
       // 构造要发送的统计数据
       final Map<String, dynamic> payload = {
-        'type': 'pageview',
-        'payload': {
+        'payload': {  // 调整为嵌套结构
+          'type': 'event',
           'website': websiteId,
-          'url': url,
-          'referrer': referrer,
-          'hostname': 'your-app-domain.com',
-          'language': 'en-US',
+          'url': url,  // 当前页面 URL
+          'referrer': referrer,  // 来源位置
+          'hostname': hostname,  // 使用 Config 中的 hostname
+          'language': currentLanguage, 
           'screen': screenSize,
           'ip': ipData['ip'],
-          // 在地理位置信息中处理可能缺失的字段
           'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
-          // 确保当lat和lon为null时不会导致错误
-          'coordinates': (ipData['lat'] != null && ipData['lon'] != null)
-              ? '${ipData['lat']}, ${ipData['lon']}'
-              : '',
           'device': deviceInfo,
-        }
+          'name': 'pageview',  // 事件名称 'pageview'
+          'data': {
+            'device_info': deviceInfo,
+            'screen_size': screenSize,
+            'ip': ipData['ip'],
+            'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
+            'lat': ipData['lat'],
+            'lon': ipData['lon'],
+          }
+        },
+        'type': 'event',
       };
 
-      await _sendWithRetry(payload);
+      // 发送请求时设置 User-Agent
+      await _sendWithRetry(payload, userAgent);
 
     } catch (error, stackTrace) {
       LogUtil.logError('获取用户 IP 或发送页面访问数据时发生错误', error, stackTrace);
     }
   }
 
-  /// 带重试机制的发送方法
-  Future<void> _sendWithRetry(Map<String, dynamic> payload) async {
+  /// 带重试机制的发送方法，使用指数退避策略进行优化
+  Future<void> _sendWithRetry(Map<String, dynamic> payload, String userAgent) async {
     int attempt = 0;
     bool success = false;
+    int delayInSeconds = 2;  // 初始重试延迟
 
     while (attempt < maxRetries && !success) {
       attempt++;
       try {
         final response = await http.post(
           Uri.parse(umamiUrl),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': userAgent,
+          },
           body: jsonEncode(payload),
         );
 
@@ -154,7 +213,8 @@ class TrafficAnalytics {
       }
 
       if (!success && attempt < maxRetries) {
-        await Future.delayed(Duration(seconds: 2));
+        await Future.delayed(Duration(seconds: delayInSeconds));
+        delayInSeconds *= 2;  // 指数级增加延迟时间
       }
     }
 
