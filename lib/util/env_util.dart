@@ -3,10 +3,11 @@ import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import '../config.dart'; 
 
 // EnvUtil 类用于提供设备、环境和语言的检测以及不同资源地址的获取
 class EnvUtil {
-  static const MethodChannel _channel = MethodChannel('net.itvapp.isTV'); // 使用 net.itvapp.isTV 作为 Channel 名称
+  static const MethodChannel _channel = MethodChannel(Config.packagename);
 
   // 判断是否为 TV 设备，调用 Android 平台的 isTV 方法
   static Future<bool> isTV() async {
