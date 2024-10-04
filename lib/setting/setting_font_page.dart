@@ -18,12 +18,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
   // 统一的圆角样式
   final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(30), // 设置圆角
+    borderRadius: BorderRadius.circular(16), // 设置圆角
   );
 
   // 按钮颜色更新
-  final _selectedColor = const Color(0xFFFE8401); // 选中时颜色（#FE8401）
-  final _unselectedColor = const Color(0xFFEB144C); // 未选中时颜色（#EB144C）
+  final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
+  final _unselectedColor = const Color(0xFFFE8401); // 未选中时颜色
 
   // 焦点节点列表，用于 TV 端焦点管理
   final List<FocusNode> _fontFocusNodes = List.generate(5, (index) => FocusNode());
@@ -84,7 +84,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 18)), // 字体大小标题
+                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 字体大小标题
                         const SizedBox(height: 10), // 间距
                         Wrap(
                           spacing: 5,
@@ -111,7 +111,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                 selectedColor: _selectedColor, // 选中或焦点颜色为 #FE8401
                                 backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
                                     ? _selectedColor // 选中状态颜色
-                                    : _unselectedColor, // 未选中状态颜色为 #EB144C
+                                    : _unselectedColor, // 未选中状态颜色
                                 shape: _buttonShape, // 统一的圆角外形
                               ),
                             ),
@@ -128,7 +128,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 18)), // 语言选择标题
+                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 语言选择标题
                         const SizedBox(height: 6), // 间距
                         Column(
                           children: List.generate(
@@ -159,10 +159,10 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                         // 切换语言，点击即触发，不判断是否已选中
                                         context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
                                       },
-                                      selectedColor: _selectedColor, // 选中状态颜色为 #FE8401
+                                      selectedColor: _selectedColor, // 选中状态颜色
                                       backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                           ? _selectedColor // 已选中状态颜色
-                                          : _unselectedColor, // 未选中状态颜色为 #EB144C
+                                          : _unselectedColor, // 未选中状态颜色
                                       shape: _buttonShape, // 统一的圆角外形
                                     ),
                                   ],
