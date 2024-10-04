@@ -20,6 +20,9 @@ class Config {
   /// 定义播放列表无分类时的分类名称
   static const String allChannelsKey = 'allChannels';
 
+  /// 流量统计开关（需正确设置流量统计API才可以使用）
+  static const bool Analytics = true;
+
   /// 默认的日志功能开关
   static const bool defaultLogOn = true;
 
