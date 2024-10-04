@@ -4,6 +4,9 @@ class Config {
 
   /// 当前应用域名（使用某些流量统计API时可以使用）
   static const String hostname = 'livetv.itvapp.net';
+
+  /// 当前应用包名（和 MainActivity.kt 设置的要一致）
+  static const String packagename = "net.itvapp.isTV";
   
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
