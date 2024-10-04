@@ -4,26 +4,11 @@ import 'dart:math' as math;
 class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
     final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
-
-    // 使用TextPainter测量文本大小，允许多行
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: message,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      maxLines: null,  // 允许多行
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout(minWidth: 0, maxWidth: maxWidth);
-
-    // 计算文本宽度并考虑边距
-    final double textWidth = textPainter.size.width + 32;  // 加上水平边距
-
-    // 确定最终宽度，确保不超过屏幕的80%
-    final double finalWidth = math.min(textWidth, maxWidth);
+    final double minWidth = 150.0; // 设置最小宽度，避免过小
+    final double padding = 32.0;  // 预设的水平边距
+    
+    // 动态根据消息长度和字符数量调整SnackBar宽度
+    final double finalWidth = math.min(math.max(message.length * 10.0 + padding, minWidth), maxWidth);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -32,7 +17,7 @@ class CustomSnackBar {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),  // 四个角的圆角
         ),
-        width: finalWidth,  // 使用计算出的宽度
+        width: finalWidth,  // 使用动态计算出的宽度
         duration: duration ?? const Duration(seconds: 4),  // 默认持续4秒
         padding: EdgeInsets.zero,  // 去掉内边距
         elevation: 0,  // 去掉阴影
