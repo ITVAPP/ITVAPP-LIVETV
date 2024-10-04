@@ -17,29 +17,64 @@ final verticalDivider = VerticalDivider(
   color: Colors.white.withOpacity(0.1),
 );
 
-// 通用判断是否超出可视区域函数
+// 判断是否超出可视区域函数
 bool isOutOfView(BuildContext context) {
-  // 获取渲染对象
   RenderObject? renderObject = context.findRenderObject();
-  
   if (renderObject is RenderBox) {
     // 获取最近的滚动状态
     final ScrollableState? scrollableState = Scrollable.of(context);
     if (scrollableState != null) {
       final ScrollPosition position = scrollableState.position;
-      
-      // 获取渲染对象相对于滚动视图的可见区域
       final double offset = position.pixels; 
       final double viewportHeight = position.viewportDimension;
-
-      // 获取该对象相对于父级视图的位置
       final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-
-      // 判断对象是否超出可视区域
       return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
     }
   }
   return false;
+}
+
+// 样式和布局约束
+const defaultTextStyle = TextStyle(
+  fontSize: 16, // 字体大小
+  softWrap: true, // 自动换行
+  maxLines: null, // 不限制行数
+  overflow: TextOverflow.visible, // 允许文字显示超出
+);
+
+const selectedTextStyle = TextStyle(
+  fontWeight: FontWeight.bold, // 选中的字体加粗
+  color: Colors.white, // 选中项的字体颜色
+  shadows: [
+    Shadow(
+      offset: Offset(1.0, 1.0),
+      blurRadius: 3.0,
+      color: Colors.black54,
+    ),
+  ],
+);
+
+// 最小高度约束
+const defaultMinHeight = 42.0;
+
+// 背景色
+const defaultBackgroundColor = Colors.black38;
+
+// padding设置
+const defaultPadding = EdgeInsets.all(6.0);
+
+// 装饰设置
+BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
+  return BoxDecoration(
+    gradient: (isSelected || hasFocus) // 选中或获得焦点时的渐变背景
+        ? LinearGradient(
+            colors: [
+              Colors.red.withOpacity(0.6),
+              Colors.red.withOpacity(0.3),
+            ],
+          )
+        : null, // 非选中项无背景
+  );
 }
 
 // 通用列表项构建函数
@@ -48,8 +83,8 @@ Widget buildListItem({
   required bool isSelected,
   required Function() onTap,
   bool isCentered = true, // 控制文本是否居中对齐
-  double? minHeight, // 允许传入一个可选的最小高度
-  EdgeInsets padding = const EdgeInsets.all(6.0), // 默认内边距
+  double minHeight = defaultMinHeight, // 默认最小高度
+  EdgeInsets padding = defaultPadding, // 默认内边距
   Color selectedColor = Colors.red,
   bool isTV = false,
   Function(bool)? onFocusChange,
@@ -62,6 +97,14 @@ Widget buildListItem({
       if (onFocusChange != null) {
         onFocusChange(focus); // 执行原有的焦点回调
       }
+      // 处理 isTV 焦点变化时的自动滚动逻辑
+      if (isTV && focus && isOutOfView(context)) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.3, // 设置滚动对齐方式
+          duration: Duration.zero, // 滚动持续时间
+        );
+      }
     },
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 0), // 列表项的上下外边距
@@ -71,48 +114,17 @@ Widget buildListItem({
           onTap: onTap,
           splashColor: Colors.white.withOpacity(0.3),
           canRequestFocus: isTV, // 仅在 TV 上允许请求焦点
-          onFocusChange: onFocusChange,
-          overlayColor: isTV
-              ? MaterialStateProperty.all(Color(0xFFEB144C).withOpacity(0.3))
-              : null, // TV 焦点颜色变化
           child: Container(
-            constraints: BoxConstraints(minHeight: minHeight ?? 38.0), // 默认最小高度为 38.0
+            constraints: BoxConstraints(minHeight: minHeight), // 最小高度
             padding: padding,
-            decoration: BoxDecoration(
-              gradient: (isSelected || hasFocus) // 焦点和选中状态相同处理
-                  ? LinearGradient(
-                      colors: [
-                        selectedColor.withOpacity(0.6),
-                        selectedColor.withOpacity(0.3),
-                      ],
-                    )
-                  : null,
-            ),
+            decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus),
             child: Align(
               alignment: isCentered ? Alignment.center : Alignment.centerLeft,
               child: Text(
                 title,
-                style: TextStyle(
-                  color: (isSelected || hasFocus) // 焦点和选中状态相同处理
-                      ? Colors.white
-                      : Colors.white.withOpacity(0.8),
-                  fontWeight: (isSelected || hasFocus) // 焦点和选中状态相同处理
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                  fontSize: 16, // 字体大小保持一致
-                  shadows: (isSelected || hasFocus) // 焦点和选中状态相同处理
-                      ? [
-                          Shadow(
-                            offset: Offset(1.0, 1.0), // 阴影偏移
-                            blurRadius: 3.0, // 模糊半径
-                            color: Colors.black.withOpacity(0.5), // 阴影颜色
-                          ),
-                        ]
-                      : null,
-                ),
-                softWrap: true, // 自动换行
-                maxLines: null, // 不限制行数
-                overflow: TextOverflow.visible, // 允许文字显示超出
+                style: isSelected || hasFocus
+                    ? defaultTextStyle.merge(selectedTextStyle)
+                    : defaultTextStyle, // 统一样式 + 选中项样式
               ),
             ),
           ),
@@ -139,13 +151,12 @@ class CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope( // 包裹分类列表，限制焦点范围
+    return FocusScope(
       child: Container(
-        color: Colors.black38, // 设置背景色
+        color: defaultBackgroundColor,
         child: ListView.builder(
           itemCount: categories.length,
           itemBuilder: (context, index) {
-            // 检查分类是否为 "我的收藏" 或 "所有频道"，并使用国际化文本
             String displayTitle;
             if (categories[index] == Config.myFavoriteKey) {
               displayTitle = S.of(context).myfavorite;
@@ -160,16 +171,7 @@ class CategoryList extends StatelessWidget {
               isSelected: selectedCategoryIndex == index,
               onTap: () => onCategoryTap(index),
               isCentered: true, // 分类列表项居中
-              minHeight: 42.0, // 分类列表项的最小高度
               isTV: isTV,
-              onFocusChange: (focus) {
-                if (isTV && focus) {
-                  Scrollable.ensureVisible(context,
-                      alignment: 0.5,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeIn);
-                }
-              },
             );
           },
         ),
@@ -182,7 +184,6 @@ class CategoryList extends StatelessWidget {
 class GroupList extends StatelessWidget {
   final List<String> keys;
   final ScrollController scrollController;
-  final double itemHeight;
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
   final bool isTV;
@@ -192,7 +193,6 @@ class GroupList extends StatelessWidget {
     super.key,
     required this.keys,
     required this.scrollController,
-    required this.itemHeight,
     required this.selectedGroupIndex,
     required this.onGroupTap,
     required this.isTV,
@@ -201,11 +201,11 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope( // 包裹分组列表，限制焦点范围
+    return FocusScope(
       child: Container(
-        color: Colors.black38, // 设置背景色
+        color: defaultBackgroundColor,
         child: ListView.builder(
-          cacheExtent: itemHeight,
+          cacheExtent: defaultMinHeight,
           padding: const EdgeInsets.only(bottom: 100.0),
           controller: scrollController, // 使用滚动控制器
           itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length,
@@ -213,18 +213,13 @@ class GroupList extends StatelessWidget {
             if (keys.isEmpty && isFavoriteCategory) {
               return Center(
                 child: Container(
-                  constraints: BoxConstraints(minHeight: itemHeight),
+                  constraints: BoxConstraints(minHeight: defaultMinHeight),
                   child: Center(
                     child: Text(
                       S.of(context).nofavorite, // 暂无收藏
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                      style: defaultTextStyle.merge(
+                        const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      softWrap: true, // 自动换行
-                      maxLines: null, // 不限制行数
-                      overflow: TextOverflow.visible, // 允许文字显示超出
                     ),
                   ),
                 ),
@@ -235,16 +230,8 @@ class GroupList extends StatelessWidget {
               isSelected: selectedGroupIndex == index,
               onTap: () => onGroupTap(index),
               isCentered: true, // 分组列表项居中
-              minHeight: itemHeight, // 使用传入的最小高度
               isTV: isTV,
-              onFocusChange: (focus) {
-                if (isTV && focus) {
-                  Scrollable.ensureVisible(context,
-                      alignment: 0.5,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeIn);
-                }
-              },
+              minHeight: defaultMinHeight,
             );
           },
         ),
@@ -257,7 +244,6 @@ class GroupList extends StatelessWidget {
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ScrollController scrollController;
-  final double itemHeight;
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
@@ -265,7 +251,6 @@ class ChannelList extends StatefulWidget {
     super.key,
     required this.channels,
     required this.scrollController,
-    required this.itemHeight,
     required this.onChannelTap,
     this.selectedChannelName,
     required this.isTV,
@@ -281,14 +266,9 @@ class _ChannelListState extends State<ChannelList> {
     super.initState();
     if (widget.isTV && widget.selectedChannelName != null) {
       WidgetsBinding.instance?.addPostFrameCallback((_) {
-        final index =
-            widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
+        final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
         if (index != -1 && isOutOfView(context)) {
-          Scrollable.ensureVisible(
-            context,
-            alignment: 0.5,
-            duration: Duration.zero,
-          );
+          Scrollable.ensureVisible(context, alignment: 0.5, duration: Duration.zero);
         }
       });
     }
@@ -296,12 +276,12 @@ class _ChannelListState extends State<ChannelList> {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope( // 包裹频道列表，限制焦点范围
+    return FocusScope(
       child: Container(
-        color: Colors.black38, // 设置背景色
+        color: defaultBackgroundColor,
         child: ListView.builder(
           padding: const EdgeInsets.only(bottom: 100.0),
-          cacheExtent: widget.itemHeight, // 预缓存区域
+          cacheExtent: defaultMinHeight,
           controller: widget.scrollController, // 使用滚动控制器
           itemCount: widget.channels.length,
           itemBuilder: (context, index) {
@@ -312,17 +292,8 @@ class _ChannelListState extends State<ChannelList> {
               isSelected: isSelect,
               onTap: () => widget.onChannelTap(widget.channels[channelName]),
               isCentered: true, // 频道列表项居中
-              minHeight: widget.itemHeight, // 使用传入的最小高度
+              minHeight: defaultMinHeight,
               isTV: widget.isTV,
-              onFocusChange: (focus) {
-                if (widget.isTV && focus && isOutOfView(context)) {
-                  Scrollable.ensureVisible(
-                    context,
-                    alignment: 0.5,
-                    duration: Duration.zero,
-                  );
-                }
-              },
             );
           },
         ),
@@ -360,26 +331,25 @@ class _EPGListState extends State<EPGList> {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope( // 包裹EPG列表，限制焦点范围
+    return FocusScope(
       child: Container(
-        color: Colors.black38, // 设置背景色
+        color: defaultBackgroundColor,
         child: Column(
           children: [
             Container(
-              height: 42,
+              height: defaultMinHeight,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 8), // 添加左边距
               decoration: BoxDecoration(
-                color: Colors.black38, // 设置背景色
+                color: defaultBackgroundColor,
                 borderRadius: BorderRadius.circular(5),
               ),
               child: Text(
                 S.of(context).programListTitle, // 节目单列表
-                style: const TextStyle(
+                style: defaultTextStyle.merge(
+                  const TextStyle(
                     fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
-                softWrap: true, // 自动换行
-                maxLines: null, // 不限制行数
-                overflow: TextOverflow.visible, // 允许文字显示超出
+                ),
               ),
             ),
             verticalDivider,
@@ -399,17 +369,7 @@ class _EPGListState extends State<EPGList> {
                       Navigator.pop(context); // 点击节目单项时关闭抽屉
                     },
                     isCentered: false, // EPG列表项左对齐
-                    minHeight: 42.0, // 固定的最小高度
-                    padding: const EdgeInsets.all(10),
-                    selectedColor: Color(0xFFFF8401),
                     isTV: widget.isTV,
-                    onFocusChange: (focus) {
-                      if (widget.isTV && focus && isOutOfView(context)) {
-                        Scrollable.ensureVisible(context,
-                            alignment: 0.3,
-                            duration: Duration.zero);
-                      }
-                    },
                   );
                 },
               ),
@@ -420,7 +380,6 @@ class _EPGListState extends State<EPGList> {
     );
   }
 }
-
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频数据的映射
@@ -454,7 +413,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<Map<String, PlayModel>> _values; // 视频分组的值列表
   late int _groupIndex; // 当前分组的索引
   late int _channelIndex; // 当前频道的索引
-  final double _itemHeight = 42.0; // 每个列表项的高度
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
@@ -469,7 +427,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
     // 只有当分类非空且有频道数据时加载 EPG
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
-      _loadEPGMsg(widget.playModel); // 加载EPG（节目单）数据
+      _loadEPGMsg(widget.playModel);
     }
   }
 
@@ -483,8 +441,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
       // 如果分类不为空，立即设置为选中的分类并退出循环
       if (categoryMap != null && categoryMap.isNotEmpty) {
-        _categoryIndex = i; // 选中第一个非空分类
-        break; // 找到后立即退出循环
+        _categoryIndex = i; 
+        break;
       }
     }
   }
@@ -504,36 +462,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       _channelIndex = 0;
 
       // 空分类不加载 EPG 数据
-      _epgData = null; // 确保 EPG 数据为空
+      _epgData = null;
       _selEPGIndex = 0;
       return;
     }
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList(); // 获取分组
-      _values = categoryMap.values.toList(); // 获取每个分组下的频道
+      _keys = categoryMap.keys.toList(); 
+      _values = categoryMap.values.toList(); // 获取分组下的频道
 
-      // 对每个分组中的频道按名字进行 Unicode 排序
+      // 频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
         _values[i] = Map<String, PlayModel>.fromEntries(
           _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
         );
       }
 
-      _groupIndex = _keys.indexOf(widget.playModel?.group ?? ''); // 获取当前选中分组的索引
+      _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
       _channelIndex = _groupIndex != -1
           ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
           : 0; // 获取当前选中的频道索引
     } else if (categoryMap is Map<String, PlayModel>) {
       // 两层结构：直接处理频道
-      _keys = [Config.allChannelsKey]; // 使用一个默认分组
-      _values = [categoryMap]; // 频道直接作为值
-
-      _groupIndex = 0; // 没有分组，固定为 0
+      _keys = [Config.allChannelsKey];
+      _values = [categoryMap];
+      _groupIndex = 0; // 没有分组设置宽度为 0
       _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
-
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
   }
@@ -584,16 +540,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 滚动到顶部
   void _scrollToTop(ScrollController controller) {
-    controller.animateTo(0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut); // 平滑滚动到顶部
+    controller.jumpTo(0);
   }
 
   // 计算视图窗口的高度
   void _calculateViewportHeight() {
     WidgetsBinding.instance?.addPostFrameCallback((_) {
-      final renderBox = _viewPortKey.currentContext?.findRenderObject()
-          as RenderBox?;
+      final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
         final height = renderBox.size.height * 0.5; // 取窗口高度的一半
         setState(() {
@@ -607,24 +560,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex); // 调整分组列表的滚动位置
-    _scrollToPosition(_scrollChannelController, _channelIndex); // 调整频道列表的滚动位置
+    _scrollToPosition(_scrollController, _groupIndex); 
+    _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
-  // 根据索引调整滚动位置，使用动画滚动
+  // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
     final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset =
-        index * _itemHeight - viewPortHeight + _itemHeight * 0.5;
-    controller.animateTo(
-        shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut);
+    final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * 0.5;
+    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
   }
 
-  // 加载EPG（节目单）数据
+  // 加载EPG
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
     if (playModel == null) return;
 
@@ -637,13 +586,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
       if (res?.epgData == null || res!.epgData!.isEmpty) return;
 
-      final epgRangeTime =
-          DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
+      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
       final selectTimeData = res.epgData!.lastWhere(
-        (element) => element.start!.compareTo(epgRangeTime) < 0, // 查找当前时间之前的节目
+        (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData); // 设置选中的节目索引
+      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData); 
 
       setState(() {
         _epgData = res.epgData!; // 更新节目单数据
@@ -699,11 +647,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 构建抽屉视图
   Widget _buildOpenDrawer(bool isTV) {
     bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    double categoryWidth = 110; // 固定分类列表宽度
+    double categoryWidth = 110; // 分类列表宽度
 
     // 设置分组列表宽度
-    double groupWidth = (_keys.isNotEmpty ||
-            _categories[_categoryIndex] == Config.myFavoriteKey)
+    double groupWidth = (_keys.isNotEmpty || _categories[_categoryIndex] == Config.myFavoriteKey)
         ? 120
         : 0;
 
@@ -711,17 +658,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
         ? (isPortrait
             ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
-            : 160) // 横屏时频道列表宽度为固定160
+            : 160) // 横屏时为160
         : 0;
 
-    // 设置 EPG 列表宽度，只有当有 EPG 数据时显示
+    // 设置 EPG 列表宽度
     double epgListWidth =
         (isPortrait || _epgData == null || _epgData!.isEmpty)
             ? 0
-            : MediaQuery.of(context).size.width -
-                categoryWidth -
-                groupWidth -
-                channelListWidth;
+            : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth;
 
     return Container(
       key: _viewPortKey,
@@ -750,12 +694,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               child: GroupList(
                 keys: _keys,
                 scrollController: _scrollController,
-                itemHeight: _itemHeight,
                 selectedGroupIndex: _groupIndex,
                 onGroupTap: _onGroupTap, // 分组点击事件
                 isTV: isTV,
-                isFavoriteCategory:
-                    _categories[_categoryIndex] == Config.myFavoriteKey, // 传递是否为收藏分类的标识
+                isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
               ),
             ),
           verticalDivider,
@@ -765,7 +707,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               child: ChannelList(
                 channels: _values[_groupIndex],
                 scrollController: _scrollChannelController,
-                itemHeight: _itemHeight,
                 selectedChannelName: widget.playModel?.title,
                 onChannelTap: _onChannelTap, // 频道点击事件
                 isTV: isTV,
