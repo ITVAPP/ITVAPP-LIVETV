@@ -44,6 +44,11 @@ class TableVideoWidget extends StatefulWidget {
 }
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
+  // 样式常量
+  final Color _iconColor = Colors.white;
+  final Color _backgroundColor = Colors.black45;
+  final BorderSide _iconBorderSide = const BorderSide(color: Colors.white);
+
   bool _isShowMenuBar = true; // 控制是否显示底部菜单栏
   bool _isShowPauseIcon = false; // 控制是否显示暂停图标
   Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
@@ -104,21 +109,43 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
     return IconButton(
       tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
-      padding: showBackground ? null : EdgeInsets.zero,  // 竖屏下移除内边距
-      constraints: showBackground ? null : const BoxConstraints(),  // 竖屏下移除默认大小限制
+      padding: showBackground ? null : EdgeInsets.zero, // 竖屏下移除内边距
+      constraints: showBackground ? null : const BoxConstraints(), // 竖屏下移除默认大小限制
       style: showBackground
           ? IconButton.styleFrom(
-              backgroundColor: Colors.black45, // 与其他按钮一致的背景颜色
-              side: const BorderSide(color: Colors.white), // 与其他按钮一致的边框
+              backgroundColor: _backgroundColor, // 使用提取的背景颜色
+              side: _iconBorderSide, // 使用提取的边框样式
             )
           : null,
       icon: Icon(
         widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
-        color: widget.isChannelFavorite(currentChannelId) ? Colors.red : Colors.white,
+        color: widget.isChannelFavorite(currentChannelId) ? Colors.red : _iconColor,
       ),
       onPressed: () {
         widget.toggleFavorite(currentChannelId); // 切换收藏状态
         setState(() {}); // 刷新UI以更新图标状态
+      },
+    );
+  }
+
+  // 切换频道源按钮的逻辑
+  Widget buildChangeChannelSourceButton(bool showBackground) {
+    return IconButton(
+      tooltip: S.of(context).tipChangeLine, // 提示信息
+      padding: showBackground ? null : EdgeInsets.zero, // 竖屏下移除内边距
+      constraints: showBackground ? null : const BoxConstraints(), // 竖屏下移除大小限制
+      style: showBackground
+          ? IconButton.styleFrom(
+              backgroundColor: _backgroundColor, // 使用提取的背景颜色
+              side: _iconBorderSide, // 使用提取的边框样式
+            )
+          : null,
+      icon: Icon(Icons.legend_toggle, color: _iconColor),
+      onPressed: () {
+        LogUtil.safeExecute(() {
+          setState(() => _isShowMenuBar = false); // 隐藏菜单栏
+          widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
+        }, '切换频道源按钮发生错误');
       },
     );
   }
@@ -134,9 +161,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           onTap: () {
             // 切换菜单栏和图标的显示/隐藏
             setState(() {
-              _isShowMenuBar = !_isShowMenuBar;  // 切换菜单栏显示/隐藏状态
+              _isShowMenuBar = !_isShowMenuBar; // 切换菜单栏显示/隐藏状态
             });
-            
+
             // 如果视频已暂停，单击继续播放视频
             if (!widget.isPlaying) {
               widget.controller?.play();
@@ -191,14 +218,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           },
                           child: Opacity(
                             opacity: 0.5, // 设置透明度
-                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 88),
+                            child: Icon(Icons.play_circle_outline, color: _iconColor, size: 88),
                           ),
                         ),
                       // 显示暂停图标
                       if (_isShowPauseIcon)
                         Opacity(
                           opacity: 0.5, // 设置透明度
-                          child: const Icon(Icons.pause_circle_outline, color: Colors.white, size: 88),
+                          child: Icon(Icons.pause_circle_outline, color: _iconColor, size: 88),
                         ),
                     ],
                   )
@@ -213,7 +240,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         const VolumeBrightnessWidget(),
         // 横屏模式下的底部菜单栏按钮
         if (widget.isLandscape && !widget.drawerIsOpen && _isShowMenuBar) ...[
-          const DatePositionWidget(),  // 显示时间和日期的组件
+          const DatePositionWidget(), // 显示时间和日期的组件
           AnimatedPositioned(
             left: 0,
             right: 0,
@@ -228,8 +255,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 频道列表按钮，点击打开抽屉菜单
                   IconButton(
                     tooltip: S.of(context).tipChannelList,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
-                    icon: const Icon(Icons.list_alt, color: Colors.white),
+                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
+                    icon: Icon(Icons.list_alt, color: _iconColor),
                     onPressed: () {
                       LogUtil.safeExecute(() {
                         setState(() => _isShowMenuBar = false);
@@ -241,24 +268,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 收藏按钮
                   buildFavoriteButton(currentChannelId, true),
                   const SizedBox(width: 3),
-                  // 切换频道源按钮，调用 changeChannelSources 回调
-                  IconButton(
-                    tooltip: S.of(context).tipChangeLine,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
-                    icon: const Icon(Icons.legend_toggle, color: Colors.white),
-                    onPressed: () {
-                      LogUtil.safeExecute(() {
-                        setState(() => _isShowMenuBar = false);
-                        widget.changeChannelSources?.call();
-                      }, '切换频道源按钮发生错误');
-                    },
-                  ),
+                  // 切换频道源按钮
+                  buildChangeChannelSourceButton(true),
                   const SizedBox(width: 3),
                   // 设置按钮，点击进入设置页面
                   IconButton(
                     tooltip: S.of(context).settings,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
-                    icon: const Icon(Icons.settings, color: Colors.white),
+                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
+                    icon: Icon(Icons.settings, color: _iconColor),
                     onPressed: () {
                       LogUtil.safeExecute(() {
                         setState(() => _isShowMenuBar = false);
@@ -273,8 +290,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   // 切换竖屏按钮，调整为竖屏模式
                   IconButton(
                     tooltip: S.of(context).portrait,
-                    style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
-                    icon: const Icon(Icons.screen_rotation, color: Colors.white),
+                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
+                    icon: Icon(Icons.screen_rotation, color: _iconColor),
                     onPressed: () async {
                       LogUtil.safeExecute(() async {
                         if (EnvUtil.isMobile) {
@@ -294,17 +311,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   if (!EnvUtil.isMobile)
                     IconButton(
                       tooltip: S.of(context).fullScreen,
-                      style: IconButton.styleFrom(backgroundColor: Colors.black45, side: const BorderSide(color: Colors.white)),
+                      style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
                       icon: FutureBuilder<bool>(
                         future: windowManager.isFullScreen(),
                         builder: (context, snapshot) {
                           if (snapshot.hasData) {
                             return Icon(
                               snapshot.data! ? Icons.close_fullscreen : Icons.fit_screen_outlined,
-                              color: Colors.white,
+                              color: _iconColor,
                             );
                           } else {
-                            return const Icon(Icons.fit_screen_outlined, color: Colors.white);
+                            return Icon(Icons.fit_screen_outlined, color: _iconColor);
                           }
                         },
                       ),
@@ -330,11 +347,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               children: [
                 // 收藏按钮
                 buildFavoriteButton(currentChannelId, false),
+                // 切换频道源按钮
+                buildChangeChannelSourceButton(false),
                 // 旋转按钮
                 IconButton(
                   tooltip: S.of(context).landscape,
-                  padding: EdgeInsets.zero,  // 移除内边距
-                  constraints: const BoxConstraints(),  // 移除默认大小限制
+                  padding: EdgeInsets.zero, // 移除内边距
+                  constraints: const BoxConstraints(), // 移除默认大小限制
                   onPressed: () async {
                     if (EnvUtil.isMobile) {
                       SystemChrome.setPreferredOrientations(
@@ -345,7 +364,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
                     Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
                   },
-                  icon: const Icon(Icons.screen_rotation, color: Colors.white),
+                  icon: Icon(Icons.screen_rotation, color: _iconColor),
                 ),
               ],
             ),
