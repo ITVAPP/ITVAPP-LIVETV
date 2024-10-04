@@ -248,9 +248,9 @@ class _TvPageState extends State<TvPage> {
                   child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
                     alignment: Alignment.center, // 堆叠的子组件居中对齐
                     children: [
-                      widget.controller?.value.isInitialized == true
+                      widget.controller != null && widget.controller!.value.isInitialized
                           ? AspectRatio(
-                              aspectRatio: widget.aspectRatio, // 设置视频宽高比
+                              aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
                               child: SizedBox(
                                 width: double.infinity, // 占满宽度
                                 child: VideoPlayer(widget.controller!), // 显示视频播放器
@@ -258,7 +258,7 @@ class _TvPageState extends State<TvPage> {
                             )
                           : VideoHoldBg(
                               toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
-                              videoController: widget.controller!,
+                              videoController: widget.controller ?? VideoPlayerController.network(''),
                             ),
                       if (_drawerIsOpen) const DatePositionWidget(), // 如果抽屉打开，显示时间和位置信息
                       if (!widget.isPlaying && !_drawerIsOpen)
@@ -269,7 +269,7 @@ class _TvPageState extends State<TvPage> {
                             child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)), // 播放按钮
                       if (widget.isBuffering && !_drawerIsOpen) const SpinKitSpinningLines(color: Colors.white), // 显示缓冲动画
                       if (_isError && !_drawerIsOpen)
-                        Center(child: Text(S.of(context).playError,style: TextStyle(color: Colors.red))), // 显示错误提示
+                        Center(child: Text(S.of(context).playError, style: TextStyle(color: Colors.red))), // 显示错误提示
                     ],
                   ),
                 ),
