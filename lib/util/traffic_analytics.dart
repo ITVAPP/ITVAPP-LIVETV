@@ -124,12 +124,17 @@ class TrafficAnalytics {
   }
 
   /// 发送页面访问统计数据到 Umami，带重试机制
-  Future<void> sendPageView(BuildContext context, String referrer) async {
+  Future<void> sendPageView(BuildContext context, String referrer, {String? additionalPath}) async {
     final String screenSize = getScreenSize(context);
     final String deviceInfo = await getDeviceInfo();  // 使用 getDeviceInfo 方法
 
     // 获取当前页面的路由名作为 URL
-    String url = ModalRoute.of(context)?.settings.name ?? '/unknown-page';
+    String url = ModalRoute.of(context)?.settings.name ?? '';
+
+    // 如果有 additionalPath，则将其追加到 URL 中
+    if (additionalPath != null && additionalPath.isNotEmpty) {
+      url += "/$additionalPath";
+    }
 
     // 动态生成 User-Agent，包含应用版本信息和应用名称
     String userAgent;
