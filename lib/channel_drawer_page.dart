@@ -34,11 +34,9 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 样式和布局约束
+// 文字样式
 const defaultTextStyle = TextStyle(
   fontSize: 16, // 字体大小
-  maxLines: null, // 不限制行数
-  overflow: TextOverflow.visible, // 允许文字显示超出
 );
 
 const selectedTextStyle = TextStyle(
@@ -125,7 +123,9 @@ Widget buildListItem({
                 style: isSelected || hasFocus
                     ? defaultTextStyle.merge(selectedTextStyle)
                     : defaultTextStyle, // 统一样式 + 选中项样式
-                softWrap: true, // 在 Text 小部件中使用 softWrap
+                softWrap: true,
+                maxLines: null, // 不限制行数
+                overflow: TextOverflow.visible, // 允许文字显示超出
               ),
             ),
           ),
