@@ -5,7 +5,7 @@ class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
     final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
 
-    // 使用TextPainter测量文本大小
+    // 使用TextPainter测量文本大小，允许多行
     final TextPainter textPainter = TextPainter(
       text: TextSpan(
         text: message,
@@ -14,13 +14,13 @@ class CustomSnackBar {
           fontWeight: FontWeight.bold,
         ),
       ),
-      maxLines: 1,
+      maxLines: null,  // 允许多行
       textDirection: TextDirection.ltr,
     );
     textPainter.layout(minWidth: 0, maxWidth: maxWidth);
 
     // 计算文本宽度并考虑边距
-    final double textWidth = textPainter.width + 32;  // 加上水平边距
+    final double textWidth = textPainter.size.width + 32;  // 加上水平边距
 
     // 确定最终宽度，确保不超过屏幕的80%
     final double finalWidth = math.min(textWidth, maxWidth);
