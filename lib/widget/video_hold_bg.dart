@@ -88,14 +88,14 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   Future<void> _loadBingBackgrounds() async {
     if (_isBingLoaded) return; // 防止重复加载
     try {
-      _bingImgUrls = await BingUtil.getBingImgUrls();  // 获取最多 15 张 Bing 图片 URL
+      _bingImgUrls = await BingUtil.getBingImgUrls();  // 获取Bing图片
       if (_bingImgUrls.isNotEmpty) {
         setState(() {
           _isBingLoaded = true;  // 只加载一次 Bing 图片
         });
 
         // 只有在加载到 Bing 图片时才启动定时器
-        _timer = Timer.periodic(Duration(seconds: 15), (Timer timer) {
+        _timer = Timer.periodic(Duration(seconds: 30), (Timer timer) {
           setState(() {
             _currentImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;  // 轮换图片
             _animationController.forward(from: 0.0);  // 每次切换图片时重新播放淡入动画
@@ -128,6 +128,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
     // 根据屏幕方向设置进度条的宽度，竖屏时进度条较宽，横屏时较窄
     double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
+
+    // 动态设置 padding 和 fontSize
+    final EdgeInsets padding = EdgeInsets.only(bottom: isPortrait ? 15.0 : 20.0);
+    final TextStyle textStyle = TextStyle(
+      color: Colors.white,
+      fontSize: isPortrait ? 16 : 18,
+    );
 
     return Selector<ThemeProvider, bool>(
       // 使用Selector从ThemeProvider中选择isBingBg属性，确定是否启用Bing背景
@@ -163,7 +170,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 15.0),
+                padding: padding,
                 child: Column(
                   mainAxisSize: MainAxisSize.min, // 列表组件占最小高度，居于底部显示
                   children: [
@@ -177,7 +184,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
                     LayoutBuilder(
                       builder: (context, constraints) {
                         _containerWidth = constraints.maxWidth;
-                        return _buildToast();
+                        return _buildToast(textStyle);
                       },
                     ),
                   ],
@@ -190,9 +197,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildToast() {
+  Widget _buildToast(TextStyle textStyle) {
     final text = widget.toastString ?? S.of(context).loading;
-    final textStyle = const TextStyle(color: Colors.white, fontSize: 16);
     final textSpan = TextSpan(text: text, style: textStyle);
     final textPainter = TextPainter(
       text: textSpan,
