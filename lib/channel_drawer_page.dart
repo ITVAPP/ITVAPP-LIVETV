@@ -37,7 +37,6 @@ bool isOutOfView(BuildContext context) {
 // 样式和布局约束
 const defaultTextStyle = TextStyle(
   fontSize: 16, // 字体大小
-  softWrap: true, // 自动换行
   maxLines: null, // 不限制行数
   overflow: TextOverflow.visible, // 允许文字显示超出
 );
@@ -82,6 +81,7 @@ Widget buildListItem({
   required String title,
   required bool isSelected,
   required Function() onTap,
+  required BuildContext context,
   bool isCentered = true, // 控制文本是否居中对齐
   double minHeight = defaultMinHeight, // 默认最小高度
   EdgeInsets padding = defaultPadding, // 默认内边距
@@ -125,6 +125,7 @@ Widget buildListItem({
                 style: isSelected || hasFocus
                     ? defaultTextStyle.merge(selectedTextStyle)
                     : defaultTextStyle, // 统一样式 + 选中项样式
+                softWrap: true, // 在 Text 小部件中使用 softWrap
               ),
             ),
           ),
@@ -172,6 +173,7 @@ class CategoryList extends StatelessWidget {
               onTap: () => onCategoryTap(index),
               isCentered: true, // 分类列表项居中
               isTV: isTV,
+              context: context,
             );
           },
         ),
@@ -232,6 +234,7 @@ class GroupList extends StatelessWidget {
               isCentered: true, // 分组列表项居中
               isTV: isTV,
               minHeight: defaultMinHeight,
+              context: context,
             );
           },
         ),
@@ -294,6 +297,7 @@ class _ChannelListState extends State<ChannelList> {
               isCentered: true, // 频道列表项居中
               minHeight: defaultMinHeight,
               isTV: widget.isTV,
+              context: context,
             );
           },
         ),
@@ -307,7 +311,7 @@ class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
-  final ItemScrollController epgScrollController; // 新增的控制器参数
+  final ItemScrollController epgScrollController;
   const EPGList({
     super.key,
     required this.epgData,
@@ -370,6 +374,7 @@ class _EPGListState extends State<EPGList> {
                     },
                     isCentered: false, // EPG列表项左对齐
                     isTV: widget.isTV,
+                    context: context,
                   );
                 },
               ),
@@ -380,6 +385,7 @@ class _EPGListState extends State<EPGList> {
     );
   }
 }
+
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频数据的映射
@@ -416,7 +422,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
-  Timer? _debounceTimer; // 用于节流或防抖
+  Timer? _debounceTimer; // 用于节流
 
   @override
   void initState() {
@@ -470,7 +476,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
       _keys = categoryMap.keys.toList(); 
-      _values = categoryMap.values.toList(); // 获取分组下的频道
+      _values = categoryMap.values.toList(); 
 
       // 频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
@@ -641,7 +647,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget build(BuildContext context) {
     // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-    return _buildOpenDrawer(isTV); // 将 isTV 传递给 _buildOpenDrawer
+    return _buildOpenDrawer(isTV); 
   }
 
   // 构建抽屉视图
