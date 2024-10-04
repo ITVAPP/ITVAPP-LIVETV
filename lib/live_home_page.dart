@@ -27,6 +27,7 @@ import 'widget/show_exit_confirm.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
+import 'traffic_analytics.dart';  // 导入 TrafficAnalytics
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
@@ -103,13 +104,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
-  
+
+  // 实例化 TrafficAnalytics 流量统计
+  final TrafficAnalytics _trafficAnalytics = TrafficAnalytics(); 
+
   /// 播放前解析频道的视频源
   Future<void> _playVideo() async {
     // 更新界面上的加载提示文字
     toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
     setState(() {});
-    
+
     LogUtil.i('检查竞态条件：$_isSwitchingChannel\n检查资源释放：$_isDisposing');
     if (_currentChannel == null || _isSwitchingChannel || _isDisposing) return;
 
@@ -181,6 +185,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryPlayback(); // 调用处理方法
     } finally {
       _isSwitchingChannel = false;
+    }
+  }
+
+  /// 发送页面访问统计数据
+  Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
+    if (channelName != null && channelName.isNotEmpty) {
+      try {
+        await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: channelName);
+      } catch (e, stackTrace) {
+        LogUtil.logError('发送流量统计时发生错误', e, stackTrace);
+      }
     }
   }
 
@@ -310,6 +325,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _retryCount = 0; // 重置重试次数计数器
     _timeoutActive = false; // 取消超时检测
     _shouldUpdateAspectRatio = true; // 重置宽高比标志位
+
+    // 发送流量统计数据
+    if (Config.Analytics) {
+      await _sendTrafficAnalytics(context, _currentChannel!.title);
+    }
+
     _playVideo(); // 开始播放选中的频道
   }
 
@@ -452,8 +473,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
         for (String group in groupMap.keys) {
           Map<String, PlayModel> channelMap = groupMap[group] ?? {};
-
-          // 返回第一个有效播放地址
           for (PlayModel? channel in channelMap.values) {
             if (channel?.urls != null && channel!.urls!.isNotEmpty) {
               return channel;
@@ -463,8 +482,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       } else if (playList[category] is Map<String, PlayModel>) {
         // 两层结构处理
         Map<String, PlayModel> channelMap = playList[category] ?? {};
-
-        // 返回第一个有效播放地址
         for (PlayModel? channel in channelMap.values) {
           if (channel?.urls != null && channel!.urls!.isNotEmpty) {
             return channel;
@@ -506,6 +523,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
       if (_currentChannel != null) {
+      	
+        // 发送流量统计数据
+          if (Config.Analytics) {
+          await _sendTrafficAnalytics(context, _currentChannel!.title);
+        }
+        
         if (!_isSwitchingChannel && !_isDisposing) {
           setState(() {
             _playVideo();
@@ -536,7 +559,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       return false;
     }
-    // 在此处弹出退出确认对话框
+    // 弹出退出确认对话框
     return await ShowExitConfirm.ExitConfirm(context);
   }
 
