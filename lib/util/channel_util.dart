@@ -41,8 +41,8 @@ Future<int?> changeChannelSources(
                   ? FocusScope(
                       autofocus: true, // 自动聚焦第一个按钮
                       child: Wrap(
-                        spacing: 10, // 按钮之间的水平间距
-                        runSpacing: 10, // 按钮之间的垂直间距
+                        spacing: 8, // 按钮之间的水平间距
+                        runSpacing: 8, // 按钮之间的垂直间距
                         children: List.generate(sources.length, (index) {
                           return Focus(
                             onKey: (node, event) {
@@ -57,38 +57,12 @@ Future<int?> changeChannelSources(
                               }
                               return KeyEventResult.ignored;
                             },
-                            child: OutlinedButton(
-                              autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
-                              style: OutlinedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
-                                backgroundColor: currentSourceIndex == index
-                                    ? Color(0xFFFE8401) // 选中按钮背景颜色为橙色
-                                    : Color(0xFFEB144C), // 未选中按钮背景颜色为红色
-                                side: BorderSide(
-                                  color: currentSourceIndex == index
-                                      ? Color(0xFFFE8401) // 选中按钮边框颜色为橙色
-                                      : Color(0xFFEB144C), // 未选中按钮边框颜色为红色
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12), // 按钮的圆角半径
-                                ),
-                              ),
-                              onPressed: currentSourceIndex == index
-                                  ? null // 如果按钮是当前选中的源，禁用点击
-                                  : () {
-                                      Navigator.pop(context, index); // 返回所选按钮的索引
-                                    },
-                              child: Text(
-                                S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
-                                textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-                                style: TextStyle(
-                                  fontSize: 16, // 字体大小
-                                  color: Colors.white, // 文字颜色为白色
-                                  fontWeight: currentSourceIndex == index
-                                      ? FontWeight.bold // 选中按钮文字加粗
-                                      : FontWeight.normal, // 未选中按钮文字为正常字体
-                                ),
-                              ),
+                            child: buildSourceButton(
+                              context, 
+                              index, 
+                              currentSourceIndex, 
+                              S.current.lineIndex(index + 1), 
+                              isTV,
                             ),
                           );
                         }),
@@ -98,38 +72,12 @@ Future<int?> changeChannelSources(
                       spacing: 10, // 按钮之间的水平间距
                       runSpacing: 10, // 按钮之间的垂直间距
                       children: List.generate(sources.length, (index) {
-                        return OutlinedButton(
-                          autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
-                            backgroundColor: currentSourceIndex == index
-                                ? Color(0xFFFE8401) // 选中按钮背景颜色为橙色
-                                : Color(0xFFEB144C), // 未选中按钮背景颜色为红色
-                            side: BorderSide(
-                              color: currentSourceIndex == index
-                                  ? Color(0xFFFE8401) // 选中按钮边框颜色为橙色
-                                  : Color(0xFFEB144C), // 未选中按钮边框颜色为红色
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12), // 按钮的圆角半径
-                            ),
-                          ),
-                          onPressed: currentSourceIndex == index
-                              ? null // 如果按钮是当前选中的源，禁用点击
-                              : () {
-                                  Navigator.pop(context, index); // 返回所选按钮的索引
-                                },
-                          child: Text(
-                            S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
-                            textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-                            style: TextStyle(
-                              fontSize: 16, // 字体大小
-                              color: Colors.white, // 文字颜色为白色
-                              fontWeight: currentSourceIndex == index
-                                  ? FontWeight.bold // 选中按钮文字加粗
-                                  : FontWeight.normal, // 未选中按钮文字为正常字体
-                            ),
-                          ),
+                        return buildSourceButton(
+                          context, 
+                          index, 
+                          currentSourceIndex, 
+                          S.current.lineIndex(index + 1), 
+                          isTV,
                         );
                       }),
                     ),
@@ -146,4 +94,47 @@ Future<int?> changeChannelSources(
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
   }
+}
+
+/// 获取按钮样式
+ButtonStyle getButtonStyle(bool isSelected) {
+  return OutlinedButton.styleFrom(
+    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
+    backgroundColor: isSelected
+        ? Color(0xFFEB144C) // 选中按钮背景颜色
+        : Color(0xFFE0E0E0), // 未选中按钮背景颜色
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
+    ),
+  );
+}
+
+/// 构建视频源按钮
+Widget buildSourceButton(
+  BuildContext context, 
+  int index, 
+  int currentSourceIndex, 
+  String label, 
+  bool isTV
+) {
+  return OutlinedButton(
+    autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
+    style: getButtonStyle(currentSourceIndex == index),
+    onPressed: currentSourceIndex == index
+        ? null // 如果按钮是当前选中的源，禁用点击
+        : () {
+            Navigator.pop(context, index); // 返回所选按钮的索引
+          },
+    child: Text(
+      label, // 显示按钮文字，使用多语言支持
+      textAlign: TextAlign.center, // 文字在按钮内部居中对齐
+      style: TextStyle(
+        fontSize: 16, // 字体大小
+        color: Colors.white, // 文字颜色为白色
+        fontWeight: currentSourceIndex == index
+            ? FontWeight.bold // 选中按钮文字加粗
+            : FontWeight.normal, // 未选中按钮文字为正常字体
+      ),
+    ),
+  );
 }
