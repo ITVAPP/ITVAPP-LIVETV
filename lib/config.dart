@@ -6,7 +6,7 @@ class Config {
   static const String hostname = 'livetv.itvapp.net';
 
   /// 当前应用包名（和 MainActivity.kt 设置的要一致）
-  static const String packagename = "net.itvapp.isTV";
+  static const String packagename = "net.itvapp.livetv";
   
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
