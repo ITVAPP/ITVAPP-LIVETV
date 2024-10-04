@@ -250,6 +250,7 @@ class DialogUtil {
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
             style: _buttonStyle(buttonFocusNode),
+            autofocus: true,
             onPressed: () {
               if (onClosePressed != null) {
                 onClosePressed();  // 点击关闭按钮时执行的回调
