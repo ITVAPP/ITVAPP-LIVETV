@@ -22,12 +22,12 @@ import 'util/stream_url.dart';
 import 'util/dialog_util.dart';
 import 'util/custom_snackbar.dart';
 import 'util/channel_util.dart';
+import 'util/traffic_analytics.dart';
 import 'widget/empty_page.dart';
 import 'widget/show_exit_confirm.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
-import 'traffic_analytics.dart';  // 导入 TrafficAnalytics
 
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
