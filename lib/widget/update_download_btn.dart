@@ -33,7 +33,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
         return provider.isDownloading
             ? ClipRRect(
-                borderRadius: BorderRadius.circular(38), // 圆角按钮样式
+                borderRadius: BorderRadius.circular(16), // 圆角按钮样式
                 child: SizedBox(
                   height: 48,
                   width: btnWidth, // 按钮宽度
@@ -68,10 +68,10 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
-          backgroundColor: _isFocusDownload ? Color(0xFFFE8401) : Color(0xFFEB144C),  // 根据焦点状态修改背景颜色
+          backgroundColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFE0E0E0),  // 根据焦点状态修改背景颜色
           elevation: _isFocusDownload ? 10 : 0, // 焦点状态下有阴影效果
           foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
-          shadowColor: _isFocusDownload ? Color(0xFFFE8401) : Color(0xFFEB144C),  // 阴影颜色与按钮背景匹配
+          shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFE0E0E0),  // 阴影颜色与按钮背景匹配
         ),
         autofocus: true, // 自动获取焦点
         onFocusChange: (bool isFocus) {
