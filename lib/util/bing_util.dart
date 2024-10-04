@@ -60,7 +60,7 @@ class BingUtil {
   static Future<String?> _fetchBingImageUrl(int idx) async {
     try {
       final res = await HttpUtil().getRequest('https://bing.biturl.top/?resolution=1366&format=json&index=$idx');
-      return res?.['url']?.isNotEmpty ?? false ? res['url'] : null;
+      return res?['url']?.isNotEmpty ?? false ? res['url'] : null; 
     } catch (e, stackTrace) {
       LogUtil.logError('获取第 $idx 张 Bing 图片 URL 时发生错误', e, stackTrace);
       return null;
@@ -75,7 +75,7 @@ class BingUtil {
       }
 
       final res = await HttpUtil().getRequest('https://bing.biturl.top/?resolution=1366&format=json&index=0');
-      if (res?.['url']?.isNotEmpty ?? false) {
+      if (res?['url']?.isNotEmpty ?? false) {
         bingImgUrl = res['url'];
         LogUtil.i('成功获取 Bing 图片 URL: $bingImgUrl');
         return bingImgUrl;
