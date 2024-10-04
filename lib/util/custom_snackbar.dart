@@ -49,7 +49,6 @@ class CustomSnackBar {
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,  // 字体大小
-                    fontWeight: FontWeight.bold,  // 加粗
                   ),
                   textAlign: TextAlign.center,  // 文本内容水平居中
                   maxLines: null,  // 允许多行显示
