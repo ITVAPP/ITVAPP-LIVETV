@@ -22,10 +22,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final FocusNode _copyButtonFocusNode = FocusNode(); // 复制按钮焦点
 
   final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(30), // 统一圆角样式
+    borderRadius: BorderRadius.circular(16), // 统一圆角样式
   );
-  final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = Colors.grey[300]!; // 未选中时颜色，使用 ! 确保为非空
+  final Color selectedColor = const Color(0xFFEB144C); // 选中或焦点时背景颜色
+  final Color unselectedColor = const Color(0xFFE0E0E0); // 未选中时背景颜色
 
   // 为 TV 焦点管理增加焦点节点
   final List<FocusNode> _focusNodes = List.generate(5, (index) => FocusNode());
@@ -139,7 +139,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                       }, '设置日志开关状态时出错');
                     },
                     activeColor: Colors.white, // 滑块的颜色
-                    activeTrackColor: const Color(0xFFEB144C), // 开启时轨道的背景颜色
+                    activeTrackColor: selectedColor, // 开启时轨道的背景颜色
                     inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                     inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
                   ),
@@ -292,8 +292,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             style: ElevatedButton.styleFrom(
                               shape: _buttonShape, // 统一圆角样式
                               backgroundColor: _clearLogsButtonFocusNode.hasFocus
-                                  ? const Color(0xFFFE8401) // 焦点时背景颜色为 #FE8401
-                                  : const Color(0xFFEB144C), // 未选中时背景颜色为 #EB144C
+                                  ? selectedColor // 焦点时背景颜色
+                                  : unselectedColor, // 未选中时背景颜色
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // 设置按钮内边距
                             ),
                           ),
@@ -336,8 +336,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
           padding: const EdgeInsets.symmetric(horizontal: 2.0), // 调整按钮的左右内边距
           shape: _buttonShape, // 统一圆角样式
           backgroundColor: _selectedLevel == level || _focusNodes[focusIndex].hasFocus
-              ? const Color(0xFFFE8401) // 选中或焦点时背景颜色为 #FE8401
-              : const Color(0xFFEB144C), // 未选中时背景颜色为 #EB144C
+              ? selectedColor // 选中或焦点时背景颜色
+              : unselectedColor, // 未选中时背景颜色
           side: BorderSide.none, // 不需要边框
         ),
       ),
