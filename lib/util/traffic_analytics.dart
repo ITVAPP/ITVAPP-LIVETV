@@ -80,11 +80,11 @@ class TrafficAnalytics {
     for (var api in apiList) {
       try {
         // 设置超时限制，防止请求卡住
-        final response = await http.get(Uri.parse(api['url'])).timeout(Duration(seconds: 5));
+        final response = await http.get(Uri.parse(api['url'] as String)).timeout(Duration(seconds: 5)); // 将 'url' 转换为 String
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           // 缓存获取到的IP数据
-          _cachedIpData = api['parseData'](data);
+          _cachedIpData = (api['parseData'] as dynamic Function(dynamic))(data);  // 将 'parseData' 转换为函数
           return _cachedIpData!;
         } else {
           LogUtil.e('API请求失败: ${api['url']} 状态码: ${response.statusCode}');
