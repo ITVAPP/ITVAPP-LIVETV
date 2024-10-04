@@ -98,7 +98,7 @@ class BingUtil {
 
       // 优化缓存判断条件
       if (cachedUrl?.isNotEmpty ?? false && cacheTime != null && cacheTime > 0) {
-        DateTime cachedDate = DateTime.fromMillisecondsSinceEpoch(cacheTime);
+        DateTime cachedDate = DateTime.fromMillisecondsSinceEpoch(cacheTime!); // 使用非空断言来确保 cacheTime 非空
         if (DateTime.now().difference(cachedDate) < cacheDuration) {
           return cachedUrl; // 缓存未过期，返回缓存的 URL
         } else {
