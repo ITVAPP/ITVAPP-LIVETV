@@ -443,25 +443,47 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化分类数据
-  void _initializeCategoryData() {
-    // 根据当前播放的频道，优先设置它的分类为选中项
-    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
-    _categoryIndex = _categories.indexWhere((category) {
-      final categoryMap = widget.videoMap?.playList[category];
-      return categoryMap?.containsKey(widget.playModel?.group) ?? false;
-    });
+void _initializeCategoryData() {
+  _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
+  _categoryIndex = -1;
+  _groupIndex = -1;
+  _channelIndex = -1;
 
-    if (_categoryIndex == -1) {
-      // 如果未找到当前播放频道的分类，默认第一个非空分类
-      for (int i = 0; i < _categories.length; i++) {
-        final categoryMap = widget.videoMap?.playList[_categories[i]];
-        if (categoryMap != null && categoryMap.isNotEmpty) {
-          _categoryIndex = i;
-          break;
+  // 遍历每个分类，查找当前播放的频道所属的分组和分类
+  for (int i = 0; i < _categories.length; i++) {
+    final category = _categories[i];
+    final categoryMap = widget.videoMap?.playList[category];
+
+    if (categoryMap is Map<String, Map<String, PlayModel>>) {
+      for (int groupIndex = 0; groupIndex < categoryMap.keys.length; groupIndex++) {
+        final group = categoryMap.keys.toList()[groupIndex];
+        final channelMap = categoryMap[group];
+
+        // 检查当前播放的频道是否在这个分组中
+        if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
+          // 找到匹配的分类、分组和频道
+          _categoryIndex = i; // 设置匹配的分类
+          _groupIndex = groupIndex; // 设置匹配的分组
+          _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title); // 设置匹配的频道
+          return; // 找到后直接退出
         }
       }
     }
   }
+
+  // 如果未找到当前播放频道的分类，默认第一个非空分类
+  if (_categoryIndex == -1) {
+    for (int i = 0; i < _categories.length; i++) {
+      final categoryMap = widget.videoMap?.playList[_categories[i]];
+      if (categoryMap != null && categoryMap.isNotEmpty) {
+        _categoryIndex = i;
+        _groupIndex = 0;
+        _channelIndex = 0;
+        break;
+      }
+    }
+  }
+}
 
   // 初始化频道数据
   void _initializeChannelData() {
