@@ -25,7 +25,7 @@ bool isOutOfView(BuildContext context) {
     final ScrollableState? scrollableState = Scrollable.of(context);
     if (scrollableState != null) {
       final ScrollPosition position = scrollableState.position;
-      final double offset = position.pixels; 
+      final double offset = position.pixels;
       final double viewportHeight = position.viewportDimension;
       final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
       return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
@@ -183,7 +183,7 @@ class CategoryList extends StatelessWidget {
 }
 
 // 分组列表组件
-class GroupList extends StatelessWidget {
+class GroupList extends StatefulWidget {
   final List<String> keys;
   final ScrollController scrollController;
   final int selectedGroupIndex;
@@ -202,17 +202,27 @@ class GroupList extends StatelessWidget {
   });
 
   @override
+  State<GroupList> createState() => _GroupListState();
+}
+
+class _GroupListState extends State<GroupList> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 保持状态
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // 调用 super.build(context)
+
     return FocusScope(
       child: Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
           cacheExtent: defaultMinHeight,
           padding: const EdgeInsets.only(bottom: 100.0),
-          controller: scrollController, // 使用滚动控制器
-          itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length,
+          controller: widget.scrollController, // 使用滚动控制器
+          itemCount: widget.keys.isEmpty && widget.isFavoriteCategory ? 1 : widget.keys.length,
           itemBuilder: (context, index) {
-            if (keys.isEmpty && isFavoriteCategory) {
+            if (widget.keys.isEmpty && widget.isFavoriteCategory) {
               return Center(
                 child: Container(
                   constraints: BoxConstraints(minHeight: defaultMinHeight),
@@ -228,11 +238,11 @@ class GroupList extends StatelessWidget {
               );
             }
             return buildListItem(
-              title: keys[index],
-              isSelected: selectedGroupIndex == index,
-              onTap: () => onGroupTap(index),
+              title: widget.keys[index],
+              isSelected: widget.selectedGroupIndex == index,
+              onTap: () => widget.onGroupTap(index),
               isCentered: true, // 分组列表项居中
-              isTV: isTV,
+              isTV: widget.isTV,
               minHeight: defaultMinHeight,
               context: context,
             );
@@ -250,6 +260,7 @@ class ChannelList extends StatefulWidget {
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
+
   const ChannelList({
     super.key,
     required this.channels,
@@ -504,8 +515,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList(); 
-      _values = categoryMap.values.toList(); 
+      _keys = categoryMap.keys.toList();
+      _values = categoryMap.values.toList();
 
       // 频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
@@ -595,7 +606,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex); 
+    _scrollToPosition(_scrollController, _groupIndex);
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
@@ -626,7 +637,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData); 
+      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
 
       setState(() {
         _epgData = res.epgData!; // 更新节目单数据
@@ -676,7 +687,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget build(BuildContext context) {
     // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-    return _buildOpenDrawer(isTV); 
+    return _buildOpenDrawer(isTV);
   }
 
   // 构建抽屉视图
