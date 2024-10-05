@@ -23,7 +23,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
   // 按钮颜色更新
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = const Color(0xFFF4B13F); // 未选中时颜色
+  final _unselectedColor = const Color(0xFFDFA02A); // 未选中时颜色
 
   // 焦点节点列表，用于 TV 端焦点管理
   final List<FocusNode> _fontFocusNodes = List.generate(5, (index) => FocusNode());
@@ -108,11 +108,13 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                 onSelected: (bool selected) {
                                   context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
                                 },
-                                selectedColor: _selectedColor, // 选中或焦点颜色为 #FE8401
+                                selectedColor: _selectedColor, // 选中或焦点颜色
                                 backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
                                     ? _selectedColor // 选中状态颜色
                                     : _unselectedColor, // 未选中状态颜色
                                 shape: _buttonShape, // 统一的圆角外形
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // 设置内边距
+                                avatar: null, // 取消选中的对勾
                               ),
                             ),
                           ),
@@ -164,6 +166,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                           ? _selectedColor // 已选中状态颜色
                                           : _unselectedColor, // 未选中状态颜色
                                       shape: _buttonShape, // 统一的圆角外形
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置内边距
+                                      avatar: null, // 取消选中的对勾
                                     ),
                                   ],
                                 ),
