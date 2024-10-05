@@ -263,7 +263,12 @@ class ChannelList extends StatefulWidget {
   State<ChannelList> createState() => _ChannelListState();
 }
 
-class _ChannelListState extends State<ChannelList> {
+class _ChannelListState extends State<ChannelList> with AutomaticKeepAliveClientMixin {
+  double _currentScrollPosition = 0; // 保存滚动位置
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
@@ -277,8 +282,24 @@ class _ChannelListState extends State<ChannelList> {
     }
   }
 
+  // 保存滚动位置
+  void _saveScrollPosition() {
+    if (widget.scrollController.hasClients) {
+      _currentScrollPosition = widget.scrollController.position.pixels;
+    }
+  }
+
+  // 恢复滚动位置
+  void _restoreScrollPosition() {
+    if (widget.scrollController.hasClients && _currentScrollPosition != 0) {
+      widget.scrollController.jumpTo(_currentScrollPosition);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     return FocusScope(
       child: Container(
         color: defaultBackgroundColor,
@@ -293,7 +314,10 @@ class _ChannelListState extends State<ChannelList> {
             return buildListItem(
               title: channelName,
               isSelected: isSelect,
-              onTap: () => widget.onChannelTap(widget.channels[channelName]),
+              onTap: () {
+                _saveScrollPosition(); // 切换频道前保存滚动位置
+                widget.onChannelTap(widget.channels[channelName]);
+              },
               isCentered: true, // 频道列表项居中
               minHeight: defaultMinHeight,
               isTV: widget.isTV,
