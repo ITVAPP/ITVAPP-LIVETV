@@ -4,7 +4,6 @@ import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:video_player/video_player.dart';
 
@@ -14,6 +13,8 @@ import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
 import '../widget/video_hold_bg.dart';
 import '../generated/l10n.dart';
+import '../widget/show_exit_confirm.dart';
+import '../gradient_progress_bar.dart';
 
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频播放列表模型，改为三层结构
@@ -54,6 +55,9 @@ class _TvPageState extends State<TvPage> {
   bool _debounce = true; // 防止按键被快速多次触发
   Timer? _timer; // 定时器用于处理按键节流
   bool _drawerIsOpen = false; // 侧边抽屉是否打开
+  bool _isSourceSelectionVisible = false; // 视频源选择是否显示
+  bool _isShowPauseIcon = false; // 是否显示暂停图标
+  Timer? _pauseIconTimer; // 暂停图标显示的计时器
 
   bool _isError = false; // 标识是否播放过程中发生错误
 
@@ -68,24 +72,6 @@ class _TvPageState extends State<TvPage> {
         _timer = null;
       });
     }
-  }
-
-  // 显示错误信息并记录日志
-  void _showError(String message) {
-    setState(() {
-      _isError = true; // 设置错误状态，用于控制UI显示
-      CustomSnackBar.showSnackBar(
-        context,
-        message,  // 直接传递字符串，而不是 Text 小部件
-        duration: Duration(seconds: 4),
-      );
-      // 捕获当前堆栈信息并传递给 logError
-      try {
-        throw Exception(message);
-      } catch (e, stackTrace) {
-        LogUtil.logError('播放错误：$message', e, stackTrace); // 记录错误日志
-      }
-    });
   }
 
   // 打开添加源的设置页面
@@ -117,6 +103,56 @@ class _TvPageState extends State<TvPage> {
     } catch (e, stackTrace) {
       LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
       return null;
+    }
+  }
+
+  // 处理返回按键逻辑
+  Future<bool> _handleBackPress(BuildContext context) async {
+    if (_isSourceSelectionVisible) {
+      // 如果视频源选择框打开，关闭它
+      setState(() {
+        _isSourceSelectionVisible = false;
+      });
+      return false; // 不退出页面
+    }
+
+    if (_drawerIsOpen) {
+      // 如果抽屉打开则关闭抽屉
+      setState(() {
+        _drawerIsOpen = false;
+      });
+      return false;
+    }
+
+    // 弹出退出确认对话框
+    return await ShowExitConfirm.ExitConfirm(context);
+  }
+
+  // 处理选择键逻辑
+  Future<void> _handleSelectPress() async {
+    if (_isSourceSelectionVisible) {
+      // 如果源选择已经显示，执行播放或暂停操作
+      if (widget.isPlaying) {
+        widget.controller?.pause(); // 暂停视频播放
+      } else {
+        widget.controller?.play(); // 播放视频
+      }
+      setState(() {
+        _isSourceSelectionVisible = false; // 关闭视频源选择
+      });
+    } else {
+      // 显示视频源选择界面
+      setState(() {
+        _isSourceSelectionVisible = true;
+      });
+
+      // 启动计时器，如果计时器内再次点击选择键则执行播放操作
+      _pauseIconTimer?.cancel();
+      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+        setState(() {
+          _isSourceSelectionVisible = false;
+        });
+      });
     }
   }
 
@@ -156,24 +192,10 @@ class _TvPageState extends State<TvPage> {
           _restoreFocus(); // 延迟恢复焦点
           break;
         case LogicalKeyboardKey.select:
-          if (_isError) {
-            _showError('视频加载失败，请重试'); // 如果播放出错，显示提示信息
-            return;
-          }
-
-          if (widget.controller?.value.isInitialized == true &&
-              !widget.controller!.value.isPlaying &&
-              !widget.controller!.value.isBuffering) {
-            widget.controller?.play(); // 如果视频未播放且未缓冲，则开始播放
-          } else {
-            setState(() {
-              _drawerIsOpen = true; // 显示抽屉
-              FocusScope.of(context).requestFocus(_drawerFocusNode); // 强制将焦点切换到抽屉
-            });
-          }
+          await _handleSelectPress(); // 调用选择键的处理逻辑
           break;
         case LogicalKeyboardKey.goBack:
-          Navigator.pop(context); // 返回上一个页面
+          _handleBackPress(context); // 修改的返回键逻辑
           break;
         case LogicalKeyboardKey.contextMenu:
           setState(() {
@@ -214,6 +236,7 @@ class _TvPageState extends State<TvPage> {
   void dispose() {
     LogUtil.safeExecute(() {
       _timer?.cancel(); // 销毁定时器，防止内存泄漏
+      _pauseIconTimer?.cancel(); // 取消暂停图标计时器
       _videoNode.dispose(); // 销毁焦点节点
       _drawerFocusNode.dispose(); // 销毁抽屉焦点节点
       widget.controller?.dispose(); // 销毁视频控制器，释放资源
@@ -223,75 +246,100 @@ class _TvPageState extends State<TvPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black, // 设置背景为黑色
-      body: Builder(builder: (context) {
-        return KeyboardListener(
-          focusNode: _videoNode, // 将焦点绑定到视频区域
-          autofocus: true, // 自动获取焦点
-          onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
-          child: widget.toastString == 'UNKNOWN'
-              ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
-              : Container(
-                  alignment: Alignment.center, // 内容居中对齐
-                  color: Colors.black, // 设置背景为黑色
-                  child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
-                    alignment: Alignment.center, // 堆叠的子组件居中对齐
-                    children: [
-                      widget.controller != null && widget.controller!.value.isInitialized
-                          ? AspectRatio(
-                              aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
-                              child: SizedBox(
-                                width: double.infinity, // 占满宽度
-                                child: VideoPlayer(widget.controller!), // 显示视频播放器
+    return WillPopScope( // 添加返回键拦截逻辑
+      onWillPop: () => _handleBackPress(context), // 处理返回键的逻辑
+      child: Scaffold(
+        backgroundColor: Colors.black, // 设置背景为黑色
+        body: Builder(builder: (context) {
+          return KeyboardListener(
+            focusNode: _videoNode, // 将焦点绑定到视频区域
+            autofocus: true, // 自动获取焦点
+            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
+            child: widget.toastString == 'UNKNOWN'
+                ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
+                : Container(
+                    alignment: Alignment.center, // 内容居中对齐
+                    color: Colors.black, // 设置背景为黑色
+                    child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
+                      alignment: Alignment.center, // 堆叠的子组件居中对齐
+                      children: [
+                        widget.controller != null && widget.controller!.value.isInitialized
+                            ? AspectRatio(
+                                aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
+                                child: SizedBox(
+                                  width: double.infinity, // 占满宽度
+                                  child: VideoPlayer(widget.controller!), // 显示视频播放器
+                                ),
+                              )
+                            : VideoHoldBg(
+                                toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
+                                videoController: widget.controller ?? VideoPlayerController.network(''),
                               ),
-                            )
-                          : VideoHoldBg(
-                              toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
-                              videoController: widget.controller ?? VideoPlayerController.network(''),
+                        if (_drawerIsOpen) const DatePositionWidget(), // 如果抽屉打开，显示时间和位置信息
+                        
+                        // 如果正在缓冲或出现错误，显示进度条和提示
+                        if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 20.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GradientProgressBar(
+                                    width: MediaQuery.of(context).size.width * 0.3,
+                                    height: 5,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return _buildToast(S.of(context).loading);
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                      if (_drawerIsOpen) const DatePositionWidget(), // 如果抽屉打开，显示时间和位置信息
-                      if (!widget.isPlaying && !_drawerIsOpen)
-                        GestureDetector(
-                            onTap: () {
-                              widget.controller?.play(); // 如果视频暂停，点击图标时播放视频
-                            },
-                            child: const Icon(Icons.play_circle_outline, color: Colors.white, size: 50)), // 播放按钮
-                      if (widget.isBuffering && !_drawerIsOpen) const SpinKitSpinningLines(color: Colors.white), // 显示缓冲动画
-                      if (_isError && !_drawerIsOpen)
-                        Center(child: Text(S.of(context).playError, style: TextStyle(color: Colors.red))), // 显示错误提示
+                          ),
 
-                      // Offstage 控制 ChannelDrawerPage 的显示和隐藏
-                      Offstage(
-                        offstage: !_drawerIsOpen, // 控制 ChannelDrawerPage 显示与隐藏
-                        child: FocusScope(
-                          node: FocusScopeNode(),
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
-                                _restoreFocus(); // 恢复主页面的焦点
-                              });
-                            },
-                            child: ChannelDrawerPage(
-                              videoMap: widget.videoMap,
-                              playModel: widget.playModel,
-                              onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
-                              isLandscape: true,
-                              onCloseDrawer: () { // 添加 onCloseDrawer 参数
+                        // Offstage 控制 ChannelDrawerPage 的显示和隐藏
+                        Offstage(
+                          offstage: !_drawerIsOpen, // 控制 ChannelDrawerPage 显示与隐藏
+                          child: FocusScope(
+                            node: FocusScopeNode(),
+                            child: GestureDetector(
+                              onTap: () {
                                 setState(() {
-                                  _drawerIsOpen = false;
+                                  _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
+                                  _restoreFocus(); // 恢复主页面的焦点
                                 });
                               },
+                              child: ChannelDrawerPage(
+                                videoMap: widget.videoMap,
+                                playModel: widget.playModel,
+                                onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
+                                isLandscape: true,
+                                onCloseDrawer: () { // 添加 onCloseDrawer 参数
+                                  setState(() {
+                                    _drawerIsOpen = false;
+                                  });
+                                },
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-        );
-      }),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildToast(String message) {
+    return Text(
+      message,
+      style: TextStyle(color: Colors.white, fontSize: 18),
     );
   }
 }
