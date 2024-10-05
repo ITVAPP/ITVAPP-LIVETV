@@ -99,8 +99,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
 
       // 在窗口大小变化时关闭抽屉，避免布局错乱
-      if (Scaffold.of(context).isDrawerOpen) {
-        Navigator.pop(context);
+      if (widget.drawerIsOpen) {
+        setState(() {
+          widget.drawerIsOpen = false; // 关闭抽屉
+        });
       }
     }, '调整窗口大小时发生错误');
   }
@@ -259,8 +261,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     icon: Icon(Icons.list_alt, color: _iconColor),
                     onPressed: () {
                       LogUtil.safeExecute(() {
-                        setState(() => _isShowMenuBar = false);
-                        Scaffold.of(context).openDrawer(); // 打开抽屉
+                        setState(() {
+                          _isShowMenuBar = false;
+                          // 打开抽屉
+                          widget.drawerIsOpen = true;
+                        });
                       }, '切换频道发生错误');
                     },
                   ),
