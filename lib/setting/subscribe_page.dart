@@ -205,10 +205,12 @@ class _SubScribePageState extends State<SubScribePage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,  // TV端背景色
         appBar: AppBar(
           backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-          title: Text(S.of(context).subscribe),  // 页面标题
-          style: const TextStyle(
-            fontSize: 22, // 设置字号
-            fontWeight: FontWeight.bold, // 设置加粗
+          title: Text(
+            S.of(context).subscribe,  // 页面标题
+            style: const TextStyle(
+              fontSize: 22, // 设置字号
+              fontWeight: FontWeight.bold, // 设置加粗
+            ),
           ),
           centerTitle: true,  // 标题居中
           leading: isTV ? const SizedBox.shrink() : null,  // TV端隐藏返回按钮
@@ -219,7 +221,7 @@ class _SubScribePageState extends State<SubScribePage> {
                     onPressed: _addM3uSource,  // 添加新的M3U源
                     icon: const Icon(
                       Icons.add,
-                      color: Colors.white,
+                     color: Colors.white,
                     ),
                   )
                 ],
