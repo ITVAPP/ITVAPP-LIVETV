@@ -222,7 +222,7 @@ class DialogUtil {
             child: Text(negativeButtonLabel!),
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
-          const SizedBox(width: 15),  // 添加按钮之间的间距
+          const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
           ElevatedButton(
             style: _buttonStyle(buttonFocusNode),
@@ -269,7 +269,7 @@ class DialogUtil {
     return ElevatedButton.styleFrom(
       backgroundColor: _getButtonColor(focusNode),
       foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
-      padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // 设置上下和左右内边距
+      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0), // 设置上下和左右内边距
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),  // 设置按钮圆角
       ),
