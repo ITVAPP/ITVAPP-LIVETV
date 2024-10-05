@@ -113,7 +113,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                     ? _selectedColor // 选中状态颜色
                                     : _unselectedColor, // 未选中状态颜色
                                 shape: _buttonShape, // 统一的圆角外形
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // 设置内边距
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置内边距
                                 avatar: null, // 取消选中的对勾
                               ),
                             ),
@@ -166,7 +166,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                           ? _selectedColor // 已选中状态颜色
                                           : _unselectedColor, // 未选中状态颜色
                                       shape: _buttonShape, // 统一的圆角外形
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置内边距
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置内边距
                                       avatar: null, // 取消选中的对勾
                                     ),
                                   ],
