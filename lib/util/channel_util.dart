@@ -21,113 +21,74 @@ Future<int?> changeChannelSources(
   bool isTV = context.watch<ThemeProvider>().isTV;
 
   try {
-    // 判断横屏还是竖屏，并根据屏幕方向调整显示逻辑
-    return await showModalBottomSheet<int>(
+    // 显示底部弹窗，用于选择不同的视频源
+    final selectedIndex = await showModalBottomSheet<int>(
       context: context,
       useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
       barrierColor: Colors.transparent, // 弹窗背景的屏障颜色设为透明
       backgroundColor: Colors.black38, // 弹窗背景颜色
-      isScrollControlled: true, // 允许自定义弹窗高度
       builder: (BuildContext context) {
-        return OrientationBuilder(
-          builder: (context, orientation) {
-            if (orientation == Orientation.landscape) {
-              // 横屏时按现在的逻辑显示
-              return SingleChildScrollView(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
-                  color: Colors.transparent, // 容器背景设为透明
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.7, // 设置弹窗内容最大宽度
-                    ),
-                    child: isTV
-                        ? FocusScope(
-                            autofocus: true, // 自动聚焦第一个按钮
-                            child: Wrap(
-                              spacing: 8, // 按钮之间的水平间距
-                              runSpacing: 8, // 按钮之间的垂直间距
-                              children: List.generate(sources.length, (index) {
-                                return Focus(
-                                  onKey: (node, event) {
-                                    // 限制焦点在弹窗内部，只处理上下左右键事件
-                                    if (event is RawKeyDownEvent) {
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                                          event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                                          event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-                                          event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                                        return KeyEventResult.handled;
-                                      }
-                                    }
-                                    return KeyEventResult.ignored;
-                                  },
-                                  child: buildSourceButton(
-                                    context, 
-                                    index, 
-                                    currentSourceIndex, 
-                                    S.current.lineIndex(index + 1), 
-                                    isTV,
-                                  ),
-                                );
-                              }),
-                            ),
-                          )
-                        : Wrap(
-                            spacing: 10, // 按钮之间的水平间距
-                            runSpacing: 10, // 按钮之间的垂直间距
-                            children: List.generate(sources.length, (index) {
-                              return buildSourceButton(
-                                context, 
-                                index, 
-                                currentSourceIndex, 
-                                S.current.lineIndex(index + 1), 
-                                isTV,
-                              );
-                            }),
-                          ),
-                  ),
-                ),
-              );
-            } else {
-              // 竖屏时从距离顶部 20 像素处显示
-              return Stack(
-                children: [
-                  Positioned(
-                    top: 20, // 从顶部 20 像素处开始显示
-                    left: 0,
-                    right: 0,
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.black38,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Wrap(
-                          spacing: 10, // 按钮之间的水平间距
-                          runSpacing: 10, // 按钮之间的垂直间距
-                          children: List.generate(sources.length, (index) {
-                            return buildSourceButton(
-                              context,
-                              index,
-                              currentSourceIndex,
-                              S.current.lineIndex(index + 1),
+        return SingleChildScrollView(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
+            color: Colors.transparent, // 容器背景设为透明
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7, // 设置弹窗内容最大宽度
+              ),
+              child: isTV
+                  ? FocusScope(
+                      autofocus: true, // 自动聚焦第一个按钮
+                      child: Wrap(
+                        spacing: 8, // 按钮之间的水平间距
+                        runSpacing: 8, // 按钮之间的垂直间距
+                        children: List.generate(sources.length, (index) {
+                          return Focus(
+                            onKey: (node, event) {
+                              // 限制焦点在弹窗内部，只处理上下左右键事件
+                              if (event is RawKeyDownEvent) {
+                                if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                                    event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                                    event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                                    event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                                  return KeyEventResult.handled;
+                                }
+                              }
+                              return KeyEventResult.ignored;
+                            },
+                            child: buildSourceButton(
+                              context, 
+                              index, 
+                              currentSourceIndex, 
+                              S.current.lineIndex(index + 1), 
                               isTV,
-                            );
-                          }),
-                        ),
+                            ),
+                          );
+                        }),
                       ),
+                    )
+                  : Wrap(
+                      spacing: 10, // 按钮之间的水平间距
+                      runSpacing: 10, // 按钮之间的垂直间距
+                      children: List.generate(sources.length, (index) {
+                        return buildSourceButton(
+                          context, 
+                          index, 
+                          currentSourceIndex, 
+                          S.current.lineIndex(index + 1), 
+                          isTV,
+                        );
+                      }),
                     ),
-                  ),
-                ],
-              );
-            }
-          },
+            ),
+          ),
         );
       },
     );
+
+    // 返回用户选择的索引
+    return selectedIndex;
   } catch (modalError, modalStackTrace) {
     // 捕获弹窗显示过程中发生的错误，并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
@@ -141,7 +102,7 @@ ButtonStyle getButtonStyle(bool isSelected) {
     padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
     backgroundColor: isSelected
         ? Color(0xFFEB144C) // 选中按钮背景颜色
-        : Color(0xFFF4B13F), // 未选中按钮背景颜色
+        : Color(0xFFDFA02A), // 未选中按钮背景颜色
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
     ),
