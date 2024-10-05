@@ -37,6 +37,7 @@ class TableVideoWidget extends StatefulWidget {
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
+    this.onToggleDrawer, 
   });
 
   @override
@@ -268,8 +269,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       LogUtil.safeExecute(() {
                         setState(() {
                           _isShowMenuBar = false;
-                          // 打开抽屉
-                          _drawerIsOpen = true;
+                         widget.onToggleDrawer?.call();  // 通过回调打开/关闭抽屉
                         });
                       }, '切换频道发生错误');
                     },
