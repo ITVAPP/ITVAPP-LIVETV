@@ -642,6 +642,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             child: Stack(
               children: [
                 Scaffold(
+                  drawerEnableOpenDragGesture: false, // 禁用滑动手势	
                   body: toastString == 'UNKNOWN'
                       ? EmptyPage(onRefresh: _parseData) // 如果播放列表为空，显示错误页面
                       : TableVideoWidget(
