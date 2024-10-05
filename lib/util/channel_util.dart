@@ -22,16 +22,17 @@ Future<int?> changeChannelSources(
 
   try {
     // 判断横屏还是竖屏，并根据屏幕方向调整显示逻辑
-    return await OrientationBuilder(
-      builder: (context, orientation) {
-        if (orientation == Orientation.landscape) {
-          // 横屏时按现在的逻辑使用 showModalBottomSheet
-          return showModalBottomSheet<int>(
-            context: context,
-            useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
-            barrierColor: Colors.transparent, // 弹窗背景的屏障颜色设为透明
-            backgroundColor: Colors.black38, // 弹窗背景颜色
-            builder: (BuildContext context) {
+    return await showModalBottomSheet<int>(
+      context: context,
+      useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
+      barrierColor: Colors.transparent, // 弹窗背景的屏障颜色设为透明
+      backgroundColor: Colors.black38, // 弹窗背景颜色
+      isScrollControlled: true, // 允许自定义弹窗高度
+      builder: (BuildContext context) {
+        return OrientationBuilder(
+          builder: (context, orientation) {
+            if (orientation == Orientation.landscape) {
+              // 横屏时按现在的逻辑显示
               return SingleChildScrollView(
                 child: Container(
                   width: double.infinity,
@@ -88,16 +89,8 @@ Future<int?> changeChannelSources(
                   ),
                 ),
               );
-            },
-          );
-        } else {
-          // 竖屏时从距离顶部 20 像素处显示
-          return showModalBottomSheet<int>(
-            context: context,
-            useRootNavigator: true, // 保持一致
-            isScrollControlled: true, // 允许自定义弹窗高度
-            backgroundColor: Colors.transparent, // 弹窗背景透明
-            builder: (BuildContext context) {
+            } else {
+              // 竖屏时从距离顶部 20 像素处显示
               return Stack(
                 children: [
                   Positioned(
@@ -130,9 +123,9 @@ Future<int?> changeChannelSources(
                   ),
                 ],
               );
-            },
-          );
-        }
+            }
+          },
+        );
       },
     );
   } catch (modalError, modalStackTrace) {
