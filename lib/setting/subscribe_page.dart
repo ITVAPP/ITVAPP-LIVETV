@@ -206,6 +206,10 @@ class _SubScribePageState extends State<SubScribePage> {
         appBar: AppBar(
           backgroundColor: isTV ? const Color(0xFF1E2022) : null,
           title: Text(S.of(context).subscribe),  // 页面标题
+          style: const TextStyle(
+            fontSize: 22, // 设置字号
+            fontWeight: FontWeight.bold, // 设置加粗
+          ),
           centerTitle: true,  // 标题居中
           leading: isTV ? const SizedBox.shrink() : null,  // TV端隐藏返回按钮
           actions: isTV
