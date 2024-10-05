@@ -286,7 +286,7 @@ class DialogUtil {
   static Color _getButtonColor(FocusNode? focusNode) {
     return focusNode != null && focusNode.hasFocus
         ? const Color(0xFFEB144C)  // 焦点状态下的颜色
-        : const Color(0xFFF4B13F);  // 默认未选中时的颜色
+        : const Color(0xFFDFA02A);  // 默认未选中时的颜色
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
