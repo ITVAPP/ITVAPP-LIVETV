@@ -30,11 +30,11 @@ Future<int?> changeChannelSources(
           content: SingleChildScrollView(
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
+              padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
               color: Colors.transparent, // 容器背景设为透明
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.7, // 设置弹窗内容最大宽度
+                  maxWidth: MediaQuery.of(context).size.width * 0.8, // 设置弹窗内容最大宽度
                 ),
                 child: isTV
                     ? FocusScope(
