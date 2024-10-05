@@ -23,7 +23,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
   // 按钮颜色更新
   final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = const Color(0xFFE0E0E0); // 未选中时颜色
+  final _unselectedColor = const Color(0xFFF4B13F); // 未选中时颜色
 
   // 焦点节点列表，用于 TV 端焦点管理
   final List<FocusNode> _fontFocusNodes = List.generate(5, (index) => FocusNode());
