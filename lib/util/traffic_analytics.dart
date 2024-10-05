@@ -168,7 +168,6 @@ class TrafficAnalytics {
           'ip': ipData['ip'],
           'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
           'device': deviceInfo,
-          'name': 'pageview',  // 事件名称 'pageview'
           'data': {
             'device_info': deviceInfo,
             'screen_size': screenSize,
