@@ -26,7 +26,7 @@ Future<int?> changeChannelSources(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.black38, // 弹窗背景颜色
+          backgroundColor: Colors.black45, // 弹窗背景颜色
           content: SingleChildScrollView(
             child: Container(
               width: double.infinity,
