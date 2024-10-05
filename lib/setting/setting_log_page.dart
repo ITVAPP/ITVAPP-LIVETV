@@ -294,7 +294,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               backgroundColor: _clearLogsButtonFocusNode.hasFocus
                                   ? selectedColor // 焦点时背景颜色
                                   : unselectedColor, // 未选中时背景颜色
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // 设置按钮内边距
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置按钮内边距
                             ),
                           ),
                         ),
@@ -333,7 +333,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           textAlign: TextAlign.center, // 文字居中对齐
         ),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 2.0), // 调整按钮的左右内边距
+          padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 3.0),
           shape: _buttonShape, // 统一圆角样式
           backgroundColor: _selectedLevel == level || _focusNodes[focusIndex].hasFocus
               ? selectedColor // 选中或焦点时背景颜色
