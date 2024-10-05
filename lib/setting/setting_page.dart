@@ -42,7 +42,13 @@ class _SettingPageState extends State<SettingPage> {
       appBar: AppBar(
         title: Consumer<LanguageProvider>(
           builder: (context, languageProvider, child) {
-            return Text(S.of(context).settings); // AppBar 的标题
+          return Text(
+            S.of(context).settings,  // AppBar 的标题
+            style: const TextStyle(
+              fontSize: 20, // 设置字体大小
+              fontWeight: FontWeight.bold, // 设置字体加粗
+            ),
+          );
           },
         ),
       ),
