@@ -53,9 +53,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   bool _isShowPauseIcon = false; // 控制是否显示暂停图标
   Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
 
+  // 维护 drawerIsOpen 的本地状态
+  bool _drawerIsOpen = false;
+
   @override
   void initState() {
     super.initState();
+    _drawerIsOpen = widget.drawerIsOpen; // 初始状态设置为 widget 传递的值
+
     // 非移动设备时，注册窗口监听器
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
@@ -99,9 +104,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
 
       // 在窗口大小变化时关闭抽屉，避免布局错乱
-      if (widget.drawerIsOpen) {
+      if (_drawerIsOpen) {
         setState(() {
-          widget.drawerIsOpen = false; // 关闭抽屉
+          _drawerIsOpen = false; // 关闭抽屉
         });
       }
     }, '调整窗口大小时发生错误');
@@ -234,14 +239,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
                 : VideoHoldBg(
                     videoController: widget.controller ?? VideoPlayerController.network(''),
-                    toastString: widget.drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
+                    toastString: _drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
                   ),
           ),
         ),
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
         // 横屏模式下的底部菜单栏按钮
-        if (widget.isLandscape && !widget.drawerIsOpen && _isShowMenuBar) ...[
+        if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar) ...[
           const DatePositionWidget(), // 显示时间和日期的组件
           AnimatedPositioned(
             left: 0,
@@ -264,7 +269,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         setState(() {
                           _isShowMenuBar = false;
                           // 打开抽屉
-                          widget.drawerIsOpen = true;
+                          _drawerIsOpen = true;
                         });
                       }, '切换频道发生错误');
                     },
