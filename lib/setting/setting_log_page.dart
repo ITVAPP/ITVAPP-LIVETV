@@ -107,6 +107,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
         title: Text(S.of(context).logtitle),  // 页面标题
+        style: const TextStyle(
+          fontSize: 22, // 设置字号
+          fontWeight: FontWeight.bold, // 设置加粗
+        ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: Align(
@@ -126,11 +130,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                   child: SwitchListTile(
                     title: Text(
                       S.of(context).SwitchTitle,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18), // 修改后的字号为 18
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18), 
                     ), 
                     subtitle: Text(
                       S.of(context).logSubtitle,
-                      style: TextStyle(fontSize: 16), // 修改后的字号为 16
+                      style: TextStyle(fontSize: 16), 
                     ),
                     value: isLogOn,
                     onChanged: (value) {
@@ -281,7 +285,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             child: Text(
                               S.of(context).clearLogs,  //清空日志
                               style: TextStyle(
-                                fontSize: 18, // 设置字体大小为 16
+                                fontSize: 18, // 设置字体大小
                                 color: Colors.white, // 设置文字颜色为白色
                                 fontWeight: _clearLogsButtonFocusNode.hasFocus
                                     ? FontWeight.bold // 选中或焦点时文字加粗
@@ -294,7 +298,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               backgroundColor: _clearLogsButtonFocusNode.hasFocus
                                   ? selectedColor // 焦点时背景颜色
                                   : unselectedColor, // 未选中时背景颜色
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置按钮内边距
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
                             ),
                           ),
                         ),
@@ -312,7 +316,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，并将焦点节点添加进去
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3.0),
+      padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: OutlinedButton(
         focusNode: _focusNodes[focusIndex], // 使用焦点节点管理焦点
         onPressed: () {
@@ -333,7 +337,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           textAlign: TextAlign.center, // 文字居中对齐
         ),
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 3.0),
+          padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
           shape: _buttonShape, // 统一圆角样式
           backgroundColor: _selectedLevel == level || _focusNodes[focusIndex].hasFocus
               ? selectedColor // 选中或焦点时背景颜色
