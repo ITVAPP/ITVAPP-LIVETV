@@ -25,7 +25,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
     borderRadius: BorderRadius.circular(16), // 统一圆角样式
   );
   final Color selectedColor = const Color(0xFFEB144C); // 选中或焦点时背景颜色
-  final Color unselectedColor = const Color(0xFFE0E0E0); // 未选中时背景颜色
+  final Color unselectedColor = const Color(0xFFF4B13F); // 未选中时背景颜色
 
   // 为 TV 焦点管理增加焦点节点
   final List<FocusNode> _focusNodes = List.generate(5, (index) => FocusNode());
