@@ -424,8 +424,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   Timer? _debounceTimer; // 用于节流
 
-  bool _isDrawerOpen = false; // 控制抽屉开关状态
-
   @override
   void initState() {
     super.initState();
@@ -482,8 +480,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList();
-      _values = categoryMap.values.toList();
+      _keys = categoryMap.keys.toList(); 
+      _values = categoryMap.values.toList(); 
 
       // 频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
@@ -573,7 +571,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex);
+    _scrollToPosition(_scrollController, _groupIndex); 
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
@@ -604,7 +602,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
+      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData); 
 
       setState(() {
         _epgData = res.epgData!; // 更新节目单数据
@@ -654,30 +652,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   Widget build(BuildContext context) {
     // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Channel Drawer'),
-        leading: IconButton(
-          icon: Icon(_isDrawerOpen ? Icons.close : Icons.menu), // 切换图标
-          onPressed: () {
-            setState(() {
-              _isDrawerOpen = !_isDrawerOpen; // 切换抽屉开关状态
-            });
-          },
-        ),
-      ),
-      body: Stack(
-        children: [
-          Center(child: Text('Main Content Area')),
-
-          // 使用 Offstage 控制抽屉显示和隐藏
-          Offstage(
-            offstage: !_isDrawerOpen,
-            child: _buildOpenDrawer(isTV),
-          ),
-        ],
-      ),
-    );
+    return _buildOpenDrawer(isTV); 
   }
 
   // 构建抽屉视图
@@ -698,9 +673,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         : 0;
 
     // 设置 EPG 列表宽度
-    double epgListWidth = (isPortrait || _epgData == null || _epgData!.isEmpty)
-        ? 0
-        : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth;
+    double epgListWidth =
+        (isPortrait || _epgData == null || _epgData!.isEmpty)
+            ? 0
+            : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth;
 
     return Container(
       key: _viewPortKey,
@@ -713,7 +689,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       ),
       child: Row(
         children: [
-          // 分类列表
           SizedBox(
             width: categoryWidth,
             child: CategoryList(
