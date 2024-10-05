@@ -21,66 +21,66 @@ Future<int?> changeChannelSources(
   bool isTV = context.watch<ThemeProvider>().isTV;
 
   try {
-    // 显示底部弹窗，用于选择不同的视频源
-    final selectedIndex = await showModalBottomSheet<int>(
+    // 显示弹窗，用于选择不同的视频源
+    final selectedIndex = await showDialog<int>(
       context: context,
-      useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
-      barrierColor: Colors.transparent, // 弹窗背景的屏障颜色设为透明
-      backgroundColor: Colors.black38, // 弹窗背景颜色
       builder: (BuildContext context) {
-        return SingleChildScrollView(
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
-            color: Colors.transparent, // 容器背景设为透明
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.7, // 设置弹窗内容最大宽度
-              ),
-              child: isTV
-                  ? FocusScope(
-                      autofocus: true, // 自动聚焦第一个按钮
-                      child: Wrap(
-                        spacing: 8, // 按钮之间的水平间距
-                        runSpacing: 8, // 按钮之间的垂直间距
-                        children: List.generate(sources.length, (index) {
-                          return Focus(
-                            onKey: (node, event) {
-                              // 限制焦点在弹窗内部，只处理上下左右键事件
-                              if (event is RawKeyDownEvent) {
-                                if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                                    event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                                    event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-                                    event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                                  return KeyEventResult.handled;
+        return AlertDialog(
+          backgroundColor: Colors.black38, // 弹窗背景颜色
+          content: SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20),
+              color: Colors.transparent, // 容器背景设为透明
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.7, // 设置弹窗内容最大宽度
+                ),
+                child: isTV
+                    ? FocusScope(
+                        autofocus: true, // 自动聚焦第一个按钮
+                        child: Wrap(
+                          spacing: 8, // 按钮之间的水平间距
+                          runSpacing: 8, // 按钮之间的垂直间距
+                          children: List.generate(sources.length, (index) {
+                            return Focus(
+                              onKey: (node, event) {
+                                // 限制焦点在弹窗内部，只处理上下左右键事件
+                                if (event is RawKeyDownEvent) {
+                                  if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                                    return KeyEventResult.handled;
+                                  }
                                 }
-                              }
-                              return KeyEventResult.ignored;
-                            },
-                            child: buildSourceButton(
-                              context, 
-                              index, 
-                              currentSourceIndex, 
-                              S.current.lineIndex(index + 1), 
-                              isTV,
-                            ),
+                                return KeyEventResult.ignored;
+                              },
+                              child: buildSourceButton(
+                                context, 
+                                index, 
+                                currentSourceIndex, 
+                                S.current.lineIndex(index + 1), 
+                                isTV,
+                              ),
+                            );
+                          }),
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 10, // 按钮之间的水平间距
+                        runSpacing: 10, // 按钮之间的垂直间距
+                        children: List.generate(sources.length, (index) {
+                          return buildSourceButton(
+                            context, 
+                            index, 
+                            currentSourceIndex, 
+                            S.current.lineIndex(index + 1), 
+                            isTV,
                           );
                         }),
                       ),
-                    )
-                  : Wrap(
-                      spacing: 10, // 按钮之间的水平间距
-                      runSpacing: 10, // 按钮之间的垂直间距
-                      children: List.generate(sources.length, (index) {
-                        return buildSourceButton(
-                          context, 
-                          index, 
-                          currentSourceIndex, 
-                          S.current.lineIndex(index + 1), 
-                          isTV,
-                        );
-                      }),
-                    ),
+              ),
             ),
           ),
         );
