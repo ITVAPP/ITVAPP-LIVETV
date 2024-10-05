@@ -370,7 +370,7 @@ class _EPGListState extends State<EPGList> {
                     title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
                     isSelected: isSelect,
                     onTap: () {
-                      Navigator.pop(context); // 点击节目单项时关闭抽屉
+                       _drawerIsOpen = false; // 关闭抽屉
                     },
                     isCentered: false, // EPG列表项左对齐
                     isTV: widget.isTV,
