@@ -439,16 +439,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 初始化分类数据
   void _initializeCategoryData() {
-    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类的键
+    // 根据当前播放的频道，优先设置它的分类为选中项
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
+    _categoryIndex = _categories.indexWhere((category) {
+      final categoryMap = widget.videoMap?.playList[category];
+      return categoryMap?.containsKey(widget.playModel?.group) ?? false;
+    });
 
-    // 查找第一个非空的分类，并在找到后停止遍历
-    for (int i = 0; i < _categories.length; i++) {
-      final categoryMap = widget.videoMap?.playList[_categories[i]];
-
-      // 如果分类不为空，立即设置为选中的分类并退出循环
-      if (categoryMap != null && categoryMap.isNotEmpty) {
-        _categoryIndex = i; 
-        break;
+    if (_categoryIndex == -1) {
+      // 如果未找到当前播放频道的分类，默认第一个非空分类
+      for (int i = 0; i < _categories.length; i++) {
+        final categoryMap = widget.videoMap?.playList[_categories[i]];
+        if (categoryMap != null && categoryMap.isNotEmpty) {
+          _categoryIndex = i;
+          break;
+        }
       }
     }
   }
@@ -540,7 +545,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   void _onChannelTap(PlayModel? newModel) {
     _onTapThrottled(() {
       widget.onTapChannel?.call(newModel); // 执行频道切换回调
-       _loadEPGMsg(newModel); // 加载EPG数据
+      _loadEPGMsg(newModel); // 加载EPG数据
     });
   }
 
