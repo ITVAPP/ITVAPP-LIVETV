@@ -23,7 +23,7 @@ class TableVideoWidget extends StatefulWidget {
   final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
   final String currentChannelId;
-  final VoidCallback? onToggleDrawer; 
+  final VoidCallback? onToggleDrawer;
 
   const TableVideoWidget({
     super.key,
@@ -38,7 +38,7 @@ class TableVideoWidget extends StatefulWidget {
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
-    this.onToggleDrawer, 
+    this.onToggleDrawer,
   });
 
   @override
@@ -58,6 +58,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
 
+  // 创建一个私有方法，用于关闭抽屉
+  void _closeDrawerIfOpen() {
+    if (_drawerIsOpen) {
+      setState(() {
+        _drawerIsOpen = false;  // 更新本地状态，确保抽屉关闭
+        widget.onToggleDrawer?.call();  // 调用关闭抽屉的回调
+      });
+    }
+  }
+  
   @override
   void initState() {
     super.initState();
@@ -106,11 +116,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
 
       // 在窗口大小变化时关闭抽屉，避免布局错乱
-      if (_drawerIsOpen) {
-        setState(() {
-          _drawerIsOpen = false; // 关闭抽屉
-        });
-      }
+      _closeDrawerIfOpen();  // 调用封装的关闭抽屉方法
     }, '调整窗口大小时发生错误');
   }
 
@@ -152,7 +158,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       icon: Icon(Icons.legend_toggle, color: _iconColor),
       onPressed: () {
         LogUtil.safeExecute(() {
-          setState(() => _isShowMenuBar = false); // 隐藏菜单栏
+          // 仅在横屏模式下隐藏菜单栏和抽屉
+          if (widget.isLandscape) {
+              _closeDrawerIfOpen(); 
+              setState(() => _isShowMenuBar = false); // 隐藏菜单栏
+          }
           widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
         }, '切换频道源按钮发生错误');
       },
@@ -168,11 +178,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 视频播放区域
         GestureDetector(
           onTap: () {
-            // 切换菜单栏和图标的显示/隐藏
+          	
+           // 仅在横屏模式下操作
+            if (widget.isLandscape) {
+              _closeDrawerIfOpen(); 
             setState(() {
               _isShowMenuBar = !_isShowMenuBar; // 切换菜单栏显示/隐藏状态
             });
-
+            }
+            
             // 如果视频已暂停，单击继续播放视频
             if (!widget.isPlaying) {
               widget.controller?.play();
@@ -288,6 +302,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
                     icon: Icon(Icons.settings, color: _iconColor),
                     onPressed: () {
+                       _closeDrawerIfOpen(); 
                       LogUtil.safeExecute(() {
                         setState(() => _isShowMenuBar = false);
                         Navigator.push(
