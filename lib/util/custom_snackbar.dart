@@ -4,24 +4,21 @@ import 'dart:math' as math;
 class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
     final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
-    final double minWidth = 150.0; // 设置最小宽度，避免过小
-    final double padding = 32.0;  // 预设的水平边距
     
-    // 动态根据消息长度和字符数量调整SnackBar宽度
-    final double finalWidth = math.min(math.max(message.length * 10.0 + padding, minWidth), maxWidth);
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.transparent,  // 背景设置为透明，以便显示渐变背景
         behavior: SnackBarBehavior.floating,  // 使SnackBar悬浮
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),  // 四个角的圆角
+          borderRadius: BorderRadius.circular(16),  // 四个角的圆角
         ),
-        width: finalWidth,  // 使用动态计算出的宽度
         duration: duration ?? const Duration(seconds: 4),  // 默认持续4秒
         padding: EdgeInsets.zero,  // 去掉内边距
         elevation: 0,  // 去掉阴影
         content: Container(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,  // 限制最大宽度为屏幕宽度的80%
+          ),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [
