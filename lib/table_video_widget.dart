@@ -23,6 +23,7 @@ class TableVideoWidget extends StatefulWidget {
   final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
   final String currentChannelId;
+  final VoidCallback? onToggleDrawer; 
 
   const TableVideoWidget({
     super.key,
