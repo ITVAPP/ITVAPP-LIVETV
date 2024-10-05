@@ -630,6 +630,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     playModel: _currentChannel,
                     onTapChannel: _onTapChannel,
                     isLandscape: false,
+                    onCloseDrawer: () {  // 添加关闭抽屉的回调
+                      setState(() {
+                        _drawerIsOpen = false;
+                      });
+                    },
                   ),
                   toggleFavorite: toggleFavorite,
                   currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
@@ -648,6 +653,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
                       isLandscape: false,
+                      onCloseDrawer: () {  // 添加关闭抽屉的回调
+                        setState(() {
+                          _drawerIsOpen = false;
+                        });
+                      },
                     ),
                   ),
                 ),
@@ -690,6 +700,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
+                      onCloseDrawer: () {  // 添加关闭抽屉的回调
+                        setState(() {
+                          _drawerIsOpen = false;
+                        });
+                      },
                     ),
                   ),
                 ),
