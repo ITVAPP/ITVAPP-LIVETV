@@ -64,6 +64,10 @@ class _SettingFontPageState extends State<SettingFontPage> {
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
         title: Text(S.of(context).fontTitle), // 设置页面标题
+        style: const TextStyle(
+          fontSize: 22, // 设置字号
+          fontWeight: FontWeight.bold, // 设置加粗
+        ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: Align(
@@ -84,7 +88,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 字体大小标题
+                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), // 字体大小标题
                         const SizedBox(height: 10), // 间距
                         Wrap(
                           spacing: 5,
@@ -97,7 +101,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                 label: Text(
                                   '${_fontScales[index]}', // 显示字体缩放比例
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 18,
                                     color: Colors.white, // 文字颜色统一为白色
                                     fontWeight: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
                                         ? FontWeight.bold // 选中状态加粗
@@ -113,7 +117,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                     ? _selectedColor // 选中状态颜色
                                     : _unselectedColor, // 未选中状态颜色
                                 shape: _buttonShape, // 统一的圆角外形
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置内边距
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4), // 设置内边距
                                 avatar: null, // 取消选中的对勾
                               ),
                             ),
@@ -130,7 +134,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 语言选择标题
+                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), // 语言选择标题
                         const SizedBox(height: 6), // 间距
                         Column(
                           children: List.generate(
@@ -138,18 +142,18 @@ class _SettingFontPageState extends State<SettingFontPage> {
                             (index) => Focus(
                               focusNode: _languageFocusNodes[index], // 为每个语言按钮设置焦点节点
                               child: Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0), // 增加下部的外边距
+                                padding: const EdgeInsets.only(bottom: 8.0), // 增加下部的外边距
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
                                   children: [
-                                    Text(_languages[index], style: const TextStyle(fontSize: 16)), // 显示语言名称
+                                    Text(_languages[index], style: const TextStyle(fontSize: 18)), // 显示语言名称
                                     ChoiceChip(
                                       label: Text(
                                         context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                             ? S.of(context).inUse // 已选中的显示 "使用中"
                                             : S.of(context).use, // 未选中的显示 "使用"
                                         style: TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           color: Colors.white, // 文字颜色统一为白色
                                           fontWeight: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
                                               ? FontWeight.bold // 选中状态加粗
@@ -166,7 +170,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
                                           ? _selectedColor // 已选中状态颜色
                                           : _unselectedColor, // 未选中状态颜色
                                       shape: _buttonShape, // 统一的圆角外形
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), // 设置内边距
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4), // 设置内边距
                                       avatar: null, // 取消选中的对勾
                                     ),
                                   ],
