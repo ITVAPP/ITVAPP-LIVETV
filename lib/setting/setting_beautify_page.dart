@@ -44,10 +44,12 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
       return Scaffold(
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // 在 TV 模式下设置背景颜色
         appBar: AppBar(
-          title: Text(S.of(context).backgroundImageTitle),  // AppBar 标题
-          style: const TextStyle(
-            fontSize: 22, // 设置字号
-            fontWeight: FontWeight.bold, // 设置加粗
+          title: Text(
+            S.of(context).backgroundImageTitle,  // AppBar 标题
+            style: const TextStyle(
+              fontSize: 22, // 设置字号
+              fontWeight: FontWeight.bold, // 设置加粗
+            ),
           ),
           backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
           leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
