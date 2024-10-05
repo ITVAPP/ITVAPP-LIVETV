@@ -312,12 +312,15 @@ class EPGList extends StatefulWidget {
   final int selectedIndex;
   final bool isTV;
   final ItemScrollController epgScrollController;
+  final VoidCallback onCloseDrawer;  // 添加的关闭抽屉回调
+
   const EPGList({
     super.key,
     required this.epgData,
     required this.selectedIndex,
     required this.isTV,
     required this.epgScrollController, // 传入控制器
+    required this.onCloseDrawer,       // 传入关闭抽屉回调
   });
 
   @override
@@ -370,7 +373,7 @@ class _EPGListState extends State<EPGList> {
                     title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
                     isSelected: isSelect,
                     onTap: () {
-                       _drawerIsOpen = false; // 关闭抽屉
+                      widget.onCloseDrawer();  // 调用关闭抽屉回调
                     },
                     isCentered: false, // EPG列表项左对齐
                     isTV: widget.isTV,
@@ -392,6 +395,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final PlayModel? playModel; // 播放模型
   final bool isLandscape; // 是否为横屏模式
   final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
+  final VoidCallback onCloseDrawer;  // 添加关闭抽屉回调
 
   const ChannelDrawerPage({
     super.key,
@@ -399,6 +403,7 @@ class ChannelDrawerPage extends StatefulWidget {
     this.playModel,
     this.onTapChannel,
     this.isLandscape = true,
+    required this.onCloseDrawer,  // 接收关闭抽屉回调
   });
 
   @override
@@ -733,6 +738,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
                 selectedIndex: _selEPGIndex,
                 isTV: isTV,
                 epgScrollController: _epgItemScrollController, // 传递滚动控制器
+                onCloseDrawer: widget.onCloseDrawer,  // 传递关闭抽屉的回调
               ),
             ),
         ],
