@@ -615,24 +615,44 @@ class _LiveHomePageState extends State<LiveHomePage> {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
-            child: MobileVideoWidget(
-              toastString: toastString,
-              controller: _playerController,
-              changeChannelSources: _changeChannelSources,
-              isLandscape: false,
-              isBuffering: isBuffering,
-              isPlaying: isPlaying,
-              aspectRatio: aspectRatio,
-              onChangeSubSource: _parseData,
-              drawChild: ChannelDrawerPage(
-                videoMap: _videoMap,
-                playModel: _currentChannel,
-                onTapChannel: _onTapChannel,
-                isLandscape: false,
-              ),
-              toggleFavorite: toggleFavorite,
-              currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
-              isChannelFavorite: isChannelFavorite,
+            child: Stack(
+              children: [
+                MobileVideoWidget(
+                  toastString: toastString,
+                  controller: _playerController,
+                  changeChannelSources: _changeChannelSources,
+                  isLandscape: false,
+                  isBuffering: isBuffering,
+                  isPlaying: isPlaying,
+                  aspectRatio: aspectRatio,
+                  onChangeSubSource: _parseData,
+                  drawChild: ChannelDrawerPage(
+                    videoMap: _videoMap,
+                    playModel: _currentChannel,
+                    onTapChannel: _onTapChannel,
+                    isLandscape: false,
+                  ),
+                  toggleFavorite: toggleFavorite,
+                  currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+                  isChannelFavorite: isChannelFavorite,
+                ),
+                Offstage(
+                  offstage: !_drawerIsOpen, // 控制抽屉显示与隐藏
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
+                      });
+                    },
+                    child: ChannelDrawerPage(
+                      videoMap: _videoMap,
+                      playModel: _currentChannel,
+                      onTapChannel: _onTapChannel,
+                      isLandscape: false,
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -640,29 +660,41 @@ class _LiveHomePageState extends State<LiveHomePage> {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
-            child: Scaffold(
-              drawer: ChannelDrawerPage(videoMap: _videoMap, playModel: _currentChannel, onTapChannel: _onTapChannel, isLandscape: true),
-              drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.3,
-              drawerScrimColor: Colors.transparent,
-              onDrawerChanged: (bool isOpened) {
-                setState(() {
-                  _drawerIsOpen = isOpened;
-                });
-              },
-              body: toastString == 'UNKNOWN'
-                  ? EmptyPage(onRefresh: _parseData) // 如果播放列表为空，显示错误页面
-                  : TableVideoWidget(
-                      toastString: toastString,
-                      controller: _playerController,
-                      isBuffering: isBuffering,
-                      isPlaying: isPlaying,
-                      aspectRatio: aspectRatio,
-                      drawerIsOpen: _drawerIsOpen,
-                      changeChannelSources: _changeChannelSources,
-                      isChannelFavorite: isChannelFavorite,
-                      currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
-                      toggleFavorite: toggleFavorite,
-                      isLandscape: true),
+            child: Stack(
+              children: [
+                Scaffold(
+                  body: toastString == 'UNKNOWN'
+                      ? EmptyPage(onRefresh: _parseData) // 如果播放列表为空，显示错误页面
+                      : TableVideoWidget(
+                          toastString: toastString,
+                          controller: _playerController,
+                          isBuffering: isBuffering,
+                          isPlaying: isPlaying,
+                          aspectRatio: aspectRatio,
+                          drawerIsOpen: _drawerIsOpen,
+                          changeChannelSources: _changeChannelSources,
+                          isChannelFavorite: isChannelFavorite,
+                          currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+                          toggleFavorite: toggleFavorite,
+                          isLandscape: true),
+                ),
+                Offstage(
+                  offstage: !_drawerIsOpen, // 控制抽屉显示与隐藏
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
+                      });
+                    },
+                    child: ChannelDrawerPage(
+                      videoMap: _videoMap,
+                      playModel: _currentChannel,
+                      onTapChannel: _onTapChannel,
+                      isLandscape: true,
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },
