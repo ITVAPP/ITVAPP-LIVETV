@@ -63,10 +63,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
       backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下的背景颜色
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
-        title: Text(S.of(context).fontTitle), // 设置页面标题
-        style: const TextStyle(
-          fontSize: 22, // 设置字号
-          fontWeight: FontWeight.bold, // 设置加粗
+        title: Text(
+          S.of(context).fontTitle, // 设置页面标题
+          style: const TextStyle(
+            fontSize: 22, // 设置字号
+            fontWeight: FontWeight.bold, // 设置加粗
+          ),
         ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
