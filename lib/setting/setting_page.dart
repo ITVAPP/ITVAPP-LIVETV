@@ -53,7 +53,8 @@ class _SettingPageState extends State<SettingPage> {
               const SizedBox(height: 20), // 顶部留白
               Image.asset(
                 'assets/images/logo.png', // 加载并显示应用的 Logo
-                width: 80, // 设置 Logo 的宽度为 80
+                // 根据屏幕方向设置不同的宽度
+                width: MediaQuery.of(context).orientation == Orientation.portrait ? 80 : 68,
               ),
               const SizedBox(height: 12), // Logo 与应用名称之间的间距
               Stack(
