@@ -269,6 +269,7 @@ class DialogUtil {
     return ElevatedButton.styleFrom(
       backgroundColor: _getButtonColor(focusNode),
       foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
+      padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0), // 设置上下和左右内边距
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),  // 设置按钮圆角
       ),
