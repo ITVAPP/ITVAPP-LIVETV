@@ -24,7 +24,7 @@ Future<int?> changeChannelSources(
     // 显示底部弹窗，用于选择不同的视频源
     final selectedIndex = await showModalBottomSheet<int>(
       context: context,
-      // useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
+      useRootNavigator: true, // 使用根导航器，确保弹窗显示在顶层
       barrierColor: Colors.transparent, // 弹窗背景的屏障颜色设为透明
       backgroundColor: Colors.black38, // 弹窗背景颜色
       builder: (BuildContext context) {
