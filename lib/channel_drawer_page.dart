@@ -464,7 +464,7 @@ void _initializeCategoryData() {
           // 找到匹配的分类、分组和频道
           _categoryIndex = i; // 设置匹配的分类
           _groupIndex = groupIndex; // 设置匹配的分组
-          _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title); // 设置匹配的频道
+          _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
           return; // 找到后直接退出
         }
       }
@@ -570,8 +570,9 @@ void _initializeCategoryData() {
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
+    widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    // 使用节流，防止多次加载
     _onTapThrottled(() {
-      widget.onTapChannel?.call(newModel); // 执行频道切换回调
       _loadEPGMsg(newModel); // 加载EPG数据
     });
   }
