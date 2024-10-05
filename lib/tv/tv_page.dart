@@ -278,6 +278,11 @@ class _TvPageState extends State<TvPage> {
                               playModel: widget.playModel,
                               onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
                               isLandscape: true,
+                              onCloseDrawer: () { // 添加 onCloseDrawer 参数
+                                setState(() {
+                                  _drawerIsOpen = false;
+                                });
+                              },
                             ),
                           ),
                         ),
