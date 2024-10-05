@@ -67,7 +67,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
   }
-  
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +77,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
     }, '注册窗口监听器发生错误');
+  }
+
+  @override
+  void didUpdateWidget(covariant TableVideoWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 当父组件的 drawerIsOpen 状态变化时，同步本地 _drawerIsOpen 状态
+    if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
+      setState(() {
+        _drawerIsOpen = widget.drawerIsOpen;
+      });
+    }
   }
 
   @override
@@ -363,7 +375,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             ),
           ),
         ],
-        // 非横屏时右下角的旋转按钮和收藏按钮
+        // 非横屏时右下角的按钮
         if (!widget.isLandscape)
           Positioned(
             right: 8,
