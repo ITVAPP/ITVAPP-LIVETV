@@ -68,10 +68,10 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
-          backgroundColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFF4B13F),  // 根据焦点状态修改背景颜色
+          backgroundColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 根据焦点状态修改背景颜色
           elevation: _isFocusDownload ? 10 : 0, // 焦点状态下有阴影效果
           foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
-          shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFF4B13F),  // 阴影颜色与按钮背景匹配
+          shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 阴影颜色与按钮背景匹配
         ),
         autofocus: true, // 自动获取焦点
         onFocusChange: (bool isFocus) {
