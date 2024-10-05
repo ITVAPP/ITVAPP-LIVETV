@@ -553,7 +553,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       // 如果抽屉打开则关闭抽屉
-      Navigator.of(context).pop();
       setState(() {
         _drawerIsOpen = false;
       });
