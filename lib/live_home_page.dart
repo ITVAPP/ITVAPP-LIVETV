@@ -704,7 +704,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.e('未找到有效的视频源');
       return;
     }
-    LogUtil.i('当前选择的视频源索引: $_sourceIndex, 当前视频源列表: $sources');
+
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
 
     // 切换到选中的视频播放
