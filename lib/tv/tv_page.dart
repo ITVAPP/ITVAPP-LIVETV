@@ -2,19 +2,19 @@ import 'dart:async';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
+import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
+import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:video_player/video_player.dart';
 
 import '../channel_drawer_page.dart';
+import '../gradient_progress_bar.dart';
 import '../entity/playlist_model.dart';
 import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
-import '../widget/video_hold_bg.dart';
 import '../generated/l10n.dart';
-import '../widget/show_exit_confirm.dart';
-import '../gradient_progress_bar.dart';
 
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频播放列表模型，改为三层结构
@@ -50,14 +50,13 @@ class TvPage extends StatefulWidget {
 }
 
 class _TvPageState extends State<TvPage> {
-  final _videoNode = FocusNode(); // 用于管理键盘焦点的节点
-  final _drawerFocusNode = FocusNode(); // 用于管理抽屉内的焦点
   bool _debounce = true; // 防止按键被快速多次触发
   Timer? _timer; // 定时器用于处理按键节流
   bool _drawerIsOpen = false; // 侧边抽屉是否打开
   bool _isSourceSelectionVisible = false; // 视频源选择是否显示
   bool _isShowPauseIcon = false; // 是否显示暂停图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
+  bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
 
   bool _isError = false; // 标识是否播放过程中发生错误
 
@@ -161,7 +160,6 @@ class _TvPageState extends State<TvPage> {
     _handleDebounce(() async {
       if (e is! KeyUpEvent) return; // 只处理按键释放事件
 
-      // 如果抽屉是打开的，忽略全局的方向键事件，保持焦点在 ChannelDrawerPage 内
       if (_drawerIsOpen) {
         return; // 阻止方向键在抽屉打开时响应全局事件
       }
@@ -175,13 +173,10 @@ class _TvPageState extends State<TvPage> {
           // 处理左键操作
           break;
         case LogicalKeyboardKey.arrowUp:
-          _videoNode.unfocus(); // 移除视频区域的焦点
           await widget.changeChannelSources?.call(); // 切换视频源
-          _restoreFocus(); // 延迟恢复焦点
           break;
         case LogicalKeyboardKey.arrowDown:
           widget.controller?.pause(); // 暂停视频播放
-          _videoNode.unfocus(); // 移除焦点
           await _openAddSource(); // 打开设置页面以添加新的视频源
           final m3uData = SpUtil.getString('m3u_cache', defValue: '')!;
           if (m3uData == '') {
@@ -189,9 +184,12 @@ class _TvPageState extends State<TvPage> {
           } else {
             widget.controller?.play(); // 如果有视频源，恢复视频播放
           }
-          _restoreFocus(); // 延迟恢复焦点
           break;
         case LogicalKeyboardKey.select:
+        case LogicalKeyboardKey.enter: // 处理选择键和 Enter 键
+          setState(() {
+            _isDatePositionVisible = !_isDatePositionVisible; // 切换 DatePositionWidget 显示与隐藏
+          });
           await _handleSelectPress(); // 调用选择键的处理逻辑
           break;
         case LogicalKeyboardKey.goBack:
@@ -200,7 +198,6 @@ class _TvPageState extends State<TvPage> {
         case LogicalKeyboardKey.contextMenu:
           setState(() {
             _drawerIsOpen = true; // 打开侧边抽屉菜单
-            FocusScope.of(context).requestFocus(_drawerFocusNode); // 强制将焦点切换到抽屉
           });
           break;
         case LogicalKeyboardKey.audioVolumeUp:
@@ -218,17 +215,11 @@ class _TvPageState extends State<TvPage> {
     });
   }
 
-  // 恢复焦点的方法，封装了延迟操作，以便在适当的时间恢复键盘焦点
-  void _restoreFocus([Duration delay = const Duration(milliseconds: 100)]) {
-    Future.delayed(delay, () => _videoNode.requestFocus());
-  }
-
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
     setState(() {
       _drawerIsOpen = false; // 点击节目后关闭抽屉
-      _restoreFocus(); // 恢复主页面的焦点
     });
   }
 
@@ -237,8 +228,6 @@ class _TvPageState extends State<TvPage> {
     LogUtil.safeExecute(() {
       _timer?.cancel(); // 销毁定时器，防止内存泄漏
       _pauseIconTimer?.cancel(); // 取消暂停图标计时器
-      _videoNode.dispose(); // 销毁焦点节点
-      _drawerFocusNode.dispose(); // 销毁抽屉焦点节点
       widget.controller?.dispose(); // 销毁视频控制器，释放资源
       super.dispose(); // 调用父类的 dispose 方法
     }, '释放资源时发生错误');
@@ -252,7 +241,6 @@ class _TvPageState extends State<TvPage> {
         backgroundColor: Colors.black, // 设置背景为黑色
         body: Builder(builder: (context) {
           return KeyboardListener(
-            focusNode: _videoNode, // 将焦点绑定到视频区域
             autofocus: true, // 自动获取焦点
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
             child: widget.toastString == 'UNKNOWN'
@@ -275,8 +263,10 @@ class _TvPageState extends State<TvPage> {
                                 toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
                                 videoController: widget.controller ?? VideoPlayerController.network(''),
                               ),
-                        if (_drawerIsOpen) const DatePositionWidget(), // 如果抽屉打开，显示时间和位置信息
                         
+                        // 按下 select 或 Enter 键时显示或隐藏 DatePositionWidget
+                        if (_isDatePositionVisible) const DatePositionWidget(),
+
                         // 如果正在缓冲或出现错误，显示进度条和提示
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
                           Align(
@@ -304,26 +294,22 @@ class _TvPageState extends State<TvPage> {
                         // Offstage 控制 ChannelDrawerPage 的显示和隐藏
                         Offstage(
                           offstage: !_drawerIsOpen, // 控制 ChannelDrawerPage 显示与隐藏
-                          child: FocusScope(
-                            node: FocusScopeNode(),
-                            child: GestureDetector(
-                              onTap: () {
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
+                              });
+                            },
+                            child: ChannelDrawerPage(
+                              videoMap: widget.videoMap,
+                              playModel: widget.playModel,
+                              onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
+                              isLandscape: true,
+                              onCloseDrawer: () { // 添加 onCloseDrawer 参数
                                 setState(() {
-                                  _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
-                                  _restoreFocus(); // 恢复主页面的焦点
+                                  _drawerIsOpen = false;
                                 });
                               },
-                              child: ChannelDrawerPage(
-                                videoMap: widget.videoMap,
-                                playModel: widget.playModel,
-                                onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
-                                isLandscape: true,
-                                onCloseDrawer: () { // 添加 onCloseDrawer 参数
-                                  setState(() {
-                                    _drawerIsOpen = false;
-                                  });
-                                },
-                              ),
                             ),
                           ),
                         ),
