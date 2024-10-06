@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:flutter/services.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
-import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
+import 'tv_key_navigation.dart'; // 引入 TvKeyNavigation 组件
 
 class DialogUtil {
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -33,6 +33,38 @@ class DialogUtil {
         String parsedMessage = LogUtil.parseLogMessage(log['message']!);
         return '$time\n$parsedMessage';  // 每条日志的时间和内容分两行显示
       }).join('\n\n');  // 在每条日志之间增加换行
+    } 
+
+    // 构建焦点可切换的控件列表
+    List<Widget> focusableWidgets = [];
+    
+    // 如果有内容，显示内容区域
+    if (content != null) {
+      focusableWidgets.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 25),
+          child: _buildDialogContent(content: content),
+        )
+      );
+    }
+
+    // 如果没有自定义的子控件，则显示按钮区域
+    if (child == null) {
+      focusableWidgets.add(
+        _buildActionButtons(
+          context,
+          positiveButtonLabel: positiveButtonLabel,
+          onPositivePressed: onPositivePressed,
+          negativeButtonLabel: negativeButtonLabel,
+          onNegativePressed: onNegativePressed,
+          closeButtonLabel: closeButtonLabel,
+          onClosePressed: onClosePressed,
+          content: content,
+          isCopyButton: isCopyButton,
+        ),
+      );
+    } else {
+      focusableWidgets.add(Center(child: child));  // 显示自定义子控件并居中
     }
 
     return showDialog<bool>(
@@ -48,50 +80,12 @@ class DialogUtil {
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
         final maxDialogHeight = screenHeight * 0.8;  // 设置对话框的最大高度为屏幕高度的80%
 
-        // 创建焦点控件列表
-        List<Widget> focusableWidgets = [
-          _buildDialogHeader(context, title: title),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // 如果有 content，显示内容
-                    if (content != null) _buildDialogContent(content: content),
-                    const SizedBox(height: 10),
-                    // 如果传递了自定义组件，则显示该组件并居中
-                    if (child != null) 
-                      Center(
-                        child: child,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // 如果没有传入自定义组件，则显示按钮
-          if (child == null)
-            _buildActionButtons(
-              context,
-              positiveButtonLabel: positiveButtonLabel,
-              onPositivePressed: onPositivePressed,
-              negativeButtonLabel: negativeButtonLabel,
-              onNegativePressed: onNegativePressed,
-              closeButtonLabel: closeButtonLabel,
-              onClosePressed: onClosePressed,
-              content: content,
-              isCopyButton: isCopyButton,
-            ),
-        ];
-
-        // 使用 TvKeyNavigation 包裹焦点控件，进行焦点切换和按键处理
         return Center(
           child: Container(
-            width: dialogWidth,
-            constraints: BoxConstraints(maxHeight: maxDialogHeight),
+            width: dialogWidth,  // 设置对话框宽度
+            constraints: BoxConstraints(
+              maxHeight: maxDialogHeight,  // 限制对话框最大高度
+            ),
             decoration: BoxDecoration(
               color: const Color(0xFF2B2D30),
               borderRadius: BorderRadius.circular(8),
@@ -101,15 +95,21 @@ class DialogUtil {
                 end: Alignment.bottomCenter,
               ),
             ),
-            child: TvKeyNavigation(
-              focusableWidgets: focusableWidgets,  // 传入可聚焦控件列表
-              initialIndex: 0,  // 初始焦点设置为第一个控件
+            child: TvKeyNavigation(  // 使用 TvKeyNavigation 管理焦点
+              focusableWidgets: focusableWidgets, // 将焦点可切换的控件传递给 TvKeyNavigation
               onSelect: (index) {
-                // 处理选中事件
+                if (index == focusableWidgets.length - 1) {
+                  // 如果最后一个控件是关闭按钮，触发关闭逻辑
+                  if (onClosePressed != null) {
+                    onClosePressed();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                }
               },
-              onKeyPressed: (key, currentIndex) {
-                // 自定义按键处理逻辑
-              },
+              spacing: 10.0,  // 控件之间的间距
+              loopFocus: true,  // 允许焦点循环切换
+              isFrame: false,  // 不需要框架切换
             ),
           ),
         );
@@ -118,7 +118,7 @@ class DialogUtil {
   }
 
   // 封装的标题部分，包含关闭按钮
-  static Widget _buildDialogHeader(BuildContext context, {String? title}) {
+  static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
     return Stack(
       children: [
         Container(
@@ -134,11 +134,12 @@ class DialogUtil {
           right: 0,
           child: Theme(
             data: Theme.of(context).copyWith(
-              iconTheme: const IconThemeData(
-                color: Colors.white,  // 设置关闭按钮颜色
+              iconTheme: IconThemeData(
+                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
               ),
             ),
             child: IconButton(
+              focusNode: closeFocusNode,  // 关闭按钮的焦点节点
               onPressed: () {
                 Navigator.of(context).pop();  // 关闭对话框
               },
@@ -189,7 +190,6 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           ElevatedButton(
-            style: _buttonStyle(),
             onPressed: () {
               if (onNegativePressed != null) {
                 onNegativePressed();
@@ -201,7 +201,6 @@ class DialogUtil {
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
           ElevatedButton(
-            style: _buttonStyle(),
             onPressed: () {
               if (onPositivePressed != null) {
                 onPositivePressed();
@@ -211,7 +210,6 @@ class DialogUtil {
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
           ElevatedButton(
-            style: _buttonStyle(),  // 复用按钮样式
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
               CustomSnackBar.showSnackBar(
@@ -224,7 +222,6 @@ class DialogUtil {
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           ElevatedButton(
-            style: _buttonStyle(),
             autofocus: true,
             onPressed: () {
               if (onClosePressed != null) {
@@ -236,23 +233,6 @@ class DialogUtil {
             child: Text(closeButtonLabel!),
           ),
       ],
-    );
-  }
-
-  // 动态设置按钮样式
-  static ButtonStyle _buttonStyle() {
-    return ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFFDFA02A),  // 按钮默认背景颜色
-      foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
-      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0), // 设置上下和左右内边距
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),  // 设置按钮圆角
-      ),
-      textStyle: const TextStyle(
-        fontSize: 18,  // 设置按钮文字大小
-        fontWeight: FontWeight.normal,  // 未选中时文字正常
-      ),
-      alignment: Alignment.center,  // 文字在按钮内部居中对齐
     );
   }
 }
