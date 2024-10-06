@@ -125,7 +125,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
 
       // 阻止菜单键的冒泡
-      if (key == LogicalKeyboardKey.menu) {
+      if (key == LogicalKeyboardKey.contextMenu) {
         return KeyEventResult.handled; // 阻止菜单键冒泡
       }
     }
