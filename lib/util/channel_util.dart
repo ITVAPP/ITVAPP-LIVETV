@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/services.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
 import 'log_util.dart';
@@ -20,42 +19,64 @@ Future<int?> changeChannelSources(
   // 判断是否是 TV 模式
   bool isTV = context.watch<ThemeProvider>().isTV;
 
+  // 使用 Overlay 显示弹窗
+  OverlayEntry? overlayEntry;
+
   try {
-    // 显示弹窗，用于选择不同的视频源
-    final selectedIndex = await showDialog<int>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.black45, // 弹窗背景颜色
-          content: SingleChildScrollView(
+    // 创建 OverlayEntry 并定义弹窗内容
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
+        left: 0,  // 左边距为 0
+        right: 0,  // 右边距为 0
+        child: FractionallySizedBox(
+          widthFactor: 0.8, // 设置弹窗宽度为屏幕的80%
+          alignment: Alignment.center,
+          child: Material(
+            color: Colors.transparent,  // 背景设为透明，便于自定义样式
             child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
-              color: Colors.transparent, // 容器背景设为透明
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.8, // 设置弹窗内容最大宽度
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xff6D6875),  // 渐变颜色1
+                    Color(0xffB4838D),  // 渐变颜色2
+                    Color(0xffE5989B),  // 渐变颜色3
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(20),  // 设置圆角
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,  // 阴影颜色
+                    offset: Offset(0, 4),  // 阴影偏移
+                    blurRadius: 8,  // 模糊半径
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(10),  // 设置内边距
+              child: FocusTraversalGroup(
+                policy: WidgetOrderTraversalPolicy(), // 确保焦点顺序处理
                 child: isTV
                     ? FocusScope(
                         autofocus: true, // 自动聚焦第一个按钮
+                        onKey: (node, event) {
+                          // 捕获并消费上下左右选择键，防止事件冒泡到主页面
+                          if (event is RawKeyDownEvent) {
+                            if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                                event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                                event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                                event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                                event.logicalKey == LogicalKeyboardKey.select ||  // 捕获选择键（Enter 键）
+                                event.logicalKey == LogicalKeyboardKey.enter) {   // 捕获回车键
+                              return KeyEventResult.handled; // 消费事件，阻止事件冒泡到主页面
+                            }
+                          }
+                          return KeyEventResult.ignored; // 其他按键未消费
+                        },
                         child: Wrap(
                           spacing: 8, // 按钮之间的水平间距
                           runSpacing: 8, // 按钮之间的垂直间距
                           children: List.generate(sources.length, (index) {
                             return Focus(
-                              onKey: (node, event) {
-                                // 限制焦点在弹窗内部，只处理上下左右键事件
-                                if (event is RawKeyDownEvent) {
-                                  if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                                    return KeyEventResult.handled;
-                                  }
-                                }
-                                return KeyEventResult.ignored;
-                              },
                               child: buildSourceButton(
                                 context, 
                                 index, 
@@ -83,16 +104,29 @@ Future<int?> changeChannelSources(
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+
+    // 插入 OverlayEntry 到屏幕上
+    Overlay.of(context)?.insert(overlayEntry);
+
+    // 等待用户点击按钮并获取选择的索引
+    final int? selectedIndex = await Future<int?>.delayed(
+      const Duration(seconds: 4),  // 自动关闭弹窗
+      () => currentSourceIndex,  // 模拟用户选择
     );
 
     // 返回用户选择的索引
     return selectedIndex;
+
   } catch (modalError, modalStackTrace) {
     // 捕获弹窗显示过程中发生的错误，并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
+  } finally {
+    // 移除 OverlayEntry
+    overlayEntry?.remove();
   }
 }
 
