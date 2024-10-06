@@ -174,6 +174,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               _closeDrawerIfOpen(); 
               setState(() => _isShowMenuBar = false); // 隐藏菜单栏
           }
+          LogUtil.i('切换频道源按钮被点击');
           widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
       },
     );
