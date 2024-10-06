@@ -30,8 +30,6 @@ class TvKeyNavigation extends StatefulWidget {
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   late List<FocusNode> _focusNodes; // 焦点节点列表
   late int _currentIndex; // 当前聚焦的控件索引
-  late List<GlobalKey> _widgetKeys; // 每个控件对应的 GlobalKey，用于获取位置
-  late List<Offset?> _cachedPositions; // 缓存的控件位置
 
   @override
   void initState() {
@@ -39,7 +37,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     _currentIndex = widget.initialIndex;
     _initializeFocusNodes();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _cacheWidgetPositions(); // 首次加载后缓存控件位置
       _requestFocus(_currentIndex);
     });
 
@@ -54,17 +51,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    // 窗口尺寸变化时，重新缓存控件位置
-    _cacheWidgetPositions();
-  }
-
-  /// 初始化 FocusNodes 和 GlobalKey
+  /// 初始化 FocusNodes
   void _initializeFocusNodes() {
     _focusNodes = List.generate(widget.focusableWidgets.length, (_) => FocusNode());
-    _widgetKeys = List.generate(widget.focusableWidgets.length, (_) => GlobalKey());
-    _cachedPositions = List.filled(widget.focusableWidgets.length, null);
   }
 
   /// 请求焦点
@@ -74,18 +63,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 缓存所有控件的位置
-  void _cacheWidgetPositions() {
-    for (int i = 0; i < _widgetKeys.length; i++) {
-      final context = _widgetKeys[i].currentContext;
-      if (context != null) {
-        final renderBox = context.findRenderObject() as RenderBox;
-        _cachedPositions[i] = renderBox.localToGlobal(Offset.zero);
-      }
-    }
-  }
-
-  /// 判断是否在页面边缘
+  /// 判断是否在页面边缘，用于处理跨框架切换
   bool _isAtEdge(LogicalKeyboardKey key) {
     return (key == LogicalKeyboardKey.arrowUp && _currentIndex == 0) ||
            (key == LogicalKeyboardKey.arrowDown && _currentIndex == _focusNodes.length - 1) ||
@@ -93,9 +71,36 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
            (key == LogicalKeyboardKey.arrowRight && _currentIndex == _focusNodes.length - 1);
   }
 
-  /// 处理跨越框架的焦点切换，确保焦点总是跨越到目标页面的第一个焦点
-  void _handlePageBoundaryFocus() {
-    FocusScope.of(context).nextFocus(); // 统一处理跨越页面，焦点到达对方页面的第一个控件
+  /// 焦点切换逻辑，基于控件的顺序实现循环切换和跨框架切换
+  KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
+    int nextIndex = _currentIndex;
+
+    if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+      nextIndex = (_currentIndex + 1) % _focusNodes.length; // 向右或向下循环
+    } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+      nextIndex = (_currentIndex - 1 + _focusNodes.length) % _focusNodes.length; // 向左或向上循环
+    }
+
+    if (widget.loopFocus || widget.isFrame) {
+      // 处理循环切换
+      if (_isAtEdge(key)) {
+        if (widget.isFrame) {
+          // 跨框架焦点切换
+          FocusScope.of(context).nextFocus();
+        } else if (widget.loopFocus) {
+          // 焦点循环切换
+          nextIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
+              ? 0 // 从第一个开始
+              : _focusNodes.length - 1; // 从最后一个开始
+        }
+      }
+    }
+
+    setState(() {
+      _currentIndex = nextIndex;
+    });
+    _requestFocus(nextIndex);
+    return KeyEventResult.handled;
   }
 
   /// 捕获并处理上下左右键、选择键、菜单键等按键事件
@@ -132,64 +137,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     return KeyEventResult.ignored;
   }
 
-  /// 焦点切换逻辑，基于控件的全局坐标位置处理，并实现循环逻辑
-  KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    final currentPosition = _cachedPositions[_currentIndex];
-
-    if (currentPosition == null || widget.focusableWidgets.length <= 1) {
-      return KeyEventResult.ignored; // 如果只有一个控件，或找不到位置，不处理
-    }
-
-    int? nextIndex;
-    double closestDistance = double.infinity;
-
-    for (int i = 0; i < _cachedPositions.length; i++) {
-      if (i == _currentIndex) continue;
-
-      final position = _cachedPositions[i];
-      if (position == null) continue;
-
-      double dx = position.dx - currentPosition.dx;
-      double dy = position.dy - currentPosition.dy;
-
-      // 判断按键方向并找到最近的控件
-      if ((key == LogicalKeyboardKey.arrowUp && dy < 0) ||
-          (key == LogicalKeyboardKey.arrowDown && dy > 0) ||
-          (key == LogicalKeyboardKey.arrowLeft && dx < 0) ||
-          (key == LogicalKeyboardKey.arrowRight && dx > 0)) {
-        double distance = dx * dx + dy * dy;
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          nextIndex = i;
-        }
-      }
-    }
-
-    // 如果找到下一个焦点
-    if (nextIndex != null && nextIndex != _currentIndex) {
-      setState(() {
-        _currentIndex = nextIndex!;
-      });
-      _requestFocus(nextIndex!);
-      return KeyEventResult.handled;
-    }
-
-    // 处理边界情况：如果允许循环切换或是框架模式
-    if ((widget.loopFocus || widget.isFrame) && _isAtEdge(key)) {
-      if (widget.isFrame) {
-        _handlePageBoundaryFocus(); // 跨页面焦点切换
-      } else if (widget.loopFocus) {
-        _currentIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
-            ? 0
-            : _focusNodes.length - 1;
-        _requestFocus(_currentIndex);
-      }
-      return KeyEventResult.handled;
-    }
-
-    return KeyEventResult.ignored;
-  }
-
   @override
   Widget build(BuildContext context) {
     return FocusTraversalGroup(
@@ -197,15 +144,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       child: FocusScope(
         autofocus: true, // 自动聚焦第一个控件
         onKey: _handleKeyEvent, // 处理按键事件
-        child: Column(
+        child: Wrap( // 支持复杂布局
+          spacing: widget.spacing, // 控件之间的间距
+          runSpacing: widget.spacing,
           children: List.generate(widget.focusableWidgets.length, (index) {
-            return Padding(
-              padding: EdgeInsets.all(widget.spacing),
-              child: FocusableItem( // 使用自定义的 FocusableItem 处理焦点样式变化
-                focusNode: _focusNodes[index],
-                isFocused: _currentIndex == index, // 判断当前是否聚焦
-                child: widget.focusableWidgets[index],
-              ),
+            return FocusableItem(
+              focusNode: _focusNodes[index],
+              isFocused: _currentIndex == index, // 判断当前是否聚焦
+              child: widget.focusableWidgets[index],
             );
           }),
         ),
@@ -231,9 +177,6 @@ class FocusableItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: focusNode,
-      onFocusChange: (focused) {
-        // 焦点变化时可触发相关事件
-      },
       child: AnimatedContainer(
         duration: Duration(milliseconds: 200), // 平滑过渡效果
         decoration: BoxDecoration(
