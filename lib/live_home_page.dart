@@ -331,7 +331,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _sendTrafficAnalytics(context, _currentChannel!.title);
     }
 
-    _playVideo(); // 开始播放选中的频道
+    _playVideo(); 
   }
 
   @override
@@ -341,7 +341,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 如果是桌面设备，隐藏窗口标题栏
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
-    // 加载播放列表数据和版本检测
+    // 加载播放列表数据
     _loadData();
 
     // 加载收藏列表
@@ -661,7 +661,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
                           toggleFavorite: toggleFavorite,
                           isLandscape: true,
-                          onToggleDrawer: () {  // 传递打开/关闭抽屉的回调
+                          onToggleDrawer: () {
                               setState(() {
                                 _drawerIsOpen = !_drawerIsOpen;  // 切换抽屉的状态
                               });
@@ -681,7 +681,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
-                      onCloseDrawer: () {  // 添加关闭抽屉的回调
+                      onCloseDrawer: () {  
                         setState(() {
                           _drawerIsOpen = false;
                         });
@@ -697,7 +697,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     );
   }
 
-  /// 通过底部弹出框选择不同的视频源
+  /// 弹出选择不同的视频源
   Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
