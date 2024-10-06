@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 通用的 TV 焦点管理和按键处理组件
 class TvKeyNavigation extends StatefulWidget {
