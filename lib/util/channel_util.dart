@@ -5,6 +5,8 @@ import '../generated/l10n.dart';
 import '../tv/tv_key_navigation.dart';
 import 'log_util.dart';
 
+bool _isChannelSourceDialogOpen = false; // 全局变量用于跟踪弹窗是否打开
+
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
   BuildContext context, 
@@ -24,12 +26,16 @@ Future<int?> changeChannelSources(
   OverlayEntry? overlayEntry;
 
   try {
+    // 设置弹窗打开状态为 true
+    _isChannelSourceDialogOpen = true;
+
     // 创建 OverlayEntry 并定义弹窗内容
     overlayEntry = OverlayEntry(
       builder: (context) => GestureDetector(
         onTap: () {
           // 点击弹窗外部关闭弹窗
           overlayEntry?.remove();
+          _isChannelSourceDialogOpen = false; // 关闭弹窗后更新状态
         },
         child: Stack(
           children: [
@@ -80,7 +86,8 @@ Future<int?> changeChannelSources(
                                 }),
                                 initialIndex: currentSourceIndex, // 初始选中的视频源索引
                                 onSelect: (index) {
-                                  Navigator.pop(context, index); // 返回所选视频源索引
+                                  overlayEntry?.remove(); // 移除 OverlayEntry 关闭弹窗
+                                  _isChannelSourceDialogOpen = false; // 关闭弹窗后更新状态
                                 },
                                 spacing: 8.0,  // 控件之间的间距
                                 loopFocus: true,  // 开启循环焦点切换
@@ -125,6 +132,8 @@ Future<int?> changeChannelSources(
   } finally {
     // 移除 OverlayEntry
     overlayEntry?.remove();
+    // 设置弹窗关闭状态为 false
+    _isChannelSourceDialogOpen = false;
   }
 }
 
@@ -155,7 +164,8 @@ Widget buildSourceButton(
     onPressed: currentSourceIndex == index
         ? null // 如果按钮是当前选中的源，禁用点击
         : () {
-            Navigator.pop(context, index); // 返回所选按钮的索引
+            overlayEntry?.remove(); // 移除 OverlayEntry 关闭弹窗
+            _isChannelSourceDialogOpen = false; // 按钮点击后关闭弹窗
           },
     child: Text(
       label, // 显示按钮文字，使用多语言支持
