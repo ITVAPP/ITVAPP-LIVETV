@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
-import 'package:itvapp_live_tv/util/log_util.dart'; 
+import 'package:flutter/services.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 class DialogUtil {
@@ -52,12 +53,72 @@ class DialogUtil {
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
         final maxDialogHeight = screenHeight * 0.8;  // 设置对话框的最大高度为屏幕高度的80%
 
+        // 创建焦点控件列表
+        List<Widget> focusableWidgets = [
+          _buildDialogHeader(context, title: title, closeFocusNode: closeFocusNode),
+          Flexible(
+            child: FocusableActionDetector(
+              focusNode: contentFocusNode,
+              shortcuts: {
+                LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
+                LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
+              },
+              actions: {
+                ScrollIntent: CallbackAction<ScrollIntent>(
+                  onInvoke: (intent) {
+                    if (intent.direction == AxisDirection.up && contentFocusNode.hasFocus) {
+                      // 当到达顶部时，上键切换焦点到关闭按钮
+                      FocusScope.of(context).requestFocus(closeFocusNode);
+                    } else if (intent.direction == AxisDirection.down && contentFocusNode.hasFocus) {
+                      // 当到达底部时，下键切换焦点到底部按钮
+                      FocusScope.of(context).requestFocus(buttonFocusNode);
+                    }
+                    return null;
+                  },
+                ),
+              },
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 如果有 content，显示内容
+                      if (content != null) _buildDialogContent(content: content),
+                      const SizedBox(height: 10),
+                      // 如果传递了自定义组件，则显示该组件并居中
+                      if (child != null) 
+                        Center(
+                          child: child,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 如果没有传入自定义组件，则显示按钮
+          if (child == null)
+            _buildActionButtons(
+              context,
+              positiveButtonLabel: positiveButtonLabel,
+              onPositivePressed: onPositivePressed,
+              negativeButtonLabel: negativeButtonLabel,
+              onNegativePressed: onNegativePressed,
+              closeButtonLabel: closeButtonLabel,
+              onClosePressed: onClosePressed,
+              content: content,
+              isCopyButton: isCopyButton,
+              buttonFocusNode: buttonFocusNode,
+            ),
+        ];
+
+        // 使用 TvKeyNavigation 包裹焦点控件，进行焦点切换和按键处理
         return Center(
           child: Container(
-            width: dialogWidth,  // 设置对话框宽度
-            constraints: BoxConstraints(
-              maxHeight: maxDialogHeight,  // 限制对话框最大高度
-            ),
+            width: dialogWidth,
+            constraints: BoxConstraints(maxHeight: maxDialogHeight),
             decoration: BoxDecoration(
               color: const Color(0xFF2B2D30),
               borderRadius: BorderRadius.circular(8),
@@ -67,71 +128,16 @@ class DialogUtil {
                 end: Alignment.bottomCenter,
               ),
             ),
-            child: FocusTraversalGroup(
-              policy: WidgetOrderTraversalPolicy(), // TV端焦点遍历策略
-              child: Column(
-                mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
-                children: [
-                  _buildDialogHeader(context, title: title, closeFocusNode: closeFocusNode),  // 传递关闭按钮的焦点节点
-                  Flexible( 
-                    child: FocusableActionDetector(
-                      focusNode: contentFocusNode,
-                      shortcuts: {
-                        LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
-                        LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
-                      },
-                      actions: {
-                        ScrollIntent: CallbackAction<ScrollIntent>(
-                          onInvoke: (intent) {
-                            if (intent.direction == AxisDirection.up && contentFocusNode.hasFocus) {
-                              // 当到达顶部时，上键切换焦点到关闭按钮
-                              FocusScope.of(context).requestFocus(closeFocusNode);
-                            } else if (intent.direction == AxisDirection.down && contentFocusNode.hasFocus) {
-                              // 当到达底部时，下键切换焦点到底部按钮
-                              FocusScope.of(context).requestFocus(buttonFocusNode);
-                            }
-                            return null;
-                          },
-                        ),
-                      },
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 25),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
-                            children: [
-                              // 如果有 content，显示内容
-                              if (content != null) _buildDialogContent(content: content),
-                              const SizedBox(height: 10),
-                              // 如果传递了自定义组件，则显示该组件并居中
-                              if (child != null) 
-                                Center(  // 将 child 居中
-                                  child: child,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // 如果没有传入自定义组件，则显示按钮
-                  if (child == null)
-                    _buildActionButtons(
-                      context,
-                      positiveButtonLabel: positiveButtonLabel,
-                      onPositivePressed: onPositivePressed,
-                      negativeButtonLabel: negativeButtonLabel,
-                      onNegativePressed: onNegativePressed,
-                      closeButtonLabel: closeButtonLabel,
-                      onClosePressed: onClosePressed,
-                      content: content,  // 传递内容用于复制
-                      isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                      buttonFocusNode: buttonFocusNode,  // 传递按钮区域的焦点节点
-                    ),  // 动态按钮处理
-                  const SizedBox(height: 20),
-                ],
-              ),
+            child: TvKeyNavigation(
+              focusableWidgets: focusableWidgets,  // 传入可聚焦控件列表
+              initialIndex: 0,  // 初始焦点设置为第一个控件
+              isFrame: true,  // 启用框架模式，允许焦点跨界面切换
+              onSelect: (index) {
+                // 处理选中事件（如需要）
+              },
+              onKeyPressed: (key, currentIndex) {
+                // 自定义按键处理逻辑（如果需要）
+              },
             ),
           ),
         );
