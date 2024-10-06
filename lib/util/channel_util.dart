@@ -71,11 +71,6 @@ Future<int?> changeChannelSources(
                         onSelect: (index) {
                           Navigator.pop(context, index); // 返回所选视频源索引
                         },
-                        onKeyPressed: (key, currentIndex) {
-                          if (key == LogicalKeyboardKey.escape) {
-                            Navigator.pop(context, null); // 按下 Escape 键关闭弹窗
-                          }
-                        },
                         spacing: 8.0,  // 控件之间的间距
                         loopFocus: true,  // 开启循环焦点切换
                       )
