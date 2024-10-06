@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart'; 
@@ -8,7 +7,9 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart'; 
 import 'package:itvapp_live_tv/setting/subscribe_page.dart'; 
 import '../setting/setting_beautify_page.dart';
-import '../setting/setting_log_page.dart'; 
+import '../setting/setting_log_page.dart';
+import 'tv_key_navigation.dart'; 
+import '../generated/l10n.dart'; 
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -81,6 +82,56 @@ Future<void> _checkForUpdates() async {
     // 获取当前语言提供者状态
     final languageProvider = Provider.of<LanguageProvider>(context);
 
+    // 定义可以聚焦的控件列表，用于 TvKeyNavigation 组件
+    List<Widget> focusableItems = [
+      buildListTile(
+        icon: Icons.subscriptions,
+        title: S.of(context).subscribe,  //订阅
+        index: 0,
+        onTap: () {
+          setState(() {
+            _selectedIndex = 0;
+          });
+        },
+      ),
+      buildListTile(
+        icon: Icons.font_download,
+        title: S.of(context).fontTitle,  //字体
+        index: 1,
+        onTap: () {
+          setState(() {
+            _selectedIndex = 1;
+          });
+        },
+      ),
+      buildListTile(
+        icon: Icons.brush,
+        title: S.of(context).backgroundImageTitle,  //背景图
+        index: 2,
+        onTap: () {
+          setState(() {
+            _selectedIndex = 2;
+          });
+        },
+      ),
+      buildListTile(
+        icon: Icons.view_list,
+        title: S.of(context).slogTitle,  //日志
+        index: 3,
+        onTap: () {
+          setState(() {
+            _selectedIndex = 3;
+          });
+        },
+      ),
+      buildListTile(
+        icon: Icons.system_update,
+        title: S.of(context).updateTitle,  //更新
+        index: 4,
+        onTap: _checkForUpdates, // 直接调用检查更新逻辑
+      ),
+    ];
+
     // 主界面的布局，使用Row来水平排列左侧菜单和右侧的设置内容
     return Row(
       children: [
@@ -95,56 +146,21 @@ Future<void> _checkForUpdates() async {
                 },
               ),
             ),
-            body: ListView(
-              // 使用buildListTile减少重复的ListTile构造代码
-              children: [
-                buildListTile(
-                  icon: Icons.subscriptions,
-                  title: S.of(context).subscribe,  //订阅
-                  index: 0,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 0;
-                    });
-                  },
-                ),
-                buildListTile(
-                  icon: Icons.font_download,
-                  title: S.of(context).fontTitle,  //字体
-                  index: 1,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 1;
-                    });
-                  },
-                ),
-                buildListTile(
-                  icon: Icons.brush,
-                  title: S.of(context).backgroundImageTitle,  //背景图
-                  index: 2,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                    });
-                  },
-                ),
-                buildListTile(
-                  icon: Icons.view_list,
-                  title: S.of(context).slogTitle,  //日志
-                  index: 3,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 3;
-                    });
-                  },
-                ),
-                buildListTile(
-                  icon: Icons.system_update,
-                  title: S.of(context).updateTitle,  //更新
-                  index: 4,
-                  onTap: _checkForUpdates, // 直接调用检查更新逻辑
-                ),
-              ],
+            body: TvKeyNavigation(
+              focusableWidgets: focusableItems, // 使用 TvKeyNavigation 管理焦点切换
+              initialIndex: _selectedIndex,
+              isFrame: true,  // 启用框架模式
+              onSelect: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              onKeyPressed: (key, currentIndex) {
+                // 处理自定义按键事件，如返回键等
+                if (key == LogicalKeyboardKey.goBack) {
+                  Navigator.pop(context);  // 返回上一页
+                }
+              },
             ),
           ),
         ),
