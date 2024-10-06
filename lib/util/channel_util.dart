@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
 import 'log_util.dart';
+import '../tv/tv_key_navigation.dart';
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
@@ -56,37 +57,27 @@ Future<int?> changeChannelSources(
               child: FocusTraversalGroup(
                 policy: WidgetOrderTraversalPolicy(), // 确保焦点顺序处理
                 child: isTV
-                    ? FocusScope(
-                        autofocus: true, // 自动聚焦第一个按钮
-                        onKey: (node, event) {
-                          // 捕获并消费上下左右选择键，防止事件冒泡到主页面
-                          if (event is RawKeyDownEvent) {
-                            if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                                event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                                event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-                                event.logicalKey == LogicalKeyboardKey.arrowRight ||
-                                event.logicalKey == LogicalKeyboardKey.select ||  // 捕获选择键（Enter 键）
-                                event.logicalKey == LogicalKeyboardKey.enter) {   // 捕获回车键
-                              return KeyEventResult.handled; // 消费事件，阻止事件冒泡到主页面
-                            }
-                          }
-                          return KeyEventResult.ignored; // 其他按键未消费
+                    ? TvKeyNavigation(  // 使用 TvKeyNavigation 处理 TV 焦点和按键
+                        focusableWidgets: List.generate(sources.length, (index) {
+                          return buildSourceButton(
+                            context, 
+                            index, 
+                            currentSourceIndex, 
+                            S.current.lineIndex(index + 1), 
+                            isTV,
+                          );
+                        }),
+                        initialIndex: currentSourceIndex, // 初始选中的视频源索引
+                        onSelect: (index) {
+                          Navigator.pop(context, index); // 返回所选视频源索引
                         },
-                        child: Wrap(
-                          spacing: 8, // 按钮之间的水平间距
-                          runSpacing: 8, // 按钮之间的垂直间距
-                          children: List.generate(sources.length, (index) {
-                            return Focus(
-                              child: buildSourceButton(
-                                context, 
-                                index, 
-                                currentSourceIndex, 
-                                S.current.lineIndex(index + 1), 
-                                isTV,
-                              ),
-                            );
-                          }),
-                        ),
+                        onKeyPressed: (key, currentIndex) {
+                          if (key == LogicalKeyboardKey.escape) {
+                            Navigator.pop(context, null); // 按下 Escape 键关闭弹窗
+                          }
+                        },
+                        spacing: 8.0,  // 控件之间的间距
+                        loopFocus: true,  // 开启循环焦点切换
                       )
                     : Wrap(
                         spacing: 10, // 按钮之间的水平间距
@@ -111,14 +102,11 @@ Future<int?> changeChannelSources(
     // 插入 OverlayEntry 到屏幕上
     Overlay.of(context)?.insert(overlayEntry);
 
-    // 等待用户点击按钮并获取选择的索引
-    final int? selectedIndex = await Future<int?>.delayed(
+    // 等待用户选择按钮并获取所选视频源索引
+    return await Future<int?>.delayed(
       const Duration(seconds: 4),  // 自动关闭弹窗
       () => currentSourceIndex,  // 模拟用户选择
     );
-
-    // 返回用户选择的索引
-    return selectedIndex;
 
   } catch (modalError, modalStackTrace) {
     // 捕获弹窗显示过程中发生的错误，并记录日志
