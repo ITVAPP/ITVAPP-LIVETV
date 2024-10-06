@@ -17,6 +17,8 @@ Future<int?> changeChannelSources(
     return null;
   }
 
+  LogUtil.i('显示视频源选择弹窗');
+  
   // 判断是否是 TV 模式
   bool isTV = context.watch<ThemeProvider>().isTV;
 
