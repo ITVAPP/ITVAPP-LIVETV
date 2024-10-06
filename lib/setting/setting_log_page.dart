@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
-import 'package:your_package_name/tv_key_navigation.dart'; // 确保导入 TvKeyNavigation 组件
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
