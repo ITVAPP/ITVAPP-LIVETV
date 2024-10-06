@@ -169,14 +169,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           : null,
       icon: Icon(Icons.legend_toggle, color: _iconColor),
       onPressed: () {
-        LogUtil.safeExecute(() {
           // 仅在横屏模式下隐藏菜单栏和抽屉
           if (widget.isLandscape) {
               _closeDrawerIfOpen(); 
               setState(() => _isShowMenuBar = false); // 隐藏菜单栏
           }
           widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
-        }, '切换频道源按钮发生错误');
       },
     );
   }
