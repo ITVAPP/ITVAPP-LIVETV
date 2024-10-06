@@ -73,6 +73,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 标记侧边抽屉（频道选择）是否打开
   bool _drawerIsOpen = false;
 
+  // 标记视频源选择弹窗是否打开
+  bool _isChannelSourceDialogOpen = false;
+  
   // 调试模式开关，调试时为 true，生产环境为 false
   bool isDebugMode = false;
 
@@ -557,6 +560,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _drawerIsOpen = false;
       });
       return false;
+    }
+    // 如果视频源选择弹窗打开，则关闭弹窗
+    if (_isChannelSourceDialogOpen) {
+      setState(() {
+        _isChannelSourceDialogOpen = false;
+      });
+      Navigator.of(context).pop(); 
+      return Future.value(false); 
     }
     // 弹出退出确认对话框
     return await ShowExitConfirm.ExitConfirm(context);
