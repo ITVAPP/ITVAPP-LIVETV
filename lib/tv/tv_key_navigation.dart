@@ -1,257 +1,205 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// 自定义导航策略，用于在复杂布局中处理上下左右键切换
-typedef NavigationPolicy = int Function(int currentIndex, LogicalKeyboardKey key, List<Offset?> positions);
-
-/// 默认导航策略：基于最短距离的上下左右键切换
-int defaultNavigationPolicy(int currentIndex, LogicalKeyboardKey key, List<Offset?> positions) {
+/// 自定义导航策略：根据上下左右是否有控件来决定焦点切换。
+/// [currentIndex] 当前焦点位置的索引。
+/// [key] 用户按下的方向键。
+/// [positions] 所有焦点控件的位置列表，每个位置用 Offset 表示。
+/// 返回下一个焦点控件的索引。
+int directionBasedNavigationPolicy(int currentIndex, LogicalKeyboardKey key, List<Offset?> positions) {
   final currentPosition = positions[currentIndex];
-  if (currentPosition == null) return currentIndex; // 如果找不到位置，不切换
+  if (currentPosition == null) return currentIndex; // 如果找不到当前位置，不切换
 
+  Offset? nextPosition;
   int? nextIndex;
-  double closestDistance = double.infinity;
+  double closestDistance = double.infinity; // 记录距离当前焦点最近的控件距离
 
+  // 遍历所有控件位置，找到符合方向的下一个焦点
   for (int i = 0; i < positions.length; i++) {
-    if (i == currentIndex || positions[i] == null) continue;
-    final position = positions[i]!;
-    double dx = position.dx - currentPosition.dx;
-    double dy = position.dy - currentPosition.dy;
+    if (i == currentIndex || positions[i] == null) continue; // 跳过当前焦点和无效位置
 
-    // 判断按键方向并找到最接近的控件
-    if ((key == LogicalKeyboardKey.arrowUp && dy < 0) ||
-        (key == LogicalKeyboardKey.arrowDown && dy > 0) ||
-        (key == LogicalKeyboardKey.arrowLeft && dx < 0) ||
-        (key == LogicalKeyboardKey.arrowRight && dx > 0)) {
-      double distance = dx * dx + dy * dy;
+    final position = positions[i]!;
+    final dx = position.dx - currentPosition.dx;
+    final dy = position.dy - currentPosition.dy;
+
+    // 判断目标控件是否在按键方向上
+    bool isInDirection = false;
+    if (key == LogicalKeyboardKey.arrowUp && dy < 0 && dx.abs() < dy.abs()) {
+      isInDirection = true;
+    } else if (key == LogicalKeyboardKey.arrowDown && dy > 0 && dx.abs() < dy.abs()) {
+      isInDirection = true;
+    } else if (key == LogicalKeyboardKey.arrowLeft && dx < 0 && dy.abs() < dx.abs()) {
+      isInDirection = true;
+    } else if (key == LogicalKeyboardKey.arrowRight && dx > 0 && dy.abs() < dx.abs()) {
+      isInDirection = true;
+    }
+
+    // 更新最近的符合方向的控件
+    if (isInDirection) {
+      double distance = dx * dx + dy * dy; // 计算欧几里得距离
       if (distance < closestDistance) {
         closestDistance = distance;
+        nextPosition = position;
         nextIndex = i;
       }
     }
   }
 
-  return nextIndex ?? currentIndex;
+  // 返回找到的下一个焦点索引，如果没有则返回当前索引
+  return nextIndex ?? currentIndex; 
 }
 
 class TvKeyNavigation extends StatefulWidget {
-  final List<Widget> focusableWidgets; // 可聚焦的控件
-  final int initialIndex; // 初始焦点索引
-  final Function(int index)? onSelect; // 选中回调
-  final Function(LogicalKeyboardKey key, int currentIndex)? onKeyPressed; // 自定义按键处理
-  final double spacing; // 控件间的间距
-  final bool loopFocus; // 是否允许焦点循环切换，默认为 true
-  final bool isFrame; // 是否是框架模式
-  final NavigationPolicy navigationPolicy; // 导航策略，用于控制焦点切换逻辑
+  final Widget child; // 包裹的子组件
+  final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
+  final int initialIndex; // 初始焦点位置的索引
+  final Function(int index)? onSelect; // 选择某个焦点时的回调
+  final Function(LogicalKeyboardKey key, int currentIndex)? onKeyPressed; // 按键时的回调
+  final bool loopFocus; // 是否在边界时循环焦点
+  final bool isFrame; // 是否启用框架模式，用于切换焦点
+  final NavigationPolicy navigationPolicy; // 自定义导航策略
 
   const TvKeyNavigation({
     Key? key,
-    required this.focusableWidgets,
+    required this.child,
+    required this.focusNodes, 
     this.initialIndex = 0,
     this.onSelect,
     this.onKeyPressed,
-    this.spacing = 8.0,
-    this.loopFocus = true, // 默认值为 true，允许焦点循环
-    this.isFrame = false, // 默认不是框架模式
-    this.navigationPolicy = defaultNavigationPolicy, // 默认导航策略
-  })  : assert(focusableWidgets.length > 0, "必须提供至少一个可聚焦控件"),
-        super(key: key);
+    this.loopFocus = true,
+    this.isFrame = false,
+    this.navigationPolicy = directionBasedNavigationPolicy,
+  }) : super(key: key);
 
   @override
   _TvKeyNavigationState createState() => _TvKeyNavigationState();
 }
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
-  late List<FocusNode> _focusNodes;
-  late int _currentIndex;
-  late List<GlobalKey> _widgetKeys;
-  late List<Offset?> _cachedPositions;
-  final ScrollController _scrollController = ScrollController();
+  late int _currentIndex; // 当前焦点位置的索引
+  late List<Offset?> _cachedPositions; // 缓存每个焦点控件的屏幕位置
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
-    _initializeFocusNodes();
+    _currentIndex = widget.initialIndex; // 设置初始焦点位置
+    _cachedPositions = List.filled(widget.focusNodes.length, null); // 初始化位置缓存
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _cacheWidgetPositions(); // 缓存控件的位置
-      _requestFocus(_currentIndex);
+      _cacheWidgetPositions(); // 在组件布局后缓存控件位置
+      _requestFocus(_currentIndex); // 请求焦点
     });
-
-    // 添加监听窗口变化的 observer
-    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _scrollController.dispose(); // 销毁滚动控制器
+    WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     super.dispose();
   }
 
   @override
   void didChangeMetrics() {
-    _cacheWidgetPositions(); // 当窗口大小发生变化时，重新缓存控件位置
+    _cacheWidgetPositions(); // 当窗口大小变化时，重新缓存控件位置
   }
 
-  /// 初始化 FocusNodes 和 GlobalKey
-  void _initializeFocusNodes() {
-    _focusNodes = List.generate(widget.focusableWidgets.length, (_) => FocusNode());
-    _widgetKeys = List.generate(widget.focusableWidgets.length, (_) => GlobalKey());
-    _cachedPositions = List.filled(widget.focusableWidgets.length, null);
-  }
-
-  /// 请求焦点并滚动视图以使其可见
+  /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
-    if (_focusNodes.isNotEmpty && index >= 0 && index < _focusNodes.length) {
-      FocusScope.of(context).requestFocus(_focusNodes[index]);
-
-      // 滚动到指定控件位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToMakeVisible(index);
-      });
+    if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
+      FocusScope.of(context).requestFocus(widget.focusNodes[index]);
     }
   }
 
-  /// 缓存所有控件的位置
+  /// 缓存每个控件的位置，以便用于自定义导航策略。
   void _cacheWidgetPositions() {
-    for (int i = 0; i < _widgetKeys.length; i++) {
-      final context = _widgetKeys[i].currentContext;
+    for (int i = 0; i < widget.focusNodes.length; i++) {
+      final context = widget.focusNodes[i].context;
       if (context != null) {
         final renderBox = context.findRenderObject() as RenderBox;
-        _cachedPositions[i] = renderBox.localToGlobal(Offset.zero);
+        _cachedPositions[i] = renderBox.localToGlobal(Offset.zero); // 获取控件的全局位置
       }
     }
   }
 
-  /// 判断是否在页面边缘，用于处理跨框架切换
-  bool _isAtEdge(LogicalKeyboardKey key) {
-    return (key == LogicalKeyboardKey.arrowUp && _currentIndex == 0) ||
-           (key == LogicalKeyboardKey.arrowDown && _currentIndex == _focusNodes.length - 1) ||
-           (key == LogicalKeyboardKey.arrowLeft && _currentIndex == 0) ||
-           (key == LogicalKeyboardKey.arrowRight && _currentIndex == _focusNodes.length - 1);
-  }
-
-  /// 滚动视图，确保当前聚焦的控件可见
-  void _scrollToMakeVisible(int index) {
-    final context = _widgetKeys[index].currentContext;
-    if (context != null) {
-      final renderBox = context.findRenderObject() as RenderBox;
-      final position = renderBox.localToGlobal(Offset.zero);
-
-      final scrollableArea = context.findAncestorRenderObjectOfType<RenderBox>();
-      if (scrollableArea != null) {
-        final viewportHeight = scrollableArea.size.height;
-        final widgetHeight = renderBox.size.height;
-        final widgetTop = position.dy;
-        final widgetBottom = widgetTop + widgetHeight;
-
-        if (widgetTop < 0) {
-          // 如果控件超出顶部，向上滚动
-          _scrollController.animateTo(
-            _scrollController.offset + widgetTop - widgetHeight,
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        } else if (widgetBottom > viewportHeight) {
-          // 如果控件超出底部，向下滚动
-          _scrollController.animateTo(
-            _scrollController.offset + (widgetBottom - viewportHeight),
-            duration: Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
-    }
-  }
-
-  /// 焦点切换逻辑，基于自定义的导航策略
+  /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     int nextIndex = widget.navigationPolicy(_currentIndex, key, _cachedPositions);
 
     if (widget.loopFocus || widget.isFrame) {
-      if (_isAtEdge(key)) {
+      if (_isAtEdge(key)) { // 如果当前在边界位置
         if (widget.isFrame) {
-          FocusScope.of(context).nextFocus(); // 跨框架焦点切换
+          FocusScope.of(context).nextFocus(); // 切换到下一个焦点
         } else if (widget.loopFocus) {
           nextIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
               ? 0
-              : _focusNodes.length - 1;
+              : widget.focusNodes.length - 1; // 在边界时循环回到起始或结束
         }
       }
     }
 
     setState(() {
-      _currentIndex = nextIndex;
+      _currentIndex = nextIndex; // 更新当前焦点索引
     });
-    _requestFocus(nextIndex);
-    return KeyEventResult.handled;
+    _requestFocus(nextIndex); // 切换焦点
+    return KeyEventResult.handled; // 标记按键事件已处理
   }
 
-  /// 捕获并处理上下左右键、选择键、菜单键等按键事件
+  /// 判断当前焦点是否在边界位置。
+  bool _isAtEdge(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+      return _currentIndex == 0; // 左边界或上边界
+    } else if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+      return _currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
+    }
+    return false;
+  }
+
+  /// 处理键盘事件，包括方向键和选择键。
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       LogicalKeyboardKey key = event.logicalKey;
 
-      // 如果是导航键，进行处理
+      // 如果按下方向键，则进行导航
       if (key == LogicalKeyboardKey.arrowUp ||
           key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowLeft ||
           key == LogicalKeyboardKey.arrowRight) {
-        return _handleNavigation(key); // 处理焦点切换
+        return _handleNavigation(key);
       }
 
-      // 如果提供了自定义按键处理，则调用
+      // 自定义的按键处理回调
       if (widget.onKeyPressed != null) {
         widget.onKeyPressed!(key, _currentIndex);
       }
 
-      // 处理选中操作
+      // 处理选择键（如 Enter 键）
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
         if (widget.onSelect != null) {
-          widget.onSelect!(_currentIndex); // 调用选中回调
+          widget.onSelect!(_currentIndex);
         }
-        return KeyEventResult.handled;
+        return KeyEventResult.handled; // 标记按键事件已处理
       }
     }
-    return KeyEventResult.ignored;
+    return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
 
   @override
   Widget build(BuildContext context) {
-    // 在这里我们不再改变控件的排列，只管理焦点
     return FocusTraversalGroup(
-      policy: WidgetOrderTraversalPolicy(),
-      child: FocusScope(
-        autofocus: true,
-        onKey: _handleKeyEvent,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          child: Column( // 不影响控件原有布局
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(widget.focusableWidgets.length, (index) {
-              return Padding(
-                padding: EdgeInsets.all(widget.spacing),
-                child: FocusableItem(
-                  focusNode: _focusNodes[index],
-                  isFocused: _currentIndex == index,
-                  child: widget.focusableWidgets[index],
-                  key: _widgetKeys[index], // 用于缓存位置
-                ),
-              );
-            }),
-          ),
-        ),
+      policy: WidgetOrderTraversalPolicy(), // 使用默认的焦点遍历策略
+      child: Focus(
+        autofocus: true, // 自动聚焦
+        onKey: _handleKeyEvent, // 处理键盘事件
+        child: widget.child, // 直接使用传入的子组件，不改变原有布局
       ),
     );
   }
 }
 
-/// 处理聚焦时的样式变化
+// FocusableItem 类，用于包装具有焦点的组件
 class FocusableItem extends StatelessWidget {
-  final FocusNode focusNode;
-  final bool isFocused;
-  final Widget child;
+  final FocusNode focusNode; // 焦点节点
+  final bool isFocused; // 是否当前聚焦
+  final Widget child; // 子组件
 
   const FocusableItem({
     Key? key,
@@ -265,17 +213,17 @@ class FocusableItem extends StatelessWidget {
     return Focus(
       focusNode: focusNode,
       child: AnimatedContainer(
-        duration: Duration(milliseconds: 200), // 平滑过渡效果
+        duration: Duration(milliseconds: 200), // 焦点状态变化时的动画时长
         decoration: BoxDecoration(
-          color: isFocused ? Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景颜色
+          color: isFocused ? Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
           border: isFocused
-              ? Border.all(color: Color(0xFFB01235), width: 3.0) // 聚焦时边框
+              ? Border.all(color: Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
               : null,
           boxShadow: isFocused
-              ? [BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时阴影效果
+              ? [BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
               : [],
         ),
-        child: child,
+        child: child, // 包装的子组件
       ),
     );
   }
