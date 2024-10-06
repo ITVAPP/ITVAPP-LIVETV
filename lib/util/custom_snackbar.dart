@@ -18,10 +18,6 @@ class CustomSnackBar {
           child: Material(
             color: Colors.transparent,  // 设置透明背景以允许自定义样式
             child: Container(
-              // 删除了不必要的 maxWidth 限制，因为 FractionallySizedBox 控制了宽度
-              // constraints: BoxConstraints(
-              //   maxWidth: maxWidth,  // 删除此行，因为宽度通过 FractionallySizedBox 控制
-              // ),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [
