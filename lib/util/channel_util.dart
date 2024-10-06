@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
-import 'log_util.dart';
 import '../tv/tv_key_navigation.dart';
+import 'log_util.dart';
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
@@ -17,8 +17,6 @@ Future<int?> changeChannelSources(
     return null;
   }
 
-  LogUtil.i('显示视频源选择弹窗');
-  
   // 判断是否是 TV 模式
   bool isTV = context.watch<ThemeProvider>().isTV;
 
@@ -28,70 +26,85 @@ Future<int?> changeChannelSources(
   try {
     // 创建 OverlayEntry 并定义弹窗内容
     overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
-        left: 0,  // 左边距为 0
-        right: 0,  // 右边距为 0
-        child: FractionallySizedBox(
-          widthFactor: 0.8, // 设置弹窗宽度为屏幕的80%
-          alignment: Alignment.center,
-          child: Material(
-            color: Colors.transparent,  // 背景设为透明，便于自定义样式
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xff6D6875),  // 渐变颜色1
-                    Color(0xffB4838D),  // 渐变颜色2
-                    Color(0xffE5989B),  // 渐变颜色3
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),  // 设置圆角
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,  // 阴影颜色
-                    offset: Offset(0, 4),  // 阴影偏移
-                    blurRadius: 8,  // 模糊半径
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(10),  // 设置内边距
-              child: FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(), // 确保焦点顺序处理
-                child: isTV
-                    ? TvKeyNavigation(  // 使用 TvKeyNavigation 处理 TV 焦点和按键
-                        focusableWidgets: List.generate(sources.length, (index) {
-                          return buildSourceButton(
-                            context, 
-                            index, 
-                            currentSourceIndex, 
-                            S.current.lineIndex(index + 1), 
-                            isTV,
-                          );
-                        }),
-                        initialIndex: currentSourceIndex, // 初始选中的视频源索引
-                        onSelect: (index) {
-                          Navigator.pop(context, index); // 返回所选视频源索引
-                        },
-                        spacing: 8.0,  // 控件之间的间距
-                        loopFocus: true,  // 开启循环焦点切换
-                      )
-                    : Wrap(
-                        spacing: 10, // 按钮之间的水平间距
-                        runSpacing: 10, // 按钮之间的垂直间距
-                        children: List.generate(sources.length, (index) {
-                          return buildSourceButton(
-                            context, 
-                            index, 
-                            currentSourceIndex, 
-                            S.current.lineIndex(index + 1), 
-                            isTV,
-                          );
-                        }),
+      builder: (context) => GestureDetector(
+        onTap: () {
+          // 点击弹窗外部关闭弹窗
+          overlayEntry?.remove();
+        },
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
+              left: 0,  // 左边距为 0
+              right: 0,  // 右边距为 0
+              child: FractionallySizedBox(
+                widthFactor: 0.8, // 设置弹窗宽度为屏幕的80%
+                alignment: Alignment.center,
+                child: Material(
+                  color: Colors.transparent,  // 背景设为透明，便于自定义样式
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xff6D6875),  // 渐变颜色1
+                          Color(0xffB4838D),  // 渐变颜色2
+                          Color(0xffE5989B),  // 渐变颜色3
+                        ],
                       ),
+                      borderRadius: BorderRadius.circular(20),  // 设置圆角
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,  // 阴影颜色
+                          offset: Offset(0, 4),  // 阴影偏移
+                          blurRadius: 8,  // 模糊半径
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(10),  // 设置内边距
+                    child: GestureDetector(
+                      onTap: () {
+                        // 阻止点击弹窗内部关闭
+                      },
+                      child: FocusTraversalGroup(
+                        policy: WidgetOrderTraversalPolicy(), // 确保焦点顺序处理
+                        child: isTV
+                            ? TvKeyNavigation(  // 使用 TvKeyNavigation 处理 TV 焦点和按键
+                                focusableWidgets: List.generate(sources.length, (index) {
+                                  return buildSourceButton(
+                                    context, 
+                                    index, 
+                                    currentSourceIndex, 
+                                    S.current.lineIndex(index + 1), 
+                                    isTV,
+                                  );
+                                }),
+                                initialIndex: currentSourceIndex, // 初始选中的视频源索引
+                                onSelect: (index) {
+                                  Navigator.pop(context, index); // 返回所选视频源索引
+                                },
+                                spacing: 8.0,  // 控件之间的间距
+                                loopFocus: true,  // 开启循环焦点切换
+                              )
+                            : Wrap(
+                                spacing: 10, // 按钮之间的水平间距
+                                runSpacing: 10, // 按钮之间的垂直间距
+                                children: List.generate(sources.length, (index) {
+                                  return buildSourceButton(
+                                    context, 
+                                    index, 
+                                    currentSourceIndex, 
+                                    S.current.lineIndex(index + 1), 
+                                    isTV,
+                                  );
+                                }),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -101,8 +114,8 @@ Future<int?> changeChannelSources(
 
     // 等待用户选择按钮并获取所选视频源索引
     return await Future<int?>.delayed(
-      const Duration(seconds: 4),  // 自动关闭弹窗
-      () => currentSourceIndex,  // 模拟用户选择
+      const Duration(seconds: 30),  // 将自动关闭的时间加长或移除
+      () => null,  // 超时返回 null 表示无选择
     );
 
   } catch (modalError, modalStackTrace) {
