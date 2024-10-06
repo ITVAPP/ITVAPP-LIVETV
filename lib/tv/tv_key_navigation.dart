@@ -8,7 +8,8 @@ class TvKeyNavigation extends StatefulWidget {
   final Function(int index)? onSelect; // 选中回调
   final Function(LogicalKeyboardKey key, int currentIndex)? onKeyPressed; // 自定义按键处理
   final double spacing; // 控件间的间距
-  final bool loopFocus; // 是否允许焦点循环切换
+  final bool loopFocus; // 是否允许焦点循环切换，默认为 true
+  final bool isFrame; // 是否是框架模式
 
   const TvKeyNavigation({
     Key? key,
@@ -17,7 +18,8 @@ class TvKeyNavigation extends StatefulWidget {
     this.onSelect,
     this.onKeyPressed,
     this.spacing = 8.0,
-    this.loopFocus = true,
+    this.loopFocus = true, // 设置默认值为 true
+    this.isFrame = false, // 默认不是框架模式
   })  : assert(focusableWidgets.length > 0, "必须提供至少一个可聚焦控件"),
         super(key: key);
 
@@ -25,7 +27,7 @@ class TvKeyNavigation extends StatefulWidget {
   _TvKeyNavigationState createState() => _TvKeyNavigationState();
 }
 
-class _TvKeyNavigationState extends State<TvKeyNavigation> {
+class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   late List<FocusNode> _focusNodes; // 焦点节点列表
   late int _currentIndex; // 当前聚焦的控件索引
   late List<GlobalKey> _widgetKeys; // 每个控件对应的 GlobalKey，用于获取位置
@@ -40,6 +42,22 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
       _cacheWidgetPositions(); // 首次加载后缓存控件位置
       _requestFocus(_currentIndex);
     });
+
+    // 添加监听窗口变化的 observer
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    // 移除监听窗口变化的 observer
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // 窗口尺寸变化时，重新缓存控件位置
+    _cacheWidgetPositions();
   }
 
   /// 初始化 FocusNodes 和 GlobalKey
@@ -67,7 +85,20 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
     }
   }
 
-  /// 捕获并处理上下左右键、选择键等按键事件
+  /// 判断是否在页面边缘
+  bool _isAtEdge(LogicalKeyboardKey key) {
+    return (key == LogicalKeyboardKey.arrowUp && _currentIndex == 0) ||
+           (key == LogicalKeyboardKey.arrowDown && _currentIndex == _focusNodes.length - 1) ||
+           (key == LogicalKeyboardKey.arrowLeft && _currentIndex == 0) ||
+           (key == LogicalKeyboardKey.arrowRight && _currentIndex == _focusNodes.length - 1);
+  }
+
+  /// 处理跨越框架的焦点切换，确保焦点总是跨越到目标页面的第一个焦点
+  void _handlePageBoundaryFocus() {
+    FocusScope.of(context).nextFocus(); // 统一处理跨越页面，焦点到达对方页面的第一个控件
+  }
+
+  /// 捕获并处理上下左右键、选择键、菜单键等按键事件
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
       LogicalKeyboardKey key = event.logicalKey;
@@ -80,7 +111,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
         return _handleNavigation(key); // 处理焦点切换
       }
 
-      // 如果用户提供了自定义按键处理，则调用
+      // 如果提供了自定义按键处理，则调用
       if (widget.onKeyPressed != null) {
         widget.onKeyPressed!(key, _currentIndex);
       }
@@ -92,16 +123,21 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
         }
         return KeyEventResult.handled;
       }
+
+      // 阻止菜单键的冒泡
+      if (key == LogicalKeyboardKey.menu) {
+        return KeyEventResult.handled; // 阻止菜单键冒泡
+      }
     }
     return KeyEventResult.ignored;
   }
 
-  /// 焦点切换逻辑，基于控件的全局坐标位置处理
+  /// 焦点切换逻辑，基于控件的全局坐标位置处理，并实现循环逻辑
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentPosition = _cachedPositions[_currentIndex];
 
-    if (currentPosition == null) {
-      return KeyEventResult.ignored;
+    if (currentPosition == null || widget.focusableWidgets.length <= 1) {
+      return KeyEventResult.ignored; // 如果只有一个控件，或找不到位置，不处理
     }
 
     int? nextIndex;
@@ -129,11 +165,25 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
       }
     }
 
+    // 如果找到下一个焦点
     if (nextIndex != null && nextIndex != _currentIndex) {
       setState(() {
         _currentIndex = nextIndex!;
       });
       _requestFocus(nextIndex!);
+      return KeyEventResult.handled;
+    }
+
+    // 处理边界情况：如果允许循环切换或是框架模式
+    if ((widget.loopFocus || widget.isFrame) && _isAtEdge(key)) {
+      if (widget.isFrame) {
+        _handlePageBoundaryFocus(); // 跨页面焦点切换
+      } else if (widget.loopFocus) {
+        _currentIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
+            ? 0
+            : _focusNodes.length - 1;
+        _requestFocus(_currentIndex);
+      }
       return KeyEventResult.handled;
     }
 
@@ -164,7 +214,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> {
   }
 }
 
-/// 自定义组件，用于处理聚焦时的样式变化
+/// 处理聚焦时的样式变化
 class FocusableItem extends StatelessWidget {
   final FocusNode focusNode;
   final bool isFocused;
@@ -182,15 +232,18 @@ class FocusableItem extends StatelessWidget {
     return Focus(
       focusNode: focusNode,
       onFocusChange: (focused) {
-        // 焦点变化时触发样式更新
+        // 焦点变化时可触发相关事件
       },
       child: AnimatedContainer(
         duration: Duration(milliseconds: 200), // 平滑过渡效果
         decoration: BoxDecoration(
-          color: isFocused ? Color(0xFFEB144C) : Colors.transparent, // 聚焦时的背景颜色
+          color: isFocused ? Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景颜色
           border: isFocused
-              ? Border.all(color: Color(0xFFB01235), width: 3.0) // 聚焦时的边框颜色
-              : null, // 聚焦时的边框
+              ? Border.all(color: Color(0xFFB01235), width: 3.0) // 聚焦时边框
+              : null,
+          boxShadow: isFocused
+              ? [BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时阴影效果
+              : [],
         ),
         child: child,
       ),
