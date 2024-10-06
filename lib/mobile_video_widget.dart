@@ -46,7 +46,6 @@ class MobileVideoWidget extends StatefulWidget {
   State<MobileVideoWidget> createState() => _MobileVideoWidgetState();
 }
 
-// 管理 MobileVideoWidget 的状态
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
   @override
@@ -152,6 +151,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
               isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
               currentChannelId: currentChannelId,  // 传递当前频道ID
+              changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
