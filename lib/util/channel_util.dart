@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
 import '../tv/tv_key_navigation.dart';
 import 'log_util.dart';
-
-bool _isChannelSourceDialogOpen = false; // 全局变量用于跟踪弹窗是否打开
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
@@ -22,59 +21,43 @@ Future<int?> changeChannelSources(
   // 判断是否是 TV 模式
   bool isTV = context.watch<ThemeProvider>().isTV;
 
-  // 使用 Overlay 显示弹窗
-  OverlayEntry? overlayEntry;
-
   try {
-    // 设置弹窗打开状态为 true
-    _isChannelSourceDialogOpen = true;
+    // 显示弹窗，用于选择不同的视频源
+    final selectedIndex = await showDialog<int>(
+      context: context,
+      barrierDismissible: true, // 允许点击外部关闭弹窗
+      barrierColor: Colors.transparent, // 设置遮罩层为透明，允许点击背景
+      builder: (BuildContext context) {
+        // 判断屏幕方向：竖屏或横屏
+        final bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
-    // 创建 OverlayEntry 并定义弹窗内容
-    overlayEntry = OverlayEntry(
-      builder: (context) => GestureDetector(
-        onTap: () {
-          // 点击弹窗外部关闭弹窗
-          overlayEntry?.remove();
-          _isChannelSourceDialogOpen = false; // 关闭弹窗后更新状态
-        },
-        child: Stack(
+        return Stack(
           children: [
-            Positioned(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
-              left: 0,  // 左边距为 0
-              right: 0,  // 右边距为 0
-              child: FractionallySizedBox(
-                widthFactor: 0.8, // 设置弹窗宽度为屏幕的80%
-                alignment: Alignment.center,
+            // 使用 Align 控制弹窗位置
+            Align(
+              alignment: Alignment.bottomCenter, // 弹窗在底部中央对齐
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 28.0), // 距离屏幕底部 28 像素
                 child: Material(
-                  color: Colors.transparent,  // 背景设为透明，便于自定义样式
+                  color: Colors.transparent, // 设置弹窗背景透明
                   child: Container(
+                    width: isPortrait
+                        ? MediaQuery.of(context).size.width * 0.88 // 竖屏时宽度为 88%
+                        : MediaQuery.of(context).size.width * 0.68, // 横屏时宽度为 68%
+                    padding: const EdgeInsets.all(10), // 内边距
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xff6D6875),  // 渐变颜色1
-                          Color(0xffB4838D),  // 渐变颜色2
-                          Color(0xffE5989B),  // 渐变颜色3
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),  // 设置圆角
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,  // 阴影颜色
-                          offset: Offset(0, 4),  // 阴影偏移
-                          blurRadius: 8,  // 模糊半径
-                        ),
-                      ],
+                      color: Colors.black45, // 弹窗背景颜色
+                      borderRadius: BorderRadius.circular(16), // 圆角半径
                     ),
-                    padding: const EdgeInsets.all(10),  // 设置内边距
-                    child: GestureDetector(
-                      onTap: () {
-                        // 阻止点击弹窗内部关闭
-                      },
-                      child: FocusTraversalGroup(
-                        policy: WidgetOrderTraversalPolicy(), // 确保焦点顺序处理
+                    child: SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isPortrait
+                              ? MediaQuery.of(context).size.width * 0.88 // 竖屏时最大宽度为 88%
+                              : MediaQuery.of(context).size.width * 0.68, // 横屏时最大宽度为 68%
+                        ),
                         child: isTV
-                            ? TvKeyNavigation(  // 使用 TvKeyNavigation 处理 TV 焦点和按键
+                            ? TvKeyNavigation(
                                 focusableWidgets: List.generate(sources.length, (index) {
                                   return buildSourceButton(
                                     context, 
@@ -84,13 +67,12 @@ Future<int?> changeChannelSources(
                                     isTV,
                                   );
                                 }),
-                                initialIndex: currentSourceIndex, // 初始选中的视频源索引
+                                initialIndex: currentSourceIndex, // 初始聚焦的控件索引
                                 onSelect: (index) {
-                                  overlayEntry?.remove(); // 移除 OverlayEntry 关闭弹窗
-                                  _isChannelSourceDialogOpen = false; // 关闭弹窗后更新状态
+                                  Navigator.pop(context, index); // 返回所选的索引
                                 },
-                                spacing: 8.0,  // 控件之间的间距
-                                loopFocus: true,  // 开启循环焦点切换
+                                spacing: 8.0, // 控件间的间距
+                                loopFocus: true, // 是否允许焦点循环
                               )
                             : Wrap(
                                 spacing: 10, // 按钮之间的水平间距
@@ -112,28 +94,16 @@ Future<int?> changeChannelSources(
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
 
-    // 插入 OverlayEntry 到屏幕上
-    Overlay.of(context)?.insert(overlayEntry);
-
-    // 等待用户选择按钮并获取所选视频源索引
-    return await Future<int?>.delayed(
-      const Duration(seconds: 30),  // 将自动关闭的时间加长或移除
-      () => null,  // 超时返回 null 表示无选择
-    );
-
+    // 返回用户选择的索引
+    return selectedIndex;
   } catch (modalError, modalStackTrace) {
     // 捕获弹窗显示过程中发生的错误，并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
-  } finally {
-    // 移除 OverlayEntry
-    overlayEntry?.remove();
-    // 设置弹窗关闭状态为 false
-    _isChannelSourceDialogOpen = false;
   }
 }
 
@@ -164,8 +134,7 @@ Widget buildSourceButton(
     onPressed: currentSourceIndex == index
         ? null // 如果按钮是当前选中的源，禁用点击
         : () {
-            overlayEntry?.remove(); // 移除 OverlayEntry 关闭弹窗
-            _isChannelSourceDialogOpen = false; // 按钮点击后关闭弹窗
+            Navigator.pop(context, index); // 返回所选按钮的索引
           },
     child: Text(
       label, // 显示按钮文字，使用多语言支持
