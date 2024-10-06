@@ -155,12 +155,6 @@ Future<void> _checkForUpdates() async {
                   _selectedIndex = index;
                 });
               },
-              onKeyPressed: (key, currentIndex) {
-                // 处理自定义按键事件，如返回键等
-                if (key == LogicalKeyboardKey.goBack) {
-                  Navigator.pop(context);  // 返回上一页
-                }
-              },
             ),
           ),
         ),
