@@ -241,6 +241,7 @@ class _TvPageState extends State<TvPage> {
         backgroundColor: Colors.black, // 设置背景为黑色
         body: Builder(builder: (context) {
           return KeyboardListener(
+            focusNode: FocusNode(),  // 必须提供 focusNode，即便不需要手动管理焦点
             autofocus: true, // 自动获取焦点
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
             child: widget.toastString == 'UNKNOWN'
