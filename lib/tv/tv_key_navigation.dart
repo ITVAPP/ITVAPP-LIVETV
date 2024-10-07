@@ -112,8 +112,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     FocusNode? currentFocusNode = FocusScope.of(context).focusedChild as FocusNode?;
     if (currentFocusNode != null) {
       int newIndex = widget.focusNodes.indexOf(currentFocusNode);
-      if (widget.onSelect != null && newIndex != -1) {
-        widget.onSelect!(newIndex);
+      if (widget.onSelect != null && newIndex != -1 && newIndex != currentIndex) {
+        widget.onSelect!(newIndex);  // 确保只有在新焦点与当前焦点不同的时候调用回调
       }
     }
 
@@ -202,20 +202,15 @@ class FocusableItem extends StatelessWidget {
       focusNode: focusNode,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+        // 只修改背景色，不影响控件的圆角或其他样式
         decoration: BoxDecoration(
           color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
-          border: isFocused
-              ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
-              : null,
-          boxShadow: isFocused
-              ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
-              : [],
         ),
         child: DefaultTextStyle(
           style: TextStyle(
             fontWeight: isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
           ),
-          child: child, // 包装的子组件
+          child: child, // 包装的子组件，如果没有文字也不会报错
         ),
       ),
     );
