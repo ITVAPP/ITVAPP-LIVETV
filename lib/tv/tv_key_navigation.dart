@@ -8,6 +8,7 @@ class TvKeyNavigation extends StatefulWidget {
   final Function(LogicalKeyboardKey key)? onKeyPressed; // 按键时的回调
   final bool loopFocus; // 是否在边界时循环焦点
   final bool isFrame; // 是否启用框架模式，用于切换焦点
+  final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
 
   const TvKeyNavigation({
     Key? key,
@@ -17,6 +18,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.onKeyPressed,
     this.loopFocus = true,
     this.isFrame = false,
+    this.initialIndex, // 添加了 initialIndex 参数
   }) : super(key: key);
 
   @override
@@ -30,7 +32,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestFocus(0); // 请求初始焦点
+      // 如果 initialIndex 不为空且在范围内，则手动请求焦点
+      if (widget.initialIndex != null &&
+          widget.initialIndex! >= 0 &&
+          widget.initialIndex! < widget.focusNodes.length) {
+        _requestFocus(widget.initialIndex!);
+      } else {
+        _requestFocus(0); // 如果没有提供 initialIndex 或不在范围内，则默认聚焦第一个
+      }
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
