@@ -70,8 +70,9 @@ class DialogUtil {
             ),
             child: TvKeyNavigation(
               focusNodes: [contentFocusNode, closeFocusNode, buttonFocusNode],
+              loopFocus: true, // 启用循环焦点
               initialIndex: 0,
-              isFrame: true,  // 启用框架模式
+              
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
