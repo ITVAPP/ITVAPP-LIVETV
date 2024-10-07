@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
-import '../generated/l10n.dart';
-import '../tv/tv_key_navigation.dart';
 import 'log_util.dart';
+import '../tv/tv_key_navigation.dart';
+import '../generated/l10n.dart';
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
@@ -25,75 +25,57 @@ Future<int?> changeChannelSources(
     // 显示弹窗，用于选择不同的视频源
     final selectedIndex = await showDialog<int>(
       context: context,
-      barrierDismissible: true, // 允许点击外部关闭弹窗
-      barrierColor: Colors.transparent, // 设置遮罩层为透明，允许点击背景
       builder: (BuildContext context) {
-        // 判断屏幕方向：竖屏或横屏
-        final bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-
-        return Stack(
-          children: [
-            // 使用 Align 控制弹窗位置
-            Align(
-              alignment: Alignment.bottomCenter, // 弹窗在底部中央对齐
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 28.0), // 距离屏幕底部 28 像素
-                child: Material(
-                  color: Colors.transparent, // 设置弹窗背景透明
-                  child: Container(
-                    width: isPortrait
-                        ? MediaQuery.of(context).size.width * 0.88 // 竖屏时宽度为 88%
-                        : MediaQuery.of(context).size.width * 0.68, // 横屏时宽度为 68%
-                    padding: const EdgeInsets.all(10), // 内边距
-                    decoration: BoxDecoration(
-                      color: Colors.black45, // 弹窗背景颜色
-                      borderRadius: BorderRadius.circular(16), // 圆角半径
-                    ),
-                    child: SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: isPortrait
-                              ? MediaQuery.of(context).size.width * 0.88 // 竖屏时最大宽度为 88%
-                              : MediaQuery.of(context).size.width * 0.68, // 横屏时最大宽度为 68%
-                        ),
-                        child: isTV
-                            ? TvKeyNavigation(
-                                focusableWidgets: List.generate(sources.length, (index) {
-                                  return buildSourceButton(
-                                    context, 
-                                    index, 
-                                    currentSourceIndex, 
-                                    S.current.lineIndex(index + 1), 
-                                    isTV,
-                                  );
-                                }),
-                                initialIndex: currentSourceIndex, // 初始聚焦的控件索引
-                                onSelect: (index) {
-                                  Navigator.pop(context, index); // 返回所选的索引
-                                },
-                                spacing: 8.0, // 控件间的间距
-                                loopFocus: true, // 是否允许焦点循环
-                              )
-                            : Wrap(
-                                spacing: 10, // 按钮之间的水平间距
-                                runSpacing: 10, // 按钮之间的垂直间距
-                                children: List.generate(sources.length, (index) {
-                                  return buildSourceButton(
-                                    context, 
-                                    index, 
-                                    currentSourceIndex, 
-                                    S.current.lineIndex(index + 1), 
-                                    isTV,
-                                  );
-                                }),
-                              ),
-                      ),
-                    ),
-                  ),
+        return AlertDialog(
+          backgroundColor: Colors.black45, // 弹窗背景颜色
+          content: SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
+              color: Colors.transparent, // 容器背景设为透明
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.8, // 设置弹窗内容最大宽度
                 ),
+                child: isTV
+                    ? TvKeyNavigation(
+                        focusNodes: List.generate(sources.length, (index) => FocusNode()),
+                        initialIndex: currentSourceIndex,
+                        loopFocus: true, // 关闭循环焦点
+                        child: Wrap(
+                          spacing: 8, // 按钮之间的水平间距
+                          runSpacing: 8, // 按钮之间的垂直间距
+                          children: List.generate(sources.length, (index) {
+                            return FocusableItem(
+                              focusNode: FocusNode(),
+                              isFocused: currentSourceIndex == index,
+                              child: buildSourceButton(
+                                context, 
+                                index, 
+                                currentSourceIndex, 
+                                S.current.lineIndex(index + 1), 
+                                isTV,
+                              ),
+                            );
+                          }),
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 10, // 按钮之间的水平间距
+                        runSpacing: 10, // 按钮之间的垂直间距
+                        children: List.generate(sources.length, (index) {
+                          return buildSourceButton(
+                            context, 
+                            index, 
+                            currentSourceIndex, 
+                            S.current.lineIndex(index + 1), 
+                            isTV,
+                          );
+                        }),
+                      ),
               ),
             ),
-          ],
+          ),
         );
       },
     );
