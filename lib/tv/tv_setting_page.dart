@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../generated/l10n.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart'; 
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart'; 
 import 'package:itvapp_live_tv/setting/subscribe_page.dart'; 
-import '../setting/setting_beautify_page.dart';
-import '../setting/setting_log_page.dart'; 
-import 'package:flutter/services.dart';
-
-import 'package:itvapp_live_tv/widgets/tv_key_navigation.dart'; // 引入自定义导航组件
+import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
+import 'package:itvapp_live_tv/setting/setting_log_page.dart'; 
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
+import '../generated/l10n.dart'; 
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
