@@ -191,18 +191,29 @@ class FocusableItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: focusNode,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
-        decoration: BoxDecoration(
-          color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
-          border: isFocused
-              ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
-              : null,
-          boxShadow: isFocused
-              ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
-              : [],
+      child: GestureDetector(
+        onTap: () {
+          final focusContext = focusNode.context;
+          if (focusContext != null) {
+            final gestureDetector = focusContext.findAncestorWidgetOfExactType<GestureDetector>();
+            if (gestureDetector != null && gestureDetector.onTap != null) {
+              gestureDetector.onTap!(); // 触发 onTap 事件
+            }
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+          decoration: BoxDecoration(
+            color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
+            border: isFocused
+                ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
+                : null,
+            boxShadow: isFocused
+                ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
+                : [],
+          ),
+          child: child, // 包装的子组件
         ),
-        child: child, // 包装的子组件
       ),
     );
   }
