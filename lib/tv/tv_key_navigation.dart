@@ -53,9 +53,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
     if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
-      setState(() {
-        widget.focusNodes[index].requestFocus(); // 添加 setState 来触发重建
-      });
+      widget.focusNodes[index].requestFocus();
     }
   }
 
@@ -119,7 +117,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
     }
 
-    return KeyEventResult.ignored; // 修改此处，使键盘事件继续传播
+    return KeyEventResult.handled;
   }
 
   /// 处理键盘事件，包括方向键和选择键。
@@ -132,6 +130,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowLeft ||
           key == LogicalKeyboardKey.arrowRight) {
+        // 修改: 确保事件不会被处理两次
         return _handleNavigation(key);
       }
 
@@ -146,6 +145,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         widget.onKeyPressed!(key);
       }
     }
+    // 修改: 确保事件未被处理时返回 ignored
     return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
 
@@ -201,24 +201,15 @@ class FocusableItem extends StatefulWidget {
 }
 
 class _FocusableItemState extends State<FocusableItem> {
-  late bool _isFocused;
+  bool _isFocused = false;
 
   @override
   void initState() {
     super.initState();
-    _isFocused = widget.focusNode.hasFocus;
-    widget.focusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void dispose() {
-    widget.focusNode.removeListener(_handleFocusChange);
-    super.dispose();
-  }
-
-  void _handleFocusChange() {
-    setState(() {
-      _isFocused = widget.focusNode.hasFocus;
+    widget.focusNode.addListener(() {
+      setState(() {
+        _isFocused = widget.focusNode.hasFocus;
+      });
     });
   }
 
@@ -226,6 +217,7 @@ class _FocusableItemState extends State<FocusableItem> {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+      // 只修改背景色，不影响控件的圆角或其他样式
       decoration: BoxDecoration(
         color: _isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
       ),
@@ -233,10 +225,7 @@ class _FocusableItemState extends State<FocusableItem> {
         style: TextStyle(
           fontWeight: _isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
         ),
-        child: Focus(
-          focusNode: widget.focusNode,
-          child: widget.child,
-        ),
+        child: widget.child, // 包装的子组件
       ),
     );
   }
