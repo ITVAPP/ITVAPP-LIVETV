@@ -185,17 +185,17 @@ class _TvPageState extends State<TvPage> {
             widget.controller?.play(); // 如果有视频源，恢复视频播放
           }
           break;
-        case LogicalKeyboardKey.select:
-        case LogicalKeyboardKey.enter: // 处理选择键和 Enter 键
+        case LogicalKeyboardKey.enter: // 处理 Enter 键
           setState(() {
             _isDatePositionVisible = !_isDatePositionVisible; // 切换 DatePositionWidget 显示与隐藏
           });
-          await _handleSelectPress(); // 调用选择键的处理逻辑
-          break;
+          await _handleSelectPress(); // 调用处理逻辑
+          break;  
         case LogicalKeyboardKey.goBack:
           _handleBackPress(context); // 修改的返回键逻辑
           break;
-        case LogicalKeyboardKey.contextMenu:
+        case LogicalKeyboardKey.select:  
+        case LogicalKeyboardKey.contextMenu:  // 处理选择键和菜单键
           setState(() {
             _drawerIsOpen = true; // 打开侧边抽屉菜单
           });
@@ -265,7 +265,7 @@ class _TvPageState extends State<TvPage> {
                                 videoController: widget.controller ?? VideoPlayerController.network(''),
                               ),
                         
-                        // 按下 select 或 Enter 键时显示或隐藏 DatePositionWidget
+                        // 按下 Enter 键时显示或隐藏 DatePositionWidget
                         if (_isDatePositionVisible) const DatePositionWidget(),
 
                         // 如果正在缓冲或出现错误，显示进度条和提示
