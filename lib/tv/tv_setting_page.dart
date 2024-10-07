@@ -68,7 +68,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     }
   }
 
-  // 通用方法
+  // 通用方法：构建菜单项
   Widget buildListTile({
     required IconData icon,
     required String title,
