@@ -78,21 +78,19 @@ class _TvSettingPageState extends State<TvSettingPage> {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
       isFocused: _selectedIndex == index, // 判断当前是否聚焦
-      child: GestureDetector(
+      child: ListTile(
+        leading: Icon(icon), // 图标
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 20), // 设置文字大小为20
+        ), // 标题
+        selected: _selectedIndex == index, // 判断是否选中
         onTap: () {
           setState(() {
             _selectedIndex = index; // 更新选中项索引
           });
           onTap(); // 调用传入的点击处理逻辑
         },
-        child: ListTile(
-          leading: Icon(icon), // 图标
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 20), // 设置文字大小为20
-          ), // 标题
-          selected: _selectedIndex == index, // 判断是否选中
-        ),
       ),
     );
   }
