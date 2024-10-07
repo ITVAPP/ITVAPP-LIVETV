@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:flutter/services.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
@@ -24,10 +24,7 @@ class DialogUtil {
     // 检查 content 是否为 "showlog"，如果是则显示日志
     if (content == "showlog") {
       List<Map<String, String>> logs = LogUtil.getLogs();
-      // 日志条目反转，确保最新日志在最前面
-      logs = logs.reversed.toList();
-
-      // 时间和内容分别占两行
+      logs = logs.reversed.toList();  // 日志条目反转，确保最新日志在最前面
       content = logs.map((log) {
         String time = log['time']!;
         String parsedMessage = LogUtil.parseLogMessage(log['message']!);
@@ -44,7 +41,6 @@ class DialogUtil {
       context: context,
       barrierDismissible: isDismissible,  // 是否允许点击对话框外部关闭
       builder: (BuildContext context) {
-
         // 获取屏幕的宽度和高度
         final screenWidth = MediaQuery.of(context).size.width;
         final screenHeight = MediaQuery.of(context).size.height;
@@ -63,8 +59,8 @@ class DialogUtil {
               color: const Color(0xFF2B2D30),
               borderRadius: BorderRadius.circular(8),
               gradient: const LinearGradient(
-                colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)],
-                begin: Alignment.topCenter,
+                colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], 
+                begin: Alignment.topCenter, 
                 end: Alignment.bottomCenter,
               ),
             ),
@@ -72,12 +68,11 @@ class DialogUtil {
               focusNodes: [contentFocusNode, closeFocusNode, buttonFocusNode],
               loopFocus: true, // 启用循环焦点
               initialIndex: 0,
-
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
                   _buildDialogHeader(context, title: title, closeFocusNode: closeFocusNode),  // 传递关闭按钮的焦点节点
-                  Flexible(
+                  Flexible( 
                     child: FocusableActionDetector(
                       focusNode: contentFocusNode,
                       shortcuts: {
@@ -88,11 +83,9 @@ class DialogUtil {
                         ScrollIntent: CallbackAction<ScrollIntent>(
                           onInvoke: (intent) {
                             if (intent.direction == AxisDirection.up && contentFocusNode.hasFocus) {
-                              // 当到达顶部时，上键切换焦点到关闭按钮
-                              FocusScope.of(context).requestFocus(closeFocusNode);
+                              FocusScope.of(context).requestFocus(closeFocusNode);  // 上键切换到关闭按钮
                             } else if (intent.direction == AxisDirection.down && contentFocusNode.hasFocus) {
-                              // 当到达底部时，下键切换焦点到底部按钮
-                              FocusScope.of(context).requestFocus(buttonFocusNode);
+                              FocusScope.of(context).requestFocus(buttonFocusNode);  // 下键切换到底部按钮
                             }
                             return null;
                           },
@@ -104,11 +97,9 @@ class DialogUtil {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
                             children: [
-                              // 如果有 content，显示内容
-                              if (content != null) _buildDialogContent(content: content),
+                              if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                               const SizedBox(height: 10),
-                              // 如果传递了自定义组件，则显示该组件并居中
-                              if (child != null)
+                              if (child != null) 
                                 Center(  // 将 child 居中
                                   child: child,
                                 ),
@@ -119,7 +110,6 @@ class DialogUtil {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // 如果没有传入自定义组件，则显示按钮
                   if (child == null)
                     _buildActionButtons(
                       context,
@@ -216,37 +206,32 @@ class DialogUtil {
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-          GestureDetector(
-            onTap: onNegativePressed,
-            child: ElevatedButton(
-              style: _buttonStyle(buttonFocusNode),
-              onPressed: () {
-                if (onNegativePressed != null) {
-                  onNegativePressed();
-                }
-              },
-              child: Text(negativeButtonLabel!),
-            ),
+          ElevatedButton(
+            style: _buttonStyle(buttonFocusNode),
+            onPressed: () {
+              if (onNegativePressed != null) {
+                onNegativePressed();
+              }
+            },
+            child: Text(negativeButtonLabel!),
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
-          GestureDetector(
-            onTap: onPositivePressed,
-            child: ElevatedButton(
-              style: _buttonStyle(buttonFocusNode),
-              focusNode: buttonFocusNode,  // 传递按钮的焦点节点
-              onPressed: () {
-                if (onPositivePressed != null) {
-                  onPositivePressed();
-                }
-              },
-              child: Text(positiveButtonLabel!),
-            ),
+          ElevatedButton(
+            style: _buttonStyle(buttonFocusNode),
+            focusNode: buttonFocusNode,  // 传递按钮的焦点节点
+            onPressed: () {
+              if (onPositivePressed != null) {
+                onPositivePressed();
+              }
+            },
+            child: Text(positiveButtonLabel!),
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-          GestureDetector(
-            onTap: () {
+          ElevatedButton(
+            style: _buttonStyle(buttonFocusNode),  // 复用按钮样式
+            onPressed: () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
               CustomSnackBar.showSnackBar(
                 context,
@@ -254,34 +239,20 @@ class DialogUtil {
                 duration: Duration(seconds: 4),
               );
             },
-            child: ElevatedButton(
-              style: _buttonStyle(buttonFocusNode),  // 复用按钮样式
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-                CustomSnackBar.showSnackBar(
-                  context,
-                  S.current.copyok,
-                  duration: Duration(seconds: 4),
-                );
-              },
-              child: Text(S.current.copy),
-            ),
+            child: Text(S.current.copy),
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
-          GestureDetector(
-            onTap: onClosePressed,
-            child: ElevatedButton(
-              style: _buttonStyle(buttonFocusNode),
-              autofocus: true,
-              onPressed: () {
-                if (onClosePressed != null) {
-                  onClosePressed();  // 点击关闭按钮时执行的回调
-                } else {
-                  Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
-                }
-              },
-              child: Text(closeButtonLabel!),
-            ),
+          ElevatedButton(
+            style: _buttonStyle(buttonFocusNode),
+            autofocus: true,
+            onPressed: () {
+              if (onClosePressed != null) {
+                onClosePressed();  // 点击关闭按钮时执行的回调
+              } else {
+                Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
+              }
+            },
+            child: Text(closeButtonLabel!),
           ),
       ],
     );
