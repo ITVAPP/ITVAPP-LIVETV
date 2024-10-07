@@ -55,49 +55,7 @@ Future<int?> changeChannelSources(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
               ),
-              child: isTV
-                  ? TvKeyNavigation(
-                      focusNodes: List.generate(sources.length, (index) => FocusNode()),
-                      initialIndex: currentSourceIndex,
-                      loopFocus: true, // 启用循环焦点
-                      child: Wrap(
-                        spacing: 8, // 按钮之间的水平间距
-                        runSpacing: 8, // 按钮之间的垂直间距
-                        children: List.generate(sources.length, (index) {
-                          return FocusableItem(
-                            focusNode: FocusNode(),
-                            isFocused: currentSourceIndex == index,
-                            child: GestureDetector(
-                              onTap: () {
-                                if (currentSourceIndex != index) {
-                                  Navigator.pop(context, index); // 返回所选按钮的索引
-                                }
-                              },
-                              child: buildSourceButton(
-                                context,
-                                index,
-                                currentSourceIndex,
-                                S.current.lineIndex(index + 1),
-                                isTV,
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    )
-                  : Wrap(
-                      spacing: 10, // 按钮之间的水平间距
-                      runSpacing: 10, // 按钮之间的垂直间距
-                      children: List.generate(sources.length, (index) {
-                        return buildSourceButton(
-                          context,
-                          index,
-                          currentSourceIndex,
-                          S.current.lineIndex(index + 1),
-                          isTV,
-                        );
-                      }),
-                    ),
+              child: buildSourceOptions(context, sources, currentSourceIndex, isTV), // 调用提取后的函数
             ),
           ),
         );
@@ -111,6 +69,48 @@ Future<int?> changeChannelSources(
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
   }
+}
+
+/// 根据是否是 TV 模式构建视频源选项
+Widget buildSourceOptions(
+  BuildContext context,
+  List<String> sources,
+  int currentSourceIndex,
+  bool isTV,
+) {
+  // 通用部分：Wrap 布局和 spacing、runSpacing 以及 buildSourceButton
+  return Wrap(
+    spacing: 8, // 按钮之间的水平间距
+    runSpacing: 8, // 按钮之间的垂直间距
+    children: List.generate(sources.length, (index) {
+      return isTV
+          ? FocusableItem(
+              focusNode: FocusNode(),
+              isFocused: currentSourceIndex == index,
+              child: GestureDetector(
+                onTap: () {
+                  if (currentSourceIndex != index) {
+                    Navigator.pop(context, index); // 返回所选按钮的索引
+                  }
+                },
+                child: buildSourceButton(
+                  context,
+                  index,
+                  currentSourceIndex,
+                  S.current.lineIndex(index + 1),
+                  isTV,
+                ),
+              ),
+            )
+          : buildSourceButton(
+              context,
+              index,
+              currentSourceIndex,
+              S.current.lineIndex(index + 1),
+              isTV,
+            );
+    }),
+  );
 }
 
 /// 获取按钮样式
