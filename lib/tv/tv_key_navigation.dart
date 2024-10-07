@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// 定义 NavigationPolicy 类型，用于自定义导航策略。
+typedef NavigationPolicy = int Function(
+  int currentIndex,
+  LogicalKeyboardKey key,
+  List<Offset?> positions,
+);
+
 /// 自定义导航策略：根据上下左右是否有控件来决定焦点切换。
 /// [currentIndex] 当前焦点位置的索引。
 /// [key] 用户按下的方向键。
