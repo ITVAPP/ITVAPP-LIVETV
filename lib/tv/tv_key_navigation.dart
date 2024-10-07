@@ -69,18 +69,53 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
+  /// 判断当前焦点是否在边界
+  bool _isAtEdge(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+      return _currentIndex == 0; // 左边界或上边界
+    } else if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+      return _currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
+    }
+    return false;
+  }
+
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    // 使用系统的焦点切换机制，而不是自定义
-    if (key == LogicalKeyboardKey.arrowUp) {
-      FocusScope.of(context).previousFocus(); // 上一个焦点
-    } else if (key == LogicalKeyboardKey.arrowDown) {
-      FocusScope.of(context).nextFocus(); // 下一个焦点
-    } else if (key == LogicalKeyboardKey.arrowLeft) {
-      FocusScope.of(context).previousFocus(); // 左侧焦点
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      FocusScope.of(context).nextFocus(); // 右侧焦点
+    int nextIndex = _currentIndex;
+
+    // 检查是否启用了框架模式，或者是否需要在边界循环焦点
+    if (widget.isFrame && _isAtEdge(key)) {
+      // 框架模式下，当焦点在边界时切换到其他框架
+      if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+        FocusScope.of(context).nextFocus();
+      } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+        FocusScope.of(context).previousFocus();
+      }
+    } else {
+      // 非框架模式下，处理循环焦点
+      if (_isAtEdge(key) && widget.loopFocus) {
+        // 在边界时，执行循环逻辑
+        if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+          nextIndex = 0; // 循环到第一个控件
+        } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+          nextIndex = widget.focusNodes.length - 1; // 循环到最后一个控件
+        }
+      } else {
+        // 不是边界或不启用循环时，使用系统的焦点切换
+        if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+          FocusScope.of(context).previousFocus(); // 上一个或左侧焦点
+          nextIndex = (_currentIndex - 1).clamp(0, widget.focusNodes.length - 1);
+        } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+          FocusScope.of(context).nextFocus(); // 下一个或右侧焦点
+          nextIndex = (_currentIndex + 1).clamp(0, widget.focusNodes.length - 1);
+        }
+      }
     }
+
+    setState(() {
+      _currentIndex = nextIndex; // 更新当前焦点索引
+    });
+
     return KeyEventResult.handled;
   }
 
