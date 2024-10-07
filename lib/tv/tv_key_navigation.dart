@@ -18,7 +18,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.onKeyPressed,
     this.loopFocus = true,
     this.isFrame = false,
-    this.initialIndex, // 添加了 initialIndex 参数
+    this.initialIndex,
   }) : super(key: key);
 
   @override
@@ -135,7 +135,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 处理选择键（如 Enter 键）
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
-        Actions.invoke(context, const ActivateIntent()); // 使用 Actions 处理点击
+        _triggerButtonAction(); // 直接调用方法触发按钮操作
         return KeyEventResult.handled; // 标记按键事件已处理
       }
 
@@ -147,53 +147,38 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
 
+  /// 执行当前焦点控件的点击操作或切换开关状态。
+  void _triggerButtonAction() {
+    final context = _currentFocus?.context;
+    if (context != null) {
+      // 检查是否是 SwitchListTile 并切换其状态
+      final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
+      if (switchTile != null) {
+        final value = !(switchTile.value ?? false); // 切换状态
+        switchTile.onChanged?.call(value); // 调用 onChanged 回调切换开关状态
+        return;
+      }
+
+      // 检查是否有带 onPressed 的按钮类型组件
+      final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
+          context.findAncestorWidgetOfExactType<TextButton>() ??
+          context.findAncestorWidgetOfExactType<OutlinedButton>();
+
+      if (button != null) {
+        final onPressed = button.onPressed;
+        if (onPressed != null) {
+          onPressed();
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FocusTraversalGroup(
-      policy: WidgetOrderTraversalPolicy(), // 使用默认的焦点遍历策略
-      child: Shortcuts(
-        shortcuts: <LogicalKeySet, Intent>{
-          LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(), // 绑定 Enter 键
-          LogicalKeySet(LogicalKeyboardKey.select): const ActivateIntent(), // 绑定 Select 键
-        },
-        child: Actions(
-          actions: <Type, Action<Intent>>{
-            ActivateIntent: CallbackAction<Intent>(
-              onInvoke: (Intent intent) {
-                // 在焦点控件上触发点击操作
-                final context = _currentFocus?.context;
-                if (context != null) {
-                  // 首先检查是否有 GestureDetector 并触发 onTap
-                  final gestureDetector = context.findAncestorWidgetOfExactType<GestureDetector>();
-                  if (gestureDetector != null && gestureDetector.onTap != null) {
-                    gestureDetector.onTap!(); // 触发点击事件
-                    return null;
-                  }
-
-                  // 如果没有 GestureDetector 的 onTap，检查是否有带 onPressed 的按钮类型组件
-                  final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
-                      context.findAncestorWidgetOfExactType<TextButton>() ??
-                      context.findAncestorWidgetOfExactType<OutlinedButton>();
-
-                  if (button != null) {
-                    // 检查是否是有 onPressed 的按钮并触发
-                    final onPressed = button.onPressed;
-                    if (onPressed != null) {
-                      onPressed();
-                    }
-                  }
-                }
-                return null;
-              },
-            ),
-          },
-          child: Focus(
-            autofocus: true, // 自动聚焦
-            onKey: _handleKeyEvent, // 处理键盘事件
-            child: widget.child, // 直接使用传入的子组件，不改变原有布局
-          ),
-        ),
-      ),
+    return Focus(
+      autofocus: true, // 自动聚焦
+      onKey: _handleKeyEvent, // 处理键盘事件
+      child: widget.child, // 直接使用传入的子组件，不改变原有布局
     );
   }
 }
@@ -215,47 +200,22 @@ class FocusableItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: focusNode,
-      child: GestureDetector(
-        onTap: () {
-          final focusContext = focusNode.context;
-          if (focusContext != null) {
-            // 检查是否有 GestureDetector 并触发 onTap
-            final gestureDetector = focusContext.findAncestorWidgetOfExactType<GestureDetector>();
-            if (gestureDetector != null && gestureDetector.onTap != null) {
-              gestureDetector.onTap!(); // 触发 onTap 事件
-            }
-
-            // 检查是否有带 onPressed 的按钮类型组件
-            final button = focusContext.findAncestorWidgetOfExactType<ElevatedButton>() ??
-                focusContext.findAncestorWidgetOfExactType<TextButton>() ??
-                focusContext.findAncestorWidgetOfExactType<OutlinedButton>();
-
-            if (button != null) {
-              // 检查是否是有 onPressed 的按钮并触发
-              final onPressed = button.onPressed;
-              if (onPressed != null) {
-                onPressed();
-              }
-            }
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
-          decoration: BoxDecoration(
-            color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
-            border: isFocused
-                ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
-                : null,
-            boxShadow: isFocused
-                ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
-                : [],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+        decoration: BoxDecoration(
+          color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
+          border: isFocused
+              ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
+              : null,
+          boxShadow: isFocused
+              ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
+              : [],
+        ),
+        child: DefaultTextStyle(
+          style: TextStyle(
+            fontWeight: isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
           ),
-          child: DefaultTextStyle(
-            style: TextStyle(
-              fontWeight: isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
-            ),
-            child: child, // 包装的子组件
-          ),
+          child: child, // 包装的子组件
         ),
       ),
     );
