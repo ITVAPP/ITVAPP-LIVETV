@@ -53,7 +53,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
     if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
-      widget.focusNodes[index].requestFocus();
+      setState(() {
+        widget.focusNodes[index].requestFocus(); // 添加 setState 来触发重建
+      });
     }
   }
 
@@ -117,7 +119,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
     }
 
-    return KeyEventResult.handled;
+    return KeyEventResult.ignored; // 修改此处，使键盘事件继续传播
   }
 
   /// 处理键盘事件，包括方向键和选择键。
@@ -184,37 +186,56 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 }
 
 // 用于包装具有焦点的组件
-class FocusableItem extends StatelessWidget {
+class FocusableItem extends StatefulWidget {
   final FocusNode focusNode; // 焦点节点
-  final bool isFocused; // 是否当前聚焦
   final Widget child; // 子组件
 
   const FocusableItem({
     Key? key,
     required this.focusNode,
-    required this.isFocused,
     required this.child,
   }) : super(key: key);
 
   @override
+  _FocusableItemState createState() => _FocusableItemState();
+}
+
+class _FocusableItemState extends State<FocusableItem> {
+  late bool _isFocused;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFocused = widget.focusNode.hasFocus;
+    widget.focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_handleFocusChange);
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    setState(() {
+      _isFocused = widget.focusNode.hasFocus;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: focusNode,
-      onFocusChange: (hasFocus) {
-        // 触发样式更新，确保在焦点变化时及时更新UI
-        (context as Element).markNeedsBuild();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
-        // 只修改背景色，不影响控件的圆角或其他样式
-        decoration: BoxDecoration(
-          color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+      decoration: BoxDecoration(
+        color: _isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
+      ),
+      child: DefaultTextStyle(
+        style: TextStyle(
+          fontWeight: _isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
         ),
-        child: DefaultTextStyle(
-          style: TextStyle(
-            fontWeight: isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
-          ),
-          child: child, // 包装的子组件，如果没有文字也不会报错
+        child: Focus(
+          focusNode: widget.focusNode,
+          child: widget.child,
         ),
       ),
     );
