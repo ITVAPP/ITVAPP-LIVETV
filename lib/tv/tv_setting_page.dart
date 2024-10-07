@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
-// 定义有状态组件TvSettingPage，表示电视应用的设置主页面
+// 电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key}); // 构造函数，继承父类
 
@@ -35,51 +35,56 @@ class _TvSettingPageState extends State<TvSettingPage> {
     super.dispose();
   }
 
-// 用于检查版本更新的逻辑
-Future<void> _checkForUpdates() async {
-  try {
-    await CheckVersionUtil.checkVersion(context, true, true, true);
-    setState(() {
-      _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
-    });
+  // 用于检查版本更新的逻辑
+  Future<void> _checkForUpdates() async {
+    try {
+      await CheckVersionUtil.checkVersion(context, true, true, true);
+      setState(() {
+        _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
+      });
 
-    // 如果有最新版本
-    if (_latestVersionEntity != null) {
-      CustomSnackBar.showSnackBar(
-        context,
-        S.of(context).newVersion(_latestVersionEntity!.latestVersion!),  // 直接传递字符串
-        duration: Duration(seconds: 4),
-      );
-    } else {
-      // 没有最新版本
-      CustomSnackBar.showSnackBar(
-        context,
-        S.of(context).latestVersion,  // 直接传递字符串
-        duration: Duration(seconds: 4),
-      );
-    }
-  } catch (e) {
-    // 版本检查失败
+      // 如果有最新版本
+      if (_latestVersionEntity != null) {
+        CustomSnackBar.showSnackBar(
+          context,
+          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),  // 直接传递字符串
+          duration: Duration(seconds: 4),
+        );
+      } else {
+        // 没有最新版本
+        CustomSnackBar.showSnackBar(
+          context,
+          S.of(context).latestVersion,  // 直接传递字符串
+          duration: Duration(seconds: 4),
+        );
+      }
+    } catch (e) {
+      // 版本检查失败
       CustomSnackBar.showSnackBar(
         context,
         S.of(context).netReceiveTimeout,  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
+    }
   }
-}
 
-  // 通用的buildListTile方法
+  // 通用方法
   Widget buildListTile({
     required IconData icon,
     required String title,
     required int index,
-    required VoidCallback onTap
+    required VoidCallback onTap,
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
       isFocused: _selectedIndex == index, // 判断当前是否聚焦
       child: GestureDetector(
-        onTap: onTap, // 设置点击回调
+        onTap: () {
+          setState(() {
+            _selectedIndex = index; // 更新选中项索引
+          });
+          onTap(); // 调用传入的点击处理逻辑
+        },
         child: ListTile(
           leading: Icon(icon), // 图标
           title: Text(title), // 标题
@@ -91,7 +96,7 @@ Future<void> _checkForUpdates() async {
 
   @override
   Widget build(BuildContext context) {
-    // 获取当前语言提供者状态
+    // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
     // 使用 TvKeyNavigation 包裹需要焦点切换的部分
@@ -119,11 +124,10 @@ Future<void> _checkForUpdates() async {
                 ),
               ),
               body: ListView(
-                // 使用buildListTile减少重复的ListTile构造代码
                 children: [
                   buildListTile(
                     icon: Icons.subscriptions,
-                    title: S.of(context).subscribe,  //订阅
+                    title: S.of(context).subscribe,  // 订阅
                     index: 0,
                     onTap: () {
                       setState(() {
@@ -133,7 +137,7 @@ Future<void> _checkForUpdates() async {
                   ),
                   buildListTile(
                     icon: Icons.font_download,
-                    title: S.of(context).fontTitle,  //字体
+                    title: S.of(context).fontTitle,  // 字体
                     index: 1,
                     onTap: () {
                       setState(() {
@@ -143,7 +147,7 @@ Future<void> _checkForUpdates() async {
                   ),
                   buildListTile(
                     icon: Icons.brush,
-                    title: S.of(context).backgroundImageTitle,  //背景图
+                    title: S.of(context).backgroundImageTitle,  // 背景图
                     index: 2,
                     onTap: () {
                       setState(() {
@@ -153,7 +157,7 @@ Future<void> _checkForUpdates() async {
                   ),
                   buildListTile(
                     icon: Icons.view_list,
-                    title: S.of(context).slogTitle,  //日志
+                    title: S.of(context).slogTitle,  // 日志
                     index: 3,
                     onTap: () {
                       setState(() {
@@ -163,7 +167,7 @@ Future<void> _checkForUpdates() async {
                   ),
                   buildListTile(
                     icon: Icons.system_update,
-                    title: S.of(context).updateTitle,  //更新
+                    title: S.of(context).updateTitle,  // 更新
                     index: 4,
                     onTap: _checkForUpdates, // 直接调用检查更新逻辑
                   ),
