@@ -25,26 +25,28 @@ Future<int?> changeChannelSources(
     // 计算屏幕的方向、宽度和底部间距
     var orientation = MediaQuery.of(context).orientation;
     final widthFactor = orientation == Orientation.landscape ? 0.68 : 0.88;
-    final bottomPadding = orientation == Orientation.landscape ? 88.0 : 68.0;
+    final bottomOffset = orientation == Orientation.landscape ? 88.0 : 68.0; // 横屏88.0，竖屏68.0
 
-    // 显示自定义弹窗，用于选择不同的视频源
-    final selectedIndex = await showDialog<int>(
+    // 使用 showModalBottomSheet 来创建一个从底部弹出的弹窗
+    final selectedIndex = await showModalBottomSheet<int>(
       context: context,
-      barrierDismissible: true, // 允许点击外部关闭弹窗
-      barrierColor: Colors.transparent, // 取消遮罩层
+      isScrollControlled: true, // 允许高度根据内容调整
+      backgroundColor: Colors.transparent, // 背景透明，便于自定义样式
       builder: (BuildContext context) {
-        return Dialog( // 使用Dialog代替AlertDialog
-          backgroundColor: Colors.transparent, // 背景设为透明，便于自定义
+        return Padding(
+          // 设置弹窗和屏幕底部的距离
+          padding: EdgeInsets.only(bottom: bottomOffset),
           child: Container(
             width: MediaQuery.of(context).size.width * widthFactor, // 根据屏幕方向设置宽度
-            padding: EdgeInsets.only(left: 10, right: 10, top: 10, bottom: bottomPadding), // 根据方向设置底部间距
+            padding: EdgeInsets.all(10), // 内边距设置
             decoration: BoxDecoration(
               color: Colors.black54, // 设置弹窗背景颜色
-              borderRadius: BorderRadius.circular(12), // 添加圆角
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)), // 仅上边缘圆角
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
+                maxHeight: MediaQuery.of(context).size.height * 0.7, // 限制弹窗最大高度为屏幕的70%
               ),
               child: buildSourceContent(context, sources, currentSourceIndex, isTV),
             ),
@@ -90,8 +92,8 @@ Widget buildSourceButtons(
   bool isTV
 ) {
   return Wrap(
-    spacing: 10, // 按钮之间的水平间距
-    runSpacing: 10, // 按钮之间的垂直间距
+    spacing: 8, // 按钮之间的水平间距
+    runSpacing: 8, // 按钮之间的垂直间距
     children: List.generate(sources.length, (index) {
       return isTV
           ? FocusableItem(
