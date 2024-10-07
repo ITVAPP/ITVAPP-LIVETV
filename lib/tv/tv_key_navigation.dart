@@ -1,42 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// 定义 NavigationPolicy 类型，用于自定义导航策略。
-typedef NavigationPolicy = int Function(
-  int currentIndex,
-  LogicalKeyboardKey key,
-  List<Offset?> positions,
-);
-
-/// 自定义导航策略：根据上下左右是否有控件来决定焦点切换。
-/// [currentIndex] 当前焦点位置的索引。
-/// [key] 用户按下的方向键。
-/// [positions] 所有焦点控件的位置列表，每个位置用 Offset 表示。
-/// 返回下一个焦点控件的索引。
-int directionBasedNavigationPolicy(int currentIndex, LogicalKeyboardKey key, List<Offset?> positions) {
-  return currentIndex; // 使用系统默认的焦点切换机制，不再自定义
-}
-
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
-  final int initialIndex; // 初始焦点位置的索引
   final Function(int index)? onSelect; // 选择某个焦点时的回调
-  final Function(LogicalKeyboardKey key, int currentIndex)? onKeyPressed; // 按键时的回调
+  final Function(LogicalKeyboardKey key)? onKeyPressed; // 按键时的回调
   final bool loopFocus; // 是否在边界时循环焦点
   final bool isFrame; // 是否启用框架模式，用于切换焦点
-  final NavigationPolicy navigationPolicy; // 自定义导航策略
 
   const TvKeyNavigation({
     Key? key,
     required this.child,
-    required this.focusNodes, 
-    this.initialIndex = 0,
+    required this.focusNodes,
     this.onSelect,
     this.onKeyPressed,
     this.loopFocus = true,
     this.isFrame = false,
-    this.navigationPolicy = directionBasedNavigationPolicy,
   }) : super(key: key);
 
   @override
@@ -44,14 +24,13 @@ class TvKeyNavigation extends StatefulWidget {
 }
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
-  late int _currentIndex; // 当前焦点位置的索引
+  FocusNode? get _currentFocus => FocusScope.of(context).focusedChild as FocusNode?;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, widget.focusNodes.length - 1); // 设置初始焦点位置，确保索引有效
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestFocus(_currentIndex); // 请求焦点
+      _requestFocus(0); // 请求初始焦点
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
@@ -71,19 +50,27 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 判断当前焦点是否在边界
   bool _isAtEdge(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
-      return _currentIndex == 0; // 左边界或上边界
-    } else if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
-      return _currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
+    final currentFocus = _currentFocus;
+    if (currentFocus == null) return false; // 如果没有焦点，直接返回 false
+
+    int currentIndex = widget.focusNodes.indexOf(currentFocus);
+    if (currentIndex == -1) return false;
+
+    if ((key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) && currentIndex == 0) {
+      return true; // 左边界或上边界
+    } else if ((key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) && currentIndex == widget.focusNodes.length - 1) {
+      return true; // 右边界或下边界
     }
     return false;
   }
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    int nextIndex = _currentIndex;
+    final currentFocus = _currentFocus;
+    if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
 
-    // 检查是否启用了框架模式，或者是否需要在边界循环焦点
+    int currentIndex = widget.focusNodes.indexOf(currentFocus);
+
     if (widget.isFrame && _isAtEdge(key)) {
       // 框架模式下，当焦点在边界时切换到其他框架
       if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
@@ -94,27 +81,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     } else {
       // 非框架模式下，处理循环焦点
       if (_isAtEdge(key) && widget.loopFocus) {
-        // 在边界时，执行循环逻辑
         if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
-          nextIndex = 0; // 循环到第一个控件
+          _requestFocus(0); // 循环到第一个控件
         } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
-          nextIndex = widget.focusNodes.length - 1; // 循环到最后一个控件
+          _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个控件
         }
       } else {
-        // 不是边界或不启用循环时，使用系统的焦点切换
         if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
           FocusScope.of(context).previousFocus(); // 上一个或左侧焦点
-          nextIndex = (_currentIndex - 1).clamp(0, widget.focusNodes.length - 1);
         } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
           FocusScope.of(context).nextFocus(); // 下一个或右侧焦点
-          nextIndex = (_currentIndex + 1).clamp(0, widget.focusNodes.length - 1);
         }
       }
     }
-
-    setState(() {
-      _currentIndex = nextIndex; // 更新当前焦点索引
-    });
 
     return KeyEventResult.handled;
   }
@@ -134,19 +113,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 自定义的按键处理回调
       if (widget.onKeyPressed != null) {
-        widget.onKeyPressed!(key, _currentIndex);
+        widget.onKeyPressed!(key);
       }
 
-      // 处理选择键（如 Enter 键）
+      // 处理选择键（如 Enter 键），使用官方推荐的 Actions 和 Shortcuts
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
-        // 如果当前聚焦控件有点击操作，则自动触发点击
-        final context = widget.focusNodes[_currentIndex].context;
-        if (context != null) {
-          final gestureDetector = context.findAncestorWidgetOfExactType<GestureDetector>();
-          if (gestureDetector != null && gestureDetector.onTap != null) {
-            gestureDetector.onTap!(); // 触发点击事件
-          }
-        }
+        Actions.invoke(context, const ActivateIntent()); // 使用 Actions 处理点击
         return KeyEventResult.handled; // 标记按键事件已处理
       }
     }
@@ -157,10 +129,33 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   Widget build(BuildContext context) {
     return FocusTraversalGroup(
       policy: WidgetOrderTraversalPolicy(), // 使用默认的焦点遍历策略
-      child: Focus(
-        autofocus: true, // 自动聚焦
-        onKey: _handleKeyEvent, // 处理键盘事件
-        child: widget.child, // 直接使用传入的子组件，不改变原有布局
+      child: Shortcuts(
+        shortcuts: <LogicalKeySet, Intent>{
+          LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(), // 绑定 Enter 键
+          LogicalKeySet(LogicalKeyboardKey.select): const ActivateIntent(), // 绑定 Select 键
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<Intent>(
+              onInvoke: (Intent intent) {
+                // 在焦点控件上触发点击操作
+                final context = _currentFocus?.context;
+                if (context != null) {
+                  final gestureDetector = context.findAncestorWidgetOfExactType<GestureDetector>();
+                  if (gestureDetector != null && gestureDetector.onTap != null) {
+                    gestureDetector.onTap!(); // 触发点击事件
+                  }
+                }
+                return null;
+              },
+            ),
+          },
+          child: Focus(
+            autofocus: true, // 自动聚焦
+            onKey: _handleKeyEvent, // 处理键盘事件
+            child: widget.child, // 直接使用传入的子组件，不改变原有布局
+          ),
+        ),
       ),
     );
   }
@@ -184,14 +179,14 @@ class FocusableItem extends StatelessWidget {
     return Focus(
       focusNode: focusNode,
       child: AnimatedContainer(
-        duration: Duration(milliseconds: 200), // 焦点状态变化时的动画时长
+        duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
         decoration: BoxDecoration(
-          color: isFocused ? Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
+          color: isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
           border: isFocused
-              ? Border.all(color: Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
+              ? Border.all(color: const Color(0xFFB01235), width: 2.0) // 聚焦时显示边框
               : null,
           boxShadow: isFocused
-              ? [BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
+              ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
               : [],
         ),
         child: child, // 包装的子组件
