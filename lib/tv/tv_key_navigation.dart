@@ -191,8 +191,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 处理选择键（如 Enter 键）
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
-        if (widget.onSelect != null) {
-          widget.onSelect!(_currentIndex);
+        // 如果当前聚焦控件有点击操作，则自动触发点击
+        final context = widget.focusNodes[_currentIndex].context;
+        if (context != null) {
+          final gestureDetector = context.findAncestorWidgetOfExactType<GestureDetector>();
+          if (gestureDetector != null && gestureDetector.onTap != null) {
+            gestureDetector.onTap!(); // 触发点击事件
+          }
         }
         return KeyEventResult.handled; // 标记按键事件已处理
       }
