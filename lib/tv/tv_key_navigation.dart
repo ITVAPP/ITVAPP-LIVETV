@@ -200,6 +200,10 @@ class FocusableItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: focusNode,
+      onFocusChange: (hasFocus) {
+        // 触发样式更新，确保在焦点变化时及时更新UI
+        (context as Element).markNeedsBuild();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
         // 只修改背景色，不影响控件的圆角或其他样式
