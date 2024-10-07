@@ -109,9 +109,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
 
     // 调用选择回调
-    int newIndex = widget.focusNodes.indexOf(FocusScope.of(context).focusedChild as FocusNode?);
-    if (widget.onSelect != null && newIndex != -1) {
-      widget.onSelect!(newIndex);
+    FocusNode? currentFocusNode = FocusScope.of(context).focusedChild as FocusNode?;
+    if (currentFocusNode != null) {
+      int newIndex = widget.focusNodes.indexOf(currentFocusNode);
+      if (widget.onSelect != null && newIndex != -1) {
+        widget.onSelect!(newIndex);
+      }
     }
 
     return KeyEventResult.handled;
