@@ -41,7 +41,7 @@ Future<int?> changeChannelSources(
                     ? TvKeyNavigation(
                         focusNodes: List.generate(sources.length, (index) => FocusNode()),
                         initialIndex: currentSourceIndex,
-                        loopFocus: true, // 关闭循环焦点
+                        loopFocus: true, // 启用循环焦点
                         child: Wrap(
                           spacing: 8, // 按钮之间的水平间距
                           runSpacing: 8, // 按钮之间的垂直间距
