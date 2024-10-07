@@ -107,7 +107,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
       loopFocus: true, // 启用循环焦点
       onSelect: (index) {
         setState(() {
-          _selectedIndex = index;
+          _selectedIndex = index; // 同步更新选中索引
         });
       },
       child: Row(
