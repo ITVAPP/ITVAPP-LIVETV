@@ -82,7 +82,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex; // 设置初始焦点位置
+    _currentIndex = widget.initialIndex.clamp(0, widget.focusNodes.length - 1); // 设置初始焦点位置，确保索引有效
     _cachedPositions = List.filled(widget.focusNodes.length, null); // 初始化位置缓存
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _cacheWidgetPositions(); // 在组件布局后缓存控件位置
@@ -114,8 +114,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     for (int i = 0; i < widget.focusNodes.length; i++) {
       final context = widget.focusNodes[i].context;
       if (context != null) {
-        final renderBox = context.findRenderObject() as RenderBox;
-        _cachedPositions[i] = renderBox.localToGlobal(Offset.zero); // 获取控件的全局位置
+        final renderBox = context.findRenderObject() as RenderBox?;
+        if (renderBox != null && renderBox.hasSize) {
+          _cachedPositions[i] = renderBox.localToGlobal(Offset.zero); // 获取控件的全局位置
+        } else {
+          _cachedPositions[i] = null; // 确保无效位置不会影响导航逻辑
+        }
+      } else {
+        _cachedPositions[i] = null; // 确保无效位置不会影响导航逻辑
       }
     }
   }
@@ -124,22 +130,27 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     int nextIndex = widget.navigationPolicy(_currentIndex, key, _cachedPositions);
 
-    if (widget.loopFocus || widget.isFrame) {
-      if (_isAtEdge(key)) { // 如果当前在边界位置
-        if (widget.isFrame) {
-          FocusScope.of(context).nextFocus(); // 切换到下一个焦点
-        } else if (widget.loopFocus) {
-          nextIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
-              ? 0
-              : widget.focusNodes.length - 1; // 在边界时循环回到起始或结束
-        }
+    // 处理边界情况：循环焦点或切换到框架焦点
+    if ((widget.loopFocus || widget.isFrame) && _isAtEdge(key)) {
+      if (widget.isFrame) {
+        FocusScope.of(context).nextFocus(); // 切换到下一个焦点
+      } else if (widget.loopFocus) {
+        // 在边界时循环回到起始或结束
+        nextIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
+            ? 0
+            : widget.focusNodes.length - 1;
       }
     }
 
+    // 确保索引在有效范围内
+    nextIndex = nextIndex.clamp(0, widget.focusNodes.length - 1);
+
+    // 更新焦点位置并请求焦点
     setState(() {
-      _currentIndex = nextIndex; // 更新当前焦点索引
+      _currentIndex = nextIndex;
     });
-    _requestFocus(nextIndex); // 切换焦点
+    _requestFocus(nextIndex);
+
     return KeyEventResult.handled; // 标记按键事件已处理
   }
 
