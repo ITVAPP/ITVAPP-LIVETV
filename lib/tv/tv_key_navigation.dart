@@ -133,7 +133,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return _handleNavigation(key);
       }
 
-      // 处理选择键（如 Enter 键），使用官方推荐的 Actions 和 Shortcuts
+      // 处理选择键（如 Enter 键）
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
         Actions.invoke(context, const ActivateIntent()); // 使用 Actions 处理点击
         return KeyEventResult.handled; // 标记按键事件已处理
@@ -163,9 +163,24 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
                 // 在焦点控件上触发点击操作
                 final context = _currentFocus?.context;
                 if (context != null) {
+                  // 首先检查是否有 GestureDetector 并触发 onTap
                   final gestureDetector = context.findAncestorWidgetOfExactType<GestureDetector>();
                   if (gestureDetector != null && gestureDetector.onTap != null) {
                     gestureDetector.onTap!(); // 触发点击事件
+                    return null;
+                  }
+
+                  // 如果没有 GestureDetector 的 onTap，检查是否有带 onPressed 的按钮类型组件
+                  final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
+                      context.findAncestorWidgetOfExactType<TextButton>() ??
+                      context.findAncestorWidgetOfExactType<OutlinedButton>();
+
+                  if (button != null) {
+                    // 检查是否是有 onPressed 的按钮并触发
+                    final onPressed = button.onPressed;
+                    if (onPressed != null) {
+                      onPressed();
+                    }
                   }
                 }
                 return null;
@@ -183,7 +198,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 }
 
-// FocusableItem 类，用于包装具有焦点的组件
+// 用于包装具有焦点的组件
 class FocusableItem extends StatelessWidget {
   final FocusNode focusNode; // 焦点节点
   final bool isFocused; // 是否当前聚焦
@@ -204,9 +219,23 @@ class FocusableItem extends StatelessWidget {
         onTap: () {
           final focusContext = focusNode.context;
           if (focusContext != null) {
+            // 检查是否有 GestureDetector 并触发 onTap
             final gestureDetector = focusContext.findAncestorWidgetOfExactType<GestureDetector>();
             if (gestureDetector != null && gestureDetector.onTap != null) {
               gestureDetector.onTap!(); // 触发 onTap 事件
+            }
+
+            // 检查是否有带 onPressed 的按钮类型组件
+            final button = focusContext.findAncestorWidgetOfExactType<ElevatedButton>() ??
+                focusContext.findAncestorWidgetOfExactType<TextButton>() ??
+                focusContext.findAncestorWidgetOfExactType<OutlinedButton>();
+
+            if (button != null) {
+              // 检查是否是有 onPressed 的按钮并触发
+              final onPressed = button.onPressed;
+              if (onPressed != null) {
+                onPressed();
+              }
             }
           }
         },
@@ -221,7 +250,12 @@ class FocusableItem extends StatelessWidget {
                 ? [const BoxShadow(color: Colors.black26, blurRadius: 10.0)] // 聚焦时添加阴影效果
                 : [],
           ),
-          child: child, // 包装的子组件
+          child: DefaultTextStyle(
+            style: TextStyle(
+              fontWeight: isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
+            ),
+            child: child, // 包装的子组件
+          ),
         ),
       ),
     );
