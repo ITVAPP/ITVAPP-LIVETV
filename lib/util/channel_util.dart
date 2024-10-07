@@ -95,50 +95,31 @@ Widget buildSourceButtons(
     spacing: 8, // 按钮之间的水平间距
     runSpacing: 8, // 按钮之间的垂直间距
     children: List.generate(sources.length, (index) {
-      return isTV
-          ? FocusableItem(
-              focusNode: FocusNode(),
-              isFocused: currentSourceIndex == index, // 判断是否聚焦
-              child: GestureDetector(
-                onTap: () {
-                  // 点击事件，返回所选按钮的索引
-                  Navigator.pop(context, index);
+      return FocusableItem(
+        focusNode: FocusNode(),
+        isFocused: currentSourceIndex == index, // 判断是否聚焦
+        child: OutlinedButton(
+          autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
+          style: getButtonStyle(currentSourceIndex == index),
+          onPressed: currentSourceIndex == index
+              ? null // 如果按钮是当前选中的源，禁用点击
+              : () {
+                  Navigator.pop(context, index); // 返回所选按钮的索引
                 },
-                child: buildSourceButton(context, index, currentSourceIndex, S.current.lineIndex(index + 1), isTV),
-              ),
-            )
-          : buildSourceButton(context, index, currentSourceIndex, S.current.lineIndex(index + 1), isTV);
+          child: Text(
+            S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
+            textAlign: TextAlign.center, // 文字在按钮内部居中对齐
+            style: TextStyle(
+              fontSize: 16, // 字体大小
+              color: Colors.white, // 文字颜色为白色
+              fontWeight: currentSourceIndex == index
+                  ? FontWeight.bold // 选中按钮文字加粗
+                  : FontWeight.normal, // 未选中按钮文字为正常字体
+            ),
+          ),
+        ),
+      );
     }),
-  );
-}
-
-/// 构建视频源按钮
-Widget buildSourceButton(
-  BuildContext context, 
-  int index, 
-  int currentSourceIndex, 
-  String label, 
-  bool isTV
-) {
-  return OutlinedButton(
-    autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
-    style: getButtonStyle(currentSourceIndex == index),
-    onPressed: currentSourceIndex == index
-        ? null // 如果按钮是当前选中的源，禁用点击
-        : () {
-            Navigator.pop(context, index); // 返回所选按钮的索引
-          },
-    child: Text(
-      label, // 显示按钮文字，使用多语言支持
-      textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-      style: TextStyle(
-        fontSize: 16, // 字体大小
-        color: Colors.white, // 文字颜色为白色
-        fontWeight: currentSourceIndex == index
-            ? FontWeight.bold // 选中按钮文字加粗
-            : FontWeight.normal, // 未选中按钮文字为正常字体
-      ),
-    ),
   );
 }
 
