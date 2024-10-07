@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:itvapp_live_tv/provider/language_provider.dart'; 
+import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart'; 
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
-import 'package:itvapp_live_tv/setting/setting_font_page.dart'; 
-import 'package:itvapp_live_tv/setting/subscribe_page.dart'; 
+import 'package:itvapp_live_tv/setting/setting_font_page.dart';
+import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
-import 'package:itvapp_live_tv/setting/setting_log_page.dart'; 
+import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import '../generated/l10n.dart'; 
+import '../generated/l10n.dart';
 
 // 定义有状态组件TvSettingPage，表示电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -70,24 +70,21 @@ Future<void> _checkForUpdates() async {
 
   // 通用的buildListTile方法
   Widget buildListTile({
-    required IconData icon, 
-    required String title, 
-    required int index, 
+    required IconData icon,
+    required String title,
+    required int index,
     required VoidCallback onTap
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
       isFocused: _selectedIndex == index, // 判断当前是否聚焦
-      child: ListTile(
-        leading: Icon(icon), // 图标
-        title: Text(title), // 标题
-        selected: _selectedIndex == index, // 判断是否选中
-        onTap: () {
-          setState(() {
-            _selectedIndex = index; // 更新选中项索引
-          });
-          onTap(); // 调用传入的点击处理逻辑
-        },
+      child: GestureDetector(
+        onTap: onTap, // 设置点击回调
+        child: ListTile(
+          leading: Icon(icon), // 图标
+          title: Text(title), // 标题
+          selected: _selectedIndex == index, // 判断是否选中
+        ),
       ),
     );
   }
@@ -117,7 +114,7 @@ Future<void> _checkForUpdates() async {
               appBar: AppBar(
                 title: Consumer<LanguageProvider>(
                   builder: (context, languageProvider, child) {
-                    return Text(S.of(context).settings); 
+                    return Text(S.of(context).settings);
                   },
                 ),
               ),
