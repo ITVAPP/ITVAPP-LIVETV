@@ -25,7 +25,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
-  // Focus nodes for the interactive elements
+  // 设置焦点节点
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
 
   @override
@@ -182,20 +182,22 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                             style: const TextStyle(
                                                                 fontWeight: FontWeight.bold, fontSize: 16),
                                                           ),
-                                                          IconButton(
-                                                            icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
-                                                            onPressed: () {
-                                                              // 将该条日志的内容复制到剪贴板
-                                                              String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
-                                                              Clipboard.setData(ClipboardData(text: logContent));
-                                                              // 显示复制成功的提示
-                                                              CustomSnackBar.showSnackBar(
-                                                                context,
-                                                                S.of(context).logCopied,  // 日志已复制
-                                                                duration: Duration(seconds: 4),
-                                                              );
-                                                            },
-                                                          ),
+                                                          // 仅在非TV模式下显示复制按钮
+                                                          if (!isTV)
+                                                            IconButton(
+                                                              icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
+                                                              onPressed: () {
+                                                                // 将该条日志的内容复制到剪贴板
+                                                                String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
+                                                                Clipboard.setData(ClipboardData(text: logContent));
+                                                                // 显示复制成功的提示
+                                                                CustomSnackBar.showSnackBar(
+                                                                  context,
+                                                                  S.of(context).logCopied,  // 日志已复制
+                                                                  duration: Duration(seconds: 4),
+                                                                );
+                                                              },
+                                                            ),
                                                         ],
                                                       ),
                                                     ),
