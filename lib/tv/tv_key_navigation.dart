@@ -14,46 +14,7 @@ typedef NavigationPolicy = int Function(
 /// [positions] 所有焦点控件的位置列表，每个位置用 Offset 表示。
 /// 返回下一个焦点控件的索引。
 int directionBasedNavigationPolicy(int currentIndex, LogicalKeyboardKey key, List<Offset?> positions) {
-  final currentPosition = positions[currentIndex];
-  if (currentPosition == null) return currentIndex; // 如果找不到当前位置，不切换
-
-  Offset? nextPosition;
-  int? nextIndex;
-  double closestDistance = double.infinity; // 记录距离当前焦点最近的控件距离
-
-  // 遍历所有控件位置，找到符合方向的下一个焦点
-  for (int i = 0; i < positions.length; i++) {
-    if (i == currentIndex || positions[i] == null) continue; // 跳过当前焦点和无效位置
-
-    final position = positions[i]!;
-    final dx = position.dx - currentPosition.dx;
-    final dy = position.dy - currentPosition.dy;
-
-    // 判断目标控件是否在按键方向上
-    bool isInDirection = false;
-    if (key == LogicalKeyboardKey.arrowUp && dy < 0 && dx.abs() < dy.abs()) {
-      isInDirection = true;
-    } else if (key == LogicalKeyboardKey.arrowDown && dy > 0 && dx.abs() < dy.abs()) {
-      isInDirection = true;
-    } else if (key == LogicalKeyboardKey.arrowLeft && dx < 0 && dy.abs() < dx.abs()) {
-      isInDirection = true;
-    } else if (key == LogicalKeyboardKey.arrowRight && dx > 0 && dy.abs() < dx.abs()) {
-      isInDirection = true;
-    }
-
-    // 更新最近的符合方向的控件
-    if (isInDirection) {
-      double distance = dx * dx + dy * dy; // 计算欧几里得距离
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        nextPosition = position;
-        nextIndex = i;
-      }
-    }
-  }
-
-  // 返回找到的下一个焦点索引，如果没有则返回当前索引
-  return nextIndex ?? currentIndex; 
+  return currentIndex; // 使用系统默认的焦点切换机制，不再自定义
 }
 
 class TvKeyNavigation extends StatefulWidget {
@@ -84,15 +45,12 @@ class TvKeyNavigation extends StatefulWidget {
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   late int _currentIndex; // 当前焦点位置的索引
-  late List<Offset?> _cachedPositions; // 缓存每个焦点控件的屏幕位置
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, widget.focusNodes.length - 1); // 设置初始焦点位置，确保索引有效
-    _cachedPositions = List.filled(widget.focusNodes.length, null); // 初始化位置缓存
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _cacheWidgetPositions(); // 在组件布局后缓存控件位置
       _requestFocus(_currentIndex); // 请求焦点
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
@@ -104,11 +62,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    _cacheWidgetPositions(); // 当窗口大小变化时，重新缓存控件位置
-  }
-
   /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
     if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
@@ -116,59 +69,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 缓存每个控件的位置，以便用于自定义导航策略。
-  void _cacheWidgetPositions() {
-    for (int i = 0; i < widget.focusNodes.length; i++) {
-      final context = widget.focusNodes[i].context;
-      if (context != null) {
-        final renderBox = context.findRenderObject() as RenderBox?;
-        if (renderBox != null && renderBox.hasSize) {
-          _cachedPositions[i] = renderBox.localToGlobal(Offset.zero); // 获取控件的全局位置
-        } else {
-          _cachedPositions[i] = null; // 确保无效位置不会影响导航逻辑
-        }
-      } else {
-        _cachedPositions[i] = null; // 确保无效位置不会影响导航逻辑
-      }
-    }
-  }
-
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    int nextIndex = widget.navigationPolicy(_currentIndex, key, _cachedPositions);
-
-    // 处理边界情况：循环焦点或切换到框架焦点
-    if ((widget.loopFocus || widget.isFrame) && _isAtEdge(key)) {
-      if (widget.isFrame) {
-        FocusScope.of(context).nextFocus(); // 切换到下一个焦点
-      } else if (widget.loopFocus) {
-        // 在边界时循环回到起始或结束
-        nextIndex = (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown)
-            ? 0
-            : widget.focusNodes.length - 1;
-      }
+    // 使用系统的焦点切换机制，而不是自定义
+    if (key == LogicalKeyboardKey.arrowUp) {
+      FocusScope.of(context).previousFocus(); // 上一个焦点
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      FocusScope.of(context).nextFocus(); // 下一个焦点
+    } else if (key == LogicalKeyboardKey.arrowLeft) {
+      FocusScope.of(context).previousFocus(); // 左侧焦点
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      FocusScope.of(context).nextFocus(); // 右侧焦点
     }
-
-    // 确保索引在有效范围内
-    nextIndex = nextIndex.clamp(0, widget.focusNodes.length - 1);
-
-    // 更新焦点位置并请求焦点
-    setState(() {
-      _currentIndex = nextIndex;
-    });
-    _requestFocus(nextIndex);
-
-    return KeyEventResult.handled; // 标记按键事件已处理
-  }
-
-  /// 判断当前焦点是否在边界位置。
-  bool _isAtEdge(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
-      return _currentIndex == 0; // 左边界或上边界
-    } else if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
-      return _currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
-    }
-    return false;
+    return KeyEventResult.handled;
   }
 
   /// 处理键盘事件，包括方向键和选择键。
