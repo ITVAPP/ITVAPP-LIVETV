@@ -65,12 +65,16 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
     if (currentIndex == -1) return false;
 
-    if ((key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) && currentIndex == 0) {
-      return true; // 左边界或上边界
-    } else if ((key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) && currentIndex == widget.focusNodes.length - 1) {
-      return true; // 右边界或下边界
+    switch (key) {
+      case LogicalKeyboardKey.arrowLeft:
+      case LogicalKeyboardKey.arrowUp:
+        return currentIndex == 0; // 左边界或上边界
+      case LogicalKeyboardKey.arrowRight:
+      case LogicalKeyboardKey.arrowDown:
+        return currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
+      default:
+        return false;
     }
-    return false;
   }
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
@@ -120,15 +124,15 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return _handleNavigation(key);
       }
 
-      // 自定义的按键处理回调
-      if (widget.onKeyPressed != null) {
-        widget.onKeyPressed!(key);
-      }
-
       // 处理选择键（如 Enter 键），使用官方推荐的 Actions 和 Shortcuts
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
         Actions.invoke(context, const ActivateIntent()); // 使用 Actions 处理点击
         return KeyEventResult.handled; // 标记按键事件已处理
+      }
+
+      // 自定义的按键处理回调
+      if (widget.onKeyPressed != null) {
+        widget.onKeyPressed!(key);
       }
     }
     return KeyEventResult.ignored; // 如果未处理，返回忽略
