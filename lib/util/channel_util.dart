@@ -22,58 +22,75 @@ Future<int?> changeChannelSources(
   bool isTV = context.watch<ThemeProvider>().isTV;
 
   try {
-    // 显示弹窗，用于选择不同的视频源
+    // 获取屏幕的方向信息
+    var orientation = MediaQuery.of(context).orientation;
+    double widthFactor;
+    double bottomPadding;
+
+    // 根据方向设置宽度和底部间距
+    if (orientation == Orientation.landscape) {
+      widthFactor = 0.68; // 横屏时宽度为68%
+      bottomPadding = 88.0; // 横屏时距离底部88
+    } else {
+      widthFactor = 0.88; // 竖屏时宽度为88%
+      bottomPadding = 68.0; // 竖屏时距离底部68
+    }
+
+    // 显示自定义弹窗，用于选择不同的视频源
     final selectedIndex = await showDialog<int>(
       context: context,
+      barrierDismissible: true, // 允许点击外部关闭弹窗
+      barrierColor: Colors.transparent, // 取消遮罩层
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.black45, // 弹窗背景颜色
-          content: SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 10),
-              color: Colors.transparent, // 容器背景设为透明
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.8, // 设置弹窗内容最大宽度
-                ),
-                child: isTV
-                    ? TvKeyNavigation(
-                        focusNodes: List.generate(sources.length, (index) => FocusNode()),
-                        initialIndex: currentSourceIndex,
-                        loopFocus: true, // 启用循环焦点
-                        child: Wrap(
-                          spacing: 8, // 按钮之间的水平间距
-                          runSpacing: 8, // 按钮之间的垂直间距
-                          children: List.generate(sources.length, (index) {
-                            return FocusableItem(
-                              focusNode: FocusNode(),
-                              isFocused: currentSourceIndex == index,
-                              child: buildSourceButton(
-                                context, 
-                                index, 
-                                currentSourceIndex, 
-                                S.current.lineIndex(index + 1), 
-                                isTV,
-                              ),
-                            );
-                          }),
-                        ),
-                      )
-                    : Wrap(
-                        spacing: 10, // 按钮之间的水平间距
-                        runSpacing: 10, // 按钮之间的垂直间距
+        return Dialog( // 使用Dialog代替AlertDialog
+          backgroundColor: Colors.transparent, // 背景设为透明，便于自定义
+          child: Container(
+            width: MediaQuery.of(context).size.width * widthFactor, // 根据屏幕方向设置宽度
+            padding: EdgeInsets.only(left: 10, right: 10, top: 10, bottom: bottomPadding), // 根据方向设置底部间距
+            decoration: BoxDecoration(
+              color: Colors.black54, // 设置弹窗背景颜色
+              borderRadius: BorderRadius.circular(12), // 添加圆角
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
+              ),
+              child: isTV
+                  ? TvKeyNavigation(
+                      focusNodes: List.generate(sources.length, (index) => FocusNode()),
+                      initialIndex: currentSourceIndex,
+                      loopFocus: true, // 启用循环焦点
+                      child: Wrap(
+                        spacing: 8, // 按钮之间的水平间距
+                        runSpacing: 8, // 按钮之间的垂直间距
                         children: List.generate(sources.length, (index) {
-                          return buildSourceButton(
-                            context, 
-                            index, 
-                            currentSourceIndex, 
-                            S.current.lineIndex(index + 1), 
-                            isTV,
+                          return FocusableItem(
+                            focusNode: FocusNode(),
+                            isFocused: currentSourceIndex == index,
+                            child: buildSourceButton(
+                              context, 
+                              index, 
+                              currentSourceIndex, 
+                              S.current.lineIndex(index + 1), 
+                              isTV,
+                            ),
                           );
                         }),
                       ),
-              ),
+                    )
+                  : Wrap(
+                      spacing: 10, // 按钮之间的水平间距
+                      runSpacing: 10, // 按钮之间的垂直间距
+                      children: List.generate(sources.length, (index) {
+                        return buildSourceButton(
+                          context, 
+                          index, 
+                          currentSourceIndex, 
+                          S.current.lineIndex(index + 1), 
+                          isTV,
+                        );
+                      }),
+                    ),
             ),
           ),
         );
