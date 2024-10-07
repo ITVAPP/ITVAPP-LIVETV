@@ -8,8 +8,8 @@ import '../generated/l10n.dart';
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
-  BuildContext context,
-  List<String>? sources,
+  BuildContext context, 
+  List<String>? sources, 
   int currentSourceIndex,
 ) async {
   // 如果 sources 为空或未找到有效的视频源，记录日志并返回 null
@@ -22,19 +22,10 @@ Future<int?> changeChannelSources(
   bool isTV = context.watch<ThemeProvider>().isTV;
 
   try {
-    // 获取屏幕的方向信息
+    // 计算屏幕的方向、宽度和底部间距
     var orientation = MediaQuery.of(context).orientation;
-    double widthFactor;
-    double bottomPadding;
-
-    // 根据方向设置宽度和底部间距
-    if (orientation == Orientation.landscape) {
-      widthFactor = 0.68; // 横屏时宽度为68%
-      bottomPadding = 88.0; // 横屏时距离底部88
-    } else {
-      widthFactor = 0.88; // 竖屏时宽度为88%
-      bottomPadding = 68.0; // 竖屏时距离底部68
-    }
+    final widthFactor = orientation == Orientation.landscape ? 0.68 : 0.88;
+    final bottomPadding = orientation == Orientation.landscape ? 88.0 : 68.0;
 
     // 显示自定义弹窗，用于选择不同的视频源
     final selectedIndex = await showDialog<int>(
@@ -55,7 +46,7 @@ Future<int?> changeChannelSources(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
               ),
-              child: buildSourceOptions(context, sources, currentSourceIndex, isTV), // 调用提取后的函数
+              child: buildSourceContent(context, sources, currentSourceIndex, isTV),
             ),
           ),
         );
@@ -71,67 +62,60 @@ Future<int?> changeChannelSources(
   }
 }
 
-/// 根据是否是 TV 模式构建视频源选项
-Widget buildSourceOptions(
-  BuildContext context,
-  List<String> sources,
-  int currentSourceIndex,
-  bool isTV,
+/// 构建不同设备的弹窗内容（TV或非TV）
+Widget buildSourceContent(
+  BuildContext context, 
+  List<String> sources, 
+  int currentSourceIndex, 
+  bool isTV
 ) {
-  // 通用部分：Wrap 布局和 spacing、runSpacing 以及 buildSourceButton
+  if (isTV) {
+    // 使用 TvKeyNavigation 包裹按钮组，支持 TV 模式的按键导航
+    return TvKeyNavigation(
+      focusNodes: List.generate(sources.length, (index) => FocusNode()),
+      initialIndex: currentSourceIndex,
+      loopFocus: true, // 启用循环焦点
+      child: buildSourceButtons(context, sources, currentSourceIndex, isTV),
+    );
+  } else {
+    return buildSourceButtons(context, sources, currentSourceIndex, isTV);
+  }
+}
+
+/// 构建视频源按钮组
+Widget buildSourceButtons(
+  BuildContext context, 
+  List<String> sources, 
+  int currentSourceIndex, 
+  bool isTV
+) {
   return Wrap(
-    spacing: 8, // 按钮之间的水平间距
-    runSpacing: 8, // 按钮之间的垂直间距
+    spacing: 10, // 按钮之间的水平间距
+    runSpacing: 10, // 按钮之间的垂直间距
     children: List.generate(sources.length, (index) {
       return isTV
           ? FocusableItem(
               focusNode: FocusNode(),
-              isFocused: currentSourceIndex == index,
+              isFocused: currentSourceIndex == index, // 判断是否聚焦
               child: GestureDetector(
                 onTap: () {
-                  if (currentSourceIndex != index) {
-                    Navigator.pop(context, index); // 返回所选按钮的索引
-                  }
+                  // 点击事件，返回所选按钮的索引
+                  Navigator.pop(context, index);
                 },
-                child: buildSourceButton(
-                  context,
-                  index,
-                  currentSourceIndex,
-                  S.current.lineIndex(index + 1),
-                  isTV,
-                ),
+                child: buildSourceButton(context, index, currentSourceIndex, S.current.lineIndex(index + 1), isTV),
               ),
             )
-          : buildSourceButton(
-              context,
-              index,
-              currentSourceIndex,
-              S.current.lineIndex(index + 1),
-              isTV,
-            );
+          : buildSourceButton(context, index, currentSourceIndex, S.current.lineIndex(index + 1), isTV);
     }),
-  );
-}
-
-/// 获取按钮样式
-ButtonStyle getButtonStyle(bool isSelected) {
-  return OutlinedButton.styleFrom(
-    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
-    backgroundColor: isSelected
-        ? Color(0xFFEB144C) // 选中按钮背景颜色
-        : Color(0xFFDFA02A), // 未选中按钮背景颜色
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
-    ),
   );
 }
 
 /// 构建视频源按钮
 Widget buildSourceButton(
-  BuildContext context,
-  int index,
-  int currentSourceIndex,
-  String label,
+  BuildContext context, 
+  int index, 
+  int currentSourceIndex, 
+  String label, 
   bool isTV
 ) {
   return OutlinedButton(
@@ -152,6 +136,19 @@ Widget buildSourceButton(
             ? FontWeight.bold // 选中按钮文字加粗
             : FontWeight.normal, // 未选中按钮文字为正常字体
       ),
+    ),
+  );
+}
+
+/// 获取按钮样式
+ButtonStyle getButtonStyle(bool isSelected) {
+  return OutlinedButton.styleFrom(
+    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
+    backgroundColor: isSelected
+        ? Color(0xFFEB144C) // 选中按钮背景颜色
+        : Color(0xFFDFA02A), // 未选中按钮背景颜色
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
     ),
   );
 }
