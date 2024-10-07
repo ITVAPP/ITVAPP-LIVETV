@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
-import 'log_util.dart';
-import '../tv/tv_key_navigation.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
-  BuildContext context, 
-  List<String>? sources, 
+  BuildContext context,
+  List<String>? sources,
   int currentSourceIndex,
 ) async {
   // 如果 sources 为空或未找到有效的视频源，记录日志并返回 null
@@ -67,12 +67,19 @@ Future<int?> changeChannelSources(
                           return FocusableItem(
                             focusNode: FocusNode(),
                             isFocused: currentSourceIndex == index,
-                            child: buildSourceButton(
-                              context, 
-                              index, 
-                              currentSourceIndex, 
-                              S.current.lineIndex(index + 1), 
-                              isTV,
+                            child: GestureDetector(
+                              onTap: () {
+                                if (currentSourceIndex != index) {
+                                  Navigator.pop(context, index); // 返回所选按钮的索引
+                                }
+                              },
+                              child: buildSourceButton(
+                                context,
+                                index,
+                                currentSourceIndex,
+                                S.current.lineIndex(index + 1),
+                                isTV,
+                              ),
                             ),
                           );
                         }),
@@ -83,10 +90,10 @@ Future<int?> changeChannelSources(
                       runSpacing: 10, // 按钮之间的垂直间距
                       children: List.generate(sources.length, (index) {
                         return buildSourceButton(
-                          context, 
-                          index, 
-                          currentSourceIndex, 
-                          S.current.lineIndex(index + 1), 
+                          context,
+                          index,
+                          currentSourceIndex,
+                          S.current.lineIndex(index + 1),
                           isTV,
                         );
                       }),
@@ -121,10 +128,10 @@ ButtonStyle getButtonStyle(bool isSelected) {
 
 /// 构建视频源按钮
 Widget buildSourceButton(
-  BuildContext context, 
-  int index, 
-  int currentSourceIndex, 
-  String label, 
+  BuildContext context,
+  int index,
+  int currentSourceIndex,
+  String label,
   bool isTV
 ) {
   return OutlinedButton(
