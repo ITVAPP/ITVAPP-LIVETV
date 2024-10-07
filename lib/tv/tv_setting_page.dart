@@ -119,7 +119,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
               appBar: AppBar(
                 title: Consumer<LanguageProvider>(
                   builder: (context, languageProvider, child) {
-                    return Text(S.of(context).settings);
+                    return Text(
+                       S.of(context).settings,  // 页面标题
+                       style: const TextStyle(
+                       fontSize: 22, // 设置字号
+                       fontWeight: FontWeight.bold, // 设置加粗
+                       ),
+                    );
                   },
                 ),
               ),
