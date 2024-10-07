@@ -53,7 +53,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
     if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
-      FocusScope.of(context).requestFocus(widget.focusNodes[index]);
+      widget.focusNodes[index].requestFocus();
     }
   }
 
@@ -106,6 +106,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           FocusScope.of(context).nextFocus(); // 下一个或右侧焦点
         }
       }
+    }
+
+    // 调用选择回调
+    int newIndex = widget.focusNodes.indexOf(FocusScope.of(context).focusedChild as FocusNode?);
+    if (widget.onSelect != null && newIndex != -1) {
+      widget.onSelect!(newIndex);
     }
 
     return KeyEventResult.handled;
