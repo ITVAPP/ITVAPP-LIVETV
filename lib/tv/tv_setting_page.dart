@@ -87,7 +87,10 @@ class _TvSettingPageState extends State<TvSettingPage> {
         },
         child: ListTile(
           leading: Icon(icon), // 图标
-          title: Text(title), // 标题
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 20), // 设置文字大小为20
+          ), // 标题
           selected: _selectedIndex == index, // 判断是否选中
         ),
       ),
