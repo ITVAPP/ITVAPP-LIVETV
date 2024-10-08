@@ -109,7 +109,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
-                        child: FocusableActionDetector(
+                        child: FocusableItem(
                           focusNode: _focusNodes[0], // 为开关分配焦点节点
                           onShowFocusHighlight: (hasFocus) {
                             setState(() {
@@ -238,7 +238,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
-                                child: FocusableActionDetector(
+                                child: FocusableItem(
                                   focusNode: _focusNodes[5], // 为清空日志按钮添加焦点节点
                                   onShowFocusHighlight: (hasFocus) {
                                     setState(() {
@@ -296,7 +296,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
-      child: FocusableActionDetector(
+      child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
         onShowFocusHighlight: (hasFocus) {
           setState(() {
