@@ -75,7 +75,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    return FocusableItem(
+    return Focus(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
       child: ListTile(
         leading: Icon(icon), // 图标
@@ -119,11 +119,11 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 title: Consumer<LanguageProvider>(
                   builder: (context, languageProvider, child) {
                     return Text(
-                       S.of(context).settings,  // 页面标题
-                       style: const TextStyle(
-                       fontSize: 22, // 设置字号
-                       fontWeight: FontWeight.bold, // 设置加粗
-                       ),
+                      S.of(context).settings,  // 页面标题
+                      style: const TextStyle(
+                        fontSize: 22, // 设置字号
+                        fontWeight: FontWeight.bold, // 设置加粗
+                      ),
                     );
                   },
                 ),
