@@ -94,9 +94,8 @@ Widget buildSourceButtons(
     spacing: 8, // 按钮之间的水平间距
     runSpacing: 8, // 按钮之间的垂直间距
     children: List.generate(sources.length, (index) {
-      final focusNode = FocusNode();
-      return Focus(
-        focusNode: focusNode, // 使用 Focus 组件包裹每个按钮
+      return FocusableItem(
+        focusNode: FocusNode(),
         child: OutlinedButton(
           autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
           style: getButtonStyle(currentSourceIndex == index),
