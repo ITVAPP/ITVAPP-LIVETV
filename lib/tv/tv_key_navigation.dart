@@ -87,7 +87,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
 
     // 获取 groupIndex
-    int groupIndex = _getGroupIndex(currentFocus.context); // 通过 context 获取 groupIndex
+    int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
 
     // 3. 判断是否启用了框架模式 (isFrame)
     if (widget.isFrame) {
