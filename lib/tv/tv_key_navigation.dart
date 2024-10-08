@@ -6,8 +6,6 @@ class TvKeyNavigation extends StatefulWidget {
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
   final Function(int index)? onSelect; // 选择某个焦点时的回调
   final Function(LogicalKeyboardKey key)? onKeyPressed; // 按键时的回调
-  final bool loopFocus; // 是否在边界时循环焦点
-  final bool isFrame; // 是否启用框架模式，用于切换焦点
   final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
 
   const TvKeyNavigation({
@@ -16,8 +14,6 @@ class TvKeyNavigation extends StatefulWidget {
     required this.focusNodes,
     this.onSelect,
     this.onKeyPressed,
-    this.loopFocus = true,
-    this.isFrame = false,
     this.initialIndex,
   }) : super(key: key);
 
@@ -57,12 +53,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 使用 `FocusTraversalGroup` 和 `DirectionalFocusTraversalPolicyMixin` 实现基于方向键的焦点移动
+  /// 使用 `FocusTraversalGroup` 和 `ReadingOrderTraversalPolicy` 实现基于方向键的焦点移动
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentFocus = _currentFocus;
     if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
 
-    // 使用 DirectionalFocusTraversalPolicyMixin 进行方向键导航
+    // 使用 ReadingOrderTraversalPolicy 进行方向键导航
     FocusTraversalPolicy? traversalPolicy = FocusTraversalGroup.maybeOf(context);
     if (traversalPolicy != null) {
       if (key == LogicalKeyboardKey.arrowUp) {
@@ -155,7 +151,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return FocusTraversalGroup(
-      policy: DirectionalFocusTraversalPolicy(), // 使用方向焦点遍历策略
+      policy: ReadingOrderTraversalPolicy(), // 使用 ReadingOrderTraversalPolicy 策略
       child: Focus(
         autofocus: true, // 自动聚焦
         onKey: _handleKeyEvent, // 处理键盘事件
