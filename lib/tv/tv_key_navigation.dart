@@ -180,14 +180,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowLeft ||
           key == LogicalKeyboardKey.arrowRight) {
-        // 修改: 确保事件不会被处理两次
         return _handleNavigation(key);
       }
 
       // 处理选择键（如 Enter 键）
       if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
-        _triggerButtonAction(); // 直接调用方法触发按钮操作
-        return KeyEventResult.handled; // 标记按键事件已处理
+        _triggerButtonAction();
+        return KeyEventResult.handled;
       }
 
       // 自定义的按键处理回调
@@ -195,8 +194,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         widget.onKeyPressed!(key);
       }
     }
-    // 修改: 确保事件未被处理时返回 ignored
-    return KeyEventResult.ignored; // 如果未处理，返回忽略
+    return KeyEventResult.ignored;
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态。
@@ -206,8 +204,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       // 检查是否是 SwitchListTile 并切换其状态
       final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
       if (switchTile != null) {
-        final value = !(switchTile.value ?? false); // 切换状态
-        switchTile.onChanged?.call(value); // 调用 onChanged 回调切换开关状态
+        final value = !(switchTile.value ?? false);
+        switchTile.onChanged?.call(value);
         return;
       }
 
@@ -219,19 +217,15 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (button != null) {
         final onPressed = button.onPressed;
         if (onPressed != null) {
-          onPressed(); // 调用按钮的 onPressed 回调
+          onPressed();
           return;
         }
       }
 
-      // 检查是否存在具有 onTap 回调的 FocusableItem 并调用其回调
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      if (focusableItem != null && focusableItem.child is ListTile) {
-        final listTile = focusableItem.child as ListTile;
-        if (listTile.onTap != null) {
-          listTile.onTap!(); // 调用 ListTile 的 onTap 回调
-          return;
-        }
+      // 检查是否是 ListTile 并调用其 onTap 回调
+      final listTile = context.findAncestorWidgetOfExactType<ListTile>();
+      if (listTile != null && listTile.onTap != null) {
+        listTile.onTap!();
       }
     }
   }
@@ -239,9 +233,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return Focus(
-      autofocus: true, // 自动聚焦
-      onKey: _handleKeyEvent, // 处理键盘事件
-      child: widget.child, // 直接使用传入的子组件，不改变原有布局
+      autofocus: true,
+      onKey: _handleKeyEvent,
+      child: widget.child,
     );
   }
 }
