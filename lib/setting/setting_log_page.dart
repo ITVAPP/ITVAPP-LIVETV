@@ -109,8 +109,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
-                        child: FocusableItem(
+                        child: FocusableActionDetector(
                           focusNode: _focusNodes[0], // 为开关分配焦点节点
+                          onShowFocusHighlight: (hasFocus) {
+                            setState(() {
+                              // 触发样式刷新
+                            });
+                          },
                           child: SwitchListTile(
                             title: Text(
                               S.of(context).SwitchTitle,
@@ -127,7 +132,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               }, '设置日志开关状态时出错');
                             },
                             activeColor: Colors.white, // 滑块的颜色
-                            activeTrackColor: selectedColor, // 开启时轨道的背景颜色
+                            activeTrackColor: _focusNodes[0].hasFocus
+                                ? selectedColor.withOpacity(0.7) // 焦点时透明版本颜色
+                                : selectedColor, // 启动时背景颜色
                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                             inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
                           ),
@@ -231,8 +238,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
-                                child: FocusableItem(
+                                child: FocusableActionDetector(
                                   focusNode: _focusNodes[5], // 为清空日志按钮添加焦点节点
+                                  onShowFocusHighlight: (hasFocus) {
+                                    setState(() {
+                                      // 触发样式刷新
+                                    });
+                                  },
                                   child: ElevatedButton(
                                     onPressed: () {
                                       setState(() {
@@ -258,7 +270,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       shape: _buttonShape, // 统一圆角样式
-                                      backgroundColor: unselectedColor, // 按钮背景颜色
+                                      backgroundColor: _focusNodes[5].hasFocus
+                                          ? selectedColor.withOpacity(0.7) // 焦点时透明版本颜色
+                                          : unselectedColor, // 默认颜色
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
                                     ),
                                   ),
@@ -282,8 +296,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
-      child: FocusableItem(
+      child: FocusableActionDetector(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
+        onShowFocusHighlight: (hasFocus) {
+          setState(() {
+            // 触发样式刷新
+          });
+        },
         child: OutlinedButton(
           onPressed: () {
             setState(() {
@@ -305,9 +324,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
             shape: _buttonShape, // 统一圆角样式
-            backgroundColor: _selectedLevel == level
-                ? selectedColor // 选中时背景颜色
-                : unselectedColor, // 未选中时背景颜色
+            backgroundColor: _focusNodes[focusIndex].hasFocus
+                ? selectedColor.withOpacity(0.7) // 焦点时使用选中颜色的透明版本
+                : (_selectedLevel == level
+                    ? selectedColor // 选中时使用完全不透明的颜色
+                    : unselectedColor), // 未选中时背景颜色
             side: BorderSide.none, // 不需要边框
           ),
         ),
