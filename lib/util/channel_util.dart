@@ -97,7 +97,6 @@ Widget buildSourceButtons(
     children: List.generate(sources.length, (index) {
       return FocusableItem(
         focusNode: FocusNode(),
-        isFocused: currentSourceIndex == index, // 判断是否聚焦
         child: OutlinedButton(
           autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
           style: getButtonStyle(currentSourceIndex == index),
