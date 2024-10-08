@@ -90,6 +90,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
 
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
+    
+    // 获取当前分组索引，如果存在 Group 包裹则获取 Group 的 groupIndex
+    int? currentGroupIndex;
+    if (widget.isHorizontalGroup || widget.isVerticalGroup) {
+      currentGroupIndex = (context as Element).findAncestorWidgetOfExactType<Group>()?.groupIndex;
+    }
 
     if (widget.isFrame && _isAtEdge(key)) {
       // 新增：根据 frameType 判断是父页面还是子页面
@@ -112,20 +118,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     } else {
       // 根据分组信息处理焦点切换逻辑
       if (widget.isHorizontalGroup) {
-        _handleHorizontalGroupNavigation(key, currentIndex);
+        _handleHorizontalGroupNavigation(key, currentIndex, currentGroupIndex);
       } else if (widget.isVerticalGroup) {
-        // 仅在竖向分组时，处理右边界跨越框架逻辑
-        if (_isAtEdge(key) && (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowLeft)) {
-          if (!_jumpToOtherGroup(key, currentIndex)) {
-            // 如果已经在最后一个分组，并且无其他分组可跳转，则跨越框架
-            if (widget.isFrame && key == LogicalKeyboardKey.arrowRight) {
-              FocusScope.of(context).nextFocus(); // 跨越到下一个框架
-              return KeyEventResult.handled;
-            }
-          }
-        } else {
-          _handleVerticalGroupNavigation(key, currentIndex);
-        }
+        _handleVerticalGroupNavigation(key, currentIndex, currentGroupIndex);
       } else {
         // 非分组模式下的默认导航逻辑
         if (_isAtEdge(key) && widget.loopFocus) {
@@ -157,32 +152,30 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 横向分组切换逻辑
-  void _handleHorizontalGroupNavigation(LogicalKeyboardKey key, int currentIndex) {
+  void _handleHorizontalGroupNavigation(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {
       FocusScope.of(context).nextFocus(); // 在横向分组内切换
     } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
-      // 切换到其他横向分组的第一个控件（自定义逻辑可扩展）
-      _jumpToOtherGroup(key, currentIndex);
+      // 切换到其他横向分组的第一个控件（通过 groupIndex 实现）
+      _jumpToOtherGroup(key, currentIndex, groupIndex);
     }
   }
 
   /// 竖向分组切换逻辑
-  void _handleVerticalGroupNavigation(LogicalKeyboardKey key, int currentIndex) {
+  void _handleVerticalGroupNavigation(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
       FocusScope.of(context).nextFocus(); // 在竖向分组内切换
     } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {
-      // 切换到其他竖向分组的第一个控件（自定义逻辑可扩展）
-      _jumpToOtherGroup(key, currentIndex);
+      // 切换到其他竖向分组的第一个控件（通过 groupIndex 实现）
+      _jumpToOtherGroup(key, currentIndex, groupIndex);
     }
   }
 
   /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex) {
-    // 自定义逻辑：根据分组信息跳到下一个分组的第一个控件
-    // 例如：_requestFocus(根据分组信息计算出的下一个分组的第一个控件的索引);
-    // 如果存在下一个分组，则返回 true，否则返回 false
-    int nextGroupIndex = (widget.isHorizontalGroup) ? currentIndex + 1 : currentIndex + 5; // 组间的切换规则可以调整
-    if (nextGroupIndex < widget.focusNodes.length) {
+  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+    // 自定义逻辑：根据 groupIndex 跳到下一个分组的第一个控件
+    int nextGroupIndex = (widget.isHorizontalGroup) ? currentIndex + 1 : currentIndex + 5;
+    if (groupIndex != null && nextGroupIndex < widget.focusNodes.length) {
       _requestFocus(nextGroupIndex);
       return true;
     }
@@ -263,19 +256,34 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 }
 
+/// 用于包装多个 FocusableItem 的分组组件
+class Group extends StatelessWidget {
+  final int groupIndex; // 分组编号
+  final List<Widget> children;
+
+  const Group({
+    Key? key,
+    required this.groupIndex,
+    required this.children,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: children,
+    );
+  }
+}
+
 // 用于包装具有焦点的组件
 class FocusableItem extends StatefulWidget {
   final FocusNode focusNode; // 焦点节点
   final Widget child; // 子组件
 
-  // 新增：分组信息（行号或列号）
-  final int? groupIndex; // 当前控件所属的分组编号（可为空）
-
   const FocusableItem({
     Key? key,
     required this.focusNode,
     required this.child,
-    this.groupIndex, // 分组信息可选
   }) : super(key: key);
 
   @override
