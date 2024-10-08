@@ -103,8 +103,6 @@ class _TvSettingPageState extends State<TvSettingPage> {
     return TvKeyNavigation(
       focusNodes: _focusNodes,
       initialIndex: _selectedIndex,
-      isFrame: true, // 启用框架模式
-      loopFocus: true, // 启用循环焦点
       onSelect: (index) {
         setState(() {
           _selectedIndex = index; // 同步更新选中索引
