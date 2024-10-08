@@ -102,7 +102,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
 
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
-    
+
     // 获取当前分组索引，如果存在 Group 包裹则获取 Group 的 groupIndex
     int? currentGroupIndex;
     if (widget.isHorizontalGroup || widget.isVerticalGroup) {
@@ -142,10 +142,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
             _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个控件
           }
         } else {
+          // 修改的核心部分，确保上下左右方向键能够切换到上一个或下一个焦点
           if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-            FocusScope.of(context).previousFocus(); // 上一个或左侧焦点
+            if (currentIndex > 0) {
+              _requestFocus(currentIndex - 1); // 切换到上一个焦点
+            } else if (widget.loopFocus) {
+              _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个焦点
+            }
           } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-            FocusScope.of(context).nextFocus(); // 下一个或右侧焦点
+            if (currentIndex < widget.focusNodes.length - 1) {
+              _requestFocus(currentIndex + 1); // 切换到下一个焦点
+            } else if (widget.loopFocus) {
+              _requestFocus(0); // 循环到第一个焦点
+            }
           }
         }
       }
