@@ -53,24 +53,10 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 使用 `FocusTraversalGroup` 和 `ReadingOrderTraversalPolicy` 实现基于方向键的焦点移动
+  /// 使用 `Shortcuts` 和 `Actions` 系统实现基于方向键的焦点移动
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentFocus = _currentFocus;
     if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
-
-    // 使用 ReadingOrderTraversalPolicy 进行方向键导航
-    FocusTraversalPolicy? traversalPolicy = FocusTraversalGroup.maybeOf(context);
-    if (traversalPolicy != null) {
-      if (key == LogicalKeyboardKey.arrowUp) {
-        traversalPolicy.inDirection(currentFocus!, TraversalDirection.up);
-      } else if (key == LogicalKeyboardKey.arrowDown) {
-        traversalPolicy.inDirection(currentFocus!, TraversalDirection.down);
-      } else if (key == LogicalKeyboardKey.arrowLeft) {
-        traversalPolicy.inDirection(currentFocus!, TraversalDirection.left);
-      } else if (key == LogicalKeyboardKey.arrowRight) {
-        traversalPolicy.inDirection(currentFocus!, TraversalDirection.right);
-      }
-    }
 
     // 调用选择回调
     FocusNode? currentFocusNode = FocusScope.of(context).focusedChild as FocusNode?;
@@ -150,12 +136,26 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
-    return FocusTraversalGroup(
-      policy: ReadingOrderTraversalPolicy(), // 使用 ReadingOrderTraversalPolicy 策略
-      child: Focus(
-        autofocus: true, // 自动聚焦
-        onKey: _handleKeyEvent, // 处理键盘事件
-        child: widget.child, // 直接使用传入的子组件，不改变原有布局
+    // 使用 Shortcuts 和 Actions 进行方向键处理
+    return Shortcuts(
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(TraversalDirection.up),
+        LogicalKeySet(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(TraversalDirection.down),
+        LogicalKeySet(LogicalKeyboardKey.arrowLeft): DirectionalFocusIntent(TraversalDirection.left),
+        LogicalKeySet(LogicalKeyboardKey.arrowRight): DirectionalFocusIntent(TraversalDirection.right),
+      },
+      child: Actions(
+        actions: {
+          DirectionalFocusIntent: DirectionalFocusAction(),
+        },
+        child: FocusTraversalGroup(
+          policy: ReadingOrderTraversalPolicy(), // 使用 ReadingOrderTraversalPolicy 策略
+          child: Focus(
+            autofocus: true, // 自动聚焦
+            onKey: _handleKeyEvent, // 处理键盘事件
+            child: widget.child, // 直接使用传入的子组件，不改变原有布局
+          ),
+        ),
       ),
     );
   }
@@ -179,6 +179,6 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return widget.child; // 直接返回子组件，不做样式修改
+    return widget.child; // 直接返回子组件
   }
 }
