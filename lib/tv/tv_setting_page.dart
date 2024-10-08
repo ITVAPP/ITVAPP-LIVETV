@@ -79,11 +79,6 @@ class _TvSettingPageState extends State<TvSettingPage> {
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
-      onShowFocusHighlight: (hasFocus) {
-        setState(() {
-          // 当焦点变化时触发样式刷新
-        });
-      },
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
