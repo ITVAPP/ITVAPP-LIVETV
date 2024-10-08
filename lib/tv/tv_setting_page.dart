@@ -14,13 +14,12 @@ import '../generated/l10n.dart';
 
 // 电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
-  const TvSettingPage({super.key}); // 构造函数，继承父类
+  const TvSettingPage({super.key});
 
   @override
-  State<TvSettingPage> createState() => _TvSettingPageState(); // 创建对应的状态类
+  State<TvSettingPage> createState() => _TvSettingPageState();
 }
 
-// _TvSettingPageState类用于管理TvSettingPage的状态
 class _TvSettingPageState extends State<TvSettingPage> {
   int _selectedIndex = 0; // 当前选中的菜单索引，初始值为0
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
@@ -47,14 +46,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
       if (_latestVersionEntity != null) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),  // 直接传递字符串
+          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),
           duration: Duration(seconds: 4),
         );
       } else {
         // 没有最新版本
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).latestVersion,  // 直接传递字符串
+          S.of(context).latestVersion,
           duration: Duration(seconds: 4),
         );
       }
@@ -62,7 +61,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
       // 版本检查失败
       CustomSnackBar.showSnackBar(
         context,
-        S.of(context).netReceiveTimeout,  // 直接传递字符串
+        S.of(context).netReceiveTimeout,
         duration: Duration(seconds: 4),
       );
     }
@@ -77,7 +76,6 @@ class _TvSettingPageState extends State<TvSettingPage> {
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
-      groupIndex: 0, // 每个菜单项属于第0组
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
@@ -100,12 +98,12 @@ class _TvSettingPageState extends State<TvSettingPage> {
     // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    // 使用 TvKeyNavigation 包裹需要焦点切换的部分，启用竖向分组和父页面框架模式
+    // 使用 TvKeyNavigation 包裹需要焦点切换的部分
     return TvKeyNavigation(
       focusNodes: _focusNodes,
       initialIndex: _selectedIndex,
-      isFrame: true, // 启用父页面框架模式
-      frameType: "parent", // 设置为父页面
+      isFrame: true, // 启用框架模式
+      frameType: "parent", // 设置为父框架
       isVerticalGroup: true, // 启用竖向分组
       onSelect: (index) {
         setState(() {
@@ -122,20 +120,22 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 title: Consumer<LanguageProvider>(
                   builder: (context, languageProvider, child) {
                     return Text(
-                       S.of(context).settings,  // 页面标题
-                       style: const TextStyle(
-                       fontSize: 22, // 设置字号
-                       fontWeight: FontWeight.bold, // 设置加粗
-                       ),
+                      S.of(context).settings, // 页面标题
+                      style: const TextStyle(
+                        fontSize: 22, // 设置字号
+                        fontWeight: FontWeight.bold, // 设置加粗
+                      ),
                     );
                   },
                 ),
               ),
-              body: ListView(
+              // 使用 Group 包裹所有 FocusableItem 分组
+              body: Group(
+                groupIndex: 0,
                 children: [
                   buildListTile(
                     icon: Icons.subscriptions,
-                    title: S.of(context).subscribe,  // 订阅
+                    title: S.of(context).subscribe, // 订阅
                     index: 0,
                     onTap: () {
                       setState(() {
@@ -145,7 +145,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   ),
                   buildListTile(
                     icon: Icons.font_download,
-                    title: S.of(context).fontTitle,  // 字体
+                    title: S.of(context).fontTitle, // 字体
                     index: 1,
                     onTap: () {
                       setState(() {
@@ -155,7 +155,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   ),
                   buildListTile(
                     icon: Icons.brush,
-                    title: S.of(context).backgroundImageTitle,  // 背景图
+                    title: S.of(context).backgroundImageTitle, // 背景图
                     index: 2,
                     onTap: () {
                       setState(() {
@@ -165,7 +165,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   ),
                   buildListTile(
                     icon: Icons.view_list,
-                    title: S.of(context).slogTitle,  // 日志
+                    title: S.of(context).slogTitle, // 日志
                     index: 3,
                     onTap: () {
                       setState(() {
@@ -175,7 +175,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   ),
                   buildListTile(
                     icon: Icons.system_update,
-                    title: S.of(context).updateTitle,  // 更新
+                    title: S.of(context).updateTitle, // 更新
                     index: 4,
                     onTap: _checkForUpdates, // 直接调用检查更新逻辑
                   ),
