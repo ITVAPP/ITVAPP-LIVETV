@@ -108,7 +108,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                     padding: const EdgeInsets.symmetric(vertical: 10.0),
                     child: FocusableItem(
                       focusNode: _focusNodes[0], // 为开关分配焦点节点
-                      isFocused: _focusNodes[0].hasFocus,
                       child: SwitchListTile(
                         title: Text(
                           S.of(context).SwitchTitle,
@@ -217,7 +216,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             padding: const EdgeInsets.only(top: 8.0),
                             child: FocusableItem(
                               focusNode: _focusNodes[5], // 为清空日志按钮添加焦点节点
-                              isFocused: _focusNodes[5].hasFocus,
                               child: ElevatedButton(
                                 onPressed: () {
                                   setState(() {
@@ -267,7 +265,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
-        isFocused: _focusNodes[focusIndex].hasFocus,
         child: OutlinedButton(
           onPressed: () {
             setState(() {
