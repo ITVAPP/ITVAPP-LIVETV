@@ -66,14 +66,31 @@ class DialogUtil {
             ),
             child: TvKeyNavigation(
               focusNodes: [contentFocusNode, closeFocusNode, buttonFocusNode],
+              loopFocus: true, // 启用循环焦点
               initialIndex: 0,
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
                   _buildDialogHeader(context, title: title, closeFocusNode: closeFocusNode),  // 传递关闭按钮的焦点节点
                   Flexible( 
-                    child: Focus(
+                    child: FocusableActionDetector(
                       focusNode: contentFocusNode,
+                      shortcuts: {
+                        LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
+                        LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
+                      },
+                      actions: {
+                        ScrollIntent: CallbackAction<ScrollIntent>(
+                          onInvoke: (intent) {
+                            if (intent.direction == AxisDirection.up && contentFocusNode.hasFocus) {
+                              FocusScope.of(context).requestFocus(closeFocusNode);  // 上键切换到关闭按钮
+                            } else if (intent.direction == AxisDirection.down && contentFocusNode.hasFocus) {
+                              FocusScope.of(context).requestFocus(buttonFocusNode);  // 下键切换到底部按钮
+                            }
+                            return null;
+                          },
+                        ),
+                      },
                       child: SingleChildScrollView(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 25),
