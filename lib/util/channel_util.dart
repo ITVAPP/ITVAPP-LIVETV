@@ -76,7 +76,6 @@ Widget buildSourceContent(
     return TvKeyNavigation(
       focusNodes: List.generate(sources.length, (index) => FocusNode()),
       initialIndex: currentSourceIndex,
-      loopFocus: true, // 启用循环焦点
       child: buildSourceButtons(context, sources, currentSourceIndex, isTV),
     );
   } else {
