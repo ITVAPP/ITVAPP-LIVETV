@@ -169,7 +169,18 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (button != null) {
         final onPressed = button.onPressed;
         if (onPressed != null) {
-          onPressed();
+          onPressed(); // 调用按钮的 onPressed 回调
+          return;
+        }
+      }
+
+      // 检查是否存在具有 onTap 回调的 FocusableItem 并调用其回调
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      if (focusableItem != null && focusableItem.child is ListTile) {
+        final listTile = focusableItem.child as ListTile;
+        if (listTile.onTap != null) {
+          listTile.onTap!(); // 调用 ListTile 的 onTap 回调
+          return;
         }
       }
     }
@@ -201,32 +212,8 @@ class FocusableItem extends StatefulWidget {
 }
 
 class _FocusableItemState extends State<FocusableItem> {
-  bool _isFocused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.focusNode.addListener(() {
-      setState(() {
-        _isFocused = widget.focusNode.hasFocus;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200), // 焦点状态变化时的动画时长
-      // 只修改背景色，不影响控件的圆角或其他样式
-      decoration: BoxDecoration(
-        color: _isFocused ? const Color(0xFFEB144C) : Colors.transparent, // 聚焦时背景色变化
-      ),
-      child: DefaultTextStyle(
-        style: TextStyle(
-          fontWeight: _isFocused ? FontWeight.bold : FontWeight.normal, // 根据焦点状态加粗文字
-        ),
-        child: widget.child, // 包装的子组件
-      ),
-    );
+    return widget.child; // 直接返回子组件，不做样式修改
   }
 }
