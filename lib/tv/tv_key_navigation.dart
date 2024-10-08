@@ -114,7 +114,18 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (widget.isHorizontalGroup) {
         _handleHorizontalGroupNavigation(key, currentIndex);
       } else if (widget.isVerticalGroup) {
-        _handleVerticalGroupNavigation(key, currentIndex);
+        // 仅在竖向分组时，处理右边界跨越框架逻辑
+        if (_isAtEdge(key) && (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowLeft)) {
+          if (!_jumpToOtherGroup(key, currentIndex)) {
+            // 如果已经在最后一个分组，并且无其他分组可跳转，则跨越框架
+            if (widget.isFrame && key == LogicalKeyboardKey.arrowRight) {
+              FocusScope.of(context).nextFocus(); // 跨越到下一个框架
+              return KeyEventResult.handled;
+            }
+          }
+        } else {
+          _handleVerticalGroupNavigation(key, currentIndex);
+        }
       } else {
         // 非分组模式下的默认导航逻辑
         if (_isAtEdge(key) && widget.loopFocus) {
@@ -166,9 +177,16 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 处理在组之间的跳转逻辑
-  void _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex) {
+  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex) {
     // 自定义逻辑：根据分组信息跳到下一个分组的第一个控件
     // 例如：_requestFocus(根据分组信息计算出的下一个分组的第一个控件的索引);
+    // 如果存在下一个分组，则返回 true，否则返回 false
+    int nextGroupIndex = (widget.isHorizontalGroup) ? currentIndex + 1 : currentIndex + 5; // 组间的切换规则可以调整
+    if (nextGroupIndex < widget.focusNodes.length) {
+      _requestFocus(nextGroupIndex);
+      return true;
+    }
+    return false; // 没有其他组可以跳转
   }
 
   /// 处理键盘事件，包括方向键和选择键。
