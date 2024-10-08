@@ -26,6 +26,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
 
   final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
 
+  final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
+  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.7); // 焦点时背景颜色
+
   @override
   void dispose() {
     for (var focusNode in _focusNodes) {
@@ -74,8 +77,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    return FocusableItem(
+    return FocusableActionDetector(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
+      onShowFocusHighlight: (hasFocus) {
+        setState(() {
+          // 当焦点变化时触发样式刷新
+        });
+      },
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
@@ -83,6 +91,8 @@ class _TvSettingPageState extends State<TvSettingPage> {
           style: const TextStyle(fontSize: 20), // 设置文字大小为20
         ), // 标题
         selected: _selectedIndex == index, // 判断是否选中
+        selectedTileColor: selectedColor, // 选中时背景颜色
+        tileColor: _focusNodes[index].hasFocus ? focusColor : null, // 焦点时背景颜色，未选中时保持默认
         onTap: () {
           setState(() {
             _selectedIndex = index; // 更新选中项索引
