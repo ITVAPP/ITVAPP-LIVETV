@@ -175,9 +175,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 横向分组切换逻辑
   void _handleHorizontalGroupNavigation(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (key == LogicalKeyboardKey.arrowLeft) {
-      FocusScope.of(context).previousFocus(); // 向左时移动到上一个焦点
+      _requestFocus(currentIndex - 1); // 切换到上一个焦点
     } else if (key == LogicalKeyboardKey.arrowRight) {
-      FocusScope.of(context).nextFocus(); // 向右时移动到下一个焦点
+      _requestFocus(currentIndex + 1); // 切换到下一个焦点
     } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
       // 切换到其他横向分组的第一个控件
       _jumpToOtherGroup(key, currentIndex, groupIndex);
@@ -188,9 +188,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 竖向分组切换逻辑
   void _handleVerticalGroupNavigation(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (key == LogicalKeyboardKey.arrowUp) {
-      FocusScope.of(context).previousFocus(); // 向上时移动到上一个焦点
+      _requestFocus(currentIndex - 1); // 切换到上一个焦点
     } else if (key == LogicalKeyboardKey.arrowDown) {
-      FocusScope.of(context).nextFocus(); // 向下时移动到下一个焦点
+      _requestFocus(currentIndex + 1); // 切换到下一个焦点
     } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {
       // 切换到其他竖向分组的第一个控件
       _jumpToOtherGroup(key, currentIndex, groupIndex);
