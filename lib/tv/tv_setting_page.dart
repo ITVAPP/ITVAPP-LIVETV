@@ -77,6 +77,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
+      groupIndex: 0, // 每个菜单项属于第0组
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
@@ -99,10 +100,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
     // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    // 使用 TvKeyNavigation 包裹需要焦点切换的部分
+    // 使用 TvKeyNavigation 包裹需要焦点切换的部分，启用竖向分组和父页面框架模式
     return TvKeyNavigation(
       focusNodes: _focusNodes,
       initialIndex: _selectedIndex,
+      isFrame: true, // 启用父页面框架模式
+      frameType: "parent", // 设置为父页面
+      isVerticalGroup: true, // 启用竖向分组
       onSelect: (index) {
         setState(() {
           _selectedIndex = index; // 同步更新选中索引
