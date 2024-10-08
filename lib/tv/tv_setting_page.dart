@@ -77,7 +77,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    return FocusableActionDetector(
+    return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
       onShowFocusHighlight: (hasFocus) {
         setState(() {
