@@ -14,6 +14,18 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isHorizontalGroup; // 是否启用横向分组
   final bool isVerticalGroup; // 是否启用竖向分组
 
+  // 构造参数说明：
+  // child（必填）：包裹的子组件，即你想要进行焦点管理的内容部分。
+  // focusNodes（必填）：一个 FocusNode 列表，表示所有需要聚焦的节点集合。
+  // onSelect（可选）：当焦点切换时触发的回调，参数为焦点的索引（int index），可以用来更新界面状态或进行其他处理。
+  // onKeyPressed（可选）：自定义按键处理的回调，参数为按下的键（LogicalKeyboardKey key）。
+  // loopFocus（可选，默认 true）：是否在边界时循环焦点。如果为 true，在列表末尾按下 "向下" 键会回到第一个节点，反之亦然。
+  // isFrame（可选，默认 false）：是否启用框架模式。在启用时，焦点可以在父框架和子框架之间进行切换。
+  // frameType（可选）：当前页面的框架类型，可以是 "parent"（父页面）或 "child"（子页面）。启用框架模式时必须指定此值。
+  // initialIndex（可选）：初始聚焦的焦点节点索引。如果不传，默认聚焦第一个节点。
+  // isHorizontalGroup（可选，默认 false）：是否启用横向分组，用于在横向分组内切换焦点。
+  // isVerticalGroup（可选，默认 false）：是否启用竖向分组，用于在竖向分组内切换焦点。
+
   const TvKeyNavigation({
     Key? key,
     required this.child,
@@ -261,6 +273,11 @@ class Group extends StatelessWidget {
   final int groupIndex; // 分组编号
   final List<Widget> children;
 
+  // Group 组件用于将一组 FocusableItem 组件分组，如果开启 isHorizontalGroup 或 isVerticalGroup 参数，
+  // 使得焦点可以在分组内切换，限制焦点在不同的分组之间移动。
+  // groupIndex（开启分组的话必填）：分组编号，用于标识当前分组，焦点切换时可以根据这个编号来识别分组。
+  // children（开启分组的话必填）：需要被分组的子组件列表，通常这些组件会是 FocusableItem。
+
   const Group({
     Key? key,
     required this.groupIndex,
@@ -279,6 +296,13 @@ class Group extends StatelessWidget {
 class FocusableItem extends StatefulWidget {
   final FocusNode focusNode; // 焦点节点
   final Widget child; // 子组件
+
+  // FocusableItem 组件用于包装具体的可聚焦组件（如 ListTile、Button 等），并将其与 FocusNode 绑定，
+  // 以便在 TvKeyNavigation 中管理它们的焦点。
+  // 焦点管理：将 FocusNode 和组件绑定，实现焦点的切换。
+  // 自定义焦点处理：当组件获得焦点时可以触发特定的行为，例如选中状态的变化。
+  // focusNode（必填）：与该组件关联的 FocusNode，由 TvKeyNavigation 管理焦点的切换。
+  // child（必填）：被包装的实际组件，可以是 ListTile、Button 或其他任意组件。
 
   const FocusableItem({
     Key? key,
