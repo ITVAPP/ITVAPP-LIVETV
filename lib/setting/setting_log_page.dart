@@ -91,7 +91,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
       body: TvKeyNavigation(
         focusNodes: _focusNodes,
-        isFrame: true, // 启用框架模式
         child: Align(
           alignment: Alignment.center, // 内容居中显示
           child: Container(
