@@ -111,11 +111,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
                         child: FocusableItem(
                           focusNode: _focusNodes[0], // 为开关分配焦点节点
-                          onShowFocusHighlight: (hasFocus) {
-                            setState(() {
-                              // 触发样式刷新
-                            });
-                          },
                           child: SwitchListTile(
                             title: Text(
                               S.of(context).SwitchTitle,
@@ -240,11 +235,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: FocusableItem(
                                   focusNode: _focusNodes[5], // 为清空日志按钮添加焦点节点
-                                  onShowFocusHighlight: (hasFocus) {
-                                    setState(() {
-                                      // 触发样式刷新
-                                    });
-                                  },
                                   child: ElevatedButton(
                                     onPressed: () {
                                       setState(() {
@@ -298,11 +288,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
-        onShowFocusHighlight: (hasFocus) {
-          setState(() {
-            // 触发样式刷新
-          });
-        },
         child: OutlinedButton(
           onPressed: () {
             setState(() {
@@ -328,7 +313,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 ? selectedColor.withOpacity(0.7) // 焦点时使用选中颜色的透明版本
                 : (_selectedLevel == level
                     ? selectedColor // 选中时使用完全不透明的颜色
-                    : unselectedColor), // 未选中时背景颜色
+                    : unselectedColor), // 未选中时颜色
             side: BorderSide.none, // 不需要边框
           ),
         ),
