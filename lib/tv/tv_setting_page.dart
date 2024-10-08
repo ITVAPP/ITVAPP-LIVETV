@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
@@ -11,26 +12,20 @@ import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
+// 电视应用的设置主页面
 class TvSettingPage extends StatefulWidget {
-  const TvSettingPage({super.key});
+  const TvSettingPage({super.key}); // 构造函数，继承父类
 
   @override
-  State<TvSettingPage> createState() => _TvSettingPageState();
+  State<TvSettingPage> createState() => _TvSettingPageState(); // 创建对应的状态类
 }
 
+// _TvSettingPageState类用于管理TvSettingPage的状态
 class _TvSettingPageState extends State<TvSettingPage> {
   int _selectedIndex = 0; // 当前选中的菜单索引，初始值为0
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
-  final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 初始化时为第一个菜单项设置焦点
-      _focusNodes[0].requestFocus();
-    });
-  }
+  final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
 
   @override
   void dispose() {
@@ -40,6 +35,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     super.dispose();
   }
 
+  // 用于检查版本更新的逻辑
   Future<void> _checkForUpdates() async {
     try {
       await CheckVersionUtil.checkVersion(context, true, true, true);
@@ -47,28 +43,32 @@ class _TvSettingPageState extends State<TvSettingPage> {
         _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
       });
 
+      // 如果有最新版本
       if (_latestVersionEntity != null) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),
+          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),  // 直接传递字符串
           duration: Duration(seconds: 4),
         );
       } else {
+        // 没有最新版本
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).latestVersion,
+          S.of(context).latestVersion,  // 直接传递字符串
           duration: Duration(seconds: 4),
         );
       }
     } catch (e) {
+      // 版本检查失败
       CustomSnackBar.showSnackBar(
         context,
-        S.of(context).netReceiveTimeout,
+        S.of(context).netReceiveTimeout,  // 直接传递字符串
         duration: Duration(seconds: 4),
       );
     }
   }
 
+  // 通用方法：构建菜单项
   Widget buildListTile({
     required IconData icon,
     required String title,
@@ -96,106 +96,102 @@ class _TvSettingPageState extends State<TvSettingPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    return RawKeyboardListener(
-      focusNode: FocusNode(),
-      autofocus: true,
-      onKey: (RawKeyEvent event) {
-        if (event is RawKeyDownEvent) {
-          print('捕获到按键: ${event.logicalKey}'); // 捕获按键事件
-        }
+    // 使用 TvKeyNavigation 包裹需要焦点切换的部分
+    return TvKeyNavigation(
+      focusNodes: _focusNodes,
+      frameIdentifier: parent,
+      initialIndex: _selectedIndex,
+      onSelect: (index) {
+        setState(() {
+          _selectedIndex = index; // 同步更新选中索引
+        });
       },
-      child: TvKeyNavigation(
-        focusNodes: _focusNodes,
-        initialIndex: _selectedIndex,
-        onSelect: (index) {
-          setState(() {
-            _selectedIndex = index; // 同步更新选中索引
-          });
-        },
-        child: Row(
-          children: [
-            SizedBox(
-              width: 300,
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Consumer<LanguageProvider>(
-                    builder: (context, languageProvider, child) {
-                      return Text(
-                        S.of(context).settings, // 页面标题
-                        style: const TextStyle(
-                          fontSize: 22, // 设置字号
-                          fontWeight: FontWeight.bold, // 设置加粗
-                        ),
-                      );
+      child: Row(
+        children: [
+          // 左侧菜单部分，宽度固定为300
+          SizedBox(
+            width: 300,
+            child: Scaffold(
+              appBar: AppBar(
+                title: Consumer<LanguageProvider>(
+                  builder: (context, languageProvider, child) {
+                    return Text(
+                       S.of(context).settings,  // 页面标题
+                       style: const TextStyle(
+                       fontSize: 22, // 设置字号
+                       fontWeight: FontWeight.bold, // 设置加粗
+                       ),
+                    );
+                  },
+                ),
+              ),
+              body: ListView(
+                children: [
+                  buildListTile(
+                    icon: Icons.subscriptions,
+                    title: S.of(context).subscribe,  // 订阅
+                    index: 0,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 0;
+                      });
                     },
                   ),
-                ),
-                body: ListView(
-                  children: [
-                    buildListTile(
-                      icon: Icons.subscriptions,
-                      title: S.of(context).subscribe, // 订阅
-                      index: 0,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 0;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.font_download,
-                      title: S.of(context).fontTitle, // 字体
-                      index: 1,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 1;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.brush,
-                      title: S.of(context).backgroundImageTitle, // 背景图
-                      index: 2,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 2;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.view_list,
-                      title: S.of(context).slogTitle, // 日志
-                      index: 3,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 3;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.system_update,
-                      title: S.of(context).updateTitle, // 更新
-                      index: 4,
-                      onTap: _checkForUpdates, // 直接调用检查更新逻辑
-                    ),
-                  ],
-                ),
+                  buildListTile(
+                    icon: Icons.font_download,
+                    title: S.of(context).fontTitle,  // 字体
+                    index: 1,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 1;
+                      });
+                    },
+                  ),
+                  buildListTile(
+                    icon: Icons.brush,
+                    title: S.of(context).backgroundImageTitle,  // 背景图
+                    index: 2,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2;
+                      });
+                    },
+                  ),
+                  buildListTile(
+                    icon: Icons.view_list,
+                    title: S.of(context).slogTitle,  // 日志
+                    index: 3,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 3;
+                      });
+                    },
+                  ),
+                  buildListTile(
+                    icon: Icons.system_update,
+                    title: S.of(context).updateTitle,  // 更新
+                    index: 4,
+                    onTap: _checkForUpdates, // 直接调用检查更新逻辑
+                  ),
+                ],
               ),
             ),
-            if (_selectedIndex == 0)
-              const Expanded(
-                child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
-              ),
-            if (_selectedIndex == 1)
-              const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
-            if (_selectedIndex == 2)
-              const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
-            if (_selectedIndex == 3)
-              Expanded(child: SettinglogPage()), // 如果选中日志，则显示日志页面
-          ],
-        ),
+          ),
+          // 根据选中的索引，动态显示右侧的页面内容
+          if (_selectedIndex == 0)
+            const Expanded(
+              child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
+            ),
+          if (_selectedIndex == 1)
+            const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
+          if (_selectedIndex == 2)
+            const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
+          if (_selectedIndex == 3)
+            Expanded(child: SettinglogPage()), // 如果选中日志，则显示日志页面
+        ],
       ),
     );
   }
