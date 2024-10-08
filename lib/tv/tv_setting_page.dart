@@ -102,7 +102,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     // 使用 TvKeyNavigation 包裹需要焦点切换的部分
     return TvKeyNavigation(
       focusNodes: _focusNodes,
-      frameIdentifier: parent,
+      frameIdentifier: 'parent',
       initialIndex: _selectedIndex,
       onSelect: (index) {
         setState(() {
