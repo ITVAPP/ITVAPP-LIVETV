@@ -77,34 +77,22 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
+  /// 使用 `FocusTraversalGroup` 和 `DirectionalFocusTraversalPolicyMixin` 实现基于方向键的焦点移动
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentFocus = _currentFocus;
     if (currentFocus == null) return KeyEventResult.ignored; // 没有焦点时忽略
 
-    int currentIndex = widget.focusNodes.indexOf(currentFocus);
-
-    if (widget.isFrame && _isAtEdge(key)) {
-      // 框架模式下，当焦点在边界时切换到其他框架
-      if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
-        FocusScope.of(context).nextFocus();
-      } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
-        FocusScope.of(context).previousFocus();
-      }
-    } else {
-      // 非框架模式下，处理循环焦点
-      if (_isAtEdge(key) && widget.loopFocus) {
-        if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
-          _requestFocus(0); // 循环到第一个控件
-        } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
-          _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个控件
-        }
-      } else {
-        if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-          FocusScope.of(context).previousFocus(); // 上一个或左侧焦点
-        } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-          FocusScope.of(context).nextFocus(); // 下一个或右侧焦点
-        }
+    // 使用 DirectionalFocusTraversalPolicyMixin 进行方向键导航
+    FocusTraversalPolicy? traversalPolicy = FocusTraversalGroup.maybeOf(context);
+    if (traversalPolicy != null) {
+      if (key == LogicalKeyboardKey.arrowUp) {
+        traversalPolicy.inDirection(currentFocus!, TraversalDirection.up);
+      } else if (key == LogicalKeyboardKey.arrowDown) {
+        traversalPolicy.inDirection(currentFocus!, TraversalDirection.down);
+      } else if (key == LogicalKeyboardKey.arrowLeft) {
+        traversalPolicy.inDirection(currentFocus!, TraversalDirection.left);
+      } else if (key == LogicalKeyboardKey.arrowRight) {
+        traversalPolicy.inDirection(currentFocus!, TraversalDirection.right);
       }
     }
 
@@ -112,7 +100,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     FocusNode? currentFocusNode = FocusScope.of(context).focusedChild as FocusNode?;
     if (currentFocusNode != null) {
       int newIndex = widget.focusNodes.indexOf(currentFocusNode);
-      if (widget.onSelect != null && newIndex != -1 && newIndex != currentIndex) {
+      if (widget.onSelect != null && newIndex != -1 && newIndex != widget.focusNodes.indexOf(currentFocus)) {
         widget.onSelect!(newIndex);  // 确保只有在新焦点与当前焦点不同的时候调用回调
       }
     }
@@ -130,7 +118,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowLeft ||
           key == LogicalKeyboardKey.arrowRight) {
-        // 修改: 确保事件不会被处理两次
+        // 修改: 使用新的导航逻辑
         return _handleNavigation(key);
       }
 
@@ -145,7 +133,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         widget.onKeyPressed!(key);
       }
     }
-    // 修改: 确保事件未被处理时返回 ignored
     return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
 
@@ -188,10 +175,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      autofocus: true, // 自动聚焦
-      onKey: _handleKeyEvent, // 处理键盘事件
-      child: widget.child, // 直接使用传入的子组件，不改变原有布局
+    return FocusTraversalGroup(
+      policy: DirectionalFocusTraversalPolicy(), // 使用方向焦点遍历策略
+      child: Focus(
+        autofocus: true, // 自动聚焦
+        onKey: _handleKeyEvent, // 处理键盘事件
+        child: widget.child, // 直接使用传入的子组件，不改变原有布局
+      ),
     );
   }
 }
@@ -214,6 +204,6 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return widget.child; // 直接返回子组件，不做样式修改
+    return widget.child; // 直接返回子组件
   }
 }
