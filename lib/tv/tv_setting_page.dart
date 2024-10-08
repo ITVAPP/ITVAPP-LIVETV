@@ -77,7 +77,6 @@ class _TvSettingPageState extends State<TvSettingPage> {
   }) {
     return FocusableItem(
       focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
-      isFocused: _selectedIndex == index, // 判断当前是否聚焦
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
