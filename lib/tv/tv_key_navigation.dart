@@ -57,26 +57,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  /// 判断当前焦点是否在边界
-  bool _isAtEdge(LogicalKeyboardKey key) {
-    final currentFocus = _currentFocus;
-    if (currentFocus == null) return false; // 如果没有焦点，直接返回 false
-
-    int currentIndex = widget.focusNodes.indexOf(currentFocus);
-    if (currentIndex == -1) return false;
-
-    switch (key) {
-      case LogicalKeyboardKey.arrowLeft:
-      case LogicalKeyboardKey.arrowUp:
-        return currentIndex == 0; // 左边界或上边界
-      case LogicalKeyboardKey.arrowRight:
-      case LogicalKeyboardKey.arrowDown:
-        return currentIndex == widget.focusNodes.length - 1; // 右边界或下边界
-      default:
-        return false;
-    }
-  }
-
   /// 使用 `FocusTraversalGroup` 和 `DirectionalFocusTraversalPolicyMixin` 实现基于方向键的焦点移动
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentFocus = _currentFocus;
@@ -118,7 +98,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowLeft ||
           key == LogicalKeyboardKey.arrowRight) {
-        // 修改: 使用新的导航逻辑
         return _handleNavigation(key);
       }
 
@@ -204,6 +183,6 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return widget.child; // 直接返回子组件
+    return widget.child; // 直接返回子组件，不做样式修改
   }
 }
