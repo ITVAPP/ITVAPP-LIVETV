@@ -115,7 +115,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    int nextIndex;
+    int nextIndex = -1; // 初始化 nextIndex，确保有默认值
 
     // 处理上下方向键，基于控件位置选择最近的焦点
     if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
