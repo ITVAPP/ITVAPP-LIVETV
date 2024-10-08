@@ -301,7 +301,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     Group? targetGroup;
     if (ancestor != null) {
       ancestor.visitChildren((child) {
-        final group = child.debugCreator!.element.widget as Group?;
+        final group = context.findAncestorStateOfType<Group>();
         if (group != null && group.groupIndex == groupIndex) {
           targetGroup = group;
         }
