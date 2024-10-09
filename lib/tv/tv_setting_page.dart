@@ -198,8 +198,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
           if (_selectedIndex == 2)
             const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
           if (_selectedIndex == 3)
-            // Expanded(child: SettinglogPage(focusNodes: _focusNodes)), // 传递焦点节点给日志页面
-            Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
+            Expanded(child: SettinglogPage(focusNodes: _focusNodes)), // 传递焦点节点给日志页面
           if (_selectedIndex == 4)
             Expanded(
               child: Center(
