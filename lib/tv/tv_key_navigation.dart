@@ -9,7 +9,6 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isFrame; // 是否启用框架模式，用于切换焦点
   final String? frameType; // 新增：用于识别父页面或子页面
   final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
-
   final bool isHorizontalGroup; // 是否启用横向分组
   final bool isVerticalGroup; // 是否启用竖向分组
 
@@ -32,18 +31,24 @@ class TvKeyNavigation extends StatefulWidget {
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? get _currentFocus => FocusScope.of(context).focusedChild as FocusNode?;
+  OverlayEntry? _debugOverlayEntry; // 调试信息窗口
+  Group? _cachedGroup; // 缓存 Group 实例
+
+  // 硬编码调试模式开关
+  final bool _showDebugOverlay = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 如果 initialIndex 不为空且在范围内，则手动请求焦点
-      if (widget.initialIndex != null &&
-          widget.initialIndex! >= 0 &&
-          widget.initialIndex! < widget.focusNodes.length) {
-        _requestFocus(widget.initialIndex!);
-      } else {
-        _requestFocus(0); // 如果没有提供 initialIndex 或不在范围内，则默认聚焦第一个
+      try {
+        // 设置初始焦点
+        _requestFocus((widget.initialIndex != null && widget.initialIndex! >= 0 && widget.initialIndex! < widget.focusNodes.length)
+            ? widget.initialIndex!
+            : 0);
+        _showDebugOverlayMessage('初始焦点设置完成');
+      } catch (e) {
+        _showDebugOverlayMessage('初始焦点设置失败: $e');
       }
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
@@ -51,38 +56,81 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   void dispose() {
+    _removeDebugOverlay(); // 移除调试窗口
     WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     super.dispose();
   }
 
+  /// 显示调试信息的浮动窗口
+  void _showDebugOverlayMessage(String message) {
+    if (!_showDebugOverlay) return;
+
+    _removeDebugOverlay(); // 先移除旧的，确保只有一个显示
+
+    _debugOverlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 20.0,
+        right: 20.0,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              message,
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_debugOverlayEntry!);
+
+    // 自动隐藏提示
+    Future.delayed(Duration(seconds: 3), () {
+      _removeDebugOverlay();
+    });
+  }
+
+  /// 移除调试窗口
+  void _removeDebugOverlay() {
+    _debugOverlayEntry?.remove();
+    _debugOverlayEntry = null;
+  }
+
   /// 请求将焦点切换到指定索引的控件上。
   void _requestFocus(int index) {
-    if (widget.focusNodes.isNotEmpty && index >= 0 && index < widget.focusNodes.length) {
+    try {
+      // 增加 focusNodes 是否为空的检查
+      if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
+        _showDebugOverlayMessage('请求焦点无效，索引超出范围: $index');
+        return; // 增加检查，防止空引用错误
+      }
       widget.focusNodes[index].requestFocus();
+      _showDebugOverlayMessage('切换焦点到索引: $index');
+    } catch (e) {
+      _showDebugOverlayMessage('切换焦点失败: $e');
     }
   }
 
-  /// 提取处理跳转逻辑的公共方法，减少重复代码。
-  bool _handleGroupNavigation(LogicalKeyboardKey key, int currentIndex, int groupIndex) {
-    bool handled = _jumpToOtherGroup(key, currentIndex, groupIndex);
-    if (!handled) {
-      FocusScope.of(context).nextFocus(); // 默认切换到下一个框架
-    }
-    return handled;
-  }
-  
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final currentFocus = _currentFocus;
 
     // 1. 检查当前是否有焦点 (currentFocus)
     if (currentFocus == null) {
+      _showDebugOverlayMessage('当前无焦点，忽略按键: ${key.debugName}');
       return KeyEventResult.ignored; // 没有焦点时忽略
     }
 
     // 2. 获取当前焦点的索引 (currentIndex)
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
     if (currentIndex == -1) {
+      _showDebugOverlayMessage('找不到当前焦点的索引，忽略按键: ${key.debugName}');
       return KeyEventResult.ignored; // 找不到当前焦点时忽略
     }
 
@@ -90,151 +138,124 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
 
     // 3. 判断是否启用了框架模式 (isFrame)
-    if (widget.isFrame) {
-      if (widget.frameType == "parent") {
+    try {
+      if (widget.isFrame) {
         // 如果 frameType 是 "parent"
-        if (widget.isHorizontalGroup) {
-          // 处理横向分组
-          if (key == LogicalKeyboardKey.arrowLeft) {
-            // 左键：后退
+        if (widget.frameType == "parent") {
+          if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+            // 左键和上键：后退或循环焦点
             if (currentIndex == 0) {
               _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
+              _showDebugOverlayMessage('父页面: ${key == LogicalKeyboardKey.arrowLeft ? '左' : '上'}键，循环到最后一个焦点');
             } else {
-              FocusScope.of(context).previousFocus(); // 上一个焦点
+              _requestFocus(currentIndex - 1);
+              _showDebugOverlayMessage('父页面: ${key == LogicalKeyboardKey.arrowLeft ? '左' : '上'}键，切换到前一个焦点');
             }
           } else if (key == LogicalKeyboardKey.arrowRight) {
-            // 右键：前进
-            FocusScope.of(context).nextFocus(); // 切换到下一个框架
-          } else if (key == LogicalKeyboardKey.arrowUp) {
-            // 上键：后退一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
+            // 右键：切换到子页面
+            _jumpToOtherGroup(key, currentIndex, 0);
+            _showDebugOverlayMessage('父页面: 右键，切换到子页面');
           } else if (key == LogicalKeyboardKey.arrowDown) {
-            // 下键：前进一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          }
-        } else if (widget.isVerticalGroup) {
-          // 处理竖向分组
-          if (key == LogicalKeyboardKey.arrowLeft) {
-            // 左键：后退一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowRight) {
-            // 右键：前进一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowUp) {
-            // 上键：后退
-            if (currentIndex == 0) {
-              _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
-            } else {
-              FocusScope.of(context).previousFocus();
-            }
-          } else if (key == LogicalKeyboardKey.arrowDown) {
-            // 下键：前进
+            // 下键：前进或循环焦点
             if (currentIndex == widget.focusNodes.length - 1) {
-              _requestFocus(0); // 循环到第一个
+              _requestFocus(0);
+              _showDebugOverlayMessage('父页面: 下键，循环到第一个焦点');
             } else {
-              FocusScope.of(context).nextFocus();
+              _requestFocus(currentIndex + 1);
+              _showDebugOverlayMessage('父页面: 下键，切换到下一个焦点');
             }
           }
-        }
-      } else if (widget.frameType == "child") {
-        // 如果 frameType 是 "child"
-        if (widget.isHorizontalGroup) {
-          // 处理横向分组
+        } else if (widget.frameType == "child") {
+          // 如果 frameType 是 "child"
           if (key == LogicalKeyboardKey.arrowLeft) {
-            // 左键：后退（如果到达边界则切换到下一个框架的焦点）
-            if (currentIndex == 0) {
-              FocusScope.of(context).nextFocus(); // 切换到下一个框架
-            } else {
-              FocusScope.of(context).previousFocus(); // 上一个焦点
-            }
+            // 左键：切换到父页面
+            _jumpToOtherGroup(key, currentIndex, 1);
+            _showDebugOverlayMessage('子页面: 左键，切换到父页面');
           } else if (key == LogicalKeyboardKey.arrowRight) {
             // 右键：前进（如果到达边界则循环焦点）
             if (currentIndex == widget.focusNodes.length - 1) {
               _requestFocus(0); // 循环到第一个
+              _showDebugOverlayMessage('子页面: 右键，循环到第一个焦点');
             } else {
-              FocusScope.of(context).nextFocus(); // 下一个焦点
+              _requestFocus(currentIndex + 1);
+              _showDebugOverlayMessage('子页面: 右键，切换到下一个焦点');
             }
-          } else if (key == LogicalKeyboardKey.arrowUp) {
-            // 上键：后退一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowDown) {
-            // 下键：前进一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
+          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
+            // 上键或下键：切换分组
+            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _showDebugOverlayMessage('子页面: ${key == LogicalKeyboardKey.arrowUp ? '上' : '下'}键，切换分组');
           }
-        } else if (widget.isVerticalGroup) {
-          // 处理竖向分组
+        }
+      } else {  // 如果没有启用框架模式
+        if (widget.isHorizontalGroup) {
+          // 横向分组逻辑
           if (key == LogicalKeyboardKey.arrowLeft) {
-            // 左键：后退一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowRight) {
-            // 右键：前进一个分组
-            _handleGroupNavigation(key, currentIndex, groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowUp) {
-            // 上键：后退
             if (currentIndex == 0) {
               _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
+              _showDebugOverlayMessage('横向组: 左键，循环到最后一个焦点');
             } else {
-              FocusScope.of(context).previousFocus();
+              _requestFocus(currentIndex - 1);
+              _showDebugOverlayMessage('横向组: 左键，切换到前一个焦点');
             }
-          } else if (key == LogicalKeyboardKey.arrowDown) {
-            // 下键：前进
+          } else if (key == LogicalKeyboardKey.arrowRight) {
             if (currentIndex == widget.focusNodes.length - 1) {
               _requestFocus(0); // 循环到第一个
+              _showDebugOverlayMessage('横向组: 右键，循环到第一个焦点');
             } else {
-              FocusScope.of(context).nextFocus();
+              _requestFocus(currentIndex + 1);
+              _showDebugOverlayMessage('横向组: 右键，切换到下一个焦点');
+            }
+          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
+            // 上键或下键：切换分组
+            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _showDebugOverlayMessage('横向组: ${key == LogicalKeyboardKey.arrowUp ? '上' : '下'}键，切换分组');
+          }
+        } else if (widget.isVerticalGroup) {
+          // 竖向分组逻辑
+          if (key == LogicalKeyboardKey.arrowUp) {
+            if (currentIndex == 0) {
+              _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
+              _showDebugOverlayMessage('竖向组: 上键，循环到最后一个焦点');
+            } else {
+              _requestFocus(currentIndex - 1);
+              _showDebugOverlayMessage('竖向组: 上键，切换到前一个焦点');
+            }
+          } else if (key == LogicalKeyboardKey.arrowDown) {
+            if (currentIndex == widget.focusNodes.length - 1) {
+              _requestFocus(0); // 循环到第一个
+              _showDebugOverlayMessage('竖向组: 下键，循环到第一个焦点');
+            } else {
+              _requestFocus(currentIndex + 1);
+              _showDebugOverlayMessage('竖向组: 下键，切换到下一个焦点');
+            }
+          } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {
+            // 左键或右键：切换分组
+            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _showDebugOverlayMessage('竖向组: ${key == LogicalKeyboardKey.arrowLeft ? '左' : '右'}键，切换分组');
+          }
+        } else {
+          // 没有启用分组的默认导航逻辑
+          if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+            if (currentIndex == 0) {
+              _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
+              _showDebugOverlayMessage('默认导航: ${key == LogicalKeyboardKey.arrowUp ? '上' : '左'}键，循环到最后一个焦点');
+            } else {
+              _requestFocus(currentIndex - 1);
+              _showDebugOverlayMessage('默认导航: ${key == LogicalKeyboardKey.arrowUp ? '上' : '左'}键，切换到前一个焦点');
+            }
+          } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+            if (currentIndex == widget.focusNodes.length - 1) {
+              _requestFocus(0); // 循环到第一个
+              _showDebugOverlayMessage('默认导航: ${key == LogicalKeyboardKey.arrowDown ? '下' : '右'}键，循环到第一个焦点');
+            } else {
+              _requestFocus(currentIndex + 1);
+              _showDebugOverlayMessage('默认导航: ${key == LogicalKeyboardKey.arrowDown ? '下' : '右'}键，切换到下一个焦点');
             }
           }
         }
       }
-      return KeyEventResult.handled;
-    }
-
-    // 如果没有启用框架模式
-    if (widget.isHorizontalGroup) {
-      // 横向分组逻辑
-      if (key == LogicalKeyboardKey.arrowLeft) {
-        if (currentIndex == 0) {
-          _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
-        } else {
-          _requestFocus(currentIndex - 1);
-        }
-      } else if (key == LogicalKeyboardKey.arrowRight) {
-        if (currentIndex == widget.focusNodes.length - 1) {
-          _requestFocus(0); // 循环到第一个
-        } else {
-          _requestFocus(currentIndex + 1);
-        }
-      }
-    } else if (widget.isVerticalGroup) {
-      // 竖向分组逻辑
-      if (key == LogicalKeyboardKey.arrowUp) {
-        if (currentIndex == 0) {
-          _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
-        } else {
-          _requestFocus(currentIndex - 1);
-        }
-      } else if (key == LogicalKeyboardKey.arrowDown) {
-        if (currentIndex == widget.focusNodes.length - 1) {
-          _requestFocus(0); // 循环到第一个
-        } else {
-          _requestFocus(currentIndex + 1);
-        }
-      }
-    } else {
-      // 没有启用分组的默认导航逻辑
-      if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-        if (currentIndex == 0) {
-          _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个
-        } else {
-          _requestFocus(currentIndex - 1);
-        }
-      } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-        if (currentIndex == widget.focusNodes.length - 1) {
-          _requestFocus(0); // 循环到第一个
-        } else {
-          _requestFocus(currentIndex + 1);
-        }
-      }
+    } catch (e) {
+      _showDebugOverlayMessage('焦点切换错误: $e');
     }
 
     // 调用选择回调
@@ -251,11 +272,11 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(BuildContext context) {
-    final group = context.findAncestorWidgetOfExactType<Group>();
-    if (group != null) {
-      return group.groupIndex;
+    // 优化：使用缓存的 Group 实例
+    if (_cachedGroup == null) {
+      _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
     }
-    return -1; // 未找到 Group 时返回 -1
+    return _cachedGroup?.groupIndex ?? -1; // 未找到 Group 时返回 -1
   }
 
   /// 处理在组之间的跳转逻辑
@@ -268,15 +289,16 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       // 后退：groupIndex - 1
       nextGroupIndex = groupIndex - 1;
       if (nextGroupIndex < 0) {
-        return false; // 已经是第一个分组，无法再后退
+        _showDebugOverlayMessage('已经是第一个分组，无法再后退');
+        return false;
       }
     } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
       // 前进：groupIndex + 1
+      int totalGroups = _getTotalGroups();
       nextGroupIndex = groupIndex + 1;
-      // 此处判断总的组数，避免越界错误，或者根据实际情况需要调整 totalGroups 逻辑
-      int totalGroups = _getTotalGroups(); 
       if (nextGroupIndex >= totalGroups) {
-        return false; // 已经是最后一个分组，无法再前进
+        _showDebugOverlayMessage('已经是最后一个分组，无法再前进');
+        return false;
       }
     } else {
       return false;
@@ -288,11 +310,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
       if (firstFocusNode != null) {
         firstFocusNode.requestFocus();
+        _showDebugOverlayMessage('切换到组 $nextGroupIndex 的第一个焦点');
         return true;
       }
     }
 
-    return false; // 如果找不到合适的焦点，返回 false
+    _showDebugOverlayMessage('无法找到下一个组或其焦点');
+    return false;
   }
 
   /// 根据 groupIndex 查找对应的 Group
@@ -322,7 +346,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取总的组数
   int _getTotalGroups() {
-    // 此处可以根据 focusNodes 或 Group 总数返回正确的总组数逻辑
     return widget.focusNodes.length; 
   }
 
@@ -331,26 +354,38 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     if (event is RawKeyDownEvent) {
       LogicalKeyboardKey key = event.logicalKey;
 
-      // 如果按下方向键，则进行导航
-      if (key == LogicalKeyboardKey.arrowUp ||
-          key == LogicalKeyboardKey.arrowDown ||
-          key == LogicalKeyboardKey.arrowLeft ||
-          key == LogicalKeyboardKey.arrowRight) {
+      // 判断是否为方向键
+      if (_isDirectionKey(key)) {
         return _handleNavigation(key);
       }
 
-      // 处理选择键（如 Enter 键）
-      if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
+      // 判断是否为选择键
+      if (_isSelectKey(key)) {
         _triggerButtonAction(); // 直接调用方法触发按钮操作
+        _showDebugOverlayMessage('选择键操作: ${key.debugName}');
         return KeyEventResult.handled; // 标记按键事件已处理
       }
 
       // 自定义的按键处理回调
       if (widget.onKeyPressed != null) {
         widget.onKeyPressed!(key);
+        _showDebugOverlayMessage('自定义按键回调: ${key.debugName}');
       }
     }
     return KeyEventResult.ignored; // 如果未处理，返回忽略
+  }
+
+  /// 判断是否为方向键
+  bool _isDirectionKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowUp ||
+           key == LogicalKeyboardKey.arrowDown ||
+           key == LogicalKeyboardKey.arrowLeft ||
+           key == LogicalKeyboardKey.arrowRight;
+  }
+
+  /// 判断是否为选择键
+  bool _isSelectKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态。
@@ -362,6 +397,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (switchTile != null) {
         final value = !(switchTile.value ?? false); // 切换状态
         switchTile.onChanged?.call(value); // 调用 onChanged 回调切换开关状态
+        _showDebugOverlayMessage('切换开关状态: $value');
         return;
       }
 
@@ -374,6 +410,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         final onPressed = button.onPressed;
         if (onPressed != null) {
           onPressed(); // 调用按钮的 onPressed 回调
+          _showDebugOverlayMessage('执行按钮操作');
           return;
         }
       }
@@ -384,6 +421,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         final listTile = focusableItem.child as ListTile;
         if (listTile.onTap != null) {
           listTile.onTap!(); // 调用 ListTile 的 onTap 回调
+          _showDebugOverlayMessage('执行 ListTile 的 onTap 操作');
           return;
         }
       }
@@ -396,25 +434,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       autofocus: true, // 自动聚焦
       onKey: _handleKeyEvent, // 处理键盘事件
       child: widget.child, // 直接使用传入的子组件，不改变原有布局
-    );
-  }
-}
-
-/// 用于包装多个 FocusableItem 的分组组件
-class Group extends StatelessWidget {
-  final int groupIndex; // 分组编号
-  final List<Widget> children;
-
-  const Group({
-    Key? key,
-    required this.groupIndex,
-    required this.children,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: children,
     );
   }
 }
