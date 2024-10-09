@@ -278,8 +278,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return true;
       }
     }
-
-    _showDebugOverlayMessage('无法找到下一个组或其焦点');
+    _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
     return false;
   }
 
