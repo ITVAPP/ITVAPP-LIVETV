@@ -128,7 +128,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             },
                             activeColor: Colors.white, // 滑块的颜色
                             activeTrackColor: _focusNodes[0].hasFocus
-                                ? selectedColor.withOpacity(0.7) // 焦点时透明版本颜色
+                                ? selectedColor.withOpacity(0.3) // 焦点时透明版本颜色
                                 : selectedColor, // 启动时背景颜色
                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                             inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
@@ -285,7 +285,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 构建过滤按钮，增加焦点节点参数
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2.0),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).orientation == Orientation.landscape ? 6.0 : 2.0,
+      ),
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
         child: OutlinedButton(
