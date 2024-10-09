@@ -210,7 +210,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                       size: 98,
                       color: selectedColor,
                     ),
-                    SizedBox(height: 28),
+                    SizedBox(height: 18),
                     Text(
                       S.of(context).checkUpdate,
                       style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
