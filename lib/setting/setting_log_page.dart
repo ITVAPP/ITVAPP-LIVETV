@@ -105,12 +105,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 crossAxisAlignment: CrossAxisAlignment.start, // 内容左对齐
                 children: [
                   Group(
-                    groupIndex: 0, // 日志开关分组
+                    groupIndex: 1, // 日志开关分组
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
                         child: FocusableItem(
-                          focusNode: _focusNodes[0], // 为开关分配焦点节点
+                          focusNode: _focusNodes[1], // 为开关分配焦点节点
                           child: SwitchListTile(
                             title: Text(
                               S.of(context).SwitchTitle,
@@ -142,7 +142,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                       child: Column(
                         children: [
                           Group(
-                            groupIndex: 1, // 过滤按钮分组
+                            groupIndex: 2, // 过滤按钮分组
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
@@ -160,7 +160,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             ],
                           ),
                           Group(
-                            groupIndex: 2, // 日志内容分组
+                            groupIndex: 3, // 日志内容分组
                             children: [
                               Flexible(
                                 child: logs.isEmpty
@@ -229,7 +229,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             ],
                           ),
                           Group(
-                            groupIndex: 3, // 清空日志按钮分组
+                            groupIndex: 4, // 清空日志按钮分组
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
