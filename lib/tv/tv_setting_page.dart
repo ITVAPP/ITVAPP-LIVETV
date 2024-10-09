@@ -208,9 +208,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
                     Icon(
                       Icons.system_update,
                       size: 98,
-                      color: Colors.blueAccent,
+                      color: selectedColor,
                     ),
-                    SizedBox(height: 20),
+                    SizedBox(height: 28),
                     Text(
                       S.of(context).checkUpdate,
                       style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
