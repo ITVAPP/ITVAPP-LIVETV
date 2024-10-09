@@ -180,13 +180,15 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {    // 左上键
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
-            _jumpToOtherGroup(key, currentIndex, 0);
+            // _jumpToOtherGroup(key, currentIndex, 0);
+            FocusScope.of(context).nextFocus();
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _jumpToOtherGroup(key, currentIndex, 1);
+            // _jumpToOtherGroup(key, currentIndex, 1);
+            FocusScope.of(context).nextFocus();
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
