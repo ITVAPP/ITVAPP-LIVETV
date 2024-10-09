@@ -9,6 +9,10 @@ import '../generated/l10n.dart';
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
+  final List<FocusNode>? parentFocusNodes; // 父页面传递的焦点节点，非 TV 端传 null
+
+  const SettinglogPage({Key? key, this.parentFocusNodes}) : super(key: key);
+
   @override
   _SettinglogPageState createState() => _SettinglogPageState();
 }
@@ -19,19 +23,33 @@ class _SettinglogPageState extends State<SettinglogPage> {
   bool _hasMoreLogs = true; // 是否还有更多日志
   final ScrollController _scrollController = ScrollController(); // 控制日志列表滚动
 
+  late List<FocusNode> _focusNodes; // 动态焦点节点列表
   final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(16), // 统一圆角样式
   );
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
-  // 设置焦点节点
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
+  @override
+  void initState() {
+    super.initState();
+    // 判断是否为 TV 模式，如果是则使用父页面的焦点节点，否则自己生成焦点节点
+    bool isTV = context.read<ThemeProvider>().isTV;
+
+    if (isTV && widget.parentFocusNodes != null) {
+      _focusNodes = widget.parentFocusNodes!; // 使用父页面传递的焦点节点
+    } else {
+      _focusNodes = List.generate(6, (index) => FocusNode()); // 自己生成焦点节点
+    }
+  }
 
   @override
   void dispose() {
-    _scrollController.dispose(); // 释放滚动控制器
-    _focusNodes.forEach((node) => node.dispose()); // 释放所有焦点节点
+    if (!context.read<ThemeProvider>().isTV) {
+      // 如果是非 TV 模式，子页面需要自己释放焦点节点
+      _focusNodes.forEach((node) => node.dispose());
+    }
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -93,7 +111,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
         focusNodes: _focusNodes,
         initialIndex: 0, // 设置初始焦点索引为 0
         isHorizontalGroup: true, // 启用横向分组
-        isFrame: true, // 启用框架模式
+        isFrame: isTV, // 仅在 TV 模式下启用框架模式
         child: Align(
           alignment: Alignment.center, // 内容居中显示
           child: Container(
