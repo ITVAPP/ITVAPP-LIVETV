@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; 
 import 'package:flutter/services.dart';
 
 class TvKeyNavigation extends StatefulWidget {
@@ -30,7 +30,7 @@ class TvKeyNavigation extends StatefulWidget {
 }
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
-  FocusNode? get _currentFocus => FocusScope.of(context).focusedChild as FocusNode?;
+  FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
   Group? _cachedGroup; // 缓存 Group 实例
 
@@ -43,11 +43,11 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 缓存 Group 实例
-        _cachedGroup = context.findAncestorWidgetOfExactType<Group>(); 
+        _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
         // 设置初始焦点
-        _requestFocus((widget.initialIndex != null && widget.initialIndex! >= 0 && widget.initialIndex! < widget.focusNodes.length)
-            ? widget.initialIndex!
-            : 0);
+        if (widget.focusNodes.isNotEmpty) {
+          _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
+        }
         _showDebugOverlayMessage('初始焦点设置完成');
       } catch (e) {
         _showDebugOverlayMessage('初始焦点设置失败: $e');
@@ -113,8 +113,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       return;
     }
     try {
-      widget.focusNodes[index].requestFocus();
-      _showDebugOverlayMessage('切换焦点到索引: $index');
+      FocusNode focusNode = widget.focusNodes[index];
+      if (!focusNode.hasFocus) {
+        focusNode.requestFocus();
+        _currentFocus = focusNode;
+        _showDebugOverlayMessage('切换焦点到索引: $index');
+      }
     } catch (e) {
       _showDebugOverlayMessage('切换焦点失败: $e');
     }
@@ -152,14 +156,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     FocusNode? currentFocus = _currentFocus;
 
-    // 1. 如果当前没有焦点，则尝试将焦点设置为第一个 focusNode
+    // 如果当前没有焦点，则尝试将焦点设置为第一个 focusNode
     if (currentFocus == null) {
       _showDebugOverlayMessage('当前无焦点，尝试设置初始焦点');
       _requestFocus(0); // 设置焦点为第一个控件
       return KeyEventResult.handled; // 返回已处理，避免进一步忽略
     }
 
-    // 2. 获取当前焦点的索引 (currentIndex)
+    // 获取当前焦点的索引 (currentIndex)
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
     if (currentIndex == -1) {
       _showDebugOverlayMessage('找不到当前焦点的索引，忽略按键: ${key.debugName}');
@@ -169,7 +173,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     // 获取 groupIndex
     int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
 
-    // 3. 判断是否启用了框架模式 (isFrame)
+    // 判断是否启用了框架模式 (isFrame)
     try {
       if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {   // 父页面
@@ -219,7 +223,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
 
     // 调用选择回调
-    FocusNode? currentFocusNode = FocusScope.of(context).focusedChild as FocusNode?;
+    FocusNode? currentFocusNode = _currentFocus;
     if (currentFocusNode != null) {
       int newIndex = widget.focusNodes.indexOf(currentFocusNode);
       if (widget.onSelect != null && newIndex != -1 && newIndex != currentIndex) {
@@ -397,11 +401,6 @@ class Group extends StatelessWidget {
   final int groupIndex; // 分组编号
   final List<Widget> children;
 
-  // Group 组件用于将一组 FocusableItem 组件分组，如果开启 isHorizontalGroup 或 isVerticalGroup 参数，
-  // 使得焦点可以在分组内切换，限制焦点在不同的分组之间移动。
-  // groupIndex（开启分组的话必填）：分组编号，用于标识当前分组，焦点切换时可以根据这个编号来识别分组。
-  // children（开启分组的话必填）：需要被分组的子组件列表，通常这些组件会是 FocusableItem。
-
   const Group({
     Key? key,
     required this.groupIndex,
@@ -434,6 +433,9 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return widget.child; // 直接返回子组件
+    return Focus(
+      focusNode: widget.focusNode,
+      child: widget.child,
+    );
   }
 }
