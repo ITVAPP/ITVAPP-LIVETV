@@ -27,7 +27,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
   final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
-  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.5); // 焦点时背景颜色
+  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.3); // 焦点时背景颜色
 
   @override
   void dispose() {
@@ -83,7 +83,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
         leading: Icon(icon), // 图标
         title: Text(
           title,
-          style: const TextStyle(fontSize: 20), // 设置文字大小为20
+          style: const TextStyle(fontSize: 22), // 设置文字大小
         ), // 标题
         selected: _selectedIndex == index, // 判断是否选中
         selectedTileColor: selectedColor, // 选中时背景颜色
@@ -117,9 +117,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
       },
       child: Row(
         children: [
-          // 左侧菜单部分，宽度固定为300
+          // 左侧菜单部分，宽度固定为268
           SizedBox(
-            width: 300,
+            width: 268,
             child: Scaffold(
               appBar: AppBar(
                 title: Consumer<LanguageProvider>(
@@ -199,6 +199,26 @@ class _TvSettingPageState extends State<TvSettingPage> {
             const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
           if (_selectedIndex == 3)
             Expanded(child: SettinglogPage()), // 如果选中日志，则显示日志页面
+          if (_selectedIndex == 4)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.system_update,
+                      size: 98,
+                      color: Colors.blueAccent,
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      S.of(context).checkUpdate,
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ), // 如果选中更新，则显示更新提示图标和文字
         ],
       ),
     );
