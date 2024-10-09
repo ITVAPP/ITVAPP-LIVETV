@@ -291,8 +291,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     // 遍历子节点
     Group? targetGroup;
     ancestor.visitChildren((child) {
-      if (child is Element) {
-        final group = child.findAncestorWidgetOfExactType<Group>(); // 正确调用
+      if (child is RenderObjectElement) { // 修正为 RenderObjectElement 获取 context
+        final group = child.widget.findAncestorWidgetOfExactType<Group>(); // 从 widget 获取 Group
         if (group != null && group.groupIndex == groupIndex) {
           targetGroup = group;
         } else {
