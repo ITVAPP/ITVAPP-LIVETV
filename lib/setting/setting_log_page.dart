@@ -310,7 +310,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
             shape: _buttonShape, // 统一圆角样式
             backgroundColor: _focusNodes[focusIndex].hasFocus
-                ? selectedColor.withOpacity(0.7) // 焦点时使用选中颜色的透明版本
+                ? selectedColor.withOpacity(0.5) // 焦点时使用选中颜色的透明版本
                 : (_selectedLevel == level
                     ? selectedColor // 选中时使用完全不透明的颜色
                     : unselectedColor), // 未选中时颜色
