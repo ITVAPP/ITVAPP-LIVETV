@@ -40,6 +40,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
+    _cachedGroup = null; // 清除缓存
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 设置初始焦点
@@ -56,6 +57,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   void dispose() {
+    _cachedGroup = null; // 清除缓存
     _removeDebugOverlay(); // 移除调试窗口
     WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     super.dispose();
@@ -346,7 +348,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取总的组数
   int _getTotalGroups() {
-    return widget.focusNodes.length; 
+    return widget.focusNodes.length;
   }
 
   /// 处理键盘事件，包括方向键和选择键。
@@ -434,6 +436,29 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       autofocus: true, // 自动聚焦
       onKey: _handleKeyEvent, // 处理键盘事件
       child: widget.child, // 直接使用传入的子组件，不改变原有布局
+    );
+  }
+}
+
+class Group extends StatelessWidget {
+  final int groupIndex; // 分组编号
+  final List<Widget> children;
+
+  // Group 组件用于将一组 FocusableItem 组件分组，如果开启 isHorizontalGroup 或 isVerticalGroup 参数，
+  // 使得焦点可以在分组内切换，限制焦点在不同的分组之间移动。
+  // groupIndex（开启分组的话必填）：分组编号，用于标识当前分组，焦点切换时可以根据这个编号来识别分组。
+  // children（开启分组的话必填）：需要被分组的子组件列表，通常这些组件会是 FocusableItem。
+
+  const Group({
+    Key? key,
+    required this.groupIndex,
+    required this.children,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: children,
     );
   }
 }
