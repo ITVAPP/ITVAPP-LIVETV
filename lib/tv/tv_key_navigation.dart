@@ -281,27 +281,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 根据 groupIndex 查找对应的 Group
   Group? _findGroupByIndex(int groupIndex) {
-    RenderObject? ancestor = context.findRenderObject();
-    return _findGroupRecursive(ancestor, groupIndex);
-  }
-
-  Group? _findGroupRecursive(RenderObject? ancestor, int groupIndex) {
-    if (ancestor == null) return null;
-
-    // 遍历子节点
-    Group? targetGroup;
-    ancestor.visitChildren((child) {
-      if (child is RenderObjectElement) { // 修正为 RenderObjectElement 获取 context
-        final group = child.widget.findAncestorWidgetOfExactType<Group>(); // 从 widget 获取 Group
-        if (group != null && group.groupIndex == groupIndex) {
-          targetGroup = group;
-        } else {
-          // 递归查找子节点
-          targetGroup = _findGroupRecursive(child.renderObject, groupIndex);
-        }
-      }
-    });
-    return targetGroup;
+    BuildContext? ancestorContext = _currentFocus?.context; // 使用当前焦点节点的上下文
+    if (ancestorContext == null) return null;
+    Group? ancestorGroup = ancestorContext.findAncestorWidgetOfExactType<Group>();
+    // 确认找到的 Group 是否符合 groupIndex
+    if (ancestorGroup != null && ancestorGroup.groupIndex == groupIndex) {
+      return ancestorGroup;
+    }
+    return null; // 未找到匹配的 groupIndex
   }
 
   /// 查找 Group 下的第一个 FocusNode
