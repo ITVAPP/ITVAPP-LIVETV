@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class TvKeyNavigation extends StatefulWidget {
@@ -282,15 +282,23 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 根据 groupIndex 查找对应的 Group
   Group? _findGroupByIndex(int groupIndex) {
     RenderObject? ancestor = context.findRenderObject();
+    return _findGroupRecursive(ancestor, groupIndex);
+  }
+
+  Group? _findGroupRecursive(RenderObject? ancestor, int groupIndex) {
+    if (ancestor == null) return null;
+
+    // 遍历子节点
     Group? targetGroup;
-    if (ancestor != null) {
-      ancestor.visitChildren((child) {
-        final group = context.findAncestorWidgetOfExactType<Group>();
-        if (group != null && group.groupIndex == groupIndex) {
-          targetGroup = group;
-        }
-      });
-    }
+    ancestor.visitChildren((child) {
+      final group = (child.parentData as RenderObject).widget?.findAncestorWidgetOfExactType<Group>();
+      if (group != null && group.groupIndex == groupIndex) {
+        targetGroup = group;
+      } else {
+        // 递归查找子节点
+        targetGroup = _findGroupRecursive(child, groupIndex);
+      }
+    });
     return targetGroup;
   }
 
