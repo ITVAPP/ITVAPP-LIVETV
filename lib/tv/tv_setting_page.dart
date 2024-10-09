@@ -27,7 +27,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
   final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
-  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.7); // 焦点时背景颜色
+  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.5); // 焦点时背景颜色
 
   @override
   void dispose() {
