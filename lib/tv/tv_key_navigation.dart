@@ -180,6 +180,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {    // 左上键
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
+            FocusScope.of(context).unfocus(); // 先取消父页面的焦点
             _jumpToOtherGroup(key, currentIndex, 0);
             // FocusScope.of(context).nextFocus(); // 将焦点移到下一个控件
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
@@ -187,6 +188,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
+            FocusScope.of(context).unfocus(); // 先取消父页面的焦点
             _jumpToOtherGroup(key, currentIndex, 1);
             // FocusScope.of(context).previousFocus(); // 将焦点移到上一个控件
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
