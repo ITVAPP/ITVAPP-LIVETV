@@ -9,10 +9,6 @@ import '../generated/l10n.dart';
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
-  final List<FocusNode>? focusNodes; // 将焦点节点列表变为可选参数
-
-  SettinglogPage({Key? key, this.focusNodes}) : super(key: key);
-
   @override
   _SettinglogPageState createState() => _SettinglogPageState();
 }
@@ -22,7 +18,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   int _logLimit = 100; // 初始加载条数
   bool _hasMoreLogs = true; // 是否还有更多日志
   final ScrollController _scrollController = ScrollController(); // 控制日志列表滚动
-  List<FocusNode> internalFocusNodes; // 内部管理焦点节点
 
   final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(16), // 统一圆角样式
@@ -30,21 +25,31 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
-  @override
-  void initState() {
-    super.initState();
-    // 初始化内部焦点节点，如果没有从外部传入，就创建新的
-    internalFocusNodes = widget.focusNodes ?? List.generate(6, (index) => FocusNode());
-  }
+  // 设置焦点节点
+  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
 
   @override
   void dispose() {
-    _scrollController.dispose();
-    if (widget.focusNodes == null) {
-      // 只有在内部创建了焦点节点时才进行释放
-      for (var node in internalFocusNodes) {
-        node.dispose();
-      }
+    _scrollController.dispose(); // 释放滚动控制器
+    _focusNodes.forEach((node) => node.dispose()); // 释放所有焦点节点
+    super.dispose();
+  }
+
+  // 获取有限的日志并按日期排序
+  List<Map<String, String>> getLimitedLogs() {
+    List<Map<String, String>> logs = _selectedLevel == 'all'
+        ? LogUtil.getLogs()
+        : LogUtil.getLogsByLevel(_selectedLevel);
+
+    // 按时间降序排序
+    logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
+
+    if (logs.length > _logLimit) {
+      _hasMoreLogs = true;
+      return logs.sublist(0, _logLimit); // 返回限制条数的日志
+    } else {
+      _hasMoreLogs = false;
+      return logs; // 没有更多日志时，返回所有日志
     }
   }
 
@@ -85,7 +90,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: TvKeyNavigation(
-        focusNodes: internalFocusNodes, // 使用内部焦点节点
+        focusNodes: _focusNodes,
+        initialIndex: 0, // 设置初始焦点索引为 0
         isHorizontalGroup: true, // 启用横向分组
         isFrame: true, // 启用框架模式
         child: Align(
@@ -256,7 +262,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     style: ElevatedButton.styleFrom(
                                       shape: _buttonShape, // 统一圆角样式
                                       backgroundColor: _focusNodes[5].hasFocus
-                                          ? selectedColor.withOpacity(0.3) // 焦点时透明版本颜色
+                                          ? selectedColor.withOpacity(0.7) // 焦点时透明版本颜色
                                           : unselectedColor, // 默认颜色
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
                                     ),
@@ -307,7 +313,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
             shape: _buttonShape, // 统一圆角样式
             backgroundColor: _focusNodes[focusIndex].hasFocus
-                ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
+                ? selectedColor.withOpacity(0.5) // 焦点时使用选中颜色的透明版本
                 : (_selectedLevel == level
                     ? selectedColor // 选中时使用完全不透明的颜色
                     : unselectedColor), // 未选中时颜色
