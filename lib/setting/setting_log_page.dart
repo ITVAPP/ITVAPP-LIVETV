@@ -286,7 +286,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.of(context).orientation == Orientation.landscape ? 6.0 : 2.0,
+        horizontal: MediaQuery.of(context).orientation == Orientation.landscape ? 5.0 : 2.0,
       ),
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 为每个过滤按钮添加焦点节点
