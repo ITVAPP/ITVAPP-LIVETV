@@ -291,12 +291,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     // 遍历子节点
     Group? targetGroup;
     ancestor.visitChildren((child) {
-      final group = (child as Element).widget.findAncestorWidgetOfExactType<Group>();
-      if (group != null && group.groupIndex == groupIndex) {
-        targetGroup = group;
-      } else {
-        // 递归查找子节点
-        targetGroup = _findGroupRecursive(child, groupIndex);
+      if (child is Element) {
+        final group = child.findAncestorWidgetOfExactType<Group>(); // 正确调用
+        if (group != null && group.groupIndex == groupIndex) {
+          targetGroup = group;
+        } else {
+          // 递归查找子节点
+          targetGroup = _findGroupRecursive(child.renderObject, groupIndex);
+        }
       }
     });
     return targetGroup;
