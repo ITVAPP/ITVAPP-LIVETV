@@ -249,6 +249,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     if (widget.isFrame) {
       _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
     }
+    _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
     // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
     return _cachedGroup?.groupIndex ?? -1;
   }
