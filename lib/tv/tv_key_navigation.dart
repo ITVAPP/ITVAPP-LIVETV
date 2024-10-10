@@ -346,6 +346,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           }
         }
       }
+      // 如果没有可操作的控件
+      _showDebugOverlayMessage('当前焦点控件不可操作');
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('执行控件点击操作失败: $e\n位置: $stackTrace');
     }
