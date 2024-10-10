@@ -34,6 +34,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
   Group? _cachedGroup; // 缓存 Group 实例
 
+  // 添加私有变量来跟踪当前索引
+  int _currentIndex = 0; // 初始索引为0，或根据需要设置默认值
+
+  // 添加 getter
+  int get currentIndex => _currentIndex; // 获取当前索引
+
   // 调试模式开关
   final bool _showDebugOverlay = true;
 
