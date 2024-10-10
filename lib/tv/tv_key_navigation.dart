@@ -135,6 +135,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (!focusNode.hasFocus) {
         focusNode.requestFocus();
         _currentFocus = focusNode;
+        _currentIndex = index; // 更新 currentIndex
         _showDebugOverlayMessage('切换焦点到索引: $index');
       }
     } catch (e, stackTrace) {
