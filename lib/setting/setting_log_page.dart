@@ -267,7 +267,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                       shape: _buttonShape, // 统一圆角样式
                                         backgroundColor: _focusNodes[7].hasFocus
                                             ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
-                                            : (_selectedLevel == level
+                                            : (_selectedLevel == _selectedLevel
                                                 ? selectedColor // 选中时使用完全不透明的颜色
                                                 : unselectedColor), // 未选中时颜色
                                         side: BorderSide.none, // 不需要边框
