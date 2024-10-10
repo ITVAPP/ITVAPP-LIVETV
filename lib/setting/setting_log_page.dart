@@ -164,7 +164,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                           Group(
                             groupIndex: 2, // 日志内容分组
                             children: [
-                              FocusableItem(
+                              Focus( // 使用Focus管理日志列表区域的焦点
                                 focusNode: _focusNodes[6], // 为日志区域分配焦点
                                 child: Flexible(
                                   child: logs.isEmpty
