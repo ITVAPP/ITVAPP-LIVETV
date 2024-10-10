@@ -206,7 +206,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.system_update,
+                      Icons.live_tv,
                       size: 98,
                       color: selectedColor,
                     ),
