@@ -182,11 +182,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
             // _jumpToOtherGroup(key, currentIndex, 0);
             _cachedGroup = null; // 清空缓存的 Group 实例
-            FocusScope.of(context).requestFocus(null); //释放当前页面焦点
-            Future.delayed(Duration(milliseconds: 300), () {
-                FocusScope.of(context).nextFocus(); // 前往子页面
-                _requestFocus(0); // 恢复焦点到第一个控件
-            });
+            FocusScope.of(context).nextFocus(); // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           }
@@ -194,11 +190,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
             // _jumpToOtherGroup(key, currentIndex, 1);
             _cachedGroup = null; // 清空缓存的 Group 实例
-            FocusScope.of(context).requestFocus(null); //释放当前页面焦点
-            Future.delayed(Duration(milliseconds: 300), () {
-                FocusScope.of(context).previousFocus(); // 返回主页面
-                _requestFocus(0); // 恢复焦点到第一个控件
-            });
+            FocusScope.of(context).previousFocus(); // 返回主页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
