@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
+import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
@@ -80,7 +81,8 @@ class _TvPageState extends State<TvPage> {
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) {
-            return const TvSettingPage(); // 进入设置页面
+            // return const TvSettingPage(); // 进入设置页面
+            return const SettinglogPage(); // 进入设置页面
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             var begin = const Offset(0.0, -1.0); // 动画起点为屏幕外顶部
