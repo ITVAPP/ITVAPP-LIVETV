@@ -32,7 +32,6 @@ class TvKeyNavigation extends StatefulWidget {
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
-  Group? _cachedGroup; // 缓存 Group 实例
 
   // 添加私有变量来跟踪当前索引
   int _currentIndex = 0; // 初始索引为0，或根据需要设置默认值
@@ -48,8 +47,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 缓存 Group 实例
-        _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
         // 设置初始焦点
         if (widget.focusNodes.isNotEmpty) {
           _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
@@ -63,16 +60,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
-  }
-
-  @override
   void dispose() {
     try {
       _removeDebugOverlay(); // 移除调试窗口
-      _cachedGroup = null; // 清空缓存的 Group 实例
       WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('资源释放失败: $e\n位置: $stackTrace');
@@ -204,29 +194,23 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return KeyEventResult.ignored; // 找不到当前焦点时忽略
       }
 
-      // 获取 groupIndex
-      int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
-
       // 判断是否启用了框架模式 (isFrame)
       if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {   // 父页面
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {    // 左上键
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
-            // _jumpToOtherGroup(key, currentIndex, 0);
             FocusScope.of(context).nextFocus(); // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            // _jumpToOtherGroup(key, currentIndex, 1);
-            _cachedGroup = null; // 清空缓存的 Group 实例
             FocusScope.of(context).previousFocus(); // 返回主页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
-            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _jumpToOtherGroup(key);
           }
         }
       } else {  // 如果不是框架模式
@@ -236,7 +220,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
-            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _jumpToOtherGroup(key);
           }
         } else if (widget.isVerticalGroup) {   // 竖向分组逻辑
           if (key == LogicalKeyboardKey.arrowUp) {  // 上键
@@ -244,7 +228,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {  // 左右键
-            _jumpToOtherGroup(key, currentIndex, groupIndex);
+            _jumpToOtherGroup(key);
           }
         } else {  // 没有启用分组的默认导航逻辑
           if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {  // 左上键
@@ -270,101 +254,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     return KeyEventResult.handled;
   }
 
-  /// 获取当前焦点所属的 groupIndex
-int _getGroupIndex(BuildContext context) {
-  try {
-    if (_cachedGroup == null) {
-      _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
+  /// 处理在组之间的跳转逻辑，使用 FocusScope 实现跨组焦点跳转
+  bool _jumpToOtherGroup(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+      return FocusScope.of(context).previousFocus(); // 切换到前一个组的焦点
+    } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+      return FocusScope.of(context).nextFocus(); // 切换到下一个组的焦点
     }
-    int groupIndex = _cachedGroup?.groupIndex ?? -1; // 从缓存的Group实例中获取groupIndex
-    // 如果组件处于框架模式，则在调试信息中显示groupIndex及当前页面类型（父页面或子页面）
-    if (widget.isFrame) {
-      _showDebugOverlayMessage("所属:groupIndex $groupIndex ，当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
-    }
-    return groupIndex;
-  } catch (e, stackTrace) {
-    _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
-    return -1; // 如果发生异常，返回-1
-  }
-}
-
-  /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (groupIndex == null || groupIndex == -1) return false;
-
-    try {
-      // 定义前进或后退分组的逻辑
-      int nextGroupIndex;
-      if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-        // 后退：groupIndex - 1
-        nextGroupIndex = groupIndex - 1;
-        if (nextGroupIndex < 0) {
-          _showDebugOverlayMessage('已经是第一个分组，无法再后退');
-          return false;
-        }
-      } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-        // 前进：groupIndex + 1
-        int totalGroups = _getTotalGroups();
-        nextGroupIndex = groupIndex + 1;
-        if (nextGroupIndex >= totalGroups) {
-          _showDebugOverlayMessage('已经是最后一个分组，无法再前进');
-          return false;
-        }
-      } else {
-        return false;
-      }
-
-      // 切换焦点到下一个分组的第一个控件
-      final nextGroup = _findGroupByIndex(nextGroupIndex);
-      if (nextGroup != null) {
-        final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
-        if (firstFocusNode != null) {
-          firstFocusNode.requestFocus();
-          _showDebugOverlayMessage('操作: ${key.debugName}键，切换到组 $nextGroupIndex 的第一个焦点');
-          return true;
-        }
-      }
-      _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('分组跳转失败: $e\n位置: $stackTrace');
-    }
-
     return false;
-  }
-
-  /// 根据 groupIndex 查找对应的 Group
-  Group? _findGroupByIndex(int groupIndex) {
-    try {
-      BuildContext? ancestorContext = _currentFocus?.context; // 使用当前焦点节点的上下文
-      if (ancestorContext == null) return null;
-      Group? ancestorGroup = ancestorContext.findAncestorWidgetOfExactType<Group>();
-      // 确认找到的 Group 是否符合 groupIndex
-      if (ancestorGroup != null && ancestorGroup.groupIndex == groupIndex) {
-        return ancestorGroup;
-      }
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('查找分组失败: $e\n位置: $stackTrace');
-    }
-    return null; // 未找到匹配的 groupIndex
-  }
-
-  /// 查找 Group 下的第一个 FocusNode
-  FocusNode? _findFirstFocusNodeInGroup(Group group) {
-    try {
-      for (Widget child in group.children) {
-        if (child is FocusableItem) {
-          return child.focusNode; // 返回第一个 FocusableItem 的 FocusNode
-        }
-      }
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('查找焦点节点失败: $e\n位置: $stackTrace');
-    }
-    return null; // 没有找到 FocusNode
-  }
-
-  /// 获取总的组数
-  int _getTotalGroups() {
-    return widget.focusNodes.length; 
   }
 
   /// 处理键盘事件，包括方向键和选择键。
@@ -459,24 +356,6 @@ int _getGroupIndex(BuildContext context) {
     return Focus(
       onKey: _handleKeyEvent, // 处理键盘事件
       child: widget.child, // 直接使用传入的子组件
-    );
-  }
-}
-
-class Group extends StatelessWidget {
-  final int groupIndex; // 分组编号
-  final List<Widget> children;
-
-  const Group({
-    Key? key,
-    required this.groupIndex,
-    required this.children,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: children,
     );
   }
 }
