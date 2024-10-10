@@ -63,6 +63,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
+  }
+
+  @override
   void dispose() {
     try {
       _removeDebugOverlay(); // 移除调试窗口
@@ -265,25 +271,22 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 获取当前焦点所属的 groupIndex
-  int _getGroupIndex(BuildContext context) {
-    try {
-      // 检查缓存是否为空
-      if (_cachedGroup == null) {
-        // 如果缓存为空，重新查找 Group 并缓存
-        _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
-      }
-      // 提示是在父页面还是子页面
-      if (widget.isFrame) {
-        _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
-      }
+int _getGroupIndex(BuildContext context) {
+  try {
+    if (_cachedGroup == null) {
       _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
-      // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
-      return _cachedGroup?.groupIndex ?? -1;
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
-      return -1;
     }
+    int groupIndex = _cachedGroup?.groupIndex ?? -1; // 从缓存的Group实例中获取groupIndex
+    // 如果组件处于框架模式，则在调试信息中显示groupIndex及当前页面类型（父页面或子页面）
+    if (widget.isFrame) {
+      _showDebugOverlayMessage("所属:groupIndex $groupIndex ，当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
+    }
+    return groupIndex;
+  } catch (e, stackTrace) {
+    _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
+    return -1; // 如果发生异常，返回-1
   }
+}
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
