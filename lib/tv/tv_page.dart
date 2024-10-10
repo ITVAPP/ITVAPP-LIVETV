@@ -82,7 +82,7 @@ class _TvPageState extends State<TvPage> {
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) {
             // return const TvSettingPage(); // 进入设置页面
-            return const SettinglogPage(); // 进入设置页面
+            return SettinglogPage(); // 进入设置页面
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             var begin = const Offset(0.0, -1.0); // 动画起点为屏幕外顶部
