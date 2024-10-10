@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; 
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -26,7 +26,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
   // 设置焦点节点
-  final List<FocusNode> _focusNodes = List.generate(8, (index) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
 
   @override
   void dispose() {
@@ -161,85 +161,77 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               ),
                             ],
                           ),
-                          Group(
-                            groupIndex: 2, // 日志内容分组
-                            children: [
-                              Focus( // 使用Focus管理日志列表区域的焦点
-                                focusNode: _focusNodes[6], // 为日志区域分配焦点
-                                child: Flexible(
-                                  child: logs.isEmpty
-                                      ? Center(
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.info_outline, size: 50, color: Colors.grey),
-                                              SizedBox(height: 10),
-                                              Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
-                                            ],
-                                          ),
-                                        )
-                                      : Scrollbar(
-                                          thumbVisibility: true,
-                                          controller: _scrollController, // 使用滚动控制器
-                                          child: SingleChildScrollView(
-                                            controller: _scrollController, // 日志列表使用同一滚动控制器
-                                            scrollDirection: Axis.vertical, // 仅垂直滚动
-                                            child: Column(
-                                              children: logs
-                                                  .map((log) => Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                          Flexible(
+                            child: logs.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.info_outline, size: 50, color: Colors.grey),
+                                        SizedBox(height: 10),
+                                        Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
+                                      ],
+                                    ),
+                                  )
+                                : Scrollbar(
+                                    thumbVisibility: true,
+                                    controller: _scrollController, // 使用滚动控制器
+                                    child: SingleChildScrollView(
+                                      controller: _scrollController, // 日志列表使用同一滚动控制器
+                                      scrollDirection: Axis.vertical, // 仅垂直滚动
+                                      child: Column(
+                                        children: logs
+                                            .map((log) => Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Padding(
+                                                      padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                                      child: Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                         children: [
-                                                          Padding(
-                                                            padding: const EdgeInsets.symmetric(vertical: 6.0),
-                                                            child: Row(
-                                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                              children: [
-                                                                Text(
-                                                                  formatDateTime(log['time']!), // 第一行时间
-                                                                  style: const TextStyle(
-                                                                      fontWeight: FontWeight.bold, fontSize: 16),
-                                                                ),
-                                                                // 仅在非TV模式下显示复制按钮
-                                                                if (!isTV)
-                                                                  IconButton(
-                                                                    icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
-                                                                    onPressed: () {
-                                                                      // 将该条日志的内容复制到剪贴板
-                                                                      String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
-                                                                      Clipboard.setData(ClipboardData(text: logContent));
-                                                                      // 显示复制成功的提示
-                                                                      CustomSnackBar.showSnackBar(
-                                                                        context,
-                                                                        S.of(context).logCopied,  // 日志已复制
-                                                                        duration: Duration(seconds: 4),
-                                                                      );
-                                                                    },
-                                                                  ),
-                                                              ],
+                                                          Text(
+                                                            formatDateTime(log['time']!), // 第一行时间
+                                                            style: const TextStyle(
+                                                                fontWeight: FontWeight.bold, fontSize: 16),
+                                                          ),
+                                                          // 仅在非TV模式下显示复制按钮
+                                                          if (!isTV)
+                                                            IconButton(
+                                                              icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
+                                                              onPressed: () {
+                                                                // 将该条日志的内容复制到剪贴板
+                                                                String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
+                                                                Clipboard.setData(ClipboardData(text: logContent));
+                                                                // 显示复制成功的提示
+                                                                CustomSnackBar.showSnackBar(
+                                                                  context,
+                                                                  S.of(context).logCopied,  // 日志已复制
+                                                                  duration: Duration(seconds: 4),
+                                                                );
+                                                              },
                                                             ),
-                                                          ),
-                                                          SelectableText(
-                                                            LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
-                                                            style: const TextStyle(fontSize: 14),
-                                                          ),
-                                                          const Divider(), // 分隔符
                                                         ],
-                                                      ))
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
+                                                      ),
+                                                    ),
+                                                    SelectableText(
+                                                      LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
+                                                      style: const TextStyle(fontSize: 14),
+                                                    ),
+                                                    const Divider(), // 分隔符
+                                                  ],
+                                                ))
+                                            .toList(),
+                                      ),
+                                    ),
+                                  ),
                           ),
                           Group(
-                            groupIndex: 3, // 清空日志按钮分组
+                            groupIndex: 2, // 清空日志按钮分组
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: FocusableItem(
-                                  focusNode: _focusNodes[7], // 为清空日志按钮添加焦点节点
+                                  focusNode: _focusNodes[6], // 为清空日志按钮添加焦点节点
                                   child: ElevatedButton(
                                     onPressed: () {
                                       setState(() {
@@ -265,7 +257,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       shape: _buttonShape, // 统一圆角样式
-                                        backgroundColor: _focusNodes[7].hasFocus
+                                        backgroundColor: _focusNodes[6].hasFocus
                                             ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
                                             : (_selectedLevel == _selectedLevel
                                                 ? selectedColor // 选中时使用完全不透明的颜色
