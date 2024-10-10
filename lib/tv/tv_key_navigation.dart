@@ -181,7 +181,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
             // _jumpToOtherGroup(key, currentIndex, 0);
-            _cachedGroup = null; // 清空缓存的 Group 实例
             FocusScope.of(context).nextFocus(); // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
