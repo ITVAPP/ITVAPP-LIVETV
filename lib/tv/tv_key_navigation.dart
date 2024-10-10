@@ -181,6 +181,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
             // _jumpToOtherGroup(key, currentIndex, 0);
+            _cachedGroup = null; // 清空缓存的 Group 实例
             FocusScope.of(context).nextFocus(); // 将焦点移到下一个控件
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
@@ -188,6 +189,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
             // _jumpToOtherGroup(key, currentIndex, 1);
+            _cachedGroup = null; // 清空缓存的 Group 实例
             FocusScope.of(context).previousFocus(); // 将焦点移到上一个控件
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
@@ -238,7 +240,17 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(BuildContext context) {
-    return _cachedGroup?.groupIndex ?? -1; // 使用已缓存的 Group 实例
+    // 检查缓存是否为空
+    if (_cachedGroup == null) {
+      // 如果缓存为空，重新查找 Group 并缓存
+      _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
+    }
+    // 提示是在父页面还是子页面
+    if (widget.isFrame) {
+      _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
+    }
+    // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
+    return _cachedGroup?.groupIndex ?? -1;
   }
 
   /// 处理在组之间的跳转逻辑
