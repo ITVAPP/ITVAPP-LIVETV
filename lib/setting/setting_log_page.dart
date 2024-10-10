@@ -91,7 +91,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
       body: TvKeyNavigation(
         focusNodes: _focusNodes,
-        initialIndex: 0, // 设置初始焦点索引为 0
         isHorizontalGroup: true, // 启用横向分组
         isFrame: isTV, // 仅在 TV 模式下启用框架模式
         frameType: isTV ? "child" : null, // TV 模式下设置为子页面
