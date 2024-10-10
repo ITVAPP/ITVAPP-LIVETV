@@ -26,7 +26,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
   // 设置焦点节点
-  final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(8, (index) => FocusNode());
 
   @override
   void dispose() {
