@@ -92,7 +92,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
       body: TvKeyNavigation(
         focusNodes: _focusNodes,
         isHorizontalGroup: true, // 启用横向分组
-        isFrame: isTV, // 仅在 TV 模式下启用框架模式
+        initialIndex: 0, // 设置初始焦点索引为 0
+        isFrame: isTV ? true  : false , // TV 模式下启用框架模式
         frameType: isTV ? "child" : null, // TV 模式下设置为子页面
         child: Align(
           alignment: Alignment.center, // 内容居中显示
@@ -129,7 +130,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             },
                             activeColor: Colors.white, // 滑块的颜色
                             activeTrackColor: _focusNodes[0].hasFocus
-                                ? selectedColor.withOpacity(0.3) // 焦点时透明版本颜色
+                                ? selectedColor.withOpacity(0.1) // 焦点时透明版本颜色
                                 : selectedColor, // 启动时背景颜色
                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                             inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
@@ -264,10 +265,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       shape: _buttonShape, // 统一圆角样式
-                                      backgroundColor: _focusNodes[5].hasFocus
-                                          ? selectedColor.withOpacity(0.3) // 焦点时透明版本颜色
-                                          : unselectedColor, // 默认颜色
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
+                                        backgroundColor: _focusNodes[7].hasFocus
+                                            ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
+                                            : (_selectedLevel == level
+                                                ? selectedColor // 选中时使用完全不透明的颜色
+                                                : unselectedColor), // 未选中时颜色
+                                        side: BorderSide.none, // 不需要边框
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
                                     ),
                                   ),
                                 ),
