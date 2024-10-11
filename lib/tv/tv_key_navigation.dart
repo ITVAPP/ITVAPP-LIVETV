@@ -172,10 +172,11 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 如果焦点节点还没有焦点，请求焦点
       if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
+      	FocusScope.of(context).unfocus(); // 取消当前焦点
+        FocusScope.of(context).requestFocus(focusNode); // 设置新焦点
         _currentFocus = focusNode;
         _currentIndex = index; // 更新当前索引
-        _showDebugOverlayMessage('切换焦点到索引: $index');
+        _showDebugOverlayMessage('当前焦点状态: 索引 $index, canRequestFocus: ${focusNode.canRequestFocus}, hasFocus: ${focusNode.hasFocus}');
       } else {
         _showDebugOverlayMessage('焦点已经在索引: $index');
       }
