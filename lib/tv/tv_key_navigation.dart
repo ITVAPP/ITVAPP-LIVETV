@@ -44,7 +44,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   // 调试模式开关
   final bool _showDebugOverlay = true;
 
-@Override
+@override
 Widget build(BuildContext context) {
   return Focus(
     onKeyEvent: _handleKeyEvent, // 使用 onKeyEvent 来处理键盘事件
@@ -59,13 +59,7 @@ Widget build(BuildContext context) {
       try {
         // 设置初始焦点
         if (widget.focusNodes.isNotEmpty) {
-          FocusNode initialFocusNode = widget.focusNodes[widget.initialIndex ?? 0];
-          initialFocusNode.requestFocus();
-          setState(() {
-            _currentFocus = initialFocusNode;
-            _currentIndex = widget.initialIndex ?? 0;
-          });
-          _showDebugOverlayMessage('初始焦点已设置到索引: $_currentIndex，焦点状态: ${initialFocusNode.hasFocus}');
+          _requestFocus(widget.initialIndex ?? 0);
         }
       } catch (e, stackTrace) {
         _handleError('初始焦点设置失败', e, stackTrace);
@@ -118,14 +112,13 @@ Widget build(BuildContext context) {
         );
         Overlay.of(context).insert(_debugOverlayEntry!);
       } else {
+        // 如果存在旧的定时器，则取消
+        _hideOverlayTimer?.cancel();
         _debugOverlayEntry!.markNeedsBuild(); // 更新已存在的 OverlayEntry
       }
 
-    // 如果存在旧的定时器，则取消
-    _hideOverlayTimer?.cancel();
-
     // 启动一个新的定时器来自动关闭调试窗口
-    _hideOverlayTimer = Timer(Duration(seconds: 5), () {
+    _hideOverlayTimer = Timer(Duration(seconds: 3), () {
       _removeDebugOverlay();
     });
     
