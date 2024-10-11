@@ -303,82 +303,52 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
 
-      // 获取当前页面的所有 FocusTraversalGroup
-      final allGroups = FocusTraversalGroup.of(context);
-      if (allGroups == null || allGroups.isEmpty) {
-        _showDebugOverlayMessage('找不到任何 FocusTraversalGroup');
-        return false;
-      }
-
-      // 找到当前焦点所在的组
-      final currentFocus = _currentFocus;
-      int currentGroupIndex = -1;
-      for (int i = 0; i < allGroups.length; i++) {
-        if (allGroups[i].contains(currentFocus)) {
-          currentGroupIndex = i;
-          break;
-        }
-      }
-
-      // 如果没有找到当前焦点所在的组，忽略
-      if (currentGroupIndex == -1) {
-        _showDebugOverlayMessage('当前焦点不在任何 FocusTraversalGroup 中');
-        return false;
-      }
-
-      // 根据按键方向选择下一个或上一个组
-      int targetGroupIndex;
-      if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-        // 前进到下一个组，循环回到第一个组
-        targetGroupIndex = (currentGroupIndex + 1) % allGroups.length;
-      } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-        // 返回上一个组，循环回到最后一个组
-        targetGroupIndex = (currentGroupIndex - 1 + allGroups.length) % allGroups.length;
-      } else {
-        return false; // 不是方向键，直接返回
-      }
-
-      // 获取目标组的第一个焦点节点并请求焦点
-      final targetGroup = allGroups[targetGroupIndex];
-      final firstFocusNodeInGroup = targetGroup.firstFocusNode ?? targetGroup.firstDescendant;
-      if (firstFocusNodeInGroup != null) {
-        _requestFocus(widget.focusNodes.indexOf(firstFocusNodeInGroup));
-        _showDebugOverlayMessage('跳转到分组 $targetGroupIndex 的第一个焦点');
-        return true;
-      } else {
-        _showDebugOverlayMessage('目标组没有可聚焦的节点');
-        return false;
-      }
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('跳转分组错误: $e\n位置: $stackTrace');
+   // 利用 FocusTraversalPolicy 实现自动遍历
+    final focusTraversalPolicy = FocusTraversalPolicy.of(context);
+    if (focusTraversalPolicy == null) {
+      _showDebugOverlayMessage('找不到有效的 FocusTraversalPolicy');
+      return false;
     }
-    return false;
+
+    // 根据按键方向移动焦点
+    if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+      focusTraversalPolicy.next(_currentFocus!);
+    } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+      focusTraversalPolicy.previous(_currentFocus!);
+    } else {
+      return false;
+    }
+
+    _showDebugOverlayMessage('焦点已切换');
+    return true;
+  } catch (e, stackTrace) {
+    _showDebugOverlayMessage('跳转分组错误: $e\n位置: $stackTrace');
+  }
+  return false;
   }
 
   /// 自定义跳转逻辑
-  void _navigateToCustomGroup(int groupIndex, int focusIndex) {
-    try {
-      // 获取所有 FocusTraversalGroup
-      final allGroups = FocusTraversalGroup.of(context);
-      if (allGroups == null || groupIndex >= allGroups.length || groupIndex < 0) {
-        _showDebugOverlayMessage('自定义跳转失败: 找不到分组 $groupIndex');
-        return;
-      }
-
-      // 获取目标组的焦点列表
-      final targetGroup = allGroups[groupIndex];
-      final targetFocusNode = widget.focusNodes[focusIndex];
-
-      if (targetGroup.contains(targetFocusNode)) {
-        _requestFocus(focusIndex); // 切换到指定焦点
-        _showDebugOverlayMessage('跳转到分组 $groupIndex 的焦点 $focusIndex');
-      } else {
-        _showDebugOverlayMessage('目标焦点不在指定分组中');
-      }
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('跳转到自定义分组失败: $e\n位置: $stackTrace');
+void _navigateToCustomGroup(int groupIndex, int focusIndex) {
+  try {
+    // 获取所有的焦点遍历策略
+    final focusTraversalPolicy = FocusTraversalPolicy.of(context);
+    
+    if (focusTraversalPolicy == null) {
+      _showDebugOverlayMessage('无法找到有效的 FocusTraversalPolicy');
+      return;
     }
+
+    // 获取目标焦点节点
+    final targetFocusNode = widget.focusNodes[focusIndex];
+
+    // 请求切换到自定义的焦点
+    targetFocusNode.requestFocus();
+    _showDebugOverlayMessage('自定义跳转成功，焦点已切换到分组 $groupIndex 的焦点 $focusIndex');
+    
+  } catch (e, stackTrace) {
+    _showDebugOverlayMessage('跳转到自定义分组失败: $e\n位置: $stackTrace');
   }
+}
 
   /// 判断是否为自定义方向键
   bool _isCustomDirectionKey(LogicalKeyboardKey key) {
