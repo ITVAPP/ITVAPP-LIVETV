@@ -485,8 +485,9 @@ class _FocusableItemState extends State<FocusableItem> {
       focusNode: widget.focusNode,
       onKey: (FocusNode node, RawKeyEvent event) {
         if (event is RawKeyDownEvent) {
-          // 使用 TvKeyNavigation 中的键盘处理
-          return FocusScope.of(context).nextFocus();
+          // Use FocusScope to change focus and return the appropriate KeyEventResult
+          bool didMoveFocus = FocusScope.of(context).nextFocus();
+          return didMoveFocus ? KeyEventResult.handled : KeyEventResult.ignored;
         }
         return KeyEventResult.ignored;
       },
