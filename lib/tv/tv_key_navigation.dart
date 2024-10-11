@@ -478,13 +478,13 @@ class Group extends StatelessWidget {
 class FocusableItem extends StatefulWidget {
   final FocusNode focusNode; // 焦点节点
   final Widget child; // 子组件
-  final int groupIndex; // 分组索引
+  final int? groupIndex; // 分组索引，可选参数
 
   const FocusableItem({
     Key? key,
     required this.focusNode,
     required this.child,
-    required this.groupIndex, // 新增分组索引参数
+    this.groupIndex, // groupIndex 是可选的
   }) : super(key: key);
 
   @override
@@ -494,6 +494,9 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
+    // 在需要使用 groupIndex 的地方做 null 检查
+    int groupIndex = widget.groupIndex ?? -1; // 默认值为 -1 或根据需求设置
+    
     return Focus(
       focusNode: widget.focusNode,
       child: widget.child,
