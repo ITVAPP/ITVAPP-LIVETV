@@ -267,12 +267,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 获取当前焦点所属的 groupIndex
 int _getGroupIndex(FocusNode focusNode) {
   try {
+    // 获取 focusNode 的 context
     BuildContext? context = focusNode.context;
-    GroupIndexProvider? provider = GroupIndexProvider.of(context);
-    if (provider != null) {
-      return provider.groupIndex;
+    // 首先检查 context 是否为 null
+    if (context == null) {
+      return -1;  // 如果 context 为空，直接返回 -1
     }
-    return -1; // 如果没有找到GroupIndexProvider，返回-1
+    // 使用 context 查找 GroupIndexProvider
+    GroupIndexProvider? provider = GroupIndexProvider.of(context);
+    // 检查是否成功获取到 provider
+    if (provider != null) {
+      return provider.groupIndex;  // 返回找到的 groupIndex
+    }
+    return -1; // 如果没有找到 GroupIndexProvider，返回 -1
   } catch (e, stackTrace) {
     _handleError('获取分组索引失败', e, stackTrace);
     return -1;
