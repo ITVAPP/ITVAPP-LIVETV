@@ -277,9 +277,9 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
             ? null
             : context.findAncestorWidgetOfExactType<FocusableItem>()?.child.key == context.widget.key
                 ? null
-                : context.findRenderObject()?.parent?.debugCreator?.child?.key == context.widget.key
-                    ? null
-                    : context.findRenderObject()?.debugCreator?.child?.context;
+                : context.findRenderObject()?.parent is RenderObjectWithChildMixin<RenderBox>
+                    ? (context.findRenderObject()?.parent as RenderObjectWithChildMixin<RenderBox>).child?.key == context.widget.key
+                    : null;
       }
       return -1;
     } catch (e, stackTrace) {
