@@ -195,7 +195,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
 
       // 获取 groupIndex
-      int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
+      int groupIndex = _getGroupIndex(currentFocus); // 通过 focusNode 获取 groupIndex
 
       // 判断是否启用了框架模式 (isFrame)
       if (widget.isFrame) {  // 如果是框架模式
@@ -258,14 +258,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 获取当前焦点所属的 groupIndex，删除缓存，避免使用_cachedGroup来记录Group
-  int _getGroupIndex(BuildContext context) {
+  int _getGroupIndex(FocusNode focusNode) {
     try {
-      Group? group = context.findAncestorWidgetOfExactType<Group>();
-      if (widget.isFrame) {
-        _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
+      final state = focusNode.context?.findAncestorStateOfType<_FocusableItemState>();
+      if (state != null) {
+        return (state.widget as FocusableItem).groupIndex;
       }
-      // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
-      return group?.groupIndex ?? -1;
+      return -1;
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
       return -1;
@@ -323,6 +322,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (ancestorContext == null) return null;
       Group? ancestorGroup = ancestorContext.findAncestorWidgetOfExactType<Group>();
       // 确认找到的 Group 是否符合 groupIndex
+      _showDebugOverlayMessage('找到的 Group: ${ancestorGroup?.groupIndex}');
       if (ancestorGroup != null && ancestorGroup.groupIndex == groupIndex) {
         return ancestorGroup;
       }
@@ -460,7 +460,16 @@ class Group extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: children,
+      children: children.map((child) {
+        if (child is FocusableItem) {
+          return FocusableItem(
+            focusNode: child.focusNode,
+            child: child.child,
+            groupIndex: groupIndex, // 将 groupIndex 传递给 FocusableItem
+          );
+        }
+        return child;
+      }).toList(),
     );
   }
 }
@@ -469,11 +478,13 @@ class Group extends StatelessWidget {
 class FocusableItem extends StatefulWidget {
   final FocusNode focusNode; // 焦点节点
   final Widget child; // 子组件
+  final int groupIndex; // 分组索引
 
   const FocusableItem({
     Key? key,
     required this.focusNode,
     required this.child,
+    required this.groupIndex, // 新增分组索引参数
   }) : super(key: key);
 
   @override
