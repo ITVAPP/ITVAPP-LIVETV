@@ -273,9 +273,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         if (widget is FocusableItem && widget.groupIndex != null) {
           return widget.groupIndex!;
         }
-        context = context.findAncestorStateOfType<StatefulElement>()?.widget.key == context.widget.key
+        context = context.findAncestorWidgetOfExactType<FocusableItem>()?.key == context.widget.key
             ? null
-            : context.findAncestorStateOfType<StatefulElement>()?.context;
+            : context.findAncestorWidgetOfExactType<FocusableItem>()?.child.key == context.widget.key
+                ? null
+                : context.findRenderObject()?.parent?.debugCreator?.child?.key == context.widget.key
+                    ? null
+                    : context.findRenderObject()?.debugCreator?.child?.context;
       }
       return -1;
     } catch (e, stackTrace) {
@@ -298,7 +302,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return false;
       }
 
-int currentGroupIndex = allGroups.indexWhere((group) => group.groupIndex == groupIndex);
+      int currentGroupIndex = allGroups.indexWhere((group) => group.groupIndex == groupIndex);
       if (currentGroupIndex == -1) {
         _showDebugOverlayMessage('无法跳转：找不到当前组, groupIndex=$groupIndex');
         return false;
