@@ -82,9 +82,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 自动寻找第一个可用的焦点节点
   void _autoFocusFirstAvailable() {
     try {
-      // 通过 FocusScope 自动寻找第一个可聚焦的元素
-      FocusScope.of(context).autofocus();
-      _showDebugOverlayMessage('自动寻找焦点完成');
+      // 手动查找第一个可以获取焦点的节点
+      if (widget.focusNodes.isNotEmpty) {
+        widget.focusNodes.first.requestFocus();
+        _showDebugOverlayMessage('自动找到第一个焦点并请求焦点');
+      } else {
+        _showDebugOverlayMessage('没有找到可用的焦点节点');
+      }
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('自动寻找焦点失败: $e\n位置: $stackTrace');
     }
