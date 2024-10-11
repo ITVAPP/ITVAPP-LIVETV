@@ -288,7 +288,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     return KeyEventResult.handled;
   }
 
-  /// 处理在组之间的跳转逻辑，使用 FocusScope 实现跨组焦点跳转
+  /// 处理在组之间的跳转逻辑，使用 FocusTraversalGroup 实现跨组焦点跳转
   bool _jumpToOtherGroup(LogicalKeyboardKey key) {
     try {
       // 判断是否启用了自定义跳转
@@ -303,52 +303,38 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
 
-   // 利用 FocusTraversalPolicy 实现自动遍历
-    final focusTraversalPolicy = FocusTraversalPolicy.of(context);
-    if (focusTraversalPolicy == null) {
-      _showDebugOverlayMessage('找不到有效的 FocusTraversalPolicy');
-      return false;
-    }
+      // 使用 FocusScope 进行上下文中的焦点切换
+      if (_currentFocus != null) {
+        if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+          FocusScope.of(context).nextFocus();
+        } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+          FocusScope.of(context).previousFocus();
+        } else {
+          return false;
+        }
 
-    // 根据按键方向移动焦点
-    if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-      focusTraversalPolicy.next(_currentFocus!);
-    } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-      focusTraversalPolicy.previous(_currentFocus!);
-    } else {
-      return false;
+        _showDebugOverlayMessage('焦点已切换');
+        return true;
+      }
+    } catch (e, stackTrace) {
+      _showDebugOverlayMessage('跳转分组错误: $e\n位置: $stackTrace');
     }
-
-    _showDebugOverlayMessage('焦点已切换');
-    return true;
-  } catch (e, stackTrace) {
-    _showDebugOverlayMessage('跳转分组错误: $e\n位置: $stackTrace');
-  }
-  return false;
+    return false;
   }
 
   /// 自定义跳转逻辑
-void _navigateToCustomGroup(int groupIndex, int focusIndex) {
-  try {
-    // 获取所有的焦点遍历策略
-    final focusTraversalPolicy = FocusTraversalPolicy.of(context);
-    
-    if (focusTraversalPolicy == null) {
-      _showDebugOverlayMessage('无法找到有效的 FocusTraversalPolicy');
-      return;
+  void _navigateToCustomGroup(int groupIndex, int focusIndex) {
+    try {
+      // 获取目标焦点节点
+      final targetFocusNode = widget.focusNodes[focusIndex];
+
+      // 请求切换到自定义的焦点
+      targetFocusNode.requestFocus();
+      _showDebugOverlayMessage('自定义跳转成功，焦点已切换到分组 $groupIndex 的焦点 $focusIndex');
+    } catch (e, stackTrace) {
+      _showDebugOverlayMessage('跳转到自定义分组失败: $e\n位置: $stackTrace');
     }
-
-    // 获取目标焦点节点
-    final targetFocusNode = widget.focusNodes[focusIndex];
-
-    // 请求切换到自定义的焦点
-    targetFocusNode.requestFocus();
-    _showDebugOverlayMessage('自定义跳转成功，焦点已切换到分组 $groupIndex 的焦点 $focusIndex');
-    
-  } catch (e, stackTrace) {
-    _showDebugOverlayMessage('跳转到自定义分组失败: $e\n位置: $stackTrace');
   }
-}
 
   /// 判断是否为自定义方向键
   bool _isCustomDirectionKey(LogicalKeyboardKey key) {
@@ -399,9 +385,9 @@ void _navigateToCustomGroup(int groupIndex, int focusIndex) {
   /// 判断是否为方向键
   bool _isDirectionKey(LogicalKeyboardKey key) {
     return key == LogicalKeyboardKey.arrowUp ||
-           key == LogicalKeyboardKey.arrowDown ||
-           key == LogicalKeyboardKey.arrowLeft ||
-           key == LogicalKeyboardKey.arrowRight;
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight;
   }
 
   /// 判断是否为选择键
@@ -416,7 +402,7 @@ void _navigateToCustomGroup(int groupIndex, int focusIndex) {
       if (context != null) {
         // 调试输出当前焦点控件类型
         _showDebugOverlayMessage('当前焦点控件类型: ${context.widget.runtimeType}');
-        
+
         // 检查是否是 SwitchListTile 并切换其状态
         final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
         if (switchTile != null) {
@@ -445,7 +431,7 @@ void _navigateToCustomGroup(int groupIndex, int focusIndex) {
         if (focusableItem != null && focusableItem.child is ListTile) {
           final listTile = focusableItem.child as ListTile;
           if (listTile.onTap != null) {
-            listTile.onTap!(); 
+            listTile.onTap!();
             _showDebugOverlayMessage('执行 ListTile 的 onTap 操作');
             return;
           }
@@ -460,9 +446,11 @@ void _navigateToCustomGroup(int groupIndex, int focusIndex) {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onKey: _handleKeyEvent, // 处理键盘事件
-      child: widget.child, // 直接使用传入的子组件
+    return FocusTraversalGroup(
+      child: Focus(
+        onKey: _handleKeyEvent, // 处理键盘事件
+        child: widget.child, // 直接使用传入的子组件
+      ),
     );
   }
 }
