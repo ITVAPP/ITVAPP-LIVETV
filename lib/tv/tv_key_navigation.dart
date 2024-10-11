@@ -265,26 +265,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 获取当前焦点所属的 groupIndex
-  int _getGroupIndex(FocusNode focusNode) {
-    try {
-      BuildContext? context = focusNode.context;
-      while (context != null) {
-        final widget = context.widget;
-
-        // 检查当前 Widget 是否为 FocusableItem 且有有效的 groupIndex
-        if (widget is FocusableItem && widget.groupIndex != null) {
-          return widget.groupIndex!;
-        }
-
-        // 递归查找父组件中的 FocusableItem
-        context = context.findAncestorWidgetOfExactType<FocusableItem>()?.context;
-      }
-      return -1; // 如果没有找到有效的 groupIndex，返回 -1
-    } catch (e, stackTrace) {
-      _handleError('获取分组索引失败', e, stackTrace);
-      return -1;
+int _getGroupIndex(FocusNode focusNode) {
+  try {
+    BuildContext? context = focusNode.context;
+    GroupIndexProvider? provider = GroupIndexProvider.of(context);
+    if (provider != null) {
+      return provider.groupIndex;
     }
+    return -1; // 如果没有找到GroupIndexProvider，返回-1
+  } catch (e, stackTrace) {
+    _handleError('获取分组索引失败', e, stackTrace);
+    return -1;
   }
+}
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
@@ -497,6 +490,25 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 }
 
+class GroupIndexProvider extends InheritedWidget {
+  final int groupIndex;
+
+  GroupIndexProvider({
+    Key? key,
+    required this.groupIndex,
+    required Widget child,
+  }) : super(key: key, child: child);
+
+  @override
+  bool updateShouldNotify(GroupIndexProvider oldWidget) {
+    return groupIndex != oldWidget.groupIndex;
+  }
+
+  static GroupIndexProvider? of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<GroupIndexProvider>();
+  }
+}
+
 class Group extends StatelessWidget {
   final int groupIndex; // 分组编号
   final List<Widget> children;
@@ -509,17 +521,11 @@ class Group extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: children.map((child) {
-        if (child is FocusableItem) {
-          return FocusableItem(
-            focusNode: child.focusNode,
-            child: child.child,
-            groupIndex: groupIndex, // 将 groupIndex 传递给 FocusableItem
-          );
-        }
-        return child;
-      }).toList(),
+    return GroupIndexProvider(
+      groupIndex: groupIndex,
+      child: Column(
+        children: children.map((child) => child).toList(),
+      ),
     );
   }
 }
@@ -544,9 +550,10 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    // 在需要使用 groupIndex 的地方做 null 检查
-    int groupIndex = widget.groupIndex ?? -1; // 默认值为 -1 或根据需求设置
-    
+    // 如果组件传入了 groupIndex，则使用该值，否则尝试从 GroupIndexProvider 获取
+    final int effectiveGroupIndex = widget.groupIndex ?? 
+                                    GroupIndexProvider.of(context)?.groupIndex ?? 
+                                    -1; // 默认值为 -1
     return Focus(
       focusNode: widget.focusNode,
       child: widget.child,
