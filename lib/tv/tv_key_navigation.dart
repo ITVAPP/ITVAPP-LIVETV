@@ -51,11 +51,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       try {
         // 设置初始焦点
         if (widget.focusNodes.isNotEmpty) {
-         FocusNode initialFocusNode = widget.focusNodes[widget.initialIndex ?? 0];
-         initialFocusNode.requestFocus(); // 直接请求焦点以确保设置正确
-         _currentFocus = initialFocusNode;
-         _currentIndex = widget.initialIndex ?? 0; // 记录当前索引
-         _showDebugOverlayMessage('初始焦点已设置到索引: $_currentIndex，试图将焦点设置到: ${initialFocusNode.hasFocus}');
+          FocusNode initialFocusNode = widget.focusNodes[widget.initialIndex ?? 0];
+          initialFocusNode.requestFocus();
+          setState(() {
+            _currentFocus = initialFocusNode;
+            _currentIndex = widget.initialIndex ?? 0;
+          });
+          _showDebugOverlayMessage('初始焦点已设置到索引: $_currentIndex，焦点状态: ${initialFocusNode.hasFocus}');
         }
       } catch (e, stackTrace) {
         _handleError('初始焦点设置失败', e, stackTrace);
@@ -144,8 +146,10 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       FocusNode focusNode = widget.focusNodes[index];
       if (!focusNode.hasFocus) {
         focusNode.requestFocus();
-        _currentFocus = focusNode;
-        _currentIndex = index; // 更新 currentIndex
+        setState(() {
+          _currentFocus = focusNode;
+          _currentIndex = index;
+        });
         _showDebugOverlayMessage('切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}');
       }
     } catch (e, stackTrace) {
@@ -280,6 +284,11 @@ int _getGroupIndex(FocusNode focusNode) {
   try {
     // 获取 focusNode 的 context
     BuildContext? context = focusNode.context;
+/// 获取当前焦点所属的 groupIndex
+int _getGroupIndex(FocusNode focusNode) {
+  try {
+    // 获取 focusNode 的 context
+    BuildContext? context = focusNode.context;
     // 首先检查 context 是否为 null
     if (context == null) {
       return -1;  // 如果 context 为空，直接返回 -1
@@ -330,7 +339,7 @@ int _getGroupIndex(FocusNode focusNode) {
       Group nextGroup = allGroups[nextGroupIndex];
       final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
       if (firstFocusNode != null) {
-        firstFocusNode.requestFocus();
+        _requestFocus(widget.focusNodes.indexOf(firstFocusNode));
         _showDebugOverlayMessage('组间跳转: 按键=${key.debugName}, 从组$groupIndex跳转到组${nextGroup.groupIndex}, 总组数=${allGroups.length}');
         return true;
       }
@@ -403,12 +412,13 @@ int _getGroupIndex(FocusNode focusNode) {
         groups.add(widget);
       }
       if (widget is SingleChildRenderObjectWidget) {
-        searchGroups(widget.child!);
+        if (widget.child != null) searchGroups(widget.child!);
       } else if (widget is MultiChildRenderObjectWidget) {
         widget.children.forEach(searchGroups);
       }
     }
     searchGroups(widget.child);
+    _showDebugOverlayMessage('找到的总组数: ${groups.length}');
     return groups;
   }
 
@@ -542,39 +552,39 @@ class Group extends StatelessWidget {
     return GroupIndexProvider(
       groupIndex: groupIndex,
       child: Column(
-        children: children.map((child) => child).toList(),
+        children: children,
       ),
     );
   }
 }
 
-// 用于包装具有焦点的组件
-class FocusableItem extends StatefulWidget {
-  final FocusNode focusNode; // 焦点节点
-  final Widget child; // 子组件
-  final int? groupIndex; // 分组索引，可选参数
+class FocusableItem extends StatelessWidget {
+  final FocusNode focusNode;
+  final Widget child;
+  final int? groupIndex;
 
   const FocusableItem({
     Key? key,
     required this.focusNode,
     required this.child,
-    this.groupIndex, // groupIndex 是可选的
+    this.groupIndex,
   }) : super(key: key);
 
   @override
-  _FocusableItemState createState() => _FocusableItemState();
-}
-
-class _FocusableItemState extends State<FocusableItem> {
-  @override
   Widget build(BuildContext context) {
-    // 如果组件传入了 groupIndex，则使用该值，否则尝试从 GroupIndexProvider 获取
-    final int effectiveGroupIndex = widget.groupIndex ?? 
+    final int effectiveGroupIndex = groupIndex ?? 
                                     GroupIndexProvider.of(context)?.groupIndex ?? 
-                                    -1; // 默认值为 -1
+                                    -1;
     return Focus(
-      focusNode: widget.focusNode,
-      child: widget.child,
+      focusNode: focusNode,
+      child: Builder(
+        builder: (BuildContext context) {
+          return GroupIndexProvider(
+            groupIndex: effectiveGroupIndex,
+            child: child,
+          );
+        },
+      ),
     );
   }
 }
