@@ -261,30 +261,14 @@ KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
           }
         }
       }
-        return KeyEventResult.handled;
+      return KeyEventResult.handled;
     } catch (e, stackTrace) {
       _handleError('焦点切换错误', e, stackTrace);
       return KeyEventResult.ignored; // 在异常处理后返回 ignored
     }
-
-    // 调用选择回调
-    FocusNode? currentFocusNode = _currentFocus;
-    if (currentFocusNode != null) {
-      int newIndex = widget.focusNodes.indexOf(currentFocusNode);
-      if (widget.onSelect != null && newIndex != -1 && newIndex != currentIndex) {
-        widget.onSelect!(newIndex); // 只有在新焦点与当前焦点不同的时候调用回调
-      }
-    }
-
-    return KeyEventResult.handled; // 最终返回 handled，确保处理
 }
 
   /// 获取当前焦点所属的 groupIndex
-int _getGroupIndex(FocusNode focusNode) {
-  try {
-    // 获取 focusNode 的 context
-    BuildContext? context = focusNode.context;
-/// 获取当前焦点所属的 groupIndex
 int _getGroupIndex(FocusNode focusNode) {
   try {
     // 获取 focusNode 的 context
@@ -307,8 +291,8 @@ int _getGroupIndex(FocusNode focusNode) {
 }
 
   /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (groupIndex == null || groupIndex == -1) {
+  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int groupIndex) {
+    if (groupIndex == -1) {
       _showDebugOverlayMessage('无法跳转：当前组索引无效, groupIndex=$groupIndex');
       return false;
     }
@@ -521,7 +505,7 @@ int _getGroupIndex(FocusNode focusNode) {
 class GroupIndexProvider extends InheritedWidget {
   final int groupIndex;
 
-  GroupIndexProvider({
+  const GroupIndexProvider({
     Key? key,
     required this.groupIndex,
     required Widget child,
