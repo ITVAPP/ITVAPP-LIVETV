@@ -164,6 +164,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       FocusNode focusNode = widget.focusNodes[index];
 
+      // 防止重复请求焦点
+      if (_currentFocus != null && _currentFocus == focusNode) {
+        _showDebugOverlayMessage('当前焦点已处于索引 $index');
+        return;
+      }
+
       // 如果焦点节点还没有焦点，请求焦点
       if (!focusNode.hasFocus) {
         focusNode.requestFocus();
@@ -178,32 +184,29 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
   }
 
-  // 后退或循环焦点，使用 _requestFocus() 进行管理
-  void _navigateToPreviousFocus(LogicalKeyboardKey key) {
+  // 修改后的导航函数，结合了前后焦点切换的逻辑
+  void _navigateFocus(LogicalKeyboardKey key, {bool forward = true}) {
     try {
       // 获取当前焦点的索引
       int currentIndex = widget.focusNodes.indexOf(_currentFocus!);
-      // 计算前一个焦点的索引，若超出则循环到最后一个焦点
-      int newIndex = (currentIndex - 1) < 0 ? widget.focusNodes.length - 1 : currentIndex - 1;
-      _requestFocus(newIndex); // 切换到前一个焦点
-      _showDebugOverlayMessage('操作: ${key.debugName}键，切换到前一个焦点');
+      // 计算前一个或下一个焦点的索引，若超出范围则循环
+      int newIndex = forward
+          ? (currentIndex + 1) % widget.focusNodes.length
+          : (currentIndex - 1 + widget.focusNodes.length) % widget.focusNodes.length;
+      _requestFocus(newIndex); // 切换焦点
+      _showDebugOverlayMessage('操作: ${key.debugName}键，切换到${forward ? '下一个' : '前一个'}焦点');
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('切换到前一个焦点失败: $e\n位置: $stackTrace');
+      _showDebugOverlayMessage('焦点切换失败: $e\n位置: $stackTrace');
     }
   }
 
-  // 前进或循环焦点，使用 _requestFocus() 进行管理
+  // 使用新的通用导航函数替换原先的函数
+  void _navigateToPreviousFocus(LogicalKeyboardKey key) {
+    _navigateFocus(key, forward: false); // 向前导航
+  }
+
   void _navigateToNextFocus(LogicalKeyboardKey key) {
-    try {
-      // 获取当前焦点的索引
-      int currentIndex = widget.focusNodes.indexOf(_currentFocus!);
-      // 计算下一个焦点的索引，若超出则循环到第一个焦点
-      int newIndex = (currentIndex + 1) % widget.focusNodes.length;
-      _requestFocus(newIndex); // 切换到下一个焦点
-      _showDebugOverlayMessage('操作: ${key.debugName}键，切换到下一个焦点');
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('切换到下一个焦点失败: $e\n位置: $stackTrace');
-    }
+    _navigateFocus(key, forward: true); // 向后导航
   }
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
@@ -337,7 +340,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 获取目标组的第一个焦点节点并请求焦点
       final targetGroup = allGroups[targetGroupIndex];
-      final firstFocusNodeInGroup = targetGroup.firstFocusNode;
+      final firstFocusNodeInGroup = targetGroup.firstFocusNode ?? targetGroup.firstDescendant;
       if (firstFocusNodeInGroup != null) {
         _requestFocus(widget.focusNodes.indexOf(firstFocusNodeInGroup));
         _showDebugOverlayMessage('跳转到分组 $targetGroupIndex 的第一个焦点');
@@ -512,9 +515,11 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: widget.focusNode,
-      child: widget.child,
+    return FocusTraversalGroup(
+      child: Focus(
+        focusNode: widget.focusNode,
+        child: widget.child,
+      ),
     );
   }
 }
