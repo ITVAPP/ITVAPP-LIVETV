@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+在保证原来功能的前提下修复我的编译错误 ，请专注于你修改的部分，无关的代码你不要修改！ 
+你不要因为考虑回复长度而删除注释或代码！修改后给我完整的代码而不是代码片段！import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class TvKeyNavigation extends StatefulWidget {
@@ -270,18 +271,16 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       BuildContext? context = focusNode.context;
       while (context != null) {
         final widget = context.widget;
+
+        // 检查当前 Widget 是否为 FocusableItem 且有有效的 groupIndex
         if (widget is FocusableItem && widget.groupIndex != null) {
           return widget.groupIndex!;
         }
-        context = context.findAncestorWidgetOfExactType<FocusableItem>()?.key == context.widget.key
-            ? null
-            : context.findAncestorWidgetOfExactType<FocusableItem>()?.child.key == context.widget.key
-                ? null
-                : context.findRenderObject()?.parent is RenderObject
-                    ? (context.findRenderObject() as RenderObject).parent?.key == context.widget.key
-                    : null;
+
+        // 递归查找父组件中的 FocusableItem
+        context = context.findAncestorWidgetOfExactType<FocusableItem>()?.context;
       }
-      return -1;
+      return -1; // 如果没有找到有效的 groupIndex，返回 -1
     } catch (e, stackTrace) {
       _handleError('获取分组索引失败', e, stackTrace);
       return -1;
