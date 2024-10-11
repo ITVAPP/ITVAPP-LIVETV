@@ -51,10 +51,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       try {
         // 设置初始焦点
         if (widget.focusNodes.isNotEmpty) {
-          _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
+         FocusNode initialFocusNode = widget.focusNodes[widget.initialIndex ?? 0];
+         initialFocusNode.requestFocus(); // 直接请求焦点以确保设置正确
+         _currentFocus = initialFocusNode;
+         _currentIndex = widget.initialIndex ?? 0; // 记录当前索引
+         _showDebugOverlayMessage('初始焦点已设置到索引: $_currentIndex，试图将焦点设置到: ${initialFocusNode.hasFocus}');
         }
-        _showDebugOverlayMessage('初始焦点设置完成');
-        FocusScope.of(context).requestFocus(); // 确保焦点激活，便于监听按键事件
       } catch (e, stackTrace) {
         _handleError('初始焦点设置失败', e, stackTrace);
       }
