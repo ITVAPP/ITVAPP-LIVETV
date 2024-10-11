@@ -146,7 +146,7 @@ Widget build(BuildContext context) {
       }
       FocusNode focusNode = widget.focusNodes[index];
       if (!focusNode.hasFocus) {
-        FocusScope.of(context).requestFocus(focusNode);  // 使用 FocusScope 请求焦点
+        focusNode.requestFocus();  // 使用 FocusScope 请求焦点
         setState(() {
           _currentFocus = focusNode;
           _currentIndex = index;
@@ -529,13 +529,14 @@ class Group extends StatelessWidget {
     return GroupIndexProvider(
       groupIndex: groupIndex,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, // 你可以根据需要设置布局
         children: children,
       ),
     );
   }
 }
 
-class FocusableItem extends StatelessWidget {
+class FocusableItem extends StatefulWidget {
   final FocusNode focusNode;
   final Widget child;
   final int? groupIndex;
@@ -548,19 +549,38 @@ class FocusableItem extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  _FocusableItemState createState() => _FocusableItemState();
+}
+
+class _FocusableItemState extends State<FocusableItem> {
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = widget.focusNode;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final int effectiveGroupIndex = groupIndex ?? 
+    final int effectiveGroupIndex = widget.groupIndex ?? 
                                     GroupIndexProvider.of(context)?.groupIndex ?? 
                                     -1;
+
     return Focus(
-      focusNode: focusNode,
-      child: Builder(
-        builder: (BuildContext context) {
-          return GroupIndexProvider(
-            groupIndex: effectiveGroupIndex,
-            child: child,
-          );
+      focusNode: _focusNode,
+      child: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).requestFocus(_focusNode);  // 确保焦点在点击时请求
         },
+        child: Builder(
+          builder: (BuildContext context) {
+            return GroupIndexProvider(
+              groupIndex: effectiveGroupIndex,
+              child: widget.child,
+            );
+          },
+        ),
       ),
     );
   }
