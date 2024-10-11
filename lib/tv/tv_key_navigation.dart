@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -11,7 +12,6 @@ class TvKeyNavigation extends StatefulWidget {
   final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
   final bool isHorizontalGroup; // 是否启用横向分组
   final bool isVerticalGroup; // 是否启用竖向分组
-  Timer? _hideOverlayTimer;  // 定义一个私有变量来跟踪自动隐藏的定时器
 
   const TvKeyNavigation({
     Key? key,
@@ -33,6 +33,7 @@ class TvKeyNavigation extends StatefulWidget {
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
+  Timer? _hideOverlayTimer;  // 定义一个私有变量来跟踪自动隐藏的定时器
 
   // 添加私有变量来跟踪当前索引
   int _currentIndex = 0; // 初始索引为0，或根据需要设置默认值
@@ -186,14 +187,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
-  KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
+KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     try {
       FocusNode? currentFocus = _currentFocus;
 
       // 如果当前没有焦点，则尝试将焦点设置为第一个 focusNode
       if (currentFocus == null) {
         _showDebugOverlayMessage('当前无焦点，尝试设置初始焦点。\n焦点节点总数: ${widget.focusNodes.length}');
-        _requestFocus(0); // 设置焦点为第一个控件
+        _requestFocus(0); // 设置焦点为第一个有效节点
         return KeyEventResult.handled; // 返回已处理，避免进一步忽略
       }
 
@@ -253,8 +254,10 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           }
         }
       }
+        return KeyEventResult.handled;
     } catch (e, stackTrace) {
       _handleError('焦点切换错误', e, stackTrace);
+      return KeyEventResult.ignored; // 在异常处理后返回 ignored
     }
 
     // 调用选择回调
@@ -266,8 +269,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
     }
 
-    return KeyEventResult.handled;
-  }
+    return KeyEventResult.handled; // 最终返回 handled，确保处理
+}
 
   /// 获取当前焦点所属的 groupIndex
 int _getGroupIndex(FocusNode focusNode) {
@@ -407,32 +410,34 @@ int _getGroupIndex(FocusNode focusNode) {
   }
 
   /// 处理键盘事件，包括方向键和选择键。
-KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-  try {
-    if (event is KeyDownEvent) {
-      LogicalKeyboardKey key = event.logicalKey;
+  KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
+    try {
+      if (event is RawKeyDownEvent) {
+        LogicalKeyboardKey key = event.logicalKey;
 
-      if (_isDirectionKey(key)) {
-        return _handleNavigation(key);
-      }
+        // 判断是否为方向键
+        if (_isDirectionKey(key)) {
+          return _handleNavigation(key);
+        }
 
-      if (_isSelectKey(key)) {
-        _triggerButtonAction();
-        _showDebugOverlayMessage('选择键操作: ${key.debugName}');
-        return KeyEventResult.handled;
-      }
+        // 判断是否为选择键
+        if (_isSelectKey(key)) {
+          _triggerButtonAction(); // 直接调用方法触发按钮操作
+          _showDebugOverlayMessage('选择键操作: ${key.debugName}');
+          return KeyEventResult.handled; // 标记按键事件已处理
+        }
 
-      if (widget.onKeyPressed != null) {
-        widget.onKeyPressed!(key);
-        _showDebugOverlayMessage('自定义按键回调: ${key.debugName}');
-        return KeyEventResult.handled;
+        // 自定义的按键处理回调
+        if (widget.onKeyPressed != null) {
+          widget.onKeyPressed!(key);
+          _showDebugOverlayMessage('自定义按键回调: ${key.debugName}');
+        }
       }
+    } catch (e, stackTrace) {
+      _handleError('键盘事件处理失败', e, stackTrace);
     }
-  } catch (e, stackTrace) {
-    _handleError('键盘事件处理失败', e, stackTrace);
+    return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
-  return KeyEventResult.ignored;
-}
 
   /// 判断是否为方向键
   bool _isDirectionKey(LogicalKeyboardKey key) {
