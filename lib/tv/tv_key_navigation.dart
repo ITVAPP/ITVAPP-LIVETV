@@ -11,6 +11,9 @@ class TvKeyNavigation extends StatefulWidget {
   final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
   final bool isHorizontalGroup; // 是否启用横向分组
   final bool isVerticalGroup; // 是否启用竖向分组
+  final String? custom; // 自定义方向键，比如 "Up", "Down", "Left", "Right"
+  final int? customGroupIndex; // 自定义分组索引
+  final int? customFocusIndex; // 自定义焦点索引
 
   const TvKeyNavigation({
     Key? key,
@@ -23,6 +26,9 @@ class TvKeyNavigation extends StatefulWidget {
     this.initialIndex,
     this.isHorizontalGroup = false, // 默认不按横向分组
     this.isVerticalGroup = false,   // 默认不按竖向分组
+    this.custom,
+    this.customGroupIndex,
+    this.customFocusIndex,
   }) : super(key: key);
 
   @override
@@ -256,12 +262,57 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 处理在组之间的跳转逻辑，使用 FocusScope 实现跨组焦点跳转
   bool _jumpToOtherGroup(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-      return FocusScope.of(context).previousFocus(); // 切换到前一个组的焦点
-    } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-      return FocusScope.of(context).nextFocus(); // 切换到下一个组的焦点
+    try {
+      // 判断是否启用了自定义跳转
+      if (widget.custom != null &&
+          widget.customGroupIndex != null &&
+          widget.customFocusIndex != null) {
+        if (_isCustomDirectionKey(key)) {
+          _showDebugOverlayMessage(
+              '自定义跳转: 分组${widget.customGroupIndex}, 焦点${widget.customFocusIndex}');
+          _navigateToCustomGroup(widget.customGroupIndex!, widget.customFocusIndex!);
+          return true;
+        }
+      }
+
+      // 默认的焦点跳转逻辑
+      if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+        return FocusScope.of(context).previousFocus(); // 切换到前一个组的焦点
+      } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+        return FocusScope.of(context).nextFocus(); // 切换到下一个组的焦点
+      }
+    } catch (e, stackTrace) {
+      _showDebugOverlayMessage('跳转分组错误: $e\n位置: $stackTrace');
     }
     return false;
+  }
+
+  /// 判断是否为自定义方向键
+  bool _isCustomDirectionKey(LogicalKeyboardKey key) {
+    switch (widget.custom?.toLowerCase()) {
+      case 'up':
+        return key == LogicalKeyboardKey.arrowUp;
+      case 'down':
+        return key == LogicalKeyboardKey.arrowDown;
+      case 'left':
+        return key == LogicalKeyboardKey.arrowLeft;
+      case 'right':
+        return key == LogicalKeyboardKey.arrowRight;
+      default:
+        return false;
+    }
+  }
+
+  /// 自定义跳转逻辑
+  void _navigateToCustomGroup(int groupIndex, int focusIndex) {
+    try {
+      // 自定义跳转逻辑的实现，假设自定义组和焦点索引可用
+      // 此处需要根据具体的业务需求实现
+      _showDebugOverlayMessage('跳转到分组 $groupIndex 的焦点 $focusIndex');
+      // 例如：找到目标组并设置焦点
+    } catch (e, stackTrace) {
+      _showDebugOverlayMessage('跳转到自定义分组失败: $e\n位置: $stackTrace');
+    }
   }
 
   /// 处理键盘事件，包括方向键和选择键。
