@@ -176,9 +176,10 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return;
       }
 
+      FocusScope.of(context).unfocus(); // 取消当前焦点
+      
       // 如果焦点节点还没有焦点，请求焦点
       if (!focusNode.hasFocus) {
-      	FocusScope.of(context).unfocus(); // 取消当前焦点
         FocusScope.of(context).requestFocus(focusNode); // 设置新焦点
         _currentFocus = focusNode;
         _currentIndex = index; // 更新当前索引
@@ -464,8 +465,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
 // 用于包装具有焦点的组件
 class FocusableItem extends StatefulWidget {
-  final FocusNode focusNode; // 焦点节点
-  final Widget child; // 子组件
+  final FocusNode focusNode;
+  final Widget child;
 
   const FocusableItem({
     Key? key,
@@ -480,11 +481,16 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    return FocusTraversalGroup(
-      child: Focus(
-        focusNode: widget.focusNode,
-        child: widget.child,
-      ),
+    return Focus(
+      focusNode: widget.focusNode,
+      onKey: (FocusNode node, RawKeyEvent event) {
+        if (event is RawKeyDownEvent) {
+          // 使用 TvKeyNavigation 中的键盘处理
+          return FocusScope.of(context).nextFocus();
+        }
+        return KeyEventResult.ignored;
+      },
+      child: widget.child,
     );
   }
 }
