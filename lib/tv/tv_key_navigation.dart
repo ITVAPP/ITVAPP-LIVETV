@@ -32,7 +32,6 @@ class TvKeyNavigation extends StatefulWidget {
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
-  Group? _cachedGroup; // 缓存 Group 实例
 
   // 添加私有变量来跟踪当前索引
   int _currentIndex = 0; // 初始索引为0，或根据需要设置默认值
@@ -48,8 +47,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 缓存 Group 实例
-        _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
         // 设置初始焦点
         if (widget.focusNodes.isNotEmpty) {
           _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
@@ -66,7 +63,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void dispose() {
     try {
       _removeDebugOverlay(); // 移除调试窗口
-      _cachedGroup = null; // 清空缓存的 Group 实例
       WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('资源释放失败: $e\n位置: $stackTrace');
@@ -207,15 +203,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {    // 左上键
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
-            // _jumpToOtherGroup(key, currentIndex, 0);
             FocusScope.of(context).nextFocus(); // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            // _jumpToOtherGroup(key, currentIndex, 1);
-            _cachedGroup = null; // 清空缓存的 Group 实例
             FocusScope.of(context).previousFocus(); // 返回主页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
@@ -264,21 +257,15 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     return KeyEventResult.handled;
   }
 
-  /// 获取当前焦点所属的 groupIndex
+  /// 获取当前焦点所属的 groupIndex，删除缓存，避免使用_cachedGroup来记录Group
   int _getGroupIndex(BuildContext context) {
     try {
-      // 检查缓存是否为空
-      if (_cachedGroup == null) {
-        // 如果缓存为空，重新查找 Group 并缓存
-        _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
-      }
-      // 提示是在父页面还是子页面
+      Group? group = context.findAncestorWidgetOfExactType<Group>();
       if (widget.isFrame) {
         _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
       }
-      _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
       // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
-      return _cachedGroup?.groupIndex ?? -1;
+      return group?.groupIndex ?? -1;
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
       return -1;
@@ -334,28 +321,18 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     try {
       BuildContext? ancestorContext = _currentFocus?.context; // 使用当前焦点节点的上下文
       if (ancestorContext == null) return null;
-
-      // 遍历所有的 Group 来找到指定索引的 Group
-      Group? foundGroup;
-      void visitor(Element element) {
-        if (element.widget is Group) {
-          Group group = element.widget as Group;
-          if (group.groupIndex == groupIndex) {
-            foundGroup = group;
-          }
-        }
-        element.visitChildren(visitor);
+      Group? ancestorGroup = ancestorContext.findAncestorWidgetOfExactType<Group>();
+      // 确认找到的 Group 是否符合 groupIndex
+      if (ancestorGroup != null && ancestorGroup.groupIndex == groupIndex) {
+        return ancestorGroup;
       }
-      ancestorContext.visitAncestorElements(visitor);
-
-      return foundGroup;
     } catch (e, stackTrace) {
       _showDebugOverlayMessage('查找分组失败: $e\n位置: $stackTrace');
     }
     return null; // 未找到匹配的 groupIndex
   }
 
-  /// 查找 Group 下的第一个 FocusNode
+  /// 查找 Group 下的第一个 FocusNode，移除对子结构的假设
   FocusNode? _findFirstFocusNodeInGroup(Group group) {
     try {
       for (Widget child in group.children) {
@@ -371,24 +348,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取总的组数
   int _getTotalGroups() {
-    try {
-      BuildContext? ancestorContext = _currentFocus?.context; // 使用当前焦点节点的上下文
-      if (ancestorContext == null) return 0;
-
-      int totalGroups = 0;
-      void visitor(Element element) {
-        if (element.widget is Group) {
-          totalGroups++;
-        }
-        element.visitChildren(visitor);
-      }
-      ancestorContext.visitAncestorElements(visitor);
-
-      return totalGroups;
-    } catch (e, stackTrace) {
-      _showDebugOverlayMessage('获取总组数失败: $e\n位置: $stackTrace');
-    }
-    return 0;
+    return widget.focusNodes.length; 
   }
 
   /// 处理键盘事件，包括方向键和选择键。
@@ -467,7 +427,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         if (focusableItem != null && focusableItem.child is ListTile) {
           final listTile = focusableItem.child as ListTile;
           if (listTile.onTap != null) {
-            listTile.onTap!();
+            listTile.onTap!(); 
             _showDebugOverlayMessage('执行 ListTile 的 onTap 操作');
             return;
           }
