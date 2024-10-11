@@ -54,6 +54,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
         }
         _showDebugOverlayMessage('初始焦点设置完成');
+        FocusScope.of(context).requestFocus(); // 确保焦点激活，便于监听按键事件
       } catch (e, stackTrace) {
         _handleError('初始焦点设置失败', e, stackTrace);
       }
