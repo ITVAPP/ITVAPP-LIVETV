@@ -46,17 +46,21 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        // 设置初始焦点
-        if (widget.focusNodes.isNotEmpty) {
-          _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
-        }
-        _showDebugOverlayMessage('初始焦点设置完成');
-      } catch (e, stackTrace) {
-        _handleError('初始焦点设置失败', e, stackTrace);
-      }
+      _initializeFocus();
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
+  }
+
+  void _initializeFocus() {
+    try {
+      if (widget.focusNodes.isNotEmpty) {
+        int initialIndex = widget.initialIndex ?? 0;
+        _requestFocus(initialIndex);
+      }
+      _showDebugOverlayMessage('初始焦点设置完成');
+    } catch (e, stackTrace) {
+      _handleError('初始焦点设置失败', e, stackTrace);
+    }
   }
 
   @override
@@ -133,12 +137,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return;
       }
       FocusNode focusNode = widget.focusNodes[index];
-      if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
+      focusNode.requestFocus();
+      setState(() {
         _currentFocus = focusNode;
-        _currentIndex = index; // 更新 currentIndex
-        _showDebugOverlayMessage('切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}');
-      }
+        _currentIndex = index;
+      });
+      _showDebugOverlayMessage('切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}');
     } catch (e, stackTrace) {
       _handleError('切换焦点失败', e, stackTrace);
     }
@@ -193,11 +197,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
 
       // 获取当前焦点的索引 (currentIndex)
-      int currentIndex = widget.focusNodes.indexOf(currentFocus);
-      if (currentIndex == -1) {
-        _showDebugOverlayMessage('找不到当前焦点的索引。\n焦点节点总数: ${widget.focusNodes.length}, 当前焦点: ${currentFocus.toString()}');
-        return KeyEventResult.ignored; // 找不到当前焦点时忽略
-      }
+      int currentIndex = _currentIndex;
 
       // 获取 groupIndex
       int groupIndex = _getGroupIndex(currentFocus); // 通过 focusNode 获取 groupIndex
@@ -256,7 +256,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     FocusNode? currentFocusNode = _currentFocus;
     if (currentFocusNode != null) {
       int newIndex = widget.focusNodes.indexOf(currentFocusNode);
-      if (widget.onSelect != null && newIndex != -1 && newIndex != currentIndex) {
+      if (widget.onSelect != null && newIndex != -1 && newIndex != _currentIndex) {
         widget.onSelect!(newIndex); // 只有在新焦点与当前焦点不同的时候调用回调
       }
     }
@@ -265,26 +265,26 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 获取当前焦点所属的 groupIndex
-int _getGroupIndex(FocusNode focusNode) {
-  try {
-    // 获取 focusNode 的 context
-    BuildContext? context = focusNode.context;
-    // 首先检查 context 是否为 null
-    if (context == null) {
-      return -1;  // 如果 context 为空，直接返回 -1
+  int _getGroupIndex(FocusNode focusNode) {
+    try {
+      // 获取 focusNode 的 context
+      BuildContext? context = focusNode.context;
+      // 首先检查 context 是否为 null
+      if (context == null) {
+        return -1;  // 如果 context 为空，直接返回 -1
+      }
+      // 使用 context 查找 GroupIndexProvider
+      GroupIndexProvider? provider = GroupIndexProvider.of(context);
+      // 检查是否成功获取到 provider
+      if (provider != null) {
+        return provider.groupIndex;  // 返回找到的 groupIndex
+      }
+      return -1; // 如果没有找到 GroupIndexProvider，返回 -1
+    } catch (e, stackTrace) {
+      _handleError('获取分组索引失败', e, stackTrace);
+      return -1;
     }
-    // 使用 context 查找 GroupIndexProvider
-    GroupIndexProvider? provider = GroupIndexProvider.of(context);
-    // 检查是否成功获取到 provider
-    if (provider != null) {
-      return provider.groupIndex;  // 返回找到的 groupIndex
-    }
-    return -1; // 如果没有找到 GroupIndexProvider，返回 -1
-  } catch (e, stackTrace) {
-    _handleError('获取分组索引失败', e, stackTrace);
-    return -1;
   }
-}
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
@@ -299,8 +299,8 @@ int _getGroupIndex(FocusNode focusNode) {
         _showDebugOverlayMessage('无法跳转：未找到任何组');
         return false;
       }
-
-      int currentGroupIndex = allGroups.indexWhere((group) => group.groupIndex == groupIndex);
+      
+int currentGroupIndex = allGroups.indexWhere((group) => group.groupIndex == groupIndex);
       if (currentGroupIndex == -1) {
         _showDebugOverlayMessage('无法跳转：找不到当前组, groupIndex=$groupIndex');
         return false;
@@ -319,7 +319,7 @@ int _getGroupIndex(FocusNode focusNode) {
       Group nextGroup = allGroups[nextGroupIndex];
       final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
       if (firstFocusNode != null) {
-        firstFocusNode.requestFocus();
+        _requestFocus(widget.focusNodes.indexOf(firstFocusNode));
         _showDebugOverlayMessage('组间跳转: 按键=${key.debugName}, 从组$groupIndex跳转到组${nextGroup.groupIndex}, 总组数=${allGroups.length}');
         return true;
       }
