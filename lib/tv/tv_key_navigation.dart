@@ -304,7 +304,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
 
       // 获取当前页面的所有 FocusTraversalGroup
-      final allGroups = FocusTraversalGroup.of(context, scopeOk: true);
+      final allGroups = FocusTraversalGroup.of(context);
       if (allGroups == null || allGroups.isEmpty) {
         _showDebugOverlayMessage('找不到任何 FocusTraversalGroup');
         return false;
@@ -359,7 +359,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void _navigateToCustomGroup(int groupIndex, int focusIndex) {
     try {
       // 获取所有 FocusTraversalGroup
-      final allGroups = FocusTraversalGroup.of(context, scopeOk: true);
+      final allGroups = FocusTraversalGroup.of(context);
       if (allGroups == null || groupIndex >= allGroups.length || groupIndex < 0) {
         _showDebugOverlayMessage('自定义跳转失败: 找不到分组 $groupIndex');
         return;
