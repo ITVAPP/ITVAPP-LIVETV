@@ -53,7 +53,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
         _showDebugOverlayMessage('初始焦点设置完成');
       } catch (e, stackTrace) {
-        _showDebugOverlayMessage('初始焦点设置失败: $e\n位置: $stackTrace');
+        _handleError('初始焦点设置失败', e, stackTrace);
       }
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
@@ -65,9 +65,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       _removeDebugOverlay(); // 移除调试窗口
       WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('资源释放失败: $e\n位置: $stackTrace');
+      _handleError('资源释放失败', e, stackTrace);
     }
     super.dispose();
+  }
+
+  /// 封装错误处理逻辑
+  void _handleError(String message, dynamic error, StackTrace stackTrace) {
+    _showDebugOverlayMessage('$message: $error\n位置: $stackTrace');
   }
 
   /// 显示调试信息的浮动窗口
@@ -106,7 +111,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         _removeDebugOverlay();
       });
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('调试窗口显示失败: $e\n位置: $stackTrace');
+      _handleError('调试窗口显示失败', e, stackTrace);
     }
   }
 
@@ -116,7 +121,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       _debugOverlayEntry?.remove();
       _debugOverlayEntry = null;
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('移除调试窗口失败: $e\n位置: $stackTrace');
+      _handleError('移除调试窗口失败', e, stackTrace);
     }
   }
 
@@ -135,7 +140,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         _showDebugOverlayMessage('切换焦点到索引: $index');
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('切换焦点失败: $e\n位置: $stackTrace');
+      _handleError('切换焦点失败', e, stackTrace);
     }
   }
 
@@ -153,7 +158,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
       _showDebugOverlayMessage('操作: ${key.debugName}键，$action');
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('切换到前一个焦点失败: $e\n位置: $stackTrace');
+      _handleError('切换到前一个焦点失败', e, stackTrace);
     }
   }
 
@@ -171,7 +176,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
       _showDebugOverlayMessage('操作: ${key.debugName}键，$action');
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('切换到下一个焦点失败: $e\n位置: $stackTrace');
+      _handleError('切换到下一个焦点失败', e, stackTrace);
     }
   }
 
@@ -242,7 +247,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('焦点切换错误: $e\n位置: $stackTrace');
+      _handleError('焦点切换错误', e, stackTrace);
     }
 
     // 调用选择回调
@@ -262,11 +267,11 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     try {
       final state = focusNode.context?.findAncestorStateOfType<_FocusableItemState>();
       if (state != null) {
-        return (state.widget as FocusableItem).groupIndex;
+        return (state.widget as FocusableItem).groupIndex ?? -1; // 处理 groupIndex 为空的情况
       }
       return -1;
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('获取分组索引失败: $e\n位置: $stackTrace');
+      _handleError('获取分组索引失败', e, stackTrace);
       return -1;
     }
   }
@@ -309,7 +314,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       }
       _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('分组跳转失败: $e\n位置: $stackTrace');
+      _handleError('分组跳转失败', e, stackTrace);
     }
 
     return false;
@@ -327,7 +332,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return ancestorGroup;
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('查找分组失败: $e\n位置: $stackTrace');
+      _handleError('查找分组失败', e, stackTrace);
     }
     return null; // 未找到匹配的 groupIndex
   }
@@ -341,7 +346,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('查找焦点节点失败: $e\n位置: $stackTrace');
+      _handleError('查找焦点节点失败', e, stackTrace);
     }
     return null; // 没有找到 FocusNode
   }
@@ -376,7 +381,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('键盘事件处理失败: $e\n位置: $stackTrace');
+      _handleError('键盘事件处理失败', e, stackTrace);
     }
     return KeyEventResult.ignored; // 如果未处理，返回忽略
   }
@@ -434,7 +439,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         }
       }
     } catch (e, stackTrace) {
-      _showDebugOverlayMessage('执行控件点击操作失败: $e\n位置: $stackTrace');
+      _handleError('执行控件点击操作失败', e, stackTrace);
     }
   }
 
