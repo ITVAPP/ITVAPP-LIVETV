@@ -44,6 +44,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   // 调试模式开关
   final bool _showDebugOverlay = true;
 
+@Override
+Widget build(BuildContext context) {
+  return Focus(
+    onKeyEvent: _handleKeyEvent, // 使用 onKeyEvent 来处理键盘事件
+    child: widget.child,         // 直接使用传入的子组件
+  );
+}
+
   @override
   void initState() {
     super.initState();
@@ -215,7 +223,7 @@ KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
       // 获取 groupIndex
       int groupIndex = _getGroupIndex(currentFocus); // 通过 focusNode 获取 groupIndex
 
-      _showDebugOverlayMessage('导航开始: 按键=${key.debugName}, 当前索引=$currentIndex, 当前Group=$groupIndex, 总节点数=${widget.focusNodes.length}');
+      _showDebugOverlayMessage('导航开始: 按键=${key.debugName}, 当前索引=$currentIndex, 当前焦点=${currentFocus.toString()}, 当前Group=$groupIndex, 总节点数=${widget.focusNodes.length}');
 
       // 判断是否启用了框架模式 (isFrame)
       if (widget.isFrame) {  // 如果是框架模式
@@ -407,9 +415,9 @@ int _getGroupIndex(FocusNode focusNode) {
   }
 
   /// 处理键盘事件，包括方向键和选择键。
-  KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     try {
-      if (event is RawKeyDownEvent) {
+      if (event is KeyDownEvent) { // 修改为 KeyDownEvent
         LogicalKeyboardKey key = event.logicalKey;
 
         // 判断是否为方向键
@@ -491,14 +499,6 @@ int _getGroupIndex(FocusNode focusNode) {
     } catch (e, stackTrace) {
       _handleError('执行控件点击操作失败', e, stackTrace);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      onKey: _handleKeyEvent, // 处理键盘事件
-      child: widget.child, // 直接使用传入的子组件
-    );
   }
 }
 
