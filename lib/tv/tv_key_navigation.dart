@@ -164,6 +164,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       FocusNode focusNode = widget.focusNodes[index];
 
+      // 检查焦点节点是否挂载在 Widget 树上
+      if (focusNode.context == null || !focusNode.context!.mounted) {
+        _showDebugOverlayMessage('焦点节点尚未挂载到 widget 树，无法请求焦点');
+        return;
+      }
+
       // 防止重复请求焦点
       if (_currentFocus != null && _currentFocus == focusNode) {
         _showDebugOverlayMessage('当前焦点已处于索引 $index');
