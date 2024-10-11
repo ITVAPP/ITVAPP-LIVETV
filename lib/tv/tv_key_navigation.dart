@@ -146,7 +146,7 @@ Widget build(BuildContext context) {
       }
       FocusNode focusNode = widget.focusNodes[index];
       if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
+        FocusScope.of(context).requestFocus(focusNode);  // 使用 FocusScope 请求焦点
         setState(() {
           _currentFocus = focusNode;
           _currentIndex = index;
