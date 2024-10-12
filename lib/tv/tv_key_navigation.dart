@@ -31,6 +31,7 @@ class TvKeyNavigation extends StatefulWidget {
 }
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
+  late FocusNode _rootFocusNode;
   FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
   Timer? _hideOverlayTimer;  // 定义一个私有变量来跟踪自动隐藏的定时器
@@ -46,15 +47,17 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onKeyEvent: _handleKeyEvent, // 使用 onKeyEvent 来处理键盘事件
-      child: widget.child,         // 直接使用传入的子组件
+    return FocusScope(
+      node: _rootFocusNode,
+      onKey: _handleKeyEvent,
+      child: widget.child,
     );
   }
 
   @override
   void initState() {
     super.initState();
+    _rootFocusNode = FocusNode(debugLabel: 'TvKeyNavigation Root');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 添加一个小延迟，确保所有FocusableItems都已构建
       Future.delayed(Duration(milliseconds: 100), () {
@@ -76,6 +79,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     try {
       _removeDebugOverlay(); // 移除调试窗口
       WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
+      _rootFocusNode.dispose();
     } catch (e, stackTrace) {
       _handleError('资源释放失败', e, stackTrace);
     }
@@ -272,7 +276,7 @@ KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     }
 }
 
-  /// 获取当前焦点所属的 groupIndex
+/// 获取当前焦点所属的 groupIndex
 int _getGroupIndex(FocusNode focusNode) {
   try {
     // 获取 focusNode 的 context
@@ -294,7 +298,7 @@ int _getGroupIndex(FocusNode focusNode) {
   }
 }
 
-/// 处理在组之间的跳转逻辑
+  /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int groupIndex) {
     if (groupIndex == -1) {
       _showDebugOverlayMessage('无法跳转：当前组索引无效, groupIndex=$groupIndex');
@@ -497,7 +501,6 @@ int _getGroupIndex(FocusNode focusNode) {
     }
   }
 }
-
 class GroupIndexProvider extends InheritedWidget {
   final int groupIndex;
 
