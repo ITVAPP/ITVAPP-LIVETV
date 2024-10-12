@@ -180,7 +180,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     }
 
     // 获取 groupIndex
-    int groupIndex = _getGroupIndex(currentFocus.context!); // 通过 context 获取 groupIndex
+    int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
     
     _showDebugOverlayMessage('导航开始: 按键=${key.debugName}, 当前索引=$currentIndex, 当前Group=$groupIndex, 总节点数=${widget.focusNodes.length}');
 
