@@ -95,8 +95,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
           focusNodes: _focusNodes,
           isHorizontalGroup: true, // 启用横向分组
           initialIndex: 0, // 设置初始焦点索引为 0
-          isFrame: isTV ? true : false, // TV 模式下启用框架模式
-          frameType: isTV ? "child" : null, // TV 模式下设置为子页面
+          isFrame: false, // 禁用框架模式
+          frameType: null, // 不设置框架类型
           child: Align(
             alignment: Alignment.center, // 内容居中显示
             child: Container(
@@ -141,140 +141,145 @@ class _SettinglogPageState extends State<SettinglogPage> {
                         ),
                       ],
                     ),
-                    if (isLogOn)
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Group(
-                              groupIndex: 1, // 过滤按钮分组
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildFilterButton('all', S.of(context).filterAll, 1),
-                                      _buildFilterButton('v', S.of(context).filterVerbose, 2),
-                                      _buildFilterButton('e', S.of(context).filterError, 3),
-                                      _buildFilterButton('i', S.of(context).filterInfo, 4),
-                                      _buildFilterButton('d', S.of(context).filterDebug, 5),
-                                    ],
+                    Expanded(
+                      child: Opacity(
+                        opacity: isLogOn ? 1.0 : 0.0,
+                        child: IgnorePointer(
+                          ignoring: !isLogOn,
+                          child: Column(
+                            children: [
+                              Group(
+                                groupIndex: 1, // 过滤按钮分组
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _buildFilterButton('all', S.of(context).filterAll, 1),
+                                        _buildFilterButton('v', S.of(context).filterVerbose, 2),
+                                        _buildFilterButton('e', S.of(context).filterError, 3),
+                                        _buildFilterButton('i', S.of(context).filterInfo, 4),
+                                        _buildFilterButton('d', S.of(context).filterDebug, 5),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            Flexible(
-                              child: logs.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.info_outline, size: 50, color: Colors.grey),
-                                          SizedBox(height: 10),
-                                          Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
-                                        ],
-                                      ),
-                                    )
-                                  : Scrollbar(
-                                      thumbVisibility: true,
-                                      controller: _scrollController, // 使用滚动控制器
-                                      child: SingleChildScrollView(
-                                        controller: _scrollController, // 日志列表使用同一滚动控制器
-                                        scrollDirection: Axis.vertical, // 仅垂直滚动
+                                ],
+                              ),
+                              Flexible(
+                                child: logs.isEmpty
+                                    ? Center(
                                         child: Column(
-                                          children: logs
-                                              .map((log) => Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Padding(
-                                                        padding: const EdgeInsets.symmetric(vertical: 6.0),
-                                                        child: Row(
-                                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                          children: [
-                                                            Text(
-                                                              formatDateTime(log['time']!), // 第一行时间
-                                                              style: const TextStyle(
-                                                                  fontWeight: FontWeight.bold, fontSize: 16),
-                                                            ),
-                                                            // 仅在非TV模式下显示复制按钮
-                                                            if (!isTV)
-                                                              IconButton(
-                                                                icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
-                                                                onPressed: () {
-                                                                  // 将该条日志的内容复制到剪贴板
-                                                                  String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
-                                                                  Clipboard.setData(ClipboardData(text: logContent));
-                                                                  // 显示复制成功的提示
-                                                                  CustomSnackBar.showSnackBar(
-                                                                    context,
-                                                                    S.of(context).logCopied,  // 日志已复制
-                                                                    duration: Duration(seconds: 4),
-                                                                  );
-                                                                },
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.info_outline, size: 50, color: Colors.grey),
+                                            SizedBox(height: 10),
+                                            Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)),    //暂无日志
+                                          ],
+                                        ),
+                                      )
+                                    : Scrollbar(
+                                        thumbVisibility: true,
+                                        controller: _scrollController, // 使用滚动控制器
+                                        child: SingleChildScrollView(
+                                          controller: _scrollController, // 日志列表使用同一滚动控制器
+                                          scrollDirection: Axis.vertical, // 仅垂直滚动
+                                          child: Column(
+                                            children: logs
+                                                .map((log) => Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Padding(
+                                                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                            children: [
+                                                              Text(
+                                                                formatDateTime(log['time']!), // 第一行时间
+                                                                style: const TextStyle(
+                                                                    fontWeight: FontWeight.bold, fontSize: 16),
                                                               ),
-                                                          ],
+                                                              // 仅在非TV模式下显示复制按钮
+                                                              if (!isTV)
+                                                                IconButton(
+                                                                  icon: Icon(Icons.copy, color: Colors.grey), // 复制按钮
+                                                                  onPressed: () {
+                                                                    // 将该条日志的内容复制到剪贴板
+                                                                    String logContent = '${formatDateTime(log['time']!)}\n${LogUtil.parseLogMessage(log['message']!)}';
+                                                                    Clipboard.setData(ClipboardData(text: logContent));
+                                                                    // 显示复制成功的提示
+                                                                    CustomSnackBar.showSnackBar(
+                                                                      context,
+                                                                      S.of(context).logCopied,  // 日志已复制
+                                                                      duration: Duration(seconds: 4),
+                                                                    );
+                                                                  },
+                                                                ),
+                                                            ],
+                                                          ),
                                                         ),
-                                                      ),
-                                                      SelectableText(
-                                                        LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
-                                                        style: const TextStyle(fontSize: 14),
-                                                      ),
-                                                      const Divider(), // 分隔符
-                                                    ],
-                                                  ))
-                                              .toList(),
+                                                        SelectableText(
+                                                          LogUtil.parseLogMessage(log['message']!), // 可选择并复制日志信息
+                                                          style: const TextStyle(fontSize: 14),
+                                                        ),
+                                                        const Divider(), // 分隔符
+                                                      ],
+                                                    ))
+                                                .toList(),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                            ),
-                            Group(
-                              groupIndex: 2, // 清空日志按钮分组
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: FocusableItem(
-                                    focusNode: _focusNodes[6], // 为清空日志按钮添加焦点节点
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          if (_selectedLevel == 'all') {
-                                            LogUtil.clearLogs(); // 清空所有日志
-                                          } else {
-                                            LogUtil.clearLogs(_selectedLevel); // 清空特定类型的日志
-                                          }
-                                        });
-                                        CustomSnackBar.showSnackBar(
-                                          context,
-                                          S.of(context).logCleared,  //日志已清空
-                                          duration: Duration(seconds: 4), 
-                                        );
-                                      },
-                                      child: Text(
-                                        S.of(context).clearLogs,  //清空日志
-                                        style: TextStyle(
-                                          fontSize: 18, // 设置字体大小
-                                          color: Colors.white, // 设置文字颜色为白色
+                              ),
+                              Group(
+                                groupIndex: 2, // 清空日志按钮分组
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: FocusableItem(
+                                      focusNode: _focusNodes[6], // 为清空日志按钮添加焦点节点
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            if (_selectedLevel == 'all') {
+                                              LogUtil.clearLogs(); // 清空所有日志
+                                            } else {
+                                              LogUtil.clearLogs(_selectedLevel); // 清空特定类型的日志
+                                            }
+                                          });
+                                          CustomSnackBar.showSnackBar(
+                                            context,
+                                            S.of(context).logCleared,  //日志已清空
+                                            duration: Duration(seconds: 4), 
+                                          );
+                                        },
+                                        child: Text(
+                                          S.of(context).clearLogs,  //清空日志
+                                          style: TextStyle(
+                                            fontSize: 18, // 设置字体大小
+                                            color: Colors.white, // 设置文字颜色为白色
+                                          ),
+                                          textAlign: TextAlign.center, // 文字居中对齐
                                         ),
-                                        textAlign: TextAlign.center, // 文字居中对齐
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        shape: _buttonShape, // 统一圆角样式
-                                          backgroundColor: _focusNodes[6].hasFocus
-                                              ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
-                                              : (_selectedLevel == _selectedLevel
-                                                  ? selectedColor // 选中时使用完全不透明的颜色
-                                                  : unselectedColor), // 未选中时颜色
-                                          side: BorderSide.none, // 不需要边框
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
+                                        style: ElevatedButton.styleFrom(
+                                          shape: _buttonShape, // 统一圆角样式
+                                            backgroundColor: _focusNodes[6].hasFocus
+                                                ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
+                                                : (_selectedLevel == _selectedLevel
+                                                    ? selectedColor // 选中时使用完全不透明的颜色
+                                                    : unselectedColor), // 未选中时颜色
+                                            side: BorderSide.none, // 不需要边框
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
