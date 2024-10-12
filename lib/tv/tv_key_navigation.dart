@@ -239,6 +239,7 @@ KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
             FocusScope.of(context).previousFocus(); // 返回主页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
+            _showDebugOverlayMessage('右键切换焦点测试, 焦点=$currentIndex');
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
             _jumpToOtherGroup(key, currentIndex, groupIndex);
@@ -569,12 +570,6 @@ class _FocusableItemState extends State<FocusableItem> {
   void dispose() {
     widget.focusNode.removeListener(_onFocusChange);
     super.dispose();
-  }
-
-  void _onFocusChange() {
-    if (widget.focusNode.hasFocus) {
-      // 当项目获得焦点时的逻辑（如果需要）
-    }
   }
 
   @override
