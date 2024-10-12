@@ -203,14 +203,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
             // 根据选中的索引，动态显示右侧的页面内容
             if (_selectedIndex == 0)
               const Expanded(
-                child: SubScribePage(), // 订阅页面
+                child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
               ),
             if (_selectedIndex == 1)
-              const Expanded(child: SettingFontPage()), // 字体设置页面
+              const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
             if (_selectedIndex == 2)
-              const Expanded(child: SettingBeautifyPage()), // 美化设置页面
+              const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
             if (_selectedIndex == 3)
-              Expanded(child: SettinglogPage()), // 日志页面
+              Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
             if (_selectedIndex == 4)
               Expanded(
                 child: Center(
