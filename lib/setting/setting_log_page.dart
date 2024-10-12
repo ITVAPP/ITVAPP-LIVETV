@@ -90,7 +90,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
       ),
       body: FocusScope(  // 添加 FocusScope 确保焦点管理
-        autofocus: true,  // 自动聚焦第一个可聚焦的节点
         child: TvKeyNavigation(
           focusNodes: _focusNodes,
           isHorizontalGroup: true, // 启用横向分组
