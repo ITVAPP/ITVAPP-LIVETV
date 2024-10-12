@@ -121,25 +121,24 @@ class _TvSettingPageState extends State<TvSettingPage> {
             // 左侧菜单部分
             SizedBox(
               width: 258,
-              Group(
-                  groupIndex: 0, // 菜单分组
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Consumer<LanguageProvider>(
-                    builder: (context, languageProvider, child) {
-                      return Text(
-                        S.of(context).settings, // 页面标题
-                        style: const TextStyle(
-                          fontSize: 22, // 设置字号
-                          fontWeight: FontWeight.bold, // 设置加粗
-                        ),
-                      );
-                    },
+              child: Group(
+                groupIndex: 0, // 菜单分组
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Consumer<LanguageProvider>(
+                      builder: (context, languageProvider, child) {
+                        return Text(
+                          S.of(context).settings, // 页面标题
+                          style: const TextStyle(
+                            fontSize: 22, // 设置字号
+                            fontWeight: FontWeight.bold, // 设置加粗
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                // 使用 Group 包裹所有 FocusableItem 分组
-                body: 
-                  child: Column(
+                  // 使用 Group 包裹所有 FocusableItem 分组
+                  body: Column(
                     children: [
                       buildListTile(
                         icon: Icons.subscriptions,
@@ -189,7 +188,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                       ),
                     ],
                   ),
-              ),
+                ),
               ),
             ),
             // 根据选中的索引，动态显示右侧的页面内容
