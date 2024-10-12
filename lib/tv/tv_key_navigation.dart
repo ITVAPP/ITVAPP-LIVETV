@@ -480,12 +480,14 @@ class GroupIndexProvider extends InheritedWidget {
 
 class Group extends StatelessWidget {
   final int groupIndex;
-  final List<Widget> children;
+  final Widget? child; // 支持单个 child
+  final List<Widget>? children; // 支持多个 children
 
   const Group({
     Key? key,
     required this.groupIndex,
-    required this.children,
+    this.child,
+    this.children,
   }) : super(key: key);
 
   @override
@@ -494,7 +496,9 @@ class Group extends StatelessWidget {
       groupIndex: groupIndex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+        children: child != null 
+            ? [child!]  // 如果传入了单个 child，则使用它
+            : children ?? [], // 如果传入了 children，则使用它们
       ),
     );
   }
