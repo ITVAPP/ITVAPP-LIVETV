@@ -268,43 +268,45 @@ int _getGroupIndex(FocusNode focusNode) {
 }
 
   /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (groupIndex == null || groupIndex == -1) return false;
+bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+  if (groupIndex == null || groupIndex == -1) return false;
 
-    // 定义前进或后退分组的逻辑
-    int nextGroupIndex;
-    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-      // 后退：groupIndex - 1
-      nextGroupIndex = groupIndex - 1;
-      if (nextGroupIndex < 0) {
-        _showDebugOverlayMessage('已经是第一个分组，无法再后退');
-        return false;
-      }
-    } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-      // 前进：groupIndex + 1
-      int totalGroups = _getTotalGroups();
-      nextGroupIndex = groupIndex + 1;
-      if (nextGroupIndex >= totalGroups) {
-        _showDebugOverlayMessage('已经是最后一个分组，无法再前进');
-        return false;
-      }
-    } else {
-      return false;
+  // 定义前进或后退分组的逻辑
+  int nextGroupIndex;
+  if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+    // 后退：groupIndex - 1
+    nextGroupIndex = groupIndex - 1;
+    if (nextGroupIndex < 0) {
+      // 如果已经是第一个Group，则循环到最后一个Group
+      nextGroupIndex = _getTotalGroups() - 1;
+      _showDebugOverlayMessage('循环到最后一个分组');
     }
-
-    // 切换焦点到下一个分组的第一个控件
-    final nextGroup = _findGroupByIndex(nextGroupIndex);
-    if (nextGroup != null) {
-      final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
-      if (firstFocusNode != null) {
-        firstFocusNode.requestFocus();
-        _showDebugOverlayMessage('操作: ${key.debugName}键，切换到组 $nextGroupIndex 的第一个焦点');
-        return true;
-      }
+  } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+    // 前进：groupIndex + 1
+    nextGroupIndex = groupIndex + 1;
+    int totalGroups = _getTotalGroups();
+    if (nextGroupIndex >= totalGroups) {
+      // 如果已经是最后一个Group，则循环到第一个Group
+      nextGroupIndex = 0;
+      _showDebugOverlayMessage('循环到第一个分组');
     }
-    _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
+  } else {
     return false;
   }
+
+  // 切换焦点到下一个分组的第一个控件
+  final nextGroup = _findGroupByIndex(nextGroupIndex);
+  if (nextGroup != null) {
+    final firstFocusNode = _findFirstFocusNodeInGroup(nextGroup);
+    if (firstFocusNode != null) {
+      firstFocusNode.requestFocus();
+      _showDebugOverlayMessage('操作: ${key.debugName}键，切换到组 $nextGroupIndex 的第一个焦点');
+      return true;
+    }
+  }
+  _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
+  return false;
+}
 
   /// 根据 groupIndex 查找对应的 Group
   Group? _findGroupByIndex(int groupIndex) {
