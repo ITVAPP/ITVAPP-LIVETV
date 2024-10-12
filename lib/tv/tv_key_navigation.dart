@@ -348,7 +348,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
           if (firstFocusNode != null) break;
         }
       }
-      searchFocusNode(group.children);
+      searchFocusNode(group.children ?? []);
       return firstFocusNode;
     } catch (e, stackTrace) {
       _handleError('查找焦点节点失败', e, stackTrace);
