@@ -418,7 +418,7 @@ int _getGroupIndex(FocusNode focusNode) {
   /// 处理键盘事件，包括方向键和选择键。
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     try {
-      if (event is KeyDownEvent) { // 修改为 KeyDownEvent
+      if (event is KeyEvent && event is! KeyUpEvent) {
         LogicalKeyboardKey key = event.logicalKey;
 
         // 判断是否为方向键
@@ -560,18 +560,6 @@ class FocusableItem extends StatefulWidget {
 }
 
 class _FocusableItemState extends State<FocusableItem> {
-  @override
-  void initState() {
-    super.initState();
-    widget.focusNode.addListener(_onFocusChange);
-  }
-
-  @override
-  void dispose() {
-    widget.focusNode.removeListener(_onFocusChange);
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final int effectiveGroupIndex = widget.groupIndex ?? 
