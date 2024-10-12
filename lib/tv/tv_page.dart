@@ -106,6 +106,38 @@ class _TvPageState extends State<TvPage> {
       return null;
     }
   }
+  
+  // 打开添加源的设置页面2
+  Future<bool?> _openAddSource2() async {
+    try {
+      return Navigator.push<bool>(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return const TvSettingPage(); // 进入设置页面
+          },
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            var begin = const Offset(0.0, -1.0); // 动画起点为屏幕外顶部
+            var end = Offset.zero; // 动画终点为屏幕中间
+            var curve = Curves.ease; // 使用缓动曲线
+
+            // 定义位移动画
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+
+            return SlideTransition(
+              position: animation.drive(tween), // 应用动画
+              child: child,
+            );
+          },
+        ),
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
+      return null;
+    }
+  }
 
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
@@ -173,6 +205,7 @@ class _TvPageState extends State<TvPage> {
           break;
         case LogicalKeyboardKey.arrowLeft:
           // 处理左键操作
+          await _openAddSource2(); // 打开设置页面以添加新的视频源
           break;
         case LogicalKeyboardKey.arrowUp:
           await widget.changeChannelSources?.call(); // 切换视频源
