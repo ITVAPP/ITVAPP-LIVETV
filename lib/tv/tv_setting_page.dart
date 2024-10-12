@@ -21,10 +21,10 @@ class TvSettingPage extends StatefulWidget {
 }
 
 class _TvSettingPageState extends State<TvSettingPage> {
-  int _selectedIndex = 0; // 当前选中的菜单索引，初始值为0
+  int _selectedIndex = 1; // 当前选中的菜单索引，初始值为1
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
-  final List<FocusNode> _focusNodes = List.generate(5, (_) => FocusNode()); // 创建焦点节点列表
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode()); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color focusColor = const Color(0xFFEB144C).withOpacity(0.3); // 焦点时背景颜色
@@ -78,7 +78,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
     required VoidCallback onTap,
   }) {
     return FocusableItem(
-      focusNode: _focusNodes[index], // 为每个列表项分配焦点节点
+      focusNode: _focusNodes[index + 1], // 菜单的FocusNode从索引1开始
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
@@ -87,7 +87,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
         ), // 标题
         selected: _selectedIndex == index, // 判断是否选中
         selectedTileColor: selectedColor, // 选中时背景颜色
-        tileColor: _focusNodes[index].hasFocus ? focusColor : null, // 焦点时背景颜色，未选中时保持默认
+        tileColor: _focusNodes[index + 1].hasFocus ? focusColor : null, // 焦点时背景颜色，未选中时保持默认
         onTap: () {
           setState(() {
             _selectedIndex = index; // 更新选中项索引
@@ -107,13 +107,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
     return FocusScope(
       child: TvKeyNavigation(
         focusNodes: _focusNodes,
-        initialIndex: _selectedIndex,
+        initialIndex: _selectedIndex + 1, // 初始焦点为菜单项的第一个焦点
         isFrame: true, // 启用框架模式
         frameType: "parent", // 设置为父框架
         isVerticalGroup: true, // 启用竖向分组
         onSelect: (index) {
           setState(() {
-            _selectedIndex = index; // 同步更新选中索引
+            _selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
           });
         },
         child: Row(
@@ -125,6 +125,15 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 groupIndex: 0, // 菜单分组
                 child: Scaffold(
                   appBar: AppBar(
+                    leading: FocusableActionDetector(
+                      focusNode: _focusNodes[0], // 返回按钮的FocusNode
+                      child: IconButton(
+                        icon: Icon(Icons.arrow_back),
+                        onPressed: () {
+                          Navigator.of(context).pop(); // 返回到上一个页面
+                        },
+                      ),
+                    ),
                     title: Consumer<LanguageProvider>(
                       builder: (context, languageProvider, child) {
                         return Text(
@@ -194,14 +203,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
             // 根据选中的索引，动态显示右侧的页面内容
             if (_selectedIndex == 0)
               const Expanded(
-                child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
+                child: SubScribePage(), // 订阅页面
               ),
             if (_selectedIndex == 1)
-              const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
+              const Expanded(child: SettingFontPage()), // 字体设置页面
             if (_selectedIndex == 2)
-              const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
+              const Expanded(child: SettingBeautifyPage()), // 美化设置页面
             if (_selectedIndex == 3)
-              Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
+              Expanded(child: SettinglogPage()), // 日志页面
             if (_selectedIndex == 4)
               Expanded(
                 child: Center(
