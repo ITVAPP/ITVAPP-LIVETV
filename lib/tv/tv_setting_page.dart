@@ -103,124 +103,126 @@ class _TvSettingPageState extends State<TvSettingPage> {
     // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    // 使用 TvKeyNavigation 包裹需要焦点切换的部分
-    return TvKeyNavigation(
-      focusNodes: _focusNodes,
-      initialIndex: _selectedIndex,
-      isFrame: true, // 启用框架模式
-      frameType: "parent", // 设置为父框架
-      isVerticalGroup: true, // 启用竖向分组
-      onSelect: (index) {
-        setState(() {
-          _selectedIndex = index; // 同步更新选中索引
-        });
-      },
-      child: Row(
-        children: [
-          // 左侧菜单部分，宽度固定为268
-          SizedBox(
-            width: 268,
-            child: Scaffold(
-              appBar: AppBar(
-                title: Consumer<LanguageProvider>(
-                  builder: (context, languageProvider, child) {
-                    return Text(
-                      S.of(context).settings, // 页面标题
-                      style: const TextStyle(
-                        fontSize: 22, // 设置字号
-                        fontWeight: FontWeight.bold, // 设置加粗
+    // 使用 FocusScope 包裹父页面的 TvKeyNavigation，确保父子页面焦点隔离
+    return FocusScope(
+      child: TvKeyNavigation(
+        focusNodes: _focusNodes,
+        initialIndex: _selectedIndex,
+        isFrame: true, // 启用框架模式
+        frameType: "parent", // 设置为父框架
+        isVerticalGroup: true, // 启用竖向分组
+        onSelect: (index) {
+          setState(() {
+            _selectedIndex = index; // 同步更新选中索引
+          });
+        },
+        child: Row(
+          children: [
+            // 左侧菜单部分，宽度固定为268
+            SizedBox(
+              width: 268,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Consumer<LanguageProvider>(
+                    builder: (context, languageProvider, child) {
+                      return Text(
+                        S.of(context).settings, // 页面标题
+                        style: const TextStyle(
+                          fontSize: 22, // 设置字号
+                          fontWeight: FontWeight.bold, // 设置加粗
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // 使用 FocusTraversalGroup 包裹所有 FocusableItem 分组
+                body: FocusTraversalGroup(
+                  child: Column(
+                    children: [
+                      buildListTile(
+                        icon: Icons.subscriptions,
+                        title: S.of(context).subscribe, // 订阅
+                        index: 0,
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = 0;
+                          });
+                        },
                       ),
-                    );
-                  },
-                ),
-              ),
-              // 使用 FocusTraversalGroup 包裹所有 FocusableItem 分组
-              body: FocusTraversalGroup(
-                child: Column(
-                  children: [
-                    buildListTile(
-                      icon: Icons.subscriptions,
-                      title: S.of(context).subscribe, // 订阅
-                      index: 0,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 0;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.font_download,
-                      title: S.of(context).fontTitle, // 字体
-                      index: 1,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 1;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.brush,
-                      title: S.of(context).backgroundImageTitle, // 背景图
-                      index: 2,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 2;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.view_list,
-                      title: S.of(context).slogTitle, // 日志
-                      index: 3,
-                      onTap: () {
-                        setState(() {
-                          _selectedIndex = 3;
-                        });
-                      },
-                    ),
-                    buildListTile(
-                      icon: Icons.system_update,
-                      title: S.of(context).updateTitle, // 更新
-                      index: 4,
-                      onTap: _checkForUpdates, // 直接调用检查更新逻辑
-                    ),
-                  ],
+                      buildListTile(
+                        icon: Icons.font_download,
+                        title: S.of(context).fontTitle, // 字体
+                        index: 1,
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = 1;
+                          });
+                        },
+                      ),
+                      buildListTile(
+                        icon: Icons.brush,
+                        title: S.of(context).backgroundImageTitle, // 背景图
+                        index: 2,
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = 2;
+                          });
+                        },
+                      ),
+                      buildListTile(
+                        icon: Icons.view_list,
+                        title: S.of(context).slogTitle, // 日志
+                        index: 3,
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = 3;
+                          });
+                        },
+                      ),
+                      buildListTile(
+                        icon: Icons.system_update,
+                        title: S.of(context).updateTitle, // 更新
+                        index: 4,
+                        onTap: _checkForUpdates, // 直接调用检查更新逻辑
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          // 根据选中的索引，动态显示右侧的页面内容
-          if (_selectedIndex == 0)
-            const Expanded(
-              child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
-            ),
-          if (_selectedIndex == 1)
-            const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
-          if (_selectedIndex == 2)
-            const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
-          if (_selectedIndex == 3)
-            Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
-          if (_selectedIndex == 4)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.live_tv,
-                      size: 98,
-                      color: selectedColor,
-                    ),
-                    SizedBox(height: 18),
-                    Text(
-                      S.of(context).checkUpdate,
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
+            // 根据选中的索引，动态显示右侧的页面内容
+            if (_selectedIndex == 0)
+              const Expanded(
+                child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
               ),
-            ), // 如果选中更新，则显示更新提示图标和文字
-        ],
+            if (_selectedIndex == 1)
+              const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
+            if (_selectedIndex == 2)
+              const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
+            if (_selectedIndex == 3)
+              Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
+            if (_selectedIndex == 4)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.live_tv,
+                        size: 98,
+                        color: selectedColor,
+                      ),
+                      SizedBox(height: 18),
+                      Text(
+                        S.of(context).checkUpdate,
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ), // 如果选中更新，则显示更新提示图标和文字
+          ],
+        ),
       ),
     );
   }
