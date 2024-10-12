@@ -138,7 +138,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 // 使用 Group 包裹所有 FocusableItem 分组
                 body: Group(
                   groupIndex: 0, // 菜单分组
-                  child: Column(
+                  children: Column(
                     children: [
                       buildListTile(
                         icon: Icons.subscriptions,
