@@ -44,26 +44,29 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   // 调试模式开关
   final bool _showDebugOverlay = true;
 
-@override
-Widget build(BuildContext context) {
-  return Focus(
-    onKeyEvent: _handleKeyEvent, // 使用 onKeyEvent 来处理键盘事件
-    child: widget.child,         // 直接使用传入的子组件
-  );
-}
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onKeyEvent: _handleKeyEvent, // 使用 onKeyEvent 来处理键盘事件
+      child: widget.child,         // 直接使用传入的子组件
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        // 设置初始焦点
-        if (widget.focusNodes.isNotEmpty) {
-          _requestFocus(widget.initialIndex ?? 0);
+      // 添加一个小延迟，确保所有FocusableItems都已构建
+      Future.delayed(Duration(milliseconds: 100), () {
+        try {
+          // 设置初始焦点
+          if (widget.focusNodes.isNotEmpty) {
+            _requestFocus(widget.initialIndex ?? 0);
+          }
+        } catch (e, stackTrace) {
+          _handleError('初始焦点设置失败', e, stackTrace);
         }
-      } catch (e, stackTrace) {
-        _handleError('初始焦点设置失败', e, stackTrace);
-      }
+      });
     });
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
@@ -291,7 +294,7 @@ int _getGroupIndex(FocusNode focusNode) {
   }
 }
 
-  /// 处理在组之间的跳转逻辑
+/// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int groupIndex) {
     if (groupIndex == -1) {
       _showDebugOverlayMessage('无法跳转：当前组索引无效, groupIndex=$groupIndex');
@@ -515,7 +518,7 @@ class GroupIndexProvider extends InheritedWidget {
 }
 
 class Group extends StatelessWidget {
-  final int groupIndex; // 分组编号
+  final int groupIndex;
   final List<Widget> children;
 
   const Group({
@@ -529,7 +532,7 @@ class Group extends StatelessWidget {
     return GroupIndexProvider(
       groupIndex: groupIndex,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // 你可以根据需要设置布局
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
       ),
     );
@@ -553,12 +556,22 @@ class FocusableItem extends StatefulWidget {
 }
 
 class _FocusableItemState extends State<FocusableItem> {
-  late FocusNode _focusNode;
-
   @override
   void initState() {
     super.initState();
-    _focusNode = widget.focusNode;
+    widget.focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_onFocusChange);
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (widget.focusNode.hasFocus) {
+      // 当项目获得焦点时的逻辑（如果需要）
+    }
   }
 
   @override
@@ -568,19 +581,11 @@ class _FocusableItemState extends State<FocusableItem> {
                                     -1;
 
     return Focus(
-      focusNode: _focusNode,
-      child: GestureDetector(
-        onTap: () {
-          FocusScope.of(context).requestFocus(_focusNode);  // 确保焦点在点击时请求
+      focusNode: widget.focusNode,
+      child: Builder(
+        builder: (BuildContext context) {
+          return widget.child;
         },
-        child: Builder(
-          builder: (BuildContext context) {
-            return GroupIndexProvider(
-              groupIndex: effectiveGroupIndex,
-              child: widget.child,
-            );
-          },
-        ),
       ),
     );
   }
