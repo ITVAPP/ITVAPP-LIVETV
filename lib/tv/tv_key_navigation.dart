@@ -180,13 +180,16 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {    // 左上键
             _navigateToPreviousFocus(key, currentIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {   // 右键
-            _jumpToOtherGroup(key, currentIndex, 0);
+            // _jumpToOtherGroup(key, currentIndex, 0);
+            FocusScope.of(context).nextFocus(); // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _jumpToOtherGroup(key, currentIndex, 1);
+            // _jumpToOtherGroup(key, currentIndex, 1);
+            _cachedGroup = null; // 清空缓存的 Group 实例
+            FocusScope.of(context).previousFocus(); // 返回主页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateToNextFocus(key, currentIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
@@ -236,7 +239,18 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   /// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(BuildContext context) {
-    return _cachedGroup?.groupIndex ?? -1; // 使用已缓存的 Group 实例
+    // 检查缓存是否为空
+    if (_cachedGroup == null) {
+      // 如果缓存为空，重新查找 Group 并缓存
+      _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
+    }
+    // 提示是在父页面还是子页面
+    if (widget.isFrame) {
+      _showDebugOverlayMessage("当前位于${widget.frameType == 'parent' ? '父页面' : '子页面'}");
+    }
+    _cachedGroup = context.findAncestorWidgetOfExactType<Group>();
+    // 如果找到 Group 实例，返回其 groupIndex；否则返回 -1
+    return _cachedGroup?.groupIndex ?? -1;
   }
 
   /// 处理在组之间的跳转逻辑
@@ -274,32 +288,20 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         return true;
       }
     }
-
-    _showDebugOverlayMessage('无法找到下一个组或其焦点');
+    _showDebugOverlayMessage('无法找到下一个组编号: $nextGroupIndex');
     return false;
   }
 
   /// 根据 groupIndex 查找对应的 Group
   Group? _findGroupByIndex(int groupIndex) {
-    RenderObject? ancestor = context.findRenderObject();
-    return _findGroupRecursive(ancestor, groupIndex);
-  }
-
-  Group? _findGroupRecursive(RenderObject? ancestor, int groupIndex) {
-    if (ancestor == null) return null;
-
-    // 遍历子节点
-    Group? targetGroup;
-    ancestor.visitChildren((child) {
-      final group = (child.parentData as RenderObject).widget?.findAncestorWidgetOfExactType<Group>();
-      if (group != null && group.groupIndex == groupIndex) {
-        targetGroup = group;
-      } else {
-        // 递归查找子节点
-        targetGroup = _findGroupRecursive(child, groupIndex);
-      }
-    });
-    return targetGroup;
+    BuildContext? ancestorContext = _currentFocus?.context; // 使用当前焦点节点的上下文
+    if (ancestorContext == null) return null;
+    Group? ancestorGroup = ancestorContext.findAncestorWidgetOfExactType<Group>();
+    // 确认找到的 Group 是否符合 groupIndex
+    if (ancestorGroup != null && ancestorGroup.groupIndex == groupIndex) {
+      return ancestorGroup;
+    }
+    return null; // 未找到匹配的 groupIndex
   }
 
   /// 查找 Group 下的第一个 FocusNode
