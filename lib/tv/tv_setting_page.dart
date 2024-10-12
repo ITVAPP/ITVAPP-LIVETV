@@ -138,56 +138,54 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 // 使用 Group 包裹所有 FocusableItem 分组
                 body: Group(
                   groupIndex: 0, // 菜单分组
-                  children: Column(
-                    children: [
-                      buildListTile(
-                        icon: Icons.subscriptions,
-                        title: S.of(context).subscribe, // 订阅
-                        index: 0,
-                        onTap: () {
-                          setState(() {
-                            _selectedIndex = 0;
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.font_download,
-                        title: S.of(context).fontTitle, // 字体
-                        index: 1,
-                        onTap: () {
-                          setState(() {
-                            _selectedIndex = 1;
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.brush,
-                        title: S.of(context).backgroundImageTitle, // 背景图
-                        index: 2,
-                        onTap: () {
-                          setState(() {
-                            _selectedIndex = 2;
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.view_list,
-                        title: S.of(context).slogTitle, // 日志
-                        index: 3,
-                        onTap: () {
-                          setState(() {
-                            _selectedIndex = 3;
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.system_update,
-                        title: S.of(context).updateTitle, // 更新
-                        index: 4,
-                        onTap: _checkForUpdates, // 直接调用检查更新逻辑
-                      ),
-                    ],
-                  ),
+                  children: [   // 使用 List<Widget> 代替 Column
+                    buildListTile(
+                      icon: Icons.subscriptions,
+                      title: S.of(context).subscribe, // 订阅
+                      index: 0,
+                      onTap: () {
+                        setState(() {
+                          _selectedIndex = 0;
+                        });
+                      },
+                    ),
+                    buildListTile(
+                      icon: Icons.font_download,
+                      title: S.of(context).fontTitle, // 字体
+                      index: 1,
+                      onTap: () {
+                        setState(() {
+                          _selectedIndex = 1;
+                        });
+                      },
+                    ),
+                    buildListTile(
+                      icon: Icons.brush,
+                      title: S.of(context).backgroundImageTitle, // 背景图
+                      index: 2,
+                      onTap: () {
+                        setState(() {
+                          _selectedIndex = 2;
+                        });
+                      },
+                    ),
+                    buildListTile(
+                      icon: Icons.view_list,
+                      title: S.of(context).slogTitle, // 日志
+                      index: 3,
+                      onTap: () {
+                        setState(() {
+                          _selectedIndex = 3;
+                        });
+                      },
+                    ),
+                    buildListTile(
+                      icon: Icons.system_update,
+                      title: S.of(context).updateTitle, // 更新
+                      index: 4,
+                      onTap: _checkForUpdates, // 直接调用检查更新逻辑
+                    ),
+                  ], // 直接传入 List<Widget>，不使用 Column
                 ),
               ),
             ),
@@ -221,7 +219,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                     ],
                   ),
                 ),
-              ), // 如果选中更新，则显示更新提示图标和文字
+              ), 
           ],
         ),
       ),
