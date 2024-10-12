@@ -107,12 +107,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
                 crossAxisAlignment: CrossAxisAlignment.start, // 内容左对齐
                 children: [
                   Group(
-                    groupIndex: 1, // 日志开关分组
+                    groupIndex: 0, // 日志开关分组
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
                         child: FocusableItem(
-                          focusNode: _focusNodes[10], // 为开关分配焦点节点
+                          focusNode: _focusNodes[0], // 为开关分配焦点节点
                           child: SwitchListTile(
                             title: Text(
                               S.of(context).SwitchTitle,
@@ -129,7 +129,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               }, '设置日志开关状态时出错');
                             },
                             activeColor: Colors.white, // 滑块的颜色
-                            activeTrackColor: _focusNodes[10].hasFocus
+                            activeTrackColor: _focusNodes[0].hasFocus
                                 ? selectedColor.withOpacity(0.1) // 焦点时透明版本颜色
                                 : selectedColor, // 启动时背景颜色
                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
@@ -144,18 +144,18 @@ class _SettinglogPageState extends State<SettinglogPage> {
                       child: Column(
                         children: [
                           Group(
-                            groupIndex: 2, // 过滤按钮分组
+                            groupIndex: 1, // 过滤按钮分组
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 10), // 控制按钮与表格的间距
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    _buildFilterButton('all', S.of(context).filterAll, 11),
-                                    _buildFilterButton('v', S.of(context).filterVerbose, 12),
-                                    _buildFilterButton('e', S.of(context).filterError, 13),
-                                    _buildFilterButton('i', S.of(context).filterInfo, 14),
-                                    _buildFilterButton('d', S.of(context).filterDebug, 15),
+                                    _buildFilterButton('all', S.of(context).filterAll, 1),
+                                    _buildFilterButton('v', S.of(context).filterVerbose, 2),
+                                    _buildFilterButton('e', S.of(context).filterError, 3),
+                                    _buildFilterButton('i', S.of(context).filterInfo, 4),
+                                    _buildFilterButton('d', S.of(context).filterDebug, 5),
                                   ],
                                 ),
                               ),
@@ -226,12 +226,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   ),
                           ),
                           Group(
-                            groupIndex: 3, // 清空日志按钮分组
+                            groupIndex: 2, // 清空日志按钮分组
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: FocusableItem(
-                                  focusNode: _focusNodes[16], // 为清空日志按钮添加焦点节点
+                                  focusNode: _focusNodes[6], // 为清空日志按钮添加焦点节点
                                   child: ElevatedButton(
                                     onPressed: () {
                                       setState(() {
@@ -257,7 +257,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       shape: _buttonShape, // 统一圆角样式
-                                        backgroundColor: _focusNodes[16].hasFocus
+                                        backgroundColor: _focusNodes[6].hasFocus
                                             ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
                                             : (_selectedLevel == _selectedLevel
                                                 ? selectedColor // 选中时使用完全不透明的颜色
