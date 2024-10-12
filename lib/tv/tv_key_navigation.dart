@@ -31,7 +31,7 @@ class TvKeyNavigation extends StatefulWidget {
 }
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
-  late FocusNode _rootFocusNode;
+  late FocusScopeNode _rootFocusNode;
   FocusNode? _currentFocus;
   OverlayEntry? _debugOverlayEntry; // 调试信息窗口
   Timer? _hideOverlayTimer;  // 定义一个私有变量来跟踪自动隐藏的定时器
@@ -49,7 +49,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   Widget build(BuildContext context) {
     return FocusScope(
       node: _rootFocusNode,
-      onKey: _handleKeyEvent,
+      onKeyEvent: _handleKeyEvent,
       child: widget.child,
     );
   }
@@ -57,7 +57,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
-    _rootFocusNode = FocusNode(debugLabel: 'TvKeyNavigation Root');
+    _rootFocusNode = FocusScopeNode(debugLabel: 'TvKeyNavigation Root');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 添加一个小延迟，确保所有FocusableItems都已构建
       Future.delayed(Duration(milliseconds: 100), () {
