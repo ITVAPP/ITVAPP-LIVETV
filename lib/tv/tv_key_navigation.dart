@@ -50,7 +50,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 设置初始焦点
-        if (widget.focusNodes.isNotEmpty) {
+        if (widget.focusNodes.isNotEmpty || !widget.frameType == "child" ) {
           _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
         }
         _showDebugOverlayMessage('初始焦点设置完成');
