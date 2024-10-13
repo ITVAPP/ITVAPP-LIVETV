@@ -470,12 +470,18 @@ void _triggerButtonAction() {
                      context.findAncestorWidgetOfExactType<IconButton>();  // 添加 IconButton 的查找
 
       if (button != null) {
-        final onPressed = button.onPressed;
-        if (onPressed != null) {
-          onPressed(); // 调用按钮的 onPressed 回调
-          _showDebugOverlayMessage('执行按钮的 onPressed 操作');
-          return; // 操作完成后直接返回
+        // 安全地检查按钮类型是否具有 onPressed 属性
+        if (button is ElevatedButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 ElevatedButton 的 onPressed
+        } else if (button is TextButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 TextButton 的 onPressed
+        } else if (button is OutlinedButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 OutlinedButton 的 onPressed
+        } else if (button is IconButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 IconButton 的 onPressed
         }
+        _showDebugOverlayMessage('执行按钮的 onPressed 操作');
+        return; // 操作完成后直接返回
       }
 
       // 3. 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
@@ -499,6 +505,7 @@ void _triggerButtonAction() {
     _showDebugOverlayMessage('当前无有效的焦点上下文');
   }
 }
+
 }
 
 class GroupIndexProvider extends InheritedWidget {
