@@ -22,6 +22,7 @@ class TvSettingPage extends StatefulWidget {
 
 class _TvSettingPageState extends State<TvSettingPage> {
   int _selectedIndex = 1; // 当前选中的菜单索引，初始值为1
+  int _confirmedIndex = 1; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode()); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
@@ -91,11 +92,43 @@ class _TvSettingPageState extends State<TvSettingPage> {
         onTap: () {
           setState(() {
             _selectedIndex = index; // 更新选中项索引
+            _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
           });
-          onTap(); // 调用传入的点击处理逻辑
         },
       ),
     );
+  }
+
+  // 根据确认选择的索引构建右侧页面
+  Widget _buildRightPanel() {
+    if (_confirmedIndex == 0) {
+      return const SubScribePage(); // 订阅页面
+    } else if (_confirmedIndex == 1) {
+      return const SettingFontPage(); // 字体设置页面
+    } else if (_confirmedIndex == 2) {
+      return const SettingBeautifyPage(); // 美化设置页面
+    } else if (_confirmedIndex == 3) {
+      return SettinglogPage(); // 日志页面
+    } else if (_confirmedIndex == 4) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.live_tv,
+              size: 98,
+              color: selectedColor,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              S.of(context).checkUpdate,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(); // 空页面，避免未匹配的索引时出错
   }
 
   @override
@@ -127,8 +160,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
                   appBar: AppBar(
                     leading: FocusableActionDetector(
                       focusNode: _focusNodes[0], // 返回按钮的FocusNode
+                      onFocusChange: (isFocused) {
+                        setState(() {}); // 焦点变化时刷新状态
+                      },
                       child: IconButton(
-                        icon: Icon(Icons.arrow_back),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: _focusNodes[0].hasFocus ? selectedColor : Colors.white, // 焦点时改变颜色
+                        ),
                         onPressed: () {
                           Navigator.of(context).pop(); // 返回到上一个页面
                         },
@@ -156,6 +195,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             _selectedIndex = 0;
+                            _confirmedIndex = 0; // 用户按下确认键后更新页面
                           });
                         },
                       ),
@@ -166,6 +206,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             _selectedIndex = 1;
+                            _confirmedIndex = 1; // 用户按下确认键后更新页面
                           });
                         },
                       ),
@@ -176,6 +217,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             _selectedIndex = 2;
+                            _confirmedIndex = 2; // 用户按下确认键后更新页面
                           });
                         },
                       ),
@@ -186,6 +228,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             _selectedIndex = 3;
+                            _confirmedIndex = 3; // 用户按下确认键后更新页面
                           });
                         },
                       ),
@@ -193,44 +236,17 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         icon: Icons.system_update,
                         title: S.of(context).updateTitle, // 更新
                         index: 4,
-                        onTap: _checkForUpdates, // 直接调用检查更新逻辑
+                        onTap: _checkForUpdates, // 调用检查更新逻辑
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-            // 根据选中的索引，动态显示右侧的页面内容
-            if (_selectedIndex == 0)
-              const Expanded(
-                child: SubScribePage(), // 如果选中订阅源，则显示订阅页面
-              ),
-            if (_selectedIndex == 1)
-              const Expanded(child: SettingFontPage()), // 如果选中字体设置，则显示字体设置页面
-            if (_selectedIndex == 2)
-              const Expanded(child: SettingBeautifyPage()), // 如果选中美化，则显示美化设置页面
-            if (_selectedIndex == 3)
-              Expanded(child: SettinglogPage()), // 传递焦点节点给日志页面
-            if (_selectedIndex == 4)
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.live_tv,
-                        size: 98,
-                        color: selectedColor,
-                      ),
-                      SizedBox(height: 18),
-                      Text(
-                        S.of(context).checkUpdate,
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ), // 如果选中更新，则显示更新提示图标和文字
+            // 右侧页面显示，默认显示根据初始索引的页面
+            Expanded(
+              child: _buildRightPanel(), // 根据用户确认选择的索引显示页面
+            ),
           ],
         ),
       ),
