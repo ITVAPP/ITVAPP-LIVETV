@@ -525,21 +525,7 @@ void _triggerButtonAction() {
     try {
       String? message; // 用于存储提示信息
 
-      // 1. 检查是否是当前聚焦控件本身
-      final widget = context.widget;
-      tryInvokeCallback(widget); // 优先检查当前控件
-
-      // 2. 检查是否是 SwitchListTile 并切换其状态
-      final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
-      if (switchTile != null) {
-        final value = !(switchTile.value ?? false); // 切换开关状态
-        switchTile.onChanged?.call(value);
-        message = '切换 SwitchListTile 开关状态: $value';
-        _manageDebugOverlay(message: message, show: true);
-        return; // 操作完成后直接返回
-      }
-
-      // 3. 通用检查是否存在具有 onPressed 或 onTap 回调的组件
+      // 通用检查是否存在具有 onPressed 或 onTap 回调的组件
       void tryInvokeCallback(Widget widget) {
         // 使用映射表关联 Widget 类型与回调
         final actionMap = {
@@ -558,10 +544,24 @@ void _triggerButtonAction() {
         // 遍历映射表，如果类型匹配则调用相应的回调
         actionMap.forEach((type, action) {
           if (widget.runtimeType == type) {
-            action(widget);  // 执行相应的回调
+            action(widget as dynamic);  // 执行相应的回调，并确保类型转换
             message = '执行确认键操作';
           }
         });
+      }
+
+      // 检查是否是当前聚焦控件本身
+      final widget = context.widget;
+      tryInvokeCallback(widget); // 优先检查当前控件
+
+      // 检查是否是 SwitchListTile 并切换其状态
+      final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
+      if (switchTile != null) {
+        final value = !(switchTile.value ?? false); // 切换开关状态
+        switchTile.onChanged?.call(value);
+        message = '切换 SwitchListTile 开关状态: $value';
+        _manageDebugOverlay(message: message, show: true);
+        return; // 操作完成后直接返回
       }
 
       // 遍历查找并尝试调用回调，优先处理当前控件，然后检查祖先控件
