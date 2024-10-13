@@ -497,7 +497,7 @@ void _triggerButtonAction() {
       if (switchTile != null) {
         final value = !(switchTile.value ?? false); // 切换开关状态
         switchTile.onChanged?.call(value); // 调用 SwitchListTile 的 onChanged 回调
-        _manageDebugOverlay('切换 SwitchListTile 开关状态: $value');
+        _manageDebugOverlay('切换 SwitchListTile 开关状态: $value', show: true);
         return; // 操作完成后直接返回
       }
 
@@ -521,7 +521,7 @@ void _triggerButtonAction() {
         } else if (button is FloatingActionButton && button.onPressed != null) {
           button.onPressed!(); // 调用 FloatingActionButton 的 onPressed
         }
-        _manageDebugOverlay('执行按钮的 onPressed 操作');
+        _manageDebugOverlay('执行按钮的 onPressed 操作', show: true);
         return; // 操作完成后直接返回
       }
 
@@ -531,7 +531,7 @@ void _triggerButtonAction() {
         final listTile = focusableItem.child as ListTile;
         if (listTile.onTap != null) {
           listTile.onTap!(); // 调用 ListTile 的 onTap
-          _manageDebugOverlay('执行 ListTile 的 onTap 操作');
+          _manageDebugOverlay('执行 ListTile 的 onTap 操作', show: true);
           return; // 操作完成后直接返回
         }
       }
@@ -540,18 +540,18 @@ void _triggerButtonAction() {
       final popupMenuButton = context.findAncestorWidgetOfExactType<PopupMenuButton>();
       if (popupMenuButton != null) {
         popupMenuButton.onSelected?.call(null); // 处理 PopupMenuButton 的选中事件
-        _manageDebugOverlay('执行 PopupMenuButton 的 onSelected 操作');
+        _manageDebugOverlay('执行 PopupMenuButton 的 onSelected 操作', show: true);
         return; // 操作完成后直接返回
       }
 
       // 如果没有找到可执行的组件
-      _manageDebugOverlay('未找到可以执行操作的控件');
+      _manageDebugOverlay('未找到可以执行操作的控件', show: true);
     } catch (e, stackTrace) {
       // 捕获并报告执行操作时的错误
-      _manageDebugOverlay('执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+      _manageDebugOverlay('执行操作时发生错误: $e, 堆栈信息: $stackTrace', show: true);
     }
   } else {
-    _manageDebugOverlay('当前无有效的焦点上下文');
+    _manageDebugOverlay('当前无有效的焦点上下文', show: true);
   }
 }
 
