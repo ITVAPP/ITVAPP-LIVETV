@@ -35,7 +35,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储最多6条的调试消息
   Timer? _timer; // 定时器，用于控制消息超时
-  final int _messageDisplayDuration = 5; // 超时时间，单位：秒
+  final int _messageDisplayDuration = 6; // 超时时间，单位：秒
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
@@ -93,7 +93,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       _debugMessages.add(message);
 
       // 限制最多显示消息，超出时立即移除最早的一条
-      if (_debugMessages.length > 8) {
+      if (_debugMessages.length > 15) {
         _debugMessages.removeAt(0);
       }
 
@@ -185,22 +185,43 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 请求将焦点切换到指定索引的控件上。
-  void _requestFocus(int index) {
-    if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
-      _manageDebugOverlay(message: '请求焦点无效，索引超出范围: $index');
+void _requestFocus(int index) {
+  if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
+    _manageDebugOverlay(message: '请求焦点无效，索引超出范围: $index');
+    return;
+  }
+
+  try {
+    FocusNode focusNode = widget.focusNodes[index];
+
+    // 检查焦点节点是否可以请求焦点
+    if (!focusNode.canRequestFocus) {
+      _manageDebugOverlay(message: '焦点节点不可请求，索引: $index');
       return;
     }
-    try {
-      FocusNode focusNode = widget.focusNodes[index];
-      if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
-        _currentFocus = focusNode;
-        _manageDebugOverlay(message: '切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}');
-      }
-    } catch (e) {
-      _manageDebugOverlay(message: '切换焦点失败: $e');
+
+    if (!focusNode.hasFocus) {
+      // 尝试设置焦点
+      focusNode.requestFocus();
+      _currentFocus = focusNode;
+      _manageDebugOverlay(message: '切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}');
+
+      // 延迟检查焦点是否成功获得
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (focusNode.hasFocus) {
+          _manageDebugOverlay(message: '焦点成功设置: 索引 $index');
+        } else {
+          _manageDebugOverlay(message: '焦点设置失败，焦点未正确切换到索引: $index');
+        }
+      });
+    } else {
+      _manageDebugOverlay(message: '焦点已经在索引: $index');
     }
+  } catch (e) {
+    _manageDebugOverlay(message: '切换焦点失败: $e');
   }
+}
+
 
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
@@ -286,34 +307,45 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (groupIndex == null || groupIndex == -1) {
-      _manageDebugOverlay(message: '没有有效的 Group，无法跳转');
-      return false;
-    }
-
-    // 定义前进或后退分组的逻辑
-    int nextGroupIndex = (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft)
-        ? groupIndex - 1
-        : groupIndex + 1;
-
-    int totalGroups = _getTotalGroups();
-    if (nextGroupIndex < 0) nextGroupIndex = totalGroups - 1;
-    if (nextGroupIndex >= totalGroups) nextGroupIndex = 0;
-
-    // 获取下一个分组的焦点缓存
-    final nextGroupFocus = _groupFocusCache[nextGroupIndex];
-    _manageDebugOverlay(message: '跳跃分组操作，从 Group $currentIndex 跳转到 Group $nextGroupIndex');
-    if (nextGroupFocus != null && nextGroupFocus['firstFocusNode'] != null) {
-      nextGroupFocus['firstFocusNode']!.requestFocus();
-      _manageDebugOverlay(message: '成功跳转到 Group $nextGroupIndex 的第一个焦点');
-      return true;
-    }
-
-    _manageDebugOverlay(message: '无法找到下一个分组的焦点信息');
+bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+  if (groupIndex == null || groupIndex == -1) {
+    _manageDebugOverlay(message: '没有有效的 Group，无法跳转');
     return false;
   }
 
+  // 定义前进或后退分组的逻辑
+  int nextGroupIndex = (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft)
+      ? groupIndex - 1
+      : groupIndex + 1;
+
+  int totalGroups = _getTotalGroups();
+  
+  // 确保下一个分组索引有效
+  if (nextGroupIndex < 0) nextGroupIndex = totalGroups - 1;
+  if (nextGroupIndex >= totalGroups) nextGroupIndex = 0;
+
+  _manageDebugOverlay(message: '跳跃分组操作，从 Group $groupIndex 跳转到 Group $nextGroupIndex (Total Groups: $totalGroups)');
+
+  // 获取下一个分组的焦点缓存
+  final nextGroupFocus = _groupFocusCache[nextGroupIndex];
+  if (nextGroupFocus != null && nextGroupFocus['firstFocusNode'] != null) {
+    FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
+
+    // 检查是否可以请求焦点
+    if (nextFocusNode!.canRequestFocus) {
+      nextFocusNode.requestFocus();
+      _manageDebugOverlay(message: '成功跳转到 Group $nextGroupIndex 的第一个焦点');
+      return true;
+    } else {
+      _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点');
+      return false;
+    }
+  }
+
+  // 如果无法找到下一个分组的焦点信息，给出调试信息
+  _manageDebugOverlay(message: '无法找到下一个分组的焦点信息: Group $nextGroupIndex');
+  return false;
+}
   /// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(FocusNode focusNode) {
     try {
@@ -490,11 +522,19 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态。
-  void _triggerButtonAction() {
+void _triggerButtonAction() {
     final context = _currentFocus?.context;
     if (context != null) {
       try {
-        // 1. 检查是否是 SwitchListTile 并切换其状态
+        // 首先检查是否是 IconButton
+        final iconButton = context.findAncestorWidgetOfExactType<IconButton>();
+        if (iconButton != null && iconButton.onPressed != null) {
+          iconButton.onPressed!();
+          _manageDebugOverlay(message: '执行 IconButton 的 onPressed 操作');
+          return;
+        }
+
+        // 检查是否是 SwitchListTile 并切换其状态
         final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
         if (switchTile != null) {
           final value = !(switchTile.value ?? false); // 切换开关状态
@@ -503,23 +543,20 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           return; // 操作完成后直接返回
         }
 
-        // 2. 检查是否有带 onPressed 的按钮类型组件（包括 IconButton）
+        // 检查是否有带 onPressed 的按钮类型组件
         final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
             context.findAncestorWidgetOfExactType<TextButton>() ??
             context.findAncestorWidgetOfExactType<OutlinedButton>() ??
-            context.findAncestorWidgetOfExactType<IconButton>() ??
             context.findAncestorWidgetOfExactType<FloatingActionButton>(); // 添加 FloatingActionButton 的查找
 
         if (button != null) {
-          // 安全地检查按钮类型是否具有 onPressed 属性
+          // 检查按钮类型是否具有 onPressed 属性
           if (button is ElevatedButton && button.onPressed != null) {
             button.onPressed!(); // 调用 ElevatedButton 的 onPressed
           } else if (button is TextButton && button.onPressed != null) {
             button.onPressed!(); // 调用 TextButton 的 onPressed
           } else if (button is OutlinedButton && button.onPressed != null) {
             button.onPressed!(); // 调用 OutlinedButton 的 onPressed
-          } else if (button is IconButton && button.onPressed != null) {
-            button.onPressed!(); // 调用 IconButton 的 onPressed
           } else if (button is FloatingActionButton && button.onPressed != null) {
             button.onPressed!(); // 调用 FloatingActionButton 的 onPressed
           }
@@ -527,7 +564,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           return; // 操作完成后直接返回
         }
 
-        // 3. 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
+        // 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
         final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
         if (focusableItem != null && focusableItem.child is ListTile) {
           final listTile = focusableItem.child as ListTile;
@@ -538,7 +575,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           }
         }
 
-        // 4. 检查是否存在 PopupMenuButton 并调用其 onSelected 回调
+        // 检查是否存在 PopupMenuButton 并调用其 onSelected 回调
         final popupMenuButton = context.findAncestorWidgetOfExactType<PopupMenuButton>();
         if (popupMenuButton != null) {
           popupMenuButton.onSelected?.call(null); // 处理 PopupMenuButton 的选中事件
