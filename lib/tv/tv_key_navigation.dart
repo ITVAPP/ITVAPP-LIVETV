@@ -32,6 +32,7 @@ class TvKeyNavigation extends StatefulWidget {
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
+  List<String> _debugMessages = []; // 用于存储最多6条的调试消息
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
@@ -83,11 +84,20 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void _manageDebugOverlay({String? message, required bool show}) {
     if (!_showDebugOverlay) return;
 
-    if (show) {
-      // 创建新的 OverlayEntry，用于显示新的一条提示
+    if (show && message != null) {
+      // 限制最多显示6条消息，超出时移除最早的一条
+      if (_debugMessages.length >= 6) {
+        _debugMessages.removeAt(0);
+      }
+      _debugMessages.add(message);
+
+      // 移除所有旧的 OverlayEntry
+      _clearAllOverlays();
+
+      // 创建新的 OverlayEntry，用于显示多条提示
       final overlayEntry = OverlayEntry(
         builder: (context) => Positioned(
-          top: 20.0 + _debugOverlays.length * 60.0, // 每条提示下移一些距离
+          top: 20.0,
           right: 20.0,
           child: Material(
             color: Colors.transparent,
@@ -97,9 +107,14 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
                 color: Colors.black.withOpacity(0.7),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                message ?? '',
-                style: TextStyle(color: Colors.white, fontSize: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _debugMessages
+                    .map((msg) => Text(
+                          msg,
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ))
+                    .toList(),
               ),
             ),
           ),
@@ -112,16 +127,26 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
       // 自动隐藏提示
       Future.delayed(Duration(seconds: 3), () {
-        overlayEntry.remove();
-        _debugOverlays.remove(overlayEntry); // 移除过期的提示
+        if (_debugMessages.isNotEmpty) {
+          _debugMessages.removeAt(0); // 删除最早的一条
+          _clearAllOverlays(); // 清除所有OverlayEntry
+          if (_debugMessages.isNotEmpty) {
+            _manageDebugOverlay(show: true); // 如果还有消息，重新显示
+          }
+        }
       });
     } else {
       // 移除所有 OverlayEntry
-      for (var entry in _debugOverlays) {
-        entry.remove();
-      }
-      _debugOverlays.clear();
+      _clearAllOverlays();
     }
+  }
+
+  /// 清除所有 OverlayEntry
+  void _clearAllOverlays() {
+    for (var entry in _debugOverlays) {
+      entry.remove();
+    }
+    _debugOverlays.clear();
   }
 
   /// 请求将焦点切换到指定索引的控件上。
@@ -461,31 +486,25 @@ void _triggerButtonAction() {
 
       // 2. 通用检查是否存在具有 onPressed 或 onTap 回调的组件
       void tryInvokeCallback(Widget widget) {
-        if (widget is ElevatedButton && widget.onPressed != null) {
-          widget.onPressed!();
-        } else if (widget is TextButton && widget.onPressed != null) {
-          widget.onPressed!();
-        } else if (widget is OutlinedButton && widget.onPressed != null) {
-          widget.onPressed!();
-        } else if (widget is IconButton && widget.onPressed != null) {
-          widget.onPressed!();
+        // 优化后的逻辑：统一处理 onPressed 和 onTap 回调
+        if (widget is ButtonStyleButton && widget.onPressed != null) {
+          widget.onPressed!();  // 处理 ButtonStyleButton 类组件的 onPressed
         } else if (widget is GestureDetector && widget.onTap != null) {
-          widget.onTap!();
+          widget.onTap!();  // 处理 GestureDetector 的 onTap
         } else if (widget is InkWell && widget.onTap != null) {
-          widget.onTap!();
+          widget.onTap!();  // 处理 InkWell 的 onTap
         } else if (widget is ListTile && widget.onTap != null) {
-          widget.onTap!();
+          widget.onTap!();  // 处理 ListTile 的 onTap
         }
         message = '执行确认键操作';
       }
 
       // 遍历查找并尝试调用回调
-      Element? element = context as Element?;
-      while (element != null) {
+      context.visitAncestorElements((element) {
         final widget = element.widget;
         tryInvokeCallback(widget);
-        element = element.findAncestorWidgetOfExactType<Widget>() as Element?;
-      }
+        return true; // 返回 true 表示继续向上遍历父组件
+      });
 
       // 提示找到的操作信息
       if (message != null) {
