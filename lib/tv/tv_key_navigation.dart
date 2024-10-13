@@ -163,19 +163,21 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   FocusNode? _findLastFocusNodeInGroup(Group group) {
     try {
       FocusNode? lastFocusNode;
-      void searchFocusNode(List<Widget> children) {
-        for (var child in children.reversed) {  // 倒序遍历
-          if (child is FocusableItem) {
-            lastFocusNode = child.focusNode;
-            return;
-          } else if (child is SingleChildRenderObjectWidget && child.child != null) {
-            searchFocusNode([child.child!]);
-          } else if (child is MultiChildRenderObjectWidget) {
-            searchFocusNode(child.children);
+      
+      // 修复：改为接收单个 Widget 而不是 List<Widget>
+      void searchFocusNode(Widget child) {
+        if (child is FocusableItem) {
+          lastFocusNode = child.focusNode;
+        } else if (child is SingleChildRenderObjectWidget && child.child != null) {
+          searchFocusNode(child.child!);
+        } else if (child is MultiChildRenderObjectWidget) {
+          for (var widget in child.children) {
+            searchFocusNode(widget);
+            if (lastFocusNode != null) break;
           }
-          if (lastFocusNode != null) break;
         }
       }
+
       group.children?.reversed.forEach(searchFocusNode);  // 倒序遍历子节点进行递归查找
       return lastFocusNode;
     } catch (e, stackTrace) {
@@ -314,10 +316,11 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   FocusNode? _findFirstFocusNodeInGroup(Group group) {
     try {
       FocusNode? firstFocusNode;
+      
+      // 修复：改为接收单个 Widget 而不是 List<Widget>
       void searchFocusNode(Widget widget) {
         if (widget is FocusableItem) {
           firstFocusNode = widget.focusNode;
-          return;
         }
         if (widget is SingleChildRenderObjectWidget && widget.child != null) {
           searchFocusNode(widget.child!);
@@ -325,6 +328,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           widget.children.forEach(searchFocusNode);
         }
       }
+
       group.children?.forEach(searchFocusNode);  // 遍历子节点进行递归查找
       return firstFocusNode;
     } catch (e, stackTrace) {
