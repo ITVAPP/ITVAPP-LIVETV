@@ -35,7 +35,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储最多6条的调试消息
   Timer? _timer; // 定时器，用于控制消息超时
-  final int _messageDisplayDuration = 9; // 超时时间，单位：秒
+  final int _messageDisplayDuration = 6; // 超时时间，单位：秒
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
@@ -231,8 +231,8 @@ void _cacheGroupFocusNodes() {
   if (_getAllGroups().isEmpty) {
     // 为所有可聚焦项创建一个“虚拟”分组
     _groupFocusCache[0] = {
-      'firstFocusNode': widget.focusNodes.firstWhere((node) => node.canRequestFocus, orElse: () => null),
-      'lastFocusNode': widget.focusNodes.lastWhere((node) => node.canRequestFocus, orElse: () => null),
+      'firstFocusNode': widget.focusNodes.firstWhere((node) => node.canRequestFocus, orElse: () => FocusNode()),
+      'lastFocusNode': widget.focusNodes.lastWhere((node) => node.canRequestFocus, orElse: () => FocusNode()),
     };
 
     _manageDebugOverlay(message: '缓存了没有分组页面的焦点节点');
