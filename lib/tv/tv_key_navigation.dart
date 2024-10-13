@@ -450,44 +450,55 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态。
-  void _triggerButtonAction() {
-    final context = _currentFocus?.context;
-    if (context != null) {
-      // 检查是否是 SwitchListTile 并切换其状态
+void _triggerButtonAction() {
+  final context = _currentFocus?.context;
+  if (context != null) {
+    try {
+      // 1. 检查是否是 SwitchListTile 并切换其状态
       final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
       if (switchTile != null) {
-        final value = !(switchTile.value ?? false); // 切换状态
-        switchTile.onChanged?.call(value); // 调用 onChanged 回调切换开关状态
-        _showDebugOverlayMessage('切换开关状态: $value');
-        return;
+        final value = !(switchTile.value ?? false); // 切换开关状态
+        switchTile.onChanged?.call(value); // 调用 SwitchListTile 的 onChanged 回调
+        _showDebugOverlayMessage('切换 SwitchListTile 开关状态: $value');
+        return; // 操作完成后直接返回
       }
 
-      // 检查是否有带 onPressed 的按钮类型组件
+      // 2. 检查是否有带 onPressed 的按钮类型组件（包括 IconButton）
       final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
-          context.findAncestorWidgetOfExactType<TextButton>() ??
-          context.findAncestorWidgetOfExactType<OutlinedButton>();
+                     context.findAncestorWidgetOfExactType<TextButton>() ??
+                     context.findAncestorWidgetOfExactType<OutlinedButton>() ??
+                     context.findAncestorWidgetOfExactType<IconButton>();  // 添加 IconButton 的查找
 
       if (button != null) {
         final onPressed = button.onPressed;
         if (onPressed != null) {
           onPressed(); // 调用按钮的 onPressed 回调
-          _showDebugOverlayMessage('执行按钮操作');
-          return;
+          _showDebugOverlayMessage('执行按钮的 onPressed 操作');
+          return; // 操作完成后直接返回
         }
       }
 
-      // 检查是否存在具有 onTap 回调的 FocusableItem 并调用其回调
+      // 3. 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
       if (focusableItem != null && focusableItem.child is ListTile) {
         final listTile = focusableItem.child as ListTile;
         if (listTile.onTap != null) {
-          listTile.onTap!();
+          listTile.onTap!(); // 调用 ListTile 的 onTap
           _showDebugOverlayMessage('执行 ListTile 的 onTap 操作');
-          return;
+          return; // 操作完成后直接返回
         }
       }
+
+      // 如果没有找到可执行的组件
+      _showDebugOverlayMessage('未找到可以执行操作的控件');
+    } catch (e, stackTrace) {
+      // 捕获并报告执行操作时的错误
+      _showDebugOverlayMessage('执行操作时发生错误: $e, 堆栈信息: $stackTrace');
     }
+  } else {
+    _showDebugOverlayMessage('当前无有效的焦点上下文');
   }
+}
 }
 
 class GroupIndexProvider extends InheritedWidget {
