@@ -484,7 +484,7 @@ void _triggerButtonAction() {
       while (element != null) {
         final widget = element.widget;
         tryInvokeCallback(widget);
-        element = element.findAncestorWidgetOfExactType<Element>();
+        element = element.findAncestorWidgetOfExactType<SwitchListTile>();
       }
 
       // 提示找到的操作信息
