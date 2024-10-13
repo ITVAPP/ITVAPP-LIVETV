@@ -35,7 +35,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储最多6条的调试消息
   Timer? _timer; // 定时器，用于控制消息超时
-  final int _messageDisplayDuration = 6; // 超时时间，单位：秒
+  final int _messageDisplayDuration = 9; // 超时时间，单位：秒
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
