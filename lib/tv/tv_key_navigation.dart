@@ -176,7 +176,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           if (lastFocusNode != null) break;
         }
       }
-      searchFocusNode(group.children ?? []);
+      group.children?.reversed.forEach(searchFocusNode);  // 倒序遍历子节点进行递归查找
       return lastFocusNode;
     } catch (e, stackTrace) {
       _handleError('查找最后焦点节点失败', e, stackTrace);
@@ -325,7 +325,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
           widget.children.forEach(searchFocusNode);
         }
       }
-      searchFocusNode(group.children ?? []); // 确保递归遍历所有子节点
+      group.children?.forEach(searchFocusNode);  // 遍历子节点进行递归查找
       return firstFocusNode;
     } catch (e, stackTrace) {
       _handleError('查找焦点节点失败', e, stackTrace);
