@@ -492,67 +492,66 @@ void _triggerButtonAction() {
   final context = _currentFocus?.context;
   if (context != null) {
     try {
-      String? message; // 用于存储提示信息
-
-      // 通用检查是否存在具有 onPressed 或 onTap 回调的组件
-      void tryInvokeCallback(Widget widget) {
-        // 使用映射表关联 Widget 类型与回调
-        final actionMap = {
-          ButtonStyleButton: (ButtonStyleButton w) => w.onPressed?.call(),
-          GestureDetector: (GestureDetector w) => w.onTap?.call(),
-          InkWell: (InkWell w) => w.onTap?.call(),
-          ListTile: (ListTile w) => w.onTap?.call(),
-          IconButton: (IconButton w) => w.onPressed?.call(),
-          ElevatedButton: (ElevatedButton w) => w.onPressed?.call(),
-          TextButton: (TextButton w) => w.onPressed?.call(),
-          OutlinedButton: (OutlinedButton w) => w.onPressed?.call(),
-          FloatingActionButton: (FloatingActionButton w) => w.onPressed?.call(),
-          PopupMenuButton: (PopupMenuButton w) => w.onSelected?.call(null), // 处理 PopupMenuButton 的选中事件
-        };
-
-        // 遍历映射表，并使用 `is` 运算符检查类型
-        actionMap.forEach((type, action) {
-          if (widget is type) {  // 使用 `is` 代替 `runtimeType` 比较
-            action(widget);  // 执行相应的回调
-            message = '执行确认键操作';
-          }
-        });
-      }
-
-      // 检查是否是当前聚焦控件本身
-      final widget = context.widget;
-      tryInvokeCallback(widget); // 优先检查当前控件
-
-      // 检查是否是 SwitchListTile 并切换其状态
+      // 1. 检查是否是 SwitchListTile 并切换其状态
       final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
       if (switchTile != null) {
         final value = !(switchTile.value ?? false); // 切换开关状态
-        switchTile.onChanged?.call(value);
-        message = '切换 SwitchListTile 开关状态: $value';
-        _manageDebugOverlay(message: message, show: true);
+        switchTile.onChanged?.call(value); // 调用 SwitchListTile 的 onChanged 回调
+        _manageDebugOverlay('切换 SwitchListTile 开关状态: $value');
         return; // 操作完成后直接返回
       }
 
-      // 遍历查找并尝试调用回调，优先处理当前控件，然后检查祖先控件
-      context.visitAncestorElements((element) {
-        final widget = element.widget;
-        tryInvokeCallback(widget);  // 根据具体类型调用相应的回调
-        return true; // 返回 true 表示继续向上遍历父组件
-      });
+      // 2. 检查是否有带 onPressed 的按钮类型组件（包括 IconButton）
+      final button = context.findAncestorWidgetOfExactType<ElevatedButton>() ??
+                     context.findAncestorWidgetOfExactType<TextButton>() ??
+                     context.findAncestorWidgetOfExactType<OutlinedButton>() ??
+                     context.findAncestorWidgetOfExactType<IconButton>() ??
+                     context.findAncestorWidgetOfExactType<FloatingActionButton>(); // 添加 FloatingActionButton 的查找
 
-      // 提示找到的操作信息
-      if (message != null) {
-        _manageDebugOverlay(message: message, show: true);  // 显示操作信息
-      } else {
-        _manageDebugOverlay(message: '未找到可以执行操作的控件', show: true);  // 未找到可点击的控件时提示
+      if (button != null) {
+        // 安全地检查按钮类型是否具有 onPressed 属性
+        if (button is ElevatedButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 ElevatedButton 的 onPressed
+        } else if (button is TextButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 TextButton 的 onPressed
+        } else if (button is OutlinedButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 OutlinedButton 的 onPressed
+        } else if (button is IconButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 IconButton 的 onPressed
+        } else if (button is FloatingActionButton && button.onPressed != null) {
+          button.onPressed!(); // 调用 FloatingActionButton 的 onPressed
+        }
+        _manageDebugOverlay('执行按钮的 onPressed 操作');
+        return; // 操作完成后直接返回
       }
 
+      // 3. 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      if (focusableItem != null && focusableItem.child is ListTile) {
+        final listTile = focusableItem.child as ListTile;
+        if (listTile.onTap != null) {
+          listTile.onTap!(); // 调用 ListTile 的 onTap
+          _manageDebugOverlay('执行 ListTile 的 onTap 操作');
+          return; // 操作完成后直接返回
+        }
+      }
+
+      // 4. 检查是否存在 PopupMenuButton 并调用其 onSelected 回调
+      final popupMenuButton = context.findAncestorWidgetOfExactType<PopupMenuButton>();
+      if (popupMenuButton != null) {
+        popupMenuButton.onSelected?.call(null); // 处理 PopupMenuButton 的选中事件
+        _manageDebugOverlay('执行 PopupMenuButton 的 onSelected 操作');
+        return; // 操作完成后直接返回
+      }
+
+      // 如果没有找到可执行的组件
+      _manageDebugOverlay('未找到可以执行操作的控件');
     } catch (e, stackTrace) {
       // 捕获并报告执行操作时的错误
-      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace', show: true);
+      _manageDebugOverlay('执行操作时发生错误: $e, 堆栈信息: $stackTrace');
     }
   } else {
-    _manageDebugOverlay(message: '当前无有效的焦点上下文', show: true);  // 无有效焦点时提示
+    _manageDebugOverlay('当前无有效的焦点上下文');
   }
 }
 
