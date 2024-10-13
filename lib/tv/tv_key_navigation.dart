@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -33,6 +34,8 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   FocusNode? _currentFocus;
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储最多6条的调试消息
+  Timer? _timer; // 定时器，用于控制消息超时
+  final int _messageDisplayDuration = 5; // 超时时间，单位：秒
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
@@ -70,6 +73,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
   @override
   void dispose() {
+    _cancelTimer(); // 取消计时器
     _manageDebugOverlay(show: false); // 移除调试窗口
     WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
     super.dispose();
@@ -80,16 +84,18 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
     _manageDebugOverlay(message: '$message: $error\n位置: $stackTrace', show: true);
   }
 
-  /// 合并显示和移除调试信息的浮动窗口，支持同时显示多条提示
+  /// 管理调试信息浮动窗口，并控制超时逻辑
   void _manageDebugOverlay({String? message, required bool show}) {
     if (!_showDebugOverlay) return;
 
     if (show && message != null) {
-      // 限制最多显示6条消息，超出时移除最早的一条
-      if (_debugMessages.length >= 6) {
+      // 插入新消息
+      _debugMessages.add(message);
+
+      // 限制最多显示6条消息，超出时立即移除最早的一条
+      if (_debugMessages.length > 6) {
         _debugMessages.removeAt(0);
       }
-      _debugMessages.add(message);
 
       // 移除所有旧的 OverlayEntry
       _clearAllOverlays();
@@ -125,20 +131,39 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       Overlay.of(context).insert(overlayEntry);
       _debugOverlays.add(overlayEntry); // 将新的 OverlayEntry 添加到列表中
 
-      // 自动隐藏提示
-      Future.delayed(Duration(seconds: 3), () {
-        if (_debugMessages.isNotEmpty) {
-          _debugMessages.removeAt(0); // 删除最早的一条
-          _clearAllOverlays(); // 清除所有OverlayEntry
-          if (_debugMessages.isNotEmpty) {
-            _manageDebugOverlay(show: true); // 如果还有消息，重新显示
-          }
-        }
-      });
+      // 每次有新消息时，重置计时器
+      _resetTimer();
     } else {
       // 移除所有 OverlayEntry
       _clearAllOverlays();
+      _cancelTimer(); // 清空后，取消计时器
     }
+  }
+
+  /// 重置计时器，每次新消息加入时调用
+  void _resetTimer() {
+    _cancelTimer(); // 先取消已有的计时器
+    _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
+      if (_debugMessages.isNotEmpty) {
+        _debugMessages.removeAt(0); // 删除最早的一条消息
+
+        // 如果消息清空了，停止计时器并关闭弹窗
+        if (_debugMessages.isEmpty) {
+          _clearAllOverlays();
+          _cancelTimer();
+        } else {
+          // 否则，更新剩余消息的显示
+          _clearAllOverlays();
+          _manageDebugOverlay(show: true);
+        }
+      }
+    });
+  }
+
+  /// 取消定时器
+  void _cancelTimer() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   /// 清除所有 OverlayEntry
@@ -150,22 +175,37 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 请求将焦点切换到指定索引的控件上。
-  void _requestFocus(int index) {
-    if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
-      _manageDebugOverlay(message: '请求焦点无效，索引超出范围: $index', show: true);
-      return;
-    }
-    try {
-      FocusNode focusNode = widget.focusNodes[index];
-      if (!focusNode.hasFocus) {
-        focusNode.requestFocus();
-        _currentFocus = focusNode;
-        _manageDebugOverlay(message: '切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}', show: true);
-      }
-    } catch (e) {
-      _manageDebugOverlay(message: '切换焦点失败: $e', show: true);
-    }
+void _requestFocus(int index) {
+  if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
+    _manageDebugOverlay(message: '请求焦点无效，索引超出范围: $index', show: true);
+    return;
   }
+  try {
+    FocusNode focusNode = widget.focusNodes[index];
+
+    // 检查当前节点是否已经拥有焦点
+    if (!focusNode.hasFocus) {
+      focusNode.requestFocus();
+
+      // 使用 addPostFrameCallback 确保在渲染帧结束后检查焦点是否切换成功
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // 如果焦点切换成功，更新 _currentFocus
+        if (focusNode.hasFocus) {
+          _currentFocus = focusNode;
+          _manageDebugOverlay(
+              message: '切换焦点到索引: $index, 总节点数: ${widget.focusNodes.length}, 当前Group: ${_getGroupIndex(focusNode)}',
+              show: true);
+        } else {
+          _manageDebugOverlay(message: '焦点切换失败，索引: $index', show: true);
+        }
+      });
+    } else {
+      _manageDebugOverlay(message: '焦点已经在索引: $index', show: true);
+    }
+  } catch (e) {
+    _manageDebugOverlay(message: '切换焦点失败: $e', show: true);
+  }
+}
 
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
@@ -250,49 +290,60 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 处理在组之间的跳转逻辑
-  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (groupIndex == null || groupIndex == -1) {
-      _manageDebugOverlay(message: '没有 Group 或无效的 groupIndex', show: true);
-      return false;
-    }
-     _manageDebugOverlay(message: '触发跳跃分组操作', show: true);
-    // 定义前进或后退分组的逻辑
-    int nextGroupIndex;
-    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-      // 后退：groupIndex - 1
-      nextGroupIndex = groupIndex - 1;
-      if (nextGroupIndex < 0) {
-        // 如果已经是第一个Group，则循环到最后一个Group
-        nextGroupIndex = _getTotalGroups() - 1;
-        _manageDebugOverlay(message: '循环到最后一个分组', show: true);
-      }
-    } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-      // 前进：groupIndex + 1
-      nextGroupIndex = groupIndex + 1;
-      int totalGroups = _getTotalGroups();
-      if (nextGroupIndex >= totalGroups) {
-        // 如果已经是最后一个Group，则循环到第一个Group
-        nextGroupIndex = 0;
-        _manageDebugOverlay(message: '循环到第一个分组', show: true);
-      }
-    } else {
-      return false;
-    }
-
-    // 从缓存中直接获取下一个 Group 的焦点信息
-    final nextGroupFocus = _groupFocusCache[nextGroupIndex];
-    if (nextGroupFocus != null) {
-      final firstFocusNode = nextGroupFocus['firstFocusNode'];
-      if (firstFocusNode != null) {
-        firstFocusNode.requestFocus();
-        _manageDebugOverlay(message: '操作: ${key.debugName}键，切换到组 $nextGroupIndex 的第一个焦点', show: true);
-        return true;
-      }
-    }
-
-    _manageDebugOverlay(message: '无法找到下一个组编号: $nextGroupIndex', show: true);
+ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+  if (groupIndex == null || groupIndex == -1) {
+    _manageDebugOverlay(message: '没有 Group 或无效的 groupIndex', show: true);
     return false;
   }
+
+  _manageDebugOverlay(message: '触发跳跃分组操作', show: true);
+
+  // 定义前进或后退分组的逻辑
+  int nextGroupIndex;
+  if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+    // 后退：groupIndex - 1
+    nextGroupIndex = groupIndex - 1;
+    if (nextGroupIndex < 0) {
+      // 如果已经是第一个Group，则循环到最后一个Group
+      nextGroupIndex = _getTotalGroups() - 1;
+      _manageDebugOverlay(message: '循环到最后一个分组', show: true);
+    }
+  } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
+    // 前进：groupIndex + 1
+    nextGroupIndex = groupIndex + 1;
+    int totalGroups = _getTotalGroups();
+    if (nextGroupIndex >= totalGroups) {
+      // 如果已经是最后一个Group，则循环到第一个Group
+      nextGroupIndex = 0;
+      _manageDebugOverlay(message: '循环到第一个分组', show: true);
+    }
+  } else {
+    return false;
+  }
+
+  // 从缓存中直接获取下一个 Group 的焦点信息
+  final nextGroupFocus = _groupFocusCache[nextGroupIndex];
+  if (nextGroupFocus != null) {
+    final firstFocusNode = nextGroupFocus['firstFocusNode'];
+    if (firstFocusNode != null) {
+      firstFocusNode.requestFocus();
+
+      // 使用 addPostFrameCallback 确保焦点切换完成后再更新状态
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (firstFocusNode.hasFocus) {
+          _currentFocus = firstFocusNode; // 只有焦点成功切换后更新 _currentFocus
+          _manageDebugOverlay(message: '操作: ${key.debugName}键，切换到组 $nextGroupIndex 的第一个焦点', show: true);
+        } else {
+          _manageDebugOverlay(message: '焦点切换失败，无法切换到组 $nextGroupIndex', show: true);
+        }
+      });
+      return true;
+    }
+  }
+
+  _manageDebugOverlay(message: '无法找到下一个组编号: $nextGroupIndex', show: true);
+  return false;
+}
 
   /// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(FocusNode focusNode) {
@@ -474,7 +525,11 @@ void _triggerButtonAction() {
     try {
       String? message; // 用于存储提示信息
 
-      // 1. 检查是否是 SwitchListTile 并切换其状态
+      // 1. 检查是否是当前聚焦控件本身
+      final widget = context.widget;
+      tryInvokeCallback(widget); // 优先检查当前控件
+
+      // 2. 检查是否是 SwitchListTile 并切换其状态
       final switchTile = context.findAncestorWidgetOfExactType<SwitchListTile>();
       if (switchTile != null) {
         final value = !(switchTile.value ?? false); // 切换开关状态
@@ -484,33 +539,43 @@ void _triggerButtonAction() {
         return; // 操作完成后直接返回
       }
 
-      // 2. 通用检查是否存在具有 onPressed 或 onTap 回调的组件
+      // 3. 通用检查是否存在具有 onPressed 或 onTap 回调的组件
       void tryInvokeCallback(Widget widget) {
-        // 优化后的逻辑：统一处理 onPressed 和 onTap 回调
-        if (widget is ButtonStyleButton && widget.onPressed != null) {
-          widget.onPressed!();  // 处理 ButtonStyleButton 类组件的 onPressed
-        } else if (widget is GestureDetector && widget.onTap != null) {
-          widget.onTap!();  // 处理 GestureDetector 的 onTap
-        } else if (widget is InkWell && widget.onTap != null) {
-          widget.onTap!();  // 处理 InkWell 的 onTap
-        } else if (widget is ListTile && widget.onTap != null) {
-          widget.onTap!();  // 处理 ListTile 的 onTap
-        }
-        message = '执行确认键操作';
+        // 使用映射表关联 Widget 类型与回调
+        final actionMap = {
+          ButtonStyleButton: (ButtonStyleButton w) => w.onPressed?.call(),
+          GestureDetector: (GestureDetector w) => w.onTap?.call(),
+          InkWell: (InkWell w) => w.onTap?.call(),
+          ListTile: (ListTile w) => w.onTap?.call(),
+          IconButton: (IconButton w) => w.onPressed?.call(),
+          ElevatedButton: (ElevatedButton w) => w.onPressed?.call(),
+          TextButton: (TextButton w) => w.onPressed?.call(),
+          OutlinedButton: (OutlinedButton w) => w.onPressed?.call(),
+          FloatingActionButton: (FloatingActionButton w) => w.onPressed?.call(),
+          PopupMenuButton: (PopupMenuButton w) => w.onSelected?.call(null), // 处理 PopupMenuButton 的选中事件
+        };
+
+        // 遍历映射表，如果类型匹配则调用相应的回调
+        actionMap.forEach((type, action) {
+          if (widget.runtimeType == type) {
+            action(widget);  // 执行相应的回调
+            message = '执行确认键操作';
+          }
+        });
       }
 
-      // 遍历查找并尝试调用回调
+      // 遍历查找并尝试调用回调，优先处理当前控件，然后检查祖先控件
       context.visitAncestorElements((element) {
         final widget = element.widget;
-        tryInvokeCallback(widget);
+        tryInvokeCallback(widget);  // 根据具体类型调用相应的回调
         return true; // 返回 true 表示继续向上遍历父组件
       });
 
       // 提示找到的操作信息
       if (message != null) {
-        _manageDebugOverlay(message: message, show: true);
+        _manageDebugOverlay(message: message, show: true);  // 显示操作信息
       } else {
-        _manageDebugOverlay(message: '未找到可以执行操作的控件', show: true);
+        _manageDebugOverlay(message: '未找到可以执行操作的控件', show: true);  // 未找到可点击的控件时提示
       }
 
     } catch (e, stackTrace) {
@@ -518,7 +583,7 @@ void _triggerButtonAction() {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace', show: true);
     }
   } else {
-    _manageDebugOverlay(message: '当前无有效的焦点上下文', show: true);
+    _manageDebugOverlay(message: '当前无有效的焦点上下文', show: true);  // 无有效焦点时提示
   }
 }
 
