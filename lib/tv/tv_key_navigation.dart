@@ -43,7 +43,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       child: widget.child, // 直接使用传入的子组件
     );
   }
-  
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +72,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
     _showDebugOverlayMessage('$message: $error\n位置: $stackTrace');
   }
-  
+
   /// 显示调试信息的浮动窗口
   void _showDebugOverlayMessage(String message) {
     if (!_showDebugOverlay) return;
@@ -136,9 +136,12 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   // 后退或循环焦点
   void _navigateToPreviousFocus(LogicalKeyboardKey key, int currentIndex) {
     String action;
-    // 如果当前焦点是第一个
-    if (currentIndex == 0) {
-      _requestFocus(widget.focusNodes.length - 1);
+    // 如果当前焦点是第一个菜单项，切换到返回按钮（索引 0）
+    if (currentIndex == 1) {
+      _requestFocus(0); // 切换到返回按钮
+      action = "切换到返回按钮";
+    } else if (currentIndex == 0) {
+      _requestFocus(widget.focusNodes.length - 1); // 循环到最后一个焦点
       action = "循环到最后一个焦点";
     } else {
       _requestFocus(currentIndex - 1);
@@ -150,10 +153,10 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   // 前进或循环焦点
   void _navigateToNextFocus(LogicalKeyboardKey key, int currentIndex) {
     String action;
-    // 如果当前焦点是最后一个
+    // 如果当前焦点是最后一个菜单项，循环回到返回按钮（索引 0）
     if (currentIndex == widget.focusNodes.length - 1) {
-      _requestFocus(0);
-      action = "循环到第一个焦点";
+      _requestFocus(0); // 切换到返回按钮
+      action = "循环到返回按钮";
     } else {
       _requestFocus(currentIndex + 1);
       action = "切换到下一个焦点";
@@ -181,7 +184,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
     // 获取 groupIndex
     int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
-    
+
     _showDebugOverlayMessage('导航开始: 按键=${key.debugName}, 当前索引=$currentIndex, 当前Group=$groupIndex, 总节点数=${widget.focusNodes.length}');
 
     // 判断是否启用了框架模式 (isFrame)
@@ -317,7 +320,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
           foundGroup = widget;
           return;
         }
-        if (widget is SingleChildRenderObjectWidget) {
+        if (widget is SingleChildRenderObjectWidget && widget.child != null) {  // 确保递归调用时不会传递 null
           searchGroup(widget.child!);
         } else if (widget is MultiChildRenderObjectWidget) {
           widget.children.forEach(searchGroup);
@@ -340,22 +343,22 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
           if (child is FocusableItem) {
             firstFocusNode = child.focusNode;
             return;
-          } else if (child is SingleChildRenderObjectWidget) {
-            searchFocusNode([child.child!]);
+          } else if (child is SingleChildRenderObjectWidget && child.child != null) {  // 修正递归中传入 null 的情况
+            searchFocusNode([child.child!]); 
           } else if (child is MultiChildRenderObjectWidget) {
             searchFocusNode(child.children);
           }
           if (firstFocusNode != null) break;
         }
       }
-      searchFocusNode(group.children ?? []);
+      searchFocusNode(group.children ?? []); // 确保递归遍历所有子节点
       return firstFocusNode;
     } catch (e, stackTrace) {
       _handleError('查找焦点节点失败', e, stackTrace);
       return null;
     }
   }
-  
+
   /// 获取总的组数
   int _getTotalGroups() {
     return _getAllGroups().length;
@@ -368,8 +371,8 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
       if (widget is Group) {
         groups.add(widget);
       }
-      if (widget is SingleChildRenderObjectWidget) {
-        if (widget.child != null) searchGroups(widget.child!);
+      if (widget is SingleChildRenderObjectWidget && widget.child != null) {
+        searchGroups(widget.child!);
       } else if (widget is MultiChildRenderObjectWidget) {
         widget.children.forEach(searchGroups);
       }
@@ -450,7 +453,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
       if (focusableItem != null && focusableItem.child is ListTile) {
         final listTile = focusableItem.child as ListTile;
         if (listTile.onTap != null) {
-          listTile.onTap!(); 
+          listTile.onTap!();
           _showDebugOverlayMessage('执行 ListTile 的 onTap 操作');
           return;
         }
@@ -496,8 +499,8 @@ class Group extends StatelessWidget {
       groupIndex: groupIndex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: child != null 
-            ? [child!]  // 如果传入了单个 child，则使用它
+        children: child != null
+            ? [child!] // 如果传入了单个 child，则使用它
             : children ?? [], // 如果传入了 children，则使用它们
       ),
     );
@@ -524,9 +527,9 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-  	    final int effectiveGroupIndex = widget.groupIndex ?? 
-                                    GroupIndexProvider.of(context)?.groupIndex ?? 
-                                    -1;
+    final int effectiveGroupIndex = widget.groupIndex ??
+        GroupIndexProvider.of(context)?.groupIndex ??
+        -1;
     return Focus(
       focusNode: widget.focusNode,
       child: widget.child,
