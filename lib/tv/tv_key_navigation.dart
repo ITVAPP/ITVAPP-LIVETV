@@ -286,17 +286,26 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   /// 获取所有的 Group
   List<Group> _getAllGroups() {
     List<Group> groups = [];
-    void searchGroups(Widget widget) {
-      if (widget is Group) {
-        groups.add(widget);
+
+    // 递归查找所有 Group 的方法
+    void searchGroups(Element element) {
+      if (element.widget is Group) {
+        groups.add(element.widget as Group);
       }
-      if (widget is SingleChildRenderObjectWidget && widget.child != null) {
-        searchGroups(widget.child!);
-      } else if (widget is MultiChildRenderObjectWidget) {
-        widget.children.forEach(searchGroups);
-      }
+      
+      // 递归访问子元素
+      element.visitChildren((child) {
+        searchGroups(child);
+      });
     }
-    searchGroups(widget.child);
+
+    // 查找 context 中的所有 Element
+    if (context != null) {
+      context.visitChildElements((element) {
+        searchGroups(element);
+      });
+    }
+
     _showDebugOverlayMessage('找到的总组数: ${groups.length}');
     return groups;
   }
@@ -305,17 +314,15 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   FocusNode? _findFirstFocusNodeInGroup(Group group) {
     try {
       FocusNode? firstFocusNode;
-      void searchFocusNode(List<Widget> children) {
-        for (var child in children) {
-          if (child is FocusableItem) {
-            firstFocusNode = child.focusNode;
-            return;
-          } else if (child is SingleChildRenderObjectWidget && child.child != null) {
-            searchFocusNode([child.child!]);
-          } else if (child is MultiChildRenderObjectWidget) {
-            searchFocusNode(child.children);
-          }
-          if (firstFocusNode != null) break;
+      void searchFocusNode(Widget widget) {
+        if (widget is FocusableItem) {
+          firstFocusNode = widget.focusNode;
+          return;
+        }
+        if (widget is SingleChildRenderObjectWidget && widget.child != null) {
+          searchFocusNode(widget.child!);
+        } else if (widget is MultiChildRenderObjectWidget) {
+          widget.children.forEach(searchFocusNode);
         }
       }
       searchFocusNode(group.children ?? []); // 确保递归遍历所有子节点
