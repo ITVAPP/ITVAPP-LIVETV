@@ -55,33 +55,23 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 void initState() {
   super.initState();
 
-  // 添加生命周期观察者
-  WidgetsBinding.instance.addObserver(this);
-
-  // 确保在 UI 完成渲染后进行操作
   WidgetsBinding.instance.addPostFrameCallback((_) {
     try {
-      // 缓存 Group 的焦点信息
+      // 缓存 Group 的焦点信息，如果需要继续使用分组功能
       _cacheGroupFocusNodes();
 
-      // 设置初始焦点
-      if (widget.focusNodes.isNotEmpty && (widget.frameType ?? "") != "child") {
-        int initialIndex = widget.initialIndex ?? 0;
-
-        // 如果焦点节点有分组，确保初始焦点在对应的分组内
-        int groupIndex = _getGroupIndex(widget.focusNodes[initialIndex]);
-        if (_groupFocusCache.containsKey(groupIndex)) {
-          _requestFocus(initialIndex, groupIndex: groupIndex);  // 设置初始焦点
-        } else {
-          _manageDebugOverlay(message: '无法找到初始焦点对应的 Group');
-        }
+      // 设置初始焦点，只要焦点节点不为空，或frameType不是 "child" 就执行
+      if (widget.focusNodes.isNotEmpty || (widget.frameType ?? "") != "child") {
+        _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
+        _manageDebugOverlay(message: '初始焦点设置完成');
       }
-
-      _manageDebugOverlay(message: '初始焦点设置完成');
+      
     } catch (e) {
       _manageDebugOverlay(message: '初始焦点设置失败: $e');
     }
   });
+
+  WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
 }
 
   @override
