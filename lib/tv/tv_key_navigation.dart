@@ -529,6 +529,7 @@ Widget? findInteractiveWidget(Widget widget) {
   return null;
 }
 
+/// 处理键盘事件，包括方向键和选择键。
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -549,7 +550,12 @@ void _triggerButtonAction() {
         if (widget.focusNode.hasFocus) {
           // 处理键盘事件或焦点相关的操作
           if (widget.onKeyEvent != null) {
-            widget.onKeyEvent!(FocusNode(), RawKeyEvent(...));  // 传递键盘事件
+            widget.onKeyEvent!(FocusNode(), KeyDownEvent(  // 传递 KeyDownEvent 而不是 RawKeyEvent
+              physicalKey: PhysicalKeyboardKey.enter,      // 示例键为 'Enter'
+              logicalKey: LogicalKeyboardKey.enter,        // 设置逻辑键
+              timeStamp: Duration.zero,                    // 时间戳可根据需要设置
+              deviceType: KeyEventDeviceType.keyboard      // 设备类型设置为键盘
+            ));  
             _manageDebugOverlay(message: '执行 FocusableActionDetector 的键盘事件操作');
             return;  // 操作完成后直接返回
           } else {
