@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -27,6 +27,15 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 设置焦点节点
   final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
+  bool _isClearButtonSelected = false; // 追踪清空日志按钮是否选中
+  Map<String, bool> _isFilterButtonSelected = { // 追踪过滤按钮的选中状态
+    'all': true,
+    'v': false,
+    'e': false,
+    'i': false,
+    'd': false,
+  };
+  bool _isLogSwitchSelected = false; // 追踪日志开关是否选中
 
   @override
   void dispose() {
@@ -126,12 +135,17 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             onChanged: (value) {
                               LogUtil.safeExecute(() {
                                 context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
+                                setState(() {
+                                  _isLogSwitchSelected = value; // 更新日志开关的选中状态
+                                });
                               }, '设置日志开关状态时出错');
                             },
                             activeColor: Colors.white, // 滑块的颜色
                             activeTrackColor: _focusNodes[0].hasFocus
                                 ? selectedColor.withOpacity(0.1) // 焦点时透明版本颜色
-                                : selectedColor, // 启动时背景颜色
+                                : (_isLogSwitchSelected // 根据选中状态设置背景颜色
+                                    ? selectedColor
+                                    : unselectedColor), // 启动时背景颜色
                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                             inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
                           ),
@@ -240,6 +254,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                         } else {
                                           LogUtil.clearLogs(_selectedLevel); // 清空特定类型的日志
                                         }
+                                        _isClearButtonSelected = true; // 选中清空按钮
                                       });
                                       CustomSnackBar.showSnackBar(
                                         context,
@@ -259,8 +274,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                       shape: _buttonShape, // 统一圆角样式
                                         backgroundColor: _focusNodes[6].hasFocus
                                             ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
-                                            : (_selectedLevel == _selectedLevel
-                                                ? selectedColor // 选中时使用完全不透明的颜色
+                                            : (_isClearButtonSelected // 仅在按钮被选中时使用完全不透明的颜色
+                                                ? selectedColor 
                                                 : unselectedColor), // 未选中时颜色
                                         side: BorderSide.none, // 不需要边框
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
@@ -295,6 +310,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
             setState(() {
               _selectedLevel = level;
               _logLimit = 100; // 切换过滤条件时重置分页
+              _isFilterButtonSelected.forEach((key, value) {
+                _isFilterButtonSelected[key] = (key == level); // 只有当前点击的按钮设置为选中
+              });
             });
           },
           child: Text(
@@ -302,7 +320,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             style: TextStyle(
               fontSize: 16, // 设置字体大小
               color: Colors.white, // 设置文字颜色为白色
-              fontWeight: (_selectedLevel == level)
+              fontWeight: (_isFilterButtonSelected[level]!)
                   ? FontWeight.bold // 选中时文字加粗
                   : FontWeight.normal,
             ),
@@ -313,7 +331,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             shape: _buttonShape, // 统一圆角样式
             backgroundColor: _focusNodes[focusIndex].hasFocus
                 ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
-                : (_selectedLevel == level
+                : (_isFilterButtonSelected[level]!
                     ? selectedColor // 选中时使用完全不透明的颜色
                     : unselectedColor), // 未选中时颜色
             side: BorderSide.none, // 不需要边框
