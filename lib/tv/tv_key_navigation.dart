@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -312,7 +311,6 @@ void _manageDebugOverlay({String? message}) {
 
   // 显示总共缓存的分组数量和详细信息
   _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
-  _manageDebugOverlay(message: '分组焦点缓存完成，缓存内容：$_groupFocusCache');
 }
 
   String _formatFocusNodeDebugLabel(FocusNode focusNode) {
@@ -672,7 +670,6 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     }
     
     _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
-    _manageDebugOverlay(message: '目标组 $nextGroupIndex 的缓存信息：${_groupFocusCache[nextGroupIndex]}');
 
     // 获取下一个组的焦点信息
     final nextGroupFocus = _groupFocusCache[nextGroupIndex];
