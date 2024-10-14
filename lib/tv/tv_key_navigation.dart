@@ -242,7 +242,7 @@ void _requestFocus(int index, {int? groupIndex}) {
 
     // 请求焦点
     if (!focusNode.hasFocus) {
-      focusNode.requestFocus();
+      _focusNodes[index].requestFocus();  // 设置焦点到指定的节点
       _currentFocus = focusNode;
       _manageDebugOverlay(message: '切换焦点到索引: $index, 当前Group: $groupIndex');
     }
@@ -263,10 +263,17 @@ void _cacheGroupFocusNodes() {
   final groups = _getAllGroups();
 
   if (groups.isEmpty) {
-    // 没有分组的情况，创建虚拟分组
-    FocusNode? firstFocusNode = widget.focusNodes.firstWhere((node) => node.canRequestFocus, orElse: () => FocusNode());
-    FocusNode? lastFocusNode = widget.focusNodes.lastWhere((node) => node.canRequestFocus, orElse: () => FocusNode());
+    // 如果没有显式的分组，视为单一虚拟分组
+    FocusNode? firstFocusNode = widget.focusNodes.firstWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
+    FocusNode? lastFocusNode = widget.focusNodes.lastWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
 
+    // 即使没有显式分组，也要缓存一个默认的分组
     _groupFocusCache[0] = {
       'firstFocusNode': firstFocusNode,
       'lastFocusNode': lastFocusNode,
@@ -278,11 +285,13 @@ void _cacheGroupFocusNodes() {
                '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
     );
   } else {
+    // 如果有多个分组，遍历每个分组并缓存其首尾焦点节点
     for (var group in groups) {
-      final groupWidgets = _getWidgetsInGroup(group);
-      final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
+      final groupWidgets = _getWidgetsInGroup(group);  // 获取分组中的所有子组件
+      final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);  // 获取所有焦点节点
 
       if (groupFocusNodes.isNotEmpty) {
+        // 缓存当前分组的首尾焦点节点
         _groupFocusCache[group.groupIndex] = {
           'firstFocusNode': groupFocusNodes.first,
           'lastFocusNode': groupFocusNodes.last,
@@ -297,7 +306,7 @@ void _cacheGroupFocusNodes() {
     }
   }
 
-  // 显示缓存的分组数量
+  // 显示总共缓存的分组数量
   _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
 }
 
@@ -422,7 +431,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
 
     // 获取下一个组的焦点信息
     final nextGroupFocus = _groupFocusCache[nextGroupIndex];
-    if (nextGroupFocus != null) {
+    if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
       FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
 
       // 检查下一个焦点节点是否可以请求焦点
