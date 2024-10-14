@@ -675,30 +675,24 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     _manageDebugOverlay(message: '没有缓存的分组信息，无法跳转');
     return false;
   }
-
   try {
     // 获取所有组索引并排序
     List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
     int currentGroupIndex = groupIndex ?? groupIndices.first;
-
     if (!groupIndices.contains(currentGroupIndex)) {
       _manageDebugOverlay(message: '当前 Group $currentGroupIndex 无法找到');
       return false;
     }
-
     int totalGroups = groupIndices.length;
     int nextGroupIndex;
-
     // 判断跳转方向
     if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
       nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + totalGroups) % totalGroups];
     } else {
       nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
     }
-
     _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
     _manageDebugOverlay(message: '目标组 $nextGroupIndex 的缓存信息：${_groupFocusCache[nextGroupIndex]}');
-
     // 获取下一个组的焦点信息
     final nextGroupFocus = _groupFocusCache[nextGroupIndex];
     if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
@@ -708,9 +702,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
         _manageDebugOverlay(message: '错误：Group $nextGroupIndex 的首个焦点节点为 null');
         return false;
       }
-
       _manageDebugOverlay(message: '目标焦点节点状态：canRequestFocus=${nextFocusNode.canRequestFocus}, hasFocus=${nextFocusNode.hasFocus}, debugLabel=${nextFocusNode.debugLabel}');
-
       // 检查下一个焦点节点是否可以请求焦点
       if (nextFocusNode.canRequestFocus) {
         nextFocusNode.requestFocus();
@@ -742,14 +734,12 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     } else {
       _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点信息');
     }
-
   } catch (RangeError) {
     _manageDebugOverlay(message: '焦点跳转时发生范围错误，当前 Group 无法跳转');
   } catch (e, stackTrace) {
     // 捕获其他潜在的异常，显示错误提示
     _manageDebugOverlay(message: '跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
   }
-
   return false;
 }
 
