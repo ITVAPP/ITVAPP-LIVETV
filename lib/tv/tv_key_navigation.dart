@@ -61,7 +61,8 @@ void initState() {
       _cacheGroupFocusNodes();
 
       // 设置初始焦点，只要焦点节点不为空，或frameType不是 "child" 就执行
-      if (widget.focusNodes.isNotEmpty || (widget.frameType ?? "") != "child") {
+      // if (widget.focusNodes.isNotEmpty || (widget.frameType ?? "") != "child") {
+      	if (widget.focusNodes.isNotEmpty ) {
         _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
         _manageDebugOverlay(message: '初始焦点设置完成');
       }
