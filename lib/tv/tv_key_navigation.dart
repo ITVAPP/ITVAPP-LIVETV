@@ -195,31 +195,30 @@ void _requestFocus(int index, {int? groupIndex}) {
     return;
   }
 
-  // 获取当前分组信息，如果没有传递 groupIndex，则默认第一个分组
   groupIndex ??= _getGroupIndex(widget.focusNodes[index]);
+  
+  // 确保 groupIndex 有效，并且缓存中有该组的焦点信息
   if (groupIndex == -1 || !_groupFocusCache.containsKey(groupIndex)) {
     _manageDebugOverlay(message: '无效的 Group，无法请求焦点');
     return;
   }
 
-  // 获取当前组的首尾焦点节点
+  // 获取当前组的焦点范围
   FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
   FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
 
-  // 获取当前组的焦点节点范围
   int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
   int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
-  // 确保 index 在当前组的范围内循环
+  // 确保 index 在当前组的范围内
   if (index < firstFocusIndex) {
-    index = lastFocusIndex; // 循环回到最后一个焦点
+    index = lastFocusIndex; // 循环到最后一个焦点
   } else if (index > lastFocusIndex) {
-    index = firstFocusIndex; // 循环回到第一个焦点
+    index = firstFocusIndex; // 循环到第一个焦点
   }
 
   FocusNode focusNode = widget.focusNodes[index];
 
-  // 检查焦点节点是否可以请求焦点
   if (!focusNode.canRequestFocus) {
     _manageDebugOverlay(message: '焦点节点不可请求，索引: $index');
     return;
@@ -228,7 +227,7 @@ void _requestFocus(int index, {int? groupIndex}) {
   if (!focusNode.hasFocus) {
     focusNode.requestFocus();
     _currentFocus = focusNode;
-    _manageDebugOverlay(message: '切换到索引: $index, 当前Group: $groupIndex');
+    _manageDebugOverlay(message: '切换焦点到索引: $index, 当前Group: $groupIndex');
   }
 }
 
@@ -255,7 +254,6 @@ void _cacheGroupFocusNodes() {
                '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
     );
   } else {
-    // 分组存在的情况
     for (var group in groups) {
       final groupWidgets = _getWidgetsInGroup(group);
       final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
@@ -380,45 +378,41 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
   List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
   int currentGroupIndex = groupIndex ?? groupIndices.first;
 
-  // 如果当前分组在缓存中找不到，返回错误
   if (!groupIndices.contains(currentGroupIndex)) {
     _manageDebugOverlay(message: '当前 Group $currentGroupIndex 无法找到');
     return false;
   }
 
   int totalGroups = groupIndices.length;
-
-  // 确定下一个分组索引
   int nextGroupIndex;
+
+  // 判断跳转方向
   if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-    // 往上或左跳转时，向前遍历
     nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + totalGroups) % totalGroups];
   } else {
-    // 往下或右跳转时，向后遍历
     nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
   }
 
-  _manageDebugOverlay(message: '跳跃分组操作，从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
+  _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
 
-  // 获取下一个分组的焦点节点
+  // 获取下一个组的焦点信息
   final nextGroupFocus = _groupFocusCache[nextGroupIndex];
-  if (nextGroupFocus != null && nextGroupFocus['firstFocusNode'] != null) {
+  if (nextGroupFocus != null) {
     FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
 
-    // 检查焦点节点是否可以请求焦点
     if (nextFocusNode.canRequestFocus) {
       nextFocusNode.requestFocus();
+      _currentFocus = nextFocusNode;
 
-      // 获取焦点节点的 debugLabel 并显示详细信息
       String focusNodeLabel = nextFocusNode.debugLabel ?? '未知焦点节点';
-      _manageDebugOverlay(message: '成功跳转到 Group $nextGroupIndex 的第一个焦点: $focusNodeLabel');
+      _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: $focusNodeLabel');
 
       return true;
     } else {
       _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点');
     }
   } else {
-    _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的缓存信息或焦点节点无效');
+    _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点');
   }
 
   return false;
