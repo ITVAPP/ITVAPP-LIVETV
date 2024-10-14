@@ -442,8 +442,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     }
 
   } catch (RangeError) {
-    // 捕获 RangeError 并提供调试信息
-    _manageDebugOverlay(message: '焦点跳转时发生范围错误，当前 Group: $currentGroupIndex，跳转 Group: $nextGroupIndex');
+    _manageDebugOverlay(message: '焦点跳转时发生范围错误，当前 Group 无法跳转');
   } catch (e, stackTrace) {
     // 捕获其他潜在的异常，显示错误提示
     _manageDebugOverlay(message: '跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
