@@ -25,17 +25,25 @@ class _TvSettingPageState extends State<TvSettingPage> {
   int _confirmedIndex = 1; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
-  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode()); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
+  final List<FocusNode> _focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color focusColor = const Color(0xFFEB144C).withOpacity(0.3); // 焦点时背景颜色
 
+  static List<FocusNode> _generateFocusNodes(int count) {
+    return List.generate(count, (_) => FocusNode());
+  }
+
   @override
   void dispose() {
-    for (var focusNode in _focusNodes) {
+    _disposeFocusNodes(_focusNodes); // 使用统一的焦点销毁方法
+    super.dispose();
+  }
+
+  void _disposeFocusNodes(List<FocusNode> focusNodes) {
+    for (var focusNode in focusNodes) {
       focusNode.dispose();
     }
-    super.dispose();
   }
 
   // 用于检查版本更新的逻辑
@@ -62,6 +70,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
         );
       }
     } catch (e) {
+      LogUtil.e('Error checking for updates: $e'); // 添加日志记录
       // 版本检查失败
       CustomSnackBar.showSnackBar(
         context,
@@ -90,10 +99,12 @@ class _TvSettingPageState extends State<TvSettingPage> {
         selectedTileColor: selectedColor, // 选中时背景颜色
         tileColor: _focusNodes[index + 1].hasFocus ? focusColor : null, // 焦点时背景颜色，未选中时保持默认
         onTap: () {
-          setState(() {
-            _selectedIndex = index; // 更新选中项索引
-            _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
-          });
+          if (_selectedIndex != index) {
+            setState(() {
+              _selectedIndex = index; // 更新选中项索引
+              _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
+            });
+          }
         },
       ),
     );
@@ -101,34 +112,36 @@ class _TvSettingPageState extends State<TvSettingPage> {
 
   // 根据确认选择的索引构建右侧页面
   Widget _buildRightPanel() {
-    if (_confirmedIndex == 0) {
-      return const SubScribePage(); // 订阅页面
-    } else if (_confirmedIndex == 1) {
-      return const SettingFontPage(); // 字体设置页面
-    } else if (_confirmedIndex == 2) {
-      return const SettingBeautifyPage(); // 美化设置页面
-    } else if (_confirmedIndex == 3) {
-      return SettinglogPage(); // 日志页面
-    } else if (_confirmedIndex == 4) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.live_tv,
-              size: 98,
-              color: selectedColor,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              S.of(context).checkUpdate,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      );
+    switch (_confirmedIndex) {
+      case 0:
+        return const SubScribePage(); // 订阅页面
+      case 1:
+        return const SettingFontPage(); // 字体设置页面
+      case 2:
+        return const SettingBeautifyPage(); // 美化设置页面
+      case 3:
+        return SettinglogPage(); // 日志页面
+      case 4:
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/logo.png', // 本地图像资源替换
+                width: 98, // 图像宽度
+                height: 98, // 图像高度
+              ),
+              const SizedBox(height: 18),
+              Text(
+                S.of(context).checkUpdate,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        );
+      default:
+        return Container(); // 空页面，避免未匹配的索引时出错
     }
-    return Container(); // 空页面，避免未匹配的索引时出错
   }
 
   @override
@@ -158,17 +171,14 @@ class _TvSettingPageState extends State<TvSettingPage> {
                 groupIndex: 0, // 菜单分组
                 child: Scaffold(
                   appBar: AppBar(
-                    leading: FocusableActionDetector(
-                      focusNode: _focusNodes[0], // 返回按钮的FocusNode
-                      onFocusChange: (isFocused) {
-                        setState(() {}); // 焦点变化时刷新状态
-                      },
-                      child: IconButton(
-                        icon: Icon(
+                    leading: FocusableItem(
+                      focusNode: _focusNodes[0], // 返回按钮的 FocusNode
+                      child: ListTile(
+                        leading: Icon(
                           Icons.arrow_back,
                           color: _focusNodes[0].hasFocus ? selectedColor : Colors.white, // 焦点时改变颜色
                         ),
-                        onPressed: () {
+                        onTap: () {
                           Navigator.of(context).pop(); // 返回到上一个页面
                         },
                       ),
