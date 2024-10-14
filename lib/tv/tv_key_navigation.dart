@@ -698,18 +698,16 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
       FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
       
-      if (nextFocusNode == null) {
-        _manageDebugOverlay(message: '错误：Group $nextGroupIndex 的首个焦点节点为 null');
-        return false;
-      }
-      _manageDebugOverlay(message: '目标焦点节点状态：canRequestFocus=${nextFocusNode.canRequestFocus}, hasFocus=${nextFocusNode.hasFocus}, debugLabel=${nextFocusNode.debugLabel}');
+      // 使用安全访问操作符 ?. 进行修改
+      _manageDebugOverlay(message: '目标焦点节点状态：canRequestFocus=${nextFocusNode?.canRequestFocus ?? false}, hasFocus=${nextFocusNode?.hasFocus ?? false}, debugLabel=${nextFocusNode?.debugLabel ?? '未知'}');
+      
       // 检查下一个焦点节点是否可以请求焦点
-      if (nextFocusNode.canRequestFocus) {
-        nextFocusNode.requestFocus();
+      if (nextFocusNode?.canRequestFocus ?? false) {
+        nextFocusNode?.requestFocus();
         _currentFocus = nextFocusNode;
-        String focusNodeLabel = nextFocusNode.debugLabel ?? '未知焦点节点';
+        String focusNodeLabel = nextFocusNode?.debugLabel ?? '未知焦点节点';
         _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: $focusNodeLabel');
-        _manageDebugOverlay(message: 'Group $nextGroupIndex 的首个焦点节点: ${_groupFocusCache[nextGroupIndex]?['firstFocusNode']?.debugLabel}');
+        _manageDebugOverlay(message: 'Group $nextGroupIndex 的首个焦点节点: ${_groupFocusCache[nextGroupIndex]?['firstFocusNode']?.debugLabel ?? '未知'}');
         return true;
       } else {
         _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点，尝试查找下一个可用焦点');
@@ -722,10 +720,10 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
             break;
           }
         }
-        if (nextFocusNode.canRequestFocus) {
-          nextFocusNode.requestFocus();
+        if (nextFocusNode?.canRequestFocus ?? false) {
+          nextFocusNode?.requestFocus();
           _currentFocus = nextFocusNode;
-          _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的可用焦点节点：${nextFocusNode.debugLabel ?? '未知'}');
+          _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的可用焦点节点：${nextFocusNode?.debugLabel ?? '未知'}');
           return true;
         } else {
           _manageDebugOverlay(message: 'Group $nextGroupIndex 没有可用的焦点节点');
