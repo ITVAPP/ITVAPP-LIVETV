@@ -252,59 +252,63 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 缓存 Group 的焦点信息
-  void _cacheGroupFocusNodes() {
-    _groupFocusCache.clear();  // 清空现有缓存
+ void _cacheGroupFocusNodes() {
+  _groupFocusCache.clear();  // 清空现有缓存
+  _manageDebugOverlay(message: '开始缓存分组焦点信息');
 
-    // 获取所有的 Group
-    final groups = _getAllGroups();
+  // 获取所有的 Group
+  final groups = _getAllGroups();
+  _manageDebugOverlay(message: '找到的总组数: ${groups.length}');
 
-    if (groups.isEmpty || groups.length == 1) {
-      // 如果没有显式的分组，或只有一个分组，直接缓存首尾焦点节点
-      FocusNode? firstFocusNode = widget.focusNodes.firstWhere(
-        (node) => node.canRequestFocus, 
-        orElse: () => FocusNode() // 处理没有可请求焦点的情况
-      );
-      FocusNode? lastFocusNode = widget.focusNodes.lastWhere(
-        (node) => node.canRequestFocus, 
-        orElse: () => FocusNode() // 处理没有可请求焦点的情况
-      );
+  if (groups.isEmpty || groups.length == 1) {
+    // 如果没有显式的分组，或只有一个分组，直接缓存首尾焦点节点
+    FocusNode? firstFocusNode = widget.focusNodes.firstWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
+    FocusNode? lastFocusNode = widget.focusNodes.lastWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
+    // 即使没有显式分组，也要缓存一个默认的分组
+    _groupFocusCache[0] = {
+      'firstFocusNode': firstFocusNode,
+      'lastFocusNode': lastFocusNode,
+    };
+    _manageDebugOverlay(
+      message: '缓存了没有分组或单一分组的焦点节点 - '
+               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
+               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+    );
+  } else {
+    // 如果有多个分组，遍历每个分组并缓存其首尾焦点节点
+    for (var group in groups) {
+      final groupWidgets = _getWidgetsInGroup(group);  // 获取分组中的所有子组件
+      final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);  // 获取所有焦点节点
+      
+      _manageDebugOverlay(message: '分组 ${group.groupIndex} 的组件数: ${groupWidgets.length}, 焦点节点数: ${groupFocusNodes.length}');
 
-      // 即使没有显式分组，也要缓存一个默认的分组
-      _groupFocusCache[0] = {
-        'firstFocusNode': firstFocusNode,
-        'lastFocusNode': lastFocusNode,
-      };
-
-      _manageDebugOverlay(
-        message: '缓存了没有分组或单一分组的焦点节点 - '
-                 '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-                 '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
-      );
-    } else {
-      // 如果有多个分组，遍历每个分组并缓存其首尾焦点节点
-      for (var group in groups) {
-        final groupWidgets = _getWidgetsInGroup(group);  // 获取分组中的所有子组件
-        final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);  // 获取所有焦点节点
-
-        if (groupFocusNodes.isNotEmpty) {
-          // 缓存当前分组的首尾焦点节点
-          _groupFocusCache[group.groupIndex] = {
-            'firstFocusNode': groupFocusNodes.first,
-            'lastFocusNode': groupFocusNodes.last,
-          };
-
-          _manageDebugOverlay(
-            message: '分组 ${group.groupIndex}: '
-                     '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
-                     '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
-          );
-        }
+      if (groupFocusNodes.isNotEmpty) {
+        // 缓存当前分组的首尾焦点节点
+        _groupFocusCache[group.groupIndex] = {
+          'firstFocusNode': groupFocusNodes.first,
+          'lastFocusNode': groupFocusNodes.last,
+        };
+        _manageDebugOverlay(
+          message: '分组 ${group.groupIndex}: '
+                   '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
+                   '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
+        );
+      } else {
+        _manageDebugOverlay(message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点');
       }
     }
-
-    // 显示总共缓存的分组数量
-    _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
   }
+
+  // 显示总共缓存的分组数量和详细信息
+  _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
+  _manageDebugOverlay(message: '分组焦点缓存完成，缓存内容：$_groupFocusCache');
+}
 
   String _formatFocusNodeDebugLabel(FocusNode focusNode) {
     // 如果 FocusNode 设置了 debugLabel，就显示它，否则显示该节点在 focusNodes 中的索引
@@ -515,7 +519,7 @@ Widget? findInteractiveWidget(Widget widget) {
       widget is ListTile || widget is PopupMenuButton) {
     return widget;  // 如果找到的是交互式控件，直接返回
   }
-  
+
   // 如果 widget 是一个复杂的容器，继续查找它的子控件
   if (widget is Column || widget is Row || widget is Padding || widget is Container) {
     final children = (widget as dynamic).children;
@@ -544,6 +548,17 @@ void _triggerButtonAction() {
     final widget = context.widget;
 
     try {
+      // 查找焦点祖先控件
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      if (focusableItem != null && focusableItem.child is ListTile) {
+        final listTile = focusableItem.child as ListTile;
+        if (listTile.onTap != null) {
+          listTile.onTap!();  // 执行 ListTile 的 onTap 回调
+          _manageDebugOverlay(message: '执行 ListTile 的 onTap 操作');
+          return;
+        }
+      }
+
       // 删除对不存在的 onKeyEvent 的处理
       if (widget is FocusableActionDetector) {
         // 如果该控件有焦点，处理交互
@@ -655,6 +670,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
 
 /// 处理在组之间的跳转逻辑
 bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+  _manageDebugOverlay(message: '尝试跳转到其他组，当前索引：$currentIndex，当前组：$groupIndex');
   if (_groupFocusCache.isEmpty) {
     _manageDebugOverlay(message: '没有缓存的分组信息，无法跳转');
     return false;
@@ -681,27 +697,50 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     }
 
     _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
+    _manageDebugOverlay(message: '目标组 $nextGroupIndex 的缓存信息：${_groupFocusCache[nextGroupIndex]}');
 
     // 获取下一个组的焦点信息
     final nextGroupFocus = _groupFocusCache[nextGroupIndex];
     if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
-      FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
+      FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
+      
+      if (nextFocusNode == null) {
+        _manageDebugOverlay(message: '错误：Group $nextGroupIndex 的首个焦点节点为 null');
+        return false;
+      }
+
+      _manageDebugOverlay(message: '目标焦点节点状态：canRequestFocus=${nextFocusNode.canRequestFocus}, hasFocus=${nextFocusNode.hasFocus}, debugLabel=${nextFocusNode.debugLabel}');
 
       // 检查下一个焦点节点是否可以请求焦点
       if (nextFocusNode.canRequestFocus) {
         nextFocusNode.requestFocus();
         _currentFocus = nextFocusNode;
-
         String focusNodeLabel = nextFocusNode.debugLabel ?? '未知焦点节点';
         _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: $focusNodeLabel');
         _manageDebugOverlay(message: 'Group $nextGroupIndex 的首个焦点节点: ${_groupFocusCache[nextGroupIndex]?['firstFocusNode']?.debugLabel}');
-
         return true;
       } else {
-        _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点');
+        _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点，尝试查找下一个可用焦点');
+        // 尝试查找下一个可用的焦点节点
+        int nextFocusIndex = widget.focusNodes.indexOf(nextFocusNode);
+        while (nextFocusIndex < widget.focusNodes.length - 1) {
+          nextFocusIndex++;
+          if (widget.focusNodes[nextFocusIndex].canRequestFocus) {
+            nextFocusNode = widget.focusNodes[nextFocusIndex];
+            break;
+          }
+        }
+        if (nextFocusNode.canRequestFocus) {
+          nextFocusNode.requestFocus();
+          _currentFocus = nextFocusNode;
+          _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的可用焦点节点：${nextFocusNode.debugLabel ?? '未知'}');
+          return true;
+        } else {
+          _manageDebugOverlay(message: 'Group $nextGroupIndex 没有可用的焦点节点');
+        }
       }
     } else {
-      _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点');
+      _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点信息');
     }
 
   } catch (RangeError) {
