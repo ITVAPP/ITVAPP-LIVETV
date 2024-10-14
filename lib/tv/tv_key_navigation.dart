@@ -242,7 +242,7 @@ void _requestFocus(int index, {int? groupIndex}) {
 
     // 请求焦点
     if (!focusNode.hasFocus) {
-      _focusNodes[index].requestFocus();  // 设置焦点到指定的节点
+       focusNode.requestFocus();  // 设置焦点到指定的节点
       _currentFocus = focusNode;
       _manageDebugOverlay(message: '切换焦点到索引: $index, 当前Group: $groupIndex');
     }
