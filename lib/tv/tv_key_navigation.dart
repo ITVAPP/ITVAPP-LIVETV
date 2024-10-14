@@ -57,7 +57,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 缓存 Group 的焦点信息，如果需要继续使用分组功能
+        // 缓存 Group 的焦点信息
         _cacheGroupFocusNodes();
 
         // 设置初始焦点，只要焦点节点不为空，或frameType不是 "child" 就执行
@@ -576,25 +576,104 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       _manageDebugOverlay(message: '当前无有效的焦点上下文');
     }
   }
+  
+  /// 导航方法，通过 forward 参数决定是前进还是后退
+void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
+  String action;
+  int nextIndex;
+
+  // 获取当前组的首尾节点
+  FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
+  FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
+  
+  // 获取焦点范围
+  int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
+  int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+  if (forward) {
+    // 前进逻辑
+    if (currentIndex == lastFocusIndex) {
+      nextIndex = firstFocusIndex; // 循环到第一个焦点
+      action = "循环到第一个焦点";
+    } else {
+      nextIndex = currentIndex + 1;
+      action = "切换到下一个焦点";
+    }
+  } else {
+    // 后退逻辑
+    if (currentIndex == firstFocusIndex) {
+      nextIndex = lastFocusIndex; // 循环到最后一个焦点
+      action = "循环到最后一个焦点";
+    } else {
+      nextIndex = currentIndex - 1;
+      action = "切换到前一个焦点";
+    }
+  }
+
+  _requestFocus(nextIndex, groupIndex: groupIndex);
+  _manageDebugOverlay(message: '操作: ${key.debugName}键，$action');
 }
 
-class GroupIndexProvider extends InheritedWidget {
-  final int groupIndex;
-
-  const GroupIndexProvider({
-    Key? key,
-    required this.groupIndex,
-    required Widget child,
-  }) : super(key: key, child: child);
-
-  @override
-  bool updateShouldNotify(GroupIndexProvider oldWidget) {
-    return groupIndex != oldWidget.groupIndex;
+/// 处理在组之间的跳转逻辑
+bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+  if (_groupFocusCache.isEmpty) {
+    _manageDebugOverlay(message: '没有缓存的分组信息，无法跳转');
+    return false;
   }
 
-  static GroupIndexProvider? of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<GroupIndexProvider>();
+  try {
+    // 获取所有组索引并排序
+    List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
+    int currentGroupIndex = groupIndex ?? groupIndices.first;
+
+    if (!groupIndices.contains(currentGroupIndex)) {
+      _manageDebugOverlay(message: '当前 Group $currentGroupIndex 无法找到');
+      return false;
+    }
+
+    int totalGroups = groupIndices.length;
+    int nextGroupIndex;
+
+    // 判断跳转方向
+    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+      nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + totalGroups) % totalGroups];
+    } else {
+      nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
+    }
+
+    _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
+
+    // 获取下一个组的焦点信息
+    final nextGroupFocus = _groupFocusCache[nextGroupIndex];
+    if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
+      FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
+
+      // 检查下一个焦点节点是否可以请求焦点
+      if (nextFocusNode.canRequestFocus) {
+        nextFocusNode.requestFocus();
+        _currentFocus = nextFocusNode;
+
+        String focusNodeLabel = nextFocusNode.debugLabel ?? '未知焦点节点';
+        _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: $focusNodeLabel');
+
+        return true;
+      } else {
+        _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点');
+      }
+    } else {
+      _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点');
+    }
+
+  } catch (RangeError) {
+    _manageDebugOverlay(message: '焦点跳转时发生范围错误，当前 Group 无法跳转');
+  } catch (e, stackTrace) {
+    // 捕获其他潜在的异常，显示错误提示
+    _manageDebugOverlay(message: '跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
   }
+
+  return false;
+}
+
 }
 
 class Group extends StatelessWidget {
@@ -611,14 +690,11 @@ class Group extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GroupIndexProvider(
-      groupIndex: groupIndex,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: child != null
-            ? [child!] // 如果传入了单个 child，则使用它
-            : children ?? [], // 如果传入了 children，则使用它们
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: child != null
+          ? [child!] // 如果传入了单个 child，则使用它
+          : children ?? [], // 如果传入了 children，则使用它们
     );
   }
 }
@@ -643,18 +719,13 @@ class FocusableItem extends StatefulWidget {
 class _FocusableItemState extends State<FocusableItem> {
   @override
   Widget build(BuildContext context) {
-    final int? effectiveGroupIndex = GroupIndexProvider.of(context)?.groupIndex ?? widget.groupIndex;
-
     return Focus(
       focusNode: widget.focusNode,
       onKeyEvent: (FocusNode node, KeyEvent event) {
         // 如果需要对键盘事件进行处理，可以在这里处理
         return KeyEventResult.ignored;
       },
-      child: GroupIndexProvider( // 确保 GroupIndexProvider 传递正确的 groupIndex
-        groupIndex: effectiveGroupIndex ?? -1,  // 确保有一个有效的 groupIndex
-        child: widget.child,
-      ),
+      child: widget.child,
     );
   }
 }
