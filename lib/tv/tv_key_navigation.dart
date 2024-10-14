@@ -508,6 +508,27 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
+// 递归查找可执行交互的控件
+Widget? findInteractiveWidget(Widget widget) {
+  if (widget is SwitchListTile || widget is ElevatedButton || widget is TextButton || 
+      widget is OutlinedButton || widget is IconButton || widget is FloatingActionButton || 
+      widget is ListTile || widget is PopupMenuButton) {
+    return widget;  // 如果找到的是交互式控件，直接返回
+  }
+  
+  // 如果 widget 是一个复杂的容器，继续查找它的子控件
+  if (widget is Column || widget is Row || widget is Padding || widget is Container) {
+    final children = (widget as dynamic).children;
+    for (var child in children) {
+      final result = findInteractiveWidget(child);
+      if (result != null) return result;
+    }
+  }
+  
+  // 如果没有找到可执行的控件，返回 null
+  return null;
+}
+
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -518,54 +539,73 @@ void _triggerButtonAction() {
       return;
     }
 
-    final widget = context.widget;  // 获取当前焦点对应的 widget
+    // 使用 FocusableActionDetector 进行更稳定的焦点和键盘事件处理
+    final widget = context.widget;
 
     try {
-      // 如果 widget 是 FocusableItem，则获取它的 child
+      // 检查是否是 FocusableActionDetector 并处理键盘事件和焦点变更
+      if (widget is FocusableActionDetector) {
+        // 如果该控件有焦点，处理交互
+        if (widget.focusNode.hasFocus) {
+          // 处理键盘事件或焦点相关的操作
+          if (widget.onKeyEvent != null) {
+            widget.onKeyEvent!(FocusNode(), RawKeyEvent(...));  // 传递键盘事件
+            _manageDebugOverlay(message: '执行 FocusableActionDetector 的键盘事件操作');
+            return;  // 操作完成后直接返回
+          } else {
+            _manageDebugOverlay(message: '未绑定键盘事件，但焦点在: ${widget.runtimeType}');
+            return;
+          }
+        }
+      }
+
+      // 如果 widget 是 FocusableItem，则使用递归查找可执行操作的控件
       if (widget is FocusableItem) {
-        final child = widget.child;  // 获取 FocusableItem 包裹的子控件
-        
-        // 检查是否是 SwitchListTile 并切换其状态
-        if (child is SwitchListTile) {
-          final value = !(child.value ?? false); // 切换开关状态
-          child.onChanged?.call(value); // 调用 SwitchListTile 的 onChanged 回调
-          _manageDebugOverlay(message: '切换 SwitchListTile 开关状态: $value');
-          return; // 操作完成后直接返回
+        final interactiveWidget = findInteractiveWidget(widget.child);
+
+        if (interactiveWidget == null) {
+          _manageDebugOverlay(message: '未找到可执行操作的控件');
+          return;
         }
 
-        // 检查是否是带 onPressed 的按钮类型组件
-        if (child is ElevatedButton && child.onPressed != null) {
-          child.onPressed!(); // 调用 ElevatedButton 的 onPressed
+        // 针对找到的交互控件执行操作
+        if (interactiveWidget is SwitchListTile) {
+          final value = !(interactiveWidget.value ?? false); // 切换开关状态
+          interactiveWidget.onChanged?.call(value); // 调用 SwitchListTile 的 onChanged 回调
+          _manageDebugOverlay(message: '切换 SwitchListTile 开关状态: $value');
+          return; // 操作完成后直接返回
+        } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
+          interactiveWidget.onPressed!(); // 调用 ElevatedButton 的 onPressed
           _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed 操作');
           return; // 操作完成后直接返回
-        } else if (child is TextButton && child.onPressed != null) {
-          child.onPressed!(); // 调用 TextButton 的 onPressed
+        } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
+          interactiveWidget.onPressed!(); // 调用 TextButton 的 onPressed
           _manageDebugOverlay(message: '执行 TextButton 的 onPressed 操作');
           return; // 操作完成后直接返回
-        } else if (child is OutlinedButton && child.onPressed != null) {
-          child.onPressed!(); // 调用 OutlinedButton 的 onPressed
+        } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
+          interactiveWidget.onPressed!(); // 调用 OutlinedButton 的 onPressed
           _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed 操作');
           return; // 操作完成后直接返回
-        } else if (child is IconButton && child.onPressed != null) {
-          child.onPressed!(); // 调用 IconButton 的 onPressed
+        } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
+          interactiveWidget.onPressed!(); // 调用 IconButton 的 onPressed
           _manageDebugOverlay(message: '执行 IconButton 的 onPressed 操作');
           return; // 操作完成后直接返回
-        } else if (child is FloatingActionButton && child.onPressed != null) {
-          child.onPressed!(); // 调用 FloatingActionButton 的 onPressed
+        } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
+          interactiveWidget.onPressed!(); // 调用 FloatingActionButton 的 onPressed
           _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed 操作');
           return; // 操作完成后直接返回
         }
 
         // 检查是否存在具有 onTap 回调的 ListTile 并调用其回调
-        if (child is ListTile && child.onTap != null) {
-          child.onTap!(); // 调用 ListTile 的 onTap
+        if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
+          interactiveWidget.onTap!(); // 调用 ListTile 的 onTap
           _manageDebugOverlay(message: '执行 ListTile 的 onTap 操作');
           return; // 操作完成后直接返回
         }
 
         // 检查是否存在 PopupMenuButton 并调用其 onSelected 回调
-        if (child is PopupMenuButton) {
-          child.onSelected?.call(null); // 处理 PopupMenuButton 的选中事件
+        if (interactiveWidget is PopupMenuButton) {
+          interactiveWidget.onSelected?.call(null); // 处理 PopupMenuButton 的选中事件
           _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected 操作');
           return; // 操作完成后直接返回
         }
@@ -660,6 +700,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
 
         String focusNodeLabel = nextFocusNode.debugLabel ?? '未知焦点节点';
         _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: $focusNodeLabel');
+        _manageDebugOverlay(message: 'Group $nextGroupIndex 的首个焦点节点: ${_groupFocusCache[nextGroupIndex]?['firstFocusNode']?.debugLabel}');
 
         return true;
       } else {
