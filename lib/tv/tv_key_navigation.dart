@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -508,7 +509,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
-// 递归查找可执行交互的控件
 Widget? findInteractiveWidget(Widget widget) {
   if (widget is SwitchListTile || widget is ElevatedButton || widget is TextButton || 
       widget is OutlinedButton || widget is IconButton || widget is FloatingActionButton || 
@@ -544,24 +544,12 @@ void _triggerButtonAction() {
     final widget = context.widget;
 
     try {
-      // 检查是否是 FocusableActionDetector 并处理键盘事件和焦点变更
+      // 删除对不存在的 onKeyEvent 的处理
       if (widget is FocusableActionDetector) {
         // 如果该控件有焦点，处理交互
-        if (widget.focusNode.hasFocus) {
-          // 处理键盘事件或焦点相关的操作
-          if (widget.onKeyEvent != null) {
-            widget.onKeyEvent!(FocusNode(), KeyDownEvent(  // 传递 KeyDownEvent 而不是 RawKeyEvent
-              physicalKey: PhysicalKeyboardKey.enter,      // 示例键为 'Enter'
-              logicalKey: LogicalKeyboardKey.enter,        // 设置逻辑键
-              timeStamp: Duration.zero,                    // 时间戳可根据需要设置
-              deviceType: KeyEventDeviceType.keyboard      // 设备类型设置为键盘
-            ));  
-            _manageDebugOverlay(message: '执行 FocusableActionDetector 的键盘事件操作');
-            return;  // 操作完成后直接返回
-          } else {
-            _manageDebugOverlay(message: '未绑定键盘事件，但焦点在: ${widget.runtimeType}');
-            return;
-          }
+        if (widget.focusNode?.hasFocus ?? false) {  // 使用 ?. 操作符确保空安全
+          _manageDebugOverlay(message: 'FocusableActionDetector 具有焦点');
+          return;
         }
       }
 
