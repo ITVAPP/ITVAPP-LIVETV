@@ -712,7 +712,13 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
       } else {
         _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点，尝试查找下一个可用焦点');
         // 尝试查找下一个可用的焦点节点
-        int nextFocusIndex = widget.focusNodes.indexOf(nextFocusNode);
+        if (nextFocusNode != null) {
+  int nextFocusIndex = widget.focusNodes.indexOf(nextFocusNode);
+  // 其他逻辑处理
+} else {
+  _manageDebugOverlay(message: 'nextFocusNode is null, cannot proceed with indexOf');
+  return false;
+}
         while (nextFocusIndex < widget.focusNodes.length - 1) {
           nextFocusIndex++;
           if (widget.focusNodes[nextFocusIndex].canRequestFocus) {
