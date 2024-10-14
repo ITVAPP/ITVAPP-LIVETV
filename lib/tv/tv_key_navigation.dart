@@ -693,12 +693,13 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
     }
     _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
     _manageDebugOverlay(message: '目标组 $nextGroupIndex 的缓存信息：${_groupFocusCache[nextGroupIndex]}');
+    
     // 获取下一个组的焦点信息
     final nextGroupFocus = _groupFocusCache[nextGroupIndex];
     if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
       FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
       
-      // 使用安全访问操作符 ?. 进行修改
+      // 使用 ?. 安全操作符，确保 nextFocusNode 为空时不报错
       _manageDebugOverlay(message: '目标焦点节点状态：canRequestFocus=${nextFocusNode?.canRequestFocus ?? false}, hasFocus=${nextFocusNode?.hasFocus ?? false}, debugLabel=${nextFocusNode?.debugLabel ?? '未知'}');
       
       // 检查下一个焦点节点是否可以请求焦点
@@ -713,26 +714,24 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
         _manageDebugOverlay(message: 'Group $nextGroupIndex 的第一个焦点无法请求焦点，尝试查找下一个可用焦点');
         // 尝试查找下一个可用的焦点节点
         if (nextFocusNode != null) {
-  int nextFocusIndex = widget.focusNodes.indexOf(nextFocusNode);
-  // 其他逻辑处理
-} else {
-  _manageDebugOverlay(message: 'nextFocusNode is null, cannot proceed with indexOf');
-  return false;
-}
-        while (nextFocusIndex < widget.focusNodes.length - 1) {
-          nextFocusIndex++;
-          if (widget.focusNodes[nextFocusIndex].canRequestFocus) {
-            nextFocusNode = widget.focusNodes[nextFocusIndex];
-            break;
+          int nextFocusIndex = widget.focusNodes.indexOf(nextFocusNode);
+          // 开始循环查找下一个可用的焦点节点
+          while (nextFocusIndex < widget.focusNodes.length - 1) {
+            nextFocusIndex++;
+            if (widget.focusNodes[nextFocusIndex].canRequestFocus) {
+              nextFocusNode = widget.focusNodes[nextFocusIndex];
+              break;
+            }
           }
-        }
-        if (nextFocusNode?.canRequestFocus ?? false) {
-          nextFocusNode?.requestFocus();
-          _currentFocus = nextFocusNode;
-          _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的可用焦点节点：${nextFocusNode?.debugLabel ?? '未知'}');
-          return true;
-        } else {
-          _manageDebugOverlay(message: 'Group $nextGroupIndex 没有可用的焦点节点');
+
+          if (nextFocusNode?.canRequestFocus ?? false) {
+            nextFocusNode?.requestFocus();
+            _currentFocus = nextFocusNode;
+            _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的可用焦点节点：${nextFocusNode?.debugLabel ?? '未知'}');
+            return true;
+          } else {
+            _manageDebugOverlay(message: 'Group $nextGroupIndex 没有可用的焦点节点');
+          }
         }
       }
     } else {
@@ -746,6 +745,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
   }
   return false;
 }
+
 
 }
 
