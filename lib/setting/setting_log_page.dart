@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -27,6 +27,17 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 设置焦点节点
   final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
+
+  @override
+  void initState() {
+    super.initState();
+    // 监听焦点变化，焦点变化时触发重绘
+    for (var focusNode in _focusNodes) {
+      focusNode.addListener(() {
+        setState(() {}); // 焦点变化时触发setState来重绘UI
+      });
+    }
+  }
 
   @override
   void dispose() {
