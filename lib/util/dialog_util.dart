@@ -59,7 +59,8 @@ class DialogUtil {
             ),
             child: TvKeyNavigation(
               focusNodes: _focusNodes,
-              initialIndex: 0,
+              isHorizontalGroup: true, // 启用横向分组
+              initialIndex: 1,
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
