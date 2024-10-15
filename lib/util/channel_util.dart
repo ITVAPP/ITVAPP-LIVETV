@@ -1,158 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
-
-/// 用于将颜色变暗的函数
-Color darkenColor(Color color, [double amount = 0.1]) {
-  final hsl = HSLColor.fromColor(color);
-  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-  return darkened.toColor();
-}
-
-class ChangeChannelSourcesWidget extends StatefulWidget {
-  final List<String>? sources;
-  final int currentSourceIndex;
-
-  ChangeChannelSourcesWidget({required this.sources, required this.currentSourceIndex});
-
-  @override
-  _ChangeChannelSourcesWidgetState createState() => _ChangeChannelSourcesWidgetState();
-}
-
-class _ChangeChannelSourcesWidgetState extends State<ChangeChannelSourcesWidget> {
-  late List<FocusNode> _focusNodes; // 存储所有焦点节点
-  late List<Widget> _sourceButtons; // 缓存生成的按钮
-
-  @override
-  void initState() {
-    super.initState();
-    // 初始化 focusNodes，保证它们的生命周期不受重建影响
-    _focusNodes = List.generate(widget.sources?.length ?? 0, (index) => FocusNode());
-    _buildSourceButtons(); // 初始构建按钮
-  }
-
-  @override
-  void didUpdateWidget(covariant ChangeChannelSourcesWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 当 widget.sources 发生变化时，重新生成 focusNodes 和按钮
-    if (widget.sources?.length != oldWidget.sources?.length) {
-      _focusNodes = List.generate(widget.sources?.length ?? 0, (index) => FocusNode());
-      _buildSourceButtons();
-    }
-  }
-
-  @override
-  void dispose() {
-    // 确保在 widget 销毁时清理所有 FocusNode
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
-    super.dispose();
-  }
-
-  // 构建按钮列表
-  void _buildSourceButtons() {
-    _sourceButtons = List.generate(widget.sources?.length ?? 0, (index) {
-      return _buildButton(
-        context: context,
-        index: index,
-        sources: widget.sources!,
-        currentSourceIndex: widget.currentSourceIndex,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    bool isTV = context.watch<ThemeProvider>().isTV;
-    return buildSourceContent(context, widget.sources, widget.currentSourceIndex, isTV);
-  }
-
-  /// 构建不同设备的弹窗内容（TV或非TV）
-  Widget buildSourceContent(
-    BuildContext context, 
-    List<String>? sources, 
-    int currentSourceIndex, 
-    bool isTV
-  ) {
-    if (isTV) {
-      // 使用 TvKeyNavigation 包裹按钮组，支持 TV 模式的按键导航
-      return TvKeyNavigation(
-        focusNodes: _focusNodes, // 直接使用持久化的焦点节点
-        initialIndex: currentSourceIndex, // 使用 initialIndex 来设置初始聚焦
-        child: Wrap(
-          spacing: 8, // 按钮之间的水平间距
-          runSpacing: 8, // 按钮之间的垂直间距
-          children: _sourceButtons,
-        ),
-      );
-    } else {
-      return Wrap(
-        spacing: 8, // 按钮之间的水平间距
-        runSpacing: 8, // 按钮之间的垂直间距
-        children: _sourceButtons,
-      );
-    }
-  }
-
-  /// 构建单个按钮，并处理焦点和选中状态
-  Widget _buildButton({
-    required BuildContext context,
-    required int index,
-    required List<String> sources,
-    required int currentSourceIndex,
-  }) {
-    final bool isSelected = currentSourceIndex == index;
-    final Color unselectedColor = Color(0xFFEB144C); // 未选中的颜色
-    final Color selectedColor = Color(0xFFDFA02A); // 选中的颜色
-
-    return FocusableItem(
-      focusNode: _focusNodes[index], // 使用已创建的 FocusNode
-      child: Focus(
-        focusNode: _focusNodes[index],
-        onFocusChange: (hasFocus) {
-          setState(() {
-            // 触发重绘以根据焦点更新按钮背景
-          });
-        },
-        child: OutlinedButton(
-          key: ValueKey(index), // 给每个按钮分配唯一的Key
-          autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
-          style: OutlinedButton.styleFrom(
-            padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
-            backgroundColor: _getBackgroundColor(isSelected, _focusNodes[index].hasFocus, selectedColor, unselectedColor), // 设置背景颜色
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
-            ),
-          ),
-          onPressed: isSelected
-              ? null // 如果按钮是当前选中的源，禁用点击
-              : () {
-                  Navigator.pop(context, index); // 返回所选按钮的索引
-                },
-          child: Text(
-            S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
-            textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-            style: TextStyle(
-              fontSize: 16, // 字体大小
-              color: Colors.white, // 文字颜色为白色
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 根据当前状态获取背景色
-  Color _getBackgroundColor(bool isSelected, bool hasFocus, Color selectedColor, Color unselectedColor) {
-    Color baseColor = isSelected ? selectedColor : unselectedColor;
-    return hasFocus ? darkenColor(baseColor) : baseColor;
-  }
-}
 
 /// 显示底部弹出框选择不同的视频源
 Future<int?> changeChannelSources(
@@ -168,6 +20,9 @@ Future<int?> changeChannelSources(
 
   // 判断是否是 TV 模式
   bool isTV = context.watch<ThemeProvider>().isTV;
+
+  // 创建一次性的 FocusNode 列表，根据 sources 的长度动态生成
+  final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
 
   try {
     // 计算屏幕的方向、宽度和底部间距
@@ -196,10 +51,7 @@ Future<int?> changeChannelSources(
                 maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
                 maxHeight: MediaQuery.of(context).size.height * 0.7, // 限制弹窗最大高度为屏幕的70%
               ),
-              child: ChangeChannelSourcesWidget(
-                sources: sources, 
-                currentSourceIndex: currentSourceIndex,
-              ),
+              child: buildSourceContent(context, sources, currentSourceIndex, isTV, focusNodes),
             ),
           ),
         );
@@ -212,5 +64,123 @@ Future<int?> changeChannelSources(
     // 捕获弹窗显示过程中发生的错误，并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
+  } finally {
+    // 释放所有 FocusNode 的资源
+    for (var node in focusNodes) {
+      node.dispose();
+    }
   }
+}
+
+/// 构建不同设备的弹窗内容（TV或非TV）
+Widget buildSourceContent(
+  BuildContext context, 
+  List<String> sources, 
+  int currentSourceIndex, 
+  bool isTV,
+  List<FocusNode> focusNodes, // 传递预先创建的 FocusNode 列表
+) {
+  if (isTV) {
+    // 使用 TvKeyNavigation 包裹按钮组，支持 TV 模式的按键导航
+    return TvKeyNavigation(
+      focusNodes: focusNodes, // 传入已生成的焦点节点
+      initialIndex: currentSourceIndex,
+      child: buildSourceButtons(context, sources, currentSourceIndex, isTV, focusNodes),
+    );
+  } else {
+    return buildSourceButtons(context, sources, currentSourceIndex, isTV, focusNodes);
+  }
+}
+
+/// 构建视频源按钮组
+Widget buildSourceButtons(
+  BuildContext context, 
+  List<String> sources, 
+  int currentSourceIndex, 
+  bool isTV,
+  List<FocusNode> focusNodes, // 传递预先创建的焦点节点
+) {
+  Color selectedColor = Color(0xFFDFA02A); // 选中时的背景色
+  Color unselectedColor = Color(0xFFEB144C); // 未选中时的背景色
+
+  return Wrap(
+    spacing: 8, // 按钮之间的水平间距
+    runSpacing: 8, // 按钮之间的垂直间距
+    children: List.generate(sources.length, (index) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          FocusNode focusNode = focusNodes[index];
+          bool isFocused = focusNode.hasFocus; // 当前按钮是否有焦点
+
+          return FocusableItem(
+            focusNode: focusNode, // 使用外部传入的 FocusNode
+            child: Focus(
+              focusNode: focusNode,
+              onFocusChange: (hasFocus) {
+                setState(() {
+                  isFocused = hasFocus; // 焦点变化时更新状态
+                });
+              },
+              child: OutlinedButton(
+                autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
+                style: getButtonStyle(
+                  isSelected: currentSourceIndex == index,
+                  isFocused: isFocused,
+                  selectedColor: selectedColor,
+                  unselectedColor: unselectedColor,
+                ),
+                onPressed: currentSourceIndex == index
+                    ? null // 如果按钮是当前选中的源，禁用点击
+                    : () {
+                        Navigator.pop(context, index); // 返回所选按钮的索引
+                      },
+                child: Text(
+                  S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
+                  textAlign: TextAlign.center, // 文字在按钮内部居中对齐
+                  style: TextStyle(
+                    fontSize: 16, // 字体大小
+                    color: Colors.white, // 文字颜色为白色
+                    fontWeight: currentSourceIndex == index
+                        ? FontWeight.bold // 选中按钮文字加粗
+                        : FontWeight.normal, // 未选中按钮文字为正常字体
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }),
+  );
+}
+
+/// 获取按钮样式
+ButtonStyle getButtonStyle({
+  required bool isSelected, 
+  required bool isFocused, 
+  required Color selectedColor, 
+  required Color unselectedColor,
+}) {
+  Color backgroundColor = isSelected
+      ? selectedColor // 如果选中则使用选中的颜色
+      : unselectedColor; // 未选中时使用未选中的颜色
+
+  if (isFocused) {
+    backgroundColor = darkenColor(backgroundColor); // 焦点聚焦时变暗
+  }
+
+  return OutlinedButton.styleFrom(
+    padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6), // 设置按钮内边距
+    backgroundColor: backgroundColor, // 根据状态设置背景颜色
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16), // 按钮的圆角半径
+    ),
+  );
+}
+
+/// 用于将颜色变暗的函数
+Color darkenColor(Color color, [double amount = 0.2]) {
+  final hsl = HSLColor.fromColor(color);
+  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return darkened.toColor();
 }
