@@ -105,6 +105,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
               _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
             });
           }
+          onTap(); // 触发传入的 onTap 事件
         },
       ),
     );
