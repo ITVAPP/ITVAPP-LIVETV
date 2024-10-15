@@ -35,7 +35,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储调试消息
   Timer? _timer; // 定时器，用于控制消息超时
-  final int _messageDisplayDuration = 6; // 超时时间，单位：秒
+  final int _messageDisplayDuration = 5; // 超时时间，单位：秒
 
   // 调试模式开关
   final bool _showDebugOverlay = true;
@@ -95,7 +95,7 @@ void _manageDebugOverlay({String? message}) {
     _debugMessages.add(message);
 
     // 限制最多显示消息，超出时立即移除最早的一条
-    if (_debugMessages.length > 15) {
+    if (_debugMessages.length > 8) {
       _debugMessages.removeAt(0);
     }
 
@@ -149,6 +149,11 @@ void _manageDebugOverlay({String? message}) {
 
   /// 重置计时器，每次新消息加入时调用
   void _resetTimer() {
+    if (_timer != null && _timer!.isActive) {
+        // 如果已有活动定时器，不重新启动，避免多次重置
+        return;
+    }
+    // 取消现有定时器
     _cancelTimer(); // 先取消已有的计时器
     _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
       if (_debugMessages.isNotEmpty) {
@@ -516,33 +521,6 @@ void _manageDebugOverlay({String? message}) {
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
-Widget? findInteractiveWidget(Widget widget) {
-  // 检查控件是否为交互式控件，如果是则直接返回
-  if (widget is SwitchListTile ||
-      widget is ElevatedButton ||
-      widget is TextButton ||
-      widget is OutlinedButton ||
-      widget is IconButton ||
-      widget is FloatingActionButton ||
-      widget is ListTile ||
-      widget is PopupMenuButton) {
-    return widget;  // 如果找到交互控件，则直接返回
-  }
-
-  // 如果控件是容器类控件，递归搜索其子控件
-  if (widget is Column || widget is Row || widget is Padding || widget is Container) {
-    final List<Widget> children = (widget as dynamic).children;
-    for (var child in children) {
-      final result = findInteractiveWidget(child);  // 递归查找交互控件
-      if (result != null) return result;
-    }
-  }
-
-  // 如果没有找到交互控件，返回 null
-  return null;
-}
-
-/// 处理键盘事件，包括方向键和选择键。
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -556,53 +534,42 @@ void _triggerButtonAction() {
 
     try {
       // 查找最近的 FocusableItem
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      final focusableItem = context!.findAncestorWidgetOfExactType<FocusableItem>();
 
       if (focusableItem != null) {
-        final interactiveWidget = findInteractiveWidget(focusableItem.child);
+        final interactiveWidget = focusableItem.child;
 
-        if (interactiveWidget == null) {
-          _manageDebugOverlay(message: '未找到可执行操作的控件');
-          return;
-        }
-
-        // 根据找到的交互控件执行对应的操作
+        // 通过提前判断当前的交互控件，减少递归查找
         if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-          final bool newValue = !(interactiveWidget.value ?? false);
-          interactiveWidget.onChanged!(newValue);  // 切换开关状态
-          _manageDebugOverlay(message: '切换 SwitchListTile 开关状态: $newValue');
+          interactiveWidget.onChanged!(!interactiveWidget.value);
         } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();  // 执行 ElevatedButton 的 onPressed 操作
-          _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed 操作');
+          interactiveWidget.onPressed!();
         } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();  // 执行 TextButton 的 onPressed 操作
-          _manageDebugOverlay(message: '执行 TextButton 的 onPressed 操作');
+          interactiveWidget.onPressed!();
         } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();  // 执行 OutlinedButton 的 onPressed 操作
-          _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed 操作');
+          interactiveWidget.onPressed!();
         } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();  // 执行 IconButton 的 onPressed 操作
-          _manageDebugOverlay(message: '执行 IconButton 的 onPressed 操作');
+          interactiveWidget.onPressed!();
         } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();  // 执行 FloatingActionButton 的 onPressed 操作
-          _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed 操作');
+          interactiveWidget.onPressed!();
         } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-          interactiveWidget.onTap!();  // 执行 ListTile 的 onTap 操作
-          _manageDebugOverlay(message: '执行 ListTile 的 onTap 操作');
+          interactiveWidget.onTap!();
         } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-          interactiveWidget.onSelected!(null);  // 执行 PopupMenuButton 的 onSelected 操作
-          _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected 操作');
+          interactiveWidget.onSelected!(null);
+        } else {
+          _manageDebugOverlay(message: '未找到可执行操作的控件');
         }
+
+        _manageDebugOverlay(message: '执行按钮操作');
       }
     } catch (e, stackTrace) {
-      // 捕获并报告执行操作时的错误
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
     }
   } else {
     _manageDebugOverlay(message: '当前无有效的焦点上下文');
   }
 }
-  
+
   /// 导航方法，通过 forward 参数决定是前进还是后退
 void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
   String action;
