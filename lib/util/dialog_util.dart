@@ -105,7 +105,7 @@ class DialogUtil {
                                   child: _wrapCustomWidgetWithFocus(
                                     child,
                                     _focusNodes,
-                                    ref focusIndex,
+                                    focusIndex: focusIndex,  // 使用变量传递索引
                                     selectedColor: selectedColor,
                                     unselectedColor: unselectedColor,
                                   ),
@@ -131,7 +131,7 @@ class DialogUtil {
                         content: content,  // 传递内容用于复制
                         isCopyButton: isCopyButton,  // 控制是否显示复制按钮
                         focusNodes: _focusNodes,  // 动态传递焦点节点列表
-                        focusIndex: ref focusIndex,  // 动态焦点编号
+                        focusIndex: focusIndex,  // 动态焦点编号
                         selectedColor: selectedColor,
                         unselectedColor: unselectedColor,
                       ),
@@ -302,7 +302,7 @@ class DialogUtil {
   static Widget _wrapCustomWidgetWithFocus(
     Widget child,
     List<FocusNode> focusNodes,
-    ref int focusIndex, {
+    {required int focusIndex,  // 删除 ref，使用传递的变量
     required Color selectedColor,
     required Color unselectedColor,
   }) {
