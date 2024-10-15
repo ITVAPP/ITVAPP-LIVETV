@@ -12,6 +12,13 @@ import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
+// 用于将颜色变暗的函数
+Color darkenColor(Color color, [double amount = 0.1]) {
+  final hsl = HSLColor.fromColor(color);
+  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return darkened.toColor();
+}
+
 // 电视设置主页面
 class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key});
@@ -28,7 +35,6 @@ class _TvSettingPageState extends State<TvSettingPage> {
   final List<FocusNode> _focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
-  final Color focusColor = const Color(0xFFEB144C).withOpacity(0.3); // 焦点时背景颜色
 
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (_) => FocusNode());
@@ -97,7 +103,9 @@ class _TvSettingPageState extends State<TvSettingPage> {
         ), // 标题
         selected: _selectedIndex == index, // 判断是否选中
         selectedTileColor: selectedColor, // 选中时背景颜色
-        tileColor: _focusNodes[index + 1].hasFocus ? focusColor : null, // 焦点时背景颜色，未选中时保持默认
+        tileColor: _focusNodes[index + 1].hasFocus
+            ? darkenColor(_selectedIndex == index ? selectedColor : Colors.transparent) // 聚焦时变暗颜色
+            : (_selectedIndex == index ? selectedColor : null), // 未选中时默认颜色
         onTap: () {
           if (_selectedIndex != index) {
             setState(() {
@@ -177,7 +185,7 @@ class _TvSettingPageState extends State<TvSettingPage> {
                       child: ListTile(
                         leading: Icon(
                           Icons.arrow_back,
-                          color: _focusNodes[0].hasFocus ? selectedColor : Colors.white, // 焦点时改变颜色
+                          color: _focusNodes[0].hasFocus ? darkenColor(selectedColor) : Colors.white, // 焦点时改变颜色
                         ),
                         onTap: () {
                           Navigator.of(context).pop(); // 返回到上一个页面
@@ -247,7 +255,13 @@ class _TvSettingPageState extends State<TvSettingPage> {
                         icon: Icons.system_update,
                         title: S.of(context).updateTitle, // 更新
                         index: 4,
-                        onTap: _checkForUpdates, // 调用检查更新逻辑
+                        onTap: () {
+                          setState(() {
+                            _selectedIndex = 4;
+                            _confirmedIndex = 4; // 用户按下确认键后更新页面
+                          });
+                          _checkForUpdates(); // 调用检查更新逻辑
+                        },
                       ),
                     ],
                   ),
