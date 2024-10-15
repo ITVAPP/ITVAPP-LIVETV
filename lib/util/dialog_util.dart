@@ -34,13 +34,21 @@ class DialogUtil {
 
     // 定义焦点节点
     final List<FocusNode> _focusNodes = [];
-    if (closeButtonLabel != null) _focusNodes.add(FocusNode());
-    if (positiveButtonLabel != null) _focusNodes.add(FocusNode());
-    if (negativeButtonLabel != null) _focusNodes.add(FocusNode());
-    if (isCopyButton) _focusNodes.add(FocusNode());
-    if (child != null) _focusNodes.add(FocusNode());
+    int focusIndex = 0;  // 焦点节点计数器
 
-    int focusIndex = 0; // 焦点节点计数器
+    // 定义创建并添加焦点节点的函数，确保顺序正确
+    FocusNode createFocusNode() {
+      FocusNode node = FocusNode();
+      _focusNodes.add(node);
+      focusIndex++;
+      return node;
+    }
+
+    if (closeButtonLabel != null) createFocusNode();
+    if (positiveButtonLabel != null) createFocusNode();
+    if (negativeButtonLabel != null) createFocusNode();
+    if (isCopyButton) createFocusNode();
+    if (child != null) createFocusNode();
 
     // 定义默认选中和未选中的颜色
     Color selectedColor = const Color(0xFFDFA02A);  // 选中时的颜色
@@ -84,7 +92,7 @@ class DialogUtil {
                   Group(
                     groupIndex: 0,
                     child: FocusableItem(
-                      focusNode: _focusNodes[focusIndex++],  // 第一个焦点节点为关闭按钮
+                      focusNode: _focusNodes[0],  // 第一个焦点节点为关闭按钮
                       child: _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
                     ),
                   ),
@@ -105,7 +113,6 @@ class DialogUtil {
                                   child: _wrapCustomWidgetWithFocus(
                                     child,
                                     _focusNodes,
-                                    focusIndex: focusIndex,  // 使用变量传递索引
                                     selectedColor: selectedColor,
                                     unselectedColor: unselectedColor,
                                   ),
@@ -131,7 +138,6 @@ class DialogUtil {
                         content: content,  // 传递内容用于复制
                         isCopyButton: isCopyButton,  // 控制是否显示复制按钮
                         focusNodes: _focusNodes,  // 动态传递焦点节点列表
-                        focusIndex: focusIndex,  // 动态焦点编号
                         selectedColor: selectedColor,
                         unselectedColor: unselectedColor,
                       ),
@@ -208,16 +214,16 @@ class DialogUtil {
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
     required List<FocusNode> focusNodes,  // 动态生成焦点节点
-    required int focusIndex,  // 当前焦点编号
     required Color selectedColor,  // 选中时颜色
     required Color unselectedColor,  // 未选中时颜色
   }) {
+    int currentFocusIndex = 1; // 动态索引初始化，从关闭按钮的下一个开始
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           _buildButton(
-            focusNodes[focusIndex++],
+            focusNodes[currentFocusIndex++],  // 动态获取焦点
             negativeButtonLabel!,
             onNegativePressed,
             selectedColor,
@@ -227,7 +233,7 @@ class DialogUtil {
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
           _buildButton(
-            focusNodes[focusIndex++],
+            focusNodes[currentFocusIndex++],  // 动态获取焦点
             positiveButtonLabel!,
             onPositivePressed,
             selectedColor,
@@ -235,7 +241,7 @@ class DialogUtil {
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
           _buildButton(
-            focusNodes[focusIndex++],
+            focusNodes[currentFocusIndex++],  // 动态获取焦点
             S.current.copy,
             () {
               Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
@@ -250,7 +256,7 @@ class DialogUtil {
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
           _buildButton(
-            focusNodes[focusIndex++],
+            focusNodes[currentFocusIndex++],  // 动态获取焦点
             closeButtonLabel!,
             onClosePressed ?? () => Navigator.of(context).pop(),
             selectedColor,
@@ -301,14 +307,12 @@ class DialogUtil {
   // 包裹传入的自定义Widget，确保按钮有焦点节点
   static Widget _wrapCustomWidgetWithFocus(
     Widget child,
-    List<FocusNode> focusNodes,
-    {required int focusIndex,  // 删除 ref，使用传递的变量
+    List<FocusNode> focusNodes, {
     required Color selectedColor,
     required Color unselectedColor,
   }) {
     FocusNode buttonFocusNode = FocusNode();
     focusNodes.add(buttonFocusNode);  // 动态添加焦点节点
-    focusIndex++;  // 动态递增焦点编号
 
     // 如果传入的是可点击的按钮类型，包裹成 FocusableItem
     if (child is ElevatedButton || child is TextButton || child is IconButton) {
