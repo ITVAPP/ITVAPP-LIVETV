@@ -107,48 +107,43 @@ Widget buildSourceButtons(
     spacing: 8, // 按钮之间的水平间距
     runSpacing: 8, // 按钮之间的垂直间距
     children: List.generate(sources.length, (index) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          FocusNode focusNode = focusNodes[index];
-          bool isFocused = focusNode.hasFocus; // 当前按钮是否有焦点
+      FocusNode focusNode = focusNodes[index];
+      bool isSelected = currentSourceIndex == index; // 判断是否为当前选中项
 
-          return FocusableItem(
-            focusNode: focusNode, // 使用外部传入的 FocusNode
-            child: Focus(
-              focusNode: focusNode,
-              onFocusChange: (hasFocus) {
-                setState(() {
-                  isFocused = hasFocus; // 焦点变化时更新状态
-                });
-              },
-              child: OutlinedButton(
-                autofocus: currentSourceIndex == index, // 自动聚焦当前选中的按钮
-                style: getButtonStyle(
-                  isSelected: currentSourceIndex == index,
-                  isFocused: isFocused,
-                  selectedColor: selectedColor,
-                  unselectedColor: unselectedColor,
-                ),
-                onPressed: currentSourceIndex == index
-                    ? null // 如果按钮是当前选中的源，禁用点击
-                    : () {
-                        Navigator.pop(context, index); // 返回所选按钮的索引
-                      },
-                child: Text(
-                  S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
-                  textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-                  style: TextStyle(
-                    fontSize: 16, // 字体大小
-                    color: Colors.white, // 文字颜色为白色
-                    fontWeight: currentSourceIndex == index
-                        ? FontWeight.bold // 选中按钮文字加粗
-                        : FontWeight.normal, // 未选中按钮文字为正常字体
-                  ),
-                ),
+      return FocusableItem(
+        focusNode: focusNode, // 使用外部传入的 FocusNode
+        child: Focus(
+          focusNode: focusNode,
+          onFocusChange: (hasFocus) {
+            // 焦点变化时更新 UI
+            if (hasFocus) {
+              (context as Element).markNeedsBuild();
+            }
+          },
+          child: OutlinedButton(
+            autofocus: isSelected, // 自动聚焦当前选中的按钮
+            style: getButtonStyle(
+              isSelected: isSelected,
+              isFocused: focusNode.hasFocus,
+              selectedColor: selectedColor,
+              unselectedColor: unselectedColor,
+            ),
+            onPressed: isSelected
+                ? null // 如果按钮是当前选中的源，禁用点击
+                : () {
+                    Navigator.pop(context, index); // 返回所选按钮的索引
+                  },
+            child: Text(
+              S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
+              textAlign: TextAlign.center, // 文字在按钮内部居中对齐
+              style: TextStyle(
+                fontSize: 16, // 字体大小
+                color: Colors.white, // 文字颜色为白色
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
               ),
             ),
-          );
-        },
+          ),
+        ),
       );
     }),
   );
