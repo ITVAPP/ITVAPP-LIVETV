@@ -597,7 +597,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
     if (currentIndex == firstFocusIndex) {
       if (widget.frameType == "child") {
         FocusScope.of(context).previousFocus();
-        action = "返回主页面";  
+        return; // 提前退出函数，避免后续调用 _requestFocus
       } else {
         nextIndex = lastFocusIndex;
         action = "循环到最后一个焦点";
