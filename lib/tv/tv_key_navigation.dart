@@ -430,7 +430,7 @@ void _manageDebugOverlay({String? message}) {
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            FocusScope.of(context).previousFocus(); // 返回主页面
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
@@ -595,8 +595,13 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
   } else {
     // 后退逻辑
     if (currentIndex == firstFocusIndex) {
-      nextIndex = lastFocusIndex; // 循环到最后一个焦点
-      action = "循环到最后一个焦点";
+      if (widget.frameType == "child") {
+        FocusScope.of(context).previousFocus();
+        action = "返回主页面";  
+      } else {
+        nextIndex = lastFocusIndex;
+        action = "循环到最后一个焦点";
+      }  
     } else {
       nextIndex = currentIndex - 1;
       action = "切换到前一个焦点";
