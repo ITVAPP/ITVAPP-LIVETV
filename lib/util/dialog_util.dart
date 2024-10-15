@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';  
 import 'package:flutter/services.dart'; 
 import 'package:itvapp_live_tv/util/log_util.dart'; 
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
@@ -21,14 +21,30 @@ class DialogUtil {
     bool isCopyButton = false,  // 新增参数：是否显示复制按钮
     Widget? child,  // 新增参数：自定义Widget（如按钮）
   }) {
-    // 优化部分：生成所需焦点节点，并在对话框关闭时进行释放
-    final List<FocusNode> _focusNodes = _generateFocusNodes(
-      content: content,
-      positiveButtonLabel: positiveButtonLabel,
-      negativeButtonLabel: negativeButtonLabel,
-      isCopyButton: isCopyButton,
-      child: child,
-    );
+    // 检查 content 是否为 "showlog"，如果是则显示日志
+    if (content == "showlog") {
+      List<Map<String, String>> logs = LogUtil.getLogs();
+      logs = logs.reversed.toList();  // 日志条目反转，确保最新日志在最前面
+      content = logs.map((log) {
+        String time = log['time']!;
+        String parsedMessage = LogUtil.parseLogMessage(log['message']!);
+        return '$time\n$parsedMessage';  // 每条日志的时间和内容分两行显示
+      }).join('\n\n');  // 在每条日志之间增加换行
+    }
+
+    // 定义焦点节点
+    final List<FocusNode> _focusNodes = [];
+    if (closeButtonLabel != null) _focusNodes.add(FocusNode());
+    if (positiveButtonLabel != null) _focusNodes.add(FocusNode());
+    if (negativeButtonLabel != null) _focusNodes.add(FocusNode());
+    if (isCopyButton) _focusNodes.add(FocusNode());
+    if (child != null) _focusNodes.add(FocusNode());
+
+    int focusIndex = 0; // 焦点节点计数器
+
+    // 定义默认选中和未选中的颜色
+    Color selectedColor = const Color(0xFFDFA02A);  // 选中时的颜色
+    Color unselectedColor = const Color(0xFFEB144C);  // 未选中时的颜色
 
     return showDialog<bool>(
       context: context,
@@ -58,85 +74,68 @@ class DialogUtil {
               ),
             ),
             child: TvKeyNavigation(
-              focusNodes: _focusNodes,
+              focusNodes: _focusNodes,  // 动态生成的焦点节点
+              initialIndex: 1,  // 初始焦点为关闭按钮
               isHorizontalGroup: true, // 启用横向分组
-              initialIndex: 1,
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
-                  // Group 0: 关闭按钮组
+                  // 将关闭按钮放入groupIndex = 0，并用 FocusableItem 包裹
                   Group(
                     groupIndex: 0,
-                    children: [
-                      FocusableItem(
-                        focusNode: _focusNodes[0],
-                        child: _buildDialogHeader(context, title: title),
-                      ),
-                    ],
+                    child: FocusableItem(
+                      focusNode: _focusNodes[focusIndex++],  // 第一个焦点节点为关闭按钮
+                      child: _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
+                    ),
                   ),
-                  if (content != null) Flexible(
-                    child: FocusableActionDetector(
-                      focusNode: _focusNodes[1],
-                      shortcuts: {
-                        LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
-                        LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
-                      },
-                      actions: {
-                        ScrollIntent: CallbackAction<ScrollIntent>(
-                          onInvoke: (intent) {
-                            if (intent.direction == AxisDirection.up && _focusNodes[1].hasFocus) {
-                              FocusScope.of(context).requestFocus(_focusNodes[0]);  // 上键切换到关闭按钮
-                            } else if (intent.direction == AxisDirection.down && _focusNodes[1].hasFocus) {
-                              FocusScope.of(context).requestFocus(_focusNodes[2]);  // 下键切换到底部按钮
-                            }
-                            return null;
-                          },
-                        ),
-                      },
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 25),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
-                            children: [
-                              if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
-                              const SizedBox(height: 10),
-                              if (child != null) 
-                                FocusableItem(
-                                  focusNode: _focusNodes.last,
-                                  child: Center(  // 将 child 居中
-                                    child: child,
+                  Flexible(
+                    child: SingleChildScrollView(  // 去除了 FocusableActionDetector 和 contentFocusNode
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
+                          children: [
+                            if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
+                            const SizedBox(height: 10),
+                            if (child != null)
+                              // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
+                              Group(
+                                groupIndex: 1,
+                                child: Center(
+                                  child: _wrapCustomWidgetWithFocus(
+                                    child,
+                                    _focusNodes,
+                                    ref focusIndex,
+                                    selectedColor: selectedColor,
+                                    unselectedColor: unselectedColor,
                                   ),
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Group 1: 底部按钮组
-                  Group(
-                    groupIndex: 1,
-                    children: [
-                      if (positiveButtonLabel != null || negativeButtonLabel != null)
-                        _buildActionButtons(
-                          context,
-                          positiveButtonLabel: positiveButtonLabel,
-                          onPositivePressed: onPositivePressed,
-                          positiveFocusNode: _focusNodes[2],
-                          negativeButtonLabel: negativeButtonLabel,
-                          onNegativePressed: onNegativePressed,
-                          negativeFocusNode: _focusNodes[3],
-                          closeButtonLabel: closeButtonLabel,
-                          onClosePressed: onClosePressed,
-                          closeActionFocusNode: _focusNodes[0],
-                          content: content,  // 传递内容用于复制
-                          isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                          copyFocusNode: _focusNodes[4],
-                        ),  // 动态按钮处理
-                    ],
-                  ),
+                  if (child == null)
+                    Group(
+                      groupIndex: 1,  // 将所有按钮放在同一组
+                      child: _buildActionButtonsWithFocus(
+                        context,
+                        positiveButtonLabel: positiveButtonLabel,
+                        onPositivePressed: onPositivePressed,
+                        negativeButtonLabel: negativeButtonLabel,
+                        onNegativePressed: onNegativePressed,
+                        closeButtonLabel: closeButtonLabel,
+                        onClosePressed: onClosePressed,
+                        content: content,  // 传递内容用于复制
+                        isCopyButton: isCopyButton,  // 控制是否显示复制按钮
+                        focusNodes: _focusNodes,  // 动态传递焦点节点列表
+                        focusIndex: ref focusIndex,  // 动态焦点编号
+                        selectedColor: selectedColor,
+                        unselectedColor: unselectedColor,
+                      ),
+                    ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -144,34 +143,11 @@ class DialogUtil {
           ),
         );
       },
-    ).whenComplete(() {
-      // 优化部分：确保在对话框关闭时释放所有FocusNode，避免内存泄漏
-      for (final node in _focusNodes) {
-        node.dispose();
-      }
-    });
-  }
-
-  // Helper方法：生成FocusNode列表
-  static List<FocusNode> _generateFocusNodes({
-    String? content,
-    String? positiveButtonLabel,
-    String? negativeButtonLabel,
-    bool isCopyButton = false,
-    Widget? child,
-  }) {
-    List<FocusNode> nodes = [];
-    nodes.add(FocusNode());  // Close button
-    if (content != null) nodes.add(FocusNode());
-    if (positiveButtonLabel != null) nodes.add(FocusNode());
-    if (negativeButtonLabel != null) nodes.add(FocusNode());
-    if (isCopyButton) nodes.add(FocusNode());
-    if (child != null) nodes.add(FocusNode());
-    return nodes;
+    );
   }
 
   // 封装的标题部分，包含关闭按钮
-  static Widget _buildDialogHeader(BuildContext context, {String? title}) {
+  static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
     return Stack(
       children: [
         Container(
@@ -185,12 +161,20 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: IconButton(
-            onPressed: () {
-              Navigator.of(context).pop();  // 关闭对话框
-            },
-            icon: const Icon(Icons.close),  // 使用默认关闭图标
-            iconSize: 26,  // 关闭按钮大小
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              iconTheme: IconThemeData(
+                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
+              ),
+            ),
+            child: IconButton(
+              focusNode: closeFocusNode,  // 关闭按钮的焦点节点
+              onPressed: () {
+                Navigator.of(context).pop();  // 关闭对话框
+              },
+              icon: const Icon(Icons.close),  // 使用默认关闭图标
+              iconSize: 26,  // 关闭按钮大小
+            ),
           ),
         ),
       ],
@@ -203,128 +187,142 @@ class DialogUtil {
       crossAxisAlignment: CrossAxisAlignment.start,  // 调整内容文本为默认左对齐
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextField(
-          controller: TextEditingController(text: content ?? ''),  // 显示内容，没有则显示为空
-          readOnly: true,  // 设置为只读
-          maxLines: null,  // 允许多行显示
+        Text(
+          content ?? '',  // 显示内容，没有则显示为空
           textAlign: TextAlign.start,  // 文本水平默认左对齐
-          decoration: const InputDecoration(
-            border: InputBorder.none,  // 去掉边框
-          ),
           style: const TextStyle(fontSize: 18),  // 设置文本样式
-          enableInteractiveSelection: true,  // 启用交互式选择功能，允许复制
         ),
       ],
     );
   }
 
-  // 动态生成按钮，并增加点击效果
-  static Widget _buildActionButtons(
+  // 动态生成焦点按钮并增加点击效果
+  static Widget _buildActionButtonsWithFocus(
     BuildContext context, {
     String? positiveButtonLabel,
     VoidCallback? onPositivePressed,
-    FocusNode? positiveFocusNode,
     String? negativeButtonLabel,
     VoidCallback? onNegativePressed,
-    FocusNode? negativeFocusNode,
     String? closeButtonLabel,  // 关闭按钮文本
     VoidCallback? onClosePressed,  // 关闭按钮点击事件
-    FocusNode? closeActionFocusNode,
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
-    FocusNode? copyFocusNode,
+    required List<FocusNode> focusNodes,  // 动态生成焦点节点
+    required int focusIndex,  // 当前焦点编号
+    required Color selectedColor,  // 选中时颜色
+    required Color unselectedColor,  // 未选中时颜色
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-          FocusableItem(
-            focusNode: negativeFocusNode!,
-            child: ElevatedButton(
-              style: _buttonStyle(negativeFocusNode, unselectedColor: Color(0xFFEB144C), selectedColor: Color(0xFFDFA02A)),
-              onPressed: () {
-                if (onNegativePressed != null) {
-                  onNegativePressed();
-                }
-              },
-              child: Text(negativeButtonLabel!),
-            ),
+          _buildButton(
+            focusNodes[focusIndex++],
+            negativeButtonLabel!,
+            onNegativePressed,
+            selectedColor,
+            unselectedColor,
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
-          FocusableItem(
-            focusNode: positiveFocusNode!,
-            child: ElevatedButton(
-              style: _buttonStyle(positiveFocusNode, unselectedColor: Color(0xFFEB144C), selectedColor: Color(0xFFDFA02A)),
-              onPressed: () {
-                if (onPositivePressed != null) {
-                  onPositivePressed();
-                }
-              },
-              child: Text(positiveButtonLabel!),
-            ),
+          _buildButton(
+            focusNodes[focusIndex++],
+            positiveButtonLabel!,
+            onPositivePressed,
+            selectedColor,
+            unselectedColor,
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-          FocusableItem(
-            focusNode: copyFocusNode!,
-            child: ElevatedButton(
-              style: _buttonStyle(copyFocusNode, unselectedColor: Color(0xFFEB144C), selectedColor: Color(0xFFDFA02A)),
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-                CustomSnackBar.showSnackBar(
-                  context,
-                  S.current.copyok,
-                  duration: Duration(seconds: 4),
-                );
-              },
-              child: Text(S.current.copy),
-            ),
+          _buildButton(
+            focusNodes[focusIndex++],
+            S.current.copy,
+            () {
+              Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+              CustomSnackBar.showSnackBar(
+                context,
+                S.current.copyok,
+                duration: Duration(seconds: 4),
+              );
+            },
+            selectedColor,
+            unselectedColor,
           ),
         if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
-          FocusableItem(
-            focusNode: closeActionFocusNode!,
-            child: ElevatedButton(
-              style: _buttonStyle(closeActionFocusNode, unselectedColor: Color(0xFFEB144C), selectedColor: Color(0xFFDFA02A)),
-              autofocus: true,
-              onPressed: () {
-                if (onClosePressed != null) {
-                  onClosePressed();  // 点击关闭按钮时执行的回调
-                } else {
-                  Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
-                }
-              },
-              child: Text(closeButtonLabel!),
-            ),
+          _buildButton(
+            focusNodes[focusIndex++],
+            closeButtonLabel!,
+            onClosePressed ?? () => Navigator.of(context).pop(),
+            selectedColor,
+            unselectedColor,
           ),
       ],
     );
   }
 
-  // 动态设置按钮样式，使用 unselectedColor 和 selectedColor 实现不同状态的背景颜色
-  static ButtonStyle _buttonStyle(FocusNode? focusNode, {required Color unselectedColor, required Color selectedColor}) {
-    return ElevatedButton.styleFrom(
-      backgroundColor: focusNode != null && focusNode.hasFocus
-          ? darkenColor(selectedColor)  // 聚焦时使用选中颜色并变暗
-          : unselectedColor,  // 未选中时使用未选中颜色
-      foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
-      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0), // 设置上下和左右内边距
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),  // 设置按钮圆角
+  // 抽象的按钮生成方法
+  static Widget _buildButton(
+    FocusNode focusNode,
+    String label,
+    VoidCallback? onPressed,
+    Color selectedColor,
+    Color unselectedColor,
+  ) {
+    return FocusableItem(
+      focusNode: focusNode,  // 根据索引分配焦点节点
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return Focus(
+            focusNode: focusNode,
+            onFocusChange: (hasFocus) {
+              setState(() {});  // 焦点状态变化时重绘按钮
+            },
+            child: ElevatedButton(
+              style: ButtonStyle(
+                backgroundColor: MaterialStateProperty.resolveWith((states) {
+                  if (states.contains(MaterialState.focused)) {
+                    return darkenColor(selectedColor);  // 聚焦时变暗
+                  } else if (states.contains(MaterialState.pressed) ||
+                      states.contains(MaterialState.hovered)) {
+                    return selectedColor;  // 选中时颜色
+                  }
+                  return unselectedColor;  // 未选中时颜色
+                }),
+              ),
+              onPressed: onPressed,
+              child: Text(label),
+            ),
+          );
+        },
       ),
-      textStyle: TextStyle(
-        fontSize: 18,  // 设置按钮文字大小
-        fontWeight: focusNode != null && focusNode.hasFocus ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
-      ),
-      alignment: Alignment.center,  // 文字在按钮内部居中对齐
     );
   }
 
-  // 用于将颜色变暗的函数
-  static Color darkenColor(Color color, [double amount = 0.1]) {
-    final hsl = HSLColor.fromColor(color);
-    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    return darkened.toColor();
+  // 包裹传入的自定义Widget，确保按钮有焦点节点
+  static Widget _wrapCustomWidgetWithFocus(
+    Widget child,
+    List<FocusNode> focusNodes,
+    ref int focusIndex, {
+    required Color selectedColor,
+    required Color unselectedColor,
+  }) {
+    FocusNode buttonFocusNode = FocusNode();
+    focusNodes.add(buttonFocusNode);  // 动态添加焦点节点
+    focusIndex++;  // 动态递增焦点编号
+
+    // 如果传入的是可点击的按钮类型，包裹成 FocusableItem
+    if (child is ElevatedButton || child is TextButton || child is IconButton) {
+      return _buildButton(
+        buttonFocusNode,
+        '',  // 如果传入自定义按钮，不需要 label
+        null,  // 不需要操作回调
+        selectedColor,
+        unselectedColor,
+      );
+    } else {
+      // 非按钮类型的 child 不需要包裹
+      return child;
+    }
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
@@ -332,5 +330,12 @@ class DialogUtil {
     return focusNode != null && focusNode.hasFocus
         ? const Color(0xFFEB144C)  // 焦点状态下的颜色
         : Colors.white;  // 默认颜色为白色
+  }
+
+  // 用于将颜色变暗的函数
+  static Color darkenColor(Color color, [double amount = 0.1]) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+    return darkened.toColor();
   }
 }
