@@ -7,6 +7,13 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
+/// 用于将颜色变暗的函数
+Color darkenColor(Color color, [double amount = 0.1]) {
+  final hsl = HSLColor.fromColor(color);
+  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return darkened.toColor();
+}
+
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
   @override
@@ -142,7 +149,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               },
                               activeColor: Colors.white, // 滑块的颜色
                               activeTrackColor: _focusNodes[0].hasFocus
-                                  ? selectedColor.withOpacity(0.1) // 焦点时透明版本颜色
+                                  ? darkenColor(selectedColor) // 聚焦时颜色变暗
                                   : selectedColor, // 启动时背景颜色
                               inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                               inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
@@ -270,10 +277,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                       style: ElevatedButton.styleFrom(
                                         shape: _buttonShape, // 统一圆角样式
                                           backgroundColor: _focusNodes[6].hasFocus
-                                              ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
-                                              : (_selectedLevel == _selectedLevel
-                                                  ? selectedColor // 选中时使用完全不透明的颜色
-                                                  : unselectedColor), // 未选中时颜色
+                                              ? darkenColor(unselectedColor) // 聚焦时颜色变暗
+                                              : unselectedColor, // 未选中时颜色
                                           side: BorderSide.none, // 不需要边框
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3), // 设置按钮内边距
                                       ),
@@ -325,7 +330,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
             padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
             shape: _buttonShape, // 统一圆角样式
             backgroundColor: _focusNodes[focusIndex].hasFocus
-                ? selectedColor.withOpacity(0.3) // 焦点时使用选中颜色的透明版本
+                ? darkenColor(_selectedLevel == level ? selectedColor : unselectedColor) // 聚焦时颜色变暗
                 : (_selectedLevel == level
                     ? selectedColor // 选中时使用完全不透明的颜色
                     : unselectedColor), // 未选中时颜色
