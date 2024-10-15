@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 // 用于将颜色变暗的函数
-Color darkenColor(Color color, [double amount = 0.1]) {
+Color darkenColor(Color color, [double amount = 0.2]) {
   final hsl = HSLColor.fromColor(color);
   final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
   return darkened.toColor();
