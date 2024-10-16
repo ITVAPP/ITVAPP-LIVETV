@@ -92,34 +92,25 @@ Widget buildSourceButtons(
 
       return FocusableItem(
         focusNode: focusNode, // 使用外部传入的 FocusNode
-        child: Focus(
-          focusNode: focusNode,
-          onFocusChange: (hasFocus) {
-            // 焦点变化时更新 UI
-            if (hasFocus) {
-              (context as Element).markNeedsBuild();
-            }
-          },
-          child: OutlinedButton(
-            style: getButtonStyle(
-              isSelected: isSelected,
-              isFocused: focusNode.hasFocus,
-              selectedColor: selectedColor,
-              unselectedColor: unselectedColor,
-            ),
-            onPressed: isSelected
-                ? null // 如果按钮是当前选中的源，禁用点击
-                : () {
-                    Navigator.pop(context, index); // 返回所选按钮的索引
-                  },
-            child: Text(
-              S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
-              textAlign: TextAlign.center, // 文字在按钮内部居中对齐
-              style: TextStyle(
-                fontSize: 16, // 字体大小
-                color: Colors.white, // 文字颜色为白色
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
-              ),
+        child: OutlinedButton(
+          style: getButtonStyle(
+            isSelected: isSelected,
+            isFocused: focusNode.hasFocus,
+            selectedColor: selectedColor,
+            unselectedColor: unselectedColor,
+          ),
+          onPressed: isSelected
+              ? null // 如果按钮是当前选中的源，禁用点击
+              : () {
+                  Navigator.pop(context, index); // 返回所选按钮的索引
+                },
+          child: Text(
+            S.current.lineIndex(index + 1), // 显示按钮文字，使用多语言支持
+            textAlign: TextAlign.center, // 文字在按钮内部居中对齐
+            style: TextStyle(
+              fontSize: 16, // 字体大小
+              color: Colors.white, // 文字颜色为白色
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
             ),
           ),
         ),
