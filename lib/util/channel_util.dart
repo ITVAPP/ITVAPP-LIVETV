@@ -19,7 +19,7 @@ Future<int?> changeChannelSources(
   }
 
   // 判断是否是 TV 模式
-  bool isTV = context.watch<ThemeProvider>().isTV;
+  bool isTV = context.read<ThemeProvider>().isTV;
 
   // 创建一次性的 FocusNode 列表，根据 sources 的长度动态生成
   final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
@@ -98,7 +98,7 @@ Widget buildSourceButtons(
   List<String> sources, 
   int currentSourceIndex, 
   bool isTV,
-  List<FocusNode> focusNodes, // 传递预先创建的焦点节点
+  List<FocusNode> focusNodes, // 传递预先创建的 FocusNode 列表
 ) {
   Color selectedColor = Color(0xFFDFA02A); // 选中时的背景色
   Color unselectedColor = Color(0xFFEB144C); // 未选中时的背景色
@@ -112,19 +112,46 @@ Widget buildSourceButtons(
 
       return FocusableItem(
         focusNode: focusNode, // 使用外部传入的 FocusNode
-        child: Focus(
+        child: SourceButton(
+          index: index,
+          isSelected: isSelected,
           focusNode: focusNode,
-          onFocusChange: (hasFocus) {
-            // 焦点变化时更新 UI
-            if (hasFocus) {
-              (context as Element).markNeedsBuild();
-            }
-          },
-          child: OutlinedButton(
+          selectedColor: selectedColor,
+          unselectedColor: unselectedColor,
+        ),
+      );
+    }),
+  );
+}
+
+class SourceButton extends StatelessWidget {
+  final int index;
+  final bool isSelected;
+  final FocusNode focusNode;
+  final Color selectedColor;
+  final Color unselectedColor;
+
+  const SourceButton({
+    Key? key,
+    required this.index,
+    required this.isSelected,
+    required this.focusNode,
+    required this.selectedColor,
+    required this.unselectedColor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: focusNode,
+      child: Builder(
+        builder: (BuildContext context) {
+          final isFocused = Focus.of(context).hasFocus;
+          return OutlinedButton(
             autofocus: isSelected, // 自动聚焦当前选中的按钮
             style: getButtonStyle(
               isSelected: isSelected,
-              isFocused: focusNode.hasFocus,
+              isFocused: isFocused,
               selectedColor: selectedColor,
               unselectedColor: unselectedColor,
             ),
@@ -142,11 +169,11 @@ Widget buildSourceButtons(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
               ),
             ),
-          ),
-        ),
-      );
-    }),
-  );
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// 获取按钮样式
