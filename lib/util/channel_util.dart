@@ -125,7 +125,6 @@ Widget buildSourceButtons(
             }
           },
           child: OutlinedButton(
-            autofocus: isSelected, // 自动聚焦当前选中的按钮
             style: getButtonStyle(
               isSelected: isSelected,
               isFocused: focusNode.hasFocus,
