@@ -99,15 +99,13 @@ class DialogUtil {
                             if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                             const SizedBox(height: 10),
                             if (child != null)
-                              // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
                               Group(
-                                groupIndex: 1,
+                                groupIndex: 1,  // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
                                 child: Center(
-                                  child: _wrapCustomWidgetWithFocus(
-                                    child,
-                                    _focusNodes,
-                                    selectedColor: selectedColor,
-                                    unselectedColor: unselectedColor,
+                                  child: FocusableItem(
+                                    focusNode: _focusNodes[1],  // 确保焦点传递给第一个可用的 child
+                                    autofocus: true,  // 自动获取焦点
+                                    child: child,  // 传入自定义的 child
                                   ),
                                 ),
                               ),
@@ -120,19 +118,51 @@ class DialogUtil {
                   if (child == null)
                     Group(
                       groupIndex: 1,  // 将所有按钮放在同一组
-                      child: _buildActionButtonsWithFocus(
-                        context,
-                        positiveButtonLabel: positiveButtonLabel,
-                        onPositivePressed: onPositivePressed,
-                        negativeButtonLabel: negativeButtonLabel,
-                        onNegativePressed: onNegativePressed,
-                        closeButtonLabel: closeButtonLabel,
-                        onClosePressed: onClosePressed,
-                        content: content,  // 传递内容用于复制
-                        isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                        focusNodes: _focusNodes,  // 动态传递焦点节点列表
-                        selectedColor: selectedColor,
-                        unselectedColor: unselectedColor,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
+                        children: [
+                          if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
+                            _buildButton(
+                              focusNodes[focusIndex++],  // 动态获取焦点
+                              negativeButtonLabel!,
+                              onNegativePressed,
+                              selectedColor,
+                              unselectedColor,
+                            ),
+                          if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
+                            const SizedBox(width: 20),  // 添加按钮之间的间距
+                          if (positiveButtonLabel != null)
+                            _buildButton(
+                              focusNodes[focusIndex++],  // 动态获取焦点
+                              positiveButtonLabel!,
+                              onPositivePressed,
+                              selectedColor,
+                              unselectedColor,
+                            ),
+                          if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
+                            _buildButton(
+                              focusNodes[focusIndex++],  // 动态获取焦点
+                              S.current.copy,
+                              () {
+                                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+                                CustomSnackBar.showSnackBar(
+                                  context,
+                                  S.current.copyok,
+                                  duration: Duration(seconds: 4),
+                                );
+                              },
+                              selectedColor,
+                              unselectedColor,
+                            ),
+                          if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
+                            _buildButton(
+                              focusNodes[focusIndex++],  // 动态获取焦点
+                              closeButtonLabel!,
+                              onClosePressed ?? () => Navigator.of(context).pop(),
+                              selectedColor,
+                              unselectedColor,
+                            ),
+                        ],
                       ),
                     ),
                   const SizedBox(height: 20),
@@ -194,70 +224,6 @@ class DialogUtil {
     );
   }
 
-  // 动态生成焦点按钮并增加点击效果
-  static Widget _buildActionButtonsWithFocus(
-    BuildContext context, {
-    String? positiveButtonLabel,
-    VoidCallback? onPositivePressed,
-    String? negativeButtonLabel,
-    VoidCallback? onNegativePressed,
-    String? closeButtonLabel,  // 关闭按钮文本
-    VoidCallback? onClosePressed,  // 关闭按钮点击事件
-    String? content,  // 传递的内容，用于复制
-    bool isCopyButton = false,  // 控制是否显示复制按钮
-    required List<FocusNode> focusNodes,  // 动态生成焦点节点
-    required Color selectedColor,  // 选中时颜色
-    required Color unselectedColor,  // 未选中时颜色
-  }) {
-    int currentFocusIndex = 1; // 动态索引初始化，从关闭按钮的下一个开始
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
-      children: [
-        if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-          _buildButton(
-            focusNodes[currentFocusIndex++],  // 动态获取焦点
-            negativeButtonLabel!,
-            onNegativePressed,
-            selectedColor,
-            unselectedColor,
-          ),
-        if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
-          const SizedBox(width: 20),  // 添加按钮之间的间距
-        if (positiveButtonLabel != null)
-          _buildButton(
-            focusNodes[currentFocusIndex++],  // 动态获取焦点
-            positiveButtonLabel!,
-            onPositivePressed,
-            selectedColor,
-            unselectedColor,
-          ),
-        if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-          _buildButton(
-            focusNodes[currentFocusIndex++],  // 动态获取焦点
-            S.current.copy,
-            () {
-              Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-              CustomSnackBar.showSnackBar(
-                context,
-                S.current.copyok,
-                duration: Duration(seconds: 4),
-              );
-            },
-            selectedColor,
-            unselectedColor,
-          ),
-        if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
-          _buildButton(
-            focusNodes[currentFocusIndex++],  // 动态获取焦点
-            closeButtonLabel!,
-            onClosePressed ?? () => Navigator.of(context).pop(),
-            selectedColor,
-            unselectedColor,
-          ),
-      ],
-    );
-  }
-
   // 抽象的按钮生成方法
   static Widget _buildButton(
     FocusNode focusNode,
@@ -283,23 +249,6 @@ class DialogUtil {
         onPressed: onPressed,
         child: Text(label),
       ),
-    );
-  }
-
-  // 包裹传入的自定义Widget，确保按钮有焦点节点
-  static Widget _wrapCustomWidgetWithFocus(
-    Widget child,
-    List<FocusNode> focusNodes, {
-    required Color selectedColor,
-    required Color unselectedColor,
-  }) {
-    FocusNode buttonFocusNode = FocusNode();
-    focusNodes.add(buttonFocusNode);  // 动态添加焦点节点
-
-    // 将传入的自定义 Widget 包裹成 FocusableItem，无论类型
-    return FocusableItem(
-      focusNode: buttonFocusNode,
-      child: child,
     );
   }
 
