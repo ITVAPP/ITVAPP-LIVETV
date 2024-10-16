@@ -21,6 +21,10 @@ Future<int?> changeChannelSources(
   // 创建一次性的 FocusNode 列表，根据 sources 的长度动态生成
   final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
 
+  // 定义选中与未选中的颜色变量
+  final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
+  final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
+
   try {
     // 计算屏幕的方向、宽度和底部间距
     var orientation = MediaQuery.of(context).orientation;
@@ -51,7 +55,7 @@ Future<int?> changeChannelSources(
                   maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
                   maxHeight: MediaQuery.of(context).size.height * 0.7, // 限制弹窗最大高度为屏幕的70%
                 ),
-                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes),
+                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes, selectedColor, unselectedColor), // 传递颜色
               ),
             ),
           ),
@@ -79,10 +83,9 @@ Widget buildSourceButtons(
   List<String> sources, 
   int currentSourceIndex,
   List<FocusNode> focusNodes, // 传递预先创建的焦点节点
+  Color selectedColor, // 接收选中时的颜色
+  Color unselectedColor, // 接收未选中时的颜色
 ) {
-  Color selectedColor = Color(0xFFDFA02A); // 选中时的背景色
-  Color unselectedColor = Color(0xFFEB144C); // 未选中时的背景色
-
   return Wrap(
     spacing: 8, // 按钮之间的水平间距
     runSpacing: 8, // 按钮之间的垂直间距
@@ -92,6 +95,12 @@ Widget buildSourceButtons(
 
       return FocusableItem(
         focusNode: focusNode, // 使用外部传入的 FocusNode
+        onFocusChange: (hasFocus) {
+          if (hasFocus) {
+            // 当焦点变化时调用 setState 更新 UI
+            (context as Element).markNeedsBuild();
+          }
+        },
         child: OutlinedButton(
           style: getButtonStyle(
             isSelected: isSelected,
