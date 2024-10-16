@@ -597,7 +597,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
     // 后退逻辑
     if (currentIndex == firstFocusIndex) {
       if (widget.frameType == "child") {
-        FocusScope.of(context).requestFocus(_focusNodes[0]);
+        FocusScope.of(context).requestFocus();
         return; // 提前退出函数，避免后续调用 _requestFocus
       } else {
         nextIndex = lastFocusIndex;
