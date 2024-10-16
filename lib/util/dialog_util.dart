@@ -122,7 +122,7 @@ class DialogUtil {
                         children: [
                           if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
                             _buildButton(
-                              focusNodes[focusIndex++],  // 动态获取焦点
+                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
                               negativeButtonLabel!,
                               onNegativePressed,
                               selectedColor,
@@ -132,7 +132,7 @@ class DialogUtil {
                             const SizedBox(width: 20),  // 添加按钮之间的间距
                           if (positiveButtonLabel != null)
                             _buildButton(
-                              focusNodes[focusIndex++],  // 动态获取焦点
+                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
                               positiveButtonLabel!,
                               onPositivePressed,
                               selectedColor,
@@ -140,10 +140,10 @@ class DialogUtil {
                             ),
                           if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
                             _buildButton(
-                              focusNodes[focusIndex++],  // 动态获取焦点
+                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
                               S.current.copy,
                               () {
-                                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+                                Clipboard.setData(ClipboardData(text: content ?? ''));  // 修复: 确保 content 非空
                                 CustomSnackBar.showSnackBar(
                                   context,
                                   S.current.copyok,
@@ -155,7 +155,7 @@ class DialogUtil {
                             ),
                           if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
                             _buildButton(
-                              focusNodes[focusIndex++],  // 动态获取焦点
+                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
                               closeButtonLabel!,
                               onClosePressed ?? () => Navigator.of(context).pop(),
                               selectedColor,
