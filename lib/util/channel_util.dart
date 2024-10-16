@@ -19,7 +19,7 @@ Future<int?> changeChannelSources(
   }
 
   // 判断是否是 TV 模式
-  bool isTV = context.read<ThemeProvider>().isTV;
+  bool isTV = context.watch<ThemeProvider>().isTV;
 
   // 创建一次性的 FocusNode 列表，根据 sources 的长度动态生成
   final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
@@ -36,7 +36,7 @@ Future<int?> changeChannelSources(
       isScrollControlled: true, // 允许高度根据内容调整
       backgroundColor: Colors.transparent, // 背景透明，便于自定义样式
       builder: (BuildContext context) {
-        return TvKeyNavigation( // 包裹整个弹窗，管理所有焦点和按键事件
+        return TvKeyNavigation( // 包裹整个弹窗，确保焦点管理覆盖所有内容
           focusNodes: focusNodes,
           initialIndex: currentSourceIndex,
           child: Padding(
@@ -102,7 +102,7 @@ Widget buildSourceButtons(
   List<String> sources, 
   int currentSourceIndex, 
   bool isTV,
-  List<FocusNode> focusNodes, // 传递预先创建的 FocusNode 列表
+  List<FocusNode> focusNodes, // 传递预先创建的焦点节点
 ) {
   Color selectedColor = Color(0xFFDFA02A); // 选中时的背景色
   Color unselectedColor = Color(0xFFEB144C); // 未选中时的背景色
@@ -116,46 +116,19 @@ Widget buildSourceButtons(
 
       return FocusableItem(
         focusNode: focusNode, // 使用外部传入的 FocusNode
-        child: SourceButton(
-          index: index,
-          isSelected: isSelected,
+        child: Focus(
           focusNode: focusNode,
-          selectedColor: selectedColor,
-          unselectedColor: unselectedColor,
-        ),
-      );
-    }),
-  );
-}
-
-class SourceButton extends StatelessWidget {
-  final int index;
-  final bool isSelected;
-  final FocusNode focusNode;
-  final Color selectedColor;
-  final Color unselectedColor;
-
-  const SourceButton({
-    Key? key,
-    required this.index,
-    required this.isSelected,
-    required this.focusNode,
-    required this.selectedColor,
-    required this.unselectedColor,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      focusNode: focusNode,
-      child: Builder(
-        builder: (BuildContext context) {
-          final isFocused = Focus.of(context).hasFocus;
-          return OutlinedButton(
+          onFocusChange: (hasFocus) {
+            // 焦点变化时更新 UI
+            if (hasFocus) {
+              (context as Element).markNeedsBuild();
+            }
+          },
+          child: OutlinedButton(
             autofocus: isSelected, // 自动聚焦当前选中的按钮
             style: getButtonStyle(
               isSelected: isSelected,
-              isFocused: isFocused,
+              isFocused: focusNode.hasFocus,
               selectedColor: selectedColor,
               unselectedColor: unselectedColor,
             ),
@@ -173,11 +146,11 @@ class SourceButton extends StatelessWidget {
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中按钮文字加粗
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
+          ),
+        ),
+      );
+    }),
+  );
 }
 
 /// 获取按钮样式
