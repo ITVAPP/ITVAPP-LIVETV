@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';  
-import 'package:flutter/services.dart'; 
-import 'package:itvapp_live_tv/util/log_util.dart'; 
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
@@ -88,11 +88,7 @@ class DialogUtil {
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
-                  // 关闭按钮部分分组
-                  Group(
-                    groupIndex: 0,  // 关闭按钮放入第0组
-                    child: _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
-                  ),
+                  _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
                   Flexible(
                     child: SingleChildScrollView(  // 去除了 FocusableActionDetector 和 contentFocusNode
                       child: Padding(
@@ -106,9 +102,13 @@ class DialogUtil {
                               // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
                               Group(
                                 groupIndex: 1,
-                                child: FocusableItem(
-                                  focusNode: createFocusNode(),  // 为 child 生成新焦点节点
-                                  child: child,  // 直接包裹 child
+                                child: Center(
+                                  child: _wrapCustomWidgetWithFocus(
+                                    child,
+                                    _focusNodes,
+                                    selectedColor: selectedColor,
+                                    unselectedColor: unselectedColor,
+                                  ),
                                 ),
                               ),
                           ],
@@ -160,8 +160,8 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Group(
-            groupIndex: 0,  // 关闭按钮放在第0组
+          child: Group(  // 分组关闭按钮
+            groupIndex: 0,
             child: FocusableItem(  // 仅包裹关闭按钮
               focusNode: closeFocusNode!,  // 使用传入的焦点节点
               child: IconButton(
