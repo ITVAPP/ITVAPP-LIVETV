@@ -18,8 +18,17 @@ Future<int?> changeChannelSources(
     return null;
   }
 
-  // 创建一次性的 FocusNode 列表，根据 sources 的长度动态生成
-  final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
+  // 创建一次性的 FocusNode 列表，并为每个 FocusNode 添加监听器
+  final List<FocusNode> focusNodes = List.generate(sources.length, (index) {
+    FocusNode node = FocusNode();
+    // 添加监听器，监听焦点变化并调用 setState 更新 UI
+    node.addListener(() {
+      if (node.hasFocus) {
+        (context as Element).markNeedsBuild(); // 使用 setState 机制
+      }
+    });
+    return node;
+  });
 
   // 定义选中与未选中的颜色变量
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
@@ -48,7 +57,7 @@ Future<int?> changeChannelSources(
               padding: EdgeInsets.all(10), // 内边距设置
               decoration: BoxDecoration(
                 color: Colors.black54, // 设置弹窗背景颜色
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)), // 仅上边缘圆角
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)), // 仅上边缘圆角
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -95,12 +104,6 @@ Widget buildSourceButtons(
 
       return FocusableItem(
         focusNode: focusNode, // 使用外部传入的 FocusNode
-        onFocusChange: (hasFocus) {
-          if (hasFocus) {
-            // 当焦点变化时调用 setState 更新 UI
-            (context as Element).markNeedsBuild();
-          }
-        },
         child: OutlinedButton(
           style: getButtonStyle(
             isSelected: isSelected,
