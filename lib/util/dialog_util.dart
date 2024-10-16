@@ -167,19 +167,15 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              iconTheme: IconThemeData(
-                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
-              ),
-            ),
+          child: FocusableItem(  // 将 IconButton 包裹在 FocusableItem 中
+            focusNode: closeFocusNode!,  // 使用传入的焦点节点
             child: IconButton(
-              focusNode: closeFocusNode,  // 关闭按钮的焦点节点
               onPressed: () {
                 Navigator.of(context).pop();  // 关闭对话框
               },
               icon: const Icon(Icons.close),  // 使用默认关闭图标
               iconSize: 26,  // 关闭按钮大小
+              color: _closeIconColor(closeFocusNode),  // 动态设置关闭按钮颜色
             ),
           ),
         ),
@@ -276,30 +272,20 @@ class DialogUtil {
   ) {
     return FocusableItem(
       focusNode: focusNode,  // 根据索引分配焦点节点
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          return Focus(
-            focusNode: focusNode,
-            onFocusChange: (hasFocus) {
-              setState(() {});  // 焦点状态变化时重绘按钮
-            },
-            child: ElevatedButton(
-              style: ButtonStyle(
-                backgroundColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.focused)) {
-                    return darkenColor(selectedColor);  // 聚焦时变暗
-                  } else if (states.contains(MaterialState.pressed) ||
-                      states.contains(MaterialState.hovered)) {
-                    return selectedColor;  // 选中时颜色
-                  }
-                  return unselectedColor;  // 未选中时颜色
-                }),
-              ),
-              onPressed: onPressed,
-              child: Text(label),
-            ),
-          );
-        },
+      child: ElevatedButton(
+        style: ButtonStyle(
+          backgroundColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.focused)) {
+              return darkenColor(selectedColor);  // 聚焦时变暗
+            } else if (states.contains(MaterialState.pressed) ||
+                states.contains(MaterialState.hovered)) {
+              return selectedColor;  // 选中时颜色
+            }
+            return unselectedColor;  // 未选中时颜色
+          }),
+        ),
+        onPressed: onPressed,
+        child: Text(label),
       ),
     );
   }
@@ -314,19 +300,11 @@ class DialogUtil {
     FocusNode buttonFocusNode = FocusNode();
     focusNodes.add(buttonFocusNode);  // 动态添加焦点节点
 
-    // 如果传入的是可点击的按钮类型，包裹成 FocusableItem
-    if (child is ElevatedButton || child is TextButton || child is IconButton) {
-      return _buildButton(
-        buttonFocusNode,
-        '',  // 如果传入自定义按钮，不需要 label
-        null,  // 不需要操作回调
-        selectedColor,
-        unselectedColor,
-      );
-    } else {
-      // 非按钮类型的 child 不需要包裹
-      return child;
-    }
+    // 将传入的自定义 Widget 包裹成 FocusableItem，无论类型
+    return FocusableItem(
+      focusNode: buttonFocusNode,
+      child: child,
+    );
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
