@@ -83,7 +83,7 @@ class DialogUtil {
             ),
             child: TvKeyNavigation(
               focusNodes: _focusNodes,  // 动态生成的焦点节点
-              initialIndex: 1,  // 初始焦点为关闭按钮
+              initialIndex: 1,  // 初始焦点
               isHorizontalGroup: true, // 启用横向分组
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
@@ -104,7 +104,6 @@ class DialogUtil {
                                 child: Center(
                                   child: FocusableItem(
                                     focusNode: _focusNodes[1],  // 确保焦点传递给第一个可用的 child
-                                    autofocus: true,  // 自动获取焦点
                                     child: child,  // 传入自定义的 child
                                   ),
                                 ),
