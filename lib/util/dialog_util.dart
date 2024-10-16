@@ -88,13 +88,10 @@ class DialogUtil {
               child: Column(
                 mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                 children: [
-                  // 将关闭按钮放入groupIndex = 0，并用 FocusableItem 包裹
+                  // 关闭按钮部分分组
                   Group(
-                    groupIndex: 0,
-                    child: FocusableItem(
-                      focusNode: _focusNodes[0],  // 第一个焦点节点为关闭按钮
-                      child: _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
-                    ),
+                    groupIndex: 0,  // 关闭按钮放入第0组
+                    child: _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
                   ),
                   Flexible(
                     child: SingleChildScrollView(  // 去除了 FocusableActionDetector 和 contentFocusNode
@@ -109,13 +106,9 @@ class DialogUtil {
                               // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
                               Group(
                                 groupIndex: 1,
-                                child: Center(
-                                  child: _wrapCustomWidgetWithFocus(
-                                    child,
-                                    _focusNodes,
-                                    selectedColor: selectedColor,
-                                    unselectedColor: unselectedColor,
-                                  ),
+                                child: FocusableItem(
+                                  focusNode: createFocusNode(),  // 为 child 生成新焦点节点
+                                  child: child,  // 直接包裹 child
                                 ),
                               ),
                           ],
@@ -167,15 +160,18 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: FocusableItem(  // 将 IconButton 包裹在 FocusableItem 中
-            focusNode: closeFocusNode!,  // 使用传入的焦点节点
-            child: IconButton(
-              onPressed: () {
-                Navigator.of(context).pop();  // 关闭对话框
-              },
-              icon: const Icon(Icons.close),  // 使用默认关闭图标
-              iconSize: 26,  // 关闭按钮大小
-              color: _closeIconColor(closeFocusNode),  // 动态设置关闭按钮颜色
+          child: Group(
+            groupIndex: 0,  // 关闭按钮放在第0组
+            child: FocusableItem(  // 仅包裹关闭按钮
+              focusNode: closeFocusNode!,  // 使用传入的焦点节点
+              child: IconButton(
+                onPressed: () {
+                  Navigator.of(context).pop();  // 关闭对话框
+                },
+                icon: const Icon(Icons.close),  // 使用默认关闭图标
+                iconSize: 26,  // 关闭按钮大小
+                color: _closeIconColor(closeFocusNode),  // 动态设置关闭按钮颜色
+              ),
             ),
           ),
         ),
