@@ -36,22 +36,26 @@ Future<int?> changeChannelSources(
       isScrollControlled: true, // 允许高度根据内容调整
       backgroundColor: Colors.transparent, // 背景透明，便于自定义样式
       builder: (BuildContext context) {
-        return Padding(
-          // 设置弹窗和屏幕底部的距离
-          padding: EdgeInsets.only(bottom: bottomOffset),
-          child: Container(
-            width: MediaQuery.of(context).size.width * widthFactor, // 根据屏幕方向设置宽度
-            padding: EdgeInsets.all(10), // 内边距设置
-            decoration: BoxDecoration(
-              color: Colors.black54, // 设置弹窗背景颜色
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)), // 仅上边缘圆角
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
-                maxHeight: MediaQuery.of(context).size.height * 0.7, // 限制弹窗最大高度为屏幕的70%
+        return TvKeyNavigation( // 包裹整个弹窗，管理所有焦点和按键事件
+          focusNodes: focusNodes,
+          initialIndex: currentSourceIndex,
+          child: Padding(
+            // 设置弹窗和屏幕底部的距离
+            padding: EdgeInsets.only(bottom: bottomOffset),
+            child: Container(
+              width: MediaQuery.of(context).size.width * widthFactor, // 根据屏幕方向设置宽度
+              padding: EdgeInsets.all(10), // 内边距设置
+              decoration: BoxDecoration(
+                color: Colors.black54, // 设置弹窗背景颜色
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)), // 仅上边缘圆角
               ),
-              child: buildSourceContent(context, sources, currentSourceIndex, isTV, focusNodes),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * widthFactor, // 限制弹窗最大宽度
+                  maxHeight: MediaQuery.of(context).size.height * 0.7, // 限制弹窗最大高度为屏幕的70%
+                ),
+                child: buildSourceContent(context, sources, currentSourceIndex, isTV, focusNodes),
+              ),
             ),
           ),
         );
