@@ -73,7 +73,6 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
           foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
           shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 阴影颜色与按钮背景匹配
         ),
-        autofocus: true, // 自动获取焦点
         onFocusChange: (bool isFocus) {
           setState(() {
             _isFocusDownload = isFocus; // 更新按钮焦点状态
