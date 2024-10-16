@@ -24,7 +24,8 @@ Future<int?> changeChannelSources(
     // 添加监听器，监听焦点变化并调用 setState 更新 UI
     node.addListener(() {
       if (node.hasFocus) {
-        (context as Element).markNeedsBuild(); // 使用 setState 机制
+        // 使用 setState 来确保 UI 正确更新
+        (context as StatefulElement).setState(() {});
       }
     });
     return node;
