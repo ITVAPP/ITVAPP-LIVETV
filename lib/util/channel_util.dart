@@ -6,22 +6,20 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
-class ChangeChannelSourcesWidget extends StatefulWidget {
+class ChangeChannelSources extends StatefulWidget {
   final List<String>? sources;
   final int currentSourceIndex;
 
-  ChangeChannelSourcesWidget({
+  ChangeChannelSources({
     required this.sources,
     required this.currentSourceIndex,
   });
 
   @override
-  _ChangeChannelSourcesWidgetState createState() =>
-      _ChangeChannelSourcesWidgetState();
+  _ChangeChannelSourcesState createState() => _ChangeChannelSourcesState();
 }
 
-class _ChangeChannelSourcesWidgetState
-    extends State<ChangeChannelSourcesWidget> {
+class _ChangeChannelSourcesState extends State<ChangeChannelSources> {
   late List<FocusNode> focusNodes;
 
   @override
