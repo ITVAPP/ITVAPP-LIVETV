@@ -10,6 +10,26 @@ class DialogUtil {
   static final List<FocusNode> _focusNodes = [];
   static int focusIndex = 0;
 
+  // 颜色定义
+  static const Color selectedColor = Color(0xFFDFA02A);
+  static const Color unselectedColor = Color(0xFFEB144C);
+
+  // 用于将颜色变暗的函数
+  static Color darkenColor(Color color, [double amount = 0.1]) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+    return darkened.toColor();
+  }
+
+  // 在 initState 中为每个 FocusNode 添加监听器
+  static void initState() {
+    for (var node in _focusNodes) {
+      node.addListener(() {
+        setState(() {});  // 监听焦点变化，调用 setState 触发重绘
+      });
+    }
+  }
+
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
   static Future<bool?> showCustomDialog(
     BuildContext context, {
@@ -98,7 +118,10 @@ class DialogUtil {
                             if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                             const SizedBox(height: 10),
                             if (child != null) 
-                              _wrapWithFocus(context, child, _focusNodes[1]),  // 判断并包裹自定义按钮
+                              Group(
+                                groupIndex: 1,
+                                child: child,
+                              ),
                           ],
                         ),
                       ),
@@ -287,29 +310,17 @@ class DialogUtil {
 
   // 获取按钮的背景颜色，根据焦点状态进行切换
   static Color _getButtonColor(FocusNode? focusNode) {
-    return focusNode != null && focusNode.hasFocus
-        ? const Color(0xFFEB144C)  // 焦点状态下的颜色
-        : const Color(0xFFDFA02A);  // 默认未选中时的颜色
+    if (focusNode != null && focusNode.hasFocus) {
+      return darkenColor(selectedColor);  // 焦点时变暗处理
+    } else {
+      return unselectedColor;  // 未选中时的颜色
+    }
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
   static Color _closeIconColor(FocusNode? focusNode) {
     return focusNode != null && focusNode.hasFocus
-        ? const Color(0xFFEB144C)  // 焦点状态下的颜色
+        ? darkenColor(selectedColor)  // 焦点状态下使用变暗的 selectedColor
         : Colors.white;  // 默认颜色为白色
-  }
-
-  // 包裹自定义按钮并添加焦点逻辑
-  static Widget _wrapWithFocus(BuildContext context, Widget child, FocusNode focusNode) {
-     if (child is ElevatedButton) {
-      return Group(
-        groupIndex: 1,  // 按钮组
-        child: FocusableItem(
-          focusNode: focusNode,
-          child: child,  // 保持原有按钮逻辑
-        ),
-      );
-    }
-    return child;  // 如果不是按钮，直接返回原组件
   }
 }
