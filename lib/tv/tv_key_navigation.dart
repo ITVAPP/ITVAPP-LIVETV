@@ -691,12 +691,8 @@ class Group extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: child != null
-          ? [child!] // 如果传入了单个 child，则使用它
-          : children ?? [], // 如果传入了 children，则使用它们
-    );
+    // 不改变布局，仅仅透传 child 或 children
+    return child != null ? child! : (children != null ? Column(children: children!) : SizedBox.shrink());
   }
 }
 
