@@ -306,7 +306,7 @@ class DialogUtil {
 
   // 包裹自定义按钮并添加焦点逻辑
   static Widget _wrapWithFocus(BuildContext context, Widget child, FocusNode focusNode) {
-     if (child is UpdateDownloadBtn || child is ElevatedButton) {
+     if (child is ElevatedButton) {
       return Group(
         groupIndex: 1,  // 按钮组
         child: FocusableItem(
