@@ -40,7 +40,6 @@ class DialogUtil {
     FocusNode createFocusNode() {
       FocusNode node = FocusNode();
       _focusNodes.add(node);
-      focusIndex++;
       return node;
     }
 
@@ -86,37 +85,19 @@ class DialogUtil {
                 children: [
                   _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递关闭按钮的焦点节点
                   Flexible( 
-                    child: FocusableActionDetector(
-                      shortcuts: {
-                        LogicalKeySet(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
-                        LogicalKeySet(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
-                      },
-                      actions: {
-                        ScrollIntent: CallbackAction<ScrollIntent>(
-                          onInvoke: (intent) {
-                            if (intent.direction == AxisDirection.up) {
-                              FocusScope.of(context).requestFocus(_focusNodes[0]);  // 上键切换到关闭按钮
-                            } else if (intent.direction == AxisDirection.down) {
-                              FocusScope.of(context).requestFocus(_focusNodes[2]);  // 下键切换到底部按钮
-                            }
-                            return null;
-                          },
-                        ),
-                      },
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 25),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
-                            children: [
-                              if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
-                              const SizedBox(height: 10),
-                              if (child != null) 
-                                Center(  // 将 child 居中
-                                  child: child,
-                                ),
-                            ],
-                          ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
+                          children: [
+                            if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
+                            const SizedBox(height: 10),
+                            if (child != null) 
+                              Center(  // 将 child 居中
+                                child: child,
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -164,22 +145,22 @@ class DialogUtil {
             groupIndex: 0,
             child: FocusableItem(  // 仅包裹关闭按钮
               focusNode: closeFocusNode!,  // 使用传入的焦点节点
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              iconTheme: IconThemeData(
-                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  iconTheme: IconThemeData(
+                    color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
+                  ),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();  // 关闭对话框
+                  },
+                  icon: const Icon(Icons.close),  // 使用默认关闭图标
+                  iconSize: 26,  // 关闭按钮大小
+                ),
               ),
             ),
-            child: IconButton(
-              onPressed: () {
-                Navigator.of(context).pop();  // 关闭对话框
-              },
-              icon: const Icon(Icons.close),  // 使用默认关闭图标
-              iconSize: 26,  // 关闭按钮大小
-            ),
           ),
-        ),
-                  ),
         ),
       ],
     );
