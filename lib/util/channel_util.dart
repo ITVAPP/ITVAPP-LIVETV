@@ -28,8 +28,8 @@ Future<int?> changeChannelSources(
   try {
     // 计算屏幕的方向、宽度和底部间距
     var orientation = MediaQuery.of(context).orientation;
-    final widthFactor = orientation == Orientation.landscape ? 0.68 : 0.88;
-    final bottomOffset = orientation == Orientation.landscape ? 88.0 : 68.0; // 横屏88.0，竖屏68.0
+    final widthFactor = orientation == Orientation.landscape ? 0.78 : 0.88;
+    final bottomOffset = orientation == Orientation.landscape ? 58.0 : 68.0; // 横屏88.0，竖屏68.0
 
     // 使用 showModalBottomSheet 来创建一个从底部弹出的弹窗
     final selectedIndex = await showModalBottomSheet<int>(
