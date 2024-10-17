@@ -122,7 +122,10 @@ class DialogUtil {
                                 if (child != null) 
                                   Group(
                                     groupIndex: 1,
-                                    child: child,
+                                    child: FocusableItem( // 使用 FocusableItem 包裹 child
+                                      focusNode: _focusNodes[1], // 传递焦点节点
+                                      child: child, 
+                                    ),
                                   ),
                               ],
                             ),
