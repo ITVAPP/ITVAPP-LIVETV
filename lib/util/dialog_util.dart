@@ -209,6 +209,7 @@ class DialogUtil {
   // 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
     BuildContext context, {
+    required int focusIndex,  // 传递焦点索引，required 修饰
     String? positiveButtonLabel,
     VoidCallback? onPositivePressed,
     String? negativeButtonLabel,
@@ -217,7 +218,6 @@ class DialogUtil {
     VoidCallback? onClosePressed,  // 关闭按钮点击事件
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
-    int focusIndex,  // 传递焦点索引
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
