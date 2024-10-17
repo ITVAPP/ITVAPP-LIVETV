@@ -94,9 +94,7 @@ class DialogUtil {
                             if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                             const SizedBox(height: 10),
                             if (child != null) 
-                              Center(  // 将 child 居中
-                                child: child,
-                              ),
+                              _wrapWithFocus(context, child, _focusNodes[1]),  // 判断并包裹自定义按钮
                           ],
                         ),
                       ),
@@ -304,5 +302,19 @@ class DialogUtil {
     return focusNode != null && focusNode.hasFocus
         ? const Color(0xFFEB144C)  // 焦点状态下的颜色
         : Colors.white;  // 默认颜色为白色
+  }
+
+  // 包裹自定义按钮并添加焦点逻辑
+  static Widget _wrapWithFocus(BuildContext context, Widget child, FocusNode focusNode) {
+     if (child is UpdateDownloadBtn || child is ElevatedButton) {
+      return Group(
+        groupIndex: 1,  // 按钮组
+        child: FocusableItem(
+          focusNode: focusNode,
+          child: child,  // 保持原有按钮逻辑
+        ),
+      );
+    }
+    return child;  // 如果不是按钮，直接返回原组件
   }
 }
