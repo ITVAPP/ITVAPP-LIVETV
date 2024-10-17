@@ -56,7 +56,7 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
                           color: Colors.white, // 白色文字
                           fontWeight: FontWeight.bold,  // 文字加粗
                           fontSize: 16,  // 文字大小
-                          ),
+                        ),
                       )
                     ],
                   ),
@@ -64,45 +64,46 @@ class _UpdateDownloadBtnState extends State<UpdateDownloadBtn> {
               )
             : child!;
       },
-      // 普通按钮的样式和功能
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
-          backgroundColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 根据焦点状态修改背景颜色
-          elevation: _isFocusDownload ? 10 : 0, // 焦点状态下有阴影效果
-          foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
-          shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 阴影颜色与按钮背景匹配
-        ),
-        onFocusChange: (bool isFocus) {
-          setState(() {
-            _isFocusDownload = isFocus; // 更新按钮焦点状态
-          });
-        },
-        // 按钮点击事件处理逻辑
-        onPressed: () {
-          LogUtil.safeExecute(() {
-            if (Platform.isAndroid) { // 如果平台是 Android
-              try {
-                context.read<DownloadProvider>().downloadApk(widget.apkUrl); // 执行 APK 下载
-              } catch (e, stackTrace) {
-                LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
+      child: FocusableItem( // 使用 FocusableItem 包裹按钮，并绑定 _focusNodes[1]
+        focusNode: _focusNodes[1], // 传递焦点节点
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
+            backgroundColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 根据焦点状态修改背景颜色
+            elevation: _isFocusDownload ? 10 : 0, // 焦点状态下有阴影效果
+            foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
+            shadowColor: _isFocusDownload ? Color(0xFFEB144C) : Color(0xFFDFA02A),  // 阴影颜色与按钮背景匹配
+          ),
+          onFocusChange: (bool isFocus) {
+            setState(() {
+              _isFocusDownload = isFocus; // 更新按钮焦点状态
+            });
+          },
+          onPressed: () {
+            LogUtil.safeExecute(() {
+              if (Platform.isAndroid) { // 如果平台是 Android
+                try {
+                  context.read<DownloadProvider>().downloadApk(widget.apkUrl); // 执行 APK 下载
+                } catch (e, stackTrace) {
+                  LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
+                }
+              } else { // 如果不是 Android
+                try {
+                  Navigator.of(context).pop(true); // 关闭对话框
+                } catch (e, stackTrace) {
+                  LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
+                }
               }
-            } else { // 如果不是 Android
-              try {
-                Navigator.of(context).pop(true); // 关闭对话框
-              } catch (e, stackTrace) {
-                LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
-              }
-            }
-          }, '点击下载按钮时发生错误');
-        },
-        // 按钮上的文字样式
-        child: Text(
-          S.of(context).update, // 按钮显示文字
-          style: const TextStyle(
-            color: Colors.white, // 白色文字
-            fontWeight: FontWeight.bold,  // 文字加粗
-            fontSize: 18,  // 文字大小
+            }, '点击下载按钮时发生错误');
+          },
+          // 按钮上的文字样式
+          child: Text(
+            S.of(context).update, // 按钮显示文字
+            style: const TextStyle(
+              color: Colors.white, // 白色文字
+              fontWeight: FontWeight.bold,  // 文字加粗
+              fontSize: 18,  // 文字大小
+            ),
           ),
         ),
       ),
