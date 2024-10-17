@@ -6,6 +6,10 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 class DialogUtil {
+  // 定义焦点节点和焦点计数器
+  static final List<FocusNode> _focusNodes = [];
+  static int focusIndex = 0;
+
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
   static Future<bool?> showCustomDialog(
     BuildContext context, {
@@ -32,9 +36,9 @@ class DialogUtil {
       }).join('\n\n');  // 在每条日志之间增加换行
     }
 
-    // 定义焦点节点
-    final List<FocusNode> _focusNodes = [];
-    int focusIndex = 1;  // 焦点节点计数器
+    // 清空焦点节点列表和重置焦点计数器
+    _focusNodes.clear();
+    focusIndex = 0;
 
     // 定义创建并添加焦点节点的函数，确保顺序正确
     FocusNode createFocusNode() {
