@@ -99,9 +99,9 @@ class DialogUtil {
                             if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                             const SizedBox(height: 10),
                             if (child != null)
-                              Group(
-                                groupIndex: 1,  // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
-                                child: Center(
+                              Center(  // 将 Center 移动到 Group 外部
+                                child: Group(
+                                  groupIndex: 1,  // 如果有外部传入的 child，包裹成可导航焦点，分到 groupIndex=1
                                   child: FocusableItem(
                                     focusNode: _focusNodes[1],  // 确保焦点传递给第一个可用的 child
                                     child: child,  // 传入自定义的 child
@@ -115,54 +115,56 @@ class DialogUtil {
                   ),
                   const SizedBox(height: 10),
                   if (child == null)
-                    Group(
-                      groupIndex: 1,  // 将所有按钮放在同一组
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
-                        children: [
-                          if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-                            _buildButton(
-                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
-                              negativeButtonLabel!,
-                              onNegativePressed,
-                              selectedColor,
-                              unselectedColor,
-                            ),
-                          if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
-                            const SizedBox(width: 20),  // 添加按钮之间的间距
-                          if (positiveButtonLabel != null)
-                            _buildButton(
-                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
-                              positiveButtonLabel!,
-                              onPositivePressed,
-                              selectedColor,
-                              unselectedColor,
-                            ),
-                          if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-                            _buildButton(
-                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
-                              S.current.copy,
-                              () {
-                                Clipboard.setData(ClipboardData(text: content ?? ''));  // 修复: 确保 content 非空
-                                CustomSnackBar.showSnackBar(
-                                  context,
-                                  S.current.copyok,
-                                  duration: Duration(seconds: 4),
-                                );
-                              },
-                              selectedColor,
-                              unselectedColor,
-                            ),
-                          if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
-                            _buildButton(
-                              _focusNodes[focusIndex++],  // 修复: 使用 _focusNodes 而不是 focusNodes
-                              closeButtonLabel!,
-                              onClosePressed ?? () => Navigator.of(context).pop(),
-                              selectedColor,
-                              unselectedColor,
-                            ),
-                        ],
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
+                      children: [
+                        Group(
+                          groupIndex: 1,  // 将所有按钮放在同一组
+                          children: [
+                            if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
+                              _buildButton(
+                                _focusNodes[focusIndex++],  // 使用焦点节点
+                                negativeButtonLabel!,
+                                onNegativePressed,
+                                selectedColor,
+                                unselectedColor,
+                              ),
+                            if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
+                              const SizedBox(width: 20),  // 添加按钮之间的间距
+                            if (positiveButtonLabel != null)
+                              _buildButton(
+                                _focusNodes[focusIndex++],  // 使用焦点节点
+                                positiveButtonLabel!,
+                                onPositivePressed,
+                                selectedColor,
+                                unselectedColor,
+                              ),
+                            if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
+                              _buildButton(
+                                _focusNodes[focusIndex++],  // 使用焦点节点
+                                S.current.copy,
+                                () {
+                                  Clipboard.setData(ClipboardData(text: content ?? ''));
+                                  CustomSnackBar.showSnackBar(
+                                    context,
+                                    S.current.copyok,
+                                    duration: Duration(seconds: 4),
+                                  );
+                                },
+                                selectedColor,
+                                unselectedColor,
+                              ),
+                            if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
+                              _buildButton(
+                                _focusNodes[focusIndex++],  // 使用焦点节点
+                                closeButtonLabel!,
+                                onClosePressed ?? () => Navigator.of(context).pop(),
+                                selectedColor,
+                                unselectedColor,
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
                   const SizedBox(height: 20),
                 ],
