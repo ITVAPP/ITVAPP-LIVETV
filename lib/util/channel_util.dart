@@ -18,19 +18,8 @@ Future<int?> changeChannelSources(
     return null;
   }
 
-  // 创建一次性的 FocusNode 列表，并为每个 FocusNode 添加监听器
-  final List<FocusNode> focusNodes = List.generate(sources.length, (index) {
-    FocusNode node = FocusNode();
-    // 添加监听器，监听焦点变化并调用 setState 更新 UI
-    node.addListener(() {
-      if (node.hasFocus) {
-        // 使用正确的 setState 调用
-        final state = context.findAncestorStateOfType<State>();
-        state?.setState(() {});
-      }
-    });
-    return node;
-  });
+  // 创建一次性的 FocusNode 列表，无需为每个 FocusNode 添加监听器
+  final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
 
   // 定义选中与未选中的颜色变量
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
@@ -77,11 +66,9 @@ Future<int?> changeChannelSources(
     // 返回用户选择的索引
     return selectedIndex;
   } catch (modalError, modalStackTrace) {
-    // 捕获弹窗显示过程中发生的错误，并记录日志
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
   } finally {
-    // 释放所有 FocusNode 的资源
     for (var node in focusNodes) {
       node.dispose();
     }
