@@ -133,7 +133,7 @@ class DialogUtil {
                       onClosePressed: onClosePressed,
                       content: content,  // 传递内容用于复制
                       isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                      focusIndex: focusIndex,  // 传递焦点索引用于按钮动态焦点处理
+                      focusNodes: _focusNodes,  // 传递 _focusNodes 以供按钮动态焦点处理
                     ),  // 动态按钮处理
                   const SizedBox(height: 20),
                 ],
@@ -209,7 +209,7 @@ class DialogUtil {
   // 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
     BuildContext context, {
-    required int focusIndex,  // 传递焦点索引，required 修饰
+    required List<FocusNode> focusNodes,  // 确保 _focusNodes 被传递
     String? positiveButtonLabel,
     VoidCallback? onPositivePressed,
     String? negativeButtonLabel,
@@ -219,6 +219,7 @@ class DialogUtil {
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
   }) {
+    int focusIndex = 1; // 从1开始，因为0为关闭按钮
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
@@ -227,9 +228,9 @@ class DialogUtil {
           children: [
             if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
               FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+                focusNode: focusNodes[focusIndex++],  // 递增焦点索引
                 child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
+                  style: _buttonStyle(focusNodes[focusIndex - 1]),
                   onPressed: () {
                     if (onNegativePressed != null) {
                       onNegativePressed();
@@ -242,9 +243,9 @@ class DialogUtil {
               const SizedBox(width: 20),  // 添加按钮之间的间距
             if (positiveButtonLabel != null)
               FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+                focusNode: focusNodes[focusIndex++],  // 递增焦点索引
                 child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
+                  style: _buttonStyle(focusNodes[focusIndex - 1]),
                   onPressed: () {
                     if (onPositivePressed != null) {
                       onPositivePressed();
@@ -255,9 +256,9 @@ class DialogUtil {
               ),
             if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
               FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+                focusNode: focusNodes[focusIndex++],  // 递增焦点索引
                 child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
+                  style: _buttonStyle(focusNodes[focusIndex - 1]),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
                     CustomSnackBar.showSnackBar(
@@ -271,9 +272,9 @@ class DialogUtil {
               ),
             if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
               FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+                focusNode: focusNodes[focusIndex++],  // 递增焦点索引
                 child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
+                  style: _buttonStyle(focusNodes[focusIndex - 1]),
                   autofocus: true,
                   onPressed: () {
                     if (onClosePressed != null) {
