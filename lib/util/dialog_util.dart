@@ -25,7 +25,7 @@ class DialogUtil {
   static void initState() {
     for (var node in _focusNodes) {
       node.addListener(() {
-        setState(() {});  // 监听焦点变化，调用 setState 触发重绘
+        // 替换掉 setState，使用 StatefulBuilder
       });
     }
   }
@@ -86,64 +86,68 @@ class DialogUtil {
         final maxDialogHeight = screenHeight * 0.8;  // 设置对话框的最大高度为屏幕高度的80%
 
         return Center(
-          child: Container(
-            width: dialogWidth,  // 设置对话框宽度
-            constraints: BoxConstraints(
-              maxHeight: maxDialogHeight,  // 限制对话框最大高度
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B2D30),
-              borderRadius: BorderRadius.circular(8),
-              gradient: const LinearGradient(
-                colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], 
-                begin: Alignment.topCenter, 
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: TvKeyNavigation(
-              focusNodes: _focusNodes,  // 动态生成的焦点节点
-              initialIndex: 1,  // 初始焦点
-              isHorizontalGroup: true, // 启用横向分组
-              child: Column(
-                mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
-                children: [
-                  _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递关闭按钮的焦点节点
-                  Flexible( 
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 25),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
-                          children: [
-                            if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
-                            const SizedBox(height: 10),
-                            if (child != null) 
-                              Group(
-                                groupIndex: 1,
-                                child: child,
-                              ),
-                          ],
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Container(
+                width: dialogWidth,  // 设置对话框宽度
+                constraints: BoxConstraints(
+                  maxHeight: maxDialogHeight,  // 限制对话框最大高度
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B2D30),
+                  borderRadius: BorderRadius.circular(8),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)], 
+                    begin: Alignment.topCenter, 
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: TvKeyNavigation(
+                  focusNodes: _focusNodes,  // 动态生成的焦点节点
+                  initialIndex: 1,  // 初始焦点
+                  isHorizontalGroup: true, // 启用横向分组
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
+                    children: [
+                      _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递关闭按钮的焦点节点
+                      Flexible( 
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,  // 内容容器水平居中
+                              children: [
+                                if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
+                                const SizedBox(height: 10),
+                                if (child != null) 
+                                  Group(
+                                    groupIndex: 1,
+                                    child: child,
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      if (child == null)
+                        _buildActionButtons(
+                          context,
+                          positiveButtonLabel: positiveButtonLabel,
+                          onPositivePressed: onPositivePressed,
+                          negativeButtonLabel: negativeButtonLabel,
+                          onNegativePressed: onNegativePressed,
+                          closeButtonLabel: closeButtonLabel,
+                          onClosePressed: onClosePressed,
+                          content: content,  // 传递内容用于复制
+                          isCopyButton: isCopyButton,  // 控制是否显示复制按钮
+                        ),  // 动态按钮处理
+                      const SizedBox(height: 20),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  if (child == null)
-                    _buildActionButtons(
-                      context,
-                      positiveButtonLabel: positiveButtonLabel,
-                      onPositivePressed: onPositivePressed,
-                      negativeButtonLabel: negativeButtonLabel,
-                      onNegativePressed: onNegativePressed,
-                      closeButtonLabel: closeButtonLabel,
-                      onClosePressed: onClosePressed,
-                      content: content,  // 传递内容用于复制
-                      isCopyButton: isCopyButton,  // 控制是否显示复制按钮
-                    ),  // 动态按钮处理
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         );
       },
