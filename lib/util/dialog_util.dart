@@ -15,19 +15,10 @@ class DialogUtil {
   static const Color unselectedColor = Color(0xFFEB144C);
 
   // 用于将颜色变暗的函数
-  static Color darkenColor(Color color, [double amount = 0.1]) {
+  static Color darkenColor(Color color, [double amount = 0.2]) {
     final hsl = HSLColor.fromColor(color);
     final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
     return darkened.toColor();
-  }
-
-  // 在 initState 中为每个 FocusNode 添加监听器
-  static void initState() {
-    for (var node in _focusNodes) {
-      node.addListener(() {
-        // 替换掉 setState，使用 StatefulBuilder
-      });
-    }
   }
 
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
@@ -63,6 +54,12 @@ class DialogUtil {
     // 定义创建并添加焦点节点的函数，确保顺序正确
     FocusNode createFocusNode() {
       FocusNode node = FocusNode();
+      node.addListener(() {
+        // 监听焦点变化并触发 UI 刷新
+        if (node.hasFocus || !node.hasFocus) {
+          (context as Element).markNeedsBuild();
+        }
+      });
       _focusNodes.add(node);
       return node;
     }
@@ -105,7 +102,6 @@ class DialogUtil {
                 child: TvKeyNavigation(
                   focusNodes: _focusNodes,  // 动态生成的焦点节点
                   initialIndex: 1,  // 初始焦点
-                  isHorizontalGroup: true, // 启用横向分组
                   child: Column(
                     mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                     children: [
@@ -120,12 +116,9 @@ class DialogUtil {
                                 if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                                 const SizedBox(height: 10),
                                 if (child != null) 
-                                  Group(
-                                    groupIndex: 1,
-                                    child: FocusableItem( // 使用 FocusableItem 包裹 child
-                                      focusNode: _focusNodes[1], // 传递焦点节点
-                                      child: child, 
-                                    ),
+                                  Focus( // 使用 Focus 组件
+                                    focusNode: _focusNodes[1], // 传递焦点节点
+                                    child: child, 
                                   ),
                               ],
                             ),
@@ -172,18 +165,15 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Group(  // 分组关闭按钮
-            groupIndex: 0,
-            child: FocusableItem(  // 仅包裹关闭按钮
-              focusNode: closeFocusNode!,  // 使用传入的焦点节点
-              child: IconButton(
-                icon: const Icon(Icons.close),  // 使用默认关闭图标
-                iconSize: 26,  // 关闭按钮大小
-                color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
-                onPressed: () {
-                  Navigator.of(context).pop();  // 关闭对话框
-                },
-              ),
+          child: Focus(  // 取消 Group 包裹，仅保留 Focus
+            focusNode: closeFocusNode!,  // 使用传入的焦点节点
+            child: IconButton(
+              icon: const Icon(Icons.close),  // 使用默认关闭图标
+              iconSize: 26,  // 关闭按钮大小
+              color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
+              onPressed: () {
+                Navigator.of(context).pop();  // 关闭对话框
+              },
             ),
           ),
         ),
@@ -227,71 +217,66 @@ class DialogUtil {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
-        Group(
-          groupIndex: 1,  // 将所有按钮放在同一组
-          children: [
-            if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-              FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
-                child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
-                  onPressed: () {
-                    if (onNegativePressed != null) {
-                      onNegativePressed();
-                    }
-                  },
-                  child: Text(negativeButtonLabel!),
-                ),
-              ),
-            if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
-              const SizedBox(width: 20),  // 添加按钮之间的间距
-            if (positiveButtonLabel != null)
-              FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
-                child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
-                  onPressed: () {
-                    if (onPositivePressed != null) {
-                      onPositivePressed();
-                    }
-                  },
-                  child: Text(positiveButtonLabel!),
-                ),
-              ),
-            if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-              FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
-                child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-                    CustomSnackBar.showSnackBar(
-                      context,
-                      S.current.copyok,
-                      duration: Duration(seconds: 4),
-                    );
-                  },
-                  child: Text(S.current.copy),
-                ),
-              ),
-            if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
-              FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
-                child: ElevatedButton(
-                  style: _buttonStyle(_focusNodes[focusIndex - 1]),
-                  autofocus: true,
-                  onPressed: () {
-                    if (onClosePressed != null) {
-                      onClosePressed();  // 点击关闭按钮时执行的回调
-                    } else {
-                      Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
-                    }
-                  },
-                  child: Text(closeButtonLabel!),
-                ),
-              ),
-          ],
-        ),
+        if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
+          Focus(
+            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            child: ElevatedButton(
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              onPressed: () {
+                if (onNegativePressed != null) {
+                  onNegativePressed();
+                }
+              },
+              child: Text(negativeButtonLabel!),
+            ),
+          ),
+        if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
+          const SizedBox(width: 20),  // 添加按钮之间的间距
+        if (positiveButtonLabel != null)
+          Focus(
+            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            child: ElevatedButton(
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              onPressed: () {
+                if (onPositivePressed != null) {
+                  onPositivePressed();
+                }
+              },
+              child: Text(positiveButtonLabel!),
+            ),
+          ),
+        if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
+          Focus(
+            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            child: ElevatedButton(
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+                CustomSnackBar.showSnackBar(
+                  context,
+                  S.current.copyok,
+                  duration: Duration(seconds: 4),
+                );
+              },
+              child: Text(S.current.copy),
+            ),
+          ),
+        if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
+          Focus(
+            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            child: ElevatedButton(
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              autofocus: true,
+              onPressed: () {
+                if (onClosePressed != null) {
+                  onClosePressed();  // 点击关闭按钮时执行的回调
+                } else {
+                  Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
+                }
+              },
+              child: Text(closeButtonLabel!),
+            ),
+          ),
       ],
     );
   }
