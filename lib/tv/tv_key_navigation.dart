@@ -534,74 +534,98 @@ void _triggerButtonAction() {
     }
 
     try {
-      // 查找最近的 FocusableItem
+      // 查找最近的 FocusableItem 或 Focus 包裹的控件
       final focusableItem = context!.findAncestorWidgetOfExactType<FocusableItem>();
+      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
+
+      Widget? interactiveWidget;
 
       if (focusableItem != null) {
-        final interactiveWidget = focusableItem.child;
-
-        // 通过提前判断当前的交互控件，减少递归查找
-        if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-          interactiveWidget.onChanged!(!interactiveWidget.value);
-        } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-          interactiveWidget.onTap!();
-        } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-          interactiveWidget.onSelected!(null);
-        } else {
-          _manageDebugOverlay(message: '未找到可执行操作的控件');
-        }
-
-        _manageDebugOverlay(message: '执行按钮操作');
-      } 
-      // 如果找不到 FocusableItem，则查找最近的 Focus
-      else {
-        final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
-
-        if (focusWidget != null) {
-          final interactiveWidget = focusWidget.child;
-
-          // 通过提前判断当前的交互控件，减少递归查找
-          if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-            interactiveWidget.onChanged!(!interactiveWidget.value);
-          } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-            interactiveWidget.onPressed!();
-          } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-            interactiveWidget.onPressed!();
-          } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-            interactiveWidget.onPressed!();
-          } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-            interactiveWidget.onPressed!();
-          } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-            interactiveWidget.onPressed!();
-          } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-            interactiveWidget.onTap!();
-          } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-            interactiveWidget.onSelected!(null);
-          } else {
-            _manageDebugOverlay(message: '未找到可执行操作的控件');
-          }
-
-          _manageDebugOverlay(message: '执行按钮操作');
-        } else {
-          _manageDebugOverlay(message: '未找到可执行操作的控件');
-        }
+        // 如果找到 FocusableItem，获取其子组件
+        interactiveWidget = focusableItem.child;
+      } else if (focusWidget != null) {
+        // 如果找到 Focus，递归查找可交互的子组件
+        interactiveWidget = _findInteractiveWidget(focusWidget.child);
       }
+
+      if (interactiveWidget != null) {
+        // 执行交互操作
+        _triggerInteractiveWidget(interactiveWidget);
+      } else {
+        _manageDebugOverlay(message: '未找到可执行操作的控件');
+      }
+
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
     }
   } else {
     _manageDebugOverlay(message: '当前无有效的焦点上下文');
   }
+}
+
+/// 查找可交互的子组件（递归查找）
+Widget? _findInteractiveWidget(Widget? widget) {
+  if (widget == null) return null;
+
+  // 判断是否是可交互的控件
+  if (_isInteractiveWidget(widget)) {
+    return widget;
+  }
+
+  // 递归查找子组件
+  if (widget is SingleChildRenderObjectWidget) {
+    return _findInteractiveWidget(widget.child);
+  } else if (widget is MultiChildRenderObjectWidget) {
+    for (var child in widget.children) {
+      final found = _findInteractiveWidget(child);
+      if (found != null) return found;
+    }
+  }
+
+  return null;
+}
+
+/// 判断一个组件是否是可交互的
+bool _isInteractiveWidget(Widget widget) {
+  return widget is SwitchListTile ||
+         widget is ElevatedButton ||
+         widget is TextButton ||
+         widget is OutlinedButton ||
+         widget is IconButton ||
+         widget is FloatingActionButton ||
+         widget is ListTile ||
+         widget is PopupMenuButton;
+}
+
+/// 执行具体的交互控件操作
+void _triggerInteractiveWidget(Widget? interactiveWidget) {
+  if (interactiveWidget == null) {
+    _manageDebugOverlay(message: '交互组件为空，无法触发操作');
+    return;
+  }
+
+  // 判断并触发交互控件操作
+  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
+    interactiveWidget.onChanged!(!interactiveWidget.value);
+  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
+    interactiveWidget.onTap!();
+  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
+    interactiveWidget.onSelected!(null);
+  } else {
+    _manageDebugOverlay(message: '未找到可执行操作的控件');
+  }
+
+  _manageDebugOverlay(message: '执行按钮操作');
 }
 
   /// 导航方法，通过 forward 参数决定是前进还是后退
