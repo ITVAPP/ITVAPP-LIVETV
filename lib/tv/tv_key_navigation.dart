@@ -559,11 +559,28 @@ Widget? _findInteractiveWidget(Widget widget) {
   }
 
   if (widget is Focus) {
+    // 如果 widget 是 Focus，我们递归其 child
     return _findInteractiveWidget(widget.child);
   }
 
+  if (widget is Builder) {
+    // 如果 widget 是 Builder，我们递归其构建的子组件
+    return _findInteractiveWidget(widget.build(widget.context));
+  }
+
   if (widget is SingleChildRenderObjectWidget) {
-    return _findInteractiveWidget(widget.child!);
+    // 对于 SingleChildRenderObjectWidget，递归其 child
+    return widget.child != null ? _findInteractiveWidget(widget.child!) : null;
+  }
+
+  if (widget is MultiChildRenderObjectWidget) {
+    // 如果是 MultiChildRenderObjectWidget，递归所有子组件
+    for (var child in widget.children) {
+      Widget? found = _findInteractiveWidget(child);
+      if (found != null) {
+        return found;
+      }
+    }
   }
 
   return null;
