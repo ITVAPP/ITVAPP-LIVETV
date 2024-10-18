@@ -521,7 +521,7 @@ void _manageDebugOverlay({String? message}) {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-  /// 执行当前焦点控件的点击操作或切换开关状态
+/// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -562,6 +562,39 @@ void _triggerButtonAction() {
         }
 
         _manageDebugOverlay(message: '执行按钮操作');
+      } 
+      // 如果找不到 FocusableItem，则查找最近的 Focus
+      else {
+        final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
+
+        if (focusWidget != null) {
+          final interactiveWidget = focusWidget.child;
+
+          // 通过提前判断当前的交互控件，减少递归查找
+          if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
+            interactiveWidget.onChanged!(!interactiveWidget.value);
+          } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
+            interactiveWidget.onPressed!();
+          } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
+            interactiveWidget.onPressed!();
+          } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
+            interactiveWidget.onPressed!();
+          } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
+            interactiveWidget.onPressed!();
+          } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
+            interactiveWidget.onPressed!();
+          } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
+            interactiveWidget.onTap!();
+          } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
+            interactiveWidget.onSelected!(null);
+          } else {
+            _manageDebugOverlay(message: '未找到可执行操作的控件');
+          }
+
+          _manageDebugOverlay(message: '执行按钮操作');
+        } else {
+          _manageDebugOverlay(message: '未找到可执行操作的控件');
+        }
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
