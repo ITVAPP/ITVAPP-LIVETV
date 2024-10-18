@@ -522,26 +522,20 @@ void _manageDebugOverlay({String? message}) {
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
- /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;  // 获取当前焦点
+  final focusNode = _currentFocus;
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
 
-    // 如果上下文不可用，显示调试消息并返回
     if (context == null) {
       _manageDebugOverlay(message: '焦点上下文为空，无法操作');
       return;
     }
 
     try {
-      // 查找最近的 FocusableItem 或 Focus 包裹的节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
-
-      // 根据找到的包装类型执行交互操作
-      final interactiveWidget = focusableItem?.child ?? focusWidget?.child;
-
+      // 递归查找可交互的 Widget
+      Widget? interactiveWidget = _findInteractiveWidget(context.widget);
+      
       if (interactiveWidget != null) {
         _executeInteractiveWidgetAction(interactiveWidget);
       } else {
@@ -555,7 +549,37 @@ void _triggerButtonAction() {
   }
 }
 
-// 执行不同类型控件的操作
+Widget? _findInteractiveWidget(Widget widget) {
+  if (_isInteractiveWidget(widget)) {
+    return widget;
+  }
+
+  if (widget is FocusableItem) {
+    return _findInteractiveWidget(widget.child);
+  }
+
+  if (widget is Focus) {
+    return _findInteractiveWidget(widget.child);
+  }
+
+  if (widget is SingleChildRenderObjectWidget) {
+    return _findInteractiveWidget(widget.child!);
+  }
+
+  return null;
+}
+
+bool _isInteractiveWidget(Widget widget) {
+  return widget is SwitchListTile ||
+         widget is ElevatedButton ||
+         widget is TextButton ||
+         widget is OutlinedButton ||
+         widget is IconButton ||
+         widget is FloatingActionButton ||
+         widget is ListTile ||
+         widget is PopupMenuButton;
+}
+
 void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
     interactiveWidget.onChanged!(!interactiveWidget.value);
@@ -577,9 +601,9 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
     _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
 
-  _manageDebugOverlay(message: '执行按钮操作');
+  _manageDebugOverlay(message: '执行按钮操作: ${interactiveWidget.runtimeType}');
 }
-
+  
   /// 导航方法，通过 forward 参数决定是前进还是后退
 void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
   String action;
