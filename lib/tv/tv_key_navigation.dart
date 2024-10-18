@@ -597,10 +597,10 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
     // 前进逻辑
     if (currentIndex == lastFocusIndex) {
       nextIndex = firstFocusIndex; // 循环到第一个焦点
-      action = "循环到第一个焦点";
+      action = "循环到第一个焦点 (索引: $nextIndex)";
     } else {
       nextIndex = currentIndex + 1;
-      action = "切换到下一个焦点";
+      action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
     }
   } else {
     // 后退逻辑
@@ -610,16 +610,16 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
         return; // 提前退出函数，避免后续调用 _requestFocus
       } else {
         nextIndex = lastFocusIndex;
-        action = "循环到最后一个焦点";
+        action = "循环到最后一个焦点 (索引: $nextIndex)";
       }  
     } else {
       nextIndex = currentIndex - 1;
-      action = "切换到前一个焦点";
+      action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
     }
   }
 
   _requestFocus(nextIndex, groupIndex: groupIndex);
-  _manageDebugOverlay(message: '操作: ${key.debugName}键，$action');
+  _manageDebugOverlay(message: '操作: ${key.debugName}键，$action (组: $groupIndex)');
 }
 
 /// 处理在组之间的跳转逻辑
