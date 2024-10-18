@@ -6,9 +6,9 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 class DialogUtil {
-  // 定义焦点节点和焦点计数器
-  static final List<FocusNode> _focusNodes = [];
-  static int focusIndex = 0;
+  // 定义焦点节点
+  static List<FocusNode> _focusNodes = [];
+  static int focusIndex = 1;  // 初始化为 1，第 0 个焦点节点保留给右上角的关闭按钮
 
   // 颜色定义
   static const Color selectedColor = Color(0xFFDFA02A);
@@ -47,28 +47,20 @@ class DialogUtil {
       }).join('\n\n');  // 在每条日志之间增加换行
     }
 
-    // 清空焦点节点列表和重置焦点计数器
+    // 清空焦点节点列表
     _focusNodes.clear();
-    focusIndex = 0;
+    focusIndex = 1;  // 重置索引为 1，第 0 个用于右上角关闭按钮
 
-    // 定义创建并添加焦点节点的函数，确保顺序正确
-    FocusNode createFocusNode() {
-      FocusNode node = FocusNode();
-      node.addListener(() {
-        // 监听焦点变化并触发 UI 刷新
-        if (node.hasFocus || !node.hasFocus) {
-          (context as Element).markNeedsBuild();
-        }
-      });
-      _focusNodes.add(node);
-      return node;
-    }
+    // 统计需要的 FocusNode 数量
+    int focusNodeCount = 1;  // 右上角关闭按钮始终需要1个FocusNode
+    if (positiveButtonLabel != null) focusNodeCount++;
+    if (negativeButtonLabel != null) focusNodeCount++;
+    if (isCopyButton) focusNodeCount++;
+    if (child != null) focusNodeCount++;
+    if (closeButtonLabel != null) focusNodeCount++;  // 底部关闭按钮需要一个 FocusNode
 
-    if (closeButtonLabel != null) createFocusNode();
-    if (positiveButtonLabel != null) createFocusNode();
-    if (negativeButtonLabel != null) createFocusNode();
-    if (isCopyButton) createFocusNode();
-    if (child != null) createFocusNode();
+    // 使用 List.generate 创建需要的 FocusNode 数量
+    _focusNodes = List.generate(focusNodeCount, (index) => FocusNode());
 
     return showDialog<bool>(
       context: context,
@@ -105,7 +97,7 @@ class DialogUtil {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                     children: [
-                      _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递关闭按钮的焦点节点
+                      _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递右上角关闭按钮的焦点节点
                       Flexible( 
                         child: SingleChildScrollView(
                           child: Padding(
@@ -117,7 +109,7 @@ class DialogUtil {
                                 const SizedBox(height: 10),
                                 if (child != null) 
                                   Focus( // 使用 Focus 组件
-                                    focusNode: _focusNodes[1], // 传递焦点节点
+                                    focusNode: _focusNodes[focusIndex++], // 动态递增焦点节点索引
                                     child: child, 
                                   ),
                               ],
@@ -150,7 +142,7 @@ class DialogUtil {
     );
   }
 
-  // 封装的标题部分，包含关闭按钮
+  // 封装的标题部分，包含右上角关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
     return Stack(
       children: [
@@ -165,7 +157,7 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Focus(  // 取消 Group 包裹，仅保留 Focus
+          child: Focus(
             focusNode: closeFocusNode!,  // 使用传入的焦点节点
             child: IconButton(
               icon: const Icon(Icons.close),  // 使用默认关闭图标
@@ -209,8 +201,8 @@ class DialogUtil {
     VoidCallback? onPositivePressed,
     String? negativeButtonLabel,
     VoidCallback? onNegativePressed,
-    String? closeButtonLabel,  // 关闭按钮文本
-    VoidCallback? onClosePressed,  // 关闭按钮点击事件
+    String? closeButtonLabel,  // 底部关闭按钮文本
+    VoidCallback? onClosePressed,  // 底部关闭按钮点击事件
     String? content,  // 传递的内容，用于复制
     bool isCopyButton = false,  // 控制是否显示复制按钮
   }) {
@@ -219,9 +211,9 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           Focus(
-            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
             child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
               onPressed: () {
                 if (onNegativePressed != null) {
                   onNegativePressed();
@@ -234,9 +226,9 @@ class DialogUtil {
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
           Focus(
-            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
             child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
               onPressed: () {
                 if (onPositivePressed != null) {
                   onPositivePressed();
@@ -247,9 +239,9 @@ class DialogUtil {
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
           Focus(
-            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
             child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
                 CustomSnackBar.showSnackBar(
@@ -261,11 +253,11 @@ class DialogUtil {
               child: Text(S.current.copy),
             ),
           ),
-        if (!isCopyButton && closeButtonLabel != null)  // 如果显示的是关闭按钮
+        if (closeButtonLabel != null)  // 底部关闭按钮
           Focus(
-            focusNode: _focusNodes[focusIndex++],  // 递增焦点索引
+            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
             child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),
+              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
               autofocus: true,
               onPressed: () {
                 if (onClosePressed != null) {
