@@ -77,13 +77,6 @@ class DialogUtil {
         return Center(
           child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
-              // 为每个 FocusNode 添加监听器，监听焦点变化并更新 UI
-              for (var focusNode in _focusNodes) {
-                focusNode.addListener(() {
-                  setState(() {});  // 当焦点变化时，触发 UI 更新
-                });
-              }
-
               return Container(
                 width: dialogWidth,  // 设置对话框宽度
                 constraints: BoxConstraints(
