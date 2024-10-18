@@ -11,8 +11,8 @@ class DialogUtil {
   static int focusIndex = 1;  // 初始化为 1，第 0 个焦点节点保留给右上角的关闭按钮
 
   // 颜色定义
-  static const Color selectedColor = Color(0xFFDFA02A);
-  static const Color unselectedColor = Color(0xFFEB144C);
+  static const Color selectedColor = Color(0xFFEB144C);
+  static const Color unselectedColor = Color(0xFFDFA02A);
 
   // 用于将颜色变暗的函数
   static Color darkenColor(Color color, [double amount = 0.2]) {
