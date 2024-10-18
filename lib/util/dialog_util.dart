@@ -8,7 +8,7 @@ import '../generated/l10n.dart';
 class DialogUtil {
   // 定义焦点节点
   static List<FocusNode> _focusNodes = [];
-  static int focusIndex = 1;  // 初始化为 1，第 0 个焦点节点保留给右上角的关闭按钮
+  static int focusIndex = 0; 
 
   // 颜色定义
   static const Color selectedColor = Color(0xFFEB144C);
@@ -49,7 +49,7 @@ class DialogUtil {
 
     // 清空焦点节点列表
     _focusNodes.clear();
-    focusIndex = 1;  // 重置索引为 1，第 0 个用于右上角关闭按钮
+    focusIndex = 0; 
 
     // 统计需要的 FocusNode 数量
     int focusNodeCount = 1;  // 右上角关闭按钮始终需要1个FocusNode
