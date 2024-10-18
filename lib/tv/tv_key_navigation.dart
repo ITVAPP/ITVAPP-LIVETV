@@ -522,6 +522,7 @@ void _manageDebugOverlay({String? message}) {
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
+ /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -534,34 +535,17 @@ void _triggerButtonAction() {
     }
 
     try {
-      // 查找最近的 FocusableItem
-      final focusableItem = context!.findAncestorWidgetOfExactType<FocusableItem>();
+      // 查找最近的 FocusableItem 或 Focus 包裹的节点
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
 
-      if (focusableItem != null) {
-        final interactiveWidget = focusableItem.child;
+      // 根据找到的包装类型执行交互操作
+      final interactiveWidget = focusableItem?.child ?? focusWidget?.child;
 
-        // 通过提前判断当前的交互控件，减少递归查找
-        if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-          interactiveWidget.onChanged!(!interactiveWidget.value);
-        } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-          interactiveWidget.onPressed!();
-        } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-          interactiveWidget.onTap!();
-        } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-          interactiveWidget.onSelected!(null);
-        } else {
-          _manageDebugOverlay(message: '未找到可执行操作的控件');
-        }
-
-        _manageDebugOverlay(message: '执行按钮操作');
+      if (interactiveWidget != null) {
+        _executeInteractiveWidgetAction(interactiveWidget);
+      } else {
+        _manageDebugOverlay(message: '未找到可执行操作的控件');
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
@@ -569,6 +553,31 @@ void _triggerButtonAction() {
   } else {
     _manageDebugOverlay(message: '当前无有效的焦点上下文');
   }
+}
+
+// 执行不同类型控件的操作
+void _executeInteractiveWidgetAction(Widget interactiveWidget) {
+  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
+    interactiveWidget.onChanged!(!interactiveWidget.value);
+  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
+    interactiveWidget.onTap!();
+  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
+    interactiveWidget.onSelected!(null);
+  } else {
+    _manageDebugOverlay(message: '未找到可执行操作的控件');
+  }
+
+  _manageDebugOverlay(message: '执行按钮操作');
 }
 
   /// 导航方法，通过 forward 参数决定是前进还是后退
