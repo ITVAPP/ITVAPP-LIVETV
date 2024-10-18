@@ -159,12 +159,17 @@ class DialogUtil {
           right: 0,
           child: Focus(
             focusNode: closeFocusNode!,  // 使用传入的焦点节点
-            child: IconButton(
-              icon: const Icon(Icons.close),  // 使用默认关闭图标
-              iconSize: 26,  // 关闭按钮大小
-              color: _closeIconColor(closeFocusNode),  // 设置关闭按钮颜色
-              onPressed: () {
-                Navigator.of(context).pop();  // 关闭对话框
+            child: Builder(
+              builder: (BuildContext context) {
+                final bool hasFocus = Focus.of(context).hasFocus;
+                return IconButton(
+                  icon: const Icon(Icons.close),  // 使用默认关闭图标
+                  iconSize: 26,  // 关闭按钮大小
+                  color: _closeIconColor(hasFocus),  // 设置关闭按钮颜色
+                  onPressed: () {
+                    Navigator.of(context).pop();  // 关闭对话框
+                  },
+                );
               },
             ),
           ),
@@ -288,9 +293,7 @@ class DialogUtil {
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
-  static Color _closeIconColor(FocusNode? focusNode) {
-    return focusNode != null && focusNode.hasFocus
-        ? darkenColor(selectedColor)  // 焦点状态下使用变暗的 selectedColor
-        : Colors.white;  // 默认颜色为白色
+  static Color _closeIconColor(bool hasFocus) {
+    return hasFocus ? selectedColor : Colors.white;
   }
 }
