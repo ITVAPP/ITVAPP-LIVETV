@@ -59,6 +59,9 @@ class DialogUtil {
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;  // 底部关闭按钮需要一个 FocusNode
 
+    // 使用 List.generate 创建需要的 FocusNode 数量
+    _focusNodes = List.generate(focusNodeCount, (index) => FocusNode());
+
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,  // 是否允许点击对话框外部关闭
@@ -74,17 +77,12 @@ class DialogUtil {
         return Center(
           child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
-              // 使用 List.generate 创建需要的 FocusNode 数量，并为每个 FocusNode 添加监听器
-              _focusNodes = List.generate(focusNodeCount, (index) {
-                final focusNode = FocusNode();
+              // 为每个 FocusNode 添加监听器，监听焦点变化并更新 UI
+              for (var focusNode in _focusNodes) {
                 focusNode.addListener(() {
                   setState(() {});  // 当焦点变化时，触发 UI 更新
                 });
-                return focusNode;
-              });
-
-              // 在弹窗显示时，自动聚焦到第一个按钮
-              FocusScope.of(context).requestFocus(_focusNodes[1]);
+              }
 
               return Container(
                 width: dialogWidth,  // 设置对话框宽度
