@@ -564,8 +564,8 @@ Widget? _findInteractiveWidget(Widget widget) {
   }
 
   if (widget is Builder) {
-    // 如果 widget 是 Builder，我们递归其构建的子组件
-    return _findInteractiveWidget(widget.build(widget.context));
+    // 如果 widget 是 Builder，我们递归其构建的子组件，使用 context 而非 widget.context
+    return _findInteractiveWidget(widget.build(context));
   }
 
   if (widget is SingleChildRenderObjectWidget) {
@@ -587,6 +587,7 @@ Widget? _findInteractiveWidget(Widget widget) {
 }
 
 bool _isInteractiveWidget(Widget widget) {
+  // 检查常见的交互式组件
   return widget is SwitchListTile ||
          widget is ElevatedButton ||
          widget is TextButton ||
