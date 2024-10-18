@@ -32,7 +32,6 @@ class TvKeyNavigation extends StatefulWidget {
 
 class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
-  int _currentIndex = -1; // 当前焦点索引
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储调试消息
   Timer? _timer; // 定时器，用于控制消息超时
@@ -88,65 +87,65 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 管理调试信息浮动窗口，并控制超时逻辑
-  void _manageDebugOverlay({String? message}) {
-    if (!_showDebugOverlay) return;
+void _manageDebugOverlay({String? message}) {
+  if (!_showDebugOverlay) return;
 
-    if (message != null) {
-      // 插入新消息
-      _debugMessages.add(message);
+  if (message != null) {
+    // 插入新消息
+    _debugMessages.add(message);
 
-      // 限制最多显示消息，超出时立即移除最早的一条
-      if (_debugMessages.length > 8) {
-        _debugMessages.removeAt(0);
-      }
+    // 限制最多显示消息，超出时立即移除最早的一条
+    if (_debugMessages.length > 8) {
+      _debugMessages.removeAt(0);
+    }
 
-      // 移除所有旧的 OverlayEntry
-      _clearAllOverlays();
+    // 移除所有旧的 OverlayEntry
+    _clearAllOverlays();
 
-      // 创建新的 OverlayEntry，用于显示多条提示
-      final overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          bottom: 20.0,
-          right: 20.0,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: 300.0, // 设置最大宽度为300
-              ),
-              padding: EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _debugMessages
-                    .map((msg) => Text(
-                          msg,
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                          softWrap: true, // 自动换行
-                          overflow: TextOverflow.visible, // 超出部分可见
-                        ))
-                    .toList(),
-              ),
+    // 创建新的 OverlayEntry，用于显示多条提示
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 20.0,
+        right: 20.0,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: 300.0, // 设置最大宽度为300
+            ),
+            padding: EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _debugMessages
+                  .map((msg) => Text(
+                        msg,
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                        softWrap: true, // 自动换行
+                        overflow: TextOverflow.visible, // 超出部分可见
+                      ))
+                  .toList(),
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      // 插入新的提示 OverlayEntry
-      Overlay.of(context).insert(overlayEntry);
-      _debugOverlays.add(overlayEntry); // 将新的 OverlayEntry 添加到列表中
+    // 插入新的提示 OverlayEntry
+    Overlay.of(context).insert(overlayEntry);
+    _debugOverlays.add(overlayEntry); // 将新的 OverlayEntry 添加到列表中
 
-      // 每次有新消息时，重置计时器
-      _resetTimer();
-    } else {
-      // 移除所有 OverlayEntry
-      _clearAllOverlays();
-      _cancelTimer(); // 清空后，取消计时器
-    }
+    // 每次有新消息时，重置计时器
+    _resetTimer();
+  } else {
+    // 移除所有 OverlayEntry
+    _clearAllOverlays();
+    _cancelTimer(); // 清空后，取消计时器
   }
+}
 
   /// 重置计时器，每次新消息加入时调用
   void _resetTimer() {
@@ -223,7 +222,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         // 请求第一个有效焦点
         firstValidFocusNode.requestFocus();
         _currentFocus = firstValidFocusNode;
-        _currentIndex = widget.focusNodes.indexOf(firstValidFocusNode); // 更新currentIndex
         _manageDebugOverlay(message: '无效的 Group，设置到第一个可用焦点节点');
         return;
       }
@@ -254,7 +252,6 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
       if (!focusNode.hasFocus) {
         focusNode.requestFocus();  // 设置焦点到指定的节点
         _currentFocus = focusNode;
-        _currentIndex = index; // 每次设置焦点时，更新currentIndex
         _manageDebugOverlay(message: '切换焦点到索引: $index, 当前Group: $groupIndex');
       }
     } catch (e, stackTrace) {
@@ -264,62 +261,62 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 缓存 Group 的焦点信息
-  void _cacheGroupFocusNodes() {
-    _groupFocusCache.clear();  // 清空现有缓存
-    _manageDebugOverlay(message: '开始缓存分组焦点信息');
+ void _cacheGroupFocusNodes() {
+  _groupFocusCache.clear();  // 清空现有缓存
+  _manageDebugOverlay(message: '开始缓存分组焦点信息');
 
-    // 获取所有的 Group
-    final groups = _getAllGroups();
-    _manageDebugOverlay(message: '找到的总组数: ${groups.length}');
+  // 获取所有的 Group
+  final groups = _getAllGroups();
+  _manageDebugOverlay(message: '找到的总组数: ${groups.length}');
 
-    if (groups.isEmpty || groups.length == 1) {
-      // 如果没有显式的分组，或只有一个分组，直接缓存首尾焦点节点
-      FocusNode? firstFocusNode = widget.focusNodes.firstWhere(
-        (node) => node.canRequestFocus, 
-        orElse: () => FocusNode() // 处理没有可请求焦点的情况
-      );
-      FocusNode? lastFocusNode = widget.focusNodes.lastWhere(
-        (node) => node.canRequestFocus, 
-        orElse: () => FocusNode() // 处理没有可请求焦点的情况
-      );
-      // 即使没有显式分组，也要缓存一个默认的分组
-      _groupFocusCache[0] = {
-        'firstFocusNode': firstFocusNode,
-        'lastFocusNode': lastFocusNode,
-      };
-      _manageDebugOverlay(
-        message: '缓存了没有分组或单一分组的焦点节点 - '
-                 '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-                 '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
-      );
-    } else {
-      // 如果有多个分组，遍历每个分组并缓存其首尾焦点节点
-      for (var group in groups) {
-        final groupWidgets = _getWidgetsInGroup(group);  // 获取分组中的所有子组件
-        final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);  // 获取所有焦点节点
-        
-        _manageDebugOverlay(message: '分组 ${group.groupIndex} 的组件数: ${groupWidgets.length}, 焦点节点数: ${groupFocusNodes.length}');
+  if (groups.isEmpty || groups.length == 1) {
+    // 如果没有显式的分组，或只有一个分组，直接缓存首尾焦点节点
+    FocusNode? firstFocusNode = widget.focusNodes.firstWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
+    FocusNode? lastFocusNode = widget.focusNodes.lastWhere(
+      (node) => node.canRequestFocus, 
+      orElse: () => FocusNode() // 处理没有可请求焦点的情况
+    );
+    // 即使没有显式分组，也要缓存一个默认的分组
+    _groupFocusCache[0] = {
+      'firstFocusNode': firstFocusNode,
+      'lastFocusNode': lastFocusNode,
+    };
+    _manageDebugOverlay(
+      message: '缓存了没有分组或单一分组的焦点节点 - '
+               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
+               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+    );
+  } else {
+    // 如果有多个分组，遍历每个分组并缓存其首尾焦点节点
+    for (var group in groups) {
+      final groupWidgets = _getWidgetsInGroup(group);  // 获取分组中的所有子组件
+      final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);  // 获取所有焦点节点
+      
+      _manageDebugOverlay(message: '分组 ${group.groupIndex} 的组件数: ${groupWidgets.length}, 焦点节点数: ${groupFocusNodes.length}');
 
-        if (groupFocusNodes.isNotEmpty) {
-          // 缓存当前分组的首尾焦点节点
-          _groupFocusCache[group.groupIndex] = {
-            'firstFocusNode': groupFocusNodes.first,
-            'lastFocusNode': groupFocusNodes.last,
-          };
-          _manageDebugOverlay(
-            message: '分组 ${group.groupIndex}: '
-                     '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
-                     '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
-          );
-        } else {
-          _manageDebugOverlay(message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点');
-        }
+      if (groupFocusNodes.isNotEmpty) {
+        // 缓存当前分组的首尾焦点节点
+        _groupFocusCache[group.groupIndex] = {
+          'firstFocusNode': groupFocusNodes.first,
+          'lastFocusNode': groupFocusNodes.last,
+        };
+        _manageDebugOverlay(
+          message: '分组 ${group.groupIndex}: '
+                   '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
+                   '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
+        );
+      } else {
+        _manageDebugOverlay(message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点');
       }
     }
-
-    // 显示总共缓存的分组数量和详细信息
-    _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
   }
+
+  // 显示总共缓存的分组数量和详细信息
+  _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
+}
 
   String _formatFocusNodeDebugLabel(FocusNode focusNode) {
     // 如果 FocusNode 设置了 debugLabel，就显示它，否则显示该节点在 focusNodes 中的索引
@@ -525,6 +522,7 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
+ /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -599,10 +597,10 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
     // 前进逻辑
     if (currentIndex == lastFocusIndex) {
       nextIndex = firstFocusIndex; // 循环到第一个焦点
-      action = "循环到第一个焦点 (索引: $nextIndex)";
+      action = "循环到第一个焦点";
     } else {
       nextIndex = currentIndex + 1;
-      action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      action = "切换到下一个焦点";
     }
   } else {
     // 后退逻辑
@@ -612,16 +610,16 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
         return; // 提前退出函数，避免后续调用 _requestFocus
       } else {
         nextIndex = lastFocusIndex;
-        action = "循环到最后一个焦点 (索引: $nextIndex)";
+        action = "循环到最后一个焦点";
       }  
     } else {
       nextIndex = currentIndex - 1;
-      action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      action = "切换到前一个焦点";
     }
   }
 
   _requestFocus(nextIndex, groupIndex: groupIndex);
-  _manageDebugOverlay(message: '操作: ${key.debugName}键，$action (组: $groupIndex)');
+  _manageDebugOverlay(message: '操作: ${key.debugName}键，$action');
 }
 
 /// 处理在组之间的跳转逻辑
@@ -666,7 +664,6 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
         if (nextFocusNode != null && nextFocusNode.context != null && nextFocusNode.canRequestFocus) {
           nextFocusNode.requestFocus();
           _currentFocus = nextFocusNode;
-          _currentIndex = widget.focusNodes.indexOf(nextFocusNode); // 更新currentIndex
           _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: ${nextFocusNode.debugLabel ?? '未知'}');
         } else {
           _manageDebugOverlay(message: '目标焦点节点未挂载或不可请求');
