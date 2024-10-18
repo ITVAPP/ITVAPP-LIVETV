@@ -233,7 +233,11 @@ class DialogUtil {
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
           _buildActionButton(
             label: negativeButtonLabel,
-            onPressed: onNegativePressed,
+            onPressed: () {
+                    if (onNegativePressed != null) {
+                      onNegativePressed();
+                    }
+                  },
             focusNode: _focusNodes[focusIndex++],
             setState: setState,
           ),
@@ -242,7 +246,11 @@ class DialogUtil {
         if (positiveButtonLabel != null)
           _buildActionButton(
             label: positiveButtonLabel,
-            onPressed: onPositivePressed,
+            onPressed: () {
+                    if (onPositivePressed != null) {
+                      onPositivePressed();
+                    }
+                  },
             focusNode: _focusNodes[focusIndex++],
             setState: setState,
             isPrimary: true,
@@ -264,7 +272,13 @@ class DialogUtil {
         if (closeButtonLabel != null)  // 底部关闭按钮
           _buildActionButton(
             label: closeButtonLabel,
-            onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
+            onPressed: () {
+                    if (onClosePressed != null) {
+                      onClosePressed();  // 点击关闭按钮时执行的回调
+                    } else {
+                      Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
+                    }
+                  },
             focusNode: _focusNodes[focusIndex++],
             setState: setState,
           ),
