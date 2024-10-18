@@ -210,73 +210,70 @@ class DialogUtil {
       mainAxisAlignment: MainAxisAlignment.center,  // 按钮居中
       children: [
         if (negativeButtonLabel != null)  // 如果负向按钮文本不为空，则显示
-          Focus(
-            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
-            child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
-              onPressed: () {
-                if (onNegativePressed != null) {
-                  onNegativePressed();
-                }
-              },
-              child: Text(negativeButtonLabel!),
-            ),
+          _buildFocusableButton(
+            focusNode: _focusNodes[focusIndex++],
+            onPressed: onNegativePressed,
+            label: negativeButtonLabel,
           ),
         if (positiveButtonLabel != null)  // 如果正向按钮文本不为空，则显示
           const SizedBox(width: 20),  // 添加按钮之间的间距
         if (positiveButtonLabel != null)
-          Focus(
-            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
-            child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
-              onPressed: () {
-                if (onPositivePressed != null) {
-                  onPositivePressed();
-                }
-              },
-              child: Text(positiveButtonLabel!),
-            ),
+          _buildFocusableButton(
+            focusNode: _focusNodes[focusIndex++],
+            onPressed: onPositivePressed,
+            label: positiveButtonLabel,
           ),
         if (isCopyButton && content != null)  // 如果是复制按钮，且有内容
-          Focus(
-            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
-            child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
-                CustomSnackBar.showSnackBar(
-                  context,
-                  S.current.copyok,
-                  duration: Duration(seconds: 4),
-                );
-              },
-              child: Text(S.current.copy),
-            ),
+          _buildFocusableButton(
+            focusNode: _focusNodes[focusIndex++],
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: content));  // 复制内容到剪贴板
+              CustomSnackBar.showSnackBar(
+                context,
+                S.current.copyok,
+                duration: Duration(seconds: 4),
+              );
+            },
+            label: S.current.copy,
           ),
         if (closeButtonLabel != null)  // 底部关闭按钮
-          Focus(
-            focusNode: _focusNodes[focusIndex++],  // 动态递增焦点索引
-            child: ElevatedButton(
-              style: _buttonStyle(_focusNodes[focusIndex - 1]),  // 索引已经递增，调整样式
-              autofocus: true,
-              onPressed: () {
-                if (onClosePressed != null) {
-                  onClosePressed();  // 点击关闭按钮时执行的回调
-                } else {
-                  Navigator.of(context).pop();  // 如果未传递回调，则默认关闭对话框
-                }
-              },
-              child: Text(closeButtonLabel!),
-            ),
+          _buildFocusableButton(
+            focusNode: _focusNodes[focusIndex++],
+            onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
+            label: closeButtonLabel,
+            autofocus: true,
           ),
       ],
     );
   }
 
-  // 动态设置按钮样式
-  static ButtonStyle _buttonStyle(FocusNode? focusNode) {
+  // 新增：构建可聚焦按钮的方法
+  static Widget _buildFocusableButton({
+    required FocusNode focusNode,
+    required VoidCallback? onPressed,
+    required String label,
+    bool autofocus = false,
+  }) {
+    return Focus(
+      focusNode: focusNode,
+      child: Builder(
+        builder: (BuildContext context) {
+          final bool hasFocus = Focus.of(context).hasFocus;
+          return ElevatedButton(
+            style: _buttonStyle(hasFocus),
+            onPressed: onPressed,
+            autofocus: autofocus,
+            child: Text(label),
+          );
+        },
+      ),
+    );
+  }
+
+  // 修改：动态设置按钮样式
+  static ButtonStyle _buttonStyle(bool hasFocus) {
     return ElevatedButton.styleFrom(
-      backgroundColor: _getButtonColor(focusNode),
+      backgroundColor: hasFocus ? darkenColor(selectedColor) : unselectedColor,
       foregroundColor: Colors.white,  // 设置按钮文本的颜色为白色
       padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0), // 设置上下和左右内边距
       shape: RoundedRectangleBorder(
@@ -284,21 +281,10 @@ class DialogUtil {
       ),
       textStyle: TextStyle(
         fontSize: 18,  // 设置按钮文字大小
-        fontWeight: (focusNode != null && focusNode.hasFocus)
-            ? FontWeight.bold  // 选中时文字加粗
-            : FontWeight.normal,  // 未选中时文字正常
+        fontWeight: hasFocus ? FontWeight.bold : FontWeight.normal,  // 选中时文字加粗
       ),
       alignment: Alignment.center,  // 文字在按钮内部居中对齐
     );
-  }
-
-  // 获取按钮的背景颜色，根据焦点状态进行切换
-  static Color _getButtonColor(FocusNode? focusNode) {
-    if (focusNode != null && focusNode.hasFocus) {
-      return darkenColor(selectedColor);  // 焦点时变暗处理
-    } else {
-      return unselectedColor;  // 未选中时的颜色
-    }
   }
 
   // 获取关闭按钮的颜色，动态设置焦点状态
