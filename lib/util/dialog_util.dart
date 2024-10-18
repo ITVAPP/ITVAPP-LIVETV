@@ -59,8 +59,14 @@ class DialogUtil {
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;  // 底部关闭按钮需要一个 FocusNode
 
-    // 使用 List.generate 创建需要的 FocusNode 数量
-    _focusNodes = List.generate(focusNodeCount, (index) => FocusNode());
+    // 使用 List.generate 创建需要的 FocusNode 数量，并为每个 FocusNode 添加监听器
+    _focusNodes = List.generate(focusNodeCount, (index) {
+      final focusNode = FocusNode();
+      focusNode.addListener(() {
+        setState(() {});  // 当焦点变化时，触发 UI 更新
+      });
+      return focusNode;
+    });
 
     return showDialog<bool>(
       context: context,
