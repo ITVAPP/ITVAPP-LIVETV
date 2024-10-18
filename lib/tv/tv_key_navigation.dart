@@ -523,19 +523,25 @@ void _manageDebugOverlay({String? message}) {
 
   /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;
+  final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
-
+    // 如果上下文不可用，显示调试消息并返回
     if (context == null) {
       _manageDebugOverlay(message: '焦点上下文为空，无法操作');
       return;
     }
-
     try {
-      // 递归查找可交互的 Widget
-      Widget? interactiveWidget = _findInteractiveWidget(context.widget);
-      
+      // 查找最近的 FocusableItem 或 Focus 包裹的节点
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
+      // 根据找到的包装类型执行交互操作
+      Widget? interactiveWidget;
+      if (focusableItem != null) {
+        interactiveWidget = focusableItem.child;
+      } else if (focusWidget != null) {
+        interactiveWidget = _findInteractiveChildInFocus(focusWidget);
+      }
       if (interactiveWidget != null) {
         _executeInteractiveWidgetAction(interactiveWidget);
       } else {
@@ -549,55 +555,39 @@ void _triggerButtonAction() {
   }
 }
 
-Widget? _findInteractiveWidget(Widget widget) {
-  if (_isInteractiveWidget(widget)) {
-    return widget;
+Widget? _findInteractiveChildInFocus(Focus focusWidget) {
+  if (_isInteractiveWidget(focusWidget.child)) {
+    return focusWidget.child;
   }
-
-  if (widget is FocusableItem) {
-    return _findInteractiveWidget(widget.child);
-  }
-
-  if (widget is Focus) {
-    // 如果 widget 是 Focus，我们递归其 child
-    return _findInteractiveWidget(widget.child);
-  }
-
-  if (widget is Builder) {
-    // 如果 widget 是 Builder，我们递归其构建的子组件，使用 context 而非 widget.context
-    return _findInteractiveWidget(widget.build(context));
-  }
-
-  if (widget is SingleChildRenderObjectWidget) {
-    // 对于 SingleChildRenderObjectWidget，递归其 child
-    return widget.child != null ? _findInteractiveWidget(widget.child!) : null;
-  }
-
-  if (widget is MultiChildRenderObjectWidget) {
-    // 如果是 MultiChildRenderObjectWidget，递归所有子组件
-    for (var child in widget.children) {
-      Widget? found = _findInteractiveWidget(child);
-      if (found != null) {
-        return found;
-      }
+  
+  // 如果 Focus 的直接子组件不是可交互的，继续深入查找
+  Widget? result;
+  void visitor(Element element) {
+    if (result != null) return;
+    if (_isInteractiveWidget(element.widget)) {
+      result = element.widget;
+      return;
     }
+    element.visitChildren(visitor);
   }
-
-  return null;
+  (focusWidget.child as Element).visitChildren(visitor);
+  return result;
 }
 
 bool _isInteractiveWidget(Widget widget) {
-  // 检查常见的交互式组件
-  return widget is SwitchListTile ||
-         widget is ElevatedButton ||
+  return widget is ElevatedButton ||
          widget is TextButton ||
          widget is OutlinedButton ||
          widget is IconButton ||
          widget is FloatingActionButton ||
          widget is ListTile ||
-         widget is PopupMenuButton;
+         widget is PopupMenuButton ||
+         widget is SwitchListTile ||
+         (widget is GestureDetector && widget.onTap != null) ||
+         (widget is InkWell && widget.onTap != null);
 }
 
+// 执行不同类型控件的操作
 void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
     interactiveWidget.onChanged!(!interactiveWidget.value);
@@ -615,10 +605,13 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
     interactiveWidget.onTap!();
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
     interactiveWidget.onSelected!(null);
+  } else if (interactiveWidget is GestureDetector && interactiveWidget.onTap != null) {
+    interactiveWidget.onTap!();
+  } else if (interactiveWidget is InkWell && interactiveWidget.onTap != null) {
+    interactiveWidget.onTap!();
   } else {
     _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
-
   _manageDebugOverlay(message: '执行按钮操作: ${interactiveWidget.runtimeType}');
 }
   
