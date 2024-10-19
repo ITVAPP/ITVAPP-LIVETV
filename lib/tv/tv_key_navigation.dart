@@ -521,7 +521,7 @@ void _manageDebugOverlay({String? message}) {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-  /// 执行当前焦点控件的点击操作或切换开关状态
+/// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {  
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
@@ -539,7 +539,26 @@ void _triggerButtonAction() {
 
       // 如果找到了 FocusableItem，触发它的交互操作
       if (focusableItem != null) {
-        focusableItem._triggerButtonAction();  // 触发 FocusableItem 的操作
+        final child = focusableItem.child;
+
+        // 识别并触发交互控件的操作
+        if (child is GestureDetector && child.onTap != null) {
+          child.onTap!();
+        } else if (child is InkWell && child.onTap != null) {
+          child.onTap!();
+        } else if (child is ElevatedButton && child.onPressed != null) {
+          child.onPressed!();
+        } else if (child is TextButton && child.onPressed != null) {
+          child.onPressed!();
+        } else if (child is IconButton && child.onPressed != null) {
+          child.onPressed!();
+        } else if (child is SwitchListTile && child.onChanged != null) {
+          child.onChanged!(!child.value);
+        } else if (child is ListTile && child.onTap != null) {
+          child.onTap!();
+        } else {
+          _manageDebugOverlay(message: '未找到可执行操作的控件');
+        }
       } else {
         _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
@@ -698,33 +717,7 @@ class _FocusableItemState extends State<FocusableItem> {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: widget.focusNode,
-      onKeyEvent: (FocusNode node, KeyEvent event) {
-        // 处理 Enter 键事件，触发对应控件的操作
-        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
-          _triggerButtonAction();  // 触发对应交互控件的操作
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: widget.child,
+      child: widget.child,  // 只保留子组件，删除 onKeyEvent
     );
-  }
-
-  // 唯一的触发交互逻辑的函数
-  void _triggerButtonAction() {
-    // 识别并触发交互控件的操作
-    if (widget.child is ElevatedButton && (widget.child as ElevatedButton).onPressed != null) {
-      (widget.child as ElevatedButton).onPressed!();
-    } else if (widget.child is TextButton && (widget.child as TextButton).onPressed != null) {
-      (widget.child as TextButton).onPressed!();
-    } else if (widget.child is IconButton && (widget.child as IconButton).onPressed != null) {
-      (widget.child as IconButton).onPressed!();
-    } else if (widget.child is SwitchListTile && (widget.child as SwitchListTile).onChanged != null) {
-      (widget.child as SwitchListTile).onChanged!(!(widget.child as SwitchListTile).value);
-    } else if (widget.child is ListTile && (widget.child as ListTile).onTap != null) {
-      (widget.child as ListTile).onTap!();
-    } else {
-      _manageDebugOverlay(message: '未找到可执行操作的控件');
-    }
   }
 }
