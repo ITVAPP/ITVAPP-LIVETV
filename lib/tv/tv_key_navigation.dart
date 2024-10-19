@@ -621,16 +621,10 @@ bool _isInteractiveWidgetAndExecute(Widget widget) {
     widget.onChanged!(widget.value);
   } else if (widget is TextField && widget.onTap != null) {
     widget.onTap!();
-  } else if (widget is CupertinoButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is CupertinoSwitch && widget.onChanged != null) {
-    widget.onChanged!(!widget.value);
-  } else if (widget is CupertinoTextField && widget.onTap != null) {
-    widget.onTap!();
-  } else {
+  } 
+  else {
     return false;
   }
-  
   _manageDebugOverlay(message: '执行控件操作');
   return true;
 }
