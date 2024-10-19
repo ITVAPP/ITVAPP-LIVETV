@@ -544,7 +544,7 @@ void _triggerButtonAction() {
         interactiveWidget = focusableItem.child;  // 使用 FocusableItem 包裹的子控件
       } else if (focusWidget != null) {
         // 使用 Focus 查找其包裹的子控件
-        interactiveWidget = _findInteractiveChild(focusWidget.context.widget);
+        interactiveWidget = _findInteractiveChild(focusWidget.context?.widget);
       }
 
       if (interactiveWidget != null) {
