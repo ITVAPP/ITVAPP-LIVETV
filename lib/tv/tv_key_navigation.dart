@@ -537,13 +537,11 @@ void _triggerButtonAction() {
       // 查找最近的 FocusableItem 节点，去掉对 Focus 的查找
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
 
-      // 只处理 FocusableItem 包裹的控件
-      final interactiveWidget = focusableItem?.child;
-
-      if (interactiveWidget != null) {
-        _executeInteractiveWidgetAction(interactiveWidget);
+      // 如果找到了 FocusableItem，就递归查找其子组件
+      if (focusableItem != null) {
+        _findAndTriggerAction(focusableItem.child); // 开始查找 FocusableItem 包裹的子组件
       } else {
-        _manageDebugOverlay(message: '未找到可执行操作的控件');
+        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
@@ -553,29 +551,59 @@ void _triggerButtonAction() {
   }
 }
 
-// 执行不同类型控件的操作
-void _executeInteractiveWidgetAction(Widget interactiveWidget) {
-  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-    interactiveWidget.onChanged!(!interactiveWidget.value);
-  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-    interactiveWidget.onTap!();
-  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-    interactiveWidget.onSelected!(null);
+// 递归查找和执行不同类型控件的操作
+void _findAndTriggerAction(Widget widget) {
+  // 识别常见的交互控件并触发操作
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    widget.onChanged!(!widget.value);
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is IconButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is ListTile && widget.onTap != null) {
+    widget.onTap!();
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    widget.onSelected!(null);
+  } 
+  // 如果是布局类组件，递归遍历其子组件
+  else if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
+    final Iterable<Widget> children = _extractChildren(widget);
+    for (var child in children) {
+      _findAndTriggerAction(child);  // 递归查找子组件
+    }
+  } 
+  // 处理只有一个子组件的容器
+  else if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
+    final Widget? child = _extractChild(widget);
+    if (child != null) {
+      _findAndTriggerAction(child);  // 递归处理子组件
+    }
   } else {
     _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
+}
 
-  _manageDebugOverlay(message: '执行按钮操作');
+// 提取子组件的方法，处理多子组件布局
+Iterable<Widget> _extractChildren(Widget widget) {
+  if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
+    return widget is MultiChildRenderObjectWidget ? widget.children : <Widget>[];
+  } else {
+    return <Widget>[];  // 如果不匹配，返回空列表
+  }
+}
+
+// 提取单个子组件的方法，处理单子组件容器
+Widget? _extractChild(Widget widget) {
+  if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
+    return widget is SingleChildRenderObjectWidget ? widget.child : null;
+  }
+  return null;
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
