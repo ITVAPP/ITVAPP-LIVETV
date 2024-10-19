@@ -563,6 +563,26 @@ Widget? _findInteractiveChild(Widget child) {
     return _findInteractiveChild(child.child!); // 查找 Focus 的子组件
   }
 
+  // 处理 Builder 包裹的情况
+  if (child is Builder) {
+    return _findInteractiveWidget((child as Builder).builder(context)); // 查找 Builder 内部生成的组件
+  }
+
+  // 对于多个子组件（如 Column、Row），遍历所有子组件
+  if (child is MultiChildRenderObjectWidget) {
+    for (var subChild in child.children) {
+      final result = _findInteractiveChild(subChild);
+      if (result != null) {
+        return result; // 如果找到交互组件，直接返回
+      }
+    }
+  }
+
+  // 如果 child 是 SingleChildRenderObjectWidget，继续查找其子节点
+  if (child is SingleChildRenderObjectWidget && child.child != null) {
+    return _findInteractiveChild(child.child!);
+  }
+
   return null;
 }
 
