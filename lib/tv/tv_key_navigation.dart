@@ -569,11 +569,14 @@ Widget? _findInteractiveChild(Widget child) {
     return child;
   }
 
-  // 使用 Element 访问子元素而非从 Key 获取
-  if (child is Element) {
+  // 获取当前的 Element 以便使用 visitChildElements
+  final Element? element = _getElementFromWidget(child);
+  
+  if (element != null) {
     Widget? foundWidget;
 
-    child.visitChildElements((childElement) {
+    // 递归访问子元素
+    element.visitChildElements((childElement) {
       if (foundWidget == null) {
         foundWidget = _findInteractiveWidget(childElement);
       }
@@ -582,6 +585,16 @@ Widget? _findInteractiveChild(Widget child) {
     return foundWidget;
   }
 
+  return null;
+}
+
+// 将 Widget 转换为 Element 以便递归访问其子元素
+Element? _getElementFromWidget(Widget widget) {
+  // 如果有 context，可通过 BuildContext 获取 Element
+  if (widget.key != null && widget.key is GlobalKey) {
+    final key = widget.key as GlobalKey;
+    return key.currentContext as Element?;
+  }
   return null;
 }
 
