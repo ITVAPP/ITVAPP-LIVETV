@@ -108,7 +108,7 @@ class DialogUtil {
                                 if (content != null) _buildDialogContent(content: content),  // 如果有 content，显示内容
                                 const SizedBox(height: 10),
                                 if (child != null) 
-                                  Focus( // 使用 Focus 组件
+                                  FocusableItem( // 使用 FocusableItem 组件
                                     focusNode: _focusNodes[focusIndex++], // 动态递增焦点节点索引
                                     child: child, 
                                   ),
@@ -157,7 +157,7 @@ class DialogUtil {
         ),
         Positioned(
           right: 0,
-          child: Focus(
+          child: FocusableItem(  // 修改为使用 FocusableItem 包裹
             focusNode: closeFocusNode!,  // 使用传入的焦点节点
             child: Builder(
               builder: (BuildContext context) {
@@ -259,7 +259,7 @@ class DialogUtil {
     required String label,
     bool autofocus = false,
   }) {
-    return Focus(
+    return FocusableItem(  // 修改为使用 FocusableItem 包裹
       focusNode: focusNode,
       child: Builder(
         builder: (BuildContext context) {
