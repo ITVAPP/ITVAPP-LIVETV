@@ -614,7 +614,7 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
     interactiveWidget.onSelected!(null);
   } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件，当前组件类型: ${interactiveWidget.runtimeType} 可能不支持交互。组件路径: ${_buildWidgetPathFromContext(interactiveWidget.context as BuildContext?)}');
+    _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
 
   _manageDebugOverlay(message: '执行按钮操作');
