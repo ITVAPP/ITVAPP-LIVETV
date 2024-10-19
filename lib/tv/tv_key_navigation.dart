@@ -534,12 +534,12 @@ void _triggerButtonAction() {
     }
 
     try {
-      // 查找最近的 FocusableItem 节点，去掉对 Focus 的查找
+      // 查找最近的 FocusableItem 节点，直接触发它的交互操作
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
 
-      // 如果找到了 FocusableItem，就递归查找其子组件
+      // 如果找到了 FocusableItem，触发它的交互操作
       if (focusableItem != null) {
-        _findAndTriggerAction(focusableItem.child); // 开始查找 FocusableItem 包裹的子组件
+        focusableItem._triggerButtonAction();  // 触发 FocusableItem 的操作
       } else {
         _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
@@ -549,69 +549,6 @@ void _triggerButtonAction() {
   } else {
     _manageDebugOverlay(message: '当前无有效的焦点上下文');
   }
-}
-
-// 递归查找和执行不同类型控件的操作
-void _findAndTriggerAction(Widget widget) {
-  // 识别常见的交互控件并触发操作
-  if (widget is SwitchListTile && widget.onChanged != null) {
-    widget.onChanged!(!widget.value);
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is TextButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is IconButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is ListTile && widget.onTap != null) {
-    widget.onTap!();
-  } else if (widget is PopupMenuButton && widget.onSelected != null) {
-    widget.onSelected!(null);
-  } 
-  // 如果遇到无影响的控件，继续递归其子树
-  else if (widget is Builder || widget is GestureDetector || widget is Padding || 
-           widget is Container || widget is Center || widget is Align || 
-           widget is Opacity || widget is SizedBox) {
-    // 获取 widget 的 Element 并访问其子树
-    widget.createElement()?.visitChildren((childElement) {
-      _findAndTriggerAction(childElement.widget);  // 递归访问子组件
-    });
-  }
-  // 如果是布局类组件，递归遍历其子组件
-  else if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
-    final Iterable<Widget> children = _extractChildren(widget);
-    for (var child in children) {
-      _findAndTriggerAction(child);  // 递归查找子组件
-    }
-  } 
-  // 处理只有一个子组件的容器
-  else if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
-    final Widget? child = _extractChild(widget);
-    if (child != null) {
-      _findAndTriggerAction(child);  // 递归处理子组件
-    }
-  } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件');
-  }
-}
-
-// 提取子组件的方法，处理多子组件布局
-Iterable<Widget> _extractChildren(Widget widget) {
-  if (widget is MultiChildRenderObjectWidget) {
-    return widget.children;  // 直接返回 children
-  }
-  return <Widget>[];  // 如果不匹配，返回空列表
-}
-
-// 提取单个子组件的方法，处理单子组件容器
-Widget? _extractChild(Widget widget) {
-  if (widget is SingleChildRenderObjectWidget) {
-    return widget.child;  // 直接返回子组件
-  }
-  return null;
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
@@ -740,7 +677,7 @@ class Group extends StatelessWidget {
 }
 
 // 用于包装具有焦点的组件
-class FocusableItem extends StatefulWidget {
+class FocusableItem extends StatefulWidget { 
   final FocusNode focusNode; // 焦点节点
   final Widget child; // 子组件
   final int? groupIndex;
@@ -762,10 +699,32 @@ class _FocusableItemState extends State<FocusableItem> {
     return Focus(
       focusNode: widget.focusNode,
       onKeyEvent: (FocusNode node, KeyEvent event) {
-        // 如果需要对键盘事件进行处理，可以在这里处理
+        // 处理 Enter 键事件，触发对应控件的操作
+        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
+          _triggerButtonAction();  // 触发对应交互控件的操作
+          return KeyEventResult.handled;
+        }
         return KeyEventResult.ignored;
       },
       child: widget.child,
     );
+  }
+
+  // 唯一的触发交互逻辑的函数
+  void _triggerButtonAction() {
+    // 识别并触发交互控件的操作
+    if (widget.child is ElevatedButton && (widget.child as ElevatedButton).onPressed != null) {
+      (widget.child as ElevatedButton).onPressed!();
+    } else if (widget.child is TextButton && (widget.child as TextButton).onPressed != null) {
+      (widget.child as TextButton).onPressed!();
+    } else if (widget.child is IconButton && (widget.child as IconButton).onPressed != null) {
+      (widget.child as IconButton).onPressed!();
+    } else if (widget.child is SwitchListTile && (widget.child as SwitchListTile).onChanged != null) {
+      (widget.child as SwitchListTile).onChanged!(!(widget.child as SwitchListTile).value);
+    } else if (widget.child is ListTile && (widget.child as ListTile).onTap != null) {
+      (widget.child as ListTile).onTap!();
+    } else {
+      _manageDebugOverlay(message: '未找到可执行操作的控件');
+    }
   }
 }
