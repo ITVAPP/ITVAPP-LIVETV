@@ -529,78 +529,50 @@ void _triggerButtonAction() {
     final BuildContext? context = focusNode.context;
 
     if (context == null) {
-      _manageDebugOverlay(message: '索引${_currentFocus.toString()} 焦点上下文为空，无法操作');
+      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
       return;
     }
 
     try {
-      // 查找当前焦点下的交互组件
-      Widget? interactiveWidget = _findInteractiveWidget(context);
-
-      if (interactiveWidget != null) {
-        _executeInteractiveWidgetAction(interactiveWidget); // 找到交互组件后执行其操作
+      // 检查当前焦点节点是否是 FocusableItem 或 Focus
+      Widget? widget = context.widget;
+      if (widget is FocusableItem) {
+        // 如果是 FocusableItem，继续执行查找
+        Widget? interactiveWidget = _findInteractiveWidget(context);
+        if (interactiveWidget != null) {
+          _executeInteractiveWidgetAction(interactiveWidget); // 找到交互组件后执行其操作
+        } else {
+          _manageDebugOverlay(message: '未找到可执行操作的控件');
+        }
+      } else if (widget is Focus) {
+        // 如果是 Focus，直接通过 FocusNode 执行操作，不需要递归查找
+        focusNode.requestFocus();
+        if (focusNode.hasPrimaryFocus) {
+          // 调用 FocusNode 直接执行交互操作，跳过查找逻辑
+          _triggerInteractiveAction(focusNode);
+        } else {
+          _manageDebugOverlay(message: 'FocusNode 未找到可触发的交互操作');
+        }
       } else {
-        _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
+        _manageDebugOverlay(message: '焦点控件未找到');
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e\n堆栈信息: $stackTrace');
     }
   } else {
-    _manageDebugOverlay(message: '索引${_currentFocus.toString()} 无有效的焦点上下文');
+    _manageDebugOverlay(message: '无效的焦点上下文');
   }
 }
 
-// 在子组件中递归查找交互组件，处理多子节点情况
-Widget? _findInteractiveChild(Widget child) {
-  if (_isInteractiveWidget(child)) {
-    return child; // 如果是交互组件，直接返回它
-  }
-
-  // 如果是 FocusableItem 或 Focus 包裹的组件，递归查找其子组件
-  if (child is FocusableItem) {
-    return _findInteractiveChild(child.child); // 查找 FocusableItem 的子组件
-  } else if (child is Focus) {
-    return _findInteractiveChild(child.child!); // 递归查找 Focus 包裹的子组件
-  }
-
-  // 处理多子节点的情况
-  if (child is MultiChildRenderObjectWidget) {
-    for (var subChild in child.children) {
-      var foundWidget = _findInteractiveChild(subChild);
-      if (foundWidget != null) {
-        return foundWidget;
-      }
+// 通过 FocusNode 触发交互操作
+void _triggerInteractiveAction(FocusNode focusNode) {
+  // 直接检查焦点节点下的 widget 是否是按钮等可交互组件
+  focusNode.context!.visitChildElements((element) {
+    final Widget childWidget = element.widget;
+    if (_isInteractiveWidget(childWidget)) {
+      _executeInteractiveWidgetAction(childWidget); // 直接执行交互操作
     }
-  }
-
-  // 处理单子节点的情况
-  if (child is SingleChildRenderObjectWidget && child.child != null) {
-    return _findInteractiveChild(child.child!);
-  }
-
-  return null;
-}
-
-// 查找交互组件的核心逻辑，递归处理多层结构
-Widget? _findInteractiveWidget(BuildContext context) {
-  // 先查找焦点的直接父级组件是否是交互组件
-  Widget widget = context.widget;
-  if (_isInteractiveWidget(widget)) {
-    return widget; // 如果是交互组件，直接返回
-  }
-
-  // 如果是 Focus 包裹的组件，忽略它包裹的具体类型，直接递归查找其子节点
-  if (widget is Focus && widget.child != null) {
-    return _findInteractiveChild(widget.child!); // 直接递归查找 Focus 包裹的子组件
-  }
-
-  // 递归查找父级交互组件
-  final parentContext = context.findAncestorStateOfType<State>()?.context;
-  if (parentContext != null) {
-    return _findInteractiveWidget(parentContext);
-  }
-
-  return null;
+  });
 }
 
 // 判断是否为交互组件，扩展更多组件类型
@@ -637,7 +609,7 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   } else if (interactiveWidget is GestureDetector && interactiveWidget.onTap != null) {
     interactiveWidget.onTap!(); // 执行 GestureDetector 的 onTap
   } else {
-    _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
+    _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
 
   _manageDebugOverlay(message: '执行按钮操作');
