@@ -522,7 +522,7 @@ void _manageDebugOverlay({String? message}) {
   }
 
   /// 执行当前焦点控件的点击操作或切换开关状态
-void _triggerButtonAction() {
+void _triggerButtonAction() { 
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
@@ -553,8 +553,26 @@ void _triggerButtonAction() {
 
 // 递归查找和执行不同类型控件的操作
 void _findAndTriggerAction(Widget widget) {
+  // 直接跳过无影响的控件，并递归访问其子树
+  if (widget is Builder || widget is GestureDetector || widget is Padding || 
+      widget is Container || widget is Center || widget is Align || 
+      widget is Opacity || widget is SizedBox) {
+    widget.createElement()?.visitChildren((childElement) {
+      _findAndTriggerAction(childElement.widget);  // 递归访问这些无影响控件的子组件
+    });
+  }
+  // 处理多子组件的布局类容器
+  else if (widget is MultiChildRenderObjectWidget) {
+    for (var child in _extractChildren(widget)) {
+      _findAndTriggerAction(child);  // 递归查找子组件
+    }
+  }
+  // 处理单子组件的容器
+  else if (widget is SingleChildRenderObjectWidget && widget.child != null) {
+    _findAndTriggerAction(widget.child!);  // 递归处理单个子组件
+  }
   // 识别常见的交互控件并触发操作
-  if (widget is SwitchListTile && widget.onChanged != null) {
+  else if (widget is SwitchListTile && widget.onChanged != null) {
     widget.onChanged!(!widget.value);
   } else if (widget is ElevatedButton && widget.onPressed != null) {
     widget.onPressed!();
@@ -570,20 +588,6 @@ void _findAndTriggerAction(Widget widget) {
     widget.onTap!();
   } else if (widget is PopupMenuButton && widget.onSelected != null) {
     widget.onSelected!(null);
-  } 
-  // 如果是布局类组件，递归遍历其子组件
-  else if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
-    final Iterable<Widget> children = _extractChildren(widget);
-    for (var child in children) {
-      _findAndTriggerAction(child);  // 递归查找子组件
-    }
-  } 
-  // 处理只有一个子组件的容器
-  else if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
-    final Widget? child = _extractChild(widget);
-    if (child != null) {
-      _findAndTriggerAction(child);  // 递归处理子组件
-    }
   } else {
     _manageDebugOverlay(message: '未找到可执行操作的控件');
   }
@@ -591,17 +595,16 @@ void _findAndTriggerAction(Widget widget) {
 
 // 提取子组件的方法，处理多子组件布局
 Iterable<Widget> _extractChildren(Widget widget) {
-  if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
-    return widget is MultiChildRenderObjectWidget ? widget.children : <Widget>[];
-  } else {
-    return <Widget>[];  // 如果不匹配，返回空列表
+  if (widget is MultiChildRenderObjectWidget) {
+    return widget.children;  // 直接返回 children
   }
+  return <Widget>[];  // 如果不匹配，返回空列表
 }
 
 // 提取单个子组件的方法，处理单子组件容器
 Widget? _extractChild(Widget widget) {
-  if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
-    return widget is SingleChildRenderObjectWidget ? widget.child : null;
+  if (widget is SingleChildRenderObjectWidget) {
+    return widget.child;  // 直接返回子组件
   }
   return null;
 }
