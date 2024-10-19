@@ -569,15 +569,17 @@ Widget? _findInteractiveChild(Widget child) {
     return child;
   }
 
-  if (child is Builder) {
-    // 使用 builder 函数来查找交互组件
-    return Builder(
-      builder: (context) {
-        return _findInteractiveWidget(context);
-      },
-    );
-  }
-  return null;
+  // 使用 Element 访问子元素而非 Builder
+  final widgetContext = (child as Element).widget;
+
+  Widget? foundWidget;
+  (widgetContext as Element).visitChildElements((element) {
+    if (foundWidget == null) {
+      foundWidget = _findInteractiveWidget(element);
+    }
+  });
+
+  return foundWidget;
 }
 
 // 递归查找控件树中的交互组件
