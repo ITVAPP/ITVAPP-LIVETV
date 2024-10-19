@@ -525,31 +525,9 @@ void _manageDebugOverlay({String? message}) {
 void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
-    final BuildContext? context = focusNode.context;
-
-    // 如果上下文不可用，显示调试消息并返回
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-      return;
-    }
-
+    final BuildContext context = focusNode.context!;
     try {
-      // 查找最近的 FocusableItem 或使用 Focus.of 获取当前的 Focus 控件
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      final focusWidget = Focus.of(context); // 使用 Focus.of 方法来处理当前焦点
-
-      // 根据找到的包装类型执行交互操作
-      Widget? interactiveWidget;
-      if (focusableItem != null) {
-        interactiveWidget = focusableItem.child;  // 使用 FocusableItem 包裹的子控件
-      } else if (focusWidget != null) {
-        // 使用 Focus 查找其包裹的子控件
-        interactiveWidget = _findInteractiveChild(focusWidget.context?.widget);
-      }
-
-      if (interactiveWidget != null) {
-        _executeInteractiveWidgetAction(interactiveWidget);
-      } else {
+      if (!_findAndExecuteInteractiveWidget(context)) {
         _manageDebugOverlay(message: '未找到可执行操作的控件');
       }
     } catch (e, stackTrace) {
@@ -560,58 +538,109 @@ void _triggerButtonAction() {
   }
 }
 
-Widget? _findInteractiveChild(Widget? widget) {
+bool _findAndExecuteInteractiveWidget(BuildContext context) {
+  Widget? widget = context.widget;
+  BuildContext? currentContext = context;
+
+  while (currentContext != null) {
+    if (widget is FocusableItem) {
+      return _findAndExecuteInteractiveChild(widget.child);
+    } else if (widget is Focus) {
+      return _findAndExecuteInteractiveChild(widget.child);
+    } else if (_isInteractiveWidgetAndExecute(widget)) {
+      return true;
+    }
+
+    currentContext = currentContext.findAncestorStateOfType<State>();
+    if (currentContext != null) {
+      widget = currentContext.widget;
+    } else {
+      break;
+    }
+  }
+
+  return false;
+}
+
+bool _findAndExecuteInteractiveChild(Widget? widget) {
   if (widget == null) {
-    return null;
+    return false;
   }
 
-  // 检查常见的可交互控件
-  if (widget is ElevatedButton || widget is TextButton || widget is OutlinedButton ||
-      widget is IconButton || widget is SwitchListTile || widget is FloatingActionButton ||
-      (widget is ListTile && widget.onTap != null) || (widget is PopupMenuButton && widget.onSelected != null)) {
-    return widget;
+  if (_isInteractiveWidgetAndExecute(widget)) {
+    return true;
   }
 
-  // 如果控件有单个子控件，递归检查
-  if (widget is SingleChildRenderObjectWidget && widget.child != null) {
-    return _findInteractiveChild(widget.child);
+  if (widget is SingleChildRenderObjectWidget) {
+    return _findAndExecuteInteractiveChild(widget.child);
   } 
-  // 如果控件有多个子控件，递归检查每一个
-  else if (widget is MultiChildRenderObjectWidget) {
+
+  if (widget is MultiChildRenderObjectWidget) {
     for (Widget child in widget.children) {
-      Widget? result = _findInteractiveChild(child);
-      if (result != null) {
-        return result;
+      if (_findAndExecuteInteractiveChild(child)) {
+        return true;
       }
     }
   }
 
-  return null;
-}
-
-// 执行不同类型控件的操作
-void _executeInteractiveWidgetAction(Widget interactiveWidget) {
-  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-    interactiveWidget.onChanged!(!interactiveWidget.value);
-  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-    interactiveWidget.onTap!();
-  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-    interactiveWidget.onSelected!(null);
-  } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件');
+  if (widget is StatelessWidget || widget is StatefulWidget) {
+    final Element? element = (widget as dynamic).createElement() as Element?;
+    if (element != null) {
+      element.mount(null, null);
+      try {
+        return _findAndExecuteInteractiveChild(element.widget);
+      } finally {
+        element.unmount();
+      }
+    }
   }
 
-  _manageDebugOverlay(message: '执行按钮操作');
+  return false;
+}
+
+bool _isInteractiveWidgetAndExecute(Widget widget) {
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    widget.onChanged!(!widget.value);
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is IconButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is ListTile && widget.onTap != null) {
+    widget.onTap!();
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    widget.onSelected!(null);
+  } else if (widget is InkWell && widget.onTap != null) {
+    widget.onTap!();
+  } else if (widget is GestureDetector && widget.onTap != null) {
+    widget.onTap!();
+  } else if (widget is Switch && widget.onChanged != null) {
+    widget.onChanged!(!widget.value);
+  } else if (widget is Checkbox && widget.onChanged != null) {
+    widget.onChanged!(!widget.value!);
+  } else if (widget is Radio && widget.onChanged != null) {
+    widget.onChanged!(widget.value);
+  } else if (widget is Slider && widget.onChanged != null) {
+    widget.onChanged!(widget.value);
+  } else if (widget is TextField && widget.onTap != null) {
+    widget.onTap!();
+  } else if (widget is CupertinoButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is CupertinoSwitch && widget.onChanged != null) {
+    widget.onChanged!(!widget.value);
+  } else if (widget is CupertinoTextField && widget.onTap != null) {
+    widget.onTap!();
+  } else {
+    return false;
+  }
+  
+  _manageDebugOverlay(message: '执行控件操作');
+  return true;
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
