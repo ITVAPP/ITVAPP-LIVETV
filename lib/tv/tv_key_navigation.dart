@@ -536,13 +536,15 @@ void _triggerButtonAction() {
     try {
       // 查找最近的 FocusableItem 或 Focus 包裹的节点
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      final focus = context.findAncestorWidgetOfExactType<Focus>();
+      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
 
+      // 根据找到的包装类型执行交互操作
       Widget? interactiveWidget;
       if (focusableItem != null) {
-        interactiveWidget = focusableItem.child;  // 如果是 FocusableItem，则直接使用其子控件
-      } else if (focus != null) {
-        interactiveWidget = _findInteractiveChild(focus.child);  // 递归查找 Focus 包裹的可交互子控件
+        interactiveWidget = focusableItem.child;  // Use the child of the FocusableItem directly
+      } else if (focusWidget != null) {
+        // Recursively search for an interactive child within the Focus widget
+        interactiveWidget = _findInteractiveChild(focusWidget.child);
       }
 
       if (interactiveWidget != null) {
@@ -559,20 +561,31 @@ void _triggerButtonAction() {
 }
 
 Widget? _findInteractiveChild(Widget? widget) {
-  if (widget is GestureDetector || widget is IconButton || widget is ElevatedButton || widget is TextButton || widget is OutlinedButton) {
+  if (widget == null) {
+    return null;
+  }
+
+  if (widget is ElevatedButton || widget is TextButton || widget is OutlinedButton ||
+      widget is IconButton || widget is SwitchListTile || widget is FloatingActionButton ||
+      widget is ListTile && widget.onTap != null || widget is PopupMenuButton && widget.onSelected != null) {
     return widget;
-  } else if (widget is SingleChildRenderObjectWidget && widget.child != null) {
+  }
+
+  if (widget is SingleChildRenderObjectWidget) {
     return _findInteractiveChild(widget.child);
-  } else if (widget is MultiChildRenderObjectWidget && widget.children.isNotEmpty) {
+  } else if (widget is MultiChildRenderObjectWidget) {
     for (Widget child in widget.children) {
       Widget? result = _findInteractiveChild(child);
-      if (result != null) return result;
+      if (result != null) {
+        return result;
+      }
     }
   }
+
   return null;
 }
 
-// 执行不同类型控件的操作
+// This function remains unchanged.
 void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
     interactiveWidget.onChanged!(!interactiveWidget.value);
