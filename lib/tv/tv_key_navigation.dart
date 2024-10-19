@@ -523,13 +523,13 @@ void _manageDebugOverlay({String? message}) {
 
   /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;  // 获取当前焦点
+  final focusNode = _currentFocus; // 获取当前焦点
 
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
 
     if (context == null) {
-      _manageDebugOverlay(message: '索引${focusNode.toString()} 焦点上下文为空，无法操作');
+      _manageDebugOverlay(message: '索引${_currentFocus.toString()} 焦点上下文为空，无法操作');
       return;
     }
 
@@ -553,13 +553,13 @@ void _triggerButtonAction() {
       if (interactiveWidget != null) {
         _executeInteractiveWidgetAction(interactiveWidget);
       } else {
-        _manageDebugOverlay(message: '索引${focusNode.toString()} 未找到可执行操作的控件');
+        _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e\n堆栈信息: $stackTrace');
     }
   } else {
-    _manageDebugOverlay(message: '索引${focusNode.toString()} 无有效的焦点上下文');
+    _manageDebugOverlay(message: '索引${_currentFocus.toString()} 无有效的焦点上下文');
   }
 }
 
@@ -571,8 +571,10 @@ Widget? _findInteractiveChild(Widget child) {
 
   if (child is Builder) {
     // 使用 builder 函数来查找交互组件
-    return child.builder(
-      (BuildContext context) => _findInteractiveWidget(context),
+    return Builder(
+      builder: (context) {
+        return _findInteractiveWidget(context);
+      },
     );
   }
   return null;
@@ -623,7 +625,7 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
     interactiveWidget.onSelected!(null);
   } else {
-    _manageDebugOverlay(message: '索引${focusNode.toString()} 未找到可执行操作的控件');
+    _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
   }
 
   _manageDebugOverlay(message: '执行按钮操作');
