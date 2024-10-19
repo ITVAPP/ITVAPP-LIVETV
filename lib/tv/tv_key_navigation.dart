@@ -619,39 +619,6 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
 
   _manageDebugOverlay(message: '执行按钮操作');
 }
-
-// 执行不同类型控件的操作
-void _executeInteractiveWidgetAction(Widget interactiveWidget) {
-  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-    _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
-    interactiveWidget.onChanged!(!interactiveWidget.value);
-  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed');
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 TextButton 的 onPressed');
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed');
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 IconButton 的 onPressed');
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed');
-    interactiveWidget.onPressed!();
-  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-    _manageDebugOverlay(message: '执行 ListTile 的 onTap');
-    interactiveWidget.onTap!();
-  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-    _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected');
-    interactiveWidget.onSelected!(null);
-  } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件');
-  }
-
-  _manageDebugOverlay(message: '执行按钮操作');
-}
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
 void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
