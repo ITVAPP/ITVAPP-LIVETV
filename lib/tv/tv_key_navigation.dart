@@ -532,6 +532,7 @@ void _triggerButtonAction() {
       final focusableItem = context?.findAncestorWidgetOfExactType<FocusableItem>();
       if (focusableItem != null && focusableItem.child != null) {
         _manageDebugOverlay(message: '找到 FocusableItem，执行其交互逻辑');
+        // 如果找到 FocusableItem，执行其交互逻辑
         _executeInteractiveWidgetAction(focusableItem.child);
         return;  // 找到后立即停止
       } else {
@@ -564,7 +565,7 @@ void _triggerButtonAction() {
             Widget? interactiveWidget = focusWidget.context?.widget;
             if (interactiveWidget != null) {
               _manageDebugOverlay(message: '递归查找交互控件: ${interactiveWidget.runtimeType}');
-              if (_recursiveFindInteractiveWidget(interactiveWidget)) {
+              if (_executeInteractiveWidgetAction(interactiveWidget)) {
                 return;  // 找到后停止
               }
             } else {
@@ -583,8 +584,8 @@ void _triggerButtonAction() {
   }
 }
 
-// 递归查找可执行操作的控件
-bool _recursiveFindInteractiveWidget(Widget widget) {
+// 执行不同类型控件的操作，递归查找交互控件
+bool _executeInteractiveWidgetAction(Widget widget) {
   if (widget is SwitchListTile && widget.onChanged != null) {
     _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
     widget.onChanged!(!widget.value);
@@ -621,13 +622,13 @@ bool _recursiveFindInteractiveWidget(Widget widget) {
     // 如果是单个子控件，递归查找子控件
     Widget? child = (widget as SingleChildRenderObjectWidget).child;
     if (child != null) {
-      return _recursiveFindInteractiveWidget(child);  // 继续查找
+      return _executeInteractiveWidgetAction(child);  // 继续查找
     }
   } else if (widget is MultiChildRenderObjectWidget) {
     // 如果是多个子控件，遍历并递归查找每个子控件
     List<Widget> children = (widget as MultiChildRenderObjectWidget).children;
     for (var child in children) {
-      if (_recursiveFindInteractiveWidget(child)) {
+      if (_executeInteractiveWidgetAction(child)) {
         return true;  // 找到后立即停止
       }
     }
