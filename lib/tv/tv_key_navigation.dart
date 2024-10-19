@@ -560,7 +560,7 @@ Widget? _findInteractiveChild(Widget child) {
   if (child is FocusableItem) {
     return _findInteractiveChild(child.child); // 查找 FocusableItem 的子组件
   } else if (child is Focus) {
-    return _findInteractiveChild(child.child!); // 查找 Focus 的子组件
+    return _findInteractiveChild(child.child!); // 递归查找 Focus 包裹的子组件
   }
 
   // 处理多子节点的情况
@@ -589,12 +589,9 @@ Widget? _findInteractiveWidget(BuildContext context) {
     return widget; // 如果是交互组件，直接返回
   }
 
-  // 如果是 Focus 包裹的组件，查找其子节点
-  if (widget is Focus) {
-    Focus focusWidget = widget;
-    if (focusWidget.child != null) {
-      return _findInteractiveChild(focusWidget.child!);
-    }
+  // 如果是 Focus 包裹的组件，忽略它包裹的具体类型，直接递归查找其子节点
+  if (widget is Focus && widget.child != null) {
+    return _findInteractiveChild(widget.child!); // 直接递归查找 Focus 包裹的子组件
   }
 
   // 递归查找父级交互组件
