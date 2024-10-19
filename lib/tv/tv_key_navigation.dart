@@ -552,7 +552,7 @@ void _triggerButtonAction() {
       if (interactiveWidget != null) {
         _executeInteractiveWidgetAction(interactiveWidget);
       } else {
-        _manageDebugOverlay(message: '未找到可执行操作的控件，焦点节点: ${focusNode.debugLabel ?? '未知'}, 组件类型: ${context.widget.runtimeType}。焦点节点路径: ${_buildWidgetPath(context)}');
+        _manageDebugOverlay(message: '未找到可执行操作的控件，焦点节点: ${focusNode.debugLabel ?? '未知'}, 组件类型: ${context.widget.runtimeType}。焦点节点路径: ${_buildWidgetPathFromContext(context)}');
       }
     } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
@@ -614,23 +614,20 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
     interactiveWidget.onSelected!(null);
   } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件，当前组件类型: ${interactiveWidget.runtimeType} 可能不支持交互。组件路径: ${_buildWidgetPath(interactiveWidget.context)}');
+    _manageDebugOverlay(message: '未找到可执行操作的控件，当前组件类型: ${interactiveWidget.runtimeType} 可能不支持交互。组件路径: ${_buildWidgetPathFromContext(focusNode.context)}');
   }
 
   _manageDebugOverlay(message: '执行按钮操作');
 }
 
 /// 构建组件路径用于调试
-String _buildWidgetPath(BuildContext? context) {
+String _buildWidgetPathFromContext(BuildContext? context) {
   if (context == null) return '未知路径';
   StringBuffer path = StringBuffer();
-  Element? element = context as Element?;
-  while (element != null) {
+  context.visitAncestorElements((element) {
     path.write('${element.widget.runtimeType} > ');
-    element = element.visitAncestorElements((ancestor) {
-      return true;
-    }) ? element : null;
-  }
+    return true;
+  });
   return path.toString();
 }
   
