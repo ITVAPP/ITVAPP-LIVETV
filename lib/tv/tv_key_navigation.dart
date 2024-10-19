@@ -550,7 +550,7 @@ void _triggerButtonAction() {
   }
 }
 
-// 在子组件中递归查找交互组件
+// 在子组件中递归查找交互组件，处理多子节点情况
 Widget? _findInteractiveChild(Widget child) {
   if (_isInteractiveWidget(child)) {
     return child; // 如果是交互组件，直接返回它
@@ -563,10 +563,25 @@ Widget? _findInteractiveChild(Widget child) {
     return _findInteractiveChild(child.child!); // 查找 Focus 的子组件
   }
 
+  // 处理多子节点的情况
+  if (child is MultiChildRenderObjectWidget) {
+    for (var subChild in child.children) {
+      var foundWidget = _findInteractiveChild(subChild);
+      if (foundWidget != null) {
+        return foundWidget;
+      }
+    }
+  }
+
+  // 处理单子节点的情况
+  if (child is SingleChildRenderObjectWidget && child.child != null) {
+    return _findInteractiveChild(child.child!);
+  }
+
   return null;
 }
 
-// 查找交互组件的核心逻辑
+// 查找交互组件的核心逻辑，递归处理多层结构
 Widget? _findInteractiveWidget(BuildContext context) {
   // 先查找焦点的直接父级组件是否是交互组件
   Widget widget = context.widget;
@@ -591,7 +606,7 @@ Widget? _findInteractiveWidget(BuildContext context) {
   return null;
 }
 
-// 判断是否为交互组件
+// 判断是否为交互组件，扩展更多组件类型
 bool _isInteractiveWidget(Widget widget) {
   return widget is ElevatedButton ||
          widget is IconButton ||
@@ -600,7 +615,8 @@ bool _isInteractiveWidget(Widget widget) {
          widget is SwitchListTile ||
          widget is FloatingActionButton ||
          widget is PopupMenuButton ||
-         widget is ListTile;
+         widget is ListTile ||
+         widget is GestureDetector; // 添加 GestureDetector 的判断
 }
 
 // 执行交互组件的操作
@@ -621,6 +637,8 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
     interactiveWidget.onTap!(); // 执行 ListTile 的 onTap
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
     interactiveWidget.onSelected!(null); // 执行 PopupMenuButton 的 onSelected
+  } else if (interactiveWidget is GestureDetector && interactiveWidget.onTap != null) {
+    interactiveWidget.onTap!(); // 执行 GestureDetector 的 onTap
   } else {
     _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
   }
