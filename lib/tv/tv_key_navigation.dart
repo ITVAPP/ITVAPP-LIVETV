@@ -523,76 +523,53 @@ void _manageDebugOverlay({String? message}) {
 
   /// 执行当前焦点控件的点击操作或切换开关状态
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;  // 获取当前焦点
+  final focusNode = _currentFocus;  // 获取当前焦点节点
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
 
-    // 如果上下文不可用，显示调试消息并返回
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，焦点节点可能未附加到构建树中');
-      return;
-    }
-
     try {
-      // 查找最近的 FocusableItem 或 Focus 包裹的节点
+      // 优先查找 FocusableItem
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
-
-      // 根据找到的包装类型执行交互操作
-      Widget? interactiveWidget;
-      if (focusableItem != null) {
-        interactiveWidget = focusableItem.child;
-      } else if (focusWidget != null) {
-        interactiveWidget = focusWidget.child;
+      
+      if (focusableItem != null && focusableItem.child != null) {
+        // 如果找到 FocusableItem，执行其交互逻辑
+        _executeInteractiveWidgetAction(focusableItem.child);
       } else {
-        // 递归查找可交互的子组件
-        interactiveWidget = _findInteractiveWidget(context.widget);
-      }
+        // 如果没有找到 FocusableItem，使用你给定的 Focus 包裹的子组件逻辑
+        // 查找不同类型的按钮并触发其 onPressed 方法
+        final elevatedButton = context.findAncestorWidgetOfExactType<ElevatedButton>();
+        final textButton = context.findAncestorWidgetOfExactType<TextButton>();
+        final outlinedButton = context.findAncestorWidgetOfExactType<OutlinedButton>();
 
-      if (interactiveWidget != null) {
-        _executeInteractiveWidgetAction(interactiveWidget);
-      } else {
-        _manageDebugOverlay(message: '未找到可执行操作的控件，焦点节点: ${focusNode.debugLabel ?? '未知'}, 组件类型: ${context.widget.runtimeType}。焦点节点路径: ${_buildWidgetPathFromContext(context)}');
+        // 优先检查 ElevatedButton
+        if (elevatedButton != null && elevatedButton.onPressed != null) {
+          elevatedButton.onPressed!();
+        } 
+        // 然后检查 TextButton
+        else if (textButton != null && textButton.onPressed != null) {
+          textButton.onPressed!();
+        } 
+        // 最后检查 OutlinedButton
+        else if (outlinedButton != null && outlinedButton.onPressed != null) {
+          outlinedButton.onPressed!();
+        } 
+        else {
+          // 如果没有找到按钮，尝试执行其他子组件的交互逻辑
+          final Focus? focusWidget = Focus.maybeOf(context);
+          if (focusWidget != null && focusWidget.child != null) {
+            Widget? interactiveWidget = focusWidget.child;
+            _executeInteractiveWidgetAction(interactiveWidget);
+          } else {
+            _manageDebugOverlay(message: '未找到可执行操作的控件');
+          }
+        }
       }
-    } catch (e, stackTrace) {
-      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+    } catch (Exception e) {
+      _manageDebugOverlay(message: '执行操作时发生错误: $e');
     }
   } else {
-    _manageDebugOverlay(message: '当前无有效的焦点上下文');
+    _manageDebugOverlay(message: '无效的焦点上下文');
   }
-}
-
-/// 递归查找可交互的子组件
-Widget? _findInteractiveWidget(Widget widget) {
-  if (_isInteractiveWidget(widget)) {
-    return widget; // 找到可交互的组件
-  }
-
-  if (widget is SingleChildRenderObjectWidget && widget.child != null) {
-    return _findInteractiveWidget(widget.child!); // 递归查找单子组件
-  } else if (widget is MultiChildRenderObjectWidget) {
-    for (Widget child in widget.children) {
-      Widget? foundWidget = _findInteractiveWidget(child);
-      if (foundWidget != null) {
-        return foundWidget; // 找到匹配的子组件则返回
-      }
-    }
-  }
-
-  return null; // 未找到时返回 null
-}
-
-/// 判断是否为可交互组件
-bool _isInteractiveWidget(Widget widget) {
-  // 判断是否为可交互组件（按钮、切换开关等）
-  return widget is ElevatedButton ||
-      widget is TextButton ||
-      widget is OutlinedButton ||
-      widget is IconButton ||
-      widget is FloatingActionButton ||
-      widget is ListTile ||
-      widget is SwitchListTile ||
-      widget is PopupMenuButton;
 }
 
 // 执行不同类型控件的操作
@@ -618,17 +595,6 @@ void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   }
 
   _manageDebugOverlay(message: '执行按钮操作');
-}
-
-/// 构建组件路径用于调试
-String _buildWidgetPathFromContext(BuildContext? context) {
-  if (context == null) return '未知路径';
-  StringBuffer path = StringBuffer();
-  context.visitAncestorElements((element) {
-    path.write('${element.widget.runtimeType} > ');
-    return true;
-  });
-  return path.toString();
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
