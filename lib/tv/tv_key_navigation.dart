@@ -589,7 +589,18 @@ void _triggerButtonAction() {
 
 // 执行不同类型控件的操作
 void _executeInteractiveWidgetAction(Widget interactiveWidget) {
-  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
+  if (interactiveWidget is Focus) {
+    _manageDebugOverlay(message: '递归查找 Focus 包裹的子控件');
+    
+    // 递归检查 Focus 的子控件
+    Widget? childWidget = interactiveWidget.child;
+    if (childWidget != null) {
+      _manageDebugOverlay(message: 'Focus 包裹的子控件类型: ${childWidget.runtimeType}');
+      _executeInteractiveWidgetAction(childWidget);  // 递归调用
+    } else {
+      _manageDebugOverlay(message: 'Focus 包裹的子控件为空');
+    }
+  } else if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
     _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
     interactiveWidget.onChanged!(!interactiveWidget.value);
   } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
