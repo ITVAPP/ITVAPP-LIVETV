@@ -566,27 +566,28 @@ Widget? _findInteractiveChild(Widget child) {
   return null;
 }
 
-// 递归查找控件树中的交互组件
+// 查找交互组件的核心逻辑
 Widget? _findInteractiveWidget(BuildContext context) {
+  // 先查找焦点的直接父级组件是否是交互组件
   Widget widget = context.widget;
   if (_isInteractiveWidget(widget)) {
-    return widget; // 如果是交互组件，直接返回它
+    return widget; // 如果是交互组件，直接返回
   }
 
-  // 如果是 Focus 包裹的组件，继续递归查找其子节点
+  // 如果是 Focus 包裹的组件，查找其子节点
   if (widget is Focus) {
-    Focus focusWidget = widget as Focus;
+    Focus focusWidget = widget;
     if (focusWidget.child != null) {
       return _findInteractiveChild(focusWidget.child!);
     }
   }
 
-  // 查找父上下文中的交互组件
+  // 递归查找父级交互组件
   final parentContext = context.findAncestorStateOfType<State>()?.context;
   if (parentContext != null) {
     return _findInteractiveWidget(parentContext);
   }
-  
+
   return null;
 }
 
