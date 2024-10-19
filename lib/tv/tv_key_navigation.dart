@@ -564,8 +564,12 @@ void _triggerButtonAction() {
           final FocusNode? focusWidget = Focus.maybeOf(context!);
           if (focusWidget != null && focusWidget.context != null) {
             Widget? interactiveWidget = focusWidget.context?.widget;
+
+            // 输出调试信息，确保每个步骤都跟踪状态
+            _manageDebugOverlay(message: '找到 FocusNode: ${focusWidget}, 上下文: ${focusWidget.context}');
+            
             if (interactiveWidget != null) {
-              _manageDebugOverlay(message: '找到 Focus 包裹的控件，执行交互逻辑');
+              _manageDebugOverlay(message: '找到 Focus 包裹的控件: ${interactiveWidget.runtimeType}，执行交互逻辑');
               _executeInteractiveWidgetAction(interactiveWidget); // 确保 interactiveWidget 不为空后再调用
             } else {
               _manageDebugOverlay(message: 'Focus 包裹的控件为空');
@@ -581,6 +585,39 @@ void _triggerButtonAction() {
   } else {
     _manageDebugOverlay(message: '无效的焦点上下文');
   }
+}
+
+// 执行不同类型控件的操作
+void _executeInteractiveWidgetAction(Widget interactiveWidget) {
+  if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
+    _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
+    interactiveWidget.onChanged!(!interactiveWidget.value);
+  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed');
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 TextButton 的 onPressed');
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed');
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 IconButton 的 onPressed');
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed');
+    interactiveWidget.onPressed!();
+  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
+    _manageDebugOverlay(message: '执行 ListTile 的 onTap');
+    interactiveWidget.onTap!();
+  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
+    _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected');
+    interactiveWidget.onSelected!(null);
+  } else {
+    _manageDebugOverlay(message: '未找到可执行操作的控件');
+  }
+
+  _manageDebugOverlay(message: '执行按钮操作');
 }
 
 // 执行不同类型控件的操作
