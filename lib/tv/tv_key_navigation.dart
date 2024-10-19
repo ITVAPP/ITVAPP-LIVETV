@@ -533,7 +533,7 @@ void _triggerButtonAction() {
       if (focusableItem != null && focusableItem.child != null) {
         _manageDebugOverlay(message: '找到 FocusableItem，执行其交互逻辑');
         _executeInteractiveWidgetAction(focusableItem.child);
-        return;  // 找到后停止进一步查找
+        return;  // 找到后立即停止
       } else {
         _manageDebugOverlay(message: '没有找到 FocusableItem，继续查找按钮类型');
 
@@ -542,30 +542,30 @@ void _triggerButtonAction() {
         final textButton = context?.findAncestorWidgetOfExactType<TextButton>();
         final outlinedButton = context?.findAncestorWidgetOfExactType<OutlinedButton>();
 
+        // 优先检查 ElevatedButton
         if (elevatedButton != null && elevatedButton.onPressed != null) {
           _manageDebugOverlay(message: '找到 ElevatedButton，执行 onPressed');
           elevatedButton.onPressed!();
-          return; // 找到后停止进一步查找
+          return;  // 找到后立即停止
         } else if (textButton != null && textButton.onPressed != null) {
           _manageDebugOverlay(message: '找到 TextButton，执行 onPressed');
           textButton.onPressed!();
-          return; // 找到后停止进一步查找
+          return;  // 找到后立即停止
         } else if (outlinedButton != null && outlinedButton.onPressed != null) {
           _manageDebugOverlay(message: '找到 OutlinedButton，执行 onPressed');
           outlinedButton.onPressed!();
-          return; // 找到后停止进一步查找
+          return;  // 找到后立即停止
         } else {
-          _manageDebugOverlay(message: '没有找到按钮，尝试执行 Focus 包裹的控件逻辑');
+          _manageDebugOverlay(message: '没有找到按钮，递归查找 Focus 包裹的子控件');
+          
+          // 递归查找所有子控件
           final FocusNode? focusWidget = Focus.maybeOf(context!);
           if (focusWidget != null && focusWidget.context != null) {
             Widget? interactiveWidget = focusWidget.context?.widget;
-
-            _manageDebugOverlay(message: '找到 FocusNode: ${focusWidget}, 上下文: ${focusWidget.context}');
-            
             if (interactiveWidget != null) {
-              _manageDebugOverlay(message: '找到 Focus 包裹的控件: ${interactiveWidget.runtimeType}，执行交互逻辑');
-              if (_executeInteractiveWidgetAction(interactiveWidget)) {
-                return; // 找到后停止进一步查找
+              _manageDebugOverlay(message: '递归查找交互控件: ${interactiveWidget.runtimeType}');
+              if (_recursiveFindInteractiveWidget(interactiveWidget)) {
+                return;  // 找到后停止
               }
             } else {
               _manageDebugOverlay(message: 'Focus 包裹的控件为空');
@@ -583,63 +583,59 @@ void _triggerButtonAction() {
   }
 }
 
-// 执行不同类型控件的操作
-bool _executeInteractiveWidgetAction(Widget interactiveWidget) {
-  if (interactiveWidget is Focus) {
-    _manageDebugOverlay(message: '递归查找 Focus 包裹的子控件');
-    Widget? childWidget = interactiveWidget.child;
-    if (childWidget != null) {
-      _manageDebugOverlay(message: 'Focus 包裹的子控件类型: ${childWidget.runtimeType}');
-      return _executeInteractiveWidgetAction(childWidget);  // 递归调用
-    } else {
-      _manageDebugOverlay(message: 'Focus 包裹的子控件为空');
-      return false;
+// 递归查找可执行操作的控件
+bool _recursiveFindInteractiveWidget(Widget widget) {
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
+    widget.onChanged!(!widget.value);
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed');
+    widget.onPressed!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is TextButton && widget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 TextButton 的 onPressed');
+    widget.onPressed!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed');
+    widget.onPressed!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is IconButton && widget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 IconButton 的 onPressed');
+    widget.onPressed!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+    _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed');
+    widget.onPressed!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is ListTile && widget.onTap != null) {
+    _manageDebugOverlay(message: '执行 ListTile 的 onTap');
+    widget.onTap!();
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected');
+    widget.onSelected!(null);
+    return true;  // 找到可交互控件，停止递归
+  } else if (widget is SingleChildRenderObjectWidget) {
+    // 如果是单个子控件，递归查找子控件
+    Widget? child = (widget as SingleChildRenderObjectWidget).child;
+    if (child != null) {
+      return _recursiveFindInteractiveWidget(child);  // 继续查找
     }
-  } else if (interactiveWidget is MultiChildRenderObjectWidget) {
-    _manageDebugOverlay(message: '找到布局控件 ${interactiveWidget.runtimeType}，递归查找子控件');
-    List<Widget> children = interactiveWidget.children;
+  } else if (widget is MultiChildRenderObjectWidget) {
+    // 如果是多个子控件，遍历并递归查找每个子控件
+    List<Widget> children = (widget as MultiChildRenderObjectWidget).children;
     for (var child in children) {
-      if (_executeInteractiveWidgetAction(child)) {
-        return true;
+      if (_recursiveFindInteractiveWidget(child)) {
+        return true;  // 找到后立即停止
       }
     }
-    return false;
-  } else if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-    _manageDebugOverlay(message: '执行 SwitchListTile 的 onChanged');
-    interactiveWidget.onChanged!(!interactiveWidget.value);
-    return true;
-  } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 ElevatedButton 的 onPressed');
-    interactiveWidget.onPressed!();
-    return true;
-  } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 TextButton 的 onPressed');
-    interactiveWidget.onPressed!();
-    return true;
-  } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 OutlinedButton 的 onPressed');
-    interactiveWidget.onPressed!();
-    return true;
-  } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 IconButton 的 onPressed');
-    interactiveWidget.onPressed!();
-    return true;
-  } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-    _manageDebugOverlay(message: '执行 FloatingActionButton 的 onPressed');
-    interactiveWidget.onPressed!();
-    return true;
-  } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-    _manageDebugOverlay(message: '执行 ListTile 的 onTap');
-    interactiveWidget.onTap!();
-    return true;
-  } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-    _manageDebugOverlay(message: '执行 PopupMenuButton 的 onSelected');
-    interactiveWidget.onSelected!(null);
-    return true;
-  } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件');
-    return false; // 未找到可执行的控件
   }
+
+  // 如果没有找到交互控件
+  _manageDebugOverlay(message: '未找到可执行操作的控件');
+  return false;
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
