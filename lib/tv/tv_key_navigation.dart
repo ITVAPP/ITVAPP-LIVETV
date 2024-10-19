@@ -541,24 +541,21 @@ void _triggerButtonAction() {
 bool _findAndExecuteInteractiveWidget(BuildContext context) {
   Widget? widget = context.widget;
   BuildContext? currentContext = context;
-
   while (currentContext != null) {
     if (widget is FocusableItem) {
       return _findAndExecuteInteractiveChild(widget.child);
     } else if (widget is Focus) {
       return _findAndExecuteInteractiveChild(widget.child);
-    } else if (_isInteractiveWidgetAndExecute(widget)) {
+    } else if (widget != null && _isInteractiveWidgetAndExecute(widget)) {
       return true;
     }
-
-    currentContext = currentContext.findAncestorStateOfType<State>();
+    currentContext = (currentContext.findAncestorStateOfType<State>() as Element?);
     if (currentContext != null) {
       widget = currentContext.widget;
     } else {
       break;
     }
   }
-
   return false;
 }
 
@@ -566,15 +563,12 @@ bool _findAndExecuteInteractiveChild(Widget? widget) {
   if (widget == null) {
     return false;
   }
-
   if (_isInteractiveWidgetAndExecute(widget)) {
     return true;
   }
-
   if (widget is SingleChildRenderObjectWidget) {
     return _findAndExecuteInteractiveChild(widget.child);
   } 
-
   if (widget is MultiChildRenderObjectWidget) {
     for (Widget child in widget.children) {
       if (_findAndExecuteInteractiveChild(child)) {
@@ -582,7 +576,6 @@ bool _findAndExecuteInteractiveChild(Widget? widget) {
       }
     }
   }
-
   if (widget is StatelessWidget || widget is StatefulWidget) {
     final Element? element = (widget as dynamic).createElement() as Element?;
     if (element != null) {
@@ -594,7 +587,6 @@ bool _findAndExecuteInteractiveChild(Widget? widget) {
       }
     }
   }
-
   return false;
 }
 
