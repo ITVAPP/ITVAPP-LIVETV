@@ -569,10 +569,24 @@ Widget? _findInteractiveChild(Widget child) {
     return child;
   }
 
-  // 使用 Element 访问子元素而非 Builder
-  final widgetContext = (child as Element).widget;
+  // 如果是 Focus 类型，则递归查找其子组件
+  if (child is Focus) {
+    final Element? element = (child as Element?)?.widget?.key?.currentContext as Element?;
+    Widget? foundWidget;
 
+    element?.visitChildElements((childElement) {
+      if (foundWidget == null) {
+        foundWidget = _findInteractiveWidget(childElement);
+      }
+    });
+
+    return foundWidget;
+  }
+
+  // 继续递归查找子组件
+  final widgetContext = (child as Element).widget;
   Widget? foundWidget;
+
   (widgetContext as Element).visitChildElements((element) {
     if (foundWidget == null) {
       foundWidget = _findInteractiveWidget(element);
@@ -589,10 +603,20 @@ Widget? _findInteractiveWidget(BuildContext context) {
     return widget;
   }
 
+  // 如果是 Focus 包裹的组件，继续递归查找其子节点
+  if (widget is Focus) {
+    Focus focusWidget = widget as Focus;
+    if (focusWidget.child != null) {
+      return _findInteractiveChild(focusWidget.child!);
+    }
+  }
+
+  // 查找父上下文中的交互组件
   final parentContext = context.findAncestorStateOfType<State>()?.context;
   if (parentContext != null) {
     return _findInteractiveWidget(parentContext);
   }
+  
   return null;
 }
 
