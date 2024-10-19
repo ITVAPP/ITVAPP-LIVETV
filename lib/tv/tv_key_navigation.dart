@@ -534,24 +534,11 @@ void _triggerButtonAction() {
     }
 
     try {
-      // 优先查找最近的 FocusableItem 或 Focus 包裹的节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      final focusWidget = context.findAncestorWidgetOfExactType<Focus>();
-
-      Widget? interactiveWidget;
-
-      // 查找 FocusableItem 和 Focus 包裹的交互组件
-      if (focusableItem != null) {
-        interactiveWidget = _findInteractiveChild(focusableItem.child);
-      } else if (focusWidget != null) {
-        interactiveWidget = _findInteractiveChild(focusWidget.child);
-      }
-
-      // 如果没有找到交互组件，则递归查找
-      interactiveWidget ??= _findInteractiveWidget(context);
+      // 查找当前焦点下的交互组件
+      Widget? interactiveWidget = _findInteractiveWidget(context);
 
       if (interactiveWidget != null) {
-        _executeInteractiveWidgetAction(interactiveWidget);
+        _executeInteractiveWidgetAction(interactiveWidget); // 找到交互组件后执行其操作
       } else {
         _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
       }
@@ -566,35 +553,16 @@ void _triggerButtonAction() {
 // 在子组件中递归查找交互组件
 Widget? _findInteractiveChild(Widget child) {
   if (_isInteractiveWidget(child)) {
-    return child;
+    return child; // 如果是交互组件，直接返回它
   }
 
-  // 获取当前的 Element 以便使用 visitChildElements
-  final Element? element = _getElementFromWidget(child);
-  
-  if (element != null) {
-    Widget? foundWidget;
-
-    // 递归访问子元素
-    element.visitChildElements((childElement) {
-      if (foundWidget == null) {
-        foundWidget = _findInteractiveWidget(childElement);
-      }
-    });
-
-    return foundWidget;
+  // 如果是 FocusableItem 或 Focus 包裹的组件，递归查找其子组件
+  if (child is FocusableItem) {
+    return _findInteractiveChild(child.child); // 查找 FocusableItem 的子组件
+  } else if (child is Focus) {
+    return _findInteractiveChild(child.child!); // 查找 Focus 的子组件
   }
 
-  return null;
-}
-
-// 将 Widget 转换为 Element 以便递归访问其子元素
-Element? _getElementFromWidget(Widget widget) {
-  // 如果有 context，可通过 BuildContext 获取 Element
-  if (widget.key != null && widget.key is GlobalKey) {
-    final key = widget.key as GlobalKey;
-    return key.currentContext as Element?;
-  }
   return null;
 }
 
@@ -602,7 +570,7 @@ Element? _getElementFromWidget(Widget widget) {
 Widget? _findInteractiveWidget(BuildContext context) {
   Widget widget = context.widget;
   if (_isInteractiveWidget(widget)) {
-    return widget;
+    return widget; // 如果是交互组件，直接返回它
   }
 
   // 如果是 Focus 包裹的组件，继续递归查找其子节点
@@ -637,21 +605,21 @@ bool _isInteractiveWidget(Widget widget) {
 // 执行交互组件的操作
 void _executeInteractiveWidgetAction(Widget interactiveWidget) {
   if (interactiveWidget is SwitchListTile && interactiveWidget.onChanged != null) {
-    interactiveWidget.onChanged!(!interactiveWidget.value);
+    interactiveWidget.onChanged!(!interactiveWidget.value); // 切换 SwitchListTile 状态
   } else if (interactiveWidget is ElevatedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
+    interactiveWidget.onPressed!(); // 执行 ElevatedButton 的 onPressed
   } else if (interactiveWidget is TextButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
+    interactiveWidget.onPressed!(); // 执行 TextButton 的 onPressed
   } else if (interactiveWidget is OutlinedButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
+    interactiveWidget.onPressed!(); // 执行 OutlinedButton 的 onPressed
   } else if (interactiveWidget is IconButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
+    interactiveWidget.onPressed!(); // 执行 IconButton 的 onPressed
   } else if (interactiveWidget is FloatingActionButton && interactiveWidget.onPressed != null) {
-    interactiveWidget.onPressed!();
+    interactiveWidget.onPressed!(); // 执行 FloatingActionButton 的 onPressed
   } else if (interactiveWidget is ListTile && interactiveWidget.onTap != null) {
-    interactiveWidget.onTap!();
+    interactiveWidget.onTap!(); // 执行 ListTile 的 onTap
   } else if (interactiveWidget is PopupMenuButton && interactiveWidget.onSelected != null) {
-    interactiveWidget.onSelected!(null);
+    interactiveWidget.onSelected!(null); // 执行 PopupMenuButton 的 onSelected
   } else {
     _manageDebugOverlay(message: '索引${_currentFocus.toString()} 未找到可执行操作的控件');
   }
