@@ -529,7 +529,7 @@ void _triggerButtonAction() {
 
     try {
       // 优先查找 FocusableItem
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      final focusableItem = context?.findAncestorWidgetOfExactType<FocusableItem>();
       
       if (focusableItem != null && focusableItem.child != null) {
         // 如果找到 FocusableItem，执行其交互逻辑
@@ -537,9 +537,9 @@ void _triggerButtonAction() {
       } else {
         // 如果没有找到 FocusableItem，使用你给定的 Focus 包裹的子组件逻辑
         // 查找不同类型的按钮并触发其 onPressed 方法
-        final elevatedButton = context.findAncestorWidgetOfExactType<ElevatedButton>();
-        final textButton = context.findAncestorWidgetOfExactType<TextButton>();
-        final outlinedButton = context.findAncestorWidgetOfExactType<OutlinedButton>();
+        final elevatedButton = context?.findAncestorWidgetOfExactType<ElevatedButton>();
+        final textButton = context?.findAncestorWidgetOfExactType<TextButton>();
+        final outlinedButton = context?.findAncestorWidgetOfExactType<OutlinedButton>();
 
         // 优先检查 ElevatedButton
         if (elevatedButton != null && elevatedButton.onPressed != null) {
@@ -555,16 +555,16 @@ void _triggerButtonAction() {
         } 
         else {
           // 如果没有找到按钮，尝试执行其他子组件的交互逻辑
-          final Focus? focusWidget = Focus.maybeOf(context);
-          if (focusWidget != null && focusWidget.child != null) {
-            Widget? interactiveWidget = focusWidget.child;
+          final FocusNode? focusWidget = Focus.maybeOf(context!);
+          if (focusWidget != null && focusWidget.context != null) {
+            Widget? interactiveWidget = focusWidget.context.widget;
             _executeInteractiveWidgetAction(interactiveWidget);
           } else {
             _manageDebugOverlay(message: '未找到可执行操作的控件');
           }
         }
       }
-    } catch (Exception e) {
+    } catch (e, stackTrace) {
       _manageDebugOverlay(message: '执行操作时发生错误: $e');
     }
   } else {
