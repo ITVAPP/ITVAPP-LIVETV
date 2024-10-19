@@ -569,12 +569,11 @@ Widget? _findInteractiveChild(Widget child) {
     return child;
   }
 
-  // 如果是 Focus 类型，则递归查找其子组件
-  if (child is Focus) {
-    final Element? element = (child as Element?)?.widget?.key?.currentContext as Element?;
+  // 使用 Element 访问子元素而非从 Key 获取
+  if (child is Element) {
     Widget? foundWidget;
 
-    element?.visitChildElements((childElement) {
+    child.visitChildElements((childElement) {
       if (foundWidget == null) {
         foundWidget = _findInteractiveWidget(childElement);
       }
@@ -583,17 +582,7 @@ Widget? _findInteractiveChild(Widget child) {
     return foundWidget;
   }
 
-  // 继续递归查找子组件
-  final widgetContext = (child as Element).widget;
-  Widget? foundWidget;
-
-  (widgetContext as Element).visitChildElements((element) {
-    if (foundWidget == null) {
-      foundWidget = _findInteractiveWidget(element);
-    }
-  });
-
-  return foundWidget;
+  return null;
 }
 
 // 递归查找控件树中的交互组件
