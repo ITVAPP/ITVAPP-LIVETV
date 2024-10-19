@@ -557,9 +557,12 @@ void _triggerButtonAction() {
           // 如果没有找到按钮，尝试执行其他子组件的交互逻辑
           final FocusNode? focusWidget = Focus.maybeOf(context!);
           if (focusWidget != null && focusWidget.context != null) {
-            // 使用 ?. 来安全访问 widget
             Widget? interactiveWidget = focusWidget.context?.widget;
-            _executeInteractiveWidgetAction(interactiveWidget);
+            if (interactiveWidget != null) {
+              _executeInteractiveWidgetAction(interactiveWidget); // 确保 interactiveWidget 不为空后再调用
+            } else {
+              _manageDebugOverlay(message: '未找到可执行操作的控件');
+            }
           } else {
             _manageDebugOverlay(message: '未找到可执行操作的控件');
           }
