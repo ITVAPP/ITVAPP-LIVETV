@@ -159,77 +159,72 @@ class DialogUtil {
         // 根据屏幕方向设置按钮宽度
         double btnWidth = isLandscape ? 380 : 220;
 
-        return FocusableItem(
-          focusNode: _focusNodes[focusIndex++], // 使用下一个焦点节点
-          child: Builder(
-            builder: (BuildContext context) {
-              final bool hasFocus = Focus.of(context).hasFocus;
-              return provider.isDownloading
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(16), // 圆角按钮样式
-                      child: SizedBox(
-                        height: 48,
-                        width: btnWidth, // 按钮宽度
-                        child: Stack(
-                          clipBehavior: Clip.hardEdge,
-                          alignment: Alignment.center,
-                          children: [
-                            // 下载进度条
-                            Positioned.fill(
-                              child: LinearProgressIndicator(
-                                value: provider.progress, // 进度条的进度
-                                backgroundColor: Color(0xFFEB144C).withOpacity(0.2), // 进度条背景颜色
-                                color: Color(0xFFEB144C), // 进度条前景颜色
-                              ),
-                            ),
-                            // 下载进度的文字显示
-                            Text(
-                              '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
-                              style: const TextStyle(
-                                color: Colors.white, // 白色文字
-                                fontWeight: FontWeight.bold,  // 文字加粗
-                                fontSize: 16,  // 文字大小
-                              ),
-                            ),
-                          ],
+        return provider.isDownloading
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(16), // 圆角按钮样式
+                child: SizedBox(
+                  height: 48,
+                  width: btnWidth, // 按钮宽度
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    alignment: Alignment.center,
+                    children: [
+                      // 下载进度条
+                      Positioned.fill(
+                        child: LinearProgressIndicator(
+                          value: provider.progress, // 进度条的进度
+                          backgroundColor: Color(0xFFEB144C).withOpacity(0.2), // 进度条背景颜色
+                          color: Color(0xFFEB144C), // 进度条前景颜色
                         ),
                       ),
-                    )
-                  : ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
-                        backgroundColor: hasFocus ? selectedColor : unselectedColor,  // 根据焦点状态修改背景颜色
-                        elevation: 10,  // 按钮阴影效果
-                        foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
-                        shadowColor: hasFocus ? selectedColor : unselectedColor,  // 阴影颜色与按钮背景匹配
-                      ),
-                      onPressed: () {
-                        if (Platform.isAndroid) {
-                          try {
-                            context.read<DownloadProvider>().downloadApk(apkUrl);  // 执行 APK 下载
-                          } catch (e, stackTrace) {
-                            LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
-                          }
-                        } else {
-                          try {
-                            Navigator.of(context).pop(true);  // 关闭对话框
-                          } catch (e, stackTrace) {
-                            LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
-                          }
-                        }
-                      },
-                      child: Text(
-                        S.of(context).update,  // 显示 "更新" 文本
+                      // 下载进度的文字显示
+                      Text(
+                        '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
                         style: const TextStyle(
-                          color: Colors.white,  // 白色文字
+                          color: Colors.white, // 白色文字
                           fontWeight: FontWeight.bold,  // 文字加粗
-                          fontSize: 18,  // 文字大小
+                          fontSize: 16,  // 文字大小
                         ),
                       ),
-                    );
-            },
-          ),
-        );
+                    ],
+                  ),
+                ),
+              )
+            : FocusableItem(
+                focusNode: _focusNodes[focusIndex++],  // 使用下一个焦点节点
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
+                    backgroundColor: Focus.of(context).hasFocus ? selectedColor : unselectedColor,  // 根据焦点状态修改背景颜色
+                    elevation: 10,  // 按钮阴影效果
+                    foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
+                    shadowColor: Focus.of(context).hasFocus ? selectedColor : unselectedColor,  // 阴影颜色与按钮背景匹配
+                  ),
+                  onPressed: () {
+                    if (Platform.isAndroid) {
+                      try {
+                        context.read<DownloadProvider>().downloadApk(apkUrl);  // 执行 APK 下载
+                      } catch (e, stackTrace) {
+                        LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
+                      }
+                    } else {
+                      try {
+                        Navigator.of(context).pop(true);  // 关闭对话框
+                      } catch (e, stackTrace) {
+                        LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
+                      }
+                    }
+                  },
+                  child: Text(
+                    S.of(context).update,  // 显示 "更新" 文本
+                    style: const TextStyle(
+                      color: Colors.white,  // 白色文字
+                      fontWeight: FontWeight.bold,  // 文字加粗
+                      fontSize: 18,  // 文字大小
+                    ),
+                  ),
+                ),
+              );
       },
     );
   }
@@ -291,7 +286,7 @@ class DialogUtil {
     );
   }
 
-  // 动态生成按钮，并增加点击效果
+// 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
     BuildContext context, {
     String? positiveButtonLabel,
@@ -344,7 +339,7 @@ class DialogUtil {
     );
   }
 
-  // 新增：构建可聚焦按钮的方法
+  // 构建可聚焦按钮的方法
   static Widget _buildFocusableButton({
     required FocusNode focusNode,
     required VoidCallback? onPressed,
@@ -367,7 +362,7 @@ class DialogUtil {
     );
   }
 
-  // 修改：动态设置按钮样式
+  // 动态设置按钮样式
   static ButtonStyle _buttonStyle(bool hasFocus) {
     return ElevatedButton.styleFrom(
       backgroundColor: hasFocus ? darkenColor(selectedColor) : unselectedColor,
