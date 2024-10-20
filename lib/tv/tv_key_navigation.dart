@@ -539,9 +539,8 @@ void _triggerButtonAction() {
 
       // 如果找到了 FocusableItem，就递归查找其所有子控件
       if (focusableItem != null) {
-        // 开始查找 FocusableItem 包裹的所有子控件并触发操作
-        // 注意这里修正了传递的 context
-        _triggerActionsInFocusableItem(focusableItem);
+        // 使用当前的 context 而不是 focusableItem.context
+        _triggerActionsInFocusableItem(context); // 将 context 传递下去
       } else {
         _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
@@ -554,22 +553,14 @@ void _triggerButtonAction() {
 }
 
 // 在 FocusableItem 节点下查找并触发所有交互控件的操作
-void _triggerActionsInFocusableItem(FocusableItem focusableItem) {
-  // 获取 FocusableItem 的 BuildContext
-  final context = focusableItem.context;
-  
-  // 确保 context 不为空
-  if (context != null) {
-    // 遍历 FocusableItem 子树的所有 Element，忽略层次结构
-    _visitAllElements(context, (element) {
-      final widget = element.widget;
+void _triggerActionsInFocusableItem(BuildContext context) {
+  // 遍历 FocusableItem 子树的所有 Element，忽略层次结构
+  _visitAllElements(context, (element) {
+    final widget = element.widget;
 
-      // 识别并触发交互控件的操作
-      _triggerWidgetAction(widget);
-    });
-  } else {
-    _manageDebugOverlay(message: 'FocusableItem 的上下文为空，无法遍历子控件');
-  }
+    // 识别并触发交互控件的操作
+    _triggerWidgetAction(widget);
+  });
 }
 
 // 遍历整个 Element 树的递归函数
