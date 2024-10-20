@@ -538,103 +538,88 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
 
 /// 执行当前焦点控件的点击操作
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;
+  final focusNode = _currentFocus;  // 获取当前焦点
+  if (focusNode != null && focusNode.context != null) {
+    final BuildContext? context = focusNode.context;
 
-  // 检查当前焦点的上下文是否存在
-  if (focusNode?.context == null) {
-    _manageDebugOverlay(message: '当前无有效的焦点上下文');
-    return;
-  }
-
-  final context = focusNode!.context!;
-
-  try {
-    // 查找最近的 FocusableItem，并递归触发其内部的控件操作
-    final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-
-    if (focusableItem != null) {
-      _triggerActionsInFocusableItem(context);  // 传递 context 进行子控件操作触发
-    } else {
-      _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+    // 如果上下文不可用，显示调试消息并返回
+    if (context == null) {
+      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
+      return;
     }
-  } catch (e, stackTrace) {
-    _manageDebugOverlay(
-      message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace',
-    );
+
+    try {
+      // 查找最近的 FocusableItem 节点
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+      // 如果找到了 FocusableItem，就递归查找其所有子控件
+      if (focusableItem != null) {
+        // 使用当前的 context 而不是 focusableItem.context
+        _triggerActionsInFocusableItem(context); // 将 context 传递下去
+      } else {
+        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+      }
+    } catch (e, stackTrace) {
+      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+    }
+  } else {
+    _manageDebugOverlay(message: '当前无有效的焦点上下文');
   }
 }
 
-// 遍历 FocusableItem 下的所有子控件，并触发第一个可交互控件的操作
+// 在 FocusableItem 节点下查找并触发第一个交互控件的操作
 void _triggerActionsInFocusableItem(BuildContext context) {
-  _visitAllElements(context, (element) => _triggerWidgetAction(element.widget));
-}
+  _visitAllElements(context, (element) {
+    final widget = element.widget;
 
-// 遍历元素树，触发后停止遍历
-bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-  bool stop = false;
-
-  context.visitChildElements((element) {
-    if (stop) return; // 如果已经触发操作，则停止递归
-    stop = visitor(element) || _visitAllElements(element, visitor);
+    // 识别并触发交互控件的操作，找到并触发后停止递归
+    return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
   });
-
-  return stop;
 }
 
-// 尝试触发交互控件的操作，成功返回 true，否则返回 false
+// 遍历函数，遇到交互控件后终止遍历
+bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
+  bool stop = false;  // 用于控制是否继续递归
+  context.visitChildElements((element) {
+    if (stop) return; // 如果已经找到并触发了操作，停止递归
+    stop = visitor(element);  // 如果触发了操作，stop 会变为 true
+    if (!stop) {
+      stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+    }
+  });
+  return stop;  // 返回是否已停止查找
+}
+
+// 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
 bool _triggerWidgetAction(Widget widget) {
-  if (widget is _ActionTriggerable) {
-    widget.triggerAction(); // 触发抽象的动作
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    widget.onChanged!(!widget.value);
     return true;
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    widget.onPressed!();
+    return true;
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+    return true;
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    widget.onPressed!();
+    return true;
+  } else if (widget is IconButton && widget.onPressed != null) {
+    widget.onPressed!();
+    return true;
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+    widget.onPressed!();
+    return true;
+  } else if (widget is ListTile && widget.onTap != null) {
+    widget.onTap!();
+    return true;
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    widget.onSelected!(null);
+    return true;
+  } else {
+    _manageDebugOverlay(message: '找到控件，但无法触发操作');
+    return false; 
   }
-  _manageDebugOverlay(message: '找到控件，但无法触发操作');
-  return false;
-}
-
-// 定义一个抽象类，封装所有可触发操作的控件行为
-abstract class _ActionTriggerable {
-  void triggerAction();
-}
-
-// 为常用控件实现 _ActionTriggerable 接口
-extension on SwitchListTile implements _ActionTriggerable {
-  @override
-  void triggerAction() => onChanged?.call(!value);
-}
-
-extension on ElevatedButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onPressed?.call();
-}
-
-extension on TextButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onPressed?.call();
-}
-
-extension on OutlinedButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onPressed?.call();
-}
-
-extension on IconButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onPressed?.call();
-}
-
-extension on FloatingActionButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onPressed?.call();
-}
-
-extension on ListTile implements _ActionTriggerable {
-  @override
-  void triggerAction() => onTap?.call();
-}
-
-extension on PopupMenuButton implements _ActionTriggerable {
-  @override
-  void triggerAction() => onSelected?.call(null);
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
