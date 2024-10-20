@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:flutter/services.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
-import 'tv_key_navigation.dart'; // 引入 TvKeyNavigation 组件
 
 class SettingBeautifyPage extends StatefulWidget {
   const SettingBeautifyPage({super.key});
