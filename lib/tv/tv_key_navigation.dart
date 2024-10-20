@@ -522,7 +522,7 @@ void _manageDebugOverlay({String? message}) {
   }
 
 /// 执行当前焦点控件的点击操作或切换开关状态
-void _triggerButtonAction() {  
+void _triggerButtonAction() {
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
@@ -534,12 +534,13 @@ void _triggerButtonAction() {
     }
 
     try {
-      // 查找最近的 FocusableItem 节点，去掉对 Focus 的查找
+      // 查找最近的 FocusableItem 节点
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
 
-      // 如果找到了 FocusableItem，就递归查找其子组件
+      // 如果找到了 FocusableItem，就递归查找其所有子控件
       if (focusableItem != null) {
-        _findAndTriggerAction(focusableItem.child); // 开始查找 FocusableItem 包裹的子组件
+        // 开始查找 FocusableItem 包裹的所有子控件并触发操作
+        _triggerActionsInFocusableItem(focusableItem);
       } else {
         _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
@@ -551,67 +552,41 @@ void _triggerButtonAction() {
   }
 }
 
-// 递归查找和执行不同类型控件的操作
-void _findAndTriggerAction(Widget widget) {
-  // 识别常见的交互控件并触发操作
+// 在 FocusableItem 节点下查找并触发所有交互控件的操作
+void _triggerActionsInFocusableItem(FocusableItem focusableItem) {
+  // 遍历 FocusableItem 子树的所有 Element，忽略层次结构
+  _visitAllElements(focusableItem, (element) {
+    final widget = element.widget;
+
+    // 识别并触发交互控件的操作
+    _triggerWidgetAction(widget);
+  });
+}
+
+// 遍历整个 Element 树的递归函数
+void _visitAllElements(BuildContext context, void Function(Element) visitor) {
+  context.visitChildElements((element) {
+    visitor(element);  // 访问当前元素
+    _visitAllElements(element, visitor);  // 递归访问子元素
+  });
+}
+
+// 执行目标控件的操作
+void _triggerWidgetAction(Widget widget) {
+  // 识别并触发可交互控件的操作
   if (widget is SwitchListTile && widget.onChanged != null) {
     widget.onChanged!(!widget.value);
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is TextButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is IconButton && widget.onPressed != null) {
-    widget.onPressed!();
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+  } else if ((widget is ElevatedButton || widget is TextButton || widget is OutlinedButton ||
+              widget is IconButton || widget is FloatingActionButton) && widget.onPressed != null) {
     widget.onPressed!();
   } else if (widget is ListTile && widget.onTap != null) {
     widget.onTap!();
   } else if (widget is PopupMenuButton && widget.onSelected != null) {
     widget.onSelected!(null);
-  } 
-  // 如果遇到无影响的控件，继续递归其子树
-  else if (widget is Builder || widget is GestureDetector || widget is Padding || 
-           widget is Container || widget is Center || widget is Align || 
-           widget is Opacity || widget is SizedBox) {
-    // 获取 widget 的 Element 并访问其子树
-    widget.createElement()?.visitChildren((childElement) {
-      _findAndTriggerAction(childElement.widget);  // 递归访问子组件
-    });
-  }
-  // 如果是布局类组件，递归遍历其子组件
-  else if (widget is Column || widget is Row || widget is Stack || widget is ListView || widget is GridView) {
-    final Iterable<Widget> children = _extractChildren(widget);
-    for (var child in children) {
-      _findAndTriggerAction(child);  // 递归查找子组件
-    }
-  } 
-  // 处理只有一个子组件的容器
-  else if (widget is Padding || widget is Container || widget is Center || widget is Expanded || widget is Flexible) {
-    final Widget? child = _extractChild(widget);
-    if (child != null) {
-      _findAndTriggerAction(child);  // 递归处理子组件
-    }
   } else {
-    _manageDebugOverlay(message: '未找到可执行操作的控件');
+    // 如果没有匹配到交互控件，忽略此控件
+    _manageDebugOverlay(message: '找到控件，但无法触发操作');
   }
-}
-
-// 提取子组件的方法，处理多子组件布局
-Iterable<Widget> _extractChildren(Widget widget) {
-  if (widget is MultiChildRenderObjectWidget) {
-    return widget.children;  // 直接返回 children
-  }
-  return <Widget>[];  // 如果不匹配，返回空列表
-}
-
-// 提取单个子组件的方法，处理单子组件容器
-Widget? _extractChild(Widget widget) {
-  if (widget is SingleChildRenderObjectWidget) {
-    return widget.child;  // 直接返回子组件
-  }
-  return null;
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
