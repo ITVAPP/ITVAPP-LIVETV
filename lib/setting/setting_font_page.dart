@@ -1,7 +1,8 @@
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/provider/language_provider.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import '../generated/l10n.dart';
 
 class SettingFontPage extends StatefulWidget {
@@ -16,180 +17,185 @@ class _SettingFontPageState extends State<SettingFontPage> {
   final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 语言代码
 
-  // 统一的圆角样式
-  final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(16), // 设置圆角
-  );
+  // 提取统一的按钮样式
+  RoundedRectangleBorder get _buttonShape => RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16), // 设置圆角
+      );
 
-  // 按钮颜色更新
-  final _selectedColor = const Color(0xFFEB144C); // 选中时颜色
-  final _unselectedColor = const Color(0xFFDFA02A); // 未选中时颜色
+  // 定义选中和未选中的颜色
+  static const _selectedColor = Color(0xFFEB144C); // 选中时颜色
+  static const _unselectedColor = Color(0xFFDFA02A); // 未选中时颜色
 
-  // 焦点节点列表，用于 TV 端焦点管理
-  final List<FocusNode> _fontFocusNodes = List.generate(5, (index) => FocusNode());
-  final List<FocusNode> _languageFocusNodes = List.generate(3, (index) => FocusNode());
+  // 焦点节点列表（按顺序分配给字体和语言选择按钮）
+  final List<FocusNode> _focusNodes = List.generate(8, (index) => FocusNode());
 
   @override
   void initState() {
     super.initState();
-    // 页面加载时，将焦点默认设置到第一个字体按钮
-    _fontFocusNodes[0].requestFocus();
+    // 监听所有焦点节点的变化，焦点变化时触发 UI 更新
+    for (var focusNode in _focusNodes) {
+      focusNode.addListener(() {
+        if (mounted) setState(() {}); // 确保组件已挂载后再触发重绘
+      });
+    }
   }
 
   @override
   void dispose() {
-    // 释放所有焦点节点资源，防止内存泄漏
-    for (var node in _fontFocusNodes) {
-      node.dispose();
-    }
-    for (var node in _languageFocusNodes) {
-      node.dispose();
-    }
+    for (var node in _focusNodes) node.dispose(); // 释放所有焦点节点资源
     super.dispose();
+  }
+
+  /// 用于将颜色变暗的函数
+  Color darkenColor(Color color, [double amount = 0.1]) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+    return darkened.toColor();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 获取屏幕宽度以进行布局优化
+    // 缓存 ThemeProvider 和 LanguageProvider，减少重复调用 context.watch()
+    final themeProvider = context.watch<ThemeProvider>();
+    final languageProvider = context.watch<LanguageProvider>();
+
     var screenWidth = MediaQuery.of(context).size.width;
-
-    // 通过 Provider 获取 isTV 状态
-    bool isTV = context.watch<ThemeProvider>().isTV;
-
-    // 最大内容宽度，适用于大屏设备
+    bool isTV = themeProvider.isTV; // 获取 TV 模式状态
     double maxContainerWidth = 580;
 
-    return Scaffold(
-      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下的背景颜色
-      appBar: AppBar(
-        leading: isTV ? const SizedBox.shrink() : null, // TV模式下不显示返回按钮
-        title: Text(
-          S.of(context).fontTitle, // 设置页面标题
-          style: const TextStyle(
-            fontSize: 22, // 设置字号
-            fontWeight: FontWeight.bold, // 设置加粗
+    return FocusScope(
+      child: TvKeyNavigation(
+        focusNodes: _focusNodes,
+        isHorizontalGroup: true, // 启用横向分组
+        initialIndex: 0, // 设置初始焦点索引为 0
+        isFrame: isTV, // TV 模式下启用框架模式
+        frameType: isTV ? "child" : null, // TV 模式下设置为子页面
+        child: Scaffold(
+          backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下背景颜色
+          appBar: AppBar(
+            leading: isTV ? const SizedBox.shrink() : null, // TV模式下隐藏返回按钮
+            title: Text(
+              S.of(context).fontTitle, // 标题
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: isTV ? const Color(0xFF1E2022) : null,
           ),
-        ),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下AppBar背景颜色
-      ),
-      body: Align(
-        alignment: Alignment.center, // 内容居中显示
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity, // 限制最大宽度
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0), // 添加左右内边距
-            child: FocusTraversalGroup( // 在 TV 模式下，使用焦点组管理方向键焦点切换
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, // 子组件从左对齐
-                children: [
-                  // 字体大小设置部分
-                  Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(S.of(context).fontSizeTitle, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), // 字体大小标题
-                        const SizedBox(height: 10), // 间距
-                        Wrap(
-                          spacing: 5,
-                          runSpacing: 8, // 选项排列方式
-                          children: List.generate(
-                            _fontScales.length,
-                            (index) => Focus(
-                              focusNode: _fontFocusNodes[index], // 为每个按钮设置焦点节点
-                              child: ChoiceChip(
-                                label: Text(
-                                  '${_fontScales[index]}', // 显示字体缩放比例
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.white, // 文字颜色统一为白色
-                                    fontWeight: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                        ? FontWeight.bold // 选中状态加粗
-                                        : FontWeight.normal, // 未选中状态正常
-                                  ),
-                                ),
-                                selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index], // 当前选中的字体缩放
-                                onSelected: (bool selected) {
-                                  context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 设置字体缩放
-                                },
-                                selectedColor: _selectedColor, // 选中或焦点颜色
-                                backgroundColor: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                    ? _selectedColor // 选中状态颜色
-                                    : _unselectedColor, // 未选中状态颜色
-                                shape: _buttonShape, // 统一的圆角外形
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6), // 设置内边距
-                                avatar: null, // 取消选中的对勾
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12), // 间距
-
-                  // 语言选择部分
-                  Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(S.of(context).languageSelection, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), // 语言选择标题
-                        const SizedBox(height: 6), // 间距
-                        Column(
-                          children: List.generate(
-                            _languages.length,
-                            (index) => Focus(
-                              focusNode: _languageFocusNodes[index], // 为每个语言按钮设置焦点节点
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0), // 增加下部的外边距
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // 左侧显示语言，右侧显示按钮
-                                  children: [
-                                    Text(_languages[index], style: const TextStyle(fontSize: 18)), // 显示语言名称
-                                    ChoiceChip(
-                                      label: Text(
-                                        context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                            ? S.of(context).inUse // 已选中的显示 "使用中"
-                                            : S.of(context).use, // 未选中的显示 "使用"
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.white, // 文字颜色统一为白色
-                                          fontWeight: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                              ? FontWeight.bold // 选中状态加粗
-                                              : FontWeight.normal, // 未选中状态正常
-                                        ),
-                                      ),
-                                      selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index], // 当前选中的语言
-                                      onSelected: (bool selected) {
-                                        // 切换语言，点击即触发，不判断是否已选中
-                                        context.read<LanguageProvider>().changeLanguage(_languageCodes[index]);
-                                      },
-                                      selectedColor: _selectedColor, // 选中状态颜色
-                                      backgroundColor: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                          ? _selectedColor // 已选中状态颜色
-                                          : _unselectedColor, // 未选中状态颜色
-                                      shape: _buttonShape, // 统一的圆角外形
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6), // 设置内边距
-                                      avatar: null, // 取消选中的对勾
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          body: Align(
+            alignment: Alignment.center, // 内容居中
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 字体大小选择部分
+                    _buildFontSizeSelection(themeProvider),
+                    const SizedBox(height: 12), // 间距
+                    // 语言选择部分
+                    _buildLanguageSelection(languageProvider),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // 抽取字体大小选择部分为独立函数，使用 Group 包裹
+  Widget _buildFontSizeSelection(ThemeProvider themeProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            S.of(context).fontSizeTitle, // 字体大小标题
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10), // 间距
+          Group(
+            groupIndex: 0, // 设置 Group 的索引为 0
+            children: List.generate(_fontScales.length, (index) {
+              return FocusableItem(
+                focusNode: _focusNodes[index], // 包裹按钮并分配焦点节点
+                child: _buildChoiceChip(
+                  label: '${_fontScales[index]}',
+                  isSelected: themeProvider.textScaleFactor == _fontScales[index],
+                  onSelected: () => themeProvider.setTextScale(_fontScales[index]),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 抽取语言选择部分为独立函数，每个 FocusableItem 用 Group 包裹
+  Widget _buildLanguageSelection(LanguageProvider languageProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(15), // 外边距
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            S.of(context).languageSelection, // 语言选择标题
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6), // 间距
+          Column(
+            children: List.generate(_languages.length, (index) {
+              return Group(
+                groupIndex: index + 1, // 为每个语言选择设置递增的 groupIndex
+                children: [
+                  FocusableItem(
+                    focusNode: _focusNodes[index + 5], // 包裹按钮并分配焦点节点
+                    child: _buildChoiceChip(
+                      label: languageProvider.currentLocale.toString() ==
+                              _languageCodes[index]
+                          ? S.of(context).inUse
+                          : S.of(context).use,
+                      isSelected: languageProvider.currentLocale.toString() ==
+                          _languageCodes[index],
+                      onSelected: () =>
+                          languageProvider.changeLanguage(_languageCodes[index]),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 提取 ChoiceChip 的构建逻辑，减少重复代码
+  Widget _buildChoiceChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 18,
+          color: Colors.white,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: (_) => onSelected(),
+      selectedColor: _selectedColor,
+      backgroundColor: isSelected ? darkenColor(_unselectedColor) : _unselectedColor,
+      shape: _buttonShape,
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
     );
   }
 }
