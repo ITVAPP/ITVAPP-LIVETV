@@ -53,7 +53,7 @@ class DialogUtil {
 
     // 清空焦点节点列表
     _focusNodes.clear();
-    focusIndex = 0; 
+    focusIndex = 1; 
 
     // 统计需要的 FocusNode 数量
     int focusNodeCount = 1;  // 右上角关闭按钮始终需要1个FocusNode
