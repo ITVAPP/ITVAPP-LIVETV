@@ -161,7 +161,7 @@ static Widget _buildUpdateDownloadBtn(String apkUrl) {
 
       return provider.isDownloading
           ? _buildDownloadProgress(provider, btnWidth)  // 提取下载进度为独立方法
-          : _buildFocusableButton(  // 使用优化后的可聚焦按钮构建逻辑
+          : _buildDownloadButton(  // 使用优化后的可聚焦按钮构建逻辑
               context: context,
               focusNode: _focusNodes[focusIndex++],  // 使用焦点节点
               label: S.of(context).update,  // 更新按钮文本
@@ -206,7 +206,7 @@ static Widget _buildDownloadProgress(DownloadProvider provider, double width) {
 }
 
 // 优化后的可聚焦按钮构建方法
-static Widget _buildFocusableButton({
+static Widget _buildDownloadButton({
   required BuildContext context,
   required FocusNode focusNode,
   required String label,
@@ -219,7 +219,7 @@ static Widget _buildFocusableButton({
       builder: (BuildContext context) {
         bool hasFocus = Focus.of(context).hasFocus;  // 获取焦点状态
         return ElevatedButton(
-          style: _buttonStyle(hasFocus, width),  // 按钮样式
+          style: _DownloadBtnStyle(hasFocus, width),  // 按钮样式
           onPressed: onPressed,  // 按钮点击事件
           child: Text(label),  // 按钮文本
         );
@@ -229,7 +229,7 @@ static Widget _buildFocusableButton({
 }
 
 // 提取按钮样式设置为独立方法
-static ButtonStyle _buttonStyle(bool hasFocus, double width) {
+static ButtonStyle _DownloadBtnStyle(bool hasFocus, double width) {
   return ElevatedButton.styleFrom(
     fixedSize: Size(width, 48),  // 按钮尺寸
     backgroundColor: hasFocus ? selectedColor : unselectedColor,  // 根据焦点状态设置背景颜色
