@@ -540,6 +540,7 @@ void _triggerButtonAction() {
       // 如果找到了 FocusableItem，就递归查找其所有子控件
       if (focusableItem != null) {
         // 开始查找 FocusableItem 包裹的所有子控件并触发操作
+        // 注意这里修正了传递的 context
         _triggerActionsInFocusableItem(focusableItem);
       } else {
         _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
@@ -554,13 +555,21 @@ void _triggerButtonAction() {
 
 // 在 FocusableItem 节点下查找并触发所有交互控件的操作
 void _triggerActionsInFocusableItem(FocusableItem focusableItem) {
-  // 遍历 FocusableItem 子树的所有 Element，忽略层次结构
-  _visitAllElements(focusableItem, (element) {
-    final widget = element.widget;
+  // 获取 FocusableItem 的 BuildContext
+  final context = focusableItem.context;
+  
+  // 确保 context 不为空
+  if (context != null) {
+    // 遍历 FocusableItem 子树的所有 Element，忽略层次结构
+    _visitAllElements(context, (element) {
+      final widget = element.widget;
 
-    // 识别并触发交互控件的操作
-    _triggerWidgetAction(widget);
-  });
+      // 识别并触发交互控件的操作
+      _triggerWidgetAction(widget);
+    });
+  } else {
+    _manageDebugOverlay(message: 'FocusableItem 的上下文为空，无法遍历子控件');
+  }
 }
 
 // 遍历整个 Element 树的递归函数
@@ -576,8 +585,15 @@ void _triggerWidgetAction(Widget widget) {
   // 识别并触发可交互控件的操作
   if (widget is SwitchListTile && widget.onChanged != null) {
     widget.onChanged!(!widget.value);
-  } else if ((widget is ElevatedButton || widget is TextButton || widget is OutlinedButton ||
-              widget is IconButton || widget is FloatingActionButton) && widget.onPressed != null) {
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is IconButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
     widget.onPressed!();
   } else if (widget is ListTile && widget.onTap != null) {
     widget.onTap!();
