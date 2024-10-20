@@ -1,15 +1,13 @@
 import 'dart:io';
-import 'package:itvapp_live_tv/widget/update_download_btn.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:url_launcher/url_launcher.dart'; 
-import '../generated/l10n.dart';
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
 import 'dialog_util.dart'; 
 import '../config.dart'; 
+import '../generated/l10n.dart';
 
 class CheckVersionUtil {
   static const version = Config.version;  // 当前应用版本号
