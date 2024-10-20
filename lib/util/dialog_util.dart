@@ -70,10 +70,10 @@ class DialogUtil {
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,  // 是否允许点击对话框外部关闭
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         // 获取屏幕的宽度和高度
-        final screenWidth = MediaQuery.of(context).size.width;
-        final screenHeight = MediaQuery.of(context).size.height;
+        final screenWidth = MediaQuery.of(dialogContext).size.width;
+        final screenHeight = MediaQuery.of(dialogContext).size.height;
         // 判断屏幕方向，决定对话框宽度比例
         final isPortrait = screenHeight > screenWidth;
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
@@ -81,7 +81,7 @@ class DialogUtil {
 
         return Center(
           child: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setState) {
+            builder: (BuildContext statefulContext, StateSetter setState) {
               return Container(
                 width: dialogWidth,  // 设置对话框宽度
                 constraints: BoxConstraints(
@@ -102,7 +102,7 @@ class DialogUtil {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                     children: [
-                      _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递右上角关闭按钮的焦点节点
+                      _buildDialogHeader(dialogContext, title: title, closeFocusNode: _focusNodes[0]),  // 传递右上角关闭按钮的焦点节点
                       Flexible( 
                         child: SingleChildScrollView(
                           child: Padding(
