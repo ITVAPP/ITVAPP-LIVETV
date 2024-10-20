@@ -149,8 +149,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               },
                               activeColor: Colors.white, // 滑块的颜色
                               activeTrackColor: _focusNodes[0].hasFocus
-                                  ? darkenColor(selectedColor) // 聚焦时颜色变暗
-                                  : selectedColor, // 启动时背景颜色
+                                  ? selectedColor // 聚焦时颜色变暗
+                                  : unselectedColor, // 启动时背景颜色
                               inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
                               inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
                             ),
