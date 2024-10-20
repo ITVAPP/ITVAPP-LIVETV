@@ -257,57 +257,88 @@ void _manageDebugOverlay({String? message}) {
   }
 
   /// 缓存 Group 的焦点信息
- void _cacheGroupFocusNodes() {
-  _groupFocusCache.clear();  // 清空现有缓存
-  FocusNode? firstFocusNode;
-  FocusNode? lastFocusNode;
-  Map<int, FocusNode?> groupFirstFocusNodes = {};
-  Map<int, FocusNode?> groupLastFocusNodes = {};
+void _cacheGroupFocusNodes() {
+  _groupFocusCache.clear();  // 清空缓存
+  _manageDebugOverlay(message: '开始缓存分组焦点信息');
 
-  for (var node in widget.focusNodes) {
-    if (node.canRequestFocus) {
-      firstFocusNode ??= node; // 记录第一个可用的焦点节点
-      lastFocusNode = node; // 更新最后一个可用焦点节点
-      
-      // 获取节点所在的分组索引
-      final groupIndex = _getGroupIndex(node);
-      
-      if (!groupFirstFocusNodes.containsKey(groupIndex)) {
-        groupFirstFocusNodes[groupIndex] = node; // 记录每个组的第一个焦点节点
-      }
-      groupLastFocusNodes[groupIndex] = node; // 更新每个组的最后一个焦点节点
-    }
+  // 获取所有的分组
+  final groups = _getAllGroups();
+  _manageDebugOverlay(message: '找到的总组数: ${groups.length}');
+
+  // 如果没有分组或只有一个分组，处理为默认分组逻辑
+  if (groups.isEmpty || groups.length == 1) {
+    _cacheDefaultGroup();
+  } else {
+    _cacheMultipleGroups(groups);
   }
 
-  // 缓存没有分组或单一分组的焦点节点
-  if (firstFocusNode != null && lastFocusNode != null) {
-    _groupFocusCache[0] = {
-      'firstFocusNode': firstFocusNode,
-      'lastFocusNode': lastFocusNode,
-    };
+  // 显示总共缓存的分组数量
+  _manageDebugOverlay(
+    message: '缓存完成，共缓存了 ${_groupFocusCache.length} 个分组的焦点节点'
+  );
+}
+
+// 缓存默认分组（无分组或单一分组）的焦点节点
+void _cacheDefaultGroup() {
+  final firstFocusNode = _findFirstFocusableNode(widget.focusNodes);
+  final lastFocusNode = _findLastFocusableNode(widget.focusNodes);
+
+  _groupFocusCache[0] = {
+    'firstFocusNode': firstFocusNode,
+    'lastFocusNode': lastFocusNode,
+  };
+
+  _manageDebugOverlay(
+    message: '缓存了默认分组的焦点节点 - '
+             '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
+             '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+  );
+}
+
+// 遍历多个分组并缓存它们的焦点节点
+void _cacheMultipleGroups(List<Group> groups) {
+  for (var group in groups) {
+    final groupWidgets = _getWidgetsInGroup(group);
+    final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
+
     _manageDebugOverlay(
-      message: '缓存了没有显式分组的焦点节点 - '
-               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+      message: '分组 ${group.groupIndex} 的组件数: ${groupWidgets.length}, '
+               '焦点节点数: ${groupFocusNodes.length}'
     );
-  }
 
-  // 缓存每个显式分组的首尾焦点节点
-  groupFirstFocusNodes.forEach((groupIndex, firstNode) {
-    final lastNode = groupLastFocusNodes[groupIndex];
-    if (firstNode != null && lastNode != null) {
-      _groupFocusCache[groupIndex] = {
-        'firstFocusNode': firstNode,
-        'lastFocusNode': lastNode,
+    if (groupFocusNodes.isNotEmpty) {
+      _groupFocusCache[group.groupIndex] = {
+        'firstFocusNode': groupFocusNodes.first,
+        'lastFocusNode': groupFocusNodes.last,
       };
+
       _manageDebugOverlay(
-        message: '分组 $groupIndex: '
-                 '首个焦点节点: ${_formatFocusNodeDebugLabel(firstNode)}, '
-                 '最后焦点节点: ${_formatFocusNodeDebugLabel(lastNode)}'
+        message: '分组 ${group.groupIndex}: '
+                 '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
+                 '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
+      );
+    } else {
+      _manageDebugOverlay(
+        message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点'
       );
     }
-  });
-  _manageDebugOverlay(message: '缓存了 ${_groupFocusCache.length} 个分组的焦点节点');
+  }
+}
+
+// 查找第一个可聚焦的节点
+FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
+  return nodes.firstWhere(
+    (node) => node.canRequestFocus,
+    orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
+  );
+}
+
+// 查找最后一个可聚焦的节点
+FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
+  return nodes.lastWhere(
+    (node) => node.canRequestFocus,
+    orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
+  );
 }
 
   String _formatFocusNodeDebugLabel(FocusNode focusNode) {
@@ -507,92 +538,103 @@ void _manageDebugOverlay({String? message}) {
 
 /// 执行当前焦点控件的点击操作
 void _triggerButtonAction() {
-  final focusNode = _currentFocus;  // 获取当前焦点
-  if (focusNode != null && focusNode.context != null) {
-    final BuildContext? context = focusNode.context;
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-      return;
-    }
-    try {
-      // 查找最近的 FocusableItem 节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+  final focusNode = _currentFocus;
 
-      // 如果找到 FocusableItem，尝试触发其子控件的操作
-      if (focusableItem != null) {
-        if (_triggerWidgetAction(focusableItem.child)) {
-          _manageDebugOverlay(message: '成功触发控件操作');
-        } else {
-          _manageDebugOverlay(message: '未找到可操作的控件');
-        }
-      } else {
-        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
-      }
-    } catch (e, stackTrace) {
-      _manageDebugOverlay(message: '执行操作时发生错误: $e\n堆栈信息: $stackTrace');
-    }
-  } else {
+  // 检查当前焦点的上下文是否存在
+  if (focusNode?.context == null) {
     _manageDebugOverlay(message: '当前无有效的焦点上下文');
+    return;
+  }
+
+  final context = focusNode!.context!;
+
+  try {
+    // 查找最近的 FocusableItem，并递归触发其内部的控件操作
+    final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+    if (focusableItem != null) {
+      _triggerActionsInFocusableItem(context);  // 传递 context 进行子控件操作触发
+    } else {
+      _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+    }
+  } catch (e, stackTrace) {
+    _manageDebugOverlay(
+      message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace',
+    );
   }
 }
 
-/// 遍历函数，找到第一个交互控件后停止查找
+// 遍历 FocusableItem 下的所有子控件，并触发第一个可交互控件的操作
 void _triggerActionsInFocusableItem(BuildContext context) {
-  bool foundAction = _visitAllElements(context, (element) {
-    final widget = element.widget;
-
-    // 一旦找到可以执行操作的控件就停止
-    return _triggerWidgetAction(widget);
-  });
-
-  if (!foundAction) {
-    _manageDebugOverlay(message: '未找到任何可操作控件');
-  }
+  _visitAllElements(context, (element) => _triggerWidgetAction(element.widget));
 }
 
-/// 遍历元素树并执行给定的操作，找到后停止遍历
+// 遍历元素树，触发后停止遍历
 bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-  bool actionTriggered = false;
+  bool stop = false;
 
   context.visitChildElements((element) {
-    if (!actionTriggered) { // 如果操作尚未触发，继续访问
-      actionTriggered = visitor(element); // 如果成功执行操作，停止访问
-    }
+    if (stop) return; // 如果已经触发操作，则停止递归
+    stop = visitor(element) || _visitAllElements(element, visitor);
   });
 
-  return actionTriggered; // 返回是否成功触发操作
+  return stop;
 }
 
-/// 识别并触发交互控件的操作，找到第一个交互控件后立即停止
+// 尝试触发交互控件的操作，成功返回 true，否则返回 false
 bool _triggerWidgetAction(Widget widget) {
-  if (widget is SwitchListTile && widget.onChanged != null) {
-    widget.onChanged!(!widget.value);
-    return true; // 成功触发操作
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-    widget.onPressed!();
+  if (widget is _ActionTriggerable) {
+    widget.triggerAction(); // 触发抽象的动作
     return true;
-  } else if (widget is TextButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is IconButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is ListTile && widget.onTap != null) {
-    widget.onTap!();
-    return true;
-  } else if (widget is PopupMenuButton && widget.onSelected != null) {
-    widget.onSelected!(null);
-    return true;
-  } else {
-    _manageDebugOverlay(message: '找到控件，但无法触发操作');
-    return false;
   }
+  _manageDebugOverlay(message: '找到控件，但无法触发操作');
+  return false;
+}
+
+// 定义一个抽象类，封装所有可触发操作的控件行为
+abstract class _ActionTriggerable {
+  void triggerAction();
+}
+
+// 为常用控件实现 _ActionTriggerable 接口
+extension on SwitchListTile implements _ActionTriggerable {
+  @override
+  void triggerAction() => onChanged?.call(!value);
+}
+
+extension on ElevatedButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onPressed?.call();
+}
+
+extension on TextButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onPressed?.call();
+}
+
+extension on OutlinedButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onPressed?.call();
+}
+
+extension on IconButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onPressed?.call();
+}
+
+extension on FloatingActionButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onPressed?.call();
+}
+
+extension on ListTile implements _ActionTriggerable {
+  @override
+  void triggerAction() => onTap?.call();
+}
+
+extension on PopupMenuButton implements _ActionTriggerable {
+  @override
+  void triggerAction() => onSelected?.call(null);
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
