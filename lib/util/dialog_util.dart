@@ -70,10 +70,10 @@ class DialogUtil {
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,  // 是否允许点击对话框外部关闭
-      builder: (BuildContext dialogContext) {
+      builder: (BuildContext context) {
         // 获取屏幕的宽度和高度
-        final screenWidth = MediaQuery.of(dialogContext).size.width;
-        final screenHeight = MediaQuery.of(dialogContext).size.height;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
         // 判断屏幕方向，决定对话框宽度比例
         final isPortrait = screenHeight > screenWidth;
         final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;  // 根据屏幕方向调整弹窗宽度
@@ -81,7 +81,7 @@ class DialogUtil {
 
         return Center(
           child: StatefulBuilder(
-            builder: (BuildContext statefulContext, StateSetter setState) {
+            builder: (BuildContext context, StateSetter setState) {
               return Container(
                 width: dialogWidth,  // 设置对话框宽度
                 constraints: BoxConstraints(
@@ -102,7 +102,7 @@ class DialogUtil {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,  // 动态调整高度，适应内容
                     children: [
-                      _buildDialogHeader(dialogContext, title: title, closeFocusNode: _focusNodes[0]),  // 传递右上角关闭按钮的焦点节点
+                      _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),  // 传递右上角关闭按钮的焦点节点
                       Flexible( 
                         child: SingleChildScrollView(
                           child: Padding(
@@ -164,7 +164,7 @@ static Widget _buildUpdateDownloadBtn(String apkUrl) {
           : _buildDownloadButton(  // 使用优化后的可聚焦按钮构建逻辑
               context: context,
               focusNode: _focusNodes[focusIndex++],  // 使用焦点节点
-              label: S.of(context).update,  // 更新按钮文本
+              label: S.current.update,  // 更新按钮文本
               onPressed: () => _handleDownload(context, apkUrl),  // 下载逻辑
               width: btnWidth,  // 按钮宽度
             );
@@ -192,7 +192,7 @@ static Widget _buildDownloadProgress(DownloadProvider provider, double width) {
           ),
           // 下载进度的文字显示
           Text(
-            '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
+            '${S.current.downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
             style: const TextStyle(
               color: Colors.white,  // 白色文字
               fontWeight: FontWeight.bold,  // 文字加粗
