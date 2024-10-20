@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:url_launcher/url_launcher.dart'; 
+import 'package:sp_util/sp_util.dart';
 import 'env_util.dart';
 import 'http_util.dart';
 import 'log_util.dart';
@@ -20,8 +21,7 @@ class CheckVersionUtil {
   // 保存最后一次弹出提示的日期
   static Future<void> saveLastPromptDate() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('lastPromptDate', DateTime.now().toIso8601String());
+      await SpUtil.putString('lastPromptDate', DateTime.now().toIso8601String());
     } catch (e, stackTrace) {
       LogUtil.logError('保存最后提示日期失败', e, stackTrace);  // 错误处理
     }
@@ -30,8 +30,7 @@ class CheckVersionUtil {
   // 获取最后一次弹出提示的日期
   static Future<String?> getLastPromptDate() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('lastPromptDate');  // 返回提示日期
+      return SpUtil.getString('lastPromptDate');  // 返回提示日期
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
       return null;  // 获取失败时返回 null
@@ -87,7 +86,6 @@ class CheckVersionUtil {
       title: '${S.current.findNewVersion}🚀',
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,
       ShowUpdateButton: 'https://github.com/aiyakuaile/easy_tv_live/releases/download/2.7.7/easyTV-2.7.7.apk',  // 传递下载链接
-      // ShowUpdateButton: '$downloadLink/${latestVersionEntity!.latestVersion}/easyTV-${latestVersionEntity!.latestVersion}.apk',
       isDismissible: false,  // 禁止点击对话框外部关闭
     );
   }
