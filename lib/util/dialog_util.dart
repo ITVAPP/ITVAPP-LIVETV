@@ -151,83 +151,110 @@ class DialogUtil {
   }
 
   // 封装的 UpdateDownloadBtn 方法
-  static Widget _buildUpdateDownloadBtn(String apkUrl) {
-    return Consumer<DownloadProvider>(
-      builder: (BuildContext context, DownloadProvider provider, Widget? child) {
-        // 判断当前屏幕方向是否为横屏
-        bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-        // 根据屏幕方向设置按钮宽度
-        double btnWidth = isLandscape ? 380 : 220;
+static Widget _buildUpdateDownloadBtn(String apkUrl) {
+  return Consumer<DownloadProvider>(
+    builder: (BuildContext context, DownloadProvider provider, Widget? child) {
+      // 判断当前屏幕方向是否为横屏
+      bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      // 根据屏幕方向设置按钮宽度
+      double btnWidth = isLandscape ? 380 : 220;
 
-        return provider.isDownloading
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(16), // 圆角按钮样式
-                child: SizedBox(
-                  height: 48,
-                  width: btnWidth, // 按钮宽度
-                  child: Stack(
-                    clipBehavior: Clip.hardEdge,
-                    alignment: Alignment.center,
-                    children: [
-                      // 下载进度条
-                      Positioned.fill(
-                        child: LinearProgressIndicator(
-                          value: provider.progress, // 进度条的进度
-                          backgroundColor: Color(0xFFEB144C).withOpacity(0.2), // 进度条背景颜色
-                          color: Color(0xFFEB144C), // 进度条前景颜色
-                        ),
-                      ),
-                      // 下载进度的文字显示
-                      Text(
-                        '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          color: Colors.white, // 白色文字
-                          fontWeight: FontWeight.bold,  // 文字加粗
-                          fontSize: 16,  // 文字大小
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            : FocusableItem(
-                focusNode: _focusNodes[focusIndex++],  // 使用下一个焦点节点
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    fixedSize: Size(btnWidth, 48), // 固定按钮尺寸
-                    backgroundColor: Focus.of(context).hasFocus ? selectedColor : unselectedColor,  // 根据焦点状态修改背景颜色
-                    elevation: 10,  // 按钮阴影效果
-                    foregroundColor: Colors.white,  // 设置点击时水波纹的颜色
-                    shadowColor: Focus.of(context).hasFocus ? selectedColor : unselectedColor,  // 阴影颜色与按钮背景匹配
-                  ),
-                  onPressed: () {
-                    if (Platform.isAndroid) {
-                      try {
-                        context.read<DownloadProvider>().downloadApk(apkUrl);  // 执行 APK 下载
-                      } catch (e, stackTrace) {
-                        LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
-                      }
-                    } else {
-                      try {
-                        Navigator.of(context).pop(true);  // 关闭对话框
-                      } catch (e, stackTrace) {
-                        LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
-                      }
-                    }
-                  },
-                  child: Text(
-                    S.of(context).update,  // 显示 "更新" 文本
-                    style: const TextStyle(
-                      color: Colors.white,  // 白色文字
-                      fontWeight: FontWeight.bold,  // 文字加粗
-                      fontSize: 18,  // 文字大小
-                    ),
-                  ),
-                ),
-              );
+      return provider.isDownloading
+          ? _buildDownloadProgress(provider, btnWidth)  // 提取下载进度为独立方法
+          : _buildFocusableButton(  // 使用优化后的可聚焦按钮构建逻辑
+              context: context,
+              focusNode: _focusNodes[focusIndex++],  // 使用焦点节点
+              label: S.of(context).update,  // 更新按钮文本
+              onPressed: () => _handleDownload(context, apkUrl),  // 下载逻辑
+              width: btnWidth,  // 按钮宽度
+            );
+    },
+  );
+}
+
+// 抽取下载进度显示逻辑为独立方法
+static Widget _buildDownloadProgress(DownloadProvider provider, double width) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(16),  // 圆角按钮样式
+    child: SizedBox(
+      height: 48,
+      width: width,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 下载进度条
+          Positioned.fill(
+            child: LinearProgressIndicator(
+              value: provider.progress,  // 进度条的进度
+              backgroundColor: const Color(0xFFEB144C).withOpacity(0.2),  // 进度条背景颜色
+              color: const Color(0xFFEB144C),  // 进度条前景颜色
+            ),
+          ),
+          // 下载进度的文字显示
+          Text(
+            '${S.of(context).downloading} ${(provider.progress * 100).toStringAsFixed(1)}%',
+            style: const TextStyle(
+              color: Colors.white,  // 白色文字
+              fontWeight: FontWeight.bold,  // 文字加粗
+              fontSize: 16,  // 文字大小
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// 优化后的可聚焦按钮构建方法
+static Widget _buildFocusableButton({
+  required BuildContext context,
+  required FocusNode focusNode,
+  required String label,
+  required VoidCallback onPressed,
+  required double width,
+}) {
+  return FocusableItem(
+    focusNode: focusNode,  // 使用焦点节点
+    child: Builder(
+      builder: (BuildContext context) {
+        bool hasFocus = Focus.of(context).hasFocus;  // 获取焦点状态
+        return ElevatedButton(
+          style: _buttonStyle(hasFocus, width),  // 按钮样式
+          onPressed: onPressed,  // 按钮点击事件
+          child: Text(label),  // 按钮文本
+        );
       },
-    );
+    ),
+  );
+}
+
+// 提取按钮样式设置为独立方法
+static ButtonStyle _buttonStyle(bool hasFocus, double width) {
+  return ElevatedButton.styleFrom(
+    fixedSize: Size(width, 48),  // 按钮尺寸
+    backgroundColor: hasFocus ? selectedColor : unselectedColor,  // 根据焦点状态设置背景颜色
+    elevation: 10,  // 按钮阴影
+    foregroundColor: Colors.white,  // 按钮文字颜色
+    shadowColor: hasFocus ? selectedColor : unselectedColor,  // 按钮阴影颜色
+  );
+}
+
+// 提取下载逻辑处理为独立方法
+static void _handleDownload(BuildContext context, String apkUrl) {
+  if (Platform.isAndroid) {
+    try {
+      context.read<DownloadProvider>().downloadApk(apkUrl);  // 执行 APK 下载
+    } catch (e, stackTrace) {
+      LogUtil.logError('下载时发生错误', e, stackTrace);  // 记录下载时的错误
+    }
+  } else {
+    try {
+      Navigator.of(context).pop(true);  // 关闭对话框
+    } catch (e, stackTrace) {
+      LogUtil.logError('关闭对话框时发生错误', e, stackTrace);  // 记录关闭对话框时的错误
+    }
   }
+}
 
   // 封装的标题部分，包含右上角关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
