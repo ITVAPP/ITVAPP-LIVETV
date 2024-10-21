@@ -59,23 +59,24 @@ class _SettingFontPageState extends State<SettingFontPage> {
     bool isTV = context.watch<ThemeProvider>().isTV;
     double maxContainerWidth = 580;
 
-    return FocusScope(
-      child: TvKeyNavigation(
-        focusNodes: _focusNodes,
-        initialIndex: 0, // 设置初始焦点索引为 0
-        isFrame: isTV ? true : false, // TV 模式下启用框架模式
-        frameType: isTV ? "child" : null, // TV 模式下设置为子页面
-        child: Scaffold(
-          backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下背景颜色
-          appBar: AppBar(
-            leading: isTV ? const SizedBox.shrink() : null, // TV模式下隐藏返回按钮
-            title: Text(
-              S.of(context).fontTitle, // 标题
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-          ),
-          body: Align(
+    return Scaffold(
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下背景颜色
+      appBar: AppBar(
+        leading: isTV ? const SizedBox.shrink() : null, // TV模式下隐藏返回按钮
+        title: Text(
+          S.of(context).fontTitle, // 标题
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null,
+      ),
+      body: FocusScope(
+        child: TvKeyNavigation(
+          focusNodes: _focusNodes,
+          isHorizontalGroup: true, // 启用横向分组
+          initialIndex: 0, // 设置初始焦点索引为 0
+          isFrame: isTV ? true : false, // TV 模式下启用框架模式
+          frameType: isTV ? "child" : null, // TV 模式下设置为子页面
+          child: Align(
             alignment: Alignment.center, // 内容居中
             child: Container(
               constraints: BoxConstraints(
@@ -162,64 +163,61 @@ class _SettingFontPageState extends State<SettingFontPage> {
                           Column(
                             children: List.generate(
                               _languages.length,
-                              (index) => Group(
-                                groupIndex: index + 1, // 分组索引递增
+                              (index) => Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  FocusableItem(
-                                    focusNode: _focusNodes[index + 5], // 分配焦点节点
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(bottom: 8.0), // 下边距
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            _languages[index],
-                                            style: const TextStyle(fontSize: 18),
-                                          ),
-                                          ChoiceChip(
-                                            label: Text(
-                                              context
+                                  Text(
+                                    _languages[index], // 显示语言名称
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  Group(
+                                    groupIndex: index + 1, // 分组索引递增
+                                    children: [
+                                      FocusableItem(
+                                        focusNode: _focusNodes[index + 5], // 分配焦点节点
+                                        child: ChoiceChip(
+                                          label: Text(
+                                            context
+                                                        .watch<LanguageProvider>()
+                                                        .currentLocale
+                                                        .toString() ==
+                                                    _languageCodes[index]
+                                                ? S.of(context).inUse
+                                                : S.of(context).use,
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              color: Colors.white,
+                                              fontWeight: context
                                                           .watch<LanguageProvider>()
                                                           .currentLocale
                                                           .toString() ==
                                                       _languageCodes[index]
-                                                  ? S.of(context).inUse
-                                                  : S.of(context).use,
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                color: Colors.white,
-                                                fontWeight: context
-                                                            .watch<LanguageProvider>()
-                                                            .currentLocale
-                                                            .toString() ==
-                                                        _languageCodes[index]
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                              ),
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
                                             ),
-                                            selected: context
-                                                    .watch<LanguageProvider>()
-                                                    .currentLocale
-                                                    .toString() ==
-                                                _languageCodes[index],
-                                            onSelected: (bool selected) {
-                                              context
-                                                  .read<LanguageProvider>()
-                                                  .changeLanguage(
-                                                      _languageCodes[index]); // 切换语言
-                                            },
-                                            selectedColor: _selectedColor,
-                                            backgroundColor: _focusNodes[index + 5].hasFocus
-                                                ? darkenColor(_unselectedColor)
-                                                : _unselectedColor,
-                                            shape: _buttonShape,
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 5, vertical: 6),
                                           ),
-                                        ],
+                                          selected: context
+                                                  .watch<LanguageProvider>()
+                                                  .currentLocale
+                                                  .toString() ==
+                                              _languageCodes[index],
+                                          onSelected: (bool selected) {
+                                            context
+                                                .read<LanguageProvider>()
+                                                .changeLanguage(
+                                                    _languageCodes[index]); // 切换语言
+                                          },
+                                          selectedColor: _selectedColor,
+                                          backgroundColor: _focusNodes[index + 5].hasFocus
+                                              ? darkenColor(_unselectedColor)
+                                              : _unselectedColor,
+                                          shape: _buttonShape,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 5, vertical: 6),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ],
                               ),
