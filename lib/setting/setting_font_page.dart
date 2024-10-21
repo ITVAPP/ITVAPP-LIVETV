@@ -82,14 +82,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     },
                     selectedColor: _selectedColor,
                     backgroundColor: _focusNodes[index].hasFocus
-                        ? darkenColor(
-                            context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                                ? _selectedColor
-                                : _unselectedColor,
-                          ) // 聚焦时变暗颜色
+                        ? (context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                            ? darkenColor(_selectedColor) // 已选中且聚焦时
+                            : darkenColor(_unselectedColor)) // 未选中但聚焦时
                         : (context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                            ? _selectedColor
-                            : _unselectedColor), // 非聚焦时使用选中或未选中颜色
+                            ? _selectedColor // 已选中且未聚焦
+                            : _unselectedColor), // 未选中且未聚焦
                     shape: _buttonShape,
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
                   ),
@@ -145,14 +143,12 @@ class _SettingFontPageState extends State<SettingFontPage> {
                         },
                         selectedColor: _selectedColor,
                         backgroundColor: _focusNodes[index + 5].hasFocus
-                            ? darkenColor(
-                                context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                    ? _selectedColor
-                                    : _unselectedColor,
-                              ) // 聚焦时变暗颜色
+                            ? (context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                ? darkenColor(_selectedColor) // 已选中且聚焦时
+                                : darkenColor(_unselectedColor)) // 未选中但聚焦时
                             : (context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                ? _selectedColor
-                                : _unselectedColor), // 非聚焦时使用选中或未选中颜色
+                                ? _selectedColor // 已选中且未聚焦
+                                : _unselectedColor), // 未选中且未聚焦
                         shape: _buttonShape,
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
                       ),
@@ -201,16 +197,13 @@ class _SettingFontPageState extends State<SettingFontPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 字体大小选择部分
                     Padding(
                       padding: const EdgeInsets.all(15),
                       child: _buildFontSizeSection(),
                     ),
-                    const SizedBox(height: 12), // 间距
-
-                    // 语言选择部分
+                    const SizedBox(height: 12),
                     Padding(
-                      padding: const EdgeInsets.all(15), // 外边距
+                      padding: const EdgeInsets.all(15),
                       child: _buildLanguageSection(),
                     ),
                   ],
