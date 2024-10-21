@@ -17,13 +17,6 @@ class DialogUtil {
   static const Color selectedColor = Color(0xFFEB144C);
   static const Color unselectedColor = Color(0xFFDFA02A);
 
-  // 用于将颜色变暗的函数
-  static Color darkenColor(Color color, [double amount = 0.2]) {
-    final hsl = HSLColor.fromColor(color);
-    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    return darkened.toColor();
-  }
-
   // 显示通用的弹窗，接受标题、内容、正向/负向按钮文本和点击回调
   static Future<bool?> showCustomDialog(
     BuildContext context, {
