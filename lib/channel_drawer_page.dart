@@ -153,9 +153,7 @@ class CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Group( // 使用 Group 包裹分类列表
-      groupIndex: 0, // 设置分类列表的分组索引为 0
-      child: Container(
+    return Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
           itemCount: categories.length,
@@ -169,7 +167,9 @@ class CategoryList extends StatelessWidget {
               displayTitle = categories[index]; // 使用原始分类名
             }
 
-            return buildListItem(
+            return Group( // 使用 Group 包裹分类列表
+              groupIndex: 0, // 设置分类列表的分组索引为 0
+              child: buildListItem(
               title: displayTitle,
               isSelected: selectedCategoryIndex == index,
               onTap: () => onCategoryTap(index),
@@ -206,9 +206,7 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Group( // 使用 Group 包裹分组列表
-      groupIndex: 1, // 设置分组列表的分组索引为 1
-      child: Container(
+    return Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
           cacheExtent: defaultMinHeight,
@@ -231,7 +229,9 @@ class GroupList extends StatelessWidget {
                 ),
               );
             }
-            return buildListItem(
+            return Group( // 使用 Group 包裹分类列表
+              groupIndex: 1, 
+              child: buildListItem(
               title: keys[index],
               isSelected: selectedGroupIndex == index,
               onTap: () => onGroupTap(index),
@@ -285,9 +285,7 @@ class _ChannelListState extends State<ChannelList> {
 
   @override
   Widget build(BuildContext context) {
-    return Group( // 使用 Group 包裹频道列表
-      groupIndex: 2, // 设置频道列表的分组索引为 2
-      child: Container(
+    return Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
           padding: const EdgeInsets.only(bottom: 100.0),
@@ -297,7 +295,9 @@ class _ChannelListState extends State<ChannelList> {
           itemBuilder: (context, index) {
             final channelName = widget.channels.keys.toList()[index];
             final isSelect = widget.selectedChannelName == channelName;
-            return buildListItem(
+            return Group( // 使用 Group 包裹频道列表
+              groupIndex: 2, // 设置频道列表的分组索引为 2
+              child: buildListItem(
               title: channelName,
               isSelected: isSelect,
               onTap: () => widget.onChannelTap(widget.channels[channelName]),
@@ -346,9 +346,7 @@ class _EPGListState extends State<EPGList> {
 
   @override
   Widget build(BuildContext context) {
-    return Group( // 使用 Group 包裹 EPG 列表
-      groupIndex: 3, // 设置 EPG 列表的分组索引为 3
-      child: Container(
+    return Container(
         color: defaultBackgroundColor,
         child: Column(
           children: [
@@ -378,7 +376,9 @@ class _EPGListState extends State<EPGList> {
                   final data = widget.epgData?[index];
                   if (data == null) return const SizedBox.shrink();
                   final isSelect = index == widget.selectedIndex;
-                  return buildListItem(
+                    return Group(
+                    groupIndex: 3, // 设置 EPG 列表的分组索引为 3
+                    child: buildListItem(
                     title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
                     isSelected: isSelect,
                     onTap: () {
