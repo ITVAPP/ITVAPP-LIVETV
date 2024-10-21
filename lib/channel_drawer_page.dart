@@ -7,6 +7,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
@@ -25,7 +26,7 @@ bool isOutOfView(BuildContext context) {
     final ScrollableState? scrollableState = Scrollable.of(context);
     if (scrollableState != null) {
       final ScrollPosition position = scrollableState.position;
-      final double offset = position.pixels; 
+      final double offset = position.pixels;
       final double viewportHeight = position.viewportDimension;
       final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
       return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
@@ -74,6 +75,17 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
   );
 }
 
+// 用于管理所有 FocusNode 的列表
+List<FocusNode> _focusNodes = [];
+
+// 创建或获取已有的 FocusNode
+FocusNode getOrCreateFocusNode(int index) {
+  if (_focusNodes.length <= index) {
+    _focusNodes.add(FocusNode());
+  }
+  return _focusNodes[index];
+}
+
 // 通用列表项构建函数
 Widget buildListItem({
   required String title,
@@ -86,28 +98,17 @@ Widget buildListItem({
   Color selectedColor = Colors.red,
   bool isTV = false,
   Function(bool)? onFocusChange,
+  required int index, // 新增 index 参数，用于获取 FocusNode
 }) {
-  bool hasFocus = false; // 定义焦点状态
+  FocusNode focusNode = getOrCreateFocusNode(index);
+  bool hasFocus = focusNode.hasFocus; // 焦点状态
 
-  return Focus(
-    onFocusChange: (focus) {
-      hasFocus = focus; // 更新焦点状态
-      if (onFocusChange != null) {
-        onFocusChange(focus); // 执行原有的焦点回调
-      }
-      // 处理 isTV 焦点变化时的自动滚动逻辑
-      if (isTV && focus && isOutOfView(context)) {
-        Scrollable.ensureVisible(
-          context,
-          alignment: 0.3, // 设置滚动对齐方式
-          duration: Duration.zero, // 滚动持续时间
-        );
-      }
-    },
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 0), // 列表项的上下外边距
-      child: Material(
-        color: Colors.transparent,
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 0), // 列表项的上下外边距
+    child: Material(
+      color: Colors.transparent,
+      child: FocusableItem( // 使用 FocusableItem 只包裹 InkWell
+        focusNode: focusNode,
         child: InkWell(
           onTap: onTap,
           splashColor: Colors.white.withOpacity(0.3),
@@ -152,7 +153,8 @@ class CategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope(
+    return Group( // 使用 Group 包裹分类列表
+      groupIndex: 0, // 设置分类列表的分组索引为 0
       child: Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
@@ -174,6 +176,7 @@ class CategoryList extends StatelessWidget {
               isCentered: true, // 分类列表项居中
               isTV: isTV,
               context: context,
+              index: index, // 传递 index
             );
           },
         ),
@@ -203,7 +206,8 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope(
+    return Group( // 使用 Group 包裹分组列表
+      groupIndex: 1, // 设置分组列表的分组索引为 1
       child: Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
@@ -235,6 +239,7 @@ class GroupList extends StatelessWidget {
               isTV: isTV,
               minHeight: defaultMinHeight,
               context: context,
+              index: index, // 传递 index
             );
           },
         ),
@@ -250,6 +255,7 @@ class ChannelList extends StatefulWidget {
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
+
   const ChannelList({
     super.key,
     required this.channels,
@@ -279,7 +285,8 @@ class _ChannelListState extends State<ChannelList> {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope(
+    return Group( // 使用 Group 包裹频道列表
+      groupIndex: 2, // 设置频道列表的分组索引为 2
       child: Container(
         color: defaultBackgroundColor,
         child: ListView.builder(
@@ -298,6 +305,7 @@ class _ChannelListState extends State<ChannelList> {
               minHeight: defaultMinHeight,
               isTV: widget.isTV,
               context: context,
+              index: index, // 传递 index
             );
           },
         ),
@@ -338,7 +346,8 @@ class _EPGListState extends State<EPGList> {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope(
+    return Group( // 使用 Group 包裹 EPG 列表
+      groupIndex: 3, // 设置 EPG 列表的分组索引为 3
       child: Container(
         color: defaultBackgroundColor,
         child: Column(
@@ -378,6 +387,7 @@ class _EPGListState extends State<EPGList> {
                     isCentered: false, // EPG列表项左对齐
                     isTV: widget.isTV,
                     context: context,
+                    index: index, // 传递 index
                   );
                 },
               ),
@@ -443,47 +453,47 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   }
 
   // 初始化分类数据
-void _initializeCategoryData() {
-  _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
-  _categoryIndex = -1;
-  _groupIndex = -1;
-  _channelIndex = -1;
+  void _initializeCategoryData() {
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
+    _categoryIndex = -1;
+    _groupIndex = -1;
+    _channelIndex = -1;
 
-  // 遍历每个分类，查找当前播放的频道所属的分组和分类
-  for (int i = 0; i < _categories.length; i++) {
-    final category = _categories[i];
-    final categoryMap = widget.videoMap?.playList[category];
+    // 遍历每个分类，查找当前播放的频道所属的分组和分类
+    for (int i = 0; i < _categories.length; i++) {
+      final category = _categories[i];
+      final categoryMap = widget.videoMap?.playList[category];
 
-    if (categoryMap is Map<String, Map<String, PlayModel>>) {
-      for (int groupIndex = 0; groupIndex < categoryMap.keys.length; groupIndex++) {
-        final group = categoryMap.keys.toList()[groupIndex];
-        final channelMap = categoryMap[group];
+      if (categoryMap is Map<String, Map<String, PlayModel>>) {
+        for (int groupIndex = 0; groupIndex < categoryMap.keys.length; groupIndex++) {
+          final group = categoryMap.keys.toList()[groupIndex];
+          final channelMap = categoryMap[group];
 
-        // 检查当前播放的频道是否在这个分组中
-        if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
-          // 找到匹配的分类、分组和频道
-          _categoryIndex = i; // 设置匹配的分类
-          _groupIndex = groupIndex; // 设置匹配的分组
-          _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
-          return; // 找到后直接退出
+          // 检查当前播放的频道是否在这个分组中
+          if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
+            // 找到匹配的分类、分组和频道
+            _categoryIndex = i; // 设置匹配的分类
+            _groupIndex = groupIndex; // 设置匹配的分组
+            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
+            return; // 找到后直接退出
+          }
+        }
+      }
+    }
+
+    // 如果未找到当前播放频道的分类，默认第一个非空分类
+    if (_categoryIndex == -1) {
+      for (int i = 0; i < _categories.length; i++) {
+        final categoryMap = widget.videoMap?.playList[_categories[i]];
+        if (categoryMap != null && categoryMap.isNotEmpty) {
+          _categoryIndex = i;
+          _groupIndex = 0;
+          _channelIndex = 0;
+          break;
         }
       }
     }
   }
-
-  // 如果未找到当前播放频道的分类，默认第一个非空分类
-  if (_categoryIndex == -1) {
-    for (int i = 0; i < _categories.length; i++) {
-      final categoryMap = widget.videoMap?.playList[_categories[i]];
-      if (categoryMap != null && categoryMap.isNotEmpty) {
-        _categoryIndex = i;
-        _groupIndex = 0;
-        _channelIndex = 0;
-        break;
-      }
-    }
-  }
-}
 
   // 初始化频道数据
   void _initializeChannelData() {
@@ -507,8 +517,8 @@ void _initializeCategoryData() {
 
     if (categoryMap is Map<String, Map<String, PlayModel>>) {
       // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList(); 
-      _values = categoryMap.values.toList(); 
+      _keys = categoryMap.keys.toList();
+      _values = categoryMap.values.toList();
 
       // 频道按名字进行 Unicode 排序
       for (int i = 0; i < _values.length; i++) {
@@ -599,7 +609,7 @@ void _initializeCategoryData() {
   // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
-    _scrollToPosition(_scrollController, _groupIndex); 
+    _scrollToPosition(_scrollController, _groupIndex);
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
@@ -630,7 +640,7 @@ void _initializeCategoryData() {
         (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData); 
+      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
 
       setState(() {
         _epgData = res.epgData!; // 更新节目单数据
@@ -658,6 +668,8 @@ void _initializeCategoryData() {
     if (_scrollChannelController.hasClients) {
       _scrollChannelController.dispose();
     }
+    _focusNodes.forEach((node) => node.dispose()); // 销毁所有 FocusNode
+    _focusNodes.clear(); // 清空 FocusNode 列表
     super.dispose();
   }
 
@@ -680,7 +692,14 @@ void _initializeCategoryData() {
   Widget build(BuildContext context) {
     // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
-    return _buildOpenDrawer(isTV); 
+    return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
+      focusNodes: _focusNodes, // 使用全局焦点列表
+      isVerticalGroup: true, // 启用竖向分组
+      initialIndex: 0, // 设置初始焦点索引为 0
+      isFrame: isTV ? true  : false , // TV 模式下启用框架模式
+      frameType: isTV ? "child" : null, // TV 模式下设置为子页面
+      child: _buildOpenDrawer(isTV),  // 构建抽屉页面
+    );
   }
 
   // 构建抽屉视图
