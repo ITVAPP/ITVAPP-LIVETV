@@ -52,6 +52,9 @@ class MessageLookup extends MessageLookupByLibrary {
             "Failed to retrieve default data source"),
         "homePage": MessageLookupByLibrary.simpleMessage("Home Page"),
         "inUse": MessageLookupByLibrary.simpleMessage("In Use"),
+        "Use": MessageLookupByLibrary.simpleMessage("Use"),
+        "languageSelection": MessageLookupByLibrary.simpleMessage("Language Selection"),
+        "fontSizeTitle": MessageLookupByLibrary.simpleMessage("Font Size"),
         "landscape": MessageLookupByLibrary.simpleMessage("Landscape Mode"),
         "latestVersion": MessageLookupByLibrary.simpleMessage(
             "You are on the latest version"),
