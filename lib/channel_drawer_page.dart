@@ -362,9 +362,7 @@ class _EPGListState extends State<EPGList> {
   Widget build(BuildContext context) {
     return Container(
       color: defaultBackgroundColor,
-      child: Group( // 使用 Group 包裹整个EPG列表
-        groupIndex: 3,
-        child: Column(
+      child: Column(
           children: [
             Container(
               height: defaultMinHeight,
@@ -409,7 +407,6 @@ class _EPGListState extends State<EPGList> {
             ),
           ],
         ),
-      ),
     );
   }
 }
