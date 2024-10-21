@@ -46,11 +46,125 @@ class _SettingFontPageState extends State<SettingFontPage> {
     super.dispose();
   }
 
-  /// 用于将颜色变暗的函数
-  Color darkenColor(Color color, [double amount = 0.1]) {
-    final hsl = HSLColor.fromColor(color);
-    final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    return darkened.toColor();
+  Widget _buildFontSizeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          S.of(context).fontSizeTitle, // 字体大小标题
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10), // 间距
+        Group(
+          groupIndex: 0, // 分组 0：字体大小
+          children: [
+            Wrap(
+              spacing: 5,
+              runSpacing: 8, // 按钮排列方式
+              children: List.generate(
+                _fontScales.length,
+                (index) => FocusableItem(
+                  focusNode: _focusNodes[index], // 分配焦点节点
+                  child: ChoiceChip(
+                    label: Text(
+                      '${_fontScales[index]}', // 显示字体大小
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index],
+                    onSelected: (bool selected) {
+                      context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 更新字体大小
+                    },
+                    selectedColor: _selectedColor,
+                    backgroundColor: _focusNodes[index].hasFocus
+                        ? darkenColor(
+                            context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                                ? _selectedColor
+                                : _unselectedColor,
+                          ) // 聚焦时变暗颜色
+                        : (context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                            ? _selectedColor
+                            : _unselectedColor), // 非聚焦时使用选中或未选中颜色
+                    shape: _buttonShape,
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLanguageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          S.of(context).languageSelection, // 语言选择标题
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 6), // 间距
+        Column(
+          children: List.generate(
+            _languages.length,
+            (index) => Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _languages[index], // 显示语言名称
+                  style: const TextStyle(fontSize: 18),
+                ),
+                Group(
+                  groupIndex: index + 1, // 分组索引递增
+                  children: [
+                    FocusableItem(
+                      focusNode: _focusNodes[index + 5], // 分配焦点节点
+                      child: ChoiceChip(
+                        label: Text(
+                          context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                              ? S.of(context).inUse
+                              : S.of(context).use,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index],
+                        onSelected: (bool selected) {
+                          context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
+                        },
+                        selectedColor: _selectedColor,
+                        backgroundColor: _focusNodes[index + 5].hasFocus
+                            ? darkenColor(
+                                context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                    ? _selectedColor
+                                    : _unselectedColor,
+                              ) // 聚焦时变暗颜色
+                            : (context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                ? _selectedColor
+                                : _unselectedColor), // 非聚焦时使用选中或未选中颜色
+                        shape: _buttonShape,
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -90,141 +204,14 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     // 字体大小选择部分
                     Padding(
                       padding: const EdgeInsets.all(15),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            S.of(context).fontSizeTitle, // 字体大小标题
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 10), // 间距
-                          Group(
-                            groupIndex: 0, // 分组 0：字体大小
-                            children: [
-                              Wrap(
-                                spacing: 5,
-                                runSpacing: 8, // 按钮排列方式
-                                children: List.generate(
-                                  _fontScales.length,
-                                  (index) => FocusableItem(
-                                    focusNode: _focusNodes[index], // 分配焦点节点
-                                    child: ChoiceChip(
-                                      label: Text(
-                                        '${_fontScales[index]}', // 显示字体大小
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.white,
-                                          fontWeight: context
-                                                      .watch<ThemeProvider>()
-                                                      .textScaleFactor == _fontScales[index]
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
-                                      ),
-                                      selected: context
-                                              .watch<ThemeProvider>()
-                                              .textScaleFactor == _fontScales[index],
-                                      onSelected: (bool selected) {
-                                        context
-                                            .read<ThemeProvider>()
-                                            .setTextScale(_fontScales[index]); // 更新字体大小
-                                      },
-                                      selectedColor: _selectedColor,
-                                      backgroundColor: _focusNodes[index].hasFocus
-                                          ? darkenColor(_unselectedColor)
-                                          : _unselectedColor,
-                                      shape: _buttonShape,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 6),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      child: _buildFontSizeSection(),
                     ),
                     const SizedBox(height: 12), // 间距
 
                     // 语言选择部分
                     Padding(
                       padding: const EdgeInsets.all(15), // 外边距
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            S.of(context).languageSelection, // 语言选择标题
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 6), // 间距
-                          Column(
-                            children: List.generate(
-                              _languages.length,
-                              (index) => Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _languages[index], // 显示语言名称
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Group(
-                                    groupIndex: index + 1, // 分组索引递增
-                                    children: [
-                                      FocusableItem(
-                                        focusNode: _focusNodes[index + 5], // 分配焦点节点
-                                        child: ChoiceChip(
-                                          label: Text(
-                                            context
-                                                        .watch<LanguageProvider>()
-                                                        .currentLocale
-                                                        .toString() ==
-                                                    _languageCodes[index]
-                                                ? S.of(context).inUse
-                                                : S.of(context).use,
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              color: Colors.white,
-                                              fontWeight: context
-                                                          .watch<LanguageProvider>()
-                                                          .currentLocale
-                                                          .toString() ==
-                                                      _languageCodes[index]
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                          selected: context
-                                                  .watch<LanguageProvider>()
-                                                  .currentLocale
-                                                  .toString() ==
-                                              _languageCodes[index],
-                                          onSelected: (bool selected) {
-                                            context
-                                                .read<LanguageProvider>()
-                                                .changeLanguage(
-                                                    _languageCodes[index]); // 切换语言
-                                          },
-                                          selectedColor: _selectedColor,
-                                          backgroundColor: _focusNodes[index + 5].hasFocus
-                                              ? darkenColor(_unselectedColor)
-                                              : _unselectedColor,
-                                          shape: _buttonShape,
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 5, vertical: 6),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: _buildLanguageSection(),
                     ),
                   ],
                 ),
