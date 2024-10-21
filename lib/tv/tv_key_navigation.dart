@@ -2,6 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// 用于将颜色变暗的函数
+Color darkenColor(Color color, [double amount = 0.1]) {
+  final hsl = HSLColor.fromColor(color);
+  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return darkened.toColor();
+}
+
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
@@ -537,7 +544,7 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
   }
 
 /// 执行当前焦点控件的点击操作
-void _triggerButtonAction() {
+void _triggerButtonAction() { 
   final focusNode = _currentFocus;  // 获取当前焦点
   if (focusNode != null && focusNode.context != null) {
     final BuildContext? context = focusNode.context;
@@ -615,6 +622,9 @@ bool _triggerWidgetAction(Widget widget) {
     return true;
   } else if (widget is PopupMenuButton && widget.onSelected != null) {
     widget.onSelected!(null);
+    return true;
+  } else if (widget is ChoiceChip && widget.onSelected != null) { 
+    widget.onSelected!(true); 
     return true;
   } else {
     _manageDebugOverlay(message: '找到控件，但无法触发操作');
