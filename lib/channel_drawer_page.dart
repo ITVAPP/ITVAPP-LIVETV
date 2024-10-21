@@ -113,10 +113,9 @@ Widget buildListItem({
   FocusNode focusNode = getOrCreateFocusNode(index);
   bool hasFocus = focusNode.hasFocus; // 焦点状态
 
-  Widget listItemContent = InkWell(
-    onTap: onTap,
-    splashColor: Colors.white.withOpacity(0.3),
-    canRequestFocus: isTV, // 仅在 TV 上允许请求焦点
+  // 使用 GestureDetector 代替 InkWell
+  Widget listItemContent = GestureDetector(
+    onTap: onTap, // 处理点击事件
     child: Container(
       constraints: BoxConstraints(minHeight: minHeight), // 最小高度
       padding: padding,
@@ -135,17 +134,10 @@ Widget buildListItem({
       ),
     ),
   );
-
   if (useFocusableItem) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 0), // 列表项的上下外边距
-      child: Material(
-        color: Colors.transparent,
-        child: FocusableItem( // 使用 FocusableItem 包裹 InkWell
-          focusNode: focusNode,
-          child: listItemContent,
-        ),
-      ),
+    return FocusableItem( 
+      focusNode: focusNode,
+      child: listItemContent, 
     );
   } else {
     return listItemContent;
@@ -172,22 +164,20 @@ class CategoryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        color: defaultBackgroundColor,
-        child: ListView.builder(
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
-            String displayTitle;
-            if (categories[index] == Config.myFavoriteKey) {
-              displayTitle = S.of(context).myfavorite;
-            } else if (categories[index] == Config.allChannelsKey) {
-              displayTitle = S.of(context).allchannels;
-            } else {
-              displayTitle = categories[index]; // 使用原始分类名
-            }
+      color: defaultBackgroundColor,
+      child: Group(
+        groupIndex: 0, // 使用 Group 包裹整个分类列表
+        child: Column(
+          children: categories.asMap().entries.map((entry) {
+            int index = entry.key;
+            String category = entry.value;
+            String displayTitle = category == Config.myFavoriteKey
+                ? S.of(context).myfavorite
+                : category == Config.allChannelsKey
+                    ? S.of(context).allchannels
+                    : category;
 
-            return Group(
-              groupIndex: 0, // 设置分类列表的分组索引为 0
-              child: buildListItem(
+            return buildListItem(
               title: displayTitle,
               isSelected: selectedCategoryIndex == index,
               onTap: () => onCategoryTap(index),
@@ -195,9 +185,9 @@ class CategoryList extends StatelessWidget {
               isTV: isTV,
               context: context,
               index: startIndex + index, // 将起始索引传递到 buildListItem
-            ),
-           ); 
-          },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -227,7 +217,9 @@ class GroupList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        color: defaultBackgroundColor,
+      color: defaultBackgroundColor,
+      child: Group( // 使用 Group 包裹整个分组列表
+        groupIndex: 1, 
         child: ListView.builder(
           cacheExtent: defaultMinHeight,
           padding: const EdgeInsets.only(bottom: 100.0),
@@ -249,9 +241,7 @@ class GroupList extends StatelessWidget {
                 ),
               );
             }
-            return Group( // 使用 Group 包裹分组列表
-              groupIndex: 1, 
-              child: buildListItem(
+            return buildListItem(
               title: keys[index],
               isSelected: selectedGroupIndex == index,
               onTap: () => onGroupTap(index),
@@ -260,10 +250,10 @@ class GroupList extends StatelessWidget {
               minHeight: defaultMinHeight,
               context: context,
               index: startIndex + index,
-              ),
             );
           },
         ),
+      ),
     );
   }
 }
@@ -308,7 +298,9 @@ class _ChannelListState extends State<ChannelList> {
   @override
   Widget build(BuildContext context) {
     return Container(
-        color: defaultBackgroundColor,
+      color: defaultBackgroundColor,
+      child: Group( // 使用 Group 包裹整个频道列表
+        groupIndex: 2, 
         child: ListView.builder(
           padding: const EdgeInsets.only(bottom: 100.0),
           cacheExtent: defaultMinHeight,
@@ -317,9 +309,7 @@ class _ChannelListState extends State<ChannelList> {
           itemBuilder: (context, index) {
             final channelName = widget.channels.keys.toList()[index];
             final isSelect = widget.selectedChannelName == channelName;
-            return Group( // 使用 Group 包裹频道列表
-              groupIndex: 2, // 设置频道列表的分组索引为 2
-              child: buildListItem(
+            return buildListItem(
               title: channelName,
               isSelected: isSelect,
               onTap: () => widget.onChannelTap(widget.channels[channelName]),
@@ -328,10 +318,10 @@ class _ChannelListState extends State<ChannelList> {
               isTV: widget.isTV,
               context: context,
               index: widget.startIndex + index,
-              ),
             );
           },
         ),
+      ),
     );
   }
 }
@@ -352,7 +342,7 @@ class EPGList extends StatefulWidget {
     required this.isTV,
     required this.epgScrollController, // 传入控制器
     required this.onCloseDrawer,       // 传入关闭抽屉回调
-    required this.startIndex,          // 传递起始索引
+    required this.startIndex,
   });
 
   @override
@@ -371,7 +361,9 @@ class _EPGListState extends State<EPGList> {
   @override
   Widget build(BuildContext context) {
     return Container(
-        color: defaultBackgroundColor,
+      color: defaultBackgroundColor,
+      child: Group( // 使用 Group 包裹整个EPG列表
+        groupIndex: 3,
         child: Column(
           children: [
             Container(
@@ -386,7 +378,7 @@ class _EPGListState extends State<EPGList> {
                 S.of(context).programListTitle, // 节目单列表
                 style: defaultTextStyle.merge(
                   const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
+                      fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
                 ),
               ),
             ),
@@ -417,6 +409,7 @@ class _EPGListState extends State<EPGList> {
             ),
           ],
         ),
+      ),
     );
   }
 }
