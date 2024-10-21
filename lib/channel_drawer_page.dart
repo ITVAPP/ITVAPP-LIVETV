@@ -240,10 +240,10 @@ class GroupList extends StatelessWidget {
               minHeight: defaultMinHeight,
               context: context,
               index: index, // 传递 index
+              ),
             );
           },
         ),
-      ),
     );
   }
 }
@@ -306,10 +306,10 @@ class _ChannelListState extends State<ChannelList> {
               isTV: widget.isTV,
               context: context,
               index: index, // 传递 index
+              ),
             );
           },
         ),
-      ),
     );
   }
 }
@@ -388,13 +388,13 @@ class _EPGListState extends State<EPGList> {
                     isTV: widget.isTV,
                     context: context,
                     index: index, // 传递 index
+                    ),
                   );
                 },
               ),
             ),
           ],
         ),
-      ),
     );
   }
 }
