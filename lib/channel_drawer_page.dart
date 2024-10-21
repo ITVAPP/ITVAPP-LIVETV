@@ -177,9 +177,9 @@ class CategoryList extends StatelessWidget {
               isTV: isTV,
               context: context,
               index: index, // 传递 index
-            );
+            ),
+           ); 
           },
-        ),
       ),
     );
   }
