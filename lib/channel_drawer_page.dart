@@ -39,7 +39,7 @@ const defaultTextStyle = TextStyle(
   fontSize: 16, // 字体大小
 );
 
-const selectedTextStyle = const TextStyle(
+const selectedTextStyle = TextStyle(
   fontWeight: FontWeight.bold, // 选中的字体加粗
   color: Colors.white, // 选中项的字体颜色
   shadows: [
@@ -79,12 +79,23 @@ List<FocusNode> _focusNodes = [];
 
 // 初始化 FocusNode 列表
 void _initializeFocusNodes(int totalCount) {
+  // 清空并销毁已有的 FocusNodes，避免内存泄漏
+  for (final node in _focusNodes) {
+    node.dispose();
+  }
+  _focusNodes.clear();
+
+  // 生成新的 FocusNode 列表
   _focusNodes = List.generate(totalCount, (index) => FocusNode());
 }
 
 // 创建或获取已有的 FocusNode
 FocusNode getOrCreateFocusNode(int index) {
-  return _focusNodes[index];
+  if (index >= 0 && index < _focusNodes.length) {
+    return _focusNodes[index];
+  }
+  // 如果索引无效，返回默认FocusNode或者抛出异常
+  return FocusNode();
 }
 
 // 通用列表项构建函数
@@ -213,40 +224,42 @@ class GroupList extends StatelessWidget {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: scrollController,
-        child: Align( // 使用 Align 确保内容顶部对齐
-          alignment: Alignment.topCenter,
-          child: Group(
-            groupIndex: 1,
+        child: ConstrainedBox(  // 使用 ConstrainedBox 确保高度限制
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),  // 设置最小高度为屏幕高度
+          child: IntrinsicHeight(  // 使用 IntrinsicHeight 确保内容从顶部开始排列
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
               children: keys.isEmpty && isFavoriteCategory
                   ? [
-                      FocusableItem(
-                        focusNode: getOrCreateFocusNode(startIndex),
-                        child: Container(
-                          constraints: BoxConstraints(minHeight: defaultMinHeight),
-                          child: Center(
-                            child: Text(
-                              S.of(context).nofavorite, // 暂无收藏
-                              style: defaultTextStyle.merge(
-                                const TextStyle(fontWeight: FontWeight.bold),
-                              ),
+                      Container(
+                        constraints: BoxConstraints(minHeight: defaultMinHeight),
+                        child: Center(
+                          child: Text(
+                            S.of(context).nofavorite, // 暂无收藏
+                            style: defaultTextStyle.merge(
+                              const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
-                      )
+                      ),
                     ]
-                  : List.generate(keys.length, (index) {
-                      return buildListItem(
-                        title: keys[index],
-                        isSelected: selectedGroupIndex == index,
-                        onTap: () => onGroupTap(index),
-                        isCentered: true,
-                        isTV: isTV,
-                        minHeight: defaultMinHeight,
-                        context: context,
-                        index: startIndex + index,
-                      );
-                    }),
+                  : [
+                      Group(
+                        groupIndex: 1,
+                        children: List.generate(keys.length, (index) {
+                          return buildListItem(
+                            title: keys[index],
+                            isSelected: selectedGroupIndex == index,
+                            onTap: () => onGroupTap(index),
+                            isCentered: true,
+                            isTV: isTV,
+                            minHeight: defaultMinHeight,
+                            context: context,
+                            index: startIndex + index,
+                          );
+                        }),
+                      ),
+                    ],
             ),
           ),
         ),
@@ -300,27 +313,32 @@ class _ChannelListState extends State<ChannelList> {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
-        child: Align( // 使用 Align 确保内容顶部对齐
-          alignment: Alignment.topCenter,
-          child: Group(
-            groupIndex: 2,
+        child: ConstrainedBox(  // 使用 ConstrainedBox 确保高度限制
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),  // 设置最小高度为屏幕高度
+          child: IntrinsicHeight(  // 使用 IntrinsicHeight 确保内容从顶部开始排列
             child: Column(
-              children: List.generate(channelList.length, (index) {
-                final channelEntry = channelList[index];
-                final channelName = channelEntry.key;
-                final isSelect = widget.selectedChannelName == channelName;
+              crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
+              children: [
+                Group(
+                  groupIndex: 2,
+                  children: List.generate(channelList.length, (index) {
+                    final channelEntry = channelList[index];
+                    final channelName = channelEntry.key;
+                    final isSelect = widget.selectedChannelName == channelName;
 
-                return buildListItem(
-                  title: channelName,
-                  isSelected: isSelect,
-                  onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                  isCentered: true,
-                  minHeight: defaultMinHeight,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                );
-              }),
+                    return buildListItem(
+                      title: channelName,
+                      isSelected: isSelect,
+                      onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                      isCentered: true,
+                      minHeight: defaultMinHeight,
+                      isTV: widget.isTV,
+                      context: context,
+                      index: widget.startIndex + index,
+                    );
+                  }),
+                ),
+              ],
             ),
           ),
         ),
@@ -467,24 +485,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     });
   }
   
-@override
+  @override
   void initState() {
     super.initState();
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
     
-   // 计算所需的 FocusNode 总数，加入空值判断
-   int totalFocusNodes = 0;
-   totalFocusNodes += _categories.length;
-   totalFocusNodes += (_keys?.length ?? 1); // 分组为空时返回1
-   if (_values.isNotEmpty && 
-       _groupIndex >= 0 && 
-       _groupIndex < _values.length && 
-       (_values[_groupIndex]?.length ?? 0) > 0) {
-     totalFocusNodes += (_values[_groupIndex]?.length ?? 0); // 频道为空时返回0
-   }
-   
-  _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
+    // 计算所需的 FocusNode 总数，加入空值判断
+    int totalFocusNodes = 0;
+    totalFocusNodes += _categories.length;
+    totalFocusNodes += (_keys?.length ?? 1); // 分组为空时返回1
+    if (_values.isNotEmpty && 
+        _groupIndex >= 0 && 
+        _groupIndex < _values.length && 
+        (_values[_groupIndex]?.length ?? 0) > 0) {
+      totalFocusNodes += (_values[_groupIndex]?.length ?? 0); // 频道为空时返回0
+    }
+
+    _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
   
     _calculateViewportHeight(); // 计算视图窗口的高度
   
@@ -604,8 +622,10 @@ void _onCategoryTap(int index) {
       _categoryIndex = index; // 更新选中的分类索引
       _initializeChannelData(); // 根据新的分类重新初始化频道数据
 
-      // 正确使用括号确保空值处理
-      _initializeFocusNodes(_categories.length + (_keys?.length ?? 1) + (_values[_groupIndex]?.length ?? 0)); // 更新 FocusNode 列表
+      // 计算新分类下的总节点数，并初始化FocusNode
+      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
+      _initializeFocusNodes(totalFocusNodes);
+      
       _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
     });
@@ -619,8 +639,10 @@ void _onGroupTap(int index) {
       _groupIndex = index;
       _channelIndex = 0; // 重置频道索引
 
-      // 正确使用括号确保空值处理
-      _initializeFocusNodes(_categories.length + (_keys?.length ?? 1) + (_values[_groupIndex]?.length ?? 0)); // 更新 FocusNode 列表
+      // 重新计算所需节点数，并初始化FocusNode
+      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
+      _initializeFocusNodes(totalFocusNodes);
+      
       _scrollToTop(_scrollChannelController);
     });
   });
