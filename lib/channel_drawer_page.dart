@@ -219,40 +219,43 @@ class GroupList extends StatelessWidget {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: scrollController,
-        child: Group(
-          groupIndex: 1,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: keys.isEmpty && isFavoriteCategory
-                ? [
-                    FocusableItem(
-                      focusNode: getOrCreateFocusNode(startIndex),
-                      child: Container(
-                        constraints: BoxConstraints(minHeight: defaultMinHeight),
-                        child: Center(
-                          child: Text(
-                            S.of(context).nofavorite, // 暂无收藏
-                            style: defaultTextStyle.merge(
-                              const TextStyle(fontWeight: FontWeight.bold),
+        child: IntrinsicHeight( // 使用 IntrinsicHeight 确保列表高度自动拉伸填满父容器
+          child: Align( // 使用 Align 确保内容顶部对齐
+            alignment: Alignment.topCenter,
+            child: Group(
+              groupIndex: 1,
+              child: Column(
+                children: keys.isEmpty && isFavoriteCategory
+                    ? [
+                        FocusableItem(
+                          focusNode: getOrCreateFocusNode(startIndex),
+                          child: Container(
+                            constraints: BoxConstraints(minHeight: defaultMinHeight),
+                            child: Center(
+                              child: Text(
+                                S.of(context).nofavorite, // 暂无收藏
+                                style: defaultTextStyle.merge(
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    )
-                  ]
-                : List.generate(keys.length, (index) {
-                    return buildListItem(
-                      title: keys[index],
-                      isSelected: selectedGroupIndex == index,
-                      onTap: () => onGroupTap(index),
-                      isCentered: true,
-                      isTV: isTV,
-                      minHeight: defaultMinHeight,
-                      context: context,
-                      index: startIndex + index,
-                    );
-                  }),
+                        )
+                      ]
+                    : List.generate(keys.length, (index) {
+                        return buildListItem(
+                          title: keys[index],
+                          isSelected: selectedGroupIndex == index,
+                          onTap: () => onGroupTap(index),
+                          isCentered: true,
+                          isTV: isTV,
+                          minHeight: defaultMinHeight,
+                          context: context,
+                          index: startIndex + index,
+                        );
+                      }),
+              ),
+            ),
           ),
         ),
       ),
@@ -305,27 +308,30 @@ class _ChannelListState extends State<ChannelList> {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
-        child: Group(
-          groupIndex: 2,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start, 
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: List.generate(channelList.length, (index) {
-              final channelEntry = channelList[index];
-              final channelName = channelEntry.key;
-              final isSelect = widget.selectedChannelName == channelName;
-              
-              return buildListItem(
-                title: channelName,
-                isSelected: isSelect,
-                onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                isCentered: true,
-                minHeight: defaultMinHeight,
-                isTV: widget.isTV,
-                context: context,
-                index: widget.startIndex + index,
-              );
-            }),
+        child: IntrinsicHeight( // 使用 IntrinsicHeight 确保列表高度自动拉伸填满父容器
+          child: Align( // 使用 Align 确保内容顶部对齐
+            alignment: Alignment.topCenter,
+            child: Group(
+              groupIndex: 2,
+              child: Column(
+                children: List.generate(channelList.length, (index) {
+                  final channelEntry = channelList[index];
+                  final channelName = channelEntry.key;
+                  final isSelect = widget.selectedChannelName == channelName;
+                  
+                  return buildListItem(
+                    title: channelName,
+                    isSelected: isSelect,
+                    onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                    isCentered: true,
+                    minHeight: defaultMinHeight,
+                    isTV: widget.isTV,
+                    context: context,
+                    index: widget.startIndex + index,
+                  );
+                }),
+              ),
+            ),
           ),
         ),
       ),
@@ -340,7 +346,6 @@ class EPGList extends StatefulWidget {
   final bool isTV;
   final ItemScrollController epgScrollController;
   final VoidCallback onCloseDrawer;  // 添加的关闭抽屉回调
-  final int startIndex; 
 
   const EPGList({
     super.key,
@@ -349,7 +354,6 @@ class EPGList extends StatefulWidget {
     required this.isTV,
     required this.epgScrollController, // 传入控制器
     required this.onCloseDrawer,       // 传入关闭抽屉回调
-    required this.startIndex,
   });
 
   @override
@@ -411,7 +415,6 @@ class _EPGListState extends State<EPGList> {
                     isCentered: false, // EPG列表项左对齐
                     isTV: widget.isTV,
                     context: context,
-                    index: widget.startIndex + index, 
                     useFocusableItem: false, // 不使用 FocusableItem 包裹
                   );
                 },
@@ -772,7 +775,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       isTV: isTV,
       epgScrollController: _epgItemScrollController,
       onCloseDrawer: widget.onCloseDrawer,
-      startIndex: currentFocusIndex,  // EPG列表起始索引
     );
 
     return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
