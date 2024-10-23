@@ -222,6 +222,8 @@ class GroupList extends StatelessWidget {
         child: Group(
           groupIndex: 1,
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: keys.isEmpty && isFavoriteCategory
                 ? [
                     FocusableItem(
@@ -306,6 +308,8 @@ class _ChannelListState extends State<ChannelList> {
         child: Group(
           groupIndex: 2,
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.start, 
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: List.generate(channelList.length, (index) {
               final channelEntry = channelList[index];
               final channelName = channelEntry.key;
