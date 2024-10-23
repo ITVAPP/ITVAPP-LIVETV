@@ -77,21 +77,13 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
 // 用于管理所有 FocusNode 的列表
 List<FocusNode> _focusNodes = [];
 
-// 动态更新 FocusNode 列表
-void _updateFocusNodeList(int requiredLength) {
-  while (_focusNodes.length < requiredLength) {
-    _focusNodes.add(FocusNode());
-  }
-  while (_focusNodes.length > requiredLength) {
-    _focusNodes.removeLast().dispose(); // 移除并销毁多余的 FocusNode
-  }
+// 初始化 FocusNode 列表
+void _initializeFocusNodes(int totalCount) {
+  _focusNodes = List.generate(totalCount, (index) => FocusNode());
 }
 
 // 创建或获取已有的 FocusNode
 FocusNode getOrCreateFocusNode(int index) {
-  if (_focusNodes.length <= index) {
-    _focusNodes.add(FocusNode());
-  }
   return _focusNodes[index];
 }
 
@@ -107,13 +99,18 @@ Widget buildListItem({
   Color selectedColor = Colors.red,
   bool isTV = false,
   Function(bool)? onFocusChange,
-  required int index, // index 参数，用于获取 FocusNode
+  int? index, // index 参数设为可选，用于获取 FocusNode
   bool useFocusableItem = true, // 控制是否使用 FocusableItem 包裹
 }) {
-  FocusNode focusNode = getOrCreateFocusNode(index);
-  bool hasFocus = focusNode.hasFocus; // 焦点状态
+  FocusNode? focusNode;
+  bool hasFocus = false;
 
-  // 使用 GestureDetector 代替 InkWell
+  // 如果 useFocusableItem 为 true，创建 FocusNode 并判断焦点状态
+  if (useFocusableItem && index != null) {
+    focusNode = getOrCreateFocusNode(index);
+    hasFocus = focusNode.hasFocus; // 焦点状态
+  }
+
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
     child: Container(
@@ -134,14 +131,11 @@ Widget buildListItem({
       ),
     ),
   );
-  if (useFocusableItem) {
-    return FocusableItem( 
-      focusNode: focusNode,
-      child: listItemContent, 
-    );
-  } else {
-    return listItemContent;
-  }
+
+  // 根据 useFocusableItem 决定是否使用 FocusableItem 包裹
+  return useFocusableItem && focusNode != null
+      ? FocusableItem(focusNode: focusNode, child: listItemContent)
+      : listItemContent;
 }
 
 // 分类列表组件
@@ -599,7 +593,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       setState(() {
         _categoryIndex = index; // 更新选中的分类索引
         _initializeChannelData(); // 根据新的分类重新初始化频道数据
-        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
+        _initializeFocusNodes(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
         _scrollToTop(_scrollController);
         _scrollToTop(_scrollChannelController);
       });
@@ -612,7 +606,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       setState(() {
         _groupIndex = index;
         _channelIndex = 0; // 重置频道索引
-        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
+        _initializeFocusNodes(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
         _scrollToTop(_scrollChannelController);
       });
     });
