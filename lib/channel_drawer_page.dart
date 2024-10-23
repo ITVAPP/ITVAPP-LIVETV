@@ -219,18 +219,18 @@ class GroupList extends StatelessWidget {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: scrollController,
-        padding: const EdgeInsets.only(bottom: 100.0),
         child: Group(
           groupIndex: 1,
           child: Column(
             children: keys.isEmpty && isFavoriteCategory
                 ? [
-                    Center(
+                    FocusableItem(
+                      focusNode: getOrCreateFocusNode(startIndex),
                       child: Container(
                         constraints: BoxConstraints(minHeight: defaultMinHeight),
                         child: Center(
                           child: Text(
-                            S.of(context).nofavorite,
+                            S.of(context).nofavorite, // 暂无收藏
                             style: defaultTextStyle.merge(
                               const TextStyle(fontWeight: FontWeight.bold),
                             ),
@@ -303,7 +303,6 @@ class _ChannelListState extends State<ChannelList> {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
-        padding: const EdgeInsets.only(bottom: 100.0),
         child: Group(
           groupIndex: 2,
           child: Column(
@@ -364,6 +363,11 @@ class _EPGListState extends State<EPGList> {
 
   @override
   Widget build(BuildContext context) {
+    // 如果没有EPG数据，返回空容器
+    if (epgListWidth = 0  || widget.epgData == null || widget.epgData!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       color: defaultBackgroundColor,
       child: Column(
@@ -455,7 +459,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   Timer? _debounceTimer; // 用于节流
 
-  @override
+  // 通用节流点击处理
+  void _onTapThrottled(Function action) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      action();
+    });
+  }
+  
+@override
   void initState() {
     super.initState();
     _initializeCategoryData(); // 初始化分类数据
@@ -474,6 +489,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _categoryIndex = -1;
     _groupIndex = -1;
     _channelIndex = -1;
+
+    // 如果分类为空，直接返回，保持-1的索引状态
+    if (_categories.isEmpty) {
+      return;
+    }
 
     // 遍历每个分类，查找当前播放的频道所属的分组和分类
     for (int i = 0; i < _categories.length; i++) {
@@ -496,7 +516,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       }
     }
 
-    // 如果未找到当前播放频道的分类，默认第一个非空分类
+    // 如果未找到当前播放频道的分类，寻找第一个非空分类
     if (_categoryIndex == -1) {
       for (int i = 0; i < _categories.length; i++) {
         final categoryMap = widget.videoMap?.playList[_categories[i]];
@@ -512,19 +532,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
   // 初始化频道数据
   void _initializeChannelData() {
-    final selectedCategory = _categories[_categoryIndex];
+    // 如果分类索引无效，重置所有数据
+    if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
+      _resetChannelData();
+      return;
+    }
 
-    // 判断是否为空分类
+    final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
     if (categoryMap == null || categoryMap.isEmpty) {
-      // 如果分类是空的，设置空的 keys 和 values
-      _keys = [];
-      _values = [];
-      _groupIndex = 0;
-      _channelIndex = 0;
-      _epgData = null;
-      _selEPGIndex = 0;
+      _resetChannelData();
       return;
     }
 
@@ -540,30 +558,32 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
         );
       }
 
+      // 保持现有的索引计算逻辑
       _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
       _channelIndex = _groupIndex != -1
           ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-          : 0; // 获取当前选中的频道索引
+          : 0;
     } else if (categoryMap is Map<String, PlayModel>) {
       // 两层结构：直接处理频道
       _keys = [Config.allChannelsKey];
       _values = [categoryMap];
-      _groupIndex = 0; // 没有分组设置宽度为 0
+      _groupIndex = 0;
       _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
     }
+
+    // 确保索引有效
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
   }
 
-  // 通用节流点击处理
-  void _onTapThrottled(Function action) {
-    if (_debounceTimer?.isActive ?? false) {
-      _debounceTimer?.cancel();
-    }
-
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      action();
-    });
+  // 重置频道数据
+  void _resetChannelData() {
+    _keys = [];
+    _values = [];
+    _groupIndex = 0;
+    _channelIndex = 0;
+    _epgData = null;
+    _selEPGIndex = 0;
   }
 
   // 切换分类时更新分组和频道
@@ -572,12 +592,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       setState(() {
         _categoryIndex = index; // 更新选中的分类索引
         _initializeChannelData(); // 根据新的分类重新初始化频道数据
-        _groupIndex = 0; // 重置分组索引
-        _channelIndex = 0; // 重置频道索引
-
-        // 调用 _updateFocusNodeList 动态更新 FocusNode 列表
-        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length + (_epgData?.length ?? 0));
-
+        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
         _scrollToTop(_scrollController);
         _scrollToTop(_scrollChannelController);
       });
@@ -590,10 +605,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       setState(() {
         _groupIndex = index;
         _channelIndex = 0; // 重置频道索引
-
-        // 调用 _updateFocusNodeList 动态更新 FocusNode 列表
-        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length + (_epgData?.length ?? 0));
-
+        _updateFocusNodeList(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
         _scrollToTop(_scrollChannelController);
       });
     });
@@ -748,7 +760,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       scrollController: _scrollChannelController,
       startIndex: currentFocusIndex,  // 频道列表起始索引
     );
-    currentFocusIndex += _values[_groupIndex].length; // 更新焦点索引
 
     // EPG 列表
     Widget epgListWidget = EPGList(
@@ -818,13 +829,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
               width: channelListWidth, // 频道列表宽度
               child: channelListWidget,
             ),
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty)
+            
+          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) ...[
             verticalDivider,
-          if (epgListWidth > 0)
             SizedBox(
-              width: epgListWidth, // EPG列表宽度
+              width: epgListWidth,
               child: epgListWidget,
             ),
+          ],
         ],
       ),
     );
