@@ -39,7 +39,7 @@ const defaultTextStyle = TextStyle(
   fontSize: 16, // 字体大小
 );
 
-const selectedTextStyle = TextStyle(
+const selectedTextStyle = const TextStyle(
   fontWeight: FontWeight.bold, // 选中的字体加粗
   color: Colors.white, // 选中项的字体颜色
   shadows: [
@@ -476,8 +476,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     super.initState();
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
+    
+   int totalFocusNodes = 0;   // 计算所需的FocusNode总数
+   totalFocusNodes += _categories.length;
+   totalFocusNodes += _keys.length;
+   if (_values.isNotEmpty && 
+       _groupIndex >= 0 && 
+       _groupIndex < _values.length && 
+       _values[_groupIndex].isNotEmpty) {
+     totalFocusNodes += _values[_groupIndex].length;
+   }
+  _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
+  
     _calculateViewportHeight(); // 计算视图窗口的高度
-
+  
     // 只有当分类非空且有频道数据时加载 EPG
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
