@@ -197,18 +197,18 @@ class CategoryList extends StatelessWidget {
 class GroupList extends StatelessWidget {
   final List<String> keys;
   final ScrollController scrollController;
-  final int selectedGroupIndex;
+  final int selectedGroupIndex; 
   final Function(int index) onGroupTap;
   final bool isTV;
-  final bool isFavoriteCategory; // 标识是否为收藏分类
-  final int startIndex; 
+  final bool isFavoriteCategory;
+  final int startIndex;
 
   const GroupList({
     super.key,
     required this.keys,
     required this.scrollController,
     required this.selectedGroupIndex,
-    required this.onGroupTap,
+    required this.onGroupTap, 
     required this.isTV,
     required this.startIndex,
     this.isFavoriteCategory = false,
@@ -218,40 +218,42 @@ class GroupList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: defaultBackgroundColor,
-      child: Group( // 使用 Group 包裹整个分组列表
-        groupIndex: 1, 
-        child: ListView.builder(
-          cacheExtent: defaultMinHeight,
-          padding: const EdgeInsets.only(bottom: 100.0),
-          controller: scrollController, // 使用滚动控制器
-          itemCount: keys.isEmpty && isFavoriteCategory ? 1 : keys.length,
-          itemBuilder: (context, index) {
-            if (keys.isEmpty && isFavoriteCategory) {
-              return Center(
-                child: Container(
-                  constraints: BoxConstraints(minHeight: defaultMinHeight),
-                  child: Center(
-                    child: Text(
-                      S.of(context).nofavorite, // 暂无收藏
-                      style: defaultTextStyle.merge(
-                        const TextStyle(fontWeight: FontWeight.bold),
+      child: Group(
+        groupIndex: 1,
+        child: SingleChildScrollView( // 使用 SingleChildScrollView 包裹 Column
+          controller: scrollController,
+          child: Column(
+            children: keys.isEmpty && isFavoriteCategory 
+              ? [
+                  Center(
+                    child: Container(
+                      constraints: BoxConstraints(minHeight: defaultMinHeight),
+                      child: Center(
+                        child: Text(
+                          S.of(context).nofavorite,
+                          style: defaultTextStyle.merge(
+                            const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              );
-            }
-            return buildListItem(
-              title: keys[index],
-              isSelected: selectedGroupIndex == index,
-              onTap: () => onGroupTap(index),
-              isCentered: true, // 分组列表项居中
-              isTV: isTV,
-              minHeight: defaultMinHeight,
-              context: context,
-              index: startIndex + index,
-            );
-          },
+                  )
+                ]
+              : keys.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  String key = entry.value;
+                  return buildListItem(
+                    title: key,
+                    isSelected: selectedGroupIndex == index,
+                    onTap: () => onGroupTap(index),
+                    isCentered: true,
+                    isTV: isTV,
+                    minHeight: defaultMinHeight,
+                    context: context,
+                    index: startIndex + index,
+                  );
+                }).toList(),
+          ),
         ),
       ),
     );
@@ -282,7 +284,7 @@ class ChannelList extends StatefulWidget {
 }
 
 class _ChannelListState extends State<ChannelList> {
-  @override
+  @override 
   void initState() {
     super.initState();
     if (widget.isTV && widget.selectedChannelName != null) {
@@ -297,29 +299,30 @@ class _ChannelListState extends State<ChannelList> {
 
   @override
   Widget build(BuildContext context) {
+    final channelsList = widget.channels.entries.toList();
+    
     return Container(
       color: defaultBackgroundColor,
-      child: Group( // 使用 Group 包裹整个频道列表
-        groupIndex: 2, 
-        child: ListView.builder(
-          padding: const EdgeInsets.only(bottom: 100.0),
-          cacheExtent: defaultMinHeight,
-          controller: widget.scrollController, // 使用滚动控制器
-          itemCount: widget.channels.length,
-          itemBuilder: (context, index) {
-            final channelName = widget.channels.keys.toList()[index];
-            final isSelect = widget.selectedChannelName == channelName;
-            return buildListItem(
-              title: channelName,
-              isSelected: isSelect,
-              onTap: () => widget.onChannelTap(widget.channels[channelName]),
-              isCentered: true, // 频道列表项居中
-              minHeight: defaultMinHeight,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-            );
-          },
+      child: Group(
+        groupIndex: 2,
+        child: SingleChildScrollView( // 使用 SingleChildScrollView 包裹 Column
+          controller: widget.scrollController,
+          child: Column(
+            children: channelsList.asMap().entries.map((entry) {
+              int index = entry.key;
+              final channelEntry = entry.value;
+              return buildListItem(
+                title: channelEntry.key,
+                isSelected: widget.selectedChannelName == channelEntry.key,
+                onTap: () => widget.onChannelTap(channelEntry.value),
+                isCentered: true,
+                minHeight: defaultMinHeight,
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
