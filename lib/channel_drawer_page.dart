@@ -364,7 +364,7 @@ class _EPGListState extends State<EPGList> {
   @override
   Widget build(BuildContext context) {
     // 如果没有EPG数据，返回空容器
-    if (epgListWidth = 0  || widget.epgData == null || widget.epgData!.isEmpty) {
+    if (widget.epgData == null || widget.epgData!.isEmpty) {
       return const SizedBox.shrink();
     }
 
