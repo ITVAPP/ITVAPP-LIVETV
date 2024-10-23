@@ -194,7 +194,7 @@ class GroupList extends StatelessWidget {
   final Function(int index) onGroupTap;
   final bool isTV;
   final bool isFavoriteCategory;
-  final int startIndex; 
+  final int startIndex;
 
   const GroupList({
     super.key,
@@ -213,42 +213,40 @@ class GroupList extends StatelessWidget {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: scrollController,
-        child: IntrinsicHeight( // 使用 IntrinsicHeight 确保列表高度自动拉伸填满父容器
-          child: Align( // 使用 Align 确保内容顶部对齐
-            alignment: Alignment.topCenter,
-            child: Group(
-              groupIndex: 1,
-              child: Column(
-                children: keys.isEmpty && isFavoriteCategory
-                    ? [
-                        FocusableItem(
-                          focusNode: getOrCreateFocusNode(startIndex),
-                          child: Container(
-                            constraints: BoxConstraints(minHeight: defaultMinHeight),
-                            child: Center(
-                              child: Text(
-                                S.of(context).nofavorite, // 暂无收藏
-                                style: defaultTextStyle.merge(
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                                ),
+        child: Align( // 使用 Align 确保内容顶部对齐
+          alignment: Alignment.topCenter,
+          child: Group(
+            groupIndex: 1,
+            child: Column(
+              children: keys.isEmpty && isFavoriteCategory
+                  ? [
+                      FocusableItem(
+                        focusNode: getOrCreateFocusNode(startIndex),
+                        child: Container(
+                          constraints: BoxConstraints(minHeight: defaultMinHeight),
+                          child: Center(
+                            child: Text(
+                              S.of(context).nofavorite, // 暂无收藏
+                              style: defaultTextStyle.merge(
+                                const TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
-                        )
-                      ]
-                    : List.generate(keys.length, (index) {
-                        return buildListItem(
-                          title: keys[index],
-                          isSelected: selectedGroupIndex == index,
-                          onTap: () => onGroupTap(index),
-                          isCentered: true,
-                          isTV: isTV,
-                          minHeight: defaultMinHeight,
-                          context: context,
-                          index: startIndex + index,
-                        );
-                      }),
-              ),
+                        ),
+                      )
+                    ]
+                  : List.generate(keys.length, (index) {
+                      return buildListItem(
+                        title: keys[index],
+                        isSelected: selectedGroupIndex == index,
+                        onTap: () => onGroupTap(index),
+                        isCentered: true,
+                        isTV: isTV,
+                        minHeight: defaultMinHeight,
+                        context: context,
+                        index: startIndex + index,
+                      );
+                    }),
             ),
           ),
         ),
@@ -264,7 +262,7 @@ class ChannelList extends StatefulWidget {
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
-  final int startIndex; 
+  final int startIndex;
 
   const ChannelList({
     super.key,
@@ -297,34 +295,32 @@ class _ChannelListState extends State<ChannelList> {
   @override
   Widget build(BuildContext context) {
     final channelList = widget.channels.entries.toList();
-    
+
     return Container(
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
-        child: IntrinsicHeight( // 使用 IntrinsicHeight 确保列表高度自动拉伸填满父容器
-          child: Align( // 使用 Align 确保内容顶部对齐
-            alignment: Alignment.topCenter,
-            child: Group(
-              groupIndex: 2,
-              child: Column(
-                children: List.generate(channelList.length, (index) {
-                  final channelEntry = channelList[index];
-                  final channelName = channelEntry.key;
-                  final isSelect = widget.selectedChannelName == channelName;
-                  
-                  return buildListItem(
-                    title: channelName,
-                    isSelected: isSelect,
-                    onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                    isCentered: true,
-                    minHeight: defaultMinHeight,
-                    isTV: widget.isTV,
-                    context: context,
-                    index: widget.startIndex + index,
-                  );
-                }),
-              ),
+        child: Align( // 使用 Align 确保内容顶部对齐
+          alignment: Alignment.topCenter,
+          child: Group(
+            groupIndex: 2,
+            child: Column(
+              children: List.generate(channelList.length, (index) {
+                final channelEntry = channelList[index];
+                final channelName = channelEntry.key;
+                final isSelect = widget.selectedChannelName == channelName;
+
+                return buildListItem(
+                  title: channelName,
+                  isSelected: isSelect,
+                  onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                  isCentered: true,
+                  minHeight: defaultMinHeight,
+                  isTV: widget.isTV,
+                  context: context,
+                  index: widget.startIndex + index,
+                );
+              }),
             ),
           ),
         ),
@@ -477,15 +473,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
     
-   int totalFocusNodes = 0;   // 计算所需的FocusNode总数
+   // 计算所需的 FocusNode 总数，加入空值判断
+   int totalFocusNodes = 0;
    totalFocusNodes += _categories.length;
-   totalFocusNodes += _keys.length;
+   totalFocusNodes += (_keys?.length ?? 1); // 分组为空时返回1
    if (_values.isNotEmpty && 
        _groupIndex >= 0 && 
        _groupIndex < _values.length && 
-       _values[_groupIndex].isNotEmpty) {
-     totalFocusNodes += _values[_groupIndex].length;
+       (_values[_groupIndex]?.length ?? 0) > 0) {
+     totalFocusNodes += (_values[_groupIndex]?.length ?? 0); // 频道为空时返回0
    }
+   
   _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
   
     _calculateViewportHeight(); // 计算视图窗口的高度
@@ -599,30 +597,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _selEPGIndex = 0;
   }
 
-  // 切换分类时更新分组和频道
-  void _onCategoryTap(int index) {
-    _onTapThrottled(() {
-      setState(() {
-        _categoryIndex = index; // 更新选中的分类索引
-        _initializeChannelData(); // 根据新的分类重新初始化频道数据
-        _initializeFocusNodes(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
-        _scrollToTop(_scrollController);
-        _scrollToTop(_scrollChannelController);
-      });
-    });
-  }
+// 切换分类时更新分组和频道
+void _onCategoryTap(int index) {
+  _onTapThrottled(() {
+    setState(() {
+      _categoryIndex = index; // 更新选中的分类索引
+      _initializeChannelData(); // 根据新的分类重新初始化频道数据
 
-  // 切换分组时更新频道
-  void _onGroupTap(int index) {
-    _onTapThrottled(() {
-      setState(() {
-        _groupIndex = index;
-        _channelIndex = 0; // 重置频道索引
-        _initializeFocusNodes(_categories.length + _keys.length + _values[_groupIndex].length); // 更新 FocusNode 列表
-        _scrollToTop(_scrollChannelController);
-      });
+      // 正确使用括号确保空值处理
+      _initializeFocusNodes(_categories.length + (_keys?.length ?? 1) + (_values[_groupIndex]?.length ?? 0)); // 更新 FocusNode 列表
+      _scrollToTop(_scrollController);
+      _scrollToTop(_scrollChannelController);
     });
-  }
+  });
+}
+
+// 切换分组时更新频道
+void _onGroupTap(int index) {
+  _onTapThrottled(() {
+    setState(() {
+      _groupIndex = index;
+      _channelIndex = 0; // 重置频道索引
+
+      // 正确使用括号确保空值处理
+      _initializeFocusNodes(_categories.length + (_keys?.length ?? 1) + (_values[_groupIndex]?.length ?? 0)); // 更新 FocusNode 列表
+      _scrollToTop(_scrollChannelController);
+    });
+  });
+}
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
