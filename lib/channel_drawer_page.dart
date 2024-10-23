@@ -810,7 +810,7 @@ void _onGroupTap(int index) {
     return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
       focusNodes: _focusNodes, // 使用全局焦点列表
       isVerticalGroup: true, // 启用竖向分组
-      initialIndex: -1, // 组件不自动设置初始焦点
+      initialIndex: 0, // 组件不自动设置初始焦点
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
     );
   }
