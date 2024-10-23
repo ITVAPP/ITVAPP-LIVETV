@@ -67,10 +67,13 @@ class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingOb
         // 缓存 Group 的焦点信息
         _cacheGroupFocusNodes();
 
-        // 设置初始焦点
-        if (widget.focusNodes.isNotEmpty) {
-          _requestFocus(widget.initialIndex ?? 0);  // 设置初始焦点到第一个有效节点
+        // 判断 initialIndex 是否为 -1，跳过设置初始焦点的逻辑
+        if (widget.initialIndex != -1 && widget.focusNodes.isNotEmpty) {
+          // 设置初始焦点到指定的节点，或者第一个有效节点
+          _requestFocus(widget.initialIndex ?? 0);
           _manageDebugOverlay(message: '初始焦点设置完成');
+        } else {
+          _manageDebugOverlay(message: '跳过初始焦点设置');
         }
       } catch (e) {
         _manageDebugOverlay(message: '初始焦点设置失败: $e');
@@ -618,6 +621,9 @@ bool _triggerWidgetAction(Widget widget) {
     widget.onPressed!();
     return true;
   } else if (widget is ListTile && widget.onTap != null) {
+    widget.onTap!();
+    return true;
+  } else if (widget is GestureDetector && widget.onTap != null) {
     widget.onTap!();
     return true;
   } else if (widget is PopupMenuButton && widget.onSelected != null) {
