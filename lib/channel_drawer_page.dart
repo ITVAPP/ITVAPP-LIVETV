@@ -110,19 +110,10 @@ Widget buildListItem({
   bool useFocusableItem = true, // 控制是否使用 FocusableItem 包裹
 }) {
   FocusNode? focusNode;
-  bool hasFocus = false;
 
-  // 如果 useFocusableItem 为 true，创建 FocusNode 并判断焦点状态
+  // 如果 useFocusableItem 为 true，创建 FocusNode
   if (useFocusableItem && index != null) {
     focusNode = getOrCreateFocusNode(index);
-    hasFocus = focusNode.hasFocus; // 焦点状态
-
-    // 添加监听器，确保焦点变化时更新状态
-    focusNode?.addListener(() {
-      setState(() {
-        hasFocus = focusNode.hasFocus;
-      });
-    });
   }
 
   Widget listItemContent = GestureDetector(
@@ -130,12 +121,12 @@ Widget buildListItem({
     child: Container(
       constraints: BoxConstraints(minHeight: minHeight), // 最小高度
       padding: padding,
-      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus), // 使用修正的装饰函数
+      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: focusNode?.hasFocus ?? false), // 使用修正的装饰函数
       child: Align(
         alignment: isCentered ? Alignment.center : Alignment.centerLeft,
         child: Text(
           title,
-          style: isSelected || hasFocus
+          style: isSelected || (focusNode?.hasFocus ?? false)
               ? defaultTextStyle.merge(selectedTextStyle)
               : defaultTextStyle, // 统一样式 + 选中项样式
           softWrap: true,
