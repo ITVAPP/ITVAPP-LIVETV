@@ -150,7 +150,7 @@ class CategoryList extends StatelessWidget {
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
   final bool isTV;
-  final int startIndex; 
+  final int startIndex;
 
   const CategoryList({
     super.key,
@@ -219,9 +219,9 @@ class GroupList extends StatelessWidget {
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: scrollController,
-        child: ConstrainedBox(  // 使用 ConstrainedBox 确保高度限制
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),  // 设置最小高度为屏幕高度
-          child: IntrinsicHeight(  // 使用 IntrinsicHeight 确保内容从顶部开始排列
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height), // 设置最小高度为屏幕高度
+          child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
               children: keys.isEmpty && isFavoriteCategory
@@ -304,13 +304,18 @@ class _ChannelListState extends State<ChannelList> {
   Widget build(BuildContext context) {
     final channelList = widget.channels.entries.toList();
 
+    // 当频道列表为空时，直接返回空容器
+    if (channelList.isEmpty) {
+      return const SizedBox.shrink(); // 空容器
+    }
+
     return Container(
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
-        child: ConstrainedBox(  // 使用 ConstrainedBox 确保高度限制
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),  // 设置最小高度为屏幕高度
-          child: IntrinsicHeight(  // 使用 IntrinsicHeight 确保内容从顶部开始排列
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height), // 设置最小高度为屏幕高度
+          child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
               children: [
@@ -382,49 +387,50 @@ class _EPGListState extends State<EPGList> {
     return Container(
       color: defaultBackgroundColor,
       child: Column(
-          children: [
-            Container(
-              height: defaultMinHeight,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 8), // 添加左边距
-              decoration: BoxDecoration(
-                color: defaultBackgroundColor,
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(
-                S.of(context).programListTitle, // 节目单列表
-                style: defaultTextStyle.merge(
-                  const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold), // 加粗样式
-                ),
+        children: [
+          Container(
+            height: defaultMinHeight,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 8), // 添加左边距
+            decoration: BoxDecoration(
+              color: defaultBackgroundColor,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              S.of(context).programListTitle, // 节目单列表
+              style: defaultTextStyle.merge(
+                const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold), // 加粗样式
               ),
             ),
-            verticalDivider,
-            Flexible(
-              child: ScrollablePositionedList.builder(
-                initialScrollIndex: widget.selectedIndex, // 初始滚动到选中的频道项
-                itemScrollController: widget.epgScrollController,
-                itemCount: widget.epgData?.length ?? 0,
-                itemBuilder: (BuildContext context, int index) {
-                  final data = widget.epgData?[index];
-                  if (data == null) return const SizedBox.shrink();
-                  final isSelect = index == widget.selectedIndex;
-                  return buildListItem(
-                    title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
-                    isSelected: isSelect,
-                    onTap: () {
-                      widget.onCloseDrawer();  // 调用关闭抽屉回调
-                    },
-                    isCentered: false, // EPG列表项左对齐
-                    isTV: widget.isTV,
-                    context: context,
-                    useFocusableItem: false, // 不使用 FocusableItem 包裹
-                  );
-                },
-              ),
+          ),
+          verticalDivider,
+          Flexible(
+            child: ScrollablePositionedList.builder(
+              initialScrollIndex: widget.selectedIndex, // 初始滚动到选中的频道项
+              itemScrollController: widget.epgScrollController,
+              itemCount: widget.epgData?.length ?? 0,
+              itemBuilder: (BuildContext context, int index) {
+                final data = widget.epgData?[index];
+                if (data == null) return const SizedBox.shrink();
+                final isSelect = index == widget.selectedIndex;
+                return buildListItem(
+                  title: '${data.start}-${data.end}\n${data.title}', // 显示节目时间与标题
+                  isSelected: isSelect,
+                  onTap: () {
+                    widget.onCloseDrawer();  // 调用关闭抽屉回调
+                  },
+                  isCentered: false, // EPG列表项左对齐
+                  isTV: widget.isTV,
+                  context: context,
+                  useFocusableItem: false, // 不使用 FocusableItem 包裹
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -472,21 +478,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     super.initState();
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
-    
+
     // 计算所需的 FocusNode 总数，加入空值判断
-    int totalFocusNodes = 0;
-    totalFocusNodes += _categories.length;
+    int totalFocusNodes = _categories.length;
     totalFocusNodes += _keys.length;
-    if (_values.isNotEmpty && 
-        _groupIndex >= 0 && 
-        _groupIndex < _values.length && 
-        (_values[_groupIndex].length > 0)) {	
+    if (_values.isNotEmpty &&
+        _groupIndex >= 0 &&
+        _groupIndex < _values.length &&
+        (_values[_groupIndex].length > 0)) {
       totalFocusNodes += (_values[_groupIndex].length); // 频道为空时返回0
     }
     _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
-  
+
     _calculateViewportHeight(); // 计算视图窗口的高度
-  
+
     // 只有当分类非空且有频道数据时加载 EPG
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
@@ -520,7 +525,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
             _categoryIndex = i; // 设置匹配的分类
             _groupIndex = groupIndex; // 设置匹配的分组
             _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
-            return; 
+            return;
           }
         }
       }
@@ -588,42 +593,42 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     _selEPGIndex = 0;
   }
 
-// 切换分类时更新分组和频道
-void _onCategoryTap(int index) {
+  // 切换分类时更新分组和频道
+  void _onCategoryTap(int index) {
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
       _initializeChannelData(); // 根据新的分类重新初始化频道数据
 
       // 计算新分类下的总节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length 
-    + (_keys.isNotEmpty ? _keys.length : 0) 
-    + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length 
-        ? _values[_groupIndex].length 
-        : 0);
+      int totalFocusNodes = _categories.length
+          + (_keys.isNotEmpty ? _keys.length : 0)
+          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+          ? _values[_groupIndex].length
+          : 0);
       _initializeFocusNodes(totalFocusNodes);
-      
+
       _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
     });
-}
+  }
 
-// 切换分组时更新频道
-void _onGroupTap(int index) {
+  // 切换分组时更新频道
+  void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _channelIndex = 0; // 重置频道索引
 
       // 重新计算所需节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length 
-    + (_keys.isNotEmpty ? _keys.length : 0) 
-    + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length 
-        ? _values[_groupIndex].length 
-        : 0);
+      int totalFocusNodes = _categories.length
+          + (_keys.isNotEmpty ? _keys.length : 0)
+          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+          ? _values[_groupIndex].length
+          : 0);
       _initializeFocusNodes(totalFocusNodes);
-      
+
       _scrollToTop(_scrollChannelController);
     });
-}
+  }
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
@@ -631,7 +636,11 @@ void _onGroupTap(int index) {
     setState(() {
       widget.onTapChannel?.call(newModel); // 执行频道切换回调
     });
-    _loadEPGMsg(newModel); // 加载EPG数据
+
+    // 异步加载 EPG 数据，避免阻塞 UI 渲染
+    _loadEPGMsg(newModel).then((_) {
+      setState(() {}); // 当 EPG 数据加载完后，更新 UI
+    });
   }
 
   // 滚动到顶部
@@ -684,7 +693,7 @@ void _onGroupTap(int index) {
 
       final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
       final selectTimeData = res.epgData!.lastWhere(
-        (element) => element.start!.compareTo(epgRangeTime) < 0,
+            (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
       final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
@@ -784,11 +793,21 @@ void _onGroupTap(int index) {
     );
 
     return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
-      focusNodes: _focusNodes, // 使用全局焦点列表
+      focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
       isVerticalGroup: true, // 启用竖向分组
       initialIndex: 0, // 组件不自动设置初始焦点
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
     );
+  }
+
+  // 检查焦点列表是否正确，如果不正确则重建
+  List<FocusNode> _ensureCorrectFocusNodes() {
+    int totalNodesExpected = _categories.length + _keys.length + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    // 如果焦点节点的数量不符合预期，则重新生成焦点列表
+    if (_focusNodes.length != totalNodesExpected) {
+      _initializeFocusNodes(totalNodesExpected); // 根据需要重新初始化焦点节点
+    }
+    return _focusNodes; // 返回更新后的焦点列表
   }
 
   // 构建抽屉视图
@@ -800,13 +819,13 @@ void _onGroupTap(int index) {
     double groupWidth = (_keys.isNotEmpty && _categoryIndex >= 0 && _categoryIndex < _categories.length && _categories[_categoryIndex] == Config.myFavoriteKey)
         ? 120
         : (_keys.isNotEmpty ? 120 : 0);
-    
+
     // 设置频道列表宽度
     double channelListWidth = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty)
-    ? (isPortrait
+        ? (isPortrait
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth
         : 160)
-    : 0;
+        : 0;
 
     // 设置 EPG 列表宽度
     double epgListWidth =
@@ -841,7 +860,6 @@ void _onGroupTap(int index) {
               width: channelListWidth, // 频道列表宽度
               child: channelListWidget,
             ),
-            
           if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) ...[
             verticalDivider,
             SizedBox(
