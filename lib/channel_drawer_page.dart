@@ -466,19 +466,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
 
-  Timer? _debounceTimer; // 用于节流
-
-  // 通用节流点击处理
-  void _onTapThrottled(Function action) {
-    if (_debounceTimer?.isActive ?? false) {
-      _debounceTimer?.cancel();
-    }
-
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      action();
-    });
-  }
-  
   @override
   void initState() {
     super.initState();
@@ -488,16 +475,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     // 计算所需的 FocusNode 总数，加入空值判断
     int totalFocusNodes = 0;
     totalFocusNodes += _categories.length;
-    totalFocusNodes += (_keys.length); 
+    totalFocusNodes += _keys.length;
     if (_values.isNotEmpty && 
         _groupIndex >= 0 && 
         _groupIndex < _values.length && 
         (_values[_groupIndex].length > 0)) {	
       totalFocusNodes += (_values[_groupIndex].length); // 频道为空时返回0
     }
-    if (totalFocusNodes == 0) {
-      totalFocusNodes = 1;  // 保证至少有一个 FocusNode
-    }  
     _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
   
     _calculateViewportHeight(); // 计算视图窗口的高度
@@ -605,35 +589,39 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
 
 // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
-  _onTapThrottled(() {
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
       _initializeChannelData(); // 根据新的分类重新初始化频道数据
 
       // 计算新分类下的总节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
+      int totalFocusNodes = _categories.length 
+    + (_keys.isNotEmpty ? _keys.length : 0) 
+    + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length 
+        ? _values[_groupIndex].length 
+        : 0);
       _initializeFocusNodes(totalFocusNodes);
       
       _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
     });
-  });
 }
 
 // 切换分组时更新频道
 void _onGroupTap(int index) {
-  _onTapThrottled(() {
     setState(() {
       _groupIndex = index;
       _channelIndex = 0; // 重置频道索引
 
       // 重新计算所需节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
+      int totalFocusNodes = _categories.length 
+    + (_keys.isNotEmpty ? _keys.length : 0) 
+    + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length 
+        ? _values[_groupIndex].length 
+        : 0);
       _initializeFocusNodes(totalFocusNodes);
       
       _scrollToTop(_scrollChannelController);
     });
-  });
 }
 
   // 切换频道
@@ -642,10 +630,7 @@ void _onGroupTap(int index) {
     setState(() {
       widget.onTapChannel?.call(newModel); // 执行频道切换回调
     });
-    // 使用节流，防止多次加载
-    _onTapThrottled(() {
-      _loadEPGMsg(newModel); // 加载EPG数据
-    });
+    _loadEPGMsg(newModel); // 加载EPG数据
   }
 
   // 滚动到顶部
@@ -722,7 +707,6 @@ void _onGroupTap(int index) {
 
   @override
   void dispose() {
-    _debounceTimer?.cancel(); // 清理定时器
     if (_scrollController.hasClients) {
       _scrollController.dispose();
     }
