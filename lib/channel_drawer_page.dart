@@ -84,6 +84,7 @@ void _initializeFocusNodes(int totalCount) {
   _focusNodes.clear();
 
   // 生成新的 FocusNode 列表
+  LogUtil.v('频道抽屉节点数量: $totalCount');
   _focusNodes = List.generate(totalCount, (index) => FocusNode());
 }
 
