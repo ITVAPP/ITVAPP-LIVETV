@@ -118,6 +118,7 @@ Widget buildListItem({
   }
 
   Widget listItemContent = GestureDetector(
+    LogUtil.v('GroupList 索引: index = $index');
     onTap: onTap, // 处理点击事件
     child: Container(
       constraints: BoxConstraints(minHeight: minHeight), // 最小高度
@@ -183,7 +184,7 @@ class CategoryList extends StatelessWidget {
               isCentered: true,
               isTV: isTV,
               context: context,
-              index: startIndex + index,
+              index: startIndex + index, // 使用 startIndex 来分配焦点索引
             );
           }),
         ),
@@ -250,7 +251,7 @@ class GroupList extends StatelessWidget {
                             isTV: isTV,
                             minHeight: defaultMinHeight,
                             context: context,
-                            index: startIndex + index,
+                            index: startIndex + index, // 使用 startIndex 来分配焦点索引
                           );
                         }),
                       ),
@@ -334,7 +335,7 @@ class _ChannelListState extends State<ChannelList> {
                       minHeight: defaultMinHeight,
                       isTV: widget.isTV,
                       context: context,
-                      index: widget.startIndex + index,
+                      index: widget.startIndex + index, // 使用 startIndex 来分配焦点索引
                     );
                   }),
                 ),
