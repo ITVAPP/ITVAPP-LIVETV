@@ -494,7 +494,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     // 计算所需的 FocusNode 总数，加入空值判断
     int totalFocusNodes = 0;
     totalFocusNodes += _categories.length;
-    totalFocusNodes += (_keys?.length ?? 1); // 分组为空时返回1
+    totalFocusNodes += (_keys?.length ?? 0); // 分组为空时返回1
     if (_values.isNotEmpty && 
         _groupIndex >= 0 && 
         _groupIndex < _values.length && 
