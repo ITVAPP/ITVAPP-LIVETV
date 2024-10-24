@@ -60,17 +60,15 @@ const defaultBackgroundColor = Colors.black38;
 // padding设置
 const defaultPadding = EdgeInsets.all(6.0);
 
-// 装饰设置
+// 装饰设置，不使用渐变
+const Color selectedColor = Color(0xFFEB144C); // 选中颜色
+const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
+
 BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
   return BoxDecoration(
-    gradient: (isSelected || hasFocus) // 选中或获得焦点时的渐变背景
-        ? LinearGradient(
-            colors: [
-              Colors.red.withOpacity(0.6),
-              Colors.red.withOpacity(0.3),
-            ],
-          )
-        : null, // 非选中项无背景
+    color: isSelected
+        ? selectedColor // 选中项颜色
+        : (hasFocus ? unselectedColor : Colors.transparent), // 焦点项使用未选中颜色，其他为透明
   );
 }
 
@@ -107,9 +105,7 @@ Widget buildListItem({
   bool isCentered = true, // 控制文本是否居中对齐
   double minHeight = defaultMinHeight, // 默认最小高度
   EdgeInsets padding = defaultPadding, // 默认内边距
-  Color selectedColor = Colors.red,
   bool isTV = false,
-  Function(bool)? onFocusChange,
   int? index, // index 参数设为可选，用于获取 FocusNode
   bool useFocusableItem = true, // 控制是否使用 FocusableItem 包裹
 }) {
@@ -120,6 +116,13 @@ Widget buildListItem({
   if (useFocusableItem && index != null) {
     focusNode = getOrCreateFocusNode(index);
     hasFocus = focusNode.hasFocus; // 焦点状态
+
+    // 添加监听器，确保焦点变化时更新状态
+    focusNode?.addListener(() {
+      setState(() {
+        hasFocus = focusNode.hasFocus;
+      });
+    });
   }
 
   Widget listItemContent = GestureDetector(
@@ -127,7 +130,7 @@ Widget buildListItem({
     child: Container(
       constraints: BoxConstraints(minHeight: minHeight), // 最小高度
       padding: padding,
-      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus),
+      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus), // 使用修正的装饰函数
       child: Align(
         alignment: isCentered ? Alignment.center : Alignment.centerLeft,
         child: Text(
@@ -494,14 +497,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     // 计算所需的 FocusNode 总数，加入空值判断
     int totalFocusNodes = 0;
     totalFocusNodes += _categories.length;
-    totalFocusNodes += (_keys?.length ?? 0); // 分组为空时返回1
+    totalFocusNodes += (_keys.length); 
     if (_values.isNotEmpty && 
         _groupIndex >= 0 && 
         _groupIndex < _values.length && 
-        (_values[_groupIndex]?.length ?? 0) > 0) {
-      totalFocusNodes += (_values[_groupIndex]?.length ?? 0); // 频道为空时返回0
+        (_values[_groupIndex].length > 0)) {	
+      totalFocusNodes += (_values[_groupIndex].length); // 频道为空时返回0
     }
-
+    if (totalFocusNodes == 0) {
+      totalFocusNodes = 1;  // 保证至少有一个 FocusNode
+    }  
     _initializeFocusNodes(totalFocusNodes);  // 使用计算出的总数初始化FocusNode列表
   
     _calculateViewportHeight(); // 计算视图窗口的高度
@@ -575,30 +580,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
       return;
     }
 
-    if (categoryMap is Map<String, Map<String, PlayModel>>) {
-      // 三层结构：处理分组 -> 频道
-      _keys = categoryMap.keys.toList();
-      _values = categoryMap.values.toList();
+    // 三层结构：处理分组 -> 频道
+    _keys = categoryMap.keys.toList();
+    _values = categoryMap.values.toList();
 
-      // 频道按名字进行 Unicode 排序
-      for (int i = 0; i < _values.length; i++) {
-        _values[i] = Map<String, PlayModel>.fromEntries(
-          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-        );
-      }
-
-      // 保持现有的索引计算逻辑
-      _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
-      _channelIndex = _groupIndex != -1
-          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-          : 0;
-    } else if (categoryMap is Map<String, PlayModel>) {
-      // 两层结构：直接处理频道
-      _keys = [Config.allChannelsKey];
-      _values = [categoryMap];
-      _groupIndex = 0;
-      _channelIndex = _values[0].keys.toList().indexOf(widget.playModel?.title ?? '');
+    // 频道按名字进行 Unicode 排序
+    for (int i = 0; i < _values.length; i++) {
+      _values[i] = Map<String, PlayModel>.fromEntries(
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+      );
     }
+
+    // 保持现有的索引计算逻辑
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
+    _channelIndex = _groupIndex != -1
+        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+        : 0;
 
     // 确保索引有效
     if (_groupIndex == -1) _groupIndex = 0;
@@ -650,7 +647,10 @@ void _onGroupTap(int index) {
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
-    widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
+    setState(() {
+      widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    });
     // 使用节流，防止多次加载
     _onTapThrottled(() {
       _loadEPGMsg(newModel); // 加载EPG数据
