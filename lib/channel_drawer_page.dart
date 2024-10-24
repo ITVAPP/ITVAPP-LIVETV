@@ -112,11 +112,7 @@ Widget buildListItem({
 }) {
   FocusNode? focusNode;
 
-  // 如果 useFocusableItem 为 true，创建 FocusNode
-  if (useFocusableItem && index != null) {
-    focusNode = getOrCreateFocusNode(index);
-  }
-    LogUtil.v('GroupList 索引: index = $index');
+  LogUtil.v('GroupList 索引: index = $index');
 
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
@@ -141,7 +137,7 @@ Widget buildListItem({
 
   // 根据 useFocusableItem 决定是否使用 FocusableItem 包裹
   return useFocusableItem && focusNode != null
-      ? FocusableItem(focusNode: focusNode, child: listItemContent)
+      ? FocusableItem(focusNode: _focusNodes[index], child: listItemContent)
       : listItemContent;
 }
 
