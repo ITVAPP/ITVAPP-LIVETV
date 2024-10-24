@@ -597,8 +597,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   void _resetChannelData() {
     _keys = [];
     _values = [];
-    _groupIndex = 0;
-    _channelIndex = 0;
+    _groupIndex = -1;
+    _channelIndex = -1;
     _epgData = null;
     _selEPGIndex = 0;
   }
@@ -812,16 +812,16 @@ void _onGroupTap(int index) {
     double categoryWidth = 110; // 分类列表宽度
 
     // 设置分组列表宽度
-    double groupWidth = (_keys.isNotEmpty || _categories[_categoryIndex] == Config.myFavoriteKey)
+    double groupWidth = (_keys.isNotEmpty && _categoryIndex >= 0 && _categoryIndex < _categories.length && _categories[_categoryIndex] == Config.myFavoriteKey)
         ? 120
-        : 0;
-
+        : (_keys.isNotEmpty ? 120 : 0);
+    
     // 设置频道列表宽度
-    double channelListWidth = (_values.isNotEmpty && _values[_groupIndex].isNotEmpty)
-        ? (isPortrait
-            ? MediaQuery.of(context).size.width - categoryWidth - groupWidth // 频道列表宽度
-            : 160) // 横屏时为160
-        : 0;
+    double channelListWidth = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty)
+    ? (isPortrait
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth
+        : 160)
+    : 0;
 
     // 设置 EPG 列表宽度
     double epgListWidth =
