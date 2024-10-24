@@ -456,7 +456,7 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController(); // 分组列表的滚动控制器
   final ScrollController _scrollChannelController = ScrollController(); // 频道列表的滚动控制器
   final ItemScrollController _epgItemScrollController = ItemScrollController(); // EPG列表的滚动控制器
@@ -476,6 +476,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // 开始监听窗口大小变化
     _initializeCategoryData(); // 初始化分类数据
     _initializeChannelData(); // 初始化频道数据
 
@@ -495,6 +496,32 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     // 只有当分类非空且有频道数据时加载 EPG
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 停止监听窗口变化
+    if (_scrollController.hasClients) {
+      _scrollController.dispose();
+    }
+    if (_scrollChannelController.hasClients) {
+      _scrollChannelController.dispose();
+    }
+    _focusNodes.forEach((node) => node.dispose()); // 销毁所有 FocusNode
+    _focusNodes.clear(); // 清空 FocusNode 列表
+    super.dispose();
+  }
+
+  // 重写didChangeMetrics监听窗口大小变化
+  @override
+  void didChangeMetrics() {
+    final newHeight = MediaQuery.of(context).size.height * 0.5;
+    if (newHeight != _viewPortHeight) {
+      setState(() {
+        _viewPortHeight = newHeight;
+        _adjustScrollPositions(); // 调整滚动位置
+      });
     }
   }
 
@@ -713,19 +740,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> {
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
     }
-  }
-
-  @override
-  void dispose() {
-    if (_scrollController.hasClients) {
-      _scrollController.dispose();
-    }
-    if (_scrollChannelController.hasClients) {
-      _scrollChannelController.dispose();
-    }
-    _focusNodes.forEach((node) => node.dispose()); // 销毁所有 FocusNode
-    _focusNodes.clear(); // 清空 FocusNode 列表
-    super.dispose();
   }
 
   @override
