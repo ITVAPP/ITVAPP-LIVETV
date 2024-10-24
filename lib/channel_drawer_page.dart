@@ -116,9 +116,9 @@ Widget buildListItem({
   if (useFocusableItem && index != null) {
     focusNode = getOrCreateFocusNode(index);
   }
+    LogUtil.v('GroupList 索引: index = $index');
 
   Widget listItemContent = GestureDetector(
-    LogUtil.v('GroupList 索引: index = $index');
     onTap: onTap, // 处理点击事件
     child: Container(
       constraints: BoxConstraints(minHeight: minHeight), // 最小高度
