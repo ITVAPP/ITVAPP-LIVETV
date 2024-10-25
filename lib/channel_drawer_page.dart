@@ -465,7 +465,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 开始监听窗口大小变化
-    _initializeData(); // 合并后的初始化函数
+    _initializeData(); // 初始化数据
 
     // 计算所需的 FocusNode 总数，加入空值判断
     int totalFocusNodes = _categories.length;
@@ -520,7 +520,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (_categories.isEmpty) return;
 
-    // 初始化频道数据并寻找当前播放频道的分类和分组
+    // 查找当前播放频道所属的分组和分类
+    bool found = false;
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
@@ -534,13 +535,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _categoryIndex = i;
             _groupIndex = groupIndex;
             _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? '');
+            found = true;
             break;
           }
         }
-        if (_categoryIndex != -1) break;
       }
+      if (found) break;
     }
 
+    // 如果未找到当前播放频道的分类，设置默认值
     if (_categoryIndex == -1) {
       for (int i = 0; i < _categories.length; i++) {
         final categoryMap = widget.videoMap?.playList[_categories[i]];
@@ -553,37 +556,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    // 频道数据的进一步处理
-    if (_categoryIndex >= 0) {
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
-      _keys = categoryMap?.keys.toList() ?? [];
-      _values = categoryMap?.values.toList() ?? [];
-
-      for (int i = 0; i < _values.length; i++) {
-        _values[i] = Map<String, PlayModel>.fromEntries(
-          _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-        );
-      }
-
-      _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
-      _channelIndex = _groupIndex != -1
-          ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-          : 0;
-
-      if (_groupIndex == -1) _groupIndex = 0;
-      if (_channelIndex == -1) _channelIndex = 0;
+    // 初始化分组和频道数据
+    _keys = _categoryIndex >= 0 ? widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList() ?? [] : [];
+    _values = _categoryIndex >= 0 ? widget.videoMap?.playList[_categories[_categoryIndex]]?.values.toList() ?? [] : [];
+    
+    // 频道按名字排序
+    for (int i = 0; i < _values.length; i++) {
+      _values[i] = Map<String, PlayModel>.fromEntries(
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+      );
     }
-  }
 
-  // 重置频道数据
-  void _resetChannelData() {
-    _keys = [];
-    _values = [];
-    _groupIndex = -1;
-    _channelIndex = -1;
-    _epgData = null;
-    _selEPGIndex = 0;
+    // 确保索引在有效范围内
+    if (_groupIndex == -1) _groupIndex = 0;
+    if (_channelIndex == -1) _channelIndex = 0;
   }
 
   // 切换分类时更新分组和频道
@@ -626,13 +612,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
-    setState(() {
-      widget.onTapChannel?.call(newModel); // 执行频道切换回调
-    });
+
+    widget.onTapChannel?.call(newModel); // 执行频道切换回调
 
     // 异步加载 EPG 数据，避免阻塞 UI 渲染
     _loadEPGMsg(newModel).then((_) {
-      setState(() {}); // 当 EPG 数据加载完后，更新 UI
+      if (mounted) {
+        setState(() {}); // 局部更新 EPG 数据
+      }
     });
   }
 
@@ -711,14 +698,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.playModel != oldWidget.playModel) {
+    if (widget.playModel?.id != oldWidget.playModel?.id) {
       _initializeData();
-      // 只有在有效分组和频道数据时加载 EPG
-      if (_keys.isNotEmpty &&
-          _values.isNotEmpty &&
-          _values[_groupIndex].isNotEmpty) {
-        _loadEPGMsg(widget.playModel);
-      }
       _calculateViewportHeight();
     }
   }
