@@ -97,7 +97,9 @@ void addFocusListeners(int startIndex, int length) {
     final node = _focusNodes[startIndex + i];
     if (!node.hasListeners) {
       node.addListener(() {
-        setState(() {});
+        if (mounted) { // 确保组件已挂载
+          setState(() {});
+        }
       });
     }
   }
@@ -567,7 +569,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void dispose() {
     _scrollController.dispose();
     _scrollChannelController.dispose();
-    _epgItemScrollController.dispose(); // 同时销毁其他滚动控制器
     _focusNodes.forEach((node) => node.dispose()); // 销毁所有 FocusNode
     _focusNodes.clear(); // 清空 FocusNode 列表
     WidgetsBinding.instance.removeObserver(this); // 停止监听窗口变化
