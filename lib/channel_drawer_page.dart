@@ -565,12 +565,6 @@ void _initializeChannelData() {
   final selectedCategory = _categories[_categoryIndex];
   final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-  // 如果 没有有效分组，则重置频道数据并返回
-  if (categoryMap == null || categoryMap.isEmpty) {
-    _resetChannelData();
-    return;
-  }
-
   _keys = categoryMap.keys.toList();
   _values = categoryMap.values.toList();
 
@@ -602,23 +596,33 @@ void _initializeChannelData() {
   }
 
   // 切换分类时更新分组和频道
-  void _onCategoryTap(int index) {
-    setState(() {
-      _categoryIndex = index; // 更新选中的分类索引
-      _initializeChannelData(); // 根据新的分类重新初始化频道数据
+void _onCategoryTap(int index) {
+  setState(() {
+    _categoryIndex = index; // 更新选中的分类索引
 
-      // 计算新分类下的总节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length
-          + (_keys.isNotEmpty ? _keys.length : 0)
-          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-          ? _values[_groupIndex].length
-          : 0);
-      _initializeFocusNodes(totalFocusNodes);
+    // 检查选中的分类是否有分组
+    final selectedCategory = _categories[_categoryIndex];
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-      _scrollToTop(_scrollController);
-      _scrollToTop(_scrollChannelController);
-    });
-  }
+    // 如果分组为空，直接返回，不更新频道
+    if (categoryMap == null || categoryMap.isEmpty) {
+      return;
+    }
+
+    // 分组不为空时，初始化频道数据
+    _initializeChannelData();
+
+    // 计算新分类下的总节点数，并初始化 FocusNode
+    int totalFocusNodes = _categories.length
+        + _keys.length
+        + _values[_groupIndex].length;
+    _initializeFocusNodes(totalFocusNodes);
+
+    // 重置滚动位置
+    _scrollToTop(_scrollController);
+    _scrollToTop(_scrollChannelController);
+  });
+}
 
   // 切换分组时更新频道
   void _onGroupTap(int index) {
