@@ -212,7 +212,7 @@ class GroupList extends StatelessWidget {
           child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
-              children: keys.isEmpty && isFavoriteCategory
+              children: keys.isEmpty
                   ? [
                       Container(
                         constraints: BoxConstraints(minHeight: defaultMinHeight),
