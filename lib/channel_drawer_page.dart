@@ -204,7 +204,7 @@ class GroupList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 当为空时，直接返回空容器
-    if (keys.isEmpty) {
+    if (keys.isEmpty && !isFavoriteCategory) {
       return const SizedBox.shrink(); // 空容器
     }
 
@@ -735,14 +735,14 @@ void _onCategoryTap(int index) {
     }
   }
 
-  @override
-  void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.playModel?.id != oldWidget.playModel?.id) {
-      _initializeChannelData();
-      _calculateViewportHeight();
-    }
-  }
+ // @override
+  //  void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
+  //    super.didUpdateWidget(oldWidget);
+  //    if (widget.playModel?.id != oldWidget.playModel?.id) {
+  //      _initializeChannelData();
+  //      _calculateViewportHeight();
+  //    }
+ //   }
 
   @override
   Widget build(BuildContext context) {
