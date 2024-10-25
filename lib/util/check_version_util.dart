@@ -30,10 +30,16 @@ class CheckVersionUtil {
   // 获取最后一次弹出提示的日期
   static Future<String?> getLastPromptDate() async {
     try {
-      return SpUtil.getString('lastPromptDate');  // 返回提示日期
+      final dateStr = SpUtil.getString('lastPromptDate');  // 获取提示日期
+      if (dateStr != null && DateTime.tryParse(dateStr) != null) {  // 验证日期格式
+        return dateStr;
+      } else {
+        LogUtil.logError('提示日期格式无效', 'Invalid date format');
+        return null;  // 如果格式不正确，返回 null
+      }
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
-      return null;  // 获取失败时返回 null
+      return null;
     }
   }
 
