@@ -465,7 +465,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 开始监听窗口大小变化
-    _initializeData(); // 初始化数据
+    _initializeCategoryData(); // 初始化分类数据
+    _initializeChannelData(); // 初始化频道数据
 
     // 计算所需的 FocusNode 总数，加入空值判断
     int totalFocusNodes = _categories.length;
@@ -511,17 +512,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 初始化分类和频道数据
-  void _initializeData() {
-    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
+  // 初始化分类数据
+  void _initializeCategoryData() {
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
     _categoryIndex = -1;
     _groupIndex = -1;
     _channelIndex = -1;
 
-    if (_categories.isEmpty) return;
-
-    // 查找当前播放频道所属的分组和分类
-    bool found = false;
+    // 遍历每个分类，查找当前播放的频道所属的分组和分类
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
@@ -531,19 +529,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           final group = categoryMap.keys.toList()[groupIndex];
           final channelMap = categoryMap[group];
 
+          // 检查当前播放的频道是否在这个分组中
           if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
-            _categoryIndex = i;
-            _groupIndex = groupIndex;
-            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? '');
-            found = true;
-            break;
+            _categoryIndex = i; // 设置匹配的分类
+            _groupIndex = groupIndex; // 设置匹配的分组
+            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
+            return;
           }
         }
       }
-      if (found) break;
     }
 
-    // 如果未找到当前播放频道的分类，设置默认值
+    // 如果未找到当前播放频道的分类，寻找第一个非空分类
     if (_categoryIndex == -1) {
       for (int i = 0; i < _categories.length; i++) {
         final categoryMap = widget.videoMap?.playList[_categories[i]];
@@ -555,28 +552,55 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
       }
     }
+  }
 
-    // 初始化分组和频道数据
-    _keys = _categoryIndex >= 0 ? widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList() ?? [] : [];
-    _values = _categoryIndex >= 0 ? widget.videoMap?.playList[_categories[_categoryIndex]]?.values.toList() ?? [] : [];
+  // 初始化频道数据
+  void _initializeChannelData() {
+    // 如果索引无效，重置所有数据
+    if (_categoryIndex < 0 || _categoryIndex >= _categories.length || categoryMap == null || categoryMap.isEmpty) {
+      _resetChannelData();
+      return;
+    }
     
-    // 频道按名字排序
+    final selectedCategory = _categories[_categoryIndex];
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
+
+    _keys = categoryMap.keys.toList();
+    _values = categoryMap.values.toList();
+
+    // 频道按名字进行 Unicode 排序
     for (int i = 0; i < _values.length; i++) {
       _values[i] = Map<String, PlayModel>.fromEntries(
         _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
       );
     }
 
-    // 确保索引在有效范围内
+    // 保持现有的索引计算逻辑
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
+    _channelIndex = _groupIndex != -1
+        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+        : 0;
+
+    // 确保索引有效
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
+  }
+
+  // 重置频道数据
+  void _resetChannelData() {
+    _keys = [];
+    _values = [];
+    _groupIndex = -1;
+    _channelIndex = -1;
+    _epgData = null;
+    _selEPGIndex = 0;
   }
 
   // 切换分类时更新分组和频道
   void _onCategoryTap(int index) {
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
-      _initializeData(); // 根据新的分类重新初始化频道数据
+      _initializeChannelData(); // 根据新的分类重新初始化频道数据
 
       // 计算新分类下的总节点数，并初始化FocusNode
       int totalFocusNodes = _categories.length
@@ -612,14 +636,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
-
-    widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    setState(() {
+      widget.onTapChannel?.call(newModel); // 执行频道切换回调
+    });
 
     // 异步加载 EPG 数据，避免阻塞 UI 渲染
     _loadEPGMsg(newModel).then((_) {
-      if (mounted) {
-        setState(() {}); // 局部更新 EPG 数据
-      }
+      setState(() {}); // 当 EPG 数据加载完后，更新 UI
     });
   }
 
