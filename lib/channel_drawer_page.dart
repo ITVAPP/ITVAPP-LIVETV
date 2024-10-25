@@ -555,36 +555,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 初始化频道数据
-  void _initializeChannelData() {
-    // 如果索引无效，重置所有数据
-    if (_categoryIndex < 0 || _categoryIndex >= _categories.length || categoryMap == null || categoryMap.isEmpty) {
-      _resetChannelData();
-      return;
-    }
-    
-    final selectedCategory = _categories[_categoryIndex];
-    final categoryMap = widget.videoMap?.playList[selectedCategory];
-
-    _keys = categoryMap.keys.toList();
-    _values = categoryMap.values.toList();
-
-    // 频道按名字进行 Unicode 排序
-    for (int i = 0; i < _values.length; i++) {
-      _values[i] = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-      );
-    }
-
-    // 保持现有的索引计算逻辑
-    _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
-    _channelIndex = _groupIndex != -1
-        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
-        : 0;
-
-    // 确保索引有效
-    if (_groupIndex == -1) _groupIndex = 0;
-    if (_channelIndex == -1) _channelIndex = 0;
+void _initializeChannelData() {
+  // 如果索引无效，重置所有数据
+  if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
+    _resetChannelData();
+    return;
   }
+
+  final selectedCategory = _categories[_categoryIndex];
+  final categoryMap = widget.videoMap?.playList[selectedCategory];
+
+  // 如果 没有有效分组，则重置频道数据并返回
+  if (categoryMap == null || categoryMap.isEmpty) {
+    _resetChannelData();
+    return;
+  }
+
+  _keys = categoryMap.keys.toList();
+  _values = categoryMap.values.toList();
+
+  // 频道按名字进行 Unicode 排序
+  for (int i = 0; i < _values.length; i++) {
+    _values[i] = Map<String, PlayModel>.fromEntries(
+      _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+  }
+
+  // 保持现有的索引计算逻辑
+  _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
+  _channelIndex = _groupIndex != -1
+      ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+      : 0;
+
+  if (_groupIndex == -1) _groupIndex = 0;
+  if (_channelIndex == -1) _channelIndex = 0;
+}
 
   // 重置频道数据
   void _resetChannelData() {
@@ -722,7 +727,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.playModel?.id != oldWidget.playModel?.id) {
-      _initializeData();
+      _initializeChannelData();
       _calculateViewportHeight();
     }
   }
