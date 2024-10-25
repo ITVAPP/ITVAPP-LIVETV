@@ -590,7 +590,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _onCategoryTap(int index) {
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
-      _initializeChannelData(); // 根据新的分类重新初始化频道数据
+      _initializeData(); // 根据新的分类重新初始化频道数据
 
       // 计算新分类下的总节点数，并初始化FocusNode
       int totalFocusNodes = _categories.length
@@ -712,7 +712,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.playModel != oldWidget.playModel) {
-      _initializeChannelData();
+      _initializeData();
       // 只有在有效分组和频道数据时加载 EPG
       if (_keys.isNotEmpty &&
           _values.isNotEmpty &&
