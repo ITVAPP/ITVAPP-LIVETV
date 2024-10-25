@@ -77,15 +77,18 @@ List<FocusNode> _focusNodes = [];
 
 // 初始化 FocusNode 列表
 void _initializeFocusNodes(int totalCount) {
-  // 清空并销毁已有的 FocusNodes，避免内存泄漏
-  for (final node in _focusNodes) {
-    node.dispose();
-  }
-  _focusNodes.clear();
+  // 如果缓存中的 FocusNode 数量和需要的数量不一致，销毁并重建
+  if (_focusNodes.length != totalCount) {
+    // 清空并销毁已有的 FocusNodes，避免内存泄漏
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
+    _focusNodes.clear();
 
-  // 生成新的 FocusNode 列表
-  LogUtil.v('频道抽屉节点数量: $totalCount');
-  _focusNodes = List.generate(totalCount, (index) => FocusNode());
+    // 生成新的 FocusNode 列表并缓存
+    LogUtil.v('频道抽屉节点数量: $totalCount');
+    _focusNodes = List.generate(totalCount, (index) => FocusNode());
+  }
 }
 
 // 通用列表项构建函数
@@ -101,34 +104,41 @@ Widget buildListItem({
   int? index, // index 参数设为可选，用于获取 FocusNode
   bool useFocusableItem = true, // 控制是否使用 FocusableItem 包裹
 }) {
-  FocusNode? focusNode;
+  FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
+      ? _focusNodes[index]  // 从缓存中获取 FocusNode
+      : null;
 
   LogUtil.v('GroupList 索引: index = $index');
 
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
-    child: Container(
-      constraints: BoxConstraints(minHeight: minHeight), // 最小高度
-      padding: padding,
-      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: focusNode?.hasFocus ?? false), // 使用修正的装饰函数
-      child: Align(
-        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-        child: Text(
-          title,
-          style: isSelected || (focusNode?.hasFocus ?? false)
-              ? defaultTextStyle.merge(selectedTextStyle)
-              : defaultTextStyle, // 统一样式 + 选中项样式
-          softWrap: true,
-          maxLines: null, // 不限制行数
-          overflow: TextOverflow.visible, // 允许文字显示超出
-        ),
-      ),
+    child: ValueListenableBuilder<bool>(
+      valueListenable: focusNode ?? FocusNode(),
+      builder: (context, hasFocus, child) {
+        return Container(
+          constraints: BoxConstraints(minHeight: minHeight), // 最小高度
+          padding: padding,
+          decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus), // 使用修正的装饰函数
+          child: Align(
+            alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+            child: Text(
+              title,
+              style: isSelected || hasFocus
+                  ? defaultTextStyle.merge(selectedTextStyle)
+                  : defaultTextStyle, // 统一样式 + 选中项样式
+              softWrap: true,
+              maxLines: null, // 不限制行数
+              overflow: TextOverflow.visible, // 允许文字显示超出
+            ),
+          ),
+        );
+      },
     ),
   );
 
   // 根据 useFocusableItem 决定是否使用 FocusableItem 包裹
-  return useFocusableItem && index != null && index >= 0 && index < _focusNodes.length
-      ? FocusableItem(focusNode: _focusNodes[index]!, child: listItemContent)
+  return useFocusableItem && focusNode != null
+      ? FocusableItem(focusNode: focusNode, child: listItemContent)
       : listItemContent;
 }
 
@@ -866,6 +876,4 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
       ],
     ),
   );
-}
-
 }
