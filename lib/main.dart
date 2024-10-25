@@ -28,6 +28,15 @@ import 'setting/setting_page.dart';
 
 // 入口函数，使用 async 关键字确保异步操作可以在程序启动时完成
 void main() async {
+
+    FlutterError.onError = (FlutterErrorDetails details) {
+    // 记录错误到日志
+    LogUtil.logError('Uncaught Flutter error: ${details.exceptionAsString()}');
+    LogUtil.logError('Stack trace: ${details.stack.toString()}');  
+    // 继续使用Flutter的默认错误报告
+    FlutterError.dumpErrorToConsole(details);
+  };
+  
   // 确保 WidgetsFlutterBinding 已经初始化，必要时会为应用的生命周期提供必要的绑定。
   WidgetsFlutterBinding.ensureInitialized();
 
