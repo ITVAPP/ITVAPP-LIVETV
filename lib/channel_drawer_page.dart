@@ -735,15 +735,6 @@ void _onCategoryTap(int index) {
     }
   }
 
- // @override
-  //  void didUpdateWidget(covariant ChannelDrawerPage oldWidget) {
-  //    super.didUpdateWidget(oldWidget);
-  //    if (widget.playModel?.id != oldWidget.playModel?.id) {
-  //      _initializeChannelData();
-  //      _calculateViewportHeight();
-  //    }
- //   }
-
   // 检查焦点列表是否正确，如果不正确则重建
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _categories.length + _keys.length + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
@@ -777,7 +768,6 @@ Widget build(BuildContext context) {
   Widget? channelListWidget;
   Widget? epgListWidget;
 
-  if (_keys.isNotEmpty) {
     // 分组列表
     groupListWidget = GroupList(
       keys: _keys,
@@ -788,10 +778,11 @@ Widget build(BuildContext context) {
       isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,  // 分组列表起始索引
     );
-    currentFocusIndex += _keys.length; // 更新焦点索引
-
+    
+  if (_keys.isNotEmpty) {
     // 频道列表
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      currentFocusIndex += _keys.length; // 更新焦点索引
       channelListWidget = ChannelList(
         channels: _values[_groupIndex],
         selectedChannelName: widget.playModel?.title,
@@ -876,6 +867,5 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
     ),
   );
 }
-
 
 }
