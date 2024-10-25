@@ -66,9 +66,9 @@ const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
 BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
   return BoxDecoration(
-    color: isSelected
-        ? selectedColor // 选中项颜色
-        : (hasFocus ? unselectedColor : Colors.transparent), // 焦点项使用未选中颜色，其他为透明
+    color: hasFocus
+        ? unselectedColor // 焦点优先
+        : (isSelected ? selectedColor : Colors.transparent), // 没有焦点时使用选中颜色
   );
 }
 
@@ -91,6 +91,24 @@ void _initializeFocusNodes(int totalCount) {
   }
 }
 
+// 添加焦点监听逻辑的通用函数
+void addFocusListeners(int startIndex, int length) {
+  for (var i = 0; i < length; i++) {
+    _focusNodes[startIndex + i].addListener(() {
+      if (_focusNodes[startIndex + i].hasFocus || !_focusNodes[startIndex + i].hasFocus) {
+        setState(() {});
+      }
+    });
+  }
+}
+
+// 移除焦点监听逻辑的通用函数
+void removeFocusListeners(int startIndex, int length) {
+  for (var i = 0; i < length; i++) {
+    _focusNodes[startIndex + i].removeListener(() {});
+  }
+}
+
 // 通用列表项构建函数
 Widget buildListItem({
   required String title,
@@ -108,15 +126,6 @@ Widget buildListItem({
       ? _focusNodes[index]  // 从缓存中获取 FocusNode
       : null;
 
-  if (focusNode != null) {
-    focusNode.addListener(() {
-      // 使用setState来确保焦点变化会触发UI重建
-      if (focusNode.hasFocus || !focusNode.hasFocus) {
-        setState(() {}); // 直接调用 setState 来刷新
-      }
-    });
-  }
-
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
     child: Container(
@@ -127,9 +136,9 @@ Widget buildListItem({
         alignment: isCentered ? Alignment.center : Alignment.centerLeft,
         child: Text(
           title,
-          style: isSelected || (focusNode?.hasFocus ?? false)
+          style: (focusNode?.hasFocus ?? false) // 焦点优先
               ? defaultTextStyle.merge(selectedTextStyle)
-              : defaultTextStyle, // 统一样式 + 选中项样式
+              : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
           softWrap: true,
           maxLines: null, // 不限制行数
           overflow: TextOverflow.visible, // 允许文字显示超出
@@ -145,7 +154,7 @@ Widget buildListItem({
 }
 
 // 分类列表组件
-class CategoryList extends StatelessWidget {
+class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
@@ -162,14 +171,31 @@ class CategoryList extends StatelessWidget {
   });
 
   @override
+  _CategoryListState createState() => _CategoryListState();
+}
+
+class _CategoryListState extends State<CategoryList> {
+  @override
+  void initState() {
+    super.initState();
+    addFocusListeners(widget.startIndex, widget.categories.length);  // 添加焦点监听
+  }
+
+  @override
+  void dispose() {
+    removeFocusListeners(widget.startIndex, widget.categories.length);  // 移除焦点监听
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       color: defaultBackgroundColor,
       child: Group(
         groupIndex: 0,
         child: Column(
-          children: List.generate(categories.length, (index) {
-            final category = categories[index];
+          children: List.generate(widget.categories.length, (index) {
+            final category = widget.categories[index];
             final displayTitle = category == Config.myFavoriteKey
                 ? S.of(context).myfavorite
                 : category == Config.allChannelsKey
@@ -178,12 +204,12 @@ class CategoryList extends StatelessWidget {
 
             return buildListItem(
               title: displayTitle,
-              isSelected: selectedCategoryIndex == index,
-              onTap: () => onCategoryTap(index),
+              isSelected: widget.selectedCategoryIndex == index,
+              onTap: () => widget.onCategoryTap(index),
               isCentered: true,
-              isTV: isTV,
+              isTV: widget.isTV,
               context: context,
-              index: startIndex + index, // 使用 startIndex 来分配焦点索引
+              index: widget.startIndex + index, // 使用 startIndex 来分配焦点索引
             );
           }),
         ),
@@ -193,7 +219,7 @@ class CategoryList extends StatelessWidget {
 }
 
 // 分组列表组件
-class GroupList extends StatelessWidget {
+class GroupList extends StatefulWidget {
   final List<String> keys;
   final ScrollController scrollController;
   final int selectedGroupIndex;
@@ -214,22 +240,38 @@ class GroupList extends StatelessWidget {
   });
 
   @override
+  _GroupListState createState() => _GroupListState();
+}
+
+class _GroupListState extends State<GroupList> {
+  @override
+  void initState() {
+    super.initState();
+    addFocusListeners(widget.startIndex, widget.keys.length);  // 添加焦点监听
+  }
+
+  @override
+  void dispose() {
+    removeFocusListeners(widget.startIndex, widget.keys.length);  // 移除焦点监听
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 当为空时，直接返回空容器
-    if (keys.isEmpty && !isFavoriteCategory) {
+    if (widget.keys.isEmpty && !widget.isFavoriteCategory) {
       return const SizedBox.shrink(); // 空容器
     }
 
     return Container(
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
-        controller: scrollController,
+        controller: widget.scrollController,
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height), // 设置最小高度为屏幕高度
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height), 
           child: IntrinsicHeight(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
-              children: keys.isEmpty && isFavoriteCategory
+              crossAxisAlignment: CrossAxisAlignment.start, 
+              children: widget.keys.isEmpty && widget.isFavoriteCategory
                   ? [
                       Container(
                         constraints: BoxConstraints(minHeight: defaultMinHeight),
@@ -246,16 +288,16 @@ class GroupList extends StatelessWidget {
                   : [
                       Group(
                         groupIndex: 1,
-                        children: List.generate(keys.length, (index) {
+                        children: List.generate(widget.keys.length, (index) {
                           return buildListItem(
-                            title: keys[index],
-                            isSelected: selectedGroupIndex == index,
-                            onTap: () => onGroupTap(index),
+                            title: widget.keys[index],
+                            isSelected: widget.selectedGroupIndex == index,
+                            onTap: () => widget.onGroupTap(index),
                             isCentered: true,
-                            isTV: isTV,
+                            isTV: widget.isTV,
                             minHeight: defaultMinHeight,
                             context: context,
-                            index: startIndex + index, // 使用 startIndex 来分配焦点索引
+                            index: widget.startIndex + index, // 使用 startIndex 来分配焦点索引
                           );
                         }),
                       ),
@@ -295,6 +337,8 @@ class _ChannelListState extends State<ChannelList> {
   @override
   void initState() {
     super.initState();
+    addFocusListeners(widget.startIndex, widget.channels.length);  // 添加焦点监听
+
     if (widget.isTV && widget.selectedChannelName != null) {
       WidgetsBinding.instance?.addPostFrameCallback((_) {
         final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
@@ -303,6 +347,12 @@ class _ChannelListState extends State<ChannelList> {
         }
       });
     }
+  }
+
+  @override
+  void dispose() {
+    removeFocusListeners(widget.startIndex, widget.channels.length);  // 移除焦点监听
+    super.dispose();
   }
 
   @override
@@ -322,7 +372,7 @@ class _ChannelListState extends State<ChannelList> {
           constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height), // 设置最小高度为屏幕高度
           child: IntrinsicHeight(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
+              crossAxisAlignment: CrossAxisAlignment.start, 
               children: [
                 Group(
                   groupIndex: 2,
