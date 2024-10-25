@@ -108,31 +108,33 @@ Widget buildListItem({
       ? _focusNodes[index]  // 从缓存中获取 FocusNode
       : null;
 
-  LogUtil.v('GroupList 索引: index = $index');
+  if (focusNode != null) {
+    focusNode.addListener(() {
+      // 使用setState来确保焦点变化会触发UI重建
+      if (focusNode.hasFocus || !focusNode.hasFocus) {
+        setState(() {}); // 直接调用 setState 来刷新
+      }
+    });
+  }
 
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
-    child: ValueListenableBuilder<bool>(
-      valueListenable: focusNode ?? FocusNode(),
-      builder: (context, hasFocus, child) {
-        return Container(
-          constraints: BoxConstraints(minHeight: minHeight), // 最小高度
-          padding: padding,
-          decoration: buildItemDecoration(isSelected: isSelected, hasFocus: hasFocus), // 使用修正的装饰函数
-          child: Align(
-            alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-            child: Text(
-              title,
-              style: isSelected || hasFocus
-                  ? defaultTextStyle.merge(selectedTextStyle)
-                  : defaultTextStyle, // 统一样式 + 选中项样式
-              softWrap: true,
-              maxLines: null, // 不限制行数
-              overflow: TextOverflow.visible, // 允许文字显示超出
-            ),
-          ),
-        );
-      },
+    child: Container(
+      constraints: BoxConstraints(minHeight: minHeight), // 最小高度
+      padding: padding,
+      decoration: buildItemDecoration(isSelected: isSelected, hasFocus: focusNode?.hasFocus ?? false), // 使用修正的装饰函数
+      child: Align(
+        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+        child: Text(
+          title,
+          style: isSelected || (focusNode?.hasFocus ?? false)
+              ? defaultTextStyle.merge(selectedTextStyle)
+              : defaultTextStyle, // 统一样式 + 选中项样式
+          softWrap: true,
+          maxLines: null, // 不限制行数
+          overflow: TextOverflow.visible, // 允许文字显示超出
+        ),
+      ),
     ),
   );
 
