@@ -29,10 +29,9 @@ import 'setting/setting_page.dart';
 // 入口函数，使用 async 关键字确保异步操作可以在程序启动时完成
 void main() async {
 
-    FlutterError.onError = (FlutterErrorDetails details) {
+  FlutterError.onError = (FlutterErrorDetails details) {
     // 记录错误到日志
-    LogUtil.logError('Uncaught Flutter error: ${details.exceptionAsString()}');
-    LogUtil.logError('Stack trace: ${details.stack.toString()}');  
+    LogUtil.logError('Uncaught Flutter error', details.exception, details.stack);
     // 继续使用Flutter的默认错误报告
     FlutterError.dumpErrorToConsole(details);
   };
