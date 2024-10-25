@@ -136,7 +136,7 @@ Widget buildListItem({
   );
 
   // 根据 useFocusableItem 决定是否使用 FocusableItem 包裹
-  return useFocusableItem && focusNode != null
+  return useFocusableItem && index != null && index >= 0 && index < _focusNodes.length
       ? FocusableItem(focusNode: _focusNodes[index]!, child: listItemContent)
       : listItemContent;
 }
