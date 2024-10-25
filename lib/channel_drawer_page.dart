@@ -744,26 +744,42 @@ void _onCategoryTap(int index) {
   //    }
  //   }
 
-  @override
-  Widget build(BuildContext context) {
-    // 获取 isTV 状态
-    bool isTV = context.read<ThemeProvider>().isTV;
+  // 检查焦点列表是否正确，如果不正确则重建
+  List<FocusNode> _ensureCorrectFocusNodes() {
+    int totalNodesExpected = _categories.length + _keys.length + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    // 如果焦点节点的数量不符合预期，则重新生成焦点列表
+    if (_focusNodes.length != totalNodesExpected) {
+      _initializeFocusNodes(totalNodesExpected); // 根据需要重新初始化焦点节点
+    }
+    return _focusNodes; // 返回更新后的焦点列表
+  }
+  
+@override
+Widget build(BuildContext context) {
+  // 获取 isTV 状态
+  bool isTV = context.read<ThemeProvider>().isTV;
 
-    // 索引管理
-    int currentFocusIndex = 0; // 从0开始
+  // 索引管理
+  int currentFocusIndex = 0; // 从0开始
 
-    // 分类列表
-    Widget categoryListWidget = CategoryList(
-      categories: _categories,
-      selectedCategoryIndex: _categoryIndex,
-      onCategoryTap: _onCategoryTap,
-      isTV: isTV,
-      startIndex: currentFocusIndex,  // 分类列表起始索引
-    );
-    currentFocusIndex += _categories.length; // 更新焦点索引
+  // 分类列表
+  Widget categoryListWidget = CategoryList(
+    categories: _categories,
+    selectedCategoryIndex: _categoryIndex,
+    onCategoryTap: _onCategoryTap,
+    isTV: isTV,
+    startIndex: currentFocusIndex,  // 分类列表起始索引
+  );
+  currentFocusIndex += _categories.length; // 更新焦点索引
 
+  // 如果 _keys 为空，则不显示分组、频道和 EPG 列表
+  Widget? groupListWidget;
+  Widget? channelListWidget;
+  Widget? epgListWidget;
+
+  if (_keys.isNotEmpty) {
     // 分组列表
-    Widget groupListWidget = GroupList(
+    groupListWidget = GroupList(
       keys: _keys,
       selectedGroupIndex: _groupIndex,
       onGroupTap: _onGroupTap,
@@ -775,101 +791,91 @@ void _onCategoryTap(int index) {
     currentFocusIndex += _keys.length; // 更新焦点索引
 
     // 频道列表
-    Widget channelListWidget = ChannelList(
-      channels: _values[_groupIndex],
-      selectedChannelName: widget.playModel?.title,
-      onChannelTap: _onChannelTap,
-      isTV: isTV,
-      scrollController: _scrollChannelController,
-      startIndex: currentFocusIndex,  // 频道列表起始索引
-    );
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      channelListWidget = ChannelList(
+        channels: _values[_groupIndex],
+        selectedChannelName: widget.playModel?.title,
+        onChannelTap: _onChannelTap,
+        isTV: isTV,
+        scrollController: _scrollChannelController,
+        startIndex: currentFocusIndex,  // 频道列表起始索引
+      );
 
-    // EPG 列表
-    Widget epgListWidget = EPGList(
-      epgData: _epgData,
-      selectedIndex: _selEPGIndex,
-      isTV: isTV,
-      epgScrollController: _epgItemScrollController,
-      onCloseDrawer: widget.onCloseDrawer,
-    );
-
-    return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
-      focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
-      isVerticalGroup: true, // 启用竖向分组
-      initialIndex: 0, // 组件不自动设置初始焦点
-      child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
-    );
-  }
-
-  // 检查焦点列表是否正确，如果不正确则重建
-  List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length + _keys.length + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-    // 如果焦点节点的数量不符合预期，则重新生成焦点列表
-    if (_focusNodes.length != totalNodesExpected) {
-      _initializeFocusNodes(totalNodesExpected); // 根据需要重新初始化焦点节点
+      // EPG 列表
+      epgListWidget = EPGList(
+        epgData: _epgData,
+        selectedIndex: _selEPGIndex,
+        isTV: isTV,
+        epgScrollController: _epgItemScrollController,
+        onCloseDrawer: widget.onCloseDrawer,
+      );
     }
-    return _focusNodes; // 返回更新后的焦点列表
   }
 
-  // 构建抽屉视图
-  Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget groupListWidget, Widget channelListWidget, Widget epgListWidget) {
-    bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    double categoryWidth = 110; // 分类列表宽度
+  return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
+    focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
+    isVerticalGroup: true, // 启用竖向分组
+    initialIndex: 0, // 组件不自动设置初始焦点
+    child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
+  );
+}
 
-    // 设置分组列表宽度
-    double groupWidth = (_keys.isNotEmpty && _categoryIndex >= 0 && _categoryIndex < _categories.length && _categories[_categoryIndex] == Config.myFavoriteKey)
-        ? 120
-        : (_keys.isNotEmpty ? 120 : 0);
+// 构建抽屉视图
+Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
+  bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+  double categoryWidth = 110; // 分类列表宽度
 
-    // 设置频道列表宽度
-    double channelListWidth = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty)
-        ? (isPortrait
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth
-        : 160)
-        : 0;
+  // 设置分组列表宽度
+  double groupWidth = groupListWidget != null ? 120 : 0;
 
-    // 设置 EPG 列表宽度
-    double epgListWidth =
-        (isPortrait || _epgData == null || _epgData!.isEmpty)
-            ? 0
-            : MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth;
+  // 设置频道列表宽度
+  double channelListWidth = (groupListWidget != null && channelListWidget != null)
+      ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160)
+      : 0;
 
-    return Container(
-      key: _viewPortKey,
-      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      width: widget.isLandscape
-          ? categoryWidth + groupWidth + channelListWidth + epgListWidth
-          : MediaQuery.of(context).size.width, // 获取屏幕宽度
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
-      ),
-      child: Row(
-        children: [
+  // 设置 EPG 列表宽度
+  double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
+      ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
+      : 0;
+
+  return Container(
+    key: _viewPortKey,
+    padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
+    width: widget.isLandscape
+        ? categoryWidth + groupWidth + channelListWidth + epgListWidth
+        : MediaQuery.of(context).size.width, // 获取屏幕宽度
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
+    ),
+    child: Row(
+      children: [
+        SizedBox(
+          width: categoryWidth,
+          child: categoryListWidget,
+        ),
+        verticalDivider,
+        if (groupListWidget != null)
           SizedBox(
-            width: categoryWidth,
-            child: categoryListWidget,
+            width: groupWidth,
+            child: groupListWidget,
           ),
+        if (groupListWidget != null) verticalDivider,
+        if (channelListWidget != null)
+          SizedBox(
+            width: channelListWidth, // 频道列表宽度
+            child: channelListWidget,
+          ),
+        if (epgListWidget != null) ...[
           verticalDivider,
-          if (groupWidth > 0)
-            SizedBox(
-              width: groupWidth,
-              child: groupListWidget,
-            ),
-          verticalDivider,
-          if (channelListWidth > 0)
-            SizedBox(
-              width: channelListWidth, // 频道列表宽度
-              child: channelListWidget,
-            ),
-          if (epgListWidth > 0 && _epgData != null && _epgData!.isNotEmpty) ...[
-            verticalDivider,
-            SizedBox(
-              width: epgListWidth,
-              child: epgListWidget,
-            ),
-          ],
+          SizedBox(
+            width: epgListWidth,
+            child: epgListWidget,
+          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
+
+
 }
