@@ -203,6 +203,11 @@ class GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 当为空时，直接返回空容器
+    if (keys.isEmpty) {
+      return const SizedBox.shrink(); // 空容器
+    }
+
     return Container(
       color: defaultBackgroundColor,
       child: SingleChildScrollView(
@@ -212,7 +217,7 @@ class GroupList extends StatelessWidget {
           child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, // 确保内容从顶部对齐
-              children: keys.isEmpty
+              children: keys.isEmpty && isFavoriteCategory
                   ? [
                       Container(
                         constraints: BoxConstraints(minHeight: defaultMinHeight),
