@@ -597,6 +597,8 @@ void _initializeChannelData() {
 
   // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
+  if (_categoryIndex == index) return; // 避免重复执行
+
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
 
@@ -604,8 +606,9 @@ void _onCategoryTap(int index) {
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-    // 如果分组为空，直接返回，不更新频道
+    // 如果分组为空，清空 _keys 并返回
     if (categoryMap == null || categoryMap.isEmpty) {
+      _resetChannelData(); 
       return;
     }
 
