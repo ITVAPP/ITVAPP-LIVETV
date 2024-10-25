@@ -94,30 +94,19 @@ void _initializeFocusNodes(int totalCount) {
 // 添加焦点监听逻辑的通用函数
 void addFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
-    final node = _focusNodes[startIndex + i];
-    if (!node.hasListeners) {
-      node.addListener(() {
-        if (mounted) { // 确保组件已挂载
-          setState(() {});
-        }
-      });
-    }
+    _focusNodes[startIndex + i].addListener(() {
+      if (_focusNodes[startIndex + i].hasFocus || !_focusNodes[startIndex + i].hasFocus) {
+        setState(() {});
+      }
+    });
   }
 }
 
 // 移除焦点监听逻辑的通用函数
 void removeFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
-    final node = _focusNodes[startIndex + i];
-    if (node.hasListeners) {
-      node.removeListener(() {});
-    }
+    _focusNodes[startIndex + i].removeListener(() {});
   }
-}
-
-// 获取 FocusNode 函数，用于简化重复逻辑
-FocusNode? getFocusNode(int? index) {
-  return (index != null && index >= 0 && index < _focusNodes.length) ? _focusNodes[index] : null;
 }
 
 // 通用列表项构建函数
@@ -133,7 +122,9 @@ Widget buildListItem({
   int? index, // index 参数设为可选，用于获取 FocusNode
   bool useFocusableItem = true, // 控制是否使用 FocusableItem 包裹
 }) {
-  FocusNode? focusNode = getFocusNode(index);  // 使用封装的函数
+  FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
+      ? _focusNodes[index]  // 从缓存中获取 FocusNode
+      : null;
 
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
@@ -349,12 +340,10 @@ class _ChannelListState extends State<ChannelList> {
     addFocusListeners(widget.startIndex, widget.channels.length);  // 添加焦点监听
 
     if (widget.isTV && widget.selectedChannelName != null) {
-      Future.microtask(() {
+      WidgetsBinding.instance?.addPostFrameCallback((_) {
         final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
         if (index != -1 && isOutOfView(context)) {
-          Future.delayed(Duration(milliseconds: 100), () {
-            Scrollable.ensureVisible(context, alignment: 0.5, duration: Duration(milliseconds: 300));
-          });
+          Scrollable.ensureVisible(context, alignment: 0.5, duration: Duration.zero);
         }
       });
     }
@@ -567,11 +556,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void dispose() {
-    _scrollController.dispose();
-    _scrollChannelController.dispose();
+    WidgetsBinding.instance.removeObserver(this); // 停止监听窗口变化
+    if (_scrollController.hasClients) {
+      _scrollController.dispose();
+    }
+    if (_scrollChannelController.hasClients) {
+      _scrollChannelController.dispose();
+    }
     _focusNodes.forEach((node) => node.dispose()); // 销毁所有 FocusNode
     _focusNodes.clear(); // 清空 FocusNode 列表
-    WidgetsBinding.instance.removeObserver(this); // 停止监听窗口变化
     super.dispose();
   }
 
@@ -739,7 +732,7 @@ void _onCategoryTap(int index) {
 
   // 计算视图窗口的高度
   void _calculateViewportHeight() {
-    Future.microtask(() {
+    WidgetsBinding.instance?.addPostFrameCallback((_) {
       final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
         final height = renderBox.size.height * 0.5; // 取窗口高度的一半
