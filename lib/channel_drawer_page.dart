@@ -719,13 +719,16 @@ void _onCategoryTap(int index) {
      }
   });
   
-  // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    // 调用刷新焦点组件
-    final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+  // 调用刷新焦点组件
+  final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+  if (tvKeyNavState != null) {
+    LogUtil.v('找到TvKeyNavigationState');
     tvKeyNavState?.releaseResources();
     tvKeyNavState?.initializeFocusLogic(initialIndexOverride: index);
-  });
+  } else {
+    LogUtil.v('无法找到TvKeyNavigationState');
+  }
+  
 }
 
 // 切换分组时更新频道
