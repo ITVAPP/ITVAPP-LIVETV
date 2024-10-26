@@ -929,3 +929,4 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
     ),
   );
 }
+}
