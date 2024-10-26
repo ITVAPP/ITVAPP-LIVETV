@@ -707,6 +707,10 @@ void _onCategoryTap(int index) {
     _scrollToTop(_scrollController);
     _scrollToTop(_scrollChannelController);
   });
+  
+    // 调用刷新分组焦点缓存
+    TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+    tvKeyNavState?.refreshGroupFocusCache();
 }
 
   // 切换分组时更新频道
@@ -725,6 +729,10 @@ void _onCategoryTap(int index) {
 
       _scrollToTop(_scrollChannelController);
     });
+    
+    // 调用刷新分组焦点缓存
+    TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+    tvKeyNavState?.refreshGroupFocusCache();
   }
 
   // 切换频道
