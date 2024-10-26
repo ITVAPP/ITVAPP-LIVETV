@@ -34,10 +34,10 @@ class TvKeyNavigation extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _TvKeyNavigationState createState() => _TvKeyNavigationState();
+  TvKeyNavigationState createState() => TvKeyNavigationState();
 }
 
-class _TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
+class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   List<OverlayEntry> _debugOverlays = []; // 调试信息窗口集合
   List<String> _debugMessages = []; // 用于存储调试消息
