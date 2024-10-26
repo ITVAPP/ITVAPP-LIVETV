@@ -753,6 +753,8 @@ void _onGroupTap(int index) {
 
   // 在下一帧将焦点设置到新分组的第一个频道项
     if (_tvKeyNavigationState != null) {
+      // 计算当前分组第一个频道项的焦点索引
+      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       _tvKeyNavigationState?.releaseResources();
       _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
     } else {
