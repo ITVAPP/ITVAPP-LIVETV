@@ -722,7 +722,9 @@ void _onCategoryTap(int index) {
   // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
   WidgetsBinding.instance.addPostFrameCallback((_) {
     // 调用刷新焦点组件
-      context.findAncestorStateOfType<TvKeyNavigationState>()?.initializeFocusLogic(initialIndexOverride: _categoryIndex); 
+    final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+    tvKeyNavState?.releaseResources();
+    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: _categoryIndex);
   });
 }
 
@@ -751,7 +753,9 @@ void _onGroupTap(int index) {
     // 计算当前分组第一个频道项的焦点索引
     int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
     // 刷新焦点缓存确保焦点位置正确
-    context.findAncestorStateOfType<TvKeyNavigationState>()?.initializeFocusLogic(initialIndexOverride: _firstChannelFocusIndex); 
+    final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
+    tvKeyNavState?.releaseResources();
+    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: _firstChannelFocusIndex);
   });
 }
 
