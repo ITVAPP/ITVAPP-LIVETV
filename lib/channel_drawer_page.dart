@@ -251,7 +251,7 @@ class _GroupListState extends State<GroupList> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, widget.keys.length);  // 添加焦点监听
+    addFocusListeners(widget.startIndex, widget.keys.length, _onFocusChange);  // 添加焦点监听
   }
 
   @override
@@ -341,7 +341,7 @@ class _ChannelListState extends State<ChannelList> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, widget.channels.length);  // 添加焦点监听
+    addFocusListeners(widget.startIndex, widget.channels.length, _onFocusChange);  // 添加焦点监听
 
     if (widget.isTV && widget.selectedChannelName != null) {
       WidgetsBinding.instance?.addPostFrameCallback((_) {
