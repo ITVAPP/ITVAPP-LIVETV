@@ -92,11 +92,11 @@ void _initializeFocusNodes(int totalCount) {
 }
 
 // 添加焦点监听逻辑的通用函数
-void addFocusListeners(int startIndex, int length) {
+void addFocusListeners(int startIndex, int length, Function onFocusChange) {
   for (var i = 0; i < length; i++) {
     _focusNodes[startIndex + i].addListener(() {
       if (_focusNodes[startIndex + i].hasFocus || !_focusNodes[startIndex + i].hasFocus) {
-        setState(() {});
+        onFocusChange(); 
       }
     });
   }
@@ -178,8 +178,12 @@ class _CategoryListState extends State<CategoryList> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, widget.categories.length);  // 添加焦点监听
+    addFocusListeners(widget.startIndex, widget.categories.length, _onFocusChange);  // 添加焦点监听
   }
+  
+  void _onFocusChange() {
+   setState(() {}); // 更新状态
+ }
 
   @override
   void dispose() {
