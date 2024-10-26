@@ -691,6 +691,8 @@ void _onCategoryTap(int index) {
     // 如果分组为空，清空 _keys 并返回
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
+        // 初始化焦点节点，仅包含分类节点
+      _initializeFocusNodes(_categories.length);
       return;
     }
 
