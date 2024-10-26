@@ -688,29 +688,38 @@ void _onCategoryTap(int index) {
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-    // 如果分组为空，清空 _keys 并返回
+    // 如果分组为空，清空 _keys 并继续执行焦点刷新
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
       _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
-      return;
+    } else {
+      // 分组不为空时，初始化频道数据
+      _initializeChannelData();
+
+      // 计算新分类下的总节点数，并初始化 FocusNode
+      int totalFocusNodes = _categories.length
+          + _keys.length
+          + _values[_groupIndex].length;
+      _initializeFocusNodes(totalFocusNodes);
     }
-
-    // 分组不为空时，初始化频道数据
-    _initializeChannelData();
-
-    // 计算新分类下的总节点数，并初始化 FocusNode
-    int totalFocusNodes = _categories.length
-        + _keys.length
-        + _values[_groupIndex].length;
-    _initializeFocusNodes(totalFocusNodes);
 
     // 重置滚动位置
     _scrollToTop(_scrollController);
     _scrollToTop(_scrollChannelController);
   });
   
-  // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
+  // 在下一帧刷新焦点和显示内容的索引
   WidgetsBinding.instance.addPostFrameCallback((_) {
+    setState(() {
+      // 确保显示的每个列表项获取最新的 FocusNode 索引
+      for (int i = 0; i < _focusNodes.length; i++) {
+        if (_focusNodes[i].hasFocus) {
+          _focusNodes[i].requestFocus(); // 强制更新当前焦点
+        }
+      }
+    });
+    
+    // 设置焦点到当前选中的分类按钮上，避免焦点丢失
     _focusNodes[_categoryIndex].requestFocus(); // 将焦点设置到当前分类的焦点节点
 
     // 调用刷新焦点缓存，确保焦点缓存与最新焦点节点一致
@@ -740,7 +749,18 @@ void _onGroupTap(int index) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     // 计算当前分组第一个频道项的焦点索引
     int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+
+    setState(() {
+      // 确保显示的每个列表项获取最新的 FocusNode 索引
+      for (int i = 0; i < _focusNodes.length; i++) {
+        if (_focusNodes[i].hasFocus) {
+          _focusNodes[i].requestFocus(); // 强制更新当前焦点
+        }
+      }
+    });
+
     _focusNodes[firstChannelFocusIndex].requestFocus(); // 设置焦点到当前分组的第一个频道
+
     // 刷新焦点缓存确保焦点位置正确
     TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.refreshGroupFocusCache();
