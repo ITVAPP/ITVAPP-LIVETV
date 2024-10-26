@@ -724,7 +724,7 @@ void _onCategoryTap(int index) {
     // 调用刷新焦点组件
     final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.releaseResources();
-    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: _categoryIndex);
+    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: index);
   });
 }
 
