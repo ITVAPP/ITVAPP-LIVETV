@@ -181,6 +181,7 @@ class _CategoryListState extends State<CategoryList> {
     addFocusListeners(widget.startIndex, widget.categories.length, _onFocusChange);  // 添加焦点监听
   }
   
+  @override
   void _onFocusChange() {
    setState(() {}); // 更新状态
  }
@@ -254,6 +255,11 @@ class _GroupListState extends State<GroupList> {
     addFocusListeners(widget.startIndex, widget.keys.length, _onFocusChange);  // 添加焦点监听
   }
 
+ @override
+  void _onFocusChange() {
+    setState(() {}); // 更新状态
+  }
+  
   @override
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.keys.length);  // 移除焦点监听
@@ -353,6 +359,11 @@ class _ChannelListState extends State<ChannelList> {
     }
   }
 
+ @override
+  void _onFocusChange() {
+    setState(() {}); // 更新状态
+  }
+  
   @override
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.channels.length);  // 移除焦点监听
