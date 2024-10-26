@@ -17,11 +17,13 @@ class CheckVersionUtil {
   static final releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL
   static final homeLink = EnvUtil.sourceHomeHost();  // 应用主页URL
   static VersionEntity? latestVersionEntity;  // 存储最新的版本信息
+  static const String _lastPromptDateKey = 'lastPromptDate';  // 存储键名常量
 
   // 保存最后一次弹出提示的日期
   static Future<void> saveLastPromptDate() async {
     try {
-      await SpUtil.putString('lastPromptDate', DateTime.now().toIso8601String());
+      final dateStr = DateTime.now().toIso8601String();
+      await SpUtil.putString(_lastPromptDateKey, dateStr);
     } catch (e, stackTrace) {
       LogUtil.logError('保存最后提示日期失败', e, stackTrace);  // 错误处理
     }
@@ -30,13 +32,17 @@ class CheckVersionUtil {
   // 获取最后一次弹出提示的日期
   static Future<String?> getLastPromptDate() async {
     try {
-      final dateStr = SpUtil.getString('lastPromptDate');  // 获取提示日期
-      if (dateStr != null && DateTime.tryParse(dateStr) != null) {  // 验证日期格式
-        return dateStr;
-      } else {
-        LogUtil.logError('提示日期格式无效', 'Invalid date format');
-        return null;  // 如果格式不正确，返回 null
+      final dateStr = SpUtil.getString(_lastPromptDateKey);  // 获取提示日期
+      if (dateStr != null) {
+        final DateTime? parsedDate = DateTime.tryParse(dateStr);
+        if (parsedDate != null) {
+          return dateStr;
+        }
+        // 如果解析失败，清除无效数据
+        await SpUtil.remove(_lastPromptDateKey);
       }
+      LogUtil.logError('提示日期格式无效', 'Invalid date format');
+      return null;  // 如果格式不正确，返回 null
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
       return null;
@@ -53,7 +59,7 @@ class CheckVersionUtil {
       final currentDate = DateTime.now();  // 获取当前日期
 
       // 检查是否超过1天，若是则返回 true
-      return currentDate.difference(lastDate).inDays >= 1;
+      return currentDate.difference(lastDate).inHours >= 24;  // 使用小时计算更精确
     } catch (e, stackTrace) {
       LogUtil.logError('检查提示间隔失败', e, stackTrace);  // 错误处理
       return true;  // 发生错误时，默认返回 true，确保用户仍会收到提示
