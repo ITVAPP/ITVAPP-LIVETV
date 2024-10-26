@@ -755,7 +755,7 @@ void _onGroupTap(int index) {
     // 刷新焦点缓存确保焦点位置正确
     final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.releaseResources();
-    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: _firstChannelFocusIndex);
+    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
   });
 }
 
