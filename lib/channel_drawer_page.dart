@@ -542,6 +542,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   late int _channelIndex; // 当前频道的索引
   late List<String> _categories; // 分类的列表
   late int _categoryIndex; // 当前选中的分类索引
+  int _categoryStartIndex = 0;
+  int _groupStartIndex = 0;
+  int _channelStartIndex = 0;
 
   @override
   void initState() {
@@ -590,6 +593,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       setState(() {
         _viewPortHeight = newHeight;
         _adjustScrollPositions(); // 调整滚动位置
+      _updateStartIndexes(
+        includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
+      ); // 更新焦点索引
       });
     }
   }
@@ -778,6 +784,9 @@ void _onGroupTap(int index) {
         setState(() {
           _viewPortHeight = height;
           _adjustScrollPositions(); // 调整滚动位置
+          _updateStartIndexes(
+              includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
+          ); // 更新索引，确保焦点的正确性
         });
       }
     });
