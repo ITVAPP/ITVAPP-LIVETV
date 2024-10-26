@@ -126,6 +126,7 @@ Widget buildListItem({
       ? _focusNodes[index]  // 从缓存中获取 FocusNode
       : null;
 
+  LogUtil.v('$title 分配索引: $index');
   Widget listItemContent = GestureDetector(
     onTap: onTap, // 处理点击事件
     child: Container(
