@@ -721,10 +721,8 @@ void _onCategoryTap(int index) {
   
   // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _focusNodes[_categoryIndex].requestFocus(); // 将焦点设置到当前分类的焦点节点
-
-    // 调用刷新焦点缓存，确保焦点缓存与最新焦点节点一致
-     context.findAncestorStateOfType<TvKeyNavigationState>()?.refreshGroupFocusCache();
+    // 调用刷新焦点组件
+      context.findAncestorStateOfType<TvKeyNavigationState>()?.initializeFocusLogic(initialIndexOverride: _categoryIndex); 
   });
 }
 
@@ -752,9 +750,8 @@ void _onGroupTap(int index) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     // 计算当前分组第一个频道项的焦点索引
     int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-    _focusNodes[firstChannelFocusIndex].requestFocus(); // 设置焦点到当前分组的第一个频道
     // 刷新焦点缓存确保焦点位置正确
-    context.findAncestorStateOfType<TvKeyNavigationState>()?.refreshGroupFocusCache();
+    context.findAncestorStateOfType<TvKeyNavigationState>()?.initializeFocusLogic(initialIndexOverride: _firstChannelFocusIndex); 
   });
 }
 
@@ -785,9 +782,6 @@ void _onGroupTap(int index) {
         setState(() {
           _viewPortHeight = height;
           _adjustScrollPositions(); // 调整滚动位置
-          _updateStartIndexes(
-              includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
-          ); // 更新索引，确保焦点的正确性
         });
       }
     });
