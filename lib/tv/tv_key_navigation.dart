@@ -75,6 +75,15 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void initializeFocusLogic({int? initialIndexOverride}) { 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
+      	
+       // 判断 focusNodes 是否有效
+      if (widget.focusNodes.isEmpty) {
+        _manageDebugOverlay(message: 'focusNodes 为空，无法设置焦点');
+        return; // focusNodes 无效，直接返回
+      } else {
+        _manageDebugOverlay(message: '正在初始化焦点逻辑，共 ${widget.focusNodes.length} 个节点');
+      }
+      
         _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
