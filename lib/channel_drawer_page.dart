@@ -711,7 +711,7 @@ void _onCategoryTap(int index) {
   
   // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _requestFocus(_categoryIndex); // 将焦点设置到当前分类的焦点节点
+    _focusNodes[_categoryIndex].requestFocus(); // 将焦点设置到当前分类的焦点节点
 
     // 调用刷新焦点缓存，确保焦点缓存与最新焦点节点一致
     TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
@@ -740,8 +740,7 @@ void _onGroupTap(int index) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     // 计算当前分组第一个频道项的焦点索引
     int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-    _requestFocus(firstChannelFocusIndex); // 设置焦点到当前分组的第一个频道
-
+    _focusNodes[firstChannelFocusIndex].requestFocus(); // 设置焦点到当前分组的第一个频道
     // 刷新焦点缓存确保焦点位置正确
     TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.refreshGroupFocusCache();
