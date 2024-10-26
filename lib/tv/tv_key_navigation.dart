@@ -266,6 +266,13 @@ void _manageDebugOverlay({String? message}) {
     }
   }
 
+  /// 刷新 Group 缓存的焦点信息
+void refreshGroupFocusCache() {
+  _groupFocusCache.clear();
+  _cacheGroupFocusNodes();  // 重新缓存当前的焦点节点信息
+  _manageDebugOverlay(message: '已刷新分组焦点缓存');
+}
+
   /// 缓存 Group 的焦点信息
 void _cacheGroupFocusNodes() {
   _groupFocusCache.clear();  // 清空缓存
