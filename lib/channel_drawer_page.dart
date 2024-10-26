@@ -677,7 +677,7 @@ void _initializeChannelData() {
     _selEPGIndex = 0;
   }
 
-  // 切换分类时更新分组和频道
+// 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
   if (_categoryIndex == index) return; // 避免重复执行
 
@@ -691,8 +691,7 @@ void _onCategoryTap(int index) {
     // 如果分组为空，清空 _keys 并返回
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
-        // 初始化焦点节点，仅包含分类节点
-      _initializeFocusNodes(_categories.length);
+      _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
       return;
     }
 
@@ -710,32 +709,44 @@ void _onCategoryTap(int index) {
     _scrollToTop(_scrollChannelController);
   });
   
-    // 调用刷新分组焦点缓存
+  // 在下一帧设置焦点到当前选中的分类按钮上，避免焦点丢失
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _requestFocus(_categoryIndex); // 将焦点设置到当前分类的焦点节点
+
+    // 调用刷新焦点缓存，确保焦点缓存与最新焦点节点一致
     TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.refreshGroupFocusCache();
+  });
 }
 
-  // 切换分组时更新频道
-  void _onGroupTap(int index) {
-    setState(() {
-      _groupIndex = index;
-      _channelIndex = 0; // 重置频道索引
+// 切换分组时更新频道
+void _onGroupTap(int index) {
+  setState(() {
+    _groupIndex = index;
+    _channelIndex = 0; // 重置频道索引到第一个频道
 
-      // 重新计算所需节点数，并初始化FocusNode
-      int totalFocusNodes = _categories.length
-          + (_keys.isNotEmpty ? _keys.length : 0)
-          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-          ? _values[_groupIndex].length
-          : 0);
-      _initializeFocusNodes(totalFocusNodes);
+    // 重新计算所需节点数，并初始化 FocusNode
+    int totalFocusNodes = _categories.length
+        + (_keys.isNotEmpty ? _keys.length : 0)
+        + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+            ? _values[_groupIndex].length
+            : 0);
+    _initializeFocusNodes(totalFocusNodes);
 
-      _scrollToTop(_scrollChannelController);
-    });
-    
-    // 调用刷新分组焦点缓存
+    _scrollToTop(_scrollChannelController);
+  });
+
+  // 在下一帧将焦点设置到新分组的第一个频道项
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 计算当前分组第一个频道项的焦点索引
+    int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+    _requestFocus(firstChannelFocusIndex); // 设置焦点到当前分组的第一个频道
+
+    // 刷新焦点缓存确保焦点位置正确
     TvKeyNavigationState? tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
     tvKeyNavState?.refreshGroupFocusCache();
-  }
+  });
+}
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
