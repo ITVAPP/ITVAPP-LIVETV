@@ -61,16 +61,28 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   void initState() {
     super.initState();
+    initializeFocusLogic(); // 调用初始化焦点逻辑
+    WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
+  }
 
+  @override
+  void dispose() {
+    releaseResources(); // 调用资源释放逻辑
+    super.dispose();
+  }
+
+  /// 初始化焦点逻辑
+  void initializeFocusLogic({int? initialIndexOverride}) { 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 缓存 Group 的焦点信息
-        _cacheGroupFocusNodes();
+        _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+
+        // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
+        int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
 
         // 判断 initialIndex 是否为 -1，跳过设置初始焦点的逻辑
-        if (widget.initialIndex != -1 && widget.focusNodes.isNotEmpty) {
-          // 设置初始焦点到指定的节点，或者第一个有效节点
-          _requestFocus(widget.initialIndex ?? 0);
+        if (initialIndex != -1 && widget.focusNodes.isNotEmpty) {
+          _requestFocus(initialIndex); // 设置初始焦点
           _manageDebugOverlay(message: '初始焦点设置完成');
         } else {
           _manageDebugOverlay(message: '跳过初始焦点设置');
@@ -79,16 +91,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         _manageDebugOverlay(message: '初始焦点设置失败: $e');
       }
     });
-
-    WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
 
-  @override
-  void dispose() {
+  /// 释放资源
+  void releaseResources() {
     _cancelTimer(); // 取消计时器
     _manageDebugOverlay(); // 移除调试窗口
     WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
-    super.dispose();
   }
 
   /// 封装错误处理逻辑
@@ -265,13 +274,7 @@ void _manageDebugOverlay({String? message}) {
       _manageDebugOverlay(message: '设置焦点时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
   }
-
-  /// 刷新 Group 缓存的焦点信息
-void refreshGroupFocusCache() {
-  _cacheGroupFocusNodes();  // 重新缓存当前的焦点节点信息
-  _manageDebugOverlay(message: '已刷新分组焦点缓存');
-}
-
+  
   /// 缓存 Group 的焦点信息
 void _cacheGroupFocusNodes() {
   _groupFocusCache.clear();  // 清空缓存
