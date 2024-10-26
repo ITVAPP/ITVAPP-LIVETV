@@ -19,6 +19,7 @@ class TvKeyNavigation extends StatefulWidget {
   final int? initialIndex; // 初始焦点的索引，默认为空，如果为空则使用自动聚焦
   final bool isHorizontalGroup; // 是否启用横向分组
   final bool isVerticalGroup; // 是否启用竖向分组
+  final Function(TvKeyNavigationState state)? onStateCreated;
 
   const TvKeyNavigation({
     Key? key,
@@ -31,6 +32,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.initialIndex,
     this.isHorizontalGroup = false, // 默认不按横向分组
     this.isVerticalGroup = false,   // 默认不按竖向分组
+    this.onStateCreated,
   }) : super(key: key);
 
   @override
@@ -61,6 +63,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   void initState() {
     super.initState();
+    widget.onStateCreated?.call(this);
     initializeFocusLogic(); // 调用初始化焦点逻辑
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
