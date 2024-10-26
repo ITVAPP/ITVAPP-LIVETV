@@ -531,6 +531,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final ScrollController _scrollController = ScrollController(); // 分组列表的滚动控制器
   final ScrollController _scrollChannelController = ScrollController(); // 频道列表的滚动控制器
   final ItemScrollController _epgItemScrollController = ItemScrollController(); // EPG列表的滚动控制器
+  TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData; // 节目单数据
   int _selEPGIndex = 0; // 当前选中的节目单索引
 
@@ -720,14 +721,13 @@ void _onCategoryTap(int index) {
   });
   
   // 调用刷新焦点组件
-  final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
-  if (tvKeyNavState != null) {
-    LogUtil.v('找到TvKeyNavigationState');
-    tvKeyNavState?.releaseResources();
-    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: index);
-  } else {
-    LogUtil.v('无法找到TvKeyNavigationState');
-  }
+      if (_tvKeyNavigationState != null) {
+      LogUtil.v('找到TvKeyNavigationState');
+      _tvKeyNavigationState?.releaseResources();
+      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: index);
+    } else {
+      LogUtil.v('无法找到TvKeyNavigationState');
+    }
   
 }
 
@@ -752,14 +752,12 @@ void _onGroupTap(int index) {
   });
 
   // 在下一帧将焦点设置到新分组的第一个频道项
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    // 计算当前分组第一个频道项的焦点索引
-    int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-    // 刷新焦点缓存确保焦点位置正确
-    final tvKeyNavState = context.findAncestorStateOfType<TvKeyNavigationState>();
-    tvKeyNavState?.releaseResources();
-    tvKeyNavState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
-  });
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState?.releaseResources();
+      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+    } else {
+      LogUtil.v('无法找到TvKeyNavigationState');
+    }
 }
 
   // 切换频道
@@ -937,6 +935,10 @@ Widget build(BuildContext context) {
     focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
     isVerticalGroup: true, // 启用竖向分组
     initialIndex: 0, // 组件不自动设置初始焦点
+      onStateCreated: (state) {
+        // 当 TvKeyNavigation 的 State 创建时保存引用
+        _tvKeyNavigationState = state;
+      },
     child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
   );
 }
