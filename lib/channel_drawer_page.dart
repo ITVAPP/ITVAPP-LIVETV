@@ -12,130 +12,336 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-// Constants
-class UIConstants {
-  static const double defaultMinHeight = 42.0;
-  static const Color defaultBackgroundColor = Colors.black38;
-  static const EdgeInsets defaultPadding = EdgeInsets.all(6.0);
-  static const Color selectedColor = Color(0xFFEB144C);
-  static const Color unselectedColor = Color(0xFFDFA02A);
+// 焦点管理的 Mixin
+mixin FocusManagementMixin<T extends StatefulWidget> on State<T> {
+  final Map<int, bool> _localFocusStates = {};
   
-  static const TextStyle defaultTextStyle = TextStyle(fontSize: 16);
-  static const TextStyle selectedTextStyle = TextStyle(
+  void initializeFocusStates(int startIndex, int length) {
+    for (var i = 0; i < length; i++) {
+      _localFocusStates[startIndex + i] = false;
+    }
+  }
+
+  void handleFocusChange(int startIndex, int length) {
+    bool needsUpdate = false;
+    for (var i = 0; i < length; i++) {
+      final nodeIndex = startIndex + i;
+      final newState = GlobalFocusManager.focusNodes[nodeIndex].hasFocus;
+      if (_localFocusStates[nodeIndex] != newState) {
+        _localFocusStates[nodeIndex] = newState;
+        needsUpdate = true;
+      }
+    }
+    if (needsUpdate && mounted) {
+      setState(() {});
+    }
+  }
+
+  void cleanupFocusStates() {
+    _localFocusStates.clear();
+  }
+
+  bool hasFocus(int index) => _localFocusStates[index] ?? false;
+}
+
+// UI常量
+class UIConstants {
+  static const verticalDivider = VerticalDivider(
+    width: 0.1,
+    color: Colors.white10,
+  );
+
+  static const defaultTextStyle = TextStyle(fontSize: 16);
+
+  static const selectedTextStyle = TextStyle(
     fontWeight: FontWeight.bold,
     color: Colors.white,
     shadows: [
-      Shadow(
-        offset: Offset(1.0, 1.0),
-        blurRadius: 3.0,
-        color: Colors.black54,
-      ),
+      Shadow(offset: Offset(1.0, 1.0), blurRadius: 3.0, color: Colors.black54),
     ],
   );
-  
-  static final verticalDivider = VerticalDivider(
-    width: 0.1,
-    color: Colors.white.withOpacity(0.1),
-  );
+
+  static const defaultMinHeight = 42.0;
+  static const defaultBackgroundColor = Colors.black38;
+  static const defaultPadding = EdgeInsets.all(6.0);
+  static const selectedColor = Color(0xFFEB144C);
+  static const unselectedColor = Color(0xFFDFA02A);
+
+  static BoxDecoration buildItemDecoration({
+    bool isSelected = false,
+    bool hasFocus = false,
+  }) {
+    return BoxDecoration(
+      color: hasFocus
+          ? unselectedColor
+          : (isSelected ? selectedColor : Colors.transparent),
+    );
+  }
 }
 
-// Item Decoration Builder
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
-  return BoxDecoration(
-    color: hasFocus
-        ? UIConstants.unselectedColor
-        : (isSelected ? UIConstants.selectedColor : Colors.transparent),
-  );
+// 全局焦点管理
+class GlobalFocusManager {
+  static final List<FocusNode> _focusNodes = [];
+  static final Map<int, bool> _focusStates = {};
+
+  static void initializeFocusNodes(int totalCount) {
+    if (_focusNodes.length != totalCount) {
+      for (final node in _focusNodes) {
+        node.dispose();
+      }
+      _focusNodes.clear();
+      _focusStates.clear();
+
+      _focusNodes = List.generate(totalCount, (index) => FocusNode());
+      LogUtil.v('频道抽屉节点数量: $totalCount');
+    }
+  }
+
+  static void addFocusListeners(
+    int startIndex,
+    int length,
+    VoidCallback onFocusChange,
+  ) {
+    if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+      return;
+    }
+
+    for (var i = startIndex; i < startIndex + length; i++) {
+      _focusStates[i] = _focusNodes[i].hasFocus;
+      _focusNodes[i].removeListener(() {});
+      _focusNodes[i].addListener(() {
+        final currentFocus = _focusNodes[i].hasFocus;
+        if (_focusStates[i] != currentFocus) {
+          _focusStates[i] = currentFocus;
+          onFocusChange();
+        }
+      });
+    }
+  }
+
+  static void removeFocusListeners(int startIndex, int length) {
+    for (var i = startIndex; i < startIndex + length; i++) {
+      _focusNodes[i].removeListener(() {});
+      _focusStates.remove(i);
+    }
+  }
+
+  static List<FocusNode> get focusNodes => _focusNodes;
 }
 
-// Focus Management Mixin
-mixin FocusManagerMixin<T extends StatefulWidget> on State<T> {
-  Map<int, bool> _localFocusStates = {};
-  
-  void initializeFocus(int startIndex, int length, Function() onFocusChange) {
-    // Initialize focus states for this range
-    for (var i = startIndex; i < startIndex + length; i++) {
-      _localFocusStates[i] = false;
-    }
-    
-    // Add focus listeners
-    for (var i = 0; i < length; i++) {
-      final index = startIndex + i;
-      if (index < FocusNodeProvider.nodes.length) {
-        FocusNodeProvider.nodes[index].removeListener(() {});
-        FocusNodeProvider.nodes[index].addListener(() {
-          final currentFocus = FocusNodeProvider.nodes[index].hasFocus;
-          if (_localFocusStates[index] != currentFocus) {
-            _localFocusStates[index] = currentFocus;
-            onFocusChange();
-          }
-        });
-      }
-    }
+// 通用列表项构建器
+class ListItemBuilder {
+  static Widget build({
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required BuildContext context,
+    bool isCentered = true,
+    double minHeight = UIConstants.defaultMinHeight,
+    EdgeInsets padding = UIConstants.defaultPadding,
+    bool isTV = false,
+    int? index,
+    bool useFocusableItem = true,
+  }) {
+    FocusNode? focusNode = (index != null && 
+                           index >= 0 && 
+                           index < GlobalFocusManager.focusNodes.length)
+        ? GlobalFocusManager.focusNodes[index]
+        : null;
+
+    Widget content = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: BoxConstraints(minHeight: minHeight),
+        padding: padding,
+        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+        decoration: UIConstants.buildItemDecoration(
+          isSelected: isSelected,
+          hasFocus: focusNode?.hasFocus ?? false,
+        ),
+        child: Text(
+          title,
+          style: (focusNode?.hasFocus ?? false)
+              ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle)
+              : (isSelected 
+                  ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle) 
+                  : UIConstants.defaultTextStyle),
+          softWrap: true,
+          maxLines: null,
+          overflow: TextOverflow.visible,
+        ),
+      ),
+    );
+
+    return useFocusableItem && focusNode != null
+        ? FocusableItem(focusNode: focusNode, child: content)
+        : content;
   }
-  
-  void disposeFocus(int startIndex, int length) {
-    for (var i = startIndex; i < startIndex + length; i++) {
-      if (i < FocusNodeProvider.nodes.length) {
-        FocusNodeProvider.nodes[i].removeListener(() {});
-      }
-      _localFocusStates.remove(i);
-    }
+}
+
+// 分类列表组件
+class CategoryList extends StatefulWidget {
+  final List<String> categories;
+  final int selectedCategoryIndex;
+  final Function(int index) onCategoryTap;
+  final bool isTV;
+  final int startIndex;
+
+  const CategoryList({
+    super.key,
+    required this.categories,
+    required this.selectedCategoryIndex,
+    required this.onCategoryTap,
+    required this.isTV,
+    this.startIndex = 0,
+  });
+
+  @override
+  _CategoryListState createState() => _CategoryListState();
+}
+
+class _CategoryListState extends State<CategoryList> with FocusManagementMixin {
+  @override
+  void initState() {
+    super.initState();
+    initializeFocusStates(widget.startIndex, widget.categories.length);
+    GlobalFocusManager.addFocusListeners(
+      widget.startIndex,
+      widget.categories.length,
+      () => handleFocusChange(widget.startIndex, widget.categories.length),
+    );
   }
-  
+
   @override
   void dispose() {
-    _localFocusStates.clear();
+    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.categories.length);
+    cleanupFocusStates();
     super.dispose();
   }
-}
 
-// Scroll Manager
-class ScrollManager {
-  static void scrollToTop(ScrollController controller) {
-    if (controller.hasClients) {
-      controller.jumpTo(0);
-    }
-  }
-  
-  static void scrollToPosition(
-    ScrollController controller,
-    int index,
-    double itemHeight,
-    double viewportHeight,
-  ) {
-    if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-    final shouldOffset = index * itemHeight - viewportHeight + itemHeight * 0.5;
-    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
-  }
-}
-
-// Reusable List Container
-class ListContainer extends StatelessWidget {
-  final Widget child;
-  final ScrollController? controller;
-  final Color? backgroundColor;
-  
-  const ListContainer({
-    required this.child,
-    this.controller,
-    this.backgroundColor = UIConstants.defaultBackgroundColor,
-    Key? key,
-  }) : super(key: key);
-  
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: backgroundColor,
+      color: UIConstants.defaultBackgroundColor,
+      child: Group(
+        groupIndex: 0,
+        child: Column(
+          children: List.generate(widget.categories.length, (index) {
+            final category = widget.categories[index];
+            final displayTitle = category == Config.myFavoriteKey
+                ? S.of(context).myfavorite
+                : category == Config.allChannelsKey
+                    ? S.of(context).allchannels
+                    : category;
+
+            return ListItemBuilder.build(
+              title: displayTitle,
+              isSelected: widget.selectedCategoryIndex == index,
+              onTap: () => widget.onCategoryTap(index),
+              context: context,
+              isTV: widget.isTV,
+              index: widget.startIndex + index,
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+// 分组列表组件
+class GroupList extends StatefulWidget {
+  final List<String> keys;
+  final ScrollController scrollController;
+  final int selectedGroupIndex;
+  final Function(int index) onGroupTap;
+  final bool isTV;
+  final bool isFavoriteCategory;
+  final int startIndex;
+
+  const GroupList({
+    super.key,
+    required this.keys,
+    required this.scrollController,
+    required this.selectedGroupIndex,
+    required this.onGroupTap,
+    required this.isTV,
+    this.startIndex = 0,
+    this.isFavoriteCategory = false,
+  });
+
+  @override
+  _GroupListState createState() => _GroupListState();
+}
+
+class _GroupListState extends State<GroupList> with FocusManagementMixin {
+  @override
+  void initState() {
+    super.initState();
+    initializeFocusStates(widget.startIndex, widget.keys.length);
+    GlobalFocusManager.addFocusListeners(
+      widget.startIndex,
+      widget.keys.length,
+      () => handleFocusChange(widget.startIndex, widget.keys.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.keys.length);
+    cleanupFocusStates();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.keys.isEmpty && !widget.isFavoriteCategory) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      color: UIConstants.defaultBackgroundColor,
       child: SingleChildScrollView(
-        controller: controller,
+        controller: widget.scrollController,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: MediaQuery.of(context).size.height
           ),
           child: IntrinsicHeight(
-            child: child,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: widget.keys.isEmpty && widget.isFavoriteCategory
+                  ? [
+                      Container(
+                        constraints: const BoxConstraints(
+                          minHeight: UIConstants.defaultMinHeight
+                        ),
+                        child: Center(
+                          child: Text(
+                            S.of(context).nofavorite,
+                            style: UIConstants.defaultTextStyle.merge(
+                              const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]
+                  : [
+                      Group(
+                        groupIndex: 1,
+                        children: List.generate(widget.keys.length, (index) {
+                          return ListItemBuilder.build(
+                            title: widget.keys[index],
+                            isSelected: widget.selectedGroupIndex == index,
+                            onTap: () => widget.onGroupTap(index),
+                            context: context,
+                            isTV: widget.isTV,
+                            index: widget.startIndex + index,
+                          );
+                        }),
+                      ),
+                    ],
+            ),
           ),
         ),
       ),
@@ -143,254 +349,116 @@ class ListContainer extends StatelessWidget {
   }
 }
 
-// Focus Node Provider
-class FocusNodeProvider {
-  static List<FocusNode> _focusNodes = [];
-  static Map<int, bool> _focusStates = {};
-  
-  static void initialize(int totalCount) {
-    if (_focusNodes.length != totalCount) {
-      for (final node in _focusNodes) {
-        node.dispose();
-      }
-      _focusNodes = List.generate(totalCount, (index) => FocusNode());
-      _focusStates.clear();
-      LogUtil.v('初始化焦点节点数量: $totalCount');
-    }
-  }
-  
-  static List<FocusNode> get nodes => _focusNodes;
-  static Map<int, bool> get states => _focusStates;
-  
-  static void dispose() {
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    _focusNodes.clear();
-    _focusStates.clear();
-  }
+// 频道列表组件
+class ChannelList extends StatefulWidget {
+  final Map<String, PlayModel> channels;
+  final ScrollController scrollController;
+  final Function(PlayModel?) onChannelTap;
+  final String? selectedChannelName;
+  final bool isTV;
+  final int startIndex;
+
+  const ChannelList({
+    super.key,
+    required this.channels,
+    required this.scrollController,
+    required this.onChannelTap,
+    this.selectedChannelName,
+    required this.isTV,
+    this.startIndex = 0,
+  });
+
+  @override
+  State<ChannelList> createState() => _ChannelListState();
 }
 
-// State Manager for Channel Drawer
-class ChannelDrawerState {
-  List<String> categories = [];
-  List<String> keys = [];
-  List<Map<String, PlayModel>> values = [];
-  int categoryIndex = -1;
-  int groupIndex = -1;
-  int channelIndex = -1;
-  int categoryStartIndex = 0;
-  int groupStartIndex = 0;
-  int channelStartIndex = 0;
-  
-  void reset() {
-    keys = [];
-    values = [];
-    groupIndex = -1;
-    channelIndex = -1;
-  }
-  
-  int get totalFocusNodes {
-    return categories.length +
-           (keys.isNotEmpty ? keys.length : 0) +
-           (values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length 
-            ? values[groupIndex].length : 0);
-  }
+class _ChannelListState extends State<ChannelList> with FocusManagementMixin {
+  @override
+  void initState() {
+    super.initState();
+    initializeFocusStates(widget.startIndex, widget.channels.length);
+    GlobalFocusManager.addFocusListeners(
+      widget.startIndex,
+      widget.channels.length,
+      () => handleFocusChange(widget.startIndex, widget.channels.length),
+    );
 
-  void updateStartIndexes({bool includeGroupsAndChannels = true}) {
-    categoryStartIndex = 0;
-    groupStartIndex = categoryStartIndex + categories.length;
-    channelStartIndex = includeGroupsAndChannels
-        ? groupStartIndex + (keys.isNotEmpty ? keys.length : 0)
-        : groupStartIndex;
-  }
-}
-
-// Widget Builder Utilities
-Widget buildListItem({
-  required String title,
-  required bool isSelected,
-  required Function() onTap,
-  required BuildContext context,
-  bool isCentered = true,
-  double minHeight = UIConstants.defaultMinHeight,
-  EdgeInsets padding = UIConstants.defaultPadding,
-  bool isTV = false,
-  int? index,
-  bool useFocusableItem = true,
-}) {
-  FocusNode? focusNode = (index != null && index >= 0 && index < FocusNodeProvider.nodes.length)
-      ? FocusNodeProvider.nodes[index]
-      : null;
-
-  Widget listItemContent = GestureDetector(
-    onTap: onTap,
-    child: Container(
-      constraints: BoxConstraints(minHeight: minHeight),
-      padding: padding,
-      decoration: buildItemDecoration(
-        isSelected: isSelected,
-        hasFocus: focusNode?.hasFocus ?? false
-      ),
-      child: Align(
-        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-        child: Text(
-          title,
-          style: (focusNode?.hasFocus ?? false)
-              ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle)
-              : (isSelected ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle) 
-                           : UIConstants.defaultTextStyle),
-          softWrap: true,
-          maxLines: null,
-          overflow: TextOverflow.visible,
-        ),
-      ),
-    ),
-  );
-
-  return useFocusableItem && focusNode != null
-      ? FocusableItem(focusNode: focusNode, child: listItemContent)
-      : listItemContent;
-}
-
-import 'dart:async';
-import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
-import 'package:itvapp_live_tv/util/epg_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/util/date_util.dart';
-import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'entity/playlist_model.dart';
-import 'generated/l10n.dart';
-import 'config.dart';
-
-// Constants
-class UIConstants {
-  static const double defaultMinHeight = 42.0;
-  static const Color defaultBackgroundColor = Colors.black38;
-  static const EdgeInsets defaultPadding = EdgeInsets.all(6.0);
-  static const Color selectedColor = Color(0xFFEB144C);
-  static const Color unselectedColor = Color(0xFFDFA02A);
-  
-  static const TextStyle defaultTextStyle = TextStyle(fontSize: 16);
-  static const TextStyle selectedTextStyle = TextStyle(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-    shadows: [
-      Shadow(
-        offset: Offset(1.0, 1.0),
-        blurRadius: 3.0,
-        color: Colors.black54,
-      ),
-    ],
-  );
-  
-  static final verticalDivider = VerticalDivider(
-    width: 0.1,
-    color: Colors.white.withOpacity(0.1),
-  );
-}
-
-// Item Decoration Builder
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
-  return BoxDecoration(
-    color: hasFocus
-        ? UIConstants.unselectedColor
-        : (isSelected ? UIConstants.selectedColor : Colors.transparent),
-  );
-}
-
-// Focus Management Mixin
-mixin FocusManagerMixin<T extends StatefulWidget> on State<T> {
-  Map<int, bool> _localFocusStates = {};
-  
-  void initializeFocus(int startIndex, int length, Function() onFocusChange) {
-    // Initialize focus states for this range
-    for (var i = startIndex; i < startIndex + length; i++) {
-      _localFocusStates[i] = false;
-    }
-    
-    // Add focus listeners
-    for (var i = 0; i < length; i++) {
-      final index = startIndex + i;
-      if (index < FocusNodeProvider.nodes.length) {
-        FocusNodeProvider.nodes[index].removeListener(() {});
-        FocusNodeProvider.nodes[index].addListener(() {
-          final currentFocus = FocusNodeProvider.nodes[index].hasFocus;
-          if (_localFocusStates[index] != currentFocus) {
-            _localFocusStates[index] = currentFocus;
-            onFocusChange();
-          }
-        });
-      }
+    if (widget.isTV && widget.selectedChannelName != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
+        if (index != -1 && isOutOfView(context)) {
+          Scrollable.ensureVisible(
+            context, 
+            alignment: 0.5, 
+            duration: Duration.zero
+          );
+        }
+      });
     }
   }
-  
-  void disposeFocus(int startIndex, int length) {
-    for (var i = startIndex; i < startIndex + length; i++) {
-      if (i < FocusNodeProvider.nodes.length) {
-        FocusNodeProvider.nodes[i].removeListener(() {});
-      }
-      _localFocusStates.remove(i);
-    }
-  }
-  
+
   @override
   void dispose() {
-    _localFocusStates.clear();
+    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.channels.length);
+    cleanupFocusStates();
     super.dispose();
   }
-}
 
-// Scroll Manager
-class ScrollManager {
-  static void scrollToTop(ScrollController controller) {
-    if (controller.hasClients) {
-      controller.jumpTo(0);
+  bool isOutOfView(BuildContext context) {
+    RenderObject? renderObject = context.findRenderObject();
+    if (renderObject is RenderBox) {
+      final ScrollableState? scrollableState = Scrollable.of(context);
+      if (scrollableState != null) {
+        final ScrollPosition position = scrollableState.position;
+        final double offset = position.pixels;
+        final double viewportHeight = position.viewportDimension;
+        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+        return objectPosition.dy < offset || 
+               objectPosition.dy > offset + viewportHeight;
+      }
     }
+    return false;
   }
-  
-  static void scrollToPosition(
-    ScrollController controller,
-    int index,
-    double itemHeight,
-    double viewportHeight,
-  ) {
-    if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-    final shouldOffset = index * itemHeight - viewportHeight + itemHeight * 0.5;
-    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
-  }
-}
 
-// Reusable List Container
-class ListContainer extends StatelessWidget {
-  final Widget child;
-  final ScrollController? controller;
-  final Color? backgroundColor;
-  
-  const ListContainer({
-    required this.child,
-    this.controller,
-    this.backgroundColor = UIConstants.defaultBackgroundColor,
-    Key? key,
-  }) : super(key: key);
-  
   @override
   Widget build(BuildContext context) {
+    final channelList = widget.channels.entries.toList();
+
+    if (channelList.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
-      color: backgroundColor,
+      color: UIConstants.defaultBackgroundColor,
       child: SingleChildScrollView(
-        controller: controller,
+        controller: widget.scrollController,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: MediaQuery.of(context).size.height
           ),
           child: IntrinsicHeight(
-            child: child,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Group(
+                  groupIndex: 2,
+                  children: List.generate(channelList.length, (index) {
+                    final channelEntry = channelList[index];
+                    final channelName = channelEntry.key;
+                    final isSelect = widget.selectedChannelName == channelName;
+
+                    return ListItemBuilder.build(
+                      title: channelName,
+                      isSelected: isSelect,
+                      onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                      context: context,
+                      isTV: widget.isTV,
+                      index: widget.startIndex + index,
+                    );
+                  }),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -398,117 +466,94 @@ class ListContainer extends StatelessWidget {
   }
 }
 
-// Focus Node Provider
-class FocusNodeProvider {
-  static List<FocusNode> _focusNodes = [];
-  static Map<int, bool> _focusStates = {};
-  
-  static void initialize(int totalCount) {
-    if (_focusNodes.length != totalCount) {
-      for (final node in _focusNodes) {
-        node.dispose();
-      }
-      _focusNodes = List.generate(totalCount, (index) => FocusNode());
-      _focusStates.clear();
-      LogUtil.v('初始化焦点节点数量: $totalCount');
+// EPG列表组件
+class EPGList extends StatefulWidget {
+  final List<EpgData>? epgData;
+  final int selectedIndex;
+  final bool isTV;
+  final ItemScrollController epgScrollController;
+  final VoidCallback onCloseDrawer;
+
+  const EPGList({
+    super.key,
+    required this.epgData,
+    required this.selectedIndex,
+    required this.isTV,
+    required this.epgScrollController,
+    required this.onCloseDrawer,
+  });
+
+  @override
+  State<EPGList> createState() => _EPGListState();
+}
+
+class _EPGListState extends State<EPGList> {
+  @override
+  void didUpdateWidget(covariant EPGList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.epgData != oldWidget.epgData || 
+        widget.selectedIndex != oldWidget.selectedIndex) {
+      setState(() {});
     }
   }
-  
-  static List<FocusNode> get nodes => _focusNodes;
-  static Map<int, bool> get states => _focusStates;
-  
-  static void dispose() {
-    for (final node in _focusNodes) {
-      node.dispose();
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.epgData == null || widget.epgData!.isEmpty) {
+      return const SizedBox.shrink();
     }
-    _focusNodes.clear();
-    _focusStates.clear();
-  }
-}
 
-// State Manager for Channel Drawer
-class ChannelDrawerState {
-  List<String> categories = [];
-  List<String> keys = [];
-  List<Map<String, PlayModel>> values = [];
-  int categoryIndex = -1;
-  int groupIndex = -1;
-  int channelIndex = -1;
-  int categoryStartIndex = 0;
-  int groupStartIndex = 0;
-  int channelStartIndex = 0;
-  
-  void reset() {
-    keys = [];
-    values = [];
-    groupIndex = -1;
-    channelIndex = -1;
-  }
-  
-  int get totalFocusNodes {
-    return categories.length +
-           (keys.isNotEmpty ? keys.length : 0) +
-           (values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length 
-            ? values[groupIndex].length : 0);
-  }
-
-  void updateStartIndexes({bool includeGroupsAndChannels = true}) {
-    categoryStartIndex = 0;
-    groupStartIndex = categoryStartIndex + categories.length;
-    channelStartIndex = includeGroupsAndChannels
-        ? groupStartIndex + (keys.isNotEmpty ? keys.length : 0)
-        : groupStartIndex;
-  }
-}
-
-// Widget Builder Utilities
-Widget buildListItem({
-  required String title,
-  required bool isSelected,
-  required Function() onTap,
-  required BuildContext context,
-  bool isCentered = true,
-  double minHeight = UIConstants.defaultMinHeight,
-  EdgeInsets padding = UIConstants.defaultPadding,
-  bool isTV = false,
-  int? index,
-  bool useFocusableItem = true,
-}) {
-  FocusNode? focusNode = (index != null && index >= 0 && index < FocusNodeProvider.nodes.length)
-      ? FocusNodeProvider.nodes[index]
-      : null;
-
-  Widget listItemContent = GestureDetector(
-    onTap: onTap,
-    child: Container(
-      constraints: BoxConstraints(minHeight: minHeight),
-      padding: padding,
-      decoration: buildItemDecoration(
-        isSelected: isSelected,
-        hasFocus: focusNode?.hasFocus ?? false
+    return Container(
+      color: UIConstants.defaultBackgroundColor,
+      child: Column(
+        children: [
+          Container(
+            height: UIConstants.defaultMinHeight,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 8),
+            decoration: BoxDecoration(
+              color: UIConstants.defaultBackgroundColor,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              S.of(context).programListTitle,
+              style: UIConstants.defaultTextStyle.merge(
+                const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          UIConstants.verticalDivider,
+          Flexible(
+            child: ScrollablePositionedList.builder(
+              initialScrollIndex: widget.selectedIndex,
+              itemScrollController: widget.epgScrollController,
+              itemCount: widget.epgData?.length ?? 0,
+              itemBuilder: (BuildContext context, int index) {
+                final data = widget.epgData?[index];
+                if (data == null) return const SizedBox.shrink();
+                
+                return ListItemBuilder.build(
+                  title: '${data.start}-${data.end}\n${data.title}',
+                  isSelected: index == widget.selectedIndex,
+                  onTap: widget.onCloseDrawer,
+                  context: context,
+                  isCentered: false,
+                  isTV: widget.isTV,
+                  useFocusableItem: false,
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      child: Align(
-        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-        child: Text(
-          title,
-          style: (focusNode?.hasFocus ?? false)
-              ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle)
-              : (isSelected ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle) 
-                           : UIConstants.defaultTextStyle),
-          softWrap: true,
-          maxLines: null,
-          overflow: TextOverflow.visible,
-        ),
-      ),
-    ),
-  );
-
-  return useFocusableItem && focusNode != null
-      ? FocusableItem(focusNode: focusNode, child: listItemContent)
-      : listItemContent;
+    );
+  }
 }
 
-// Main Channel Drawer Page
+// 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -530,40 +575,76 @@ class ChannelDrawerPage extends StatefulWidget {
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> 
-    with WidgetsBindingObserver, FocusManagerMixin {
-  final ChannelDrawerState _state = ChannelDrawerState();
+    with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final ScrollController _scrollChannelController = ScrollController();
   final ItemScrollController _epgItemScrollController = ItemScrollController();
-  final GlobalKey _viewPortKey = GlobalKey();
-  
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
+
+  final GlobalKey _viewPortKey = GlobalKey();
   double? _viewPortHeight;
+
+  late List<String> _keys;
+  late List<Map<String, PlayModel>> _values;
+  late int _groupIndex;
+  late int _channelIndex;
+  late List<String> _categories;
+  late int _categoryIndex;
+  int _categoryStartIndex = 0;
+  int _groupStartIndex = 0;
+  int _channelStartIndex = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeState();
-  }
-
-  void _initializeState() {
     _initializeCategoryData();
     _initializeChannelData();
-    FocusNodeProvider.initialize(_state.totalFocusNodes);
+
+    // 计算所需的焦点节点总数
+    int totalFocusNodes = _categories.length;
+    totalFocusNodes += _keys.length;
+    if (_values.isNotEmpty &&
+        _groupIndex >= 0 &&
+        _groupIndex < _values.length &&
+        (_values[_groupIndex].length > 0)) {
+      totalFocusNodes += (_values[_groupIndex].length);
+    }
+    GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+
     _calculateViewportHeight();
-    if (_state.keys.isNotEmpty && 
-        _state.values.isNotEmpty && 
-        _state.values[_state.groupIndex].isNotEmpty) {
+
+    if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scrollController.dispose();
+    _scrollChannelController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final newHeight = MediaQuery.of(context).size.height * 0.5;
+    if (newHeight != _viewPortHeight) {
+      setState(() {
+        _viewPortHeight = newHeight;
+        _adjustScrollPositions();
+        _updateStartIndexes(
+          includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
+        );
+      });
     }
   }
 
   void _calculateViewportHeight() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
       final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
         setState(() {
@@ -574,15 +655,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     });
   }
 
+  // 初始化分类数据
   void _initializeCategoryData() {
-    _state.categories = widget.videoMap?.playList?.keys.toList() ?? [];
-    _state.categoryIndex = -1;
-    _state.groupIndex = -1;
-    _state.channelIndex = -1;
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
+    _categoryIndex = -1;
+    _groupIndex = -1;
+    _channelIndex = -1;
 
-    // Find current channel's category and group
-    for (int i = 0; i < _state.categories.length; i++) {
-      final category = _state.categories[i];
+    for (int i = 0; i < _categories.length; i++) {
+      final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
 
       if (categoryMap is Map<String, Map<String, PlayModel>>) {
@@ -590,137 +671,209 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
           final group = categoryMap.keys.toList()[groupIndex];
           final channelMap = categoryMap[group];
 
-          if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
-            _state.categoryIndex = i;
-            _state.groupIndex = groupIndex;
-            _state.channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? '');
+          if (channelMap != null && 
+              channelMap.containsKey(widget.playModel?.title)) {
+            _categoryIndex = i;
+            _groupIndex = groupIndex;
+            _channelIndex = channelMap.keys
+                .toList()
+                .indexOf(widget.playModel?.title ?? '');
             return;
           }
         }
       }
     }
 
-    // If channel not found, select first non-empty category
-    if (_state.categoryIndex == -1) {
-      for (int i = 0; i < _state.categories.length; i++) {
-        final categoryMap = widget.videoMap?.playList[_state.categories[i]];
+    if (_categoryIndex == -1) {
+      for (int i = 0; i < _categories.length; i++) {
+        final categoryMap = widget.videoMap?.playList[_categories[i]];
         if (categoryMap != null && categoryMap.isNotEmpty) {
-          _state.categoryIndex = i;
-          _state.groupIndex = 0;
-          _state.channelIndex = 0;
+          _categoryIndex = i;
+          _groupIndex = 0;
+          _channelIndex = 0;
           break;
         }
       }
     }
   }
 
+  // 初始化频道数据
   void _initializeChannelData() {
-    if (_state.categoryIndex < 0 || _state.categoryIndex >= _state.categories.length) {
-      _state.reset();
+    if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
+      _resetChannelData();
       return;
     }
 
-    final selectedCategory = _state.categories[_state.categoryIndex];
+    final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-    _state.keys = categoryMap?.keys.toList() ?? [];
-    _state.values = categoryMap?.values.toList() ?? [];
+    _keys = categoryMap.keys.toList();
+    _values = categoryMap.values.toList();
 
-    // Sort channels by name
-    for (int i = 0; i < _state.values.length; i++) {
-      _state.values[i] = Map<String, PlayModel>.fromEntries(
-        _state.values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    // 频道按名字排序
+    for (int i = 0; i < _values.length; i++) {
+      _values[i] = Map<String, PlayModel>.fromEntries(
+        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
       );
     }
 
-    _state.groupIndex = _state.keys.indexOf(widget.playModel?.group ?? '');
-    _state.channelIndex = _state.groupIndex != -1
-        ? _state.values[_state.groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
+    _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
+    _channelIndex = _groupIndex != -1
+        ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
         : 0;
 
-    if (_state.groupIndex == -1) _state.groupIndex = 0;
-    if (_state.channelIndex == -1) _state.channelIndex = 0;
-
-    _state.updateStartIndexes(
-      includeGroupsAndChannels: _state.keys.isNotEmpty && _state.values.isNotEmpty
-    );
+    if (_groupIndex == -1) _groupIndex = 0;
+    if (_channelIndex == -1) _channelIndex = 0;
   }
 
+  void _resetChannelData() {
+    _keys = [];
+    _values = [];
+    _groupIndex = -1;
+    _channelIndex = -1;
+    _epgData = null;
+    _selEPGIndex = 0;
+  }
+
+  // 重新初始化焦点监听器
+  void _reInitializeFocusListeners() {
+    // 先移除所有现有监听器
+    for (var i = 0; i < GlobalFocusManager.focusNodes.length; i++) {
+      GlobalFocusManager.focusNodes[i].removeListener(() {});
+    }
+
+    // 添加新的监听器
+    GlobalFocusManager.addFocusListeners(
+      0, 
+      _categories.length,
+      () => setState(() {}),
+    );
+
+    if (_keys.isNotEmpty) {
+      GlobalFocusManager.addFocusListeners(
+        _categories.length,
+        _keys.length,
+        () => setState(() {}),
+      );
+
+      if (_values.isNotEmpty && _groupIndex >= 0) {
+        GlobalFocusManager.addFocusListeners(
+          _categories.length + _keys.length,
+          _values[_groupIndex].length,
+          () => setState(() {}),
+        );
+      }
+    }
+  }
+
+  // 处理分类点击
   void _onCategoryTap(int index) {
-    if (_state.categoryIndex == index) return;
+    if (_categoryIndex == index) return;
 
     setState(() {
-      _state.categoryIndex = index;
-      
-      final selectedCategory = _state.categories[_state.categoryIndex];
+      _categoryIndex = index;
+
+      final selectedCategory = _categories[_categoryIndex];
       final categoryMap = widget.videoMap?.playList[selectedCategory];
 
       if (categoryMap == null || categoryMap.isEmpty) {
-        _state.reset();
-        FocusNodeProvider.initialize(_state.categories.length);
-        _state.updateStartIndexes(includeGroupsAndChannels: false);
+        _resetChannelData();
+        GlobalFocusManager.initializeFocusNodes(_categories.length);
+        _updateStartIndexes(includeGroupsAndChannels: false);
       } else {
         _initializeChannelData();
-        FocusNodeProvider.initialize(_state.totalFocusNodes);
-        _state.updateStartIndexes(includeGroupsAndChannels: true);
-        ScrollManager.scrollToTop(_scrollController);
-        ScrollManager.scrollToTop(_scrollChannelController);
+
+        int totalFocusNodes = _categories.length +
+            _keys.length +
+            _values[_groupIndex].length;
+        GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+
+        _updateStartIndexes(includeGroupsAndChannels: true);
+        _scrollToTop(_scrollController);
+        _scrollToTop(_scrollChannelController);
       }
     });
 
-    _reInitializeFocusSystem(index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tvKeyNavigationState?.releaseResources();
+      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: index);
+      _reInitializeFocusListeners();
+    });
   }
 
+  // 处理分组点击
   void _onGroupTap(int index) {
     setState(() {
-      _state.groupIndex = index;
-      _state.channelIndex = 0;
+      _groupIndex = index;
+      _channelIndex = 0;
 
-      FocusNodeProvider.initialize(_state.totalFocusNodes);
-      _state.updateStartIndexes(includeGroupsAndChannels: true);
-      ScrollManager.scrollToTop(_scrollChannelController);
+      int totalFocusNodes = _categories.length +
+          (_keys.isNotEmpty ? _keys.length : 0) +
+          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+              ? _values[_groupIndex].length
+              : 0);
+      GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+
+      _updateStartIndexes(includeGroupsAndChannels: true);
+      _scrollToTop(_scrollChannelController);
     });
 
-    _reInitializeFocusSystem(_state.categories.length + _state.groupIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+      _tvKeyNavigationState?.releaseResources();
+      _tvKeyNavigationState?.initializeFocusLogic(
+        initialIndexOverride: firstChannelFocusIndex,
+      );
+      _reInitializeFocusListeners();
+    });
   }
 
+  // 处理频道点击
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
-    
+
+    setState(() {
+      _channelIndex = _values[_groupIndex]
+          .keys
+          .toList()
+          .indexOf(newModel?.title ?? '');
+    });
+
     widget.onTapChannel?.call(newModel);
     _loadEPGMsg(newModel);
   }
 
-  void _reInitializeFocusSystem(int initialIndex) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState?.releaseResources();
-        _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: initialIndex);
-        _reInitializeFocusListeners();
-      }
-    });
+  void _scrollToTop(ScrollController controller) {
+    controller.jumpTo(0);
   }
 
-  void _reInitializeFocusListeners() {
-    initializeFocus(0, _state.categories.length, () {
-      setState(() {});
-    });
+  void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
+    int categoryStartIndex = 0;
+    int groupStartIndex = categoryStartIndex + _categories.length;
+    int channelStartIndex = groupStartIndex + 
+        (includeGroupsAndChannels && _keys.isNotEmpty ? _keys.length : 0);
 
-    if (_state.keys.isNotEmpty) {
-      initializeFocus(_state.categories.length, _state.keys.length, () {
-        setState(() {});
-      });
+    _categoryStartIndex = categoryStartIndex;
+    _groupStartIndex = groupStartIndex;
+    _channelStartIndex = channelStartIndex;
+  }
 
-      if (_state.values.isNotEmpty && _state.groupIndex >= 0) {
-        initializeFocus(
-          _state.categories.length + _state.keys.length,
-          _state.values[_state.groupIndex].length,
-          () {
-            setState(() {});
-          },
-        );
-      }
-    }
+  void _adjustScrollPositions() {
+    if (_viewPortHeight == null) return;
+    _scrollToPosition(_scrollController, _groupIndex);
+    _scrollToPosition(_scrollChannelController, _channelIndex);
+  }
+
+  void _scrollToPosition(ScrollController controller, int index) {
+    if (!controller.hasClients) return;
+    final maxScrollExtent = controller.position.maxScrollExtent;
+    final viewPortHeight = _viewPortHeight!;
+    final shouldOffset = index * UIConstants.defaultMinHeight - 
+        viewPortHeight + 
+        UIConstants.defaultMinHeight * 0.5;
+    controller.jumpTo(
+      shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
+    );
   }
 
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
@@ -733,17 +886,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
 
     try {
       final res = await EpgUtil.getEpg(playModel);
-      if (res?.epgData?.isEmpty ?? true) return;
+      if (res?.epgData == null || res!.epgData!.isEmpty) return;
 
-      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');
-      final selectTimeData = res!.epgData!.lastWhere(
+      final epgRangeTime = DateUtil.formatDate(
+        DateTime.now(),
+        format: 'HH:mm',
+      );
+      
+      final selectTimeData = res.epgData!.lastWhere(
         (element) => element.start!.compareTo(epgRangeTime) < 0,
         orElse: () => res.epgData!.first,
       ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
+      
+      final selectedIndex = res.epgData!.indexWhere(
+        (element) => element.start == selectTimeData
+      );
 
       setState(() {
-        _epgData = res.epgData;
+        _epgData = res.epgData!;
         _selEPGIndex = selectedIndex;
       });
 
@@ -758,115 +918,95 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     }
   }
 
-  void _adjustScrollPositions() {
-    if (_viewPortHeight == null) return;
-    
-    ScrollManager.scrollToPosition(
-      _scrollController,
-      _state.groupIndex,
-      UIConstants.defaultMinHeight,
-      _viewPortHeight!
-    );
-    
-    ScrollManager.scrollToPosition(
-      _scrollChannelController,
-      _state.channelIndex,
-      UIConstants.defaultMinHeight,
-      _viewPortHeight!
-    );
-  }
-
   @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    if (!mounted) return;
-    
-    final newHeight = MediaQuery.of(context).size.height * 0.5;
-    if (newHeight != _viewPortHeight) {
-      setState(() {
-        _viewPortHeight = newHeight;
-        _adjustScrollPositions();
-        _state.updateStartIndexes(
-          includeGroupsAndChannels: _state.keys.isNotEmpty && _state.values.isNotEmpty,
-        );
-      });
-    }
-  }
+  Widget build(BuildContext context) {
+    bool isTV = context.read<ThemeProvider>().isTV;
+    bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _scrollController.dispose();
-    _scrollChannelController.dispose();
-    FocusNodeProvider.dispose();
-    super.dispose();
-  }
+    // 设置各列表宽度
+    double categoryWidth = 110;
+    double groupWidth = _keys.isNotEmpty ? 120 : 0;
+    double channelListWidth = (_keys.isNotEmpty && _values.isNotEmpty)
+        ? (isPortrait 
+            ? MediaQuery.of(context).size.width - categoryWidth - groupWidth 
+            : 160)
+        : 0;
+    double epgListWidth = (_keys.isNotEmpty && 
+                          _values.isNotEmpty && 
+                          _epgData != null)
+        ? MediaQuery.of(context).size.width - 
+            categoryWidth - 
+            groupWidth - 
+            channelListWidth
+        : 0;
 
-  Widget _buildOpenDrawer(bool isTV) {
-    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    const categoryWidth = 110.0;
-    final groupWidth = _state.keys.isNotEmpty ? 120.0 : 0.0;
-    
-    final channelListWidth = (_state.keys.isNotEmpty && _state.values.isNotEmpty)
-        ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160.0)
-        : 0.0;
-
-    final epgListWidth = (_state.keys.isNotEmpty && 
-                         _state.values.isNotEmpty && 
-                         _epgData != null)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
-        : 0.0;
-
-    return Container(
-      key: _viewPortKey,
-      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      width: widget.isLandscape
-          ? categoryWidth + groupWidth + channelListWidth + epgListWidth
-          : MediaQuery.of(context).size.width,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: categoryWidth,
-            child: CategoryList(
-              categories: _state.categories,
-              selectedCategoryIndex: _state.categoryIndex,
-              onCategoryTap: _onCategoryTap,
-              isTV: isTV,
-              startIndex: _state.categoryStartIndex,
-            ),
+    return TvKeyNavigation(
+      focusNodes: GlobalFocusManager.focusNodes,
+      isVerticalGroup: true,
+      initialIndex: 0,
+      onStateCreated: (state) {
+        _tvKeyNavigationState = state;
+      },
+      child: Container(
+        key: _viewPortKey,
+        padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
+        width: widget.isLandscape
+            ? categoryWidth + groupWidth + channelListWidth + epgListWidth
+            : MediaQuery.of(context).size.width,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.black, Colors.transparent],
           ),
-          UIConstants.verticalDivider,
-          if (_state.keys.isNotEmpty) ...[
+        ),
+        child: Row(
+          children: [
+            // 分类列表
             SizedBox(
-              width: groupWidth,
-              child: GroupList(
-                keys: _state.keys,
-                selectedGroupIndex: _state.groupIndex,
-                onGroupTap: _onGroupTap,
+              width: categoryWidth,
+              child: CategoryList(
+                categories: _categories,
+                selectedCategoryIndex: _categoryIndex,
+                onCategoryTap: _onCategoryTap,
                 isTV: isTV,
-                scrollController: _scrollController,
-                isFavoriteCategory: _state.categories[_state.categoryIndex] == Config.myFavoriteKey,
-                startIndex: _state.groupStartIndex,
+                startIndex: _categoryStartIndex,
               ),
             ),
             UIConstants.verticalDivider,
-          ],
-          if (_state.values.isNotEmpty && _state.groupIndex >= 0) ...[
-            SizedBox(
-              width: channelListWidth,
-              child: ChannelList(
-                channels: _state.values[_state.groupIndex],
-                selectedChannelName: widget.playModel?.title,
-                onChannelTap: _onChannelTap,
-                isTV: isTV,
-                scrollController: _scrollChannelController,
-                startIndex: _state.channelStartIndex,
+            
+            // 分组列表
+            if (_keys.isNotEmpty) ...[
+              SizedBox(
+                width: groupWidth,
+                child: GroupList(
+                  keys: _keys,
+                  selectedGroupIndex: _groupIndex,
+                  onGroupTap: _onGroupTap,
+                  isTV: isTV,
+                  scrollController: _scrollController,
+                  isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
+                  startIndex: _groupStartIndex,
+                ),
               ),
-            ),
-            if (_epgData != null) ...[
+              UIConstants.verticalDivider,
+            ],
+            
+            // 频道列表
+            if (_keys.isNotEmpty && _values.isNotEmpty) ...[
+              SizedBox(
+                width: channelListWidth,
+                child: ChannelList(
+                  channels: _values[_groupIndex],
+                  selectedChannelName: widget.playModel?.title,
+                  onChannelTap: _onChannelTap,
+                  isTV: isTV,
+                  scrollController: _scrollChannelController,
+                  startIndex: _channelStartIndex,
+                ),
+              ),
+            ],
+            
+            // EPG列表
+            if (_keys.isNotEmpty && _values.isNotEmpty && _epgData != null) ...[
               UIConstants.verticalDivider,
               SizedBox(
                 width: epgListWidth,
@@ -880,23 +1020,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
               ),
             ],
           ],
-        ],
+        ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isTV = context.read<ThemeProvider>().isTV;
-
-    return TvKeyNavigation(
-      focusNodes: FocusNodeProvider.nodes,
-      isVerticalGroup: true,
-      initialIndex: 0,
-      onStateCreated: (state) {
-        _tvKeyNavigationState = state;
-      },
-      child: _buildOpenDrawer(isTV),
     );
   }
 }
