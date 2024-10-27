@@ -133,7 +133,7 @@ class FocusManager {
 }
 
 // 滚动助手类，用于控制滚动视图的位置
-class ScrollHelper {
+class ScrollHelper { 
   // 滚动到顶部
   static void scrollToTop(ScrollController controller) {
     if (controller.hasClients) {
@@ -153,18 +153,7 @@ class ScrollHelper {
 
     final maxScrollExtent = controller.position.maxScrollExtent;
     final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * alignment;
-
-    if (duration == Duration.zero) {
-      // 无动画滚动
-      controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
-    } else {
-      // 带动画滚动
-      controller.animateTo(
-        shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
-        duration: duration,
-        curve: Curves.easeInOut,
-      );
-    }
+    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
   }
 
   // 检查元素是否超出可视区域
@@ -181,6 +170,29 @@ class ScrollHelper {
       }
     }
     return false;
+  }
+
+  static void ensureVisible(BuildContext context, {double alignment = 0.5}) {
+    final RenderObject? renderObject = context.findRenderObject();
+    if (renderObject is RenderBox) {
+      final ScrollableState? scrollableState = Scrollable.of(context);
+      if (scrollableState != null) {
+        final ScrollPosition position = scrollableState.position;
+        final double offset = position.pixels;
+        final double viewportHeight = position.viewportDimension;
+        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+
+        // 如果元素超出可视范围，滚动使其可见
+        if (objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight) {
+          Scrollable.ensureVisible(
+            context, 
+            alignment: alignment, 
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
+    }
   }
 }
 
