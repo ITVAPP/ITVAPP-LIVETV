@@ -723,16 +723,17 @@ void _reInitializeFocusListeners() {
   }
 
   // 添加新的监听器并检查焦点变化
-  addFocusListeners(0, _categories.length);
+  addFocusListeners(0, _categories.length, this);
 
   // 如果有分组，初始化分组的监听器
   if (_keys.isNotEmpty) {
-    addFocusListeners(_categories.length, _keys.length);
+    addFocusListeners(_categories.length, _keys.length, this);
     // 如果有频道，初始化频道的监听器
     if (_values.isNotEmpty && _groupIndex >= 0) {
       addFocusListeners(
         _categories.length + _keys.length,
         _values[_groupIndex].length,
+        this,
       );
     }
   }
