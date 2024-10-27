@@ -86,13 +86,18 @@ class GlobalFocusManager {
 
   static void initializeFocusNodes(int totalCount) {
     if (_focusNodes.length != totalCount) {
+      // 清理旧的焦点节点
       for (final node in _focusNodes) {
         node.dispose();
       }
       _focusNodes.clear();
       _focusStates.clear();
 
-      _focusNodes = List.generate(totalCount, (index) => FocusNode());
+      // 添加新的焦点节点
+      for (var i = 0; i < totalCount; i++) {
+        _focusNodes.add(FocusNode());
+      }
+      
       LogUtil.v('频道抽屉节点数量: $totalCount');
     }
   }
@@ -127,6 +132,14 @@ class GlobalFocusManager {
   }
 
   static List<FocusNode> get focusNodes => _focusNodes;
+  
+  static void dispose() {
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
+    _focusNodes.clear();
+    _focusStates.clear();
+  }
 }
 
 // 通用列表项构建器
@@ -626,6 +639,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     _scrollChannelController.dispose();
+    GlobalFocusManager.dispose();
     super.dispose();
   }
 
