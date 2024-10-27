@@ -102,15 +102,13 @@ void removeFocusListeners(int startIndex, int length) {
 void _initializeFocusNodes(int totalCount) {
   // 如果缓存中的 FocusNode 数量和需要的数量不一致，销毁并重建
   if (_focusNodes.length != totalCount) {
-    // 清空并销毁已有的 FocusNodes，避免内存泄漏
     for (final node in _focusNodes) {
       node.dispose();
     }
     _focusNodes.clear();
-    _focusStates.clear(); // 清理焦点状态
+    _focusStates.clear();
 
     // 生成新的 FocusNode 列表并缓存
-    LogUtil.v('频道抽屉节点数量: $totalCount');
     _focusNodes = List.generate(totalCount, (index) => FocusNode());
   }
 }
@@ -589,7 +587,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     _initializeFocusNodes(totalFocusNodes);
 
-    _calculateViewportHeight(); // 计算视图窗口的高度，只在初始化时调用
+    _calculateViewportHeight(); // 计算视图窗口的高度
 
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
@@ -607,7 +605,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     _focusNodes.forEach((node) => node.dispose());
     _focusNodes.clear();
-    _focusStates.clear(); // 清理焦点状态
+    _focusStates.clear(); 
     super.dispose();
   }
 
@@ -1054,4 +1052,5 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
       ],
     ),
   );
+}
 }
