@@ -66,12 +66,9 @@ void addFocusListeners(int startIndex, int length, State state) {
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     return;
   }
-
-  // 初始化这个范围内的焦点状态
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
-
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
     // 移除旧的监听器
@@ -97,15 +94,13 @@ void removeFocusListeners(int startIndex, int length) {
 
 // 初始化 FocusNode 列表
 void _initializeFocusNodes(int totalCount) {
-  // 如果缓存中的 FocusNode 数量和需要的数量不一致，销毁并重建
+  // 如果缓存的不一致，销毁并重建
   if (_focusNodes.length != totalCount) {
     for (final node in _focusNodes) {
       node.dispose();
     }
     _focusNodes.clear();
     _focusStates.clear();
-
-    // 生成新的 FocusNode 列表并缓存
     _focusNodes = List.generate(totalCount, (index) => FocusNode());
   }
 }
@@ -822,19 +817,22 @@ void _onGroupTap(int index) {
 
   // 切换频道
 void _onChannelTap(PlayModel? newModel) {
-  if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
+  if (newModel?.title == widget.playModel?.title) return;
 
-  // 更新本地状态，立即应用选中的样式
   setState(() {
     _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
   });
 
-  // 可以调用父组件的回调来处理其它逻辑
-  widget.onTapChannel?.call(newModel);
+  // 将父组件的回调放在微任务队列中
+  Future.microtask(() {
+    widget.onTapChannel?.call(newModel);
+  });
 
-  // 异步加载 EPG 数据，避免阻塞 UI 渲染
-  _loadEPGMsg(newModel).then((_) {
-    setState(() {}); // 当 EPG 数据加载完后，更新 UI
+  // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _loadEPGMsg(newModel).then((_) {
+      setState(() {}); // 更新UI
+    });
   });
 }
 
