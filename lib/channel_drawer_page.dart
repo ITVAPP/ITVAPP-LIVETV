@@ -12,184 +12,166 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-// 焦点管理的 Mixin
-mixin FocusManagementMixin<T extends StatefulWidget> on State<T> {
-  final Map<int, bool> _localFocusStates = {};
-  
-  void initializeFocusStates(int startIndex, int length) {
-    for (var i = 0; i < length; i++) {
-      _localFocusStates[startIndex + i] = false;
-    }
-  }
+// 分割线样式
+final verticalDivider = VerticalDivider(
+  width: 0.1,
+  color: Colors.white.withOpacity(0.1),
+);
 
-  void handleFocusChange(int startIndex, int length) {
-    bool needsUpdate = false;
-    for (var i = 0; i < length; i++) {
-      final nodeIndex = startIndex + i;
-      final newState = GlobalFocusManager.focusNodes[nodeIndex].hasFocus;
-      if (_localFocusStates[nodeIndex] != newState) {
-        _localFocusStates[nodeIndex] = newState;
-        needsUpdate = true;
-      }
-    }
-    if (needsUpdate && mounted) {
-      setState(() {});
-    }
-  }
+// 文字样式
+const defaultTextStyle = TextStyle(
+  fontSize: 16, // 字体大小
+);
 
-  void cleanupFocusStates() {
-    _localFocusStates.clear();
-  }
+const selectedTextStyle = TextStyle(
+  fontWeight: FontWeight.bold, // 选中的字体加粗
+  color: Colors.white, // 选中项的字体颜色
+  shadows: [
+    Shadow(
+      offset: Offset(1.0, 1.0),
+      blurRadius: 3.0,
+      color: Colors.black54,
+    ),
+  ],
+);
 
-  bool hasFocus(int index) => _localFocusStates[index] ?? false;
+// 最小高度
+const defaultMinHeight = 42.0;
+
+// 背景色
+const defaultBackgroundColor = Colors.black38;
+
+// padding设置
+const defaultPadding = EdgeInsets.all(6.0);
+
+// 装饰设置
+const Color selectedColor = Color(0xFFEB144C); // 选中颜色
+const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
+
+BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
+  return BoxDecoration(
+    color: hasFocus
+        ? unselectedColor // 焦点优先
+        : (isSelected ? selectedColor : Colors.transparent), // 没有焦点时使用选中颜色
+  );
 }
 
-// UI常量
-class UIConstants {
-  static const verticalDivider = VerticalDivider(
-    width: 0.1,
-    color: Colors.white10,
-  );
+// 用于管理所有 FocusNode 的列表和全局焦点状态
+List<FocusNode> _focusNodes = [];
+Map<int, bool> _focusStates = {};
 
-  static const defaultTextStyle = TextStyle(fontSize: 16);
-
-  static const selectedTextStyle = TextStyle(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-    shadows: [
-      Shadow(offset: Offset(1.0, 1.0), blurRadius: 3.0, color: Colors.black54),
-    ],
-  );
-
-  static const defaultMinHeight = 42.0;
-  static const defaultBackgroundColor = Colors.black38;
-  static const defaultPadding = EdgeInsets.all(6.0);
-  static const selectedColor = Color(0xFFEB144C);
-  static const unselectedColor = Color(0xFFDFA02A);
-
-  static BoxDecoration buildItemDecoration({
-    bool isSelected = false,
-    bool hasFocus = false,
-  }) {
-    return BoxDecoration(
-      color: hasFocus
-          ? unselectedColor
-          : (isSelected ? selectedColor : Colors.transparent),
-    );
+// 通用的焦点变化处理函数
+void handleFocusChange(int index) {
+  final currentFocus = _focusNodes[index].hasFocus;
+  if (_focusStates[index] != currentFocus) {
+    _focusStates[index] = currentFocus;
+    setState(() {});
   }
 }
 
-// 全局焦点管理
-class GlobalFocusManager {
-  static final List<FocusNode> _focusNodes = [];
-  static final Map<int, bool> _focusStates = {};
-
-  static void initializeFocusNodes(int totalCount) {
-    if (_focusNodes.length != totalCount) {
-      // 清理旧的焦点节点
-      for (final node in _focusNodes) {
-        node.dispose();
-      }
-      _focusNodes.clear();
-      _focusStates.clear();
-
-      // 添加新的焦点节点
-      for (var i = 0; i < totalCount; i++) {
-        _focusNodes.add(FocusNode());
-      }
-      
-      LogUtil.v('频道抽屉节点数量: $totalCount');
-    }
+// 添加焦点监听逻辑的通用函数
+void addFocusListeners(int startIndex, int length) {
+  // 确保索引范围有效
+  if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+    return;
   }
 
-  static void addFocusListeners(
-    int startIndex,
-    int length,
-    VoidCallback onFocusChange,
-  ) {
-    if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
-      return;
-    }
-
-    for (var i = startIndex; i < startIndex + length; i++) {
-      _focusStates[i] = _focusNodes[i].hasFocus;
-      _focusNodes[i].removeListener(() {});
-      _focusNodes[i].addListener(() {
-        final currentFocus = _focusNodes[i].hasFocus;
-        if (_focusStates[i] != currentFocus) {
-          _focusStates[i] = currentFocus;
-          onFocusChange();
-        }
-      });
-    }
+  // 初始化这个范围内的焦点状态
+  for (var i = 0; i < length; i++) {
+    _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
 
-  static void removeFocusListeners(int startIndex, int length) {
-    for (var i = startIndex; i < startIndex + length; i++) {
-      _focusNodes[i].removeListener(() {});
-      _focusStates.remove(i);
-    }
+  for (var i = 0; i < length; i++) {
+    final index = startIndex + i;
+    // 移除旧的监听器
+    _focusNodes[index].removeListener(() {});
+    // 添加新的监听器，调用通用的焦点变化处理函数
+    _focusNodes[index].addListener(() => handleFocusChange(index));
   }
+}
 
-  static List<FocusNode> get focusNodes => _focusNodes;
-  
-  static void dispose() {
+// 移除焦点监听逻辑的通用函数
+void removeFocusListeners(int startIndex, int length) {
+  for (var i = 0; i < length; i++) {
+    _focusNodes[startIndex + i].removeListener(() {});
+    _focusStates.remove(startIndex + i); // 清理对应的状态
+  }
+}
+
+// 初始化 FocusNode 列表
+void _initializeFocusNodes(int totalCount) {
+  // 如果缓存中的 FocusNode 数量和需要的数量不一致，销毁并重建
+  if (_focusNodes.length != totalCount) {
+    // 清空并销毁已有的 FocusNodes，避免内存泄漏
     for (final node in _focusNodes) {
       node.dispose();
     }
     _focusNodes.clear();
-    _focusStates.clear();
+    _focusStates.clear(); // 清理焦点状态
+
+    // 生成新的 FocusNode 列表并缓存
+    LogUtil.v('频道抽屉节点数量: $totalCount');
+    _focusNodes = List.generate(totalCount, (index) => FocusNode());
   }
 }
 
-// 通用列表项构建器
-class ListItemBuilder {
-  static Widget build({
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required BuildContext context,
-    bool isCentered = true,
-    double minHeight = UIConstants.defaultMinHeight,
-    EdgeInsets padding = UIConstants.defaultPadding,
-    bool isTV = false,
-    int? index,
-    bool useFocusableItem = true,
-  }) {
-    FocusNode? focusNode = (index != null && 
-                           index >= 0 && 
-                           index < GlobalFocusManager.focusNodes.length)
-        ? GlobalFocusManager.focusNodes[index]
-        : null;
-
-    Widget content = GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: BoxConstraints(minHeight: minHeight),
-        padding: padding,
-        alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-        decoration: UIConstants.buildItemDecoration(
-          isSelected: isSelected,
-          hasFocus: focusNode?.hasFocus ?? false,
-        ),
-        child: Text(
-          title,
-          style: (focusNode?.hasFocus ?? false)
-              ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle)
-              : (isSelected 
-                  ? UIConstants.defaultTextStyle.merge(UIConstants.selectedTextStyle) 
-                  : UIConstants.defaultTextStyle),
-          softWrap: true,
-          maxLines: null,
-          overflow: TextOverflow.visible,
-        ),
-      ),
-    );
-
-    return useFocusableItem && focusNode != null
-        ? FocusableItem(focusNode: focusNode, child: content)
-        : content;
+// 判断是否超出可视区域函数
+bool isOutOfView(BuildContext context) {
+  RenderObject? renderObject = context.findRenderObject();
+  if (renderObject is RenderBox) {
+    final ScrollableState? scrollableState = Scrollable.of(context);
+    if (scrollableState != null) {
+      final ScrollPosition position = scrollableState.position;
+      final double offset = position.pixels;
+      final double viewportHeight = position.viewportDimension;
+      final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+      return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
+    }
   }
+  return false;
+}
+
+// 通用列表项构建函数
+Widget buildListItem({
+  required String title,
+  required bool isSelected,
+  required Function() onTap,
+  required BuildContext context,
+  bool isCentered = true,
+  double minHeight = defaultMinHeight,
+  EdgeInsets padding = defaultPadding,
+  bool isTV = false,
+  int? index,
+  bool useFocusableItem = true,
+}) {
+  FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
+      ? _focusNodes[index]
+      : null;
+Widget listItemContent = GestureDetector(
+  onTap: onTap,
+  child: Container(
+    constraints: BoxConstraints(minHeight: minHeight),
+    padding: padding,
+    alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+    decoration: buildItemDecoration(
+      isSelected: isSelected,
+      hasFocus: focusNode?.hasFocus ?? false,
+    ),
+    child: Text(
+      title,
+      style: (focusNode?.hasFocus ?? false)
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+      softWrap: true,
+      maxLines: null,
+      overflow: TextOverflow.visible,
+    ),
+  ),
+);
+
+  return useFocusableItem && focusNode != null
+      ? FocusableItem(focusNode: focusNode, child: listItemContent)
+      : listItemContent;
 }
 
 // 分类列表组件
@@ -213,29 +195,30 @@ class CategoryList extends StatefulWidget {
   _CategoryListState createState() => _CategoryListState();
 }
 
-class _CategoryListState extends State<CategoryList> with FocusManagementMixin {
+class _CategoryListState extends State<CategoryList> {
+  Map<int, bool> _localFocusStates = {};
+
   @override
   void initState() {
     super.initState();
-    initializeFocusStates(widget.startIndex, widget.categories.length);
-    GlobalFocusManager.addFocusListeners(
-      widget.startIndex,
-      widget.categories.length,
-      () => handleFocusChange(widget.startIndex, widget.categories.length),
-    );
+    // 初始化本地焦点状态
+    for (var i = 0; i < widget.categories.length; i++) {
+      _localFocusStates[widget.startIndex + i] = false;
+    }
+    addFocusListeners(widget.startIndex, widget.categories.length);
   }
 
   @override
   void dispose() {
-    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.categories.length);
-    cleanupFocusStates();
+    removeFocusListeners(widget.startIndex, widget.categories.length);
+    _localFocusStates.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: UIConstants.defaultBackgroundColor,
+      color: defaultBackgroundColor,
       child: Group(
         groupIndex: 0,
         child: Column(
@@ -247,12 +230,13 @@ class _CategoryListState extends State<CategoryList> with FocusManagementMixin {
                     ? S.of(context).allchannels
                     : category;
 
-            return ListItemBuilder.build(
+            return buildListItem(
               title: displayTitle,
               isSelected: widget.selectedCategoryIndex == index,
               onTap: () => widget.onCategoryTap(index),
-              context: context,
+              isCentered: true,
               isTV: widget.isTV,
+              context: context,
               index: widget.startIndex + index,
             );
           }),
@@ -287,22 +271,23 @@ class GroupList extends StatefulWidget {
   _GroupListState createState() => _GroupListState();
 }
 
-class _GroupListState extends State<GroupList> with FocusManagementMixin {
+class _GroupListState extends State<GroupList> {
+  Map<int, bool> _localFocusStates = {};
+
   @override
   void initState() {
     super.initState();
-    initializeFocusStates(widget.startIndex, widget.keys.length);
-    GlobalFocusManager.addFocusListeners(
-      widget.startIndex,
-      widget.keys.length,
-      () => handleFocusChange(widget.startIndex, widget.keys.length),
-    );
+    // 初始化本地焦点状态
+    for (var i = 0; i < widget.keys.length; i++) {
+      _localFocusStates[widget.startIndex + i] = false;
+    }
+    addFocusListeners(widget.startIndex, widget.keys.length);
   }
 
   @override
   void dispose() {
-    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.keys.length);
-    cleanupFocusStates();
+    removeFocusListeners(widget.startIndex, widget.keys.length);
+    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -313,26 +298,22 @@ class _GroupListState extends State<GroupList> with FocusManagementMixin {
     }
 
     return Container(
-      color: UIConstants.defaultBackgroundColor,
+      color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height
-          ),
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
           child: IntrinsicHeight(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: widget.keys.isEmpty && widget.isFavoriteCategory
                   ? [
                       Container(
-                        constraints: const BoxConstraints(
-                          minHeight: UIConstants.defaultMinHeight
-                        ),
+                        constraints: BoxConstraints(minHeight: defaultMinHeight),
                         child: Center(
                           child: Text(
                             S.of(context).nofavorite,
-                            style: UIConstants.defaultTextStyle.merge(
+                            style: defaultTextStyle.merge(
                               const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -343,12 +324,14 @@ class _GroupListState extends State<GroupList> with FocusManagementMixin {
                       Group(
                         groupIndex: 1,
                         children: List.generate(widget.keys.length, (index) {
-                          return ListItemBuilder.build(
+                          return buildListItem(
                             title: widget.keys[index],
                             isSelected: widget.selectedGroupIndex == index,
                             onTap: () => widget.onGroupTap(index),
-                            context: context,
+                            isCentered: true,
                             isTV: widget.isTV,
+                            minHeight: defaultMinHeight,
+                            context: context,
                             index: widget.startIndex + index,
                           );
                         }),
@@ -385,26 +368,23 @@ class ChannelList extends StatefulWidget {
   State<ChannelList> createState() => _ChannelListState();
 }
 
-class _ChannelListState extends State<ChannelList> with FocusManagementMixin {
+class _ChannelListState extends State<ChannelList> {
+  Map<int, bool> _localFocusStates = {};
+
   @override
   void initState() {
     super.initState();
-    initializeFocusStates(widget.startIndex, widget.channels.length);
-    GlobalFocusManager.addFocusListeners(
-      widget.startIndex,
-      widget.channels.length,
-      () => handleFocusChange(widget.startIndex, widget.channels.length),
-    );
+    // 初始化本地焦点状态
+    for (var i = 0; i < widget.channels.length; i++) {
+      _localFocusStates[widget.startIndex + i] = false;
+    }
+    addFocusListeners(widget.startIndex, widget.channels.length);
 
     if (widget.isTV && widget.selectedChannelName != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance?.addPostFrameCallback((_) {
         final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
         if (index != -1 && isOutOfView(context)) {
-          Scrollable.ensureVisible(
-            context, 
-            alignment: 0.5, 
-            duration: Duration.zero
-          );
+          Scrollable.ensureVisible(context, alignment: 0.5, duration: Duration.zero);
         }
       });
     }
@@ -412,25 +392,9 @@ class _ChannelListState extends State<ChannelList> with FocusManagementMixin {
 
   @override
   void dispose() {
-    GlobalFocusManager.removeFocusListeners(widget.startIndex, widget.channels.length);
-    cleanupFocusStates();
+    removeFocusListeners(widget.startIndex, widget.channels.length);
+    _localFocusStates.clear();
     super.dispose();
-  }
-
-  bool isOutOfView(BuildContext context) {
-    RenderObject? renderObject = context.findRenderObject();
-    if (renderObject is RenderBox) {
-      final ScrollableState? scrollableState = Scrollable.of(context);
-      if (scrollableState != null) {
-        final ScrollPosition position = scrollableState.position;
-        final double offset = position.pixels;
-        final double viewportHeight = position.viewportDimension;
-        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-        return objectPosition.dy < offset || 
-               objectPosition.dy > offset + viewportHeight;
-      }
-    }
-    return false;
   }
 
   @override
@@ -442,16 +406,14 @@ class _ChannelListState extends State<ChannelList> with FocusManagementMixin {
     }
 
     return Container(
-      color: UIConstants.defaultBackgroundColor,
+      color: defaultBackgroundColor,
       child: SingleChildScrollView(
         controller: widget.scrollController,
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height
-          ),
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
           child: IntrinsicHeight(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start, 
               children: [
                 Group(
                   groupIndex: 2,
@@ -460,12 +422,14 @@ class _ChannelListState extends State<ChannelList> with FocusManagementMixin {
                     final channelName = channelEntry.key;
                     final isSelect = widget.selectedChannelName == channelName;
 
-                    return ListItemBuilder.build(
+                    return buildListItem(
                       title: channelName,
                       isSelected: isSelect,
                       onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                      context: context,
+                      isCentered: true,
+                      minHeight: defaultMinHeight,
                       isTV: widget.isTV,
+                      context: context,
                       index: widget.startIndex + index,
                     );
                   }),
@@ -504,8 +468,7 @@ class _EPGListState extends State<EPGList> {
   @override
   void didUpdateWidget(covariant EPGList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.epgData != oldWidget.epgData || 
-        widget.selectedIndex != oldWidget.selectedIndex) {
+    if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
       setState(() {});
     }
   }
@@ -517,28 +480,27 @@ class _EPGListState extends State<EPGList> {
     }
 
     return Container(
-      color: UIConstants.defaultBackgroundColor,
+      color: defaultBackgroundColor,
       child: Column(
         children: [
           Container(
-            height: UIConstants.defaultMinHeight,
+            height: defaultMinHeight,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 8),
             decoration: BoxDecoration(
-              color: UIConstants.defaultBackgroundColor,
+              color: defaultBackgroundColor,
               borderRadius: BorderRadius.circular(5),
             ),
             child: Text(
               S.of(context).programListTitle,
-              style: UIConstants.defaultTextStyle.merge(
+              style: defaultTextStyle.merge(
                 const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                  fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          UIConstants.verticalDivider,
+          verticalDivider,
           Flexible(
             child: ScrollablePositionedList.builder(
               initialScrollIndex: widget.selectedIndex,
@@ -547,14 +509,16 @@ class _EPGListState extends State<EPGList> {
               itemBuilder: (BuildContext context, int index) {
                 final data = widget.epgData?[index];
                 if (data == null) return const SizedBox.shrink();
-                
-                return ListItemBuilder.build(
+                final isSelect = index == widget.selectedIndex;
+                return buildListItem(
                   title: '${data.start}-${data.end}\n${data.title}',
-                  isSelected: index == widget.selectedIndex,
-                  onTap: widget.onCloseDrawer,
-                  context: context,
+                  isSelected: isSelect,
+                  onTap: () {
+                    widget.onCloseDrawer();
+                  },
                   isCentered: false,
                   isTV: widget.isTV,
+                  context: context,
                   useFocusableItem: false,
                 );
               },
@@ -587,8 +551,7 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> 
-    with WidgetsBindingObserver {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final ScrollController _scrollChannelController = ScrollController();
   final ItemScrollController _epgItemScrollController = ItemScrollController();
@@ -616,7 +579,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     _initializeCategoryData();
     _initializeChannelData();
 
-    // 计算所需的焦点节点总数
     int totalFocusNodes = _categories.length;
     totalFocusNodes += _keys.length;
     if (_values.isNotEmpty &&
@@ -625,9 +587,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
         (_values[_groupIndex].length > 0)) {
       totalFocusNodes += (_values[_groupIndex].length);
     }
-    GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+    _initializeFocusNodes(totalFocusNodes);
 
-    _calculateViewportHeight();
+    _calculateViewportHeight(); // 计算视图窗口的高度，只在初始化时调用
 
     if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
       _loadEPGMsg(widget.playModel);
@@ -637,9 +599,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scrollController.dispose();
-    _scrollChannelController.dispose();
-    GlobalFocusManager.dispose();
+    if (_scrollController.hasClients) {
+      _scrollController.dispose();
+    }
+    if (_scrollChannelController.hasClients) {
+      _scrollChannelController.dispose();
+    }
+    _focusNodes.forEach((node) => node.dispose());
+    _focusNodes.clear();
+    _focusStates.clear(); // 清理焦点状态
     super.dispose();
   }
 
@@ -648,8 +616,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     final newHeight = MediaQuery.of(context).size.height * 0.5;
     if (newHeight != _viewPortHeight) {
       setState(() {
-        _viewPortHeight = newHeight;
-        _adjustScrollPositions();
+        _viewPortHeight = newHeight; // 只在高度变化时更新
+        _adjustScrollPositions(); // 调整滚动位置
         _updateStartIndexes(
           includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
         );
@@ -657,13 +625,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     }
   }
 
+  // 计算视图窗口的高度
   void _calculateViewportHeight() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance?.addPostFrameCallback((_) {
       final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
+        final height = renderBox.size.height * 0.5; // 取窗口高度的一半
         setState(() {
-          _viewPortHeight = renderBox.size.height * 0.5;
-          _adjustScrollPositions();
+          _viewPortHeight = height; // 仅在初次计算时设置
+          _adjustScrollPositions(); // 调整滚动位置
         });
       }
     });
@@ -671,11 +641,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
 
   // 初始化分类数据
   void _initializeCategoryData() {
-    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
     _categoryIndex = -1;
     _groupIndex = -1;
     _channelIndex = -1;
 
+    // 遍历每个分类，查找当前播放的频道所属的分组和分类
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
@@ -685,19 +656,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
           final group = categoryMap.keys.toList()[groupIndex];
           final channelMap = categoryMap[group];
 
-          if (channelMap != null && 
-              channelMap.containsKey(widget.playModel?.title)) {
-            _categoryIndex = i;
-            _groupIndex = groupIndex;
-            _channelIndex = channelMap.keys
-                .toList()
-                .indexOf(widget.playModel?.title ?? '');
+          // 检查当前播放的频道是否在这个分组中
+          if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
+            _categoryIndex = i; // 设置匹配的分类
+            _groupIndex = groupIndex; // 设置匹配的分组
+            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? ''); // 设置匹配的频道
             return;
           }
         }
       }
     }
 
+    // 如果未找到当前播放频道的分类，寻找第一个非空分类
     if (_categoryIndex == -1) {
       for (int i = 0; i < _categories.length; i++) {
         final categoryMap = widget.videoMap?.playList[_categories[i]];
@@ -713,6 +683,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
 
   // 初始化频道数据
   void _initializeChannelData() {
+    // 如果索引无效，重置所有数据
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
       _resetChannelData();
       return;
@@ -724,7 +695,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     _keys = categoryMap.keys.toList();
     _values = categoryMap.values.toList();
 
-    // 频道按名字排序
+    // 频道按名字进行 Unicode 排序
     for (int i = 0; i < _values.length; i++) {
       _values[i] = Map<String, PlayModel>.fromEntries(
         _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
@@ -740,6 +711,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     if (_channelIndex == -1) _channelIndex = 0;
   }
 
+  // 重置频道数据
   void _resetChannelData() {
     _keys = [];
     _values = [];
@@ -748,179 +720,194 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     _epgData = null;
     _selEPGIndex = 0;
   }
-
-  // 重新初始化焦点监听器
-  void _reInitializeFocusListeners() {
-    // 先移除所有现有监听器
-    for (var i = 0; i < GlobalFocusManager.focusNodes.length; i++) {
-      GlobalFocusManager.focusNodes[i].removeListener(() {});
-    }
-
-    // 添加新的监听器
-    GlobalFocusManager.addFocusListeners(
-      0, 
-      _categories.length,
-      () => setState(() {}),
-    );
-
-    if (_keys.isNotEmpty) {
-      GlobalFocusManager.addFocusListeners(
-        _categories.length,
-        _keys.length,
-        () => setState(() {}),
-      );
-
-      if (_values.isNotEmpty && _groupIndex >= 0) {
-        GlobalFocusManager.addFocusListeners(
-          _categories.length + _keys.length,
-          _values[_groupIndex].length,
-          () => setState(() {}),
-        );
-      }
-    }
+  
+// 重新初始化所有焦点监听器的方法
+void _reInitializeFocusListeners() {
+  // 移除所有现有的监听器
+  for (var node in _focusNodes) {
+    node.removeListener(() {});
   }
 
-  // 处理分类点击
-  void _onCategoryTap(int index) {
-    if (_categoryIndex == index) return;
+  // 添加新的监听器并检查焦点变化
+  addFocusListeners(0, _categories.length);
 
-    setState(() {
-      _categoryIndex = index;
+  // 如果有分组，初始化分组的监听器
+  if (_keys.isNotEmpty) {
+    addFocusListeners(_categories.length, _keys.length);
+    // 如果有频道，初始化频道的监听器
+    if (_values.isNotEmpty && _groupIndex >= 0) {
+      addFocusListeners(
+        _categories.length + _keys.length,
+        _values[_groupIndex].length,
+      );
+    }
+  }
+}
 
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
+// 切换分类时更新分组和频道
+void _onCategoryTap(int index) {
+  if (_categoryIndex == index) return; // 避免重复执行
 
-      if (categoryMap == null || categoryMap.isEmpty) {
-        _resetChannelData();
-        GlobalFocusManager.initializeFocusNodes(_categories.length);
-        _updateStartIndexes(includeGroupsAndChannels: false);
-      } else {
-        _initializeChannelData();
+  setState(() {
+    _categoryIndex = index; // 更新选中的分类索引
 
-        int totalFocusNodes = _categories.length +
-            _keys.length +
-            _values[_groupIndex].length;
-        GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+    // 重置所有焦点状态
+    _focusStates.clear();
 
-        _updateStartIndexes(includeGroupsAndChannels: true);
-        _scrollToTop(_scrollController);
-        _scrollToTop(_scrollChannelController);
-      }
-    });
+    // 检查选中的分类是否有分组
+    final selectedCategory = _categories[_categoryIndex];
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 如果分组为空，清空 _keys 并返回
+    if (categoryMap == null || categoryMap.isEmpty) {
+      _resetChannelData(); 
+      _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
+      _updateStartIndexes(includeGroupsAndChannels: false); // 只计算分类的索引
+    } else {
+      // 分组不为空时，初始化频道数据
+      _initializeChannelData();
+
+      // 计算新分类下的总节点数，并初始化 FocusNode
+      int totalFocusNodes = _categories.length
+          + _keys.length
+          + _values[_groupIndex].length;
+      _initializeFocusNodes(totalFocusNodes);
+      
+      _updateStartIndexes(includeGroupsAndChannels: true);
+
+      // 重置滚动位置
+      _scrollToTop(_scrollController);
+      _scrollToTop(_scrollChannelController);
+    }
+  });
+  
+  // 确保在状态更新后重新初始化焦点系统
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 调用刷新焦点组件
       _tvKeyNavigationState?.releaseResources();
       _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: index);
+      // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
-    });
-  }
+  });
+}
 
-  // 处理分组点击
-  void _onGroupTap(int index) {
-    setState(() {
-      _groupIndex = index;
-      _channelIndex = 0;
+// 切换分组时更新频道
+void _onGroupTap(int index) {
+  setState(() {
+    _groupIndex = index;
+    _channelIndex = 0; // 重置频道索引到第一个频道
 
-      int totalFocusNodes = _categories.length +
-          (_keys.isNotEmpty ? _keys.length : 0) +
-          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
-      GlobalFocusManager.initializeFocusNodes(totalFocusNodes);
+    // 重置所有焦点状态
+    _focusStates.clear();
 
-      _updateStartIndexes(includeGroupsAndChannels: true);
-      _scrollToTop(_scrollChannelController);
-    });
+    // 重新计算所需节点数，并初始化 FocusNode
+    int totalFocusNodes = _categories.length
+        + (_keys.isNotEmpty ? _keys.length : 0)
+        + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+            ? _values[_groupIndex].length
+            : 0);
+    _initializeFocusNodes(totalFocusNodes);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 重新分配索引
+    _updateStartIndexes(includeGroupsAndChannels: true);
+    
+    _scrollToTop(_scrollChannelController);
+  });
+
+  // 确保在状态更新后重新初始化焦点系统
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 计算当前分组第一个频道项的焦点索引
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       _tvKeyNavigationState?.releaseResources();
-      _tvKeyNavigationState?.initializeFocusLogic(
-        initialIndexOverride: firstChannelFocusIndex,
-      );
+      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
-    });
-  }
+  });
+}
 
-  // 处理频道点击
-  void _onChannelTap(PlayModel? newModel) {
-    if (newModel?.title == widget.playModel?.title) return;
+  // 切换频道
+void _onChannelTap(PlayModel? newModel) {
+  if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
 
-    setState(() {
-      _channelIndex = _values[_groupIndex]
-          .keys
-          .toList()
-          .indexOf(newModel?.title ?? '');
-    });
+  // 更新本地状态，立即应用选中的样式
+  setState(() {
+    _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
+  });
 
-    widget.onTapChannel?.call(newModel);
-    _loadEPGMsg(newModel);
-  }
+  // 可以调用父组件的回调来处理其它逻辑
+  widget.onTapChannel?.call(newModel);
 
+  // 异步加载 EPG 数据，避免阻塞 UI 渲染
+  _loadEPGMsg(newModel).then((_) {
+    setState(() {}); // 当 EPG 数据加载完后，更新 UI
+  });
+}
+
+  // 滚动到顶部
   void _scrollToTop(ScrollController controller) {
     controller.jumpTo(0);
   }
 
+  // 更新分类、分组、频道的 startIndex
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
-    int categoryStartIndex = 0;
-    int groupStartIndex = categoryStartIndex + _categories.length;
-    int channelStartIndex = groupStartIndex + 
-        (includeGroupsAndChannels && _keys.isNotEmpty ? _keys.length : 0);
+    int categoryStartIndex = 0; // 分类的起始索引
+    int groupStartIndex = categoryStartIndex + _categories.length; // 分组的起始索引
+    int channelStartIndex = groupStartIndex + (_keys.isNotEmpty ? _keys.length : 0); // 频道的起始索引
 
+    if (!includeGroupsAndChannels) {
+      // 如果不包含分组和频道，则分组和频道的索引只到分类部分
+      groupStartIndex = categoryStartIndex + _categories.length;
+      channelStartIndex = groupStartIndex; // 频道部分不参与计算
+    }
+
+    // 更新构造组件时的起始索引
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
     _channelStartIndex = channelStartIndex;
   }
 
+  // 调整分组和频道列表的滚动位置
   void _adjustScrollPositions() {
     if (_viewPortHeight == null) return;
     _scrollToPosition(_scrollController, _groupIndex);
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
+  // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
-    final viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * UIConstants.defaultMinHeight - 
-        viewPortHeight + 
-        UIConstants.defaultMinHeight * 0.5;
-    controller.jumpTo(
-      shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
-    );
+    final double viewPortHeight = _viewPortHeight!;
+    final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * 0.5;
+    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
   }
 
+  // 加载EPG
   Future<void> _loadEPGMsg(PlayModel? playModel) async {
     if (playModel == null) return;
 
     setState(() {
-      _epgData = null;
-      _selEPGIndex = 0;
+      _epgData = null; // 清空当前节目单数据
+      _selEPGIndex = 0; // 重置选中的节目单索引
     });
 
     try {
-      final res = await EpgUtil.getEpg(playModel);
+      final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
       if (res?.epgData == null || res!.epgData!.isEmpty) return;
 
-      final epgRangeTime = DateUtil.formatDate(
-        DateTime.now(),
-        format: 'HH:mm',
-      );
-      
+      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
       final selectTimeData = res.epgData!.lastWhere(
-        (element) => element.start!.compareTo(epgRangeTime) < 0,
-        orElse: () => res.epgData!.first,
+            (element) => element.start!.compareTo(epgRangeTime) < 0,
+        orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
       ).start;
-      
-      final selectedIndex = res.epgData!.indexWhere(
-        (element) => element.start == selectTimeData
-      );
+      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
 
       setState(() {
-        _epgData = res.epgData!;
+        _epgData = res.epgData!; // 更新节目单数据
         _selEPGIndex = selectedIndex;
       });
 
+      // 在节目单数据更新后滚动到当前选中的节目项
       if (_epgData!.isNotEmpty && _selEPGIndex < _epgData!.length) {
         _epgItemScrollController.scrollTo(
           index: _selEPGIndex,
@@ -932,110 +919,139 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    bool isTV = context.read<ThemeProvider>().isTV;
-    bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-
-    // 设置各列表宽度
-    double categoryWidth = 110;
-    double groupWidth = _keys.isNotEmpty ? 120 : 0;
-    double channelListWidth = (_keys.isNotEmpty && _values.isNotEmpty)
-        ? (isPortrait 
-            ? MediaQuery.of(context).size.width - categoryWidth - groupWidth 
-            : 160)
-        : 0;
-    double epgListWidth = (_keys.isNotEmpty && 
-                          _values.isNotEmpty && 
-                          _epgData != null)
-        ? MediaQuery.of(context).size.width - 
-            categoryWidth - 
-            groupWidth - 
-            channelListWidth
-        : 0;
-
-    return TvKeyNavigation(
-      focusNodes: GlobalFocusManager.focusNodes,
-      isVerticalGroup: true,
-      initialIndex: 0,
-      onStateCreated: (state) {
-        _tvKeyNavigationState = state;
-      },
-      child: Container(
-        key: _viewPortKey,
-        padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-        width: widget.isLandscape
-            ? categoryWidth + groupWidth + channelListWidth + epgListWidth
-            : MediaQuery.of(context).size.width,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.black, Colors.transparent],
-          ),
-        ),
-        child: Row(
-          children: [
-            // 分类列表
-            SizedBox(
-              width: categoryWidth,
-              child: CategoryList(
-                categories: _categories,
-                selectedCategoryIndex: _categoryIndex,
-                onCategoryTap: _onCategoryTap,
-                isTV: isTV,
-                startIndex: _categoryStartIndex,
-              ),
-            ),
-            UIConstants.verticalDivider,
-            
-            // 分组列表
-            if (_keys.isNotEmpty) ...[
-              SizedBox(
-                width: groupWidth,
-                child: GroupList(
-                  keys: _keys,
-                  selectedGroupIndex: _groupIndex,
-                  onGroupTap: _onGroupTap,
-                  isTV: isTV,
-                  scrollController: _scrollController,
-                  isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
-                  startIndex: _groupStartIndex,
-                ),
-              ),
-              UIConstants.verticalDivider,
-            ],
-            
-            // 频道列表
-            if (_keys.isNotEmpty && _values.isNotEmpty) ...[
-              SizedBox(
-                width: channelListWidth,
-                child: ChannelList(
-                  channels: _values[_groupIndex],
-                  selectedChannelName: widget.playModel?.title,
-                  onChannelTap: _onChannelTap,
-                  isTV: isTV,
-                  scrollController: _scrollChannelController,
-                  startIndex: _channelStartIndex,
-                ),
-              ),
-            ],
-            
-            // EPG列表
-            if (_keys.isNotEmpty && _values.isNotEmpty && _epgData != null) ...[
-              UIConstants.verticalDivider,
-              SizedBox(
-                width: epgListWidth,
-                child: EPGList(
-                  epgData: _epgData,
-                  selectedIndex: _selEPGIndex,
-                  isTV: isTV,
-                  epgScrollController: _epgItemScrollController,
-                  onCloseDrawer: widget.onCloseDrawer,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+  // 检查焦点列表是否正确，如果不正确则重建
+  List<FocusNode> _ensureCorrectFocusNodes() {
+    int totalNodesExpected = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    // 如果焦点节点的数量不符合预期，则重新生成焦点列表
+    if (_focusNodes.length != totalNodesExpected) {
+      _initializeFocusNodes(totalNodesExpected); // 根据需要重新初始化焦点节点
+    }
+    return _focusNodes; // 返回更新后的焦点列表
   }
+  
+@override
+Widget build(BuildContext context) {
+  // 获取 isTV 状态
+  bool isTV = context.read<ThemeProvider>().isTV;
+
+  // 索引管理
+  int currentFocusIndex = 0; // 从0开始
+
+  // 分类列表
+  Widget categoryListWidget = CategoryList(
+    categories: _categories,
+    selectedCategoryIndex: _categoryIndex,
+    onCategoryTap: _onCategoryTap,
+    isTV: isTV,
+    startIndex: currentFocusIndex,  // 分类列表起始索引
+  );
+  currentFocusIndex += _categories.length; // 更新焦点索引
+
+  // 如果 _keys 为空，则不显示分组、频道和 EPG 列表
+  Widget? groupListWidget;
+  Widget? channelListWidget;
+  Widget? epgListWidget;
+
+  // 分组列表
+  groupListWidget = GroupList(
+    keys: _keys,
+    selectedGroupIndex: _groupIndex,
+    onGroupTap: _onGroupTap,
+    isTV: isTV,
+    scrollController: _scrollController,
+    isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
+    startIndex: currentFocusIndex,  // 分组列表起始索引
+  );
+  
+  if (_keys.isNotEmpty) {
+    // 频道列表
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      currentFocusIndex += _keys.length; // 更新焦点索引
+      channelListWidget = ChannelList(
+        channels: _values[_groupIndex],
+        selectedChannelName: widget.playModel?.title,
+        onChannelTap: _onChannelTap,
+        isTV: isTV,
+        scrollController: _scrollChannelController,
+        startIndex: currentFocusIndex,  // 频道列表起始索引
+      );
+
+      // EPG 列表
+      epgListWidget = EPGList(
+        epgData: _epgData,
+        selectedIndex: _selEPGIndex,
+        isTV: isTV,
+        epgScrollController: _epgItemScrollController,
+        onCloseDrawer: widget.onCloseDrawer,
+      );
+    }
+  }
+
+  return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
+    focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
+    isVerticalGroup: true, // 启用竖向分组
+    initialIndex: 0, // 组件不自动设置初始焦点
+    onStateCreated: (state) {
+      // 当 TvKeyNavigation 的 State 创建时保存引用
+      _tvKeyNavigationState = state;
+    },
+    child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
+  );
+}
+
+// 构建抽屉视图
+Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
+  bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+  double categoryWidth = 110; // 分类列表宽度
+
+  // 设置分组列表宽度
+  double groupWidth = groupListWidget != null ? 120 : 0;
+
+  // 设置频道列表宽度
+  double channelListWidth = (groupListWidget != null && channelListWidget != null)
+      ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160)
+      : 0;
+
+  // 设置 EPG 列表宽度
+  double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
+      ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
+      : 0;
+
+  return Container(
+    key: _viewPortKey,
+    padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
+    width: widget.isLandscape
+        ? categoryWidth + groupWidth + channelListWidth + epgListWidth
+        : MediaQuery.of(context).size.width, // 获取屏幕宽度
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
+    ),
+    child: Row(
+      children: [
+        SizedBox(
+          width: categoryWidth,
+          child: categoryListWidget,
+        ),
+        verticalDivider,
+        if (groupListWidget != null)
+          SizedBox(
+            width: groupWidth,
+            child: groupListWidget,
+          ),
+        if (groupListWidget != null) verticalDivider,
+        if (channelListWidget != null)
+          SizedBox(
+            width: channelListWidth, // 频道列表宽度
+            child: channelListWidget,
+          ),
+        if (epgListWidget != null) ...[
+          verticalDivider,
+          SizedBox(
+            width: epgListWidth,
+            child: epgListWidget,
+          ),
+        ],
+      ],
+    ),
+  );
 }
