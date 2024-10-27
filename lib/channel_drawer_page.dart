@@ -60,17 +60,8 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
-// 通用的焦点变化处理函数
-void handleFocusChange(int index) {
-  final currentFocus = _focusNodes[index].hasFocus;
-  if (_focusStates[index] != currentFocus) {
-    _focusStates[index] = currentFocus;
-    setState(() {});
-  }
-}
-
 // 添加焦点监听逻辑的通用函数
-void addFocusListeners(int startIndex, int length) {
+void addFocusListeners(int startIndex, int length, State state) {
   // 确保索引范围有效
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     return;
@@ -86,7 +77,13 @@ void addFocusListeners(int startIndex, int length) {
     // 移除旧的监听器
     _focusNodes[index].removeListener(() {});
     // 添加新的监听器，调用通用的焦点变化处理函数
-    _focusNodes[index].addListener(() => handleFocusChange(index));
+    _focusNodes[index].addListener(() {
+      final currentFocus = _focusNodes[index].hasFocus;
+      if (_focusStates[index] != currentFocus) {
+        _focusStates[index] = currentFocus;
+        state.setState(() {}); // 在state中调用setState
+      }
+    });
   }
 }
 
@@ -203,7 +200,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.categories.length);
+    addFocusListeners(widget.startIndex, widget.categories.length, this);
   }
 
   @override
@@ -279,7 +276,7 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.keys.length);
+    addFocusListeners(widget.startIndex, widget.keys.length, this);
   }
 
   @override
@@ -376,7 +373,7 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.channels.length);
+    addFocusListeners(widget.startIndex, widget.channels.length, this);
 
     if (widget.isTV && widget.selectedChannelName != null) {
       WidgetsBinding.instance?.addPostFrameCallback((_) {
@@ -440,7 +437,6 @@ class _ChannelListState extends State<ChannelList> {
     );
   }
 }
-
 // EPG列表组件
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
