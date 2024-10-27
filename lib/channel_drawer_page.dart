@@ -62,17 +62,27 @@ Map<int, bool> _focusStates = {};
 
 // 添加焦点监听逻辑的通用函数
 void addFocusListeners(int startIndex, int length, Function onFocusChange) {
+  // 确保索引范围有效
+  if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+    return;
+  }
+
   // 初始化这个范围内的焦点状态
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
   
   for (var i = 0; i < length; i++) {
-    _focusNodes[startIndex + i].addListener(() {
-      final currentFocus = _focusNodes[startIndex + i].hasFocus;
+    final index = startIndex + i;
+    // 移除旧的监听器
+    _focusNodes[index].removeListener(() {});
+    
+    // 添加新的监听器
+    _focusNodes[index].addListener(() {
+      final currentFocus = _focusNodes[index].hasFocus;
       // 只在焦点状态真正改变时触发更新
-      if (_focusStates[startIndex + i] != currentFocus) {
-        _focusStates[startIndex + i] = currentFocus;
+      if (_focusStates[index] != currentFocus) {
+        _focusStates[index] = currentFocus;
         onFocusChange();
       }
     });
@@ -765,25 +775,58 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _epgData = null;
     _selEPGIndex = 0;
   }
+  
+// 重新初始化所有焦点监听器的方法
+void _reInitializeFocusListeners() {
+  // 移除所有现有的监听器
+  for (var node in _focusNodes) {
+    node.removeListener(() {});
+  }
+  
+  // 重新初始化分类的监听器
+  addFocusListeners(0, _categories.length, () {
+    setState(() {}); // 触发重建以更新UI
+  });
 
-  // 切换分类时更新分组和频道
-  void _onCategoryTap(int index) {
-    if (_categoryIndex == index) return; // 避免重复执行
+  // 如果有分组，初始化分组的监听器
+  if (_keys.isNotEmpty) {
+    addFocusListeners(_categories.length, _keys.length, () {
+      setState(() {}); // 触发重建以更新UI
+    });
 
-    setState(() {
-      _categoryIndex = index; // 更新选中的分类索引
+    // 如果有频道，初始化频道的监听器
+    if (_values.isNotEmpty && _groupIndex >= 0) {
+      addFocusListeners(
+        _categories.length + _keys.length,
+        _values[_groupIndex].length,
+        () {
+          setState(() {}); // 触发重建以更新UI
+        },
+      );
+    }
+  }
+}
 
-      // 检查选中的分类是否有分组
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
+// 切换分类时更新分组和频道
+void _onCategoryTap(int index) {
+  if (_categoryIndex == index) return; // 避免重复执行
 
-      // 如果分组为空，清空 _keys 并返回
-      if (categoryMap == null || categoryMap.isEmpty) {
-        _resetChannelData(); 
-        _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
-        _updateStartIndexes(includeGroupsAndChannels: false); // 只计算分类的索引
-      } else {
+  setState(() {
+    _categoryIndex = index; // 更新选中的分类索引
 
+    // 重置所有焦点状态
+    _focusStates.clear();
+
+    // 检查选中的分类是否有分组
+    final selectedCategory = _categories[_categoryIndex];
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
+
+    // 如果分组为空，清空 _keys 并返回
+    if (categoryMap == null || categoryMap.isEmpty) {
+      _resetChannelData(); 
+      _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
+      _updateStartIndexes(includeGroupsAndChannels: false); // 只计算分类的索引
+    } else {
       // 分组不为空时，初始化频道数据
       _initializeChannelData();
 
@@ -798,49 +841,64 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 重置滚动位置
       _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
-       }
-    });
-    
+    }
+  });
+  
+  // 确保在状态更新后重新初始化焦点系统
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     // 调用刷新焦点组件
     if (_tvKeyNavigationState != null) {
       LogUtil.v('找到TvKeyNavigationState');
       _tvKeyNavigationState?.releaseResources();
       _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: index);
+      
+      // 重新初始化所有焦点监听器
+      _reInitializeFocusListeners();
     } else {
       LogUtil.v('无法找到TvKeyNavigationState');
     }
-  }
+  });
+}
 
-  // 切换分组时更新频道
-  void _onGroupTap(int index) {
-    setState(() {
-      _groupIndex = index;
-      _channelIndex = 0; // 重置频道索引到第一个频道
+// 切换分组时更新频道
+void _onGroupTap(int index) {
+  setState(() {
+    _groupIndex = index;
+    _channelIndex = 0; // 重置频道索引到第一个频道
 
-      // 重新计算所需节点数，并初始化 FocusNode
-      int totalFocusNodes = _categories.length
-          + (_keys.isNotEmpty ? _keys.length : 0)
-          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
-      _initializeFocusNodes(totalFocusNodes);
+    // 重置所有焦点状态
+    _focusStates.clear();
 
-      // 重新分配索引
-      _updateStartIndexes(includeGroupsAndChannels: true);
-      
-      _scrollToTop(_scrollChannelController);
-    });
+    // 重新计算所需节点数，并初始化 FocusNode
+    int totalFocusNodes = _categories.length
+        + (_keys.isNotEmpty ? _keys.length : 0)
+        + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+            ? _values[_groupIndex].length
+            : 0);
+    _initializeFocusNodes(totalFocusNodes);
 
+    // 重新分配索引
+    _updateStartIndexes(includeGroupsAndChannels: true);
+    
+    _scrollToTop(_scrollChannelController);
+  });
+
+  // 确保在状态更新后重新初始化焦点系统
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     // 在下一帧将焦点设置到新分组的第一个频道项
     if (_tvKeyNavigationState != null) {
       // 计算当前分组第一个频道项的焦点索引
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       _tvKeyNavigationState?.releaseResources();
       _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      
+      // 重新初始化所有焦点监听器
+      _reInitializeFocusListeners();
     } else {
       LogUtil.v('无法找到TvKeyNavigationState');
     }
-  }
+  });
+}
 
   // 切换频道
   void _onChannelTap(PlayModel? newModel) {
