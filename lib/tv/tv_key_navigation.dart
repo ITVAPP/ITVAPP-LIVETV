@@ -453,8 +453,8 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {  // 左上键
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            FocusManager.instance.primaryFocus?.unfocus();
-            FocusScope.of(context).nextFocus(); // 前往子页面
+            FocusScope.of(context).nextFocus();
+            return KeyEventResult.handled; // 前往子页面
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
           }
@@ -663,8 +663,11 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
     // 后退逻辑
     if (currentIndex == firstFocusIndex) {
       if (widget.frameType == "child") {
-        FocusScope.of(context).requestFocus();
-        return; // 退出函数
+        final parentFocus = FocusScope.of(context).parent;
+        if (parentFocus != null) {
+          parentFocus.requestFocus();
+        }
+        return KeyEventResult.handled;
       } else {
         nextIndex = lastFocusIndex;
         action = "循环到最后一个焦点 (索引: $nextIndex)";
