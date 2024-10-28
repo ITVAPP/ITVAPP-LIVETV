@@ -1006,7 +1006,7 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
   double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
       ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
       : 0;
-
+      
   return Container(
     key: _viewPortKey,
     padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
@@ -1016,36 +1016,37 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
     decoration: const BoxDecoration(
       gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
     ),
-Align(
-  alignment: Alignment.centerLeft,  // 确保始终左对齐
-  child: Row(
-    children: [
-      SizedBox(
-        width: categoryWidth,
-        child: categoryListWidget,
+    child: Align(
+      alignment: Alignment.centerLeft,  // 确保始终左对齐
+      child: Row(
+        children: [
+          SizedBox(
+            width: categoryWidth,
+            child: categoryListWidget,
+          ),
+          verticalDivider,
+          if (groupListWidget != null)
+            SizedBox(
+              width: groupWidth,
+              child: groupListWidget,
+            ),
+          if (groupListWidget != null) verticalDivider,
+          if (channelListWidget != null)
+            SizedBox(
+              width: channelListWidth, // 频道列表宽度
+              child: channelListWidget,
+            ),
+          if (epgListWidget != null) ...[
+            verticalDivider,
+            SizedBox(
+              width: epgListWidth,
+              child: epgListWidget,
+            ),
+          ],
+        ],
       ),
-      verticalDivider,
-      if (groupListWidget != null)
-        SizedBox(
-          width: groupWidth,
-          child: groupListWidget,
-        ),
-      if (groupListWidget != null) verticalDivider,
-      if (channelListWidget != null)
-        SizedBox(
-          width: channelListWidth, // 频道列表宽度
-          child: channelListWidget,
-        ),
-      if (epgListWidget != null) ...[
-        verticalDivider,
-        SizedBox(
-          width: epgListWidth,
-          child: epgListWidget,
-        ),
-      ],
-    ],
-  ),
-),
+    ),
   );
 }
+
 }
