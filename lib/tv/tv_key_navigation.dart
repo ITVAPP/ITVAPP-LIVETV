@@ -667,7 +667,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
         if (parentFocus != null) {
           parentFocus.requestFocus();
         }
-        return KeyEventResult.handled;
+        return;
       } else {
         nextIndex = lastFocusIndex;
         action = "循环到最后一个焦点 (索引: $nextIndex)";
