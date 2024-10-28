@@ -32,6 +32,13 @@ class TvSettingPageState extends State<TvSettingPage> {
   // 添加 getter 方法以供 TvKeyNavigation 访问
   int get selectedIndex => _selectedIndex;
   List<FocusNode> get focusNodes => _focusNodes;
+  
+  // 添加 setter 方法以供 TvKeyNavigation 设置值
+  set selectedIndex(int value) {
+    setState(() {
+      _selectedIndex = value;
+    });
+  }
 
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (_) => FocusNode());
