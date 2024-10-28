@@ -36,7 +36,7 @@ const selectedTextStyle = TextStyle(
 );
 
 // 最小高度
-const defaultMinHeight = 42.0;
+const defaultMinHeight = 40.0;
 
 // 背景色
 const defaultBackgroundColor = Colors.black38;
@@ -993,10 +993,9 @@ Widget build(BuildContext context) {
 // 构建抽屉视图
 Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
   bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-  double categoryWidth = 110; // 分类列表宽度
-
-  // 设置分组列表宽度
-  double groupWidth = groupListWidget != null ? 120 : 0;
+  
+  double categoryWidth = isPortrait ? 110 : 120; // 分类列表宽度
+  double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;  // 设置分组列表宽度
 
   // 设置频道列表宽度
   double channelListWidth = (groupListWidget != null && channelListWidget != null)
@@ -1046,7 +1045,7 @@ Align(
       ],
     ],
   ),
-);
+),
   );
 }
 }
