@@ -17,10 +17,10 @@ class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key});
 
   @override
-  State<TvSettingPage> createState() => _TvSettingPageState();
+  State<TvSettingPage> createState() => TvSettingPageState();
 }
 
-class _TvSettingPageState extends State<TvSettingPage> {
+class TvSettingPageState extends State<TvSettingPage> {
   int _selectedIndex = 1; // 当前选中的菜单索引，初始值为1
   int _confirmedIndex = 1; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
