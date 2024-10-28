@@ -179,7 +179,7 @@ class _TvPageState extends State<TvPage> {
           await _handleSelectPress(); // 调用处理逻辑
           break;  
         case LogicalKeyboardKey.goBack:
-          _handleBackPress(context); // 修改的返回键逻辑
+          await _handleBackPress(context); // 修改的返回键逻辑
           break;
         case LogicalKeyboardKey.audioVolumeUp:
           // 处理音量加键操作
