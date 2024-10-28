@@ -74,7 +74,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     super.dispose();
   }
 
-  /// 初始化焦点逻辑
+/// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) { 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -175,7 +175,7 @@ void _manageDebugOverlay({String? message}) {
   }
 }
 
-  /// 重置计时器，每次新消息加入时调用
+/// 重置计时器，每次新消息加入时调用
   void _resetTimer() {
     if (!_showDebugOverlay) return; // 调试模式关闭时不启动定时器
     if (_timer != null && _timer!.isActive) {
@@ -282,80 +282,80 @@ void _manageDebugOverlay({String? message}) {
       _manageDebugOverlay(message: '设置焦点时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
   }
-  
-  /// 缓存 Group 的焦点信息
-void _cacheGroupFocusNodes() {
-  _groupFocusCache.clear();  // 清空缓存
-  
-  // 获取所有的分组
-  final groups = _getAllGroups();
-  _manageDebugOverlay(message: '缓存分组：找到的总组数: ${groups.length}');
 
-  // 如果没有分组或只有一个分组，处理为默认分组逻辑
-  if (groups.isEmpty || groups.length == 1) {
-    _cacheDefaultGroup();
-  } else {
-    _cacheMultipleGroups(groups);
-  }
-}
+/// 缓存 Group 的焦点信息
+  void _cacheGroupFocusNodes() {
+    _groupFocusCache.clear();  // 清空缓存
+    
+    // 获取所有的分组
+    final groups = _getAllGroups();
+    _manageDebugOverlay(message: '缓存分组：找到的总组数: ${groups.length}');
 
-// 缓存默认分组（无分组或单一分组）的焦点节点
-void _cacheDefaultGroup() {
-  final firstFocusNode = _findFirstFocusableNode(widget.focusNodes);
-  final lastFocusNode = _findLastFocusableNode(widget.focusNodes);
-
-  _groupFocusCache[0] = {
-    'firstFocusNode': firstFocusNode,
-    'lastFocusNode': lastFocusNode,
-  };
-
-  _manageDebugOverlay(
-    message: '缓存了默认分组的焦点节点 - '
-             '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-             '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
-  );
-}
-
-// 遍历多个分组并缓存它们的焦点节点
-void _cacheMultipleGroups(List<Group> groups) {
-  for (var group in groups) {
-    final groupWidgets = _getWidgetsInGroup(group);
-    final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
-
-    if (groupFocusNodes.isNotEmpty) {
-      _groupFocusCache[group.groupIndex] = {
-        'firstFocusNode': groupFocusNodes.first,
-        'lastFocusNode': groupFocusNodes.last,
-      };
-
-      _manageDebugOverlay(
-        message: '分组 ${group.groupIndex}: '
-                 '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
-                 '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
-      );
+    // 如果没有分组或只有一个分组，处理为默认分组逻辑
+    if (groups.isEmpty || groups.length == 1) {
+      _cacheDefaultGroup();
     } else {
-      _manageDebugOverlay(
-        message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点'
-      );
+      _cacheMultipleGroups(groups);
     }
   }
-}
 
-// 查找第一个可聚焦的节点
-FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
-  return nodes.firstWhere(
-    (node) => node.canRequestFocus,
-    orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
-  );
-}
+  // 缓存默认分组（无分组或单一分组）的焦点节点
+  void _cacheDefaultGroup() {
+    final firstFocusNode = _findFirstFocusableNode(widget.focusNodes);
+    final lastFocusNode = _findLastFocusableNode(widget.focusNodes);
 
-// 查找最后一个可聚焦的节点
-FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
-  return nodes.lastWhere(
-    (node) => node.canRequestFocus,
-    orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
-  );
-}
+    _groupFocusCache[0] = {
+      'firstFocusNode': firstFocusNode,
+      'lastFocusNode': lastFocusNode,
+    };
+
+    _manageDebugOverlay(
+      message: '缓存了默认分组的焦点节点 - '
+               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
+               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+    );
+  }
+
+  // 遍历多个分组并缓存它们的焦点节点
+  void _cacheMultipleGroups(List<Group> groups) {
+    for (var group in groups) {
+      final groupWidgets = _getWidgetsInGroup(group);
+      final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
+
+      if (groupFocusNodes.isNotEmpty) {
+        _groupFocusCache[group.groupIndex] = {
+          'firstFocusNode': groupFocusNodes.first,
+          'lastFocusNode': groupFocusNodes.last,
+        };
+
+        _manageDebugOverlay(
+          message: '分组 ${group.groupIndex}: '
+                   '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
+                   '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
+        );
+      } else {
+        _manageDebugOverlay(
+          message: '警告：分组 ${group.groupIndex} 没有可聚焦的节点'
+        );
+      }
+    }
+  }
+
+  // 查找第一个可聚焦的节点
+  FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
+    return nodes.firstWhere(
+      (node) => node.canRequestFocus,
+      orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
+    );
+  }
+
+  // 查找最后一个可聚焦的节点
+  FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
+    return nodes.lastWhere(
+      (node) => node.canRequestFocus,
+      orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
+    );
+  }
 
   String _formatFocusNodeDebugLabel(FocusNode focusNode) {
     return focusNode.debugLabel ?? '索引: ${widget.focusNodes.indexOf(focusNode)}';
@@ -379,7 +379,7 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
     return focusNodes.where((node) => node.canRequestFocus).toList();
   }
 
-  /// 获取当前焦点所属的 groupIndex
+/// 获取当前焦点所属的 groupIndex
   int _getGroupIndex(FocusNode focusNode) {
     try {
       for (var entry in _groupFocusCache.entries) {
@@ -424,7 +424,7 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
     return groups;
   }
 
-  /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
+/// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     FocusNode? currentFocus = _currentFocus;
 
@@ -453,14 +453,42 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
           if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {  // 左上键
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            FocusScope.of(context).nextFocus();
-            return KeyEventResult.handled; // 前往子页面
+            // 查找并聚焦右侧面板的第一个焦点
+            final parentState = context.findRootAncestorStateOfType<_TvSettingPageState>();
+            if (parentState != null) {
+              // 使用 Element.visitChildElements 直接查找右侧面板的第一个 FocusableItem
+              Element? firstFocusableElement;
+              parentState.context.visitChildElements((element) {
+                if (element.widget is Row) {
+                  element.visitChildElements((rowChild) {
+                    if (rowChild.widget is Expanded) {
+                      rowChild.visitChildElements((expandedChild) {
+                        expandedChild.visitChildElements((panelChild) {
+                          if (firstFocusableElement == null && panelChild.widget is FocusableItem) {
+                            firstFocusableElement = panelChild;
+                          }
+                        });
+                      });
+                    }
+                  });
+                }
+              });
+
+              if (firstFocusableElement != null) {
+                final focusableItem = firstFocusableElement!.widget as FocusableItem;
+                if (focusableItem.focusNode.canRequestFocus) {
+                  focusableItem.focusNode.requestFocus();
+                  _manageDebugOverlay(message: '切换到右侧面板焦点');
+                  return KeyEventResult.handled;
+                }
+              }
+            }
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或回父页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
@@ -508,7 +536,7 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
 
     return KeyEventResult.handled;
   }
-
+  
   /// 处理键盘事件，包括方向键和选择键。
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {    
     if (event is KeyEvent && event is! KeyUpEvent) {
@@ -548,193 +576,202 @@ FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-/// 执行当前焦点控件的点击操作
-void _triggerButtonAction() { 
-  final focusNode = _currentFocus;  // 获取当前焦点
-  if (focusNode != null && focusNode.context != null) {
-    final BuildContext? context = focusNode.context;
+  /// 执行当前焦点控件的点击操作
+  void _triggerButtonAction() { 
+    final focusNode = _currentFocus;  // 获取当前焦点
+    if (focusNode != null && focusNode.context != null) {
+      final BuildContext? context = focusNode.context;
 
-    // 如果上下文不可用，显示调试消息并返回
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-      return;
+      // 如果上下文不可用，显示调试消息并返回
+      if (context == null) {
+        _manageDebugOverlay(message: '焦点上下文为空，无法操作');
+        return;
+      }
+
+      try {
+        // 查找最近的 FocusableItem 节点
+        final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+        if (focusableItem != null) {
+          // 使用当前的 context 而不是 focusableItem.context
+          _triggerActionsInFocusableItem(context); // 将 context 传递下去
+        } else {
+          _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+        }
+      } catch (e, stackTrace) {
+        _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+      }
+    }
+  }
+
+  // 在 FocusableItem 节点下查找并触发第一个交互控件的操作
+  void _triggerActionsInFocusableItem(BuildContext context) {
+    _visitAllElements(context, (element) {
+      final widget = element.widget;
+
+      // 识别并触发交互控件的操作，找到并触发后停止递归
+      return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
+    });
+  }
+
+  // 遍历函数，遇到交互控件后终止遍历
+  bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
+    bool stop = false;  // 用于控制是否继续递归
+    context.visitChildElements((element) {
+      if (stop) return; // 如果已经找到并触发了操作，停止递归
+      stop = visitor(element);  // 如果触发了操作，stop 会变为 true
+      if (!stop) {
+        stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+      }
+    });
+    return stop;  // 返回是否已停止查找
+  }
+
+  // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
+  bool _triggerWidgetAction(Widget widget) {
+    if (widget is SwitchListTile && widget.onChanged != null) {
+      widget.onChanged!(!widget.value);
+      return true;
+    } else if (widget is ElevatedButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is TextButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is OutlinedButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is IconButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is FloatingActionButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is ListTile && widget.onTap != null) {
+      widget.onTap!();
+      return true;
+    } else if (widget is GestureDetector && widget.onTap != null) {
+      widget.onTap!();
+      return true;
+    } else if (widget is PopupMenuButton && widget.onSelected != null) {
+      widget.onSelected!(null);
+      return true;
+    } else if (widget is ChoiceChip && widget.onSelected != null) { 
+      widget.onSelected!(true); 
+      return true;
+    } else {
+      _manageDebugOverlay(message: '找到控件，但无法触发操作');
+      return false; 
+    }
+  }
+
+/// 导航方法，通过 forward 参数决定是前进还是后退
+  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
+    String action;
+    int nextIndex;
+
+    // 获取当前组的首尾节点
+    FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
+    FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
+    
+    // 获取焦点范围
+    int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
+    int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+    if (forward) {
+      // 前进逻辑
+      if (currentIndex == lastFocusIndex) {
+        nextIndex = firstFocusIndex; // 循环到第一个焦点
+        action = "循环到第一个焦点 (索引: $nextIndex)";
+      } else {
+        nextIndex = currentIndex + 1;
+        action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
+    } else {
+      // 后退逻辑
+      if (currentIndex == firstFocusIndex) {
+        if (widget.frameType == "child") {
+            // 返回父页面的焦点
+            final parentState = context.findAncestorStateOfType<_TvSettingPageState>();
+            if (parentState != null) {
+              final selectedIndex = parentState._selectedIndex;
+              // 索引需要+1因为第一个是返回按钮
+              if (selectedIndex + 1 < parentState._focusNodes.length) {
+                final parentFocusNode = parentState._focusNodes[selectedIndex + 1];
+                if (parentFocusNode.canRequestFocus) {
+                  parentFocusNode.requestFocus();
+                  _manageDebugOverlay(message: '返回左侧菜单焦点');
+                  return KeyEventResult.handled;
+                }
+              }
+            }
+        } else {
+          nextIndex = lastFocusIndex;
+          action = "循环到最后一个焦点 (索引: $nextIndex)";
+        } 
+      } else {
+        nextIndex = currentIndex - 1;
+        action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
+    }
+
+    _requestFocus(nextIndex, groupIndex: groupIndex);
+    _manageDebugOverlay(message: '操作: $action (组: $groupIndex)');
+  }
+
+  /// 处理在组之间的跳转逻辑
+  bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
+    
+    if (_groupFocusCache.isEmpty) {
+      _manageDebugOverlay(message: '没有缓存的分组信息，无法跳转');
+      return false;
     }
 
     try {
-      // 查找最近的 FocusableItem 节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+      List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
+      int currentGroupIndex = groupIndex ?? groupIndices.first;
+      
+      if (!groupIndices.contains(currentGroupIndex)) {
+        _manageDebugOverlay(message: '当前 Group $currentGroupIndex 无法找到');
+        return false;
+      }
+      
+      int totalGroups = groupIndices.length;
+      int nextGroupIndex;
 
-      if (focusableItem != null) {
-        // 使用当前的 context 而不是 focusableItem.context
-        _triggerActionsInFocusableItem(context); // 将 context 传递下去
+      // 判断跳转方向
+      if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
+        nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + totalGroups) % totalGroups];
       } else {
-        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+        nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
+      }
+      
+      _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
+
+      // 获取下一个组的焦点信息
+      final nextGroupFocus = _groupFocusCache[nextGroupIndex];
+
+      if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
+        FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (nextFocusNode != null && nextFocusNode.context != null && nextFocusNode.canRequestFocus) {
+            nextFocusNode.requestFocus();
+            _currentFocus = nextFocusNode;
+            _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: ${nextFocusNode.debugLabel ?? '未知'}');
+          } else {
+            _manageDebugOverlay(message: '目标焦点节点未挂载或不可请求');
+          }
+        });
+        return true;
+      } else {
+        _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点信息');
       }
     } catch (e, stackTrace) {
-      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+      _manageDebugOverlay(message: '跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
-  }
-}
-
-// 在 FocusableItem 节点下查找并触发第一个交互控件的操作
-void _triggerActionsInFocusableItem(BuildContext context) {
-  _visitAllElements(context, (element) {
-    final widget = element.widget;
-
-    // 识别并触发交互控件的操作，找到并触发后停止递归
-    return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
-  });
-}
-
-// 遍历函数，遇到交互控件后终止遍历
-bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-  bool stop = false;  // 用于控制是否继续递归
-  context.visitChildElements((element) {
-    if (stop) return; // 如果已经找到并触发了操作，停止递归
-    stop = visitor(element);  // 如果触发了操作，stop 会变为 true
-    if (!stop) {
-      stop = _visitAllElements(element, visitor);  // 递归遍历子元素
-    }
-  });
-  return stop;  // 返回是否已停止查找
-}
-
-// 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
-bool _triggerWidgetAction(Widget widget) {
-  if (widget is SwitchListTile && widget.onChanged != null) {
-    widget.onChanged!(!widget.value);
-    return true;
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is TextButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is IconButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
-    widget.onPressed!();
-    return true;
-  } else if (widget is ListTile && widget.onTap != null) {
-    widget.onTap!();
-    return true;
-  } else if (widget is GestureDetector && widget.onTap != null) {
-    widget.onTap!();
-    return true;
-  } else if (widget is PopupMenuButton && widget.onSelected != null) {
-    widget.onSelected!(null);
-    return true;
-  } else if (widget is ChoiceChip && widget.onSelected != null) { 
-    widget.onSelected!(true); 
-    return true;
-  } else {
-    _manageDebugOverlay(message: '找到控件，但无法触发操作');
-    return false; 
-  }
-}
-  
-  /// 导航方法，通过 forward 参数决定是前进还是后退
-void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-  String action;
-  int nextIndex;
-
-  // 获取当前组的首尾节点
-  FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
-  FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-  
-  // 获取焦点范围
-  int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
-  int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
-
-  if (forward) {
-    // 前进逻辑
-    if (currentIndex == lastFocusIndex) {
-      nextIndex = firstFocusIndex; // 循环到第一个焦点
-      action = "循环到第一个焦点 (索引: $nextIndex)";
-    } else {
-      nextIndex = currentIndex + 1;
-      action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-    }
-  } else {
-    // 后退逻辑
-    if (currentIndex == firstFocusIndex) {
-      if (widget.frameType == "child") {
-        final parentFocus = FocusScope.of(context).parent;
-        if (parentFocus != null) {
-          parentFocus.requestFocus();
-        }
-        return;
-      } else {
-        nextIndex = lastFocusIndex;
-        action = "循环到最后一个焦点 (索引: $nextIndex)";
-      }  
-    } else {
-      nextIndex = currentIndex - 1;
-      action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-    }
-  }
-
-  _requestFocus(nextIndex, groupIndex: groupIndex);
-  _manageDebugOverlay(message: '操作: $action (组: $groupIndex)');
-}
-
-/// 处理在组之间的跳转逻辑
-bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-  
-  if (_groupFocusCache.isEmpty) {
-    _manageDebugOverlay(message: '没有缓存的分组信息，无法跳转');
+    
     return false;
   }
-
-  try {
-    List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
-    int currentGroupIndex = groupIndex ?? groupIndices.first;
-    
-    if (!groupIndices.contains(currentGroupIndex)) {
-      _manageDebugOverlay(message: '当前 Group $currentGroupIndex 无法找到');
-      return false;
-    }
-    
-    int totalGroups = groupIndices.length;
-    int nextGroupIndex;
-
-    // 判断跳转方向
-    if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-      nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + totalGroups) % totalGroups];
-    } else {
-      nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
-    }
-    
-    _manageDebugOverlay(message: '从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
-
-    // 获取下一个组的焦点信息
-    final nextGroupFocus = _groupFocusCache[nextGroupIndex];
-
-    if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
-      FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (nextFocusNode != null && nextFocusNode.context != null && nextFocusNode.canRequestFocus) {
-          nextFocusNode.requestFocus();
-          _currentFocus = nextFocusNode;
-          _manageDebugOverlay(message: '跳转到 Group $nextGroupIndex 的焦点节点: ${nextFocusNode.debugLabel ?? '未知'}');
-        } else {
-          _manageDebugOverlay(message: '目标焦点节点未挂载或不可请求');
-        }
-      });
-      return true;
-    } else {
-      _manageDebugOverlay(message: '未找到 Group $nextGroupIndex 的焦点节点信息');
-    }
-  } catch (e, stackTrace) {
-    _manageDebugOverlay(message: '跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
-  }
-  
-  return false;
-}
 }
 
 class Group extends StatelessWidget {
