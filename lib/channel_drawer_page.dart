@@ -820,7 +820,7 @@ void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return;
 
   setState(() {
-    _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
+    widget.playModel = newModel;
   });
 
   // 将父组件的回调放在微任务队列中
