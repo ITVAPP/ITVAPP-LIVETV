@@ -146,7 +146,7 @@ class _TvPageState extends State<TvPage> {
   }
 
   // 处理键盘事件的函数，处理遥控器输入
-  Future<void> _focusEventHandle(BuildContext context, KeyEvent e) async {
+  KeyEventResult _focusEventHandle(BuildContext context, KeyEvent e) {  // 修改返回类型为 KeyEventResult
     _handleDebounce(() async {
       if (e is! KeyUpEvent) return; // 只处理按键释放事件
 
@@ -194,6 +194,7 @@ class _TvPageState extends State<TvPage> {
           break;
       }
     });
+    return KeyEventResult.handled;  // 返回 KeyEventResult.handled
   }
 
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
