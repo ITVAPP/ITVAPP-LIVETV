@@ -1017,33 +1017,36 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
     decoration: const BoxDecoration(
       gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
     ),
-    child: Row(
-      children: [
+Align(
+  alignment: Alignment.centerLeft,  // 确保始终左对齐
+  child: Row(
+    children: [
+      SizedBox(
+        width: categoryWidth,
+        child: categoryListWidget,
+      ),
+      verticalDivider,
+      if (groupListWidget != null)
         SizedBox(
-          width: categoryWidth,
-          child: categoryListWidget,
+          width: groupWidth,
+          child: groupListWidget,
         ),
+      if (groupListWidget != null) verticalDivider,
+      if (channelListWidget != null)
+        SizedBox(
+          width: channelListWidth, // 频道列表宽度
+          child: channelListWidget,
+        ),
+      if (epgListWidget != null) ...[
         verticalDivider,
-        if (groupListWidget != null)
-          SizedBox(
-            width: groupWidth,
-            child: groupListWidget,
-          ),
-        if (groupListWidget != null) verticalDivider,
-        if (channelListWidget != null)
-          SizedBox(
-            width: channelListWidth, // 频道列表宽度
-            child: channelListWidget,
-          ),
-        if (epgListWidget != null) ...[
-          verticalDivider,
-          SizedBox(
-            width: epgListWidth,
-            child: epgListWidget,
-          ),
-        ],
+        SizedBox(
+          width: epgListWidth,
+          child: epgListWidget,
+        ),
       ],
-    ),
+    ],
+  ),
+);
   );
 }
 }
