@@ -20,7 +20,7 @@ final verticalDivider = VerticalDivider(
 
 // 文字样式
 const defaultTextStyle = TextStyle(
-  fontSize: 16, // 字体大小
+  fontSize: 17, // 字体大小
 );
 
 const selectedTextStyle = TextStyle(
