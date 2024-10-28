@@ -107,13 +107,20 @@ class _TvPageState extends State<TvPage> {
 
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_isSourceSelectionVisible || _drawerIsOpen) {
-      // 合并状态更新以减少重绘
+    if (_isSourceSelectionVisible) {
+      // 如果视频源选择框打开，关闭它
       setState(() {
         _isSourceSelectionVisible = false;
-        _drawerIsOpen = false;
       });
       return false; // 不退出页面
+    }
+
+    if (_drawerIsOpen) {
+      // 如果抽屉打开则关闭抽屉
+      setState(() {
+        _drawerIsOpen = false;
+      });
+      return false;
     }
 
     // 弹出退出确认对话框
@@ -121,32 +128,39 @@ class _TvPageState extends State<TvPage> {
   }
 
   // 处理选择键逻辑
-  Future<void> _handleSelectPress() async {
-    // 合并状态更新以减少重绘
-    setState(() {
-      _isDatePositionVisible = !_isDatePositionVisible;
-      _isShowPauseIcon = widget.isPlaying;
-    });
+Future<void> _handleSelectPress() async {
+  // 切换时间位置显示的状态
+  setState(() {
+    _isDatePositionVisible = !_isDatePositionVisible;
+  });
 
-    // 启动计时器控制暂停图标显示时间
-    if (widget.isPlaying) {
-      _pauseIconTimer?.cancel();
-      _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+  // 判断是否正在播放视频
+  if (widget.isPlaying) {
+    // 显示暂停图标
+    setState(() {
+      _isShowPauseIcon = true;
+    });
+    // 启动计时器，如果在2秒内再次点击选择键则暂停视频，否则隐藏暂停图标
+    _pauseIconTimer?.cancel();
+    _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+      // 2秒后执行以下逻辑
+      if (_isShowPauseIcon) { // 如果暂停图标仍显示，则隐藏它
         setState(() {
-          _isShowPauseIcon = false; // 2秒后隐藏暂停图标
+          _isShowPauseIcon = false; // 关闭暂停图标显示
         });
-      });
-    } else {
-      // 播放视频并确保暂停图标不显示
-      widget.controller?.play();
-      setState(() {
-        _isShowPauseIcon = false;
-      });
-    }
+      }
+    });
+  } else {
+    // 如果视频处于暂停状态，点击选择键直接播放视频
+    widget.controller?.play();
+    setState(() {
+      _isShowPauseIcon = false; // 确保暂停图标不显示
+    });
   }
+}
 
   // 处理键盘事件的函数，处理遥控器输入
-  KeyEventResult _focusEventHandle(BuildContext context, KeyEvent e) {  // 修改返回类型为 KeyEventResult
+  Future<void> _focusEventHandle(BuildContext context, KeyEvent e) async {
     _handleDebounce(() async {
       if (e is! KeyUpEvent) return; // 只处理按键释放事件
 
@@ -162,24 +176,30 @@ class _TvPageState extends State<TvPage> {
             _drawerIsOpen = true; // 打开侧边抽屉菜单
           });
           break;
+         // 处理左键操作  
         case LogicalKeyboardKey.arrowLeft: 
           await widget.changeChannelSources?.call(); // 切换视频源
           break;
+        // 处理上键操作  
         case LogicalKeyboardKey.arrowUp:   
           setState(() {
             _isSourceSelectionVisible = !_isSourceSelectionVisible; // 切换视频源选择显示与隐藏
           });
           break;
+        // 处理下键操作  
         case LogicalKeyboardKey.arrowDown:   
-          widget.controller?.pause(); // 暂停视频播放	
+         widget.controller?.pause(); // 暂停视频播放	
           await _opensetting(); // 打开设置页面
           break;
         case LogicalKeyboardKey.select:    // 处理选择键
         case LogicalKeyboardKey.enter: // 处理 Enter 键
+          setState(() {
+            _isDatePositionVisible = !_isDatePositionVisible; // 切换时间显示与隐藏
+          });
           await _handleSelectPress(); // 调用处理逻辑
           break;  
         case LogicalKeyboardKey.goBack:
-          await _handleBackPress(context); // 修改的返回键逻辑
+          _handleBackPress(context); // 修改的返回键逻辑
           break;
         case LogicalKeyboardKey.audioVolumeUp:
           // 处理音量加键操作
@@ -194,7 +214,6 @@ class _TvPageState extends State<TvPage> {
           break;
       }
     });
-    return KeyEventResult.handled;  // 返回 KeyEventResult.handled
   }
 
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
@@ -207,23 +226,12 @@ class _TvPageState extends State<TvPage> {
 
   @override
   void dispose() {
-    // 资源释放优化：确保每个资源释放操作都在独立的 try-catch 中执行
-    try {
-      _timer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放 _timer 失败', e);
-    }
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放 _pauseIconTimer 失败', e);
-    }
-    try {
-      widget.controller?.dispose();
-    } catch (e) {
-      LogUtil.logError('释放 controller 失败', e);
-    }
-    super.dispose();
+    LogUtil.safeExecute(() {
+      _timer?.cancel(); // 销毁定时器，防止内存泄漏
+      _pauseIconTimer?.cancel(); // 取消暂停图标计时器
+      widget.controller?.dispose(); // 销毁视频控制器，释放资源
+      super.dispose(); // 调用父类的 dispose 方法
+    }, '释放资源时发生错误');
   }
 
   @override
@@ -256,7 +264,11 @@ class _TvPageState extends State<TvPage> {
                                 toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
                                 videoController: widget.controller ?? VideoPlayerController.network(''),
                               ),
+                        
+                        // 按下 Enter 键时显示或隐藏 DatePositionWidget
                         if (_isDatePositionVisible) const DatePositionWidget(),
+
+                        // 显示播放图标当视频暂停时
                         if (!widget.controller!.value.isPlaying)
                           Center(
                             child: Icon(
@@ -265,22 +277,46 @@ class _TvPageState extends State<TvPage> {
                               color: Colors.white.withOpacity(0.85),
                             ),
                           ),
+
+                        // 如果正在缓冲或出现错误，显示进度条和提示
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
-                          _buildBufferingIndicator(),
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 20.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GradientProgressBar(
+                                    width: MediaQuery.of(context).size.width * 0.3,
+                                    height: 5,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return _buildToast(S.of(context).loading);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        // Offstage 控制 ChannelDrawerPage 的显示和隐藏
                         Offstage(
-                          offstage: !_drawerIsOpen,
+                          offstage: !_drawerIsOpen, // 控制 ChannelDrawerPage 显示与隐藏
                           child: GestureDetector(
                             onTap: () {
                               setState(() {
-                                _drawerIsOpen = false;
+                                _drawerIsOpen = false; // 点击抽屉区域外时，关闭抽屉
                               });
                             },
                             child: ChannelDrawerPage(
                               videoMap: widget.videoMap,
                               playModel: widget.playModel,
-                              onTapChannel: _handleEPGProgramTap,
+                              onTapChannel: _handleEPGProgramTap, // 在 ChannelDrawerPage 中点击节目时关闭抽屉
                               isLandscape: true,
-                              onCloseDrawer: () {
+                              onCloseDrawer: () { // 添加 onCloseDrawer 参数
                                 setState(() {
                                   _drawerIsOpen = false;
                                 });
@@ -293,26 +329,6 @@ class _TvPageState extends State<TvPage> {
                   ),
           );
         }),
-      ),
-    );
-  }
-
-  Widget _buildBufferingIndicator() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GradientProgressBar(
-              width: MediaQuery.of(context).size.width * 0.3,
-              height: 5,
-            ),
-            const SizedBox(height: 8),
-            _buildToast(S.of(context).loading),
-          ],
-        ),
       ),
     );
   }
