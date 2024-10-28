@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'tv_setting_page.dart;
+import 'tv_setting_page.dart';
 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.2]) {
@@ -455,7 +455,7 @@ void _manageDebugOverlay({String? message}) {
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             // 查找并聚焦右侧面板的第一个焦点
-            final parentState = context.findRootAncestorStateOfType<_TvSettingPageState>();
+            final parentState = context.findRootAncestorStateOfType<TvSettingPageState>();
             if (parentState != null) {
               // 使用 Element.visitChildElements 直接查找右侧面板的第一个 FocusableItem
               Element? firstFocusableElement;
@@ -693,7 +693,7 @@ void _manageDebugOverlay({String? message}) {
       if (currentIndex == firstFocusIndex) {
         if (widget.frameType == "child") {
             // 返回父页面的焦点
-            final parentState = context.findAncestorStateOfType<_TvSettingPageState>();
+            final parentState = context.findAncestorStateOfType<TvSettingPageState>();
             if (parentState != null) {
               final selectedIndex = parentState._selectedIndex;
               // 索引需要+1因为第一个是返回按钮
