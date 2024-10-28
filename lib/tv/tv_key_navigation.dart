@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'tv_setting_page.dart;
 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.2]) {
@@ -667,8 +668,8 @@ void _manageDebugOverlay({String? message}) {
 
 /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-    String action;
-    int nextIndex;
+    String action = '';
+    int nextIndex = 0;
 
     // 获取当前组的首尾节点
     FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
@@ -701,7 +702,7 @@ void _manageDebugOverlay({String? message}) {
                 if (parentFocusNode.canRequestFocus) {
                   parentFocusNode.requestFocus();
                   _manageDebugOverlay(message: '返回左侧菜单焦点');
-                  return KeyEventResult.handled;
+                  return;
                 }
               }
             }
