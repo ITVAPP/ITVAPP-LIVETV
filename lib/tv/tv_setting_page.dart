@@ -29,6 +29,10 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
 
+  // 添加 getter 方法以供 TvKeyNavigation 访问
+  int get selectedIndex => _selectedIndex;
+  List<FocusNode> get focusNodes => _focusNodes;
+
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (_) => FocusNode());
   }
@@ -154,8 +158,8 @@ class TvSettingPageState extends State<TvSettingPage> {
     // 使用 FocusScope 包裹父页面的 TvKeyNavigation，确保父子页面焦点隔离
     return FocusScope(
       child: TvKeyNavigation(
-        focusNodes: _focusNodes,
-        initialIndex: _selectedIndex + 1, // 初始焦点为菜单项的第一个焦点
+        focusNodes: focusNodes, // 使用 getter
+        initialIndex: selectedIndex + 1, // 使用 getter
         isFrame: true, // 启用框架模式
         frameType: "parent", // 设置为父框架
         isVerticalGroup: true, // 启用竖向分组
