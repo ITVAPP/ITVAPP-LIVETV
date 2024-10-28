@@ -819,9 +819,7 @@ void _onGroupTap(int index) {
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return;
 
-  setState(() {
-    widget.playModel = newModel;
-  });
+  _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
 
   // 将父组件的回调放在微任务队列中
   Future.microtask(() {
