@@ -21,24 +21,13 @@ class TvSettingPage extends StatefulWidget {
 }
 
 class TvSettingPageState extends State<TvSettingPage> {
-  int _selectedIndex = 1; // 当前选中的菜单索引，初始值为1
+  int selectedIndex = 1; // 当前选中的菜单索引，初始值为1
   int _confirmedIndex = 1; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
-  final List<FocusNode> _focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
+  final List<FocusNode> focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
-
-  // 添加 getter 方法以供 TvKeyNavigation 访问
-  int get selectedIndex => _selectedIndex;
-  List<FocusNode> get focusNodes => _focusNodes;
-  
-  // 添加 setter 方法以供 TvKeyNavigation 设置值
-  set selectedIndex(int value) {
-    setState(() {
-      _selectedIndex = value;
-    });
-  }
 
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (_) => FocusNode());
@@ -46,7 +35,7 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   @override
   void dispose() {
-    _disposeFocusNodes(_focusNodes); // 使用统一的焦点销毁方法
+    _disposeFocusNodes(focusNodes); // 使用统一的焦点销毁方法
     super.dispose();
   }
 
@@ -98,22 +87,22 @@ class TvSettingPageState extends State<TvSettingPage> {
     required VoidCallback onTap,
   }) {
     return FocusableItem(
-      focusNode: _focusNodes[index + 1], // 菜单的FocusNode从索引1开始
+      focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
       child: ListTile(
         leading: Icon(icon), // 图标
         title: Text(
           title,
           style: const TextStyle(fontSize: 22), // 设置文字大小
         ), // 标题
-        selected: _selectedIndex == index, // 判断是否选中
+        selected: selectedIndex == index, // 判断是否选中
         selectedTileColor: selectedColor, // 选中时背景颜色
-        tileColor: _focusNodes[index + 1].hasFocus
-            ? darkenColor(_selectedIndex == index ? selectedColor : Colors.transparent) // 聚焦时变暗颜色
-            : (_selectedIndex == index ? selectedColor : null), // 未选中时默认颜色
+        tileColor: focusNodes[index + 1].hasFocus
+            ? darkenColor(selectedIndex == index ? selectedColor : Colors.transparent) // 聚焦时变暗颜色
+            : (selectedIndex == index ? selectedColor : null), // 未选中时默认颜色
         onTap: () {
-          if (_selectedIndex != index) {
+          if (selectedIndex != index) {
             setState(() {
-              _selectedIndex = index; // 更新选中项索引
+              selectedIndex = index; // 更新选中项索引
               _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
             });
           }
@@ -165,14 +154,14 @@ class TvSettingPageState extends State<TvSettingPage> {
     // 使用 FocusScope 包裹父页面的 TvKeyNavigation，确保父子页面焦点隔离
     return FocusScope(
       child: TvKeyNavigation(
-        focusNodes: focusNodes, // 使用 getter
-        initialIndex: selectedIndex + 1, // 使用 getter
+        focusNodes: focusNodes, // 使用公有字段
+        initialIndex: selectedIndex + 1, // 使用公有字段
         isFrame: true, // 启用框架模式
         frameType: "parent", // 设置为父框架
         isVerticalGroup: true, // 启用竖向分组
         onSelect: (index) {
           setState(() {
-            _selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
+            selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
           });
         },
         child: Row(
@@ -185,11 +174,11 @@ class TvSettingPageState extends State<TvSettingPage> {
                 child: Scaffold(
                   appBar: AppBar(
                     leading: FocusableItem(
-                      focusNode: _focusNodes[0], // 返回按钮的 FocusNode
+                      focusNode: focusNodes[0], // 返回按钮的 FocusNode
                       child: ListTile(
                         leading: Icon(
                           Icons.arrow_back,
-                          color: _focusNodes[0].hasFocus ? darkenColor(selectedColor) : Colors.white, // 焦点时改变颜色
+                          color: focusNodes[0].hasFocus ? darkenColor(selectedColor) : Colors.white, // 焦点时改变颜色
                         ),
                         onTap: () {
                           Navigator.of(context).pop(); // 返回到上一个页面
@@ -217,7 +206,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         index: 0,
                         onTap: () {
                           setState(() {
-                            _selectedIndex = 0;
+                            selectedIndex = 0;
                             _confirmedIndex = 0; // 用户按下确认键后更新页面
                           });
                         },
@@ -228,7 +217,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         index: 1,
                         onTap: () {
                           setState(() {
-                            _selectedIndex = 1;
+                            selectedIndex = 1;
                             _confirmedIndex = 1; // 用户按下确认键后更新页面
                           });
                         },
@@ -239,7 +228,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         index: 2,
                         onTap: () {
                           setState(() {
-                            _selectedIndex = 2;
+                            selectedIndex = 2;
                             _confirmedIndex = 2; // 用户按下确认键后更新页面
                           });
                         },
@@ -250,7 +239,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         index: 3,
                         onTap: () {
                           setState(() {
-                            _selectedIndex = 3;
+                            selectedIndex = 3;
                             _confirmedIndex = 3; // 用户按下确认键后更新页面
                           });
                         },
@@ -261,7 +250,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         index: 4,
                         onTap: () {
                           setState(() {
-                            _selectedIndex = 4;
+                            selectedIndex = 4;
                             _confirmedIndex = 4; // 用户按下确认键后更新页面
                           });
                           _checkForUpdates(); // 调用检查更新逻辑
