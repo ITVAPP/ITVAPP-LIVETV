@@ -143,6 +143,102 @@ class _TvPageState extends State<TvPage> {
     return await ShowExitConfirm.ExitConfirm(context);
   }
 
+  // 处理键盘事件的函数，处理遥控器输入
+  void _handleKeyEvent(RawKeyEvent event) {
+    if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
+
+    // 如果抽屉打开，只处理返回键和菜单键
+    if (_drawerIsOpen) {
+      if (event.logicalKey == LogicalKeyboardKey.goBack || 
+          event.logicalKey == LogicalKeyboardKey.contextMenu) {
+        _handleDebounce(() {
+          setState(() {
+            _drawerIsOpen = false;
+          });
+        });
+      }
+      return;
+    }
+
+    _handleDebounce(() async {
+      switch (event.logicalKey) {
+        case LogicalKeyboardKey.contextMenu:
+        case LogicalKeyboardKey.arrowRight:
+          if (!_drawerIsOpen) {
+            setState(() {
+              _drawerIsOpen = true;
+            });
+          }
+          break;
+        case LogicalKeyboardKey.arrowLeft:
+          if (!_drawerIsOpen) {
+            await widget.changeChannelSources?.call();
+          }
+          break;
+        case LogicalKeyboardKey.arrowUp:
+          setState(() {
+            _isSourceSelectionVisible = !_isSourceSelectionVisible;
+          });
+          break;
+        case LogicalKeyboardKey.arrowDown:
+          if (!_drawerIsOpen) {
+            widget.controller?.pause();
+            await _opensetting();
+          }
+          break;
+        case LogicalKeyboardKey.select:
+        case LogicalKeyboardKey.enter:
+          if (!_drawerIsOpen) {
+            await _handleSelectPress();
+          }
+          break;
+        case LogicalKeyboardKey.goBack:
+          await _handleBackPress(context);
+          break;
+        case LogicalKeyboardKey.audioVolumeUp:
+          // 处理音量加键操作
+          break;
+        case LogicalKeyboardKey.audioVolumeDown:
+          // 处理音量减键操作
+          break;
+        case LogicalKeyboardKey.f5:
+          // 处理语音键操作
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
+  void _handleEPGProgramTap(PlayModel? selectedProgram) {
+    widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
+    setState(() {
+      _drawerIsOpen = false; // 点击节目后关闭抽屉
+    });
+  }
+
+  @override
+  void dispose() {
+    // 资源释放优化：确保每个资源释放操作都在独立的 try-catch 中执行
+    try {
+      _timer?.cancel();
+    } catch (e) {
+      LogUtil.logError('释放 _timer 失败', e);
+    }
+    try {
+      _pauseIconTimer?.cancel();
+    } catch (e) {
+      LogUtil.logError('释放 _pauseIconTimer 失败', e);
+    }
+    try {
+      widget.controller?.dispose();
+    } catch (e) {
+      LogUtil.logError('释放 controller 失败', e);
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope( // 添加返回键拦截逻辑
