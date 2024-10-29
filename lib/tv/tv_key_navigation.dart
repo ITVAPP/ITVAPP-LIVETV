@@ -51,11 +51,33 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   // 用于缓存每个Group的焦点信息（首尾节点）
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+
+  // 判断是否为导航相关的按键（方向键、选择键和确认键）
+  bool _isNavigationKey(LogicalKeyboardKey key) {
+    return {
+      LogicalKeyboardKey.arrowUp,
+      LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.arrowLeft,
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.select,
+      LogicalKeyboardKey.enter,
+    }.contains(key);
+  }
   
   @override
   Widget build(BuildContext context) {
     return Focus(
-      onKeyEvent: _handleKeyEvent, // 处理键盘事件
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          // 如果是导航相关的按键，处理并阻止传递
+          if (_isNavigationKey(event.logicalKey)) {
+            final result = _handleKeyEvent(node, event);
+            return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
+          }
+        }
+        // 其他按键继续传递
+        return KeyEventResult.ignored;
+      },
       child: widget.child, // 直接使用传入的子组件
     );
   }
