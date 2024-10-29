@@ -146,25 +146,24 @@ class _TvPageState extends State<TvPage> {
   }
 
   // 处理键盘事件的函数，处理遥控器输入
-  KeyEventResult _focusEventHandle(KeyEvent e) {  // 修改参数，移除 FocusNode
-    if (e is! KeyUpEvent) return KeyEventResult.ignored; // 不处理非按键释放事件
+  void _handleKeyEvent(RawKeyEvent event) {
+    if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
 
     // 如果抽屉打开，只处理返回键和菜单键
     if (_drawerIsOpen) {
-      if (e.logicalKey == LogicalKeyboardKey.goBack || 
-          e.logicalKey == LogicalKeyboardKey.contextMenu) {
+      if (event.logicalKey == LogicalKeyboardKey.goBack || 
+          event.logicalKey == LogicalKeyboardKey.contextMenu) {
         _handleDebounce(() {
           setState(() {
             _drawerIsOpen = false;
           });
         });
-        return KeyEventResult.handled;
       }
-      return KeyEventResult.ignored; // 其他按键不处理
+      return;
     }
 
     _handleDebounce(() async {
-      switch (e.logicalKey) {
+      switch (event.logicalKey) {
         case LogicalKeyboardKey.contextMenu:
         case LogicalKeyboardKey.arrowRight:
           if (!_drawerIsOpen) {
@@ -211,7 +210,6 @@ class _TvPageState extends State<TvPage> {
           break;
       }
     });
-    return KeyEventResult.handled;
   }
 
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
@@ -252,12 +250,7 @@ class _TvPageState extends State<TvPage> {
         body: Builder(builder: (context) {
           return RawKeyboardListener(
             focusNode: FocusNode(),
-            onKey: (RawKeyEvent event) {
-              if (event is RawKeyDownEvent) {  // 只处理按键按下事件
-                return _focusEventHandle(event);
-              }
-              return KeyEventResult.ignored;
-            }, 
+            onKey: _handleKeyEvent,  // 使用新的事件处理函数
             child: widget.toastString == 'UNKNOWN'
                 ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
                 : Container(
