@@ -257,9 +257,8 @@ class _TvPageState extends State<TvPage> {
                     alignment: Alignment.center, // 内容居中对齐
                     color: Colors.black, // 设置背景为黑色
                     child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
-                      alignment: Alignment.center, // 堆叠的子组件居中对齐
                       children: [
-                        widget.controller != null && widget.controller!.value.isInitialized
+                        widget.controller?.value.isInitialized == true
                             ? AspectRatio(
                                 aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
                                 child: SizedBox(
@@ -283,22 +282,27 @@ class _TvPageState extends State<TvPage> {
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
                           _buildBufferingIndicator(),
                         if (_drawerIsOpen)  // 修改抽屉显示逻辑
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _drawerIsOpen = false;
-                              });
-                            },
-                            child: ChannelDrawerPage(
-                              videoMap: widget.videoMap,
-                              playModel: widget.playModel,
-                              onTapChannel: _handleEPGProgramTap,
-                              isLandscape: true,
-                              onCloseDrawer: () {
+                          Positioned( // 使用 Positioned 来控制抽屉位置
+                            left: 0, // 确保抽屉从左边开始
+                            top: 0, // 从顶部开始
+                            bottom: 0, // 延伸到底部
+                            child: GestureDetector(
+                              onTap: () {
                                 setState(() {
                                   _drawerIsOpen = false;
                                 });
                               },
+                              child: ChannelDrawerPage(
+                                videoMap: widget.videoMap,
+                                playModel: widget.playModel,
+                                onTapChannel: _handleEPGProgramTap,
+                                isLandscape: true,
+                                onCloseDrawer: () {
+                                  setState(() {
+                                    _drawerIsOpen = false;
+                                  });
+                                },
+                              ),
                             ),
                           ),
                       ],
