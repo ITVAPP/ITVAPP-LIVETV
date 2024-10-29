@@ -693,6 +693,7 @@ bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex
 
      // 判断是否为选择键
      if (_isSelectKey(key)) {
+       ServicesBinding.instance.keyboard.clearState();  // 清除按键状态
        _triggerButtonAction(); 
        return KeyEventResult.handled; 
      }
