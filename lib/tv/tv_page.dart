@@ -250,7 +250,8 @@ class _TvPageState extends State<TvPage> {
       child: Scaffold(
         backgroundColor: Colors.black, // 设置背景为黑色
         body: Builder(builder: (context) {
-          return RawKeyboardListener( // 使用 RawKeyboardListener 替代 KeyboardListener
+          return RawKeyboardListener(
+            focusNode: FocusNode(),
             onKey: (RawKeyEvent event) {
               if (event is RawKeyDownEvent) {  // 只处理按键按下事件
                 return _focusEventHandle(event);
