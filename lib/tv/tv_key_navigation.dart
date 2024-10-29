@@ -258,7 +258,7 @@ TvKeyNavigationState? _findParentNavigation() {
         break;
       }
     }
-    current = current.findAncestorElementOfType<StatefulElement>();
+    current = current.findAncestorWidgetOfExactType<StatefulWidget>()?.createElement();
   }
   
   return parentNavigation;
