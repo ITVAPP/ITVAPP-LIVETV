@@ -695,10 +695,10 @@ void _manageDebugOverlay({String? message}) {
             // 返回父页面的焦点
             final parentState = context.findAncestorStateOfType<TvSettingPageState>();
             if (parentState != null) {
-              final selectedIndex = parentState._selectedIndex;
+              final selectedIndex = parentState.selectedIndex;
               // 索引需要+1因为第一个是返回按钮
-              if (selectedIndex + 1 < parentState._focusNodes.length) {
-                final parentFocusNode = parentState._focusNodes[selectedIndex + 1];
+              if (selectedIndex + 1 < parentState.focusNodes.length) {
+                final parentFocusNode = parentState.focusNodes[selectedIndex + 1];
                 if (parentFocusNode.canRequestFocus) {
                   parentFocusNode.requestFocus();
                   _manageDebugOverlay(message: '返回左侧菜单焦点');
