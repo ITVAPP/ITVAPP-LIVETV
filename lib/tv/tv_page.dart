@@ -146,40 +146,57 @@ class _TvPageState extends State<TvPage> {
   }
 
   // 处理键盘事件的函数，处理遥控器输入
-  KeyEventResult _focusEventHandle(BuildContext context, KeyEvent e) {  // 修改返回类型为 KeyEventResult
-    _handleDebounce(() async {
-      if (e is! KeyUpEvent) return; // 只处理按键释放事件
+  KeyEventResult _focusEventHandle(KeyEvent e) {  // 修改参数，移除 FocusNode
+    if (e is! KeyUpEvent) return KeyEventResult.ignored; // 不处理非按键释放事件
 
-      if (_drawerIsOpen) {
-        return; // 阻止方向键在抽屉打开时响应全局事件
+    // 如果抽屉打开，只处理返回键和菜单键
+    if (_drawerIsOpen) {
+      if (e.logicalKey == LogicalKeyboardKey.goBack || 
+          e.logicalKey == LogicalKeyboardKey.contextMenu) {
+        _handleDebounce(() {
+          setState(() {
+            _drawerIsOpen = false;
+          });
+        });
+        return KeyEventResult.handled;
       }
+      return KeyEventResult.ignored; // 其他按键不处理
+    }
 
-      // 根据按键的不同逻辑键值执行相应的操作
+    _handleDebounce(() async {
       switch (e.logicalKey) {
-        case LogicalKeyboardKey.contextMenu:  // 处理菜单键
-        case LogicalKeyboardKey.arrowRight:  // 处理右键
+        case LogicalKeyboardKey.contextMenu:
+        case LogicalKeyboardKey.arrowRight:
+          if (!_drawerIsOpen) {
+            setState(() {
+              _drawerIsOpen = true;
+            });
+          }
+          break;
+        case LogicalKeyboardKey.arrowLeft:
+          if (!_drawerIsOpen) {
+            await widget.changeChannelSources?.call();
+          }
+          break;
+        case LogicalKeyboardKey.arrowUp:
           setState(() {
-            _drawerIsOpen = true; // 打开侧边抽屉菜单
+            _isSourceSelectionVisible = !_isSourceSelectionVisible;
           });
           break;
-        case LogicalKeyboardKey.arrowLeft: 
-          await widget.changeChannelSources?.call(); // 切换视频源
+        case LogicalKeyboardKey.arrowDown:
+          if (!_drawerIsOpen) {
+            widget.controller?.pause();
+            await _opensetting();
+          }
           break;
-        case LogicalKeyboardKey.arrowUp:   
-          setState(() {
-            _isSourceSelectionVisible = !_isSourceSelectionVisible; // 切换视频源选择显示与隐藏
-          });
+        case LogicalKeyboardKey.select:
+        case LogicalKeyboardKey.enter:
+          if (!_drawerIsOpen) {
+            await _handleSelectPress();
+          }
           break;
-        case LogicalKeyboardKey.arrowDown:   
-          widget.controller?.pause(); // 暂停视频播放	
-          await _opensetting(); // 打开设置页面
-          break;
-        case LogicalKeyboardKey.select:    // 处理选择键
-        case LogicalKeyboardKey.enter: // 处理 Enter 键
-          await _handleSelectPress(); // 调用处理逻辑
-          break;  
         case LogicalKeyboardKey.goBack:
-          await _handleBackPress(context); // 修改的返回键逻辑
+          await _handleBackPress(context);
           break;
         case LogicalKeyboardKey.audioVolumeUp:
           // 处理音量加键操作
@@ -194,7 +211,7 @@ class _TvPageState extends State<TvPage> {
           break;
       }
     });
-    return KeyEventResult.handled;  // 返回 KeyEventResult.handled
+    return KeyEventResult.handled;
   }
 
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
@@ -233,9 +250,13 @@ class _TvPageState extends State<TvPage> {
       child: Scaffold(
         backgroundColor: Colors.black, // 设置背景为黑色
         body: Builder(builder: (context) {
-          return KeyboardListener(
-            focusNode: FocusNode(),  // 必须提供 focusNode，即便不需要手动管理焦点
-            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
+          return RawKeyboardListener( // 使用 RawKeyboardListener 替代 KeyboardListener
+            onKey: (RawKeyEvent event) {
+              if (event is RawKeyDownEvent) {  // 只处理按键按下事件
+                return _focusEventHandle(event);
+              }
+              return KeyEventResult.ignored;
+            }, 
             child: widget.toastString == 'UNKNOWN'
                 ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
                 : Container(
@@ -267,9 +288,8 @@ class _TvPageState extends State<TvPage> {
                           ),
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
                           _buildBufferingIndicator(),
-                        Offstage(
-                          offstage: !_drawerIsOpen,
-                          child: GestureDetector(
+                        if (_drawerIsOpen)  // 修改抽屉显示逻辑
+                          GestureDetector(
                             onTap: () {
                               setState(() {
                                 _drawerIsOpen = false;
@@ -287,7 +307,6 @@ class _TvPageState extends State<TvPage> {
                               },
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
