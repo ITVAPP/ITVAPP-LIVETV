@@ -21,7 +21,7 @@ class TvPage extends StatefulWidget {
   final PlayModel? playModel; // 当前播放的频道模型
   final Function(PlayModel? newModel)? onTapChannel; // 点击频道时调用的回调函数
 
-  VideoPlayerController? controller; // 视频播放器控制器
+  final VideoPlayerController? controller; // 视频播放器控制器
   final Future<void> Function()? changeChannelSources; // 频道源切换函数
   final GestureTapCallback? onChangeSubSource; // 视频源切换的回调函数
   final String? toastString; // 显示提示信息的字符串
@@ -73,29 +73,6 @@ class _TvPageState extends State<TvPage> {
     }
   }
 
-  // 处理频道切换逻辑
-  Future<void> _handleChannelSwitch() async {
-    setState(() {
-      // 切换频道时，先将视频控制器置空，并显示 VideoHoldBg
-      widget.controller = null;
-    });
-
-    try {
-      // 切换频道，并重新初始化视频控制器
-      await widget.changeChannelSources?.call();
-
-      if (widget.controller != null) {
-        widget.controller!.initialize().then((_) {
-          setState(() {});  // 初始化完成后重绘页面，显示视频
-        }).catchError((error) {
-          LogUtil.logError('切换频道时视频初始化失败', error);
-        });
-      }
-    } catch (e) {
-      LogUtil.logError('切换频道失败', e);
-    }
-  }
-
   // 打开添加源的设置页面
   Future<bool?> _opensetting() async {
     try {
@@ -141,6 +118,31 @@ class _TvPageState extends State<TvPage> {
 
     // 弹出退出确认对话框
     return await ShowExitConfirm.ExitConfirm(context);
+  }
+
+  // 处理选择键逻辑
+  Future<void> _handleSelectPress() async {
+    // 合并状态更新以减少重绘
+    setState(() {
+      _isDatePositionVisible = !_isDatePositionVisible;
+      _isShowPauseIcon = widget.isPlaying;
+    });
+
+    // 启动计时器控制暂停图标显示时间
+    if (widget.isPlaying) {
+      _pauseIconTimer?.cancel();
+      _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+        setState(() {
+          _isShowPauseIcon = false; // 2秒后隐藏暂停图标
+        });
+      });
+    } else {
+      // 播放视频并确保暂停图标不显示
+      widget.controller?.play();
+      setState(() {
+        _isShowPauseIcon = false;
+      });
+    }
   }
 
   // 处理键盘事件的函数，处理遥控器输入
@@ -256,47 +258,53 @@ class _TvPageState extends State<TvPage> {
                     color: Colors.black, // 设置背景为黑色
                     child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
                       children: [
-                        // 初始状态以及视频未加载完成时，显示 VideoHoldBg
-                        widget.controller == null || !widget.controller!.value.isInitialized
-                            ? VideoHoldBg(
-                                toastString: widget.toastString ?? '加载中...', // 显示背景及提示文字
-                                videoController: widget.controller ?? VideoPlayerController.network(''),
-                              )
-                            : AspectRatio(
-                                aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
-                                child: SizedBox(
-                                  width: double.infinity, // 占满宽度
-                                  child: VideoPlayer(widget.controller!), // 显示视频播放器
-                                ),
-                              ),
+                        // 修改部分：视频未初始化或未播放时，显示 VideoHoldBg
+                        if (widget.controller?.value.isInitialized != true || !widget.controller!.value.isPlaying)
+                          VideoHoldBg(
+                            toastString: _drawerIsOpen ? '' : widget.toastString, 
+                            videoController: widget.controller ?? VideoPlayerController.network(''),
+                          ),
+
+                        // 修改部分：视频初始化且正在播放时，显示视频播放器
+                        if (widget.controller?.value.isInitialized == true && widget.controller!.value.isPlaying)
+                          AspectRatio(
+                            aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
+                            child: SizedBox(
+                              width: double.infinity, // 占满宽度
+                              child: VideoPlayer(widget.controller!), // 显示视频播放器
+                            ),
+                          ),
+
                         if (_isDatePositionVisible) const DatePositionWidget(),
-                        // 仅当视频暂停时显示圆形播放图标，带有阴影效果
-                        if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
+
+                        // 修改部分：仅在视频暂停时显示播放图标
+                        if (widget.controller!.value.isInitialized == true && !widget.controller!.value.isPlaying)
                           Center(
                             child: Container(
-                              width: 98,  // 圆形按钮的宽度
-                              height: 98,  // 圆形按钮的高度
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.3),  // 半透明的白色背景
-                                shape: BoxShape.circle,  // 设置为圆形
+                                shape: BoxShape.circle,
+                                color: Colors.black.withOpacity(0.5), // 半透明圆形背景
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.5),  // 阴影颜色，黑色带透明度
-                                    spreadRadius: 2,  // 阴影扩散半径
-                                    blurRadius: 8,  // 阴影模糊程度
-                                    offset: Offset(0, 4),  // 阴影偏移量
+                                    color: Colors.black.withOpacity(0.7), // 阴影颜色
+                                    spreadRadius: 2, // 阴影扩展
+                                    blurRadius: 10, // 模糊半径
+                                    offset: Offset(0, 3), // 阴影偏移
                                   ),
                                 ],
                               ),
+                              padding: const EdgeInsets.all(20.0), // 图标的内边距
                               child: Icon(
                                 Icons.play_arrow,
-                                size: 78,  // 图标大小
-                                color: Colors.white,  // 图标颜色
+                                size: 64,
+                                color: Colors.white.withOpacity(0.85),
                               ),
                             ),
                           ),
+                        
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
                           _buildBufferingIndicator(),
+
                         if (_drawerIsOpen)  // 修改抽屉显示逻辑
                           Positioned( // 使用 Positioned 来控制抽屉位置
                             left: 0, // 确保抽屉从左边开始
