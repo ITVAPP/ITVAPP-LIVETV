@@ -229,7 +229,7 @@ TvKeyNavigationState? _findChildNavigation() {
     if (element.widget is TvKeyNavigation) {
       final navigationWidget = element.widget as TvKeyNavigation;
       if (navigationWidget.frameType == "child") {
-        childNavigation = element.state as TvKeyNavigationState;
+        childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
         // 切换到子页面时刷新缓存
         childNavigation?.initializeFocusLogic();
       }
@@ -252,13 +252,13 @@ TvKeyNavigationState? _findParentNavigation() {
     if (current.widget is TvKeyNavigation) {
       final navigationWidget = current.widget as TvKeyNavigation;
       if (navigationWidget.frameType == "parent") {
-        parentNavigation = current.state as TvKeyNavigationState;
+        parentNavigation = (current as StatefulElement).state as TvKeyNavigationState;
         // 切换回父页面时刷新缓存
         parentNavigation?.initializeFocusLogic();
         break;
       }
     }
-    current = current.parent;
+    current = current.findAncestorElementOfType<StatefulElement>();
   }
   
   return parentNavigation;
