@@ -21,7 +21,7 @@ class TvPage extends StatefulWidget {
   final PlayModel? playModel; // 当前播放的频道模型
   final Function(PlayModel? newModel)? onTapChannel; // 点击频道时调用的回调函数
 
-  final VideoPlayerController? controller; // 视频播放器控制器
+  VideoPlayerController? controller; // 视频播放器控制器
   final Future<void> Function()? changeChannelSources; // 频道源切换函数
   final GestureTapCallback? onChangeSubSource; // 视频源切换的回调函数
   final String? toastString; // 显示提示信息的字符串
@@ -73,6 +73,29 @@ class _TvPageState extends State<TvPage> {
     }
   }
 
+  // 处理频道切换逻辑
+  Future<void> _handleChannelSwitch() async {
+    setState(() {
+      // 切换频道时，先将视频控制器置空，并显示 VideoHoldBg
+      widget.controller = null;
+    });
+
+    try {
+      // 切换频道，并重新初始化视频控制器
+      await widget.changeChannelSources?.call();
+
+      if (widget.controller != null) {
+        widget.controller!.initialize().then((_) {
+          setState(() {});  // 初始化完成后重绘页面，显示视频
+        }).catchError((error) {
+          LogUtil.logError('切换频道时视频初始化失败', error);
+        });
+      }
+    } catch (e) {
+      LogUtil.logError('切换频道失败', e);
+    }
+  }
+
   // 打开添加源的设置页面
   Future<bool?> _opensetting() async {
     try {
@@ -120,127 +143,6 @@ class _TvPageState extends State<TvPage> {
     return await ShowExitConfirm.ExitConfirm(context);
   }
 
-  // 处理选择键逻辑
-  Future<void> _handleSelectPress() async {
-    // 合并状态更新以减少重绘
-    setState(() {
-      _isDatePositionVisible = !_isDatePositionVisible;
-      _isShowPauseIcon = widget.isPlaying;
-    });
-
-    // 启动计时器控制暂停图标显示时间
-    if (widget.isPlaying) {
-      _pauseIconTimer?.cancel();
-      _pauseIconTimer = Timer(const Duration(seconds: 2), () {
-        setState(() {
-          _isShowPauseIcon = false; // 2秒后隐藏暂停图标
-        });
-      });
-    } else {
-      // 播放视频并确保暂停图标不显示
-      widget.controller?.play();
-      setState(() {
-        _isShowPauseIcon = false;
-      });
-    }
-  }
-
-  // 处理键盘事件的函数，处理遥控器输入
-  void _handleKeyEvent(RawKeyEvent event) {
-    if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
-
-    // 如果抽屉打开，只处理返回键和菜单键
-    if (_drawerIsOpen) {
-      if (event.logicalKey == LogicalKeyboardKey.goBack || 
-          event.logicalKey == LogicalKeyboardKey.contextMenu) {
-        _handleDebounce(() {
-          setState(() {
-            _drawerIsOpen = false;
-          });
-        });
-      }
-      return;
-    }
-
-    _handleDebounce(() async {
-      switch (event.logicalKey) {
-        case LogicalKeyboardKey.contextMenu:
-        case LogicalKeyboardKey.arrowRight:
-          if (!_drawerIsOpen) {
-            setState(() {
-              _drawerIsOpen = true;
-            });
-          }
-          break;
-        case LogicalKeyboardKey.arrowLeft:
-          if (!_drawerIsOpen) {
-            await widget.changeChannelSources?.call();
-          }
-          break;
-        case LogicalKeyboardKey.arrowUp:
-          setState(() {
-            _isSourceSelectionVisible = !_isSourceSelectionVisible;
-          });
-          break;
-        case LogicalKeyboardKey.arrowDown:
-          if (!_drawerIsOpen) {
-            widget.controller?.pause();
-            await _opensetting();
-          }
-          break;
-        case LogicalKeyboardKey.select:
-        case LogicalKeyboardKey.enter:
-          if (!_drawerIsOpen) {
-            await _handleSelectPress();
-          }
-          break;
-        case LogicalKeyboardKey.goBack:
-          await _handleBackPress(context);
-          break;
-        case LogicalKeyboardKey.audioVolumeUp:
-          // 处理音量加键操作
-          break;
-        case LogicalKeyboardKey.audioVolumeDown:
-          // 处理音量减键操作
-          break;
-        case LogicalKeyboardKey.f5:
-          // 处理语音键操作
-          break;
-        default:
-          break;
-      }
-    });
-  }
-
-  // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
-  void _handleEPGProgramTap(PlayModel? selectedProgram) {
-    widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
-    setState(() {
-      _drawerIsOpen = false; // 点击节目后关闭抽屉
-    });
-  }
-
-  @override
-  void dispose() {
-    // 资源释放优化：确保每个资源释放操作都在独立的 try-catch 中执行
-    try {
-      _timer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放 _timer 失败', e);
-    }
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放 _pauseIconTimer 失败', e);
-    }
-    try {
-      widget.controller?.dispose();
-    } catch (e) {
-      LogUtil.logError('释放 controller 失败', e);
-    }
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return WillPopScope( // 添加返回键拦截逻辑
@@ -258,25 +160,43 @@ class _TvPageState extends State<TvPage> {
                     color: Colors.black, // 设置背景为黑色
                     child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
                       children: [
-                        widget.controller?.value.isInitialized == true
-                            ? AspectRatio(
+                        // 初始状态以及视频未加载完成时，显示 VideoHoldBg
+                        widget.controller == null || !widget.controller!.value.isInitialized
+                            ? VideoHoldBg(
+                                toastString: widget.toastString ?? '加载中...', // 显示背景及提示文字
+                                videoController: widget.controller ?? VideoPlayerController.network(''),
+                              )
+                            : AspectRatio(
                                 aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
                                 child: SizedBox(
                                   width: double.infinity, // 占满宽度
                                   child: VideoPlayer(widget.controller!), // 显示视频播放器
                                 ),
-                              )
-                            : VideoHoldBg(
-                                toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
-                                videoController: widget.controller ?? VideoPlayerController.network(''),
                               ),
                         if (_isDatePositionVisible) const DatePositionWidget(),
-                        if (!widget.controller!.value.isPlaying)
+                        // 仅当视频暂停时显示圆形播放图标，带有阴影效果
+                        if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
                           Center(
-                            child: Icon(
-                              Icons.play_arrow,
-                              size: 64,
-                              color: Colors.white.withOpacity(0.85),
+                            child: Container(
+                              width: 98,  // 圆形按钮的宽度
+                              height: 98,  // 圆形按钮的高度
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.3),  // 半透明的白色背景
+                                shape: BoxShape.circle,  // 设置为圆形
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),  // 阴影颜色，黑色带透明度
+                                    spreadRadius: 2,  // 阴影扩散半径
+                                    blurRadius: 8,  // 阴影模糊程度
+                                    offset: Offset(0, 4),  // 阴影偏移量
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.play_arrow,
+                                size: 78,  // 图标大小
+                                color: Colors.white,  // 图标颜色
+                              ),
                             ),
                           ),
                         if ((widget.isBuffering || _isError) && !_drawerIsOpen)
