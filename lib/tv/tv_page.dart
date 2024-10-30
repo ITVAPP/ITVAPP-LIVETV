@@ -102,7 +102,7 @@ class _TvPageState extends State<TvPage> {
       }
     });
   }
-  
+
   // 防抖处理函数，将操作包装在防抖逻辑中，防止短时间内多次触发相同事件
   void _handleDebounce(Function action, [Duration delay = const Duration(milliseconds: 300)]) {
     if (_debounce) {
@@ -146,7 +146,7 @@ class _TvPageState extends State<TvPage> {
       );
       return result;
     } catch (e, stackTrace) {
-      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
+      LogUtil.vError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
       return null;
     } finally {
       _closeLayer();
@@ -155,16 +155,16 @@ class _TvPageState extends State<TvPage> {
 
   // 修改后的返回按键处理逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
-    LogUtil.log('处理返回事件开始, isProcessingBack: $_isProcessingBack');
+    LogUtil.v('处理返回事件开始, isProcessingBack: $_isProcessingBack');
     
     if (_isProcessingBack) {
-      LogUtil.log('返回事件正在处理中，忽略重复触发');
+      LogUtil.v('返回事件正在处理中，忽略重复触发');
       return false;
     }
     
     try {
       _isProcessingBack = true;
-      LogUtil.log('开始处理返回逻辑, currentLayer: $_currentLayer');
+      LogUtil.v('开始处理返回逻辑, currentLayer: $_currentLayer');
       
       if (_currentLayer != OverlayLayer.none && _currentLayer != OverlayLayer.dialog) {
         _closeLayer();
@@ -182,7 +182,7 @@ class _TvPageState extends State<TvPage> {
       return false;
     } finally {
       _isProcessingBack = false;
-      LogUtil.log('返回事件处理完成');
+      LogUtil.v('返回事件处理完成');
     }
   }
   
@@ -266,7 +266,7 @@ class _TvPageState extends State<TvPage> {
       }
     });
   }
-  
+
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
@@ -279,17 +279,17 @@ class _TvPageState extends State<TvPage> {
     try {
       _timer?.cancel();
     } catch (e) {
-      LogUtil.logError('释放 _timer 失败', e);
+      LogUtil.vError('释放 _timer 失败', e);
     }
     try {
       _pauseIconTimer?.cancel();
     } catch (e) {
-      LogUtil.logError('释放 _pauseIconTimer 失败', e);
+      LogUtil.vError('释放 _pauseIconTimer 失败', e);
     }
     try {
       widget.controller?.dispose();
     } catch (e) {
-      LogUtil.logError('释放 controller 失败', e);
+      LogUtil.vError('释放 controller 失败', e);
     }
     super.dispose();
   }
@@ -309,20 +309,24 @@ class _TvPageState extends State<TvPage> {
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 修改后的 VideoHoldBg 显示逻辑
-                  widget.controller?.value.isInitialized == true
-                      ? AspectRatio(
-                          aspectRatio: widget.controller!.value.aspectRatio,
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: VideoPlayer(widget.controller!),
-                          ),
-                        )
-                      : VideoHoldBg(toastString: _drawerIsOpen ? '' : widget.toastString),
+                  // 视频初始化且正在播放时，显示视频播放器
+                  if (widget.controller!.value.isPlaying)  {
+                    AspectRatio(
+                      aspectRatio: widget.controller!.value.aspectRatio,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: VideoPlayer(widget.controller!),
+                      ),
+                    )
+                    }else  {
+                    	                    VideoHoldBg(
+                      toastString: _drawerIsOpen ? '' : widget.toastString,
+                      videoController: widget.controller ?? VideoPlayerController.network(''),
+                    },
 
                   if (_isDatePositionVisible) const DatePositionWidget(),
-                  
-                 // 仅在视频暂停时显示播放图标
+
+                  // 仅在视频暂停时显示播放图标
                   if (!widget.controller!.value.isPlaying)
                     Center(
                       child: Container(
