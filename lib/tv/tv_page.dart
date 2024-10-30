@@ -205,12 +205,12 @@ class _TvPageState extends State<TvPage> {
   }
   
   // 修改后的键盘事件处理函数
-  void _handleKeyEvent(RawKeyEvent event) {
+  void _handleKeyEvent(RawKeyEvent event) async { // 这里修改为 async
     if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
 
     // 处理返回键
     if (event.logicalKey == LogicalKeyboardKey.goBack) {
-      _handleBackPress(context);
+      await _handleBackPress(context); // 这里添加 await
       return;
     }
 
