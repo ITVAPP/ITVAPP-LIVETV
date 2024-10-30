@@ -326,10 +326,10 @@ class _TvPageState extends State<TvPage> {
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.all(20.0),
+                              padding: const EdgeInsets.all(10.0),
                               child: Icon(
                                 Icons.play_arrow,
-                                size: 64,
+                                size: 78,
                                 color: Colors.white.withOpacity(0.85),
                               ),
                             ),
