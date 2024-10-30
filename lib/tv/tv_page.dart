@@ -146,7 +146,7 @@ class _TvPageState extends State<TvPage> {
       );
       return result;
     } catch (e, stackTrace) {
-      LogUtil.vError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
+      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace); // 捕获并记录页面打开时的错误
       return null;
     } finally {
       _closeLayer();
@@ -279,17 +279,17 @@ class _TvPageState extends State<TvPage> {
     try {
       _timer?.cancel();
     } catch (e) {
-      LogUtil.vError('释放 _timer 失败', e);
+      LogUtil.logError('释放 _timer 失败', e);
     }
     try {
       _pauseIconTimer?.cancel();
     } catch (e) {
-      LogUtil.vError('释放 _pauseIconTimer 失败', e);
+      LogUtil.logError('释放 _pauseIconTimer 失败', e);
     }
     try {
       widget.controller?.dispose();
     } catch (e) {
-      LogUtil.vError('释放 controller 失败', e);
+      LogUtil.logError('释放 controller 失败', e);
     }
     super.dispose();
   }
@@ -310,7 +310,7 @@ class _TvPageState extends State<TvPage> {
               child: Stack(
                 children: [
                   // 视频初始化且正在播放时，显示视频播放器
-                  if (widget.controller!.value.isPlaying)  {
+                  if (widget.controller!.value.isPlaying) 
                     AspectRatio(
                       aspectRatio: widget.controller!.value.aspectRatio,
                       child: SizedBox(
@@ -318,11 +318,11 @@ class _TvPageState extends State<TvPage> {
                         child: VideoPlayer(widget.controller!),
                       ),
                     )
-                    }else  {
-                    	                    VideoHoldBg(
-                      toastString: _drawerIsOpen ? '' : widget.toastString,
-                      videoController: widget.controller ?? VideoPlayerController.network(''),
-                    },
+                    else 
+                      VideoHoldBg(
+                        toastString: _drawerIsOpen ? '' : widget.toastString,
+                        videoController: widget.controller ?? VideoPlayerController.network(''),
+                      ),
 
                   if (_isDatePositionVisible) const DatePositionWidget(),
 
