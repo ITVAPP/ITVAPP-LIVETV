@@ -126,7 +126,7 @@ class _TvPageState extends State<TvPage> {
   }
 
   // 处理键盘事件的函数，处理遥控器输入
-  KeyEventResult _focusEventHandle(BuildContext context, KeyEvent e) {
+  Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled; // 只处理按键释放事件
 
     if (_drawerIsOpen) {
@@ -144,7 +144,7 @@ class _TvPageState extends State<TvPage> {
       case LogicalKeyboardKey.arrowLeft: 
         break;
       case LogicalKeyboardKey.arrowUp: 
-        await widget.changeChannelSources?.call();// 切换视频源
+        await widget.changeChannelSources?.call(); // 切换视频源
         break;
       case LogicalKeyboardKey.arrowDown:   
         widget.controller?.pause(); // 暂停视频播放	
@@ -236,25 +236,27 @@ class _TvPageState extends State<TvPage> {
                     _buildBufferingIndicator(),
                   Offstage(
                     offstage: !_drawerIsOpen,
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _drawerIsOpen = false;
-                        });
-                      },
+                    child: Positioned( // 使用 Positioned 包裹 GestureDetector
                       left: 0,
                       top: 0,
                       bottom: 0,
-                      child: ChannelDrawerPage(
-                        videoMap: widget.videoMap,
-                        playModel: widget.playModel,
-                        onTapChannel: _handleEPGProgramTap,
-                        isLandscape: true,
-                        onCloseDrawer: () {
+                      child: GestureDetector(
+                        onTap: () {
                           setState(() {
                             _drawerIsOpen = false;
                           });
                         },
+                        child: ChannelDrawerPage(
+                          videoMap: widget.videoMap,
+                          playModel: widget.playModel,
+                          onTapChannel: _handleEPGProgramTap,
+                          isLandscape: true,
+                          onCloseDrawer: () {
+                            setState(() {
+                              _drawerIsOpen = false;
+                            });
+                          },
+                        ),
                       ),
                     ),
                   ),
