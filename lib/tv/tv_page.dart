@@ -51,7 +51,6 @@ class TvPage extends StatefulWidget {
 
 class _TvPageState extends State<TvPage> {
   bool _drawerIsOpen = false; // 侧边抽屉是否打开
-  bool _isSourceSelectionVisible = false; // 视频源选择是否显示
   bool _isShowPauseIcon = false; // 是否显示暂停图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
@@ -91,17 +90,14 @@ class _TvPageState extends State<TvPage> {
 
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_isSourceSelectionVisible || _drawerIsOpen) {
-      // 合并状态更新以减少重绘
-      setState(() {
-        _isSourceSelectionVisible = false;
-        _drawerIsOpen = false;
-      });
-      return false; // 不退出页面
+    if (!Navigator.canPop(context)) {
+      // 如果没有可以返回的页面，显示退出确认对话框
+      return await ShowExitConfirm.ExitConfirm(context);
     }
 
-    // 弹出退出确认对话框
-    return await ShowExitConfirm.ExitConfirm(context);
+    // 否则，正常返回
+    Navigator.pop(context);
+    return false; // 不阻止返回
   }
 
   // 处理选择键逻辑
@@ -146,12 +142,9 @@ class _TvPageState extends State<TvPage> {
         });
         break;
       case LogicalKeyboardKey.arrowLeft: 
-        widget.changeChannelSources?.call(); // 切换视频源
         break;
-      case LogicalKeyboardKey.arrowUp:   
-        setState(() {
-          _isSourceSelectionVisible = !_isSourceSelectionVisible; // 切换视频源选择显示与隐藏
-        });
+      case LogicalKeyboardKey.arrowUp: 
+        await widget.changeChannelSources?.call();// 切换视频源
         break;
       case LogicalKeyboardKey.arrowDown:   
         widget.controller?.pause(); // 暂停视频播放	
@@ -212,61 +205,62 @@ class _TvPageState extends State<TvPage> {
           return KeyboardListener(
             focusNode: FocusNode(),  // 必须提供 focusNode，即便不需要手动管理焦点
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
-            child: widget.toastString == 'UNKNOWN'
-                ? EmptyPage(onRefresh: () => widget.onChangeSubSource?.call()) // 如果没有视频源，显示空页面并提供刷新操作
-                : Container(
-                    alignment: Alignment.center, // 内容居中对齐
-                    color: Colors.black, // 设置背景为黑色
-                    child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
-                      alignment: Alignment.center, // 堆叠的子组件居中对齐
-                      children: [
-                        widget.controller != null && widget.controller!.value.isInitialized
-                            ? AspectRatio(
-                                aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
-                                child: SizedBox(
-                                  width: double.infinity, // 占满宽度
-                                  child: VideoPlayer(widget.controller!), // 显示视频播放器
-                                ),
-                              )
-                            : VideoHoldBg(
-                                toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
-                                videoController: widget.controller ?? VideoPlayerController.network(''),
-                              ),
-                        if (_isDatePositionVisible) const DatePositionWidget(),
-                        if (!widget.controller!.value.isPlaying)
-                          Center(
-                            child: Icon(
-                              Icons.play_arrow,
-                              size: 64,
-                              color: Colors.white.withOpacity(0.85),
-                            ),
+            child: Container(
+              alignment: Alignment.center, // 内容居中对齐
+              color: Colors.black, // 设置背景为黑色
+              child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
+                alignment: Alignment.center, // 堆叠的子组件居中对齐
+                children: [
+                  widget.controller?.value.isInitialized == true
+                      ? AspectRatio(
+                          aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
+                          child: SizedBox(
+                            width: double.infinity, // 占满宽度
+                            child: VideoPlayer(widget.controller!), // 显示视频播放器
                           ),
-                        if ((widget.isBuffering || _isError) && !_drawerIsOpen)
-                          _buildBufferingIndicator(),
-                        Offstage(
-                          offstage: !_drawerIsOpen,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _drawerIsOpen = false;
-                              });
-                            },
-                            child: ChannelDrawerPage(
-                              videoMap: widget.videoMap,
-                              playModel: widget.playModel,
-                              onTapChannel: _handleEPGProgramTap,
-                              isLandscape: true,
-                              onCloseDrawer: () {
-                                setState(() {
-                                  _drawerIsOpen = false;
-                                });
-                              },
-                            ),
-                          ),
+                        )
+                      : VideoHoldBg(
+                          toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
+                          videoController: widget.controller ?? VideoPlayerController.network(''),
                         ),
-                      ],
+                  if (_isDatePositionVisible) const DatePositionWidget(),
+                  if (!widget.controller!.value.isPlaying)
+                    Center(
+                      child: Icon(
+                        Icons.play_arrow,
+                        size: 78,
+                        color: Colors.white.withOpacity(0.85),
+                      ),
+                    ),
+                  if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                    _buildBufferingIndicator(),
+                  Offstage(
+                    offstage: !_drawerIsOpen,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _drawerIsOpen = false;
+                        });
+                      },
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: ChannelDrawerPage(
+                        videoMap: widget.videoMap,
+                        playModel: widget.playModel,
+                        onTapChannel: _handleEPGProgramTap,
+                        isLandscape: true,
+                        onCloseDrawer: () {
+                          setState(() {
+                            _drawerIsOpen = false;
+                          });
+                        },
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
           );
         }),
       ),
