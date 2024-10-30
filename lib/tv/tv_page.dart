@@ -71,49 +71,38 @@ class _TvPageState extends State<TvPage> {
 
   // 使用单一状态来管理当前层
   OverlayLayer _currentLayer = OverlayLayer.none;
-  
+  bool _isDrawerVisible = false; // 控制抽屉的可见性
+
+  final FocusNode _focusNode = FocusNode(); // 添加FocusNode
+
   // 便捷的判断方法
-  bool get hasOverlay => _currentLayer != OverlayLayer.none;
-  bool get _drawerIsOpen => _currentLayer == OverlayLayer.drawer;
+  bool get hasOverlay => _currentLayer != OverlayLayer.none || _isDrawerVisible;
+  bool get _drawerIsOpen => _currentLayer == OverlayLayer.drawer && _isDrawerVisible;
   bool get _isSourceSelectionVisible => _currentLayer == OverlayLayer.sourceSelection;
   bool get _isSettingPageOpen => _currentLayer == OverlayLayer.settings;
   bool get _isDialogShowing => _currentLayer == OverlayLayer.dialog;
   
   // 统一的层级管理方法
   void _openLayer(OverlayLayer layer) {
-    if (layer.index > _currentLayer.index) {  // 只允许打开更高优先级的层
-      setState(() {
+    setState(() {
+      if (layer == OverlayLayer.drawer) {
+        _isDrawerVisible = true;
+        _currentLayer = OverlayLayer.drawer; // 抽屉处于当前层级
+      } else if (layer.index > _currentLayer.index) {
         _currentLayer = layer;
-      });
-    }
+        _isDrawerVisible = false; // 隐藏抽屉
+      }
+    });
   }
   
   void _closeLayer() {
     setState(() {
-      switch (_currentLayer) {
-        case OverlayLayer.dialog:
-        case OverlayLayer.settings:
-        case OverlayLayer.drawer:
-        case OverlayLayer.sourceSelection:
-          _currentLayer = OverlayLayer.none;
-          break;
-        case OverlayLayer.none:
-          break;
+      if (_currentLayer == OverlayLayer.drawer) {
+        _isDrawerVisible = false; // 隐藏抽屉而不更改层级状态
+      } else {
+        _currentLayer = OverlayLayer.none;
       }
     });
-  }
-
-  // 防抖处理函数，将操作包装在防抖逻辑中，防止短时间内多次触发相同事件
-  void _handleDebounce(Function action, [Duration delay = const Duration(milliseconds: 300)]) {
-    if (_debounce) {
-      _debounce = false;
-      action();  // 执行动作
-      _timer = Timer(delay, () {
-        _debounce = true;  // 设定一个定时器，在指定时间后恢复防抖开关
-        _timer?.cancel();
-        _timer = null;
-      });
-    }
   }
   
   // 打开添加源的设置页面
@@ -174,7 +163,11 @@ class _TvPageState extends State<TvPage> {
       if (_currentLayer != OverlayLayer.dialog) {
         _openLayer(OverlayLayer.dialog);
         try {
-          return await ShowExitConfirm.ExitConfirm(context);
+          final shouldExit = await ShowExitConfirm.ExitConfirm(context);
+          if (shouldExit == true) {
+            _focusNode.unfocus(); // 确认退出后取消焦点
+            return true;
+          }
         } finally {
           _closeLayer();
         }
@@ -215,7 +208,7 @@ class _TvPageState extends State<TvPage> {
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
 
-    // 处理返回键 - 不使用防抖直接处理
+    // 处理返回键
     if (event.logicalKey == LogicalKeyboardKey.goBack) {
       _handleBackPress(context);
       return;
@@ -224,53 +217,43 @@ class _TvPageState extends State<TvPage> {
     // 在任何遮罩层显示的情况下，只处理菜单键
     if (hasOverlay) {
       if (event.logicalKey == LogicalKeyboardKey.contextMenu) {
-        _handleDebounce(() {
           _closeLayer();
-        });
       }
       return; // 在这些状态下，不处理其他任何按键
     }
 
     // 只有在没有打开任何遮罩层的情况下才处理其他按键
-    _handleDebounce(() async {
-      switch (event.logicalKey) {
-        case LogicalKeyboardKey.contextMenu:
-        case LogicalKeyboardKey.arrowRight:
-          _openLayer(OverlayLayer.drawer);
-          break;
-        case LogicalKeyboardKey.arrowLeft:
-          await widget.changeChannelSources?.call();
-          break;
-        case LogicalKeyboardKey.arrowUp:
-          _openLayer(OverlayLayer.sourceSelection);
-          break;
-        case LogicalKeyboardKey.arrowDown:
-          widget.controller?.pause();
-          await _opensetting();
-          break;
-        case LogicalKeyboardKey.select:
-        case LogicalKeyboardKey.enter:
-          await _handleSelectPress();
-          break;
-        case LogicalKeyboardKey.audioVolumeUp:
-          // 处理音量加键操作
-          break;
-        case LogicalKeyboardKey.audioVolumeDown:
-          // 处理音量减键操作
-          break;
-        case LogicalKeyboardKey.f5:
-          // 处理语音键操作
-          break;
-        default:
-          break;
-      }
-    });
-  }
-
-  // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
-  void _handleEPGProgramTap(PlayModel? selectedProgram) {
-    widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
-    _closeLayer(); // 使用统一的关闭层方法
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.contextMenu:
+      case LogicalKeyboardKey.arrowRight:
+        _openLayer(OverlayLayer.drawer);
+        break;
+      case LogicalKeyboardKey.arrowLeft:
+        await widget.changeChannelSources?.call();
+        break;
+      case LogicalKeyboardKey.arrowUp:
+        _openLayer(OverlayLayer.sourceSelection);
+        break;
+      case LogicalKeyboardKey.arrowDown:
+        widget.controller?.pause();
+        await _opensetting();
+        break;
+      case LogicalKeyboardKey.select:
+      case LogicalKeyboardKey.enter:
+        await _handleSelectPress();
+        break;
+      case LogicalKeyboardKey.audioVolumeUp:
+        // 处理音量加键操作
+        break;
+      case LogicalKeyboardKey.audioVolumeDown:
+        // 处理音量减键操作
+        break;
+      case LogicalKeyboardKey.f5:
+        // 处理语音键操作
+        break;
+      default:
+        break;
+    };
   }
   
   @override
@@ -297,79 +280,84 @@ class _TvPageState extends State<TvPage> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () => _handleBackPress(context),
+      onWillPop: () => _handleBackPress(context), // 确保在退出前调用
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Builder(builder: (context) {
           return RawKeyboardListener(
-            focusNode: FocusNode(),
+            focusNode: _focusNode, // 使用FocusNode
             onKey: _handleKeyEvent,
             child: Container(
               alignment: Alignment.center,
               color: Colors.black,
-              child: Stack(
-                children: [
-                  // 视频初始化且正在播放时，显示视频播放器
-                  if (widget.controller!.value.isPlaying) 
-                    AspectRatio(
-                      aspectRatio: widget.controller!.value.aspectRatio,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: VideoPlayer(widget.controller!),
-                      ),
-                    )
-                    else 
-                      VideoHoldBg(
-                        toastString: _drawerIsOpen ? '' : widget.toastString,
-                        videoController: widget.controller ?? VideoPlayerController.network(''),
-                      ),
-
-                  if (_isDatePositionVisible) const DatePositionWidget(),
-
-                  // 仅在视频暂停时显示播放图标
-                  if (!widget.controller!.value.isPlaying)
-                    Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black.withOpacity(0.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.7),
-                              spreadRadius: 2,
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
+              child: widget.controller != null && widget.controller!.value.isInitialized
+                  ? Stack(
+                      children: [
+                        // 视频初始化且正在播放时，显示视频播放器
+                        if (widget.controller!.value.isPlaying)
+                          AspectRatio(
+                            aspectRatio: widget.controller!.value.aspectRatio,
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: VideoPlayer(widget.controller!),
                             ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(20.0),
-                        child: Icon(
-                          Icons.play_arrow,
-                          size: 64,
-                          color: Colors.white.withOpacity(0.85),
-                        ),
-                      ),
-                    ),
-                  
-                  if ((widget.isBuffering || _isError) && !_drawerIsOpen)
-                    _buildBufferingIndicator(),
+                          )
+                        else
+                          VideoHoldBg(
+                            toastString: _drawerIsOpen ? '' : widget.toastString,
+                            videoController: widget.controller!,
+                          ),
 
-                  // EPG抽屉显示
-                  if (_drawerIsOpen) 
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: ChannelDrawerPage(
-                        videoMap: widget.videoMap,
-                        playModel: widget.playModel,
-                        onTapChannel: _handleEPGProgramTap,
-                        isLandscape: true,
-                        onCloseDrawer: () => _closeLayer(),
-                      ),
+                        if (_isDatePositionVisible) const DatePositionWidget(),
+
+                        // 仅在视频暂停时显示播放图标
+                        if (!widget.controller!.value.isPlaying)
+                          Center(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withOpacity(0.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.7),
+                                    spreadRadius: 2,
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(20.0),
+                              child: Icon(
+                                Icons.play_arrow,
+                                size: 64,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                            ),
+                          ),
+                        
+                        if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                          _buildBufferingIndicator(),
+
+                        // EPG抽屉显示
+                        if (_drawerIsOpen) 
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: ChannelDrawerPage(
+                              videoMap: widget.videoMap,
+                              playModel: widget.playModel,
+                              isLandscape: true,
+                              onCloseDrawer: () => _closeLayer(),
+                            ),
+                          ),
+                      ],
+                    )
+                  // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
+                  : VideoHoldBg(
+                      toastString: _drawerIsOpen ? '' : widget.toastString,
+                      videoController: VideoPlayerController.network(''),
                     ),
-                ],
-              ),
             ),
           );
         }),
