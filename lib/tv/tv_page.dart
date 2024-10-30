@@ -59,6 +59,9 @@ class TvPage extends StatefulWidget {
 }
 
 class _TvPageState extends State<TvPage> {
+  // 添加返回事件处理锁
+  static bool _isProcessingBack = false;
+  
   bool _debounce = true; // 防止按键被快速多次触发
   Timer? _timer; // 定时器用于处理按键节流
   bool _isShowPauseIcon = false; // 是否显示暂停图标
@@ -99,7 +102,7 @@ class _TvPageState extends State<TvPage> {
       }
     });
   }
-
+  
   // 防抖处理函数，将操作包装在防抖逻辑中，防止短时间内多次触发相同事件
   void _handleDebounce(Function action, [Duration delay = const Duration(milliseconds: 300)]) {
     if (_debounce) {
@@ -150,25 +153,39 @@ class _TvPageState extends State<TvPage> {
     }
   }
 
-  // 处理返回按键逻辑
+  // 修改后的返回按键处理逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_currentLayer != OverlayLayer.none && _currentLayer != OverlayLayer.dialog) {
-      _closeLayer();
-      return false; // 不退出页面
+    LogUtil.log('处理返回事件开始, isProcessingBack: $_isProcessingBack');
+    
+    if (_isProcessingBack) {
+      LogUtil.log('返回事件正在处理中，忽略重复触发');
+      return false;
     }
-
-    if (_currentLayer != OverlayLayer.dialog) {
-      _openLayer(OverlayLayer.dialog);
-      try {
-        // 弹出退出确认对话框
-        return await ShowExitConfirm.ExitConfirm(context);
-      } finally {
+    
+    try {
+      _isProcessingBack = true;
+      LogUtil.log('开始处理返回逻辑, currentLayer: $_currentLayer');
+      
+      if (_currentLayer != OverlayLayer.none && _currentLayer != OverlayLayer.dialog) {
         _closeLayer();
+        return false;
       }
-    }
-    return false;
-  }
 
+      if (_currentLayer != OverlayLayer.dialog) {
+        _openLayer(OverlayLayer.dialog);
+        try {
+          return await ShowExitConfirm.ExitConfirm(context);
+        } finally {
+          _closeLayer();
+        }
+      }
+      return false;
+    } finally {
+      _isProcessingBack = false;
+      LogUtil.log('返回事件处理完成');
+    }
+  }
+  
   // 处理选择键逻辑
   Future<void> _handleSelectPress() async {
     // 更新状态
@@ -194,28 +211,21 @@ class _TvPageState extends State<TvPage> {
     }
   }
   
-  // 处理键盘事件的函数，处理遥控器输入
+  // 修改后的键盘事件处理函数
   void _handleKeyEvent(RawKeyEvent event) {
     if (event is! RawKeyDownEvent) return; // 不处理非按键按下事件
 
-    // 在任何遮罩层显示的情况下，只处理返回键和菜单键
+    // 处理返回键 - 不使用防抖直接处理
+    if (event.logicalKey == LogicalKeyboardKey.goBack) {
+      _handleBackPress(context);
+      return;
+    }
+
+    // 在任何遮罩层显示的情况下，只处理菜单键
     if (hasOverlay) {
-      if (event.logicalKey == LogicalKeyboardKey.goBack || 
-          event.logicalKey == LogicalKeyboardKey.contextMenu) {
+      if (event.logicalKey == LogicalKeyboardKey.contextMenu) {
         _handleDebounce(() {
-          if (event.logicalKey == LogicalKeyboardKey.goBack) {
-            // 返回键按层级优先级处理
-            if (_currentLayer == OverlayLayer.dialog) {
-              _handleBackPress(context);
-            } else if (_currentLayer == OverlayLayer.settings) {
-              Navigator.of(context).pop();
-            } else {
-              _closeLayer();
-            }
-          } else {
-            // 菜单键直接关闭当前层
-            _closeLayer();
-          }
+          _closeLayer();
         });
       }
       return; // 在这些状态下，不处理其他任何按键
@@ -242,9 +252,6 @@ class _TvPageState extends State<TvPage> {
         case LogicalKeyboardKey.enter:
           await _handleSelectPress();
           break;
-        case LogicalKeyboardKey.goBack:
-          await _handleBackPress(context);
-          break;
         case LogicalKeyboardKey.audioVolumeUp:
           // 处理音量加键操作
           break;
@@ -259,13 +266,13 @@ class _TvPageState extends State<TvPage> {
       }
     });
   }
-
+  
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
     _closeLayer(); // 使用统一的关闭层方法
   }
-
+  
   @override
   void dispose() {
     // 资源释放优化：确保每个资源释放操作都在独立的 try-catch 中执行
@@ -302,26 +309,20 @@ class _TvPageState extends State<TvPage> {
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 视频未初始化或未播放时，显示 VideoHoldBg
-                  if (!widget.controller!.value.isPlaying)
-                    VideoHoldBg(
-                      toastString: _drawerIsOpen ? '' : widget.toastString,
-                      videoController: widget.controller ?? VideoPlayerController.network(''),
-                    ),
-
-                  // 视频初始化且正在播放时，显示视频播放器
-                  if (widget.controller!.value.isPlaying)
-                    AspectRatio(
-                      aspectRatio: widget.controller!.value.aspectRatio,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: VideoPlayer(widget.controller!),
-                      ),
-                    ),
+                  // 修改后的 VideoHoldBg 显示逻辑
+                  widget.controller?.value.isInitialized == true
+                      ? AspectRatio(
+                          aspectRatio: widget.controller!.value.aspectRatio,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: VideoPlayer(widget.controller!),
+                          ),
+                        )
+                      : VideoHoldBg(toastString: _drawerIsOpen ? '' : widget.toastString),
 
                   if (_isDatePositionVisible) const DatePositionWidget(),
-
-                  // 仅在视频暂停时显示播放图标
+                  
+                 // 仅在视频暂停时显示播放图标
                   if (!widget.controller!.value.isPlaying)
                     Center(
                       child: Container(
