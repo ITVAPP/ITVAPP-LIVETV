@@ -21,8 +21,8 @@ class TvSettingPage extends StatefulWidget {
 }
 
 class TvSettingPageState extends State<TvSettingPage> {
-  int selectedIndex = 1; // 当前选中的菜单索引，初始值为1
-  int _confirmedIndex = 1; // 用户确认选择后显示的页面索引
+  int selectedIndex = 0; // 当前选中的菜单索引
+  int _confirmedIndex = 0; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
 
   final List<FocusNode> focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
@@ -168,7 +168,7 @@ class TvSettingPageState extends State<TvSettingPage> {
           children: [
             // 左侧菜单部分
             SizedBox(
-              width: 258,
+              width: 218,
               child: Group(
                 groupIndex: 0, // 菜单分组
                 child: Scaffold(
