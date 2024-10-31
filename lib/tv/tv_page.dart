@@ -49,7 +49,7 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
-class _TvPageState extends State<TvPage> {
+class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添加 TickerProviderStateMixin
   bool _drawerIsOpen = false; // 频道抽屉是否打开
   bool _isShowPauseIcon = false; // 是否显示暂停图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
