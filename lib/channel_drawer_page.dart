@@ -819,20 +819,12 @@ void _onGroupTap(int index) {
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return;
 
-  setState(() {
   _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
-  });
   
-  // 将父组件的回调放在微任务队列中
-  Future.microtask(() {
-    widget.onTapChannel?.call(newModel);
-  });
-
   // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _loadEPGMsg(newModel).then((_) {
-      setState(() {}); // 更新UI
-    });
+    loadEPGMsg(newModel);  // 加载 EPG 数据
+    widget.onTapChannel?.call(newModel);  // 执行父组件回调
   });
 }
 
