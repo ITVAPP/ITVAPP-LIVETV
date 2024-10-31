@@ -214,7 +214,10 @@ static Widget _buildDownloadButton({
         return ElevatedButton(
           style: _DownloadBtnStyle(hasFocus, width),  // 按钮样式
           onPressed: onPressed,  // 按钮点击事件
-          child: Text(label),  // 按钮文本
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold,), // 按钮文本
+          ),
         );
       },
     ),
