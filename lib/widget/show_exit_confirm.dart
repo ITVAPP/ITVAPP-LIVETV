@@ -1,7 +1,7 @@
-import 'dart:io'; // 导入dart:io以使用exit
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_exit_app/flutter_exit_app.dart'; 
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/dialog_util.dart';
@@ -28,12 +28,7 @@ class ShowExitConfirm {
     // 如果用户确认退出，执行退出逻辑
     if (exitConfirmed == true) {
       try {
-        bool isTV = context.watch<ThemeProvider>().isTV; // 判断是否为 TV
-        if (isTV) {
-          exit(0);  // 在 TV 上退出
-        } else {
-          SystemNavigator.pop();  // 非 TV 设备使用 SystemNavigator.pop()
-        }
+        FlutterExitApp.exitApp();  // 直接调用插件退出应用
       } catch (e) {
         LogUtil.e('退出应用错误: $e');  // 记录日志
       }
