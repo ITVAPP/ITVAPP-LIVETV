@@ -50,16 +50,16 @@ class TvPage extends StatefulWidget {
 }
 
 class _TvPageState extends State<TvPage> {
-  bool _drawerIsOpen = false; // 侧边抽屉是否打开
+  bool _drawerIsOpen = false; // 频道抽屉是否打开
   bool _isShowPauseIcon = false; // 是否显示暂停图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
 
-  // 打开添加源的设置页面
+  // 打开设置页面
   Future<bool?> _opensetting() async {
     try {
-      return Navigator.push<bool>(
+      return Navigator.push<bool>( // 使用 Navigator 打开新的页面
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) {
@@ -90,6 +90,13 @@ class _TvPageState extends State<TvPage> {
 
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
+    if (_drawerIsOpen) {
+      setState(() {
+        _drawerIsOpen = false; // 关闭抽屉
+      });
+      return true; // 阻止返回事件
+    }
+
     if (!Navigator.canPop(context)) {
       // 如果没有可以返回的页面，显示退出确认对话框
       return await ShowExitConfirm.ExitConfirm(context);
@@ -104,23 +111,23 @@ class _TvPageState extends State<TvPage> {
   Future<void> _handleSelectPress() async {
     // 合并状态更新以减少重绘
     setState(() {
-      _isDatePositionVisible = !_isDatePositionVisible;
-      _isShowPauseIcon = widget.isPlaying;
+      _isDatePositionVisible = !_isDatePositionVisible; // 切换日期位置组件显示
+      _isShowPauseIcon = widget.isPlaying; // 根据当前播放状态显示暂停图标
     });
 
     // 启动计时器控制暂停图标显示时间
     if (widget.isPlaying) {
-      _pauseIconTimer?.cancel();
-      _pauseIconTimer = Timer(const Duration(seconds: 2), () {
+      _pauseIconTimer?.cancel(); // 取消之前的计时器
+      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
         setState(() {
-          _isShowPauseIcon = false; // 2秒后隐藏暂停图标
+          _isShowPauseIcon = false; // 3秒后隐藏暂停图标
         });
       });
     } else {
       // 播放视频并确保暂停图标不显示
       widget.controller?.play();
       setState(() {
-        _isShowPauseIcon = false;
+        _isShowPauseIcon = false; // 播放时不显示暂停图标
       });
     }
   }
@@ -129,19 +136,25 @@ class _TvPageState extends State<TvPage> {
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled; // 只处理按键释放事件
 
-    if (_drawerIsOpen) {
-      return KeyEventResult.handled; // 阻止方向键在抽屉打开时响应全局事件
+    // 仅在抽屉打开时阻止方向键、选择键和确认键
+    if (_drawerIsOpen && (e.logicalKey == LogicalKeyboardKey.arrowUp ||
+                          e.logicalKey == LogicalKeyboardKey.arrowDown ||
+                          e.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                          e.logicalKey == LogicalKeyboardKey.arrowRight ||
+                          e.logicalKey == LogicalKeyboardKey.select ||
+                          e.logicalKey == LogicalKeyboardKey.enter)) {
+      return KeyEventResult.handled; // 阻止相关按键
     }
 
     // 根据按键的不同逻辑键值执行相应的操作
     switch (e.logicalKey) {
       case LogicalKeyboardKey.contextMenu:  // 处理菜单键
-      case LogicalKeyboardKey.arrowRight:  // 处理右键
         setState(() {
           _drawerIsOpen = true; // 打开侧边抽屉菜单
         });
         break;
-      case LogicalKeyboardKey.arrowLeft: 
+      case LogicalKeyboardKey.goBack:
+        _handleBackPress(context); // 处理返回键逻辑
         break;
       case LogicalKeyboardKey.arrowUp: 
         await widget.changeChannelSources?.call(); // 切换视频源
@@ -149,13 +162,6 @@ class _TvPageState extends State<TvPage> {
       case LogicalKeyboardKey.arrowDown:   
         widget.controller?.pause(); // 暂停视频播放	
         _opensetting(); // 打开设置页面
-        break;
-      case LogicalKeyboardKey.select:    // 处理选择键
-      case LogicalKeyboardKey.enter: // 处理 Enter 键
-        _handleSelectPress(); // 调用处理逻辑
-        break;  
-      case LogicalKeyboardKey.goBack:
-        _handleBackPress(context); // 修改的返回键逻辑
         break;
       case LogicalKeyboardKey.audioVolumeUp:
         // 处理音量加键操作
@@ -183,126 +189,133 @@ class _TvPageState extends State<TvPage> {
   @override
   void dispose() {
     try {
-      _pauseIconTimer?.cancel();
+      _pauseIconTimer?.cancel(); // 释放暂停图标计时器
     } catch (e) {
-      LogUtil.logError('释放 _pauseIconTimer 失败', e);
+      LogUtil.logError('释放 _pauseIconTimer 失败', e); // 记录释放失败的错误
     }
     try {
-      widget.controller?.dispose();
+      widget.controller?.dispose(); // 释放视频控制器
     } catch (e) {
-      LogUtil.logError('释放 controller 失败', e);
+      LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
-    super.dispose();
+    super.dispose(); // 调用父类的 dispose 方法
   }
 
-@override
-Widget build(BuildContext context) {
-  return WillPopScope(
-    onWillPop: () => _handleBackPress(context), // 确保在退出前调用
-    child: Scaffold(
-      backgroundColor: Colors.black,
-      body: Builder(builder: (context) {
-        return KeyboardListener(
-          focusNode: FocusNode(),  
-          onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
-          child: Container(
-            alignment: Alignment.center,
-            color: Colors.black,
-            child: widget.controller != null && widget.controller!.value.isInitialized
-                ? Stack(
-                    children: [
-                      // 显示视频播放器
-                      AspectRatio(
-                        aspectRatio: widget.controller!.value.aspectRatio,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: VideoPlayer(widget.controller!),
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () => _handleBackPress(context), // 确保在退出前调用
+      child: Scaffold(
+        backgroundColor: Colors.black, // 设置背景颜色为黑色
+        body: Builder(builder: (context) {
+          return KeyboardListener(
+            focusNode: FocusNode(),  
+            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
+            child: Container(
+              alignment: Alignment.center, // 组件居中对齐
+              color: Colors.black, // 设置容器背景颜色为黑色
+              child: Stack(
+                children: [
+                  // 显示视频播放器
+                  if (widget.controller != null && widget.controller!.value.isInitialized)
+                    AspectRatio(
+                      aspectRatio: widget.controller!.value.aspectRatio, // 根据视频控制器的宽高比设置
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: VideoPlayer(widget.controller!), // 创建视频播放器组件
+                      ),
+                    )
+                  // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
+                  else
+                    VideoHoldBg(
+                      toastString: _drawerIsOpen ? '' : widget.toastString, // 显示提示信息
+                      videoController: VideoPlayerController.network(''), // 为空的网络视频控制器
+                    ),
+
+                  // 仅在视频播放器显示且视频暂停时显示播放图标
+                  if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
+                    Center(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle, // 设置形状为圆形
+                          color: Colors.black.withOpacity(0.5), // 半透明黑色背景
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.7), // 阴影颜色
+                              spreadRadius: 2, // 阴影扩散半径
+                              blurRadius: 10, // 阴影模糊半径
+                              offset: const Offset(0, 3), // 阴影偏移量
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(10.0), // 设置内边距
+                        child: Icon(
+                          Icons.play_arrow, // 播放图标
+                          size: 78,
+                          color: Colors.white.withOpacity(0.85), // 半透明白色
                         ),
                       ),
+                    ),
 
-                      // 仅在视频暂停时显示播放图标
-                      if (!widget.controller!.value.isPlaying)
-                        Center(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withOpacity(0.5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.7),
-                                  spreadRadius: 2,
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(10.0),
-                            child: Icon(
-                              Icons.play_arrow,
-                              size: 78,
-                              color: Colors.white.withOpacity(0.85),
-                            ),
-                          ),
-                        ),
+                  // 显示日期位置组件
+                  if (_isDatePositionVisible) const DatePositionWidget(),
 
-                      if (_isDatePositionVisible) const DatePositionWidget(),
+                  // 显示缓冲指示器
+                  if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                    _buildBufferingIndicator(),
 
-                      if ((widget.isBuffering || _isError) && !_drawerIsOpen)
-                        _buildBufferingIndicator(),
+                  // 频道抽屉显示
+                  if (_drawerIsOpen) 
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: ChannelDrawerPage(
+                        videoMap: widget.videoMap, // 播放列表模型
+                        playModel: widget.playModel, // 当前播放频道模型
+                        isLandscape: true, // 横屏显示
+                        onCloseDrawer: () {
+                          setState(() {
+                            _drawerIsOpen = false; // 点击后关闭抽屉
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 
-                      // EPG抽屉显示
-                      if (_drawerIsOpen) 
-                        Positioned(
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          child: ChannelDrawerPage(
-                            videoMap: widget.videoMap,
-                            playModel: widget.playModel,
-                            isLandscape: true,
-                            onCloseDrawer: () {
-                                _drawerIsOpen = false;
-                             },
-                          ),
-                        ),
-                    ],
-                  )
-                // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
-                : VideoHoldBg(
-                    toastString: _drawerIsOpen ? '' : widget.toastString,
-                    videoController: VideoPlayerController.network(''),
-                  ),
-          ),
-        );
-      }),
-    ),
-  );
-}
-
+  // 构建缓冲指示器
   Widget _buildBufferingIndicator() {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0),
+        padding: const EdgeInsets.only(bottom: 20.0), // 设置底部边距
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             GradientProgressBar(
-              width: MediaQuery.of(context).size.width * 0.3,
-              height: 5,
+              width: MediaQuery.of(context).size.width * 0.3, // 设置进度条宽度
+              height: 5, // 设置进度条高度
             ),
-            const SizedBox(height: 8),
-            _buildToast(S.of(context).loading),
+            const SizedBox(height: 8), // 设置进度条和提示信息之间的间距
+            _buildToast(S.of(context).loading), // 显示加载提示信息
           ],
         ),
       ),
     );
   }
 
+  // 构建提示信息组件
   Widget _buildToast(String message) {
     return Text(
-      message,
-      style: TextStyle(color: Colors.white, fontSize: 18),
+      message, // 显示提示信息
+      style: TextStyle(color: Colors.white, fontSize: 18), // 设置字体颜色和大小
     );
   }
 }
