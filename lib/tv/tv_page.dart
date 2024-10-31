@@ -100,22 +100,23 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
+    // 如果抽屉是打开的，则关闭抽屉
     if (_drawerIsOpen) {
       setState(() {
-        _drawerIsOpen = false; // 关闭抽屉
+        _drawerIsOpen = false;
       });
-      _drawerAnimationController.reverse(); // 添加动画反向播放
+      _drawerAnimationController.reverse();
       return true; // 阻止返回事件
     }
-
+  
+    // 如果抽屉已关闭，且没有其他页面可返回时，显示退出确认对话框
     if (!Navigator.canPop(context)) {
-      // 如果没有可以返回的页面，显示退出确认对话框
       return await ShowExitConfirm.ExitConfirm(context);
     }
-
-    // 否则，正常返回
+  
+    // 如果有其他页面可以返回，则正常返回
     Navigator.pop(context);
-    return false; // 不阻止返回
+    return false;
   }
 
   // 处理选择键逻辑
@@ -159,9 +160,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     // 根据按键的不同逻辑键值执行相应的操作
     switch (e.logicalKey) {
-      case LogicalKeyboardKey.goBack:
-        _handleBackPress(context); // 处理返回键逻辑
-        break;
+      case LogicalKeyboardKey.goBack: // 处理返回键
+        bool handled = await _handleBackPress(context);
+        return handled ? KeyEventResult.handled : KeyEventResult.ignored; // 根据处理结果决定是否阻止事件
       case LogicalKeyboardKey.arrowRight:  // 处理右键操作
         setState(() {
           _drawerIsOpen = true;  // 打开频道抽屉菜单
@@ -175,6 +176,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         widget.controller?.pause(); // 暂停视频播放	
         _opensetting(); // 打开设置页面
         break;
+      case LogicalKeyboardKey.select: // 处理选择键
+      case LogicalKeyboardKey.enter:  // 处理确认键
+        await _handleSelectPress(); // 使用相同的处理逻辑
+        break;  
       case LogicalKeyboardKey.audioVolumeUp:
         // 处理音量加键操作
         break;
@@ -326,21 +331,21 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           children: [
             GradientProgressBar(
               width: MediaQuery.of(context).size.width * 0.3, // 设置进度条宽度
-              height: 5, // 设置进度条高度
-            ),
-            const SizedBox(height: 8), // 设置进度条和提示信息之间的间距
-            _buildToast(S.of(context).loading), // 显示加载提示信息
-          ],
-        ),
-      ),
-    );
-  }
+             height: 5, // 设置进度条高度
+           ),
+           const SizedBox(height: 8), // 设置进度条和提示信息之间的间距
+           _buildToast(S.of(context).loading), // 显示加载提示信息
+         ],
+       ),
+     ),
+   );
+ }
 
-  // 构建提示信息组件
-  Widget _buildToast(String message) {
-    return Text(
-      message, // 显示提示信息
-      style: TextStyle(color: Colors.white, fontSize: 18), // 设置字体颜色和大小
-    );
-  }
+ // 构建提示信息组件
+ Widget _buildToast(String message) {
+   return Text(
+     message, // 显示提示信息
+     style: TextStyle(color: Colors.white, fontSize: 18), // 设置字体颜色和大小
+   );
+ }
 }
