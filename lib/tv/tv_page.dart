@@ -49,12 +49,22 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
-class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添加 TickerProviderStateMixin
+class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _drawerIsOpen = false; // 频道抽屉是否打开
   bool _isShowPauseIcon = false; // 是否显示暂停图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
+  late AnimationController _drawerAnimationController; // 添加抽屉动画控制器
+
+  @override
+  void initState() {
+    super.initState();
+    _drawerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+  }
 
   // 打开设置页面
   Future<bool?> _opensetting() async {
@@ -87,13 +97,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
       return null;
     }
   }
-
+  
   // 处理返回按键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       setState(() {
         _drawerIsOpen = false; // 关闭抽屉
       });
+      _drawerAnimationController.reverse(); // 添加动画反向播放
       return true; // 阻止返回事件
     }
 
@@ -155,6 +166,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
         setState(() {
           _drawerIsOpen = true;  // 打开频道抽屉菜单
         });
+        _drawerAnimationController.forward(); // 添加动画正向播放
         break;
       case LogicalKeyboardKey.arrowUp:   // 处理上键操作
         await widget.changeChannelSources?.call(); // 切换视频源
@@ -184,8 +196,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
     setState(() {
       _drawerIsOpen = false; // 点击节目后关闭抽屉
     });
+    _drawerAnimationController.reverse(); // 添加动画反向播放
   }
-
+  
   @override
   void dispose() {
     try {
@@ -198,6 +211,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
     } catch (e) {
       LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
+    _drawerAnimationController.dispose(); // 添加动画控制器释放
     super.dispose(); // 调用父类的 dispose 方法
   }
 
@@ -231,8 +245,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
                       toastString: _drawerIsOpen ? '' : widget.toastString, // 显示提示信息
                       videoController: VideoPlayerController.network(''), // 为空的网络视频控制器
                     ),
-
-                  // 仅在视频播放器显示且视频暂停时显示播放图标
+                    // 仅在视频播放器显示且视频暂停时显示播放图标
                   if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
                     Center(
                       child: Container(
@@ -266,22 +279,17 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
                       (widget.isBuffering || _isError) && !_drawerIsOpen)
                     _buildBufferingIndicator(),
 
-                  // 频道抽屉显示
-                  Offstage(
-                    offstage: !_drawerIsOpen,
-                    child: Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
+                  // 频道抽屉显示 - 修改后的实现
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Offstage(
+                      offstage: !_drawerIsOpen,
                       child: SlideTransition(
                         position: Tween<Offset>(
                           begin: const Offset(-1.0, 0.0), // 从左侧进入
                           end: Offset.zero, // 到达原位
                         ).animate(CurvedAnimation(
-                          parent: AnimationController(
-                            duration: const Duration(milliseconds: 300),
-                            vsync: this,
-                          ),
+                          parent: _drawerAnimationController,
                           curve: Curves.easeInOut,
                         )),
                         child: ChannelDrawerPage(
@@ -292,12 +300,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
                             setState(() {
                               _drawerIsOpen = false; // 点击后关闭抽屉
                             });
+                            _drawerAnimationController.reverse(); // 添加动画反向播放
                           },
                         ),
                       ),
                     ),
                   ),
-                ],
+                  ],
               ),
             ),
           );
