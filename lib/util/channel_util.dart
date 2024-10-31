@@ -31,7 +31,7 @@ Future<int?> changeChannelSources(
     final widthFactor = orientation == Orientation.landscape ? 0.78 : 0.88;
     final bottomOffset = orientation == Orientation.landscape ? 58.0 : 68.0; // 横屏88.0，竖屏68.0
 
-    // 使用 showModalBottomSheet 来创建一个从底部弹出的弹窗
+    // 创建一个从底部弹出的弹窗
     final selectedIndex = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true, // 允许高度根据内容调整
@@ -48,7 +48,7 @@ Future<int?> changeChannelSources(
               padding: EdgeInsets.all(10), // 内边距设置
               decoration: BoxDecoration(
                 color: Colors.black54, // 设置弹窗背景颜色
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)), // 仅上边缘圆角
+                borderRadius: BorderRadius.circular(16), // 边缘圆角
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -63,8 +63,7 @@ Future<int?> changeChannelSources(
       },
     );
 
-    // 返回用户选择的索引
-    return selectedIndex;
+    return selectedIndex; // 返回用户选择的索引
   } catch (modalError, modalStackTrace) {
     LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
     return null;
