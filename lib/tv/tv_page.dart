@@ -195,79 +195,87 @@ class _TvPageState extends State<TvPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return WillPopScope( // 添加返回键拦截逻辑
-      onWillPop: () => _handleBackPress(context), // 处理返回键的逻辑
-      child: Scaffold(
-        backgroundColor: Colors.black, // 设置背景为黑色
-        body: Builder(builder: (context) {
-          return KeyboardListener(
-            focusNode: FocusNode(),  // 必须提供 focusNode，即便不需要手动管理焦点
-            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
-            child: Container(
-              alignment: Alignment.center, // 内容居中对齐
-              color: Colors.black, // 设置背景为黑色
-              child: Stack( // 使用堆叠布局，将视频播放器和其他 UI 组件叠加在一起
-                alignment: Alignment.center, // 堆叠的子组件居中对齐
-                children: [
-                  widget.controller?.value.isInitialized == true
-                      ? AspectRatio(
-                          aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频宽高比
-                          child: SizedBox(
-                            width: double.infinity, // 占满宽度
-                            child: VideoPlayer(widget.controller!), // 显示视频播放器
+@override
+Widget build(BuildContext context) {
+  return WillPopScope(
+    onWillPop: () => _handleBackPress(context), // 确保在退出前调用
+    child: Scaffold(
+      backgroundColor: Colors.black,
+      body: Builder(builder: (context) {
+        return KeyboardListener(
+          focusNode: FocusNode(),  
+          onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e), // 处理键盘事件
+          child: Container(
+            alignment: Alignment.center,
+            color: Colors.black,
+            child: widget.controller != null && widget.controller!.value.isInitialized
+                ? Stack(
+                    children: [
+                      // 显示视频播放器
+                      AspectRatio(
+                        aspectRatio: widget.controller!.value.aspectRatio,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: VideoPlayer(widget.controller!),
+                        ),
+                      ),
+
+                      // 仅在视频暂停时显示播放图标
+                      if (!widget.controller!.value.isPlaying)
+                        Center(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withOpacity(0.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.7),
+                                  spreadRadius: 2,
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(10.0),
+                            child: Icon(
+                              Icons.play_arrow,
+                              size: 78,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
                           ),
-                        )
-                      : VideoHoldBg(
-                          toastString: _drawerIsOpen ? '' : widget.toastString, // 显示背景及提示文字
-                          videoController: widget.controller ?? VideoPlayerController.network(''),
                         ),
-                  if (_isDatePositionVisible) const DatePositionWidget(),
-                  if (!widget.controller!.value.isPlaying)
-                    Center(
-                      child: Icon(
-                        Icons.play_arrow,
-                        size: 78,
-                        color: Colors.white.withOpacity(0.85),
-                      ),
-                    ),
-                  if ((widget.isBuffering || _isError) && !_drawerIsOpen)
-                    _buildBufferingIndicator(),
-                  Offstage(
-                    offstage: !_drawerIsOpen,
-                    child: Positioned( // 使用 Positioned 包裹 GestureDetector
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _drawerIsOpen = false;
-                          });
-                        },
-                        child: ChannelDrawerPage(
-                          videoMap: widget.videoMap,
-                          playModel: widget.playModel,
-                          onTapChannel: _handleEPGProgramTap,
-                          isLandscape: true,
-                          onCloseDrawer: () {
-                            setState(() {
-                              _drawerIsOpen = false;
-                            });
-                          },
+
+                      if (_isDatePositionVisible) const DatePositionWidget(),
+
+                      if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                        _buildBufferingIndicator(),
+
+                      // EPG抽屉显示
+                      if (_drawerIsOpen) 
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: ChannelDrawerPage(
+                            videoMap: widget.videoMap,
+                            playModel: widget.playModel,
+                            isLandscape: true,
+                            onCloseDrawer: () => _closeLayer(),
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
+                  )
+                // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
+                : VideoHoldBg(
+                    toastString: _drawerIsOpen ? '' : widget.toastString,
+                    videoController: VideoPlayerController.network(''),
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
+          ),
+        );
+      }),
+    ),
+  );
+}
 
   Widget _buildBufferingIndicator() {
     return Align(
