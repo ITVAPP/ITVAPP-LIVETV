@@ -823,7 +823,7 @@ void _onChannelTap(PlayModel? newModel) {
   
   // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    loadEPGMsg(newModel);  // 加载 EPG 数据
+    _loadEPGMsg(newModel);  // 加载 EPG 数据
     widget.onTapChannel?.call(newModel);  // 执行父组件回调
   });
 }
