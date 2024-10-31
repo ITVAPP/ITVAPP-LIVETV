@@ -38,6 +38,7 @@ dependencies:
   scrollable_positioned_list: ^0.3.8  # 可滚动的定位列表。
   path_provider: ^2.1.4  # 用于查找文件系统路径的插件。
   provider: ^6.1.2  # 状态管理库，用于应用状态管理。
+  flutter_exit_app: ^1.1.4
   xml: ^6.5.0
   apk_installer: ^0.0.4
   device_info_plus: ^10.1.2
