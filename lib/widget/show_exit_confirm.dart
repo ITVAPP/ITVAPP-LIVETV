@@ -45,18 +45,34 @@ class ShowExitConfirm {
           builder: (context) => AnimatedBuilder(
             animation: animation,
             builder: (context, child) => Container(
-              color: Colors.black.withOpacity(animation.value),
+              // 使用半透明的黑色背景
+              color: Colors.black.withOpacity(0.6 * animation.value), // 60%的不透明度
               child: Center(
                 child: Opacity(
                   opacity: animation.value,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        'assets/images/logo.png',  // 请确保这是正确的 logo 路径
-                        width: 118,
-                        height: 118,
-                        fit: BoxFit.contain,
+                      // 使用 Container 创建圆形 logo
+                      Container(
+                        width: 108,
+                        height: 108,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,  // 设置形状为圆形
+                          boxShadow: [  // 添加阴影效果
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(  // 裁剪图片为圆形
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       Text(
@@ -82,7 +98,7 @@ class ShowExitConfirm {
         await controller.forward();
        
         // 等待一小段时间让用户看清 logo
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 1000));
        
         // 退出应用
         FlutterExitApp.exitApp();  // 直接调用插件退出应用
