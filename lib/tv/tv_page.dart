@@ -148,18 +148,18 @@ class _TvPageState extends State<TvPage> {
 
     // 根据按键的不同逻辑键值执行相应的操作
     switch (e.logicalKey) {
-      case LogicalKeyboardKey.contextMenu:  // 处理菜单键
-        setState(() {
-          _drawerIsOpen = true; // 打开侧边抽屉菜单
-        });
-        break;
       case LogicalKeyboardKey.goBack:
         _handleBackPress(context); // 处理返回键逻辑
         break;
-      case LogicalKeyboardKey.arrowUp: 
+      case LogicalKeyboardKey.arrowRight:  // 处理右键操作
+        setState(() {
+          _drawerIsOpen = true;  // 打开频道抽屉菜单
+        });
+        break;
+      case LogicalKeyboardKey.arrowUp:   // 处理上键操作
         await widget.changeChannelSources?.call(); // 切换视频源
         break;
-      case LogicalKeyboardKey.arrowDown:   
+      case LogicalKeyboardKey.arrowDown:   // 处理下键操作
         widget.controller?.pause(); // 暂停视频播放	
         _opensetting(); // 打开设置页面
         break;
@@ -272,15 +272,27 @@ class _TvPageState extends State<TvPage> {
                       left: 0,
                       top: 0,
                       bottom: 0,
-                      child: ChannelDrawerPage(
-                        videoMap: widget.videoMap, // 播放列表模型
-                        playModel: widget.playModel, // 当前播放频道模型
-                        isLandscape: true, // 横屏显示
-                        onCloseDrawer: () {
-                          setState(() {
-                            _drawerIsOpen = false; // 点击后关闭抽屉
-                          });
-                        },
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(-1.0, 0.0), // 从左侧进入
+                          end: Offset.zero, // 到达原位
+                        ).animate(CurvedAnimation(
+                          parent: AnimationController(
+                            duration: const Duration(milliseconds: 300),
+                            vsync: this,
+                          ),
+                          curve: Curves.easeInOut,
+                        )),
+                        child: ChannelDrawerPage(
+                          videoMap: widget.videoMap, // 播放列表模型
+                          playModel: widget.playModel, // 当前播放频道模型
+                          isLandscape: true, // 横屏显示
+                          onCloseDrawer: () {
+                            setState(() {
+                              _drawerIsOpen = false; // 点击后关闭抽屉
+                            });
+                          },
+                        ),
                       ),
                     ),
                 ],
