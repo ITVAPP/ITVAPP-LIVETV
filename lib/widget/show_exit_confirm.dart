@@ -28,7 +28,8 @@ class ShowExitConfirm {
     // 如果用户确认退出，执行退出逻辑
     if (exitConfirmed == true) {
       try {
-        FlutterExitApp.exitApp();  // 直接调用插件退出应用
+        SystemChannels.platform.invokeMethod('SystemNavigator.pop');
+        // FlutterExitApp.exitApp();  // 直接调用插件退出应用
       } catch (e) {
         LogUtil.e('退出应用错误: $e');  // 记录日志
       }
