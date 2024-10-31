@@ -260,6 +260,9 @@ Widget build(BuildContext context) {
                             videoMap: widget.videoMap,
                             playModel: widget.playModel,
                             isLandscape: true,
+                            onCloseDrawer: () {
+                                _drawerIsOpen = false;
+                             },
                           ),
                         ),
                     ],
