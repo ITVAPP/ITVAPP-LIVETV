@@ -9,7 +9,7 @@ import '../generated/l10n.dart';
 
 class ShowExitConfirm {
   // 退出确认对话框逻辑
-  static Future<bool?> ExitConfirm(BuildContext context) async {
+  static Future<bool> ExitConfirm(BuildContext context) async {
     bool? exitConfirmed = await DialogUtil.showCustomDialog(
       context,
       title: '${S.current.exitTitle}💡',  // 退出提示标题
@@ -59,9 +59,9 @@ class ShowExitConfirm {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 20),
-                      Text(  // 移除 const 关键字
+                      Text(
                         S.current.appName,  // 退出文字
-                        style: const TextStyle(  // 将 const 移到 TextStyle
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -91,6 +91,6 @@ class ShowExitConfirm {
         LogUtil.e('退出应用错误: $e');  // 记录日志
       }
     }
-    return exitConfirmed;  // 返回退出确认状态
+    return exitConfirmed ?? false;  // 返回非空的 bool 值，如果为空则返回 false
   }
 }
