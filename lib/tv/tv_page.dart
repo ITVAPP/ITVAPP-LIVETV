@@ -267,8 +267,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
                     _buildBufferingIndicator(),
 
                   // 频道抽屉显示
-                  if (_drawerIsOpen) 
-                    Positioned(
+                  Offstage(
+                    offstage: !_drawerIsOpen,
+                    child: Positioned(
                       left: 0,
                       top: 0,
                       bottom: 0,
@@ -295,6 +296,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin { // 添�
                         ),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
