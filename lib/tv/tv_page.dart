@@ -261,7 +261,9 @@ class _TvPageState extends State<TvPage> {
                   if (_isDatePositionVisible) const DatePositionWidget(),
 
                   // 显示缓冲指示器
-                  if ((widget.isBuffering || _isError) && !_drawerIsOpen)
+                  if (widget.controller != null &&
+                      widget.controller!.value.isInitialized &&
+                      (widget.isBuffering || _isError) && !_drawerIsOpen)
                     _buildBufferingIndicator(),
 
                   // 频道抽屉显示
