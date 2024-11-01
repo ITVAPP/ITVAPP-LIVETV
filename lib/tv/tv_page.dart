@@ -106,17 +106,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         _drawerIsOpen = false;
       });
       _drawerAnimationController.reverse();
-      return true; // 直接返回,中断执行
+      return false;
     }
 
     // 如果抽屉已关闭，且没有其他页面可返回时，显示退出确认对话框
-    if (!Navigator.canPop(context)) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return false;
+    } else {
       return await ShowExitConfirm.ExitConfirm(context);
-    }
-
-    // 如果有其他页面可以返回，则正常返回
-    Navigator.pop(context);
-    return false;
+    } 
   }
   
   // 处理选择键逻辑  
