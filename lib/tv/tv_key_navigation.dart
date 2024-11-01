@@ -662,7 +662,7 @@ void _triggerActionsInFocusableItem(BuildContext context) {
     final widget = element.widget;
 
     // 识别并触发交互控件的操作，找到并触发后停止递归
-    return _triggerWidgetAction(widget, context);  // 如果成功触发操作，返回 true，停止遍历
+    return _triggerWidgetAction(widget, context);  // 如果找到可交互控件，返回 true，停止遍历
   });
 }
 
@@ -682,62 +682,69 @@ bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
 /// 执行目标控件的操作函数，尝试触发控件的各种常见回调，如 onPressed、onTap、onChanged 等
 bool _triggerWidgetAction(Widget widget, BuildContext context) {
   try {
-    // 尝试触发 onPressed 回调
-    if (_tryCallback(widget, 'onPressed')) {
+    if (widget is ElevatedButton) {
+      widget.onPressed?.call();
       return true;
     }
 
-    // 尝试触发 onTap 回调
-    if (_tryCallback(widget, 'onTap')) {
+    if (widget is TextButton) {
+      widget.onPressed?.call();
       return true;
     }
 
-    // 尝试触发 onChanged 回调
-    final changeCallback = _getCallback(widget, 'onChanged');
-    if (changeCallback != null) {
-      final value = _getProperty(widget, 'value');
-      if (value is bool) {
-        Future.microtask(() => changeCallback(!value));
-      } else {
-        Future.microtask(() => changeCallback(value));
+    if (widget is IconButton) {
+      widget.onPressed?.call();
+      return true;
+    }
+
+    if (widget is GestureDetector) {
+      widget.onTap?.call();
+      return true;
+    }
+
+    if (widget is InkWell) {
+      widget.onTap?.call();
+      return true;
+    }
+
+    if (widget is Checkbox) {
+      widget.onChanged?.call(widget.value == true ? false : true);
+      return true;
+    }
+
+    if (widget is Radio) {
+      widget.onChanged?.call(widget.value);
+      return true;
+    }
+
+    if (widget is Switch) {
+      widget.onChanged?.call(widget.value == true ? false : true);
+      return true;
+    }
+
+    if (widget is Slider) {
+      widget.onChanged?.call(widget.value);
+      return true;
+    }
+
+    if (widget is TextField) {
+      widget.onSubmitted?.call(widget.controller?.text ?? '');
+      return true;
+    }
+
+    if (widget is DropdownButton) {
+      if (widget.items != null && widget.items!.isNotEmpty) {
+        widget.onChanged?.call(widget.items!.first.value);
       }
       return true;
     }
 
-    // 尝试触发 onSelected 回调
-    final selectedCallback = _getCallback(widget, 'onSelected');
-    if (selectedCallback != null) {
-      if (widget is PopupMenuButton) {
-        final items = _getProperty(widget, 'itemBuilder')?.call(context);
-        final value = items?.isNotEmpty == true ? _getProperty(items!.first, 'value') : null;
-        Future.microtask(() => selectedCallback(value));
-      } else {
-        Future.microtask(() => selectedCallback(true));
+    if (widget is PopupMenuButton) {
+      final items = widget.itemBuilder(context);
+      if (items.isNotEmpty) {
+        final value = (items.first as PopupMenuItem).value;
+        widget.onSelected?.call(value);
       }
-      return true;
-    }
-
-    // 处理 Checkbox
-    if (widget is Checkbox && widget.onChanged != null) {
-      Future.microtask(() => widget.onChanged!(!widget.value));
-      return true;
-    }
-
-    // 处理 Radio
-    if (widget is Radio && widget.onChanged != null) {
-      Future.microtask(() => widget.onChanged!(widget.value));
-      return true;
-    }
-
-    // 处理 Switch
-    if (widget is Switch && widget.onChanged != null) {
-      Future.microtask(() => widget.onChanged!(!widget.value));
-      return true;
-    }
-
-    // 处理 Slider
-    if (widget is Slider && widget.onChanged != null) {
-      Future.microtask(() => widget.onChanged!(widget.value));
       return true;
     }
 
@@ -749,21 +756,10 @@ bool _triggerWidgetAction(Widget widget, BuildContext context) {
   } catch (e) {
     // 捕获任何可能的异常，但仍然返回 true
     print('触发控件操作时发生错误: $e');
-    return true;
   }
 
   // 如果不是可交互控件，显示调试消息并返回 false
   _manageDebugOverlay(message: '找到控件，但不是可交互的');
-  return false;
-}
-
-/// 尝试调用对象的回调函数
-bool _tryCallback(dynamic object, String propertyName) {
-  final callback = _getCallback(object, propertyName);
-  if (callback != null) {
-    Future.microtask(() => callback());
-    return true;
-  }
   return false;
 }
 
@@ -783,25 +779,6 @@ bool _isInteractiveWidget(Widget widget) {
          widget is DropdownButton ||
          widget is PopupMenuButton ||
          widget is Draggable;
-}
-
-/// 动态获取对象的回调函数，如果未找到则返回 null
-Function? _getCallback(dynamic object, String propertyName) {
-  try {
-    final value = object.runtimeType.instanceMembers[Symbol(propertyName)]?.getter?.call(object);
-    return value is Function ? value : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/// 动态获取对象的属性值，如果未找到则返回 null
-dynamic _getProperty(dynamic object, String propertyName) {
-  try {
-    return object.runtimeType.instanceMembers[Symbol(propertyName)]?.getter?.call(object);
-  } catch (_) {
-    return null;
-  }
 }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
