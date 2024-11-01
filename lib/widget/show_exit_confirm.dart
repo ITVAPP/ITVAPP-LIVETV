@@ -44,8 +44,8 @@ class ShowExitConfirm {
         final overlayEntry = OverlayEntry(
           builder: (context) => Center(
             child: Container(
-              width: 128, // 整个区域大小
-              height: 128,
+              width: 138, // 整个区域大小
+              height: 138,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -56,8 +56,8 @@ class ShowExitConfirm {
                       return CustomPaint(
                         painter: CircleProgressPainter(animation.value),
                         child: Container(
-                          width: 128, // 整个区域大小
-                          height: 128,
+                          width: 138, // 整个区域大小
+                          height: 138,
                           alignment: Alignment.center,
                           child: ClipOval(  // 裁剪图片为圆形
                             child: Image.asset(
