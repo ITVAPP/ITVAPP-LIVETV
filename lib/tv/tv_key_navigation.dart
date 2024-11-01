@@ -628,92 +628,179 @@ TvKeyNavigationState? _findParentNavigation() {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-  /// 执行当前焦点控件的点击操作
-  void _triggerButtonAction() { 
-    final focusNode = _currentFocus;  // 获取当前焦点
-    if (focusNode != null && focusNode.context != null) {
-      final BuildContext? context = focusNode.context;
+/// 执行当前焦点控件的点击操作
+void _triggerButtonAction() { 
+  final focusNode = _currentFocus;  // 获取当前焦点
+  if (focusNode != null && focusNode.context != null) {
+    final BuildContext? context = focusNode.context;
 
-      // 如果上下文不可用，显示调试消息并返回
-      if (context == null) {
-        _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-        return;
+    // 如果上下文不可用，显示调试消息并返回
+    if (context == null) {
+      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
+      return;
+    }
+
+    try {
+      // 查找最近的 FocusableItem 节点
+      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+      if (focusableItem != null) {
+        // 使用当前的 context 而不是 focusableItem.context
+        _triggerActionsInFocusableItem(context); 
+      } else {
+        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
       }
-
-      try {
-        // 查找最近的 FocusableItem 节点
-        final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-
-        if (focusableItem != null) {
-          // 使用当前的 context 而不是 focusableItem.context
-          _triggerActionsInFocusableItem(context); // 将 context 传递下去
-        } else {
-          _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
-        }
-      } catch (e, stackTrace) {
-        _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
-      }
+    } catch (e, stackTrace) {
+      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
     }
   }
+}
 
-  // 在 FocusableItem 节点下查找并触发第一个交互控件的操作
-  void _triggerActionsInFocusableItem(BuildContext context) {
-    _visitAllElements(context, (element) {
-      final widget = element.widget;
+/// 在 FocusableItem 节点下查找并触发第一个交互控件的操作，直到找到一个可交互的控件并触发其操作
+void _triggerActionsInFocusableItem(BuildContext context) {
+  _visitAllElements(context, (element) {
+    final widget = element.widget;
 
-      // 识别并触发交互控件的操作，找到并触发后停止递归
-      return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
-    });
-  }
+    // 识别并触发交互控件的操作，找到并触发后停止递归
+    return _triggerWidgetAction(widget, context);  // 如果成功触发操作，返回 true，停止遍历
+  });
+}
 
-  // 遍历函数，遇到交互控件后终止遍历
-  bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-    bool stop = false;  // 用于控制是否继续递归
-    context.visitChildElements((element) {
-      if (stop) return; // 如果已经找到并触发了操作，停止递归
-      stop = visitor(element);  // 如果触发了操作，stop 会变为 true
-      if (!stop) {
-        stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+/// 遍历函数，遇到交互控件后终止遍历
+bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
+  bool stop = false;  // 用于控制是否继续递归
+  context.visitChildElements((element) {
+    if (stop) return; // 如果已经找到并触发了操作，停止递归
+    stop = visitor(element);  // 如果触发了操作，stop 会变为 true
+    if (!stop) {
+      stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+    }
+  });
+  return stop;  // 返回是否已停止查找
+}
+
+/// 执行目标控件的操作函数，尝试触发控件的各种常见回调，如 onPressed、onTap、onChanged 等
+bool _triggerWidgetAction(Widget widget, BuildContext context) {
+  try {
+    // 尝试触发 onPressed 回调
+    if (_tryCallback(widget, 'onPressed')) {
+      return true;
+    }
+
+    // 尝试触发 onTap 回调
+    if (_tryCallback(widget, 'onTap')) {
+      return true;
+    }
+
+    // 尝试触发 onChanged 回调
+    final changeCallback = _getCallback(widget, 'onChanged');
+    if (changeCallback != null) {
+      final value = _getProperty(widget, 'value');
+      if (value is bool) {
+        Future.microtask(() => changeCallback(!value));
+      } else {
+        Future.microtask(() => changeCallback(value));
       }
-    });
-    return stop;  // 返回是否已停止查找
+      return true;
+    }
+
+    // 尝试触发 onSelected 回调
+    final selectedCallback = _getCallback(widget, 'onSelected');
+    if (selectedCallback != null) {
+      if (widget is PopupMenuButton) {
+        final items = _getProperty(widget, 'itemBuilder')?.call(context);
+        final value = items?.isNotEmpty == true ? _getProperty(items!.first, 'value') : null;
+        Future.microtask(() => selectedCallback(value));
+      } else {
+        Future.microtask(() => selectedCallback(true));
+      }
+      return true;
+    }
+
+    // 处理 Checkbox
+    if (widget is Checkbox && widget.onChanged != null) {
+      Future.microtask(() => widget.onChanged!(!widget.value));
+      return true;
+    }
+
+    // 处理 Radio
+    if (widget is Radio && widget.onChanged != null) {
+      Future.microtask(() => widget.onChanged!(widget.value));
+      return true;
+    }
+
+    // 处理 Switch
+    if (widget is Switch && widget.onChanged != null) {
+      Future.microtask(() => widget.onChanged!(!widget.value));
+      return true;
+    }
+
+    // 处理 Slider
+    if (widget is Slider && widget.onChanged != null) {
+      Future.microtask(() => widget.onChanged!(widget.value));
+      return true;
+    }
+
+    // 如果是可交互控件但没有触发任何操作，仍然返回 true
+    if (_isInteractiveWidget(widget)) {
+      return true;
+    }
+
+  } catch (e) {
+    // 捕获任何可能的异常，但仍然返回 true
+    print('触发控件操作时发生错误: $e');
+    return true;
   }
 
-// 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
-bool _triggerWidgetAction(Widget widget) {
-  if (widget is SwitchListTile && widget.onChanged != null) {
-    Future.microtask(() => widget.onChanged!(!widget.value));
+  // 如果不是可交互控件，显示调试消息并返回 false
+  _manageDebugOverlay(message: '找到控件，但不是可交互的');
+  return false;
+}
+
+/// 尝试调用对象的回调函数
+bool _tryCallback(dynamic object, String propertyName) {
+  final callback = _getCallback(object, propertyName);
+  if (callback != null) {
+    Future.microtask(() => callback());
     return true;
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-    Future.microtask(() => widget.onPressed!());
-    return true;
-  } else if (widget is TextButton && widget.onPressed != null) {
-    Future.microtask(() => widget.onPressed!());
-    return true;
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-    Future.microtask(() => widget.onPressed!());
-    return true;
-  } else if (widget is IconButton && widget.onPressed != null) {
-    Future.microtask(() => widget.onPressed!());
-    return true;
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
-    Future.microtask(() => widget.onPressed!());
-    return true;
-  } else if (widget is ListTile && widget.onTap != null) {
-    Future.microtask(() => widget.onTap!());
-    return true;
-  } else if (widget is GestureDetector && widget.onTap != null) {
-    Future.microtask(() => widget.onTap!());
-    return true;
-  } else if (widget is PopupMenuButton && widget.onSelected != null) {
-    Future.microtask(() => widget.onSelected!(null));
-    return true;
-  } else if (widget is ChoiceChip && widget.onSelected != null) { 
-    Future.microtask(() => widget.onSelected!(true));
-    return true;
-  } else {
-    _manageDebugOverlay(message: '找到控件，但无法触发操作');
-    return false; 
+  }
+  return false;
+}
+
+/// 检查是否为可交互的控件
+bool _isInteractiveWidget(Widget widget) {
+  return widget is GestureDetector ||
+         widget is InkWell ||
+         widget is ButtonStyleButton ||
+         widget is IconButton ||
+         widget is FloatingActionButton ||
+         widget is Checkbox ||
+         widget is Radio ||
+         widget is Switch ||
+         widget is Slider ||
+         widget is TextField ||
+         widget is TextFormField ||
+         widget is DropdownButton ||
+         widget is PopupMenuButton ||
+         widget is Draggable;
+}
+
+/// 动态获取对象的回调函数，如果未找到则返回 null
+Function? _getCallback(dynamic object, String propertyName) {
+  try {
+    final value = object.runtimeType.instanceMembers[Symbol(propertyName)]?.getter?.call(object);
+    return value is Function ? value : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// 动态获取对象的属性值，如果未找到则返回 null
+dynamic _getProperty(dynamic object, String propertyName) {
+  try {
+    return object.runtimeType.instanceMembers[Symbol(propertyName)]?.getter?.call(object);
+  } catch (_) {
+    return null;
   }
 }
   
