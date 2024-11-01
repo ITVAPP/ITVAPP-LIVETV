@@ -628,111 +628,92 @@ TvKeyNavigationState? _findParentNavigation() {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-/// 执行当前焦点控件的点击操作
-void _triggerButtonAction() { 
-  final focusNode = _currentFocus;  // 获取当前焦点
-  if (focusNode != null && focusNode.context != null) {
-    final BuildContext? context = focusNode.context;
-    // 如果上下文不可用，显示调试消息并返回
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-      return;
-    }
-    try {
-      // 查找最近的 FocusableItem 节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      if (focusableItem != null) {
-        // 使用当前的 context 而不是 focusableItem.context
-        _triggerActionsInFocusableItem(context); // 将 context 传递下去
-      } else {
-        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+  /// 执行当前焦点控件的点击操作
+  void _triggerButtonAction() { 
+    final focusNode = _currentFocus;  // 获取当前焦点
+    if (focusNode != null && focusNode.context != null) {
+      final BuildContext? context = focusNode.context;
+
+      // 如果上下文不可用，显示调试消息并返回
+      if (context == null) {
+        _manageDebugOverlay(message: '焦点上下文为空，无法操作');
+        return;
       }
-    } catch (e, stackTrace) {
-      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+
+      try {
+        // 查找最近的 FocusableItem 节点
+        final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+        if (focusableItem != null) {
+          // 使用当前的 context 而不是 focusableItem.context
+          _triggerActionsInFocusableItem(context); // 将 context 传递下去
+        } else {
+          _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+        }
+      } catch (e, stackTrace) {
+        _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+      }
     }
   }
-}
 
-// 在 FocusableItem 节点下查找并触发第一个交互控件的操作
-void _triggerActionsInFocusableItem(BuildContext context) {
-  _visitAllElements(context, (element) {
-    final widget = element.widget;
-    // 识别并触发交互控件的操作，找到并触发后停止递归
-    return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
-  });
-}
+  // 在 FocusableItem 节点下查找并触发第一个交互控件的操作
+  void _triggerActionsInFocusableItem(BuildContext context) {
+    _visitAllElements(context, (element) {
+      final widget = element.widget;
 
-// 遍历函数，遇到交互控件后终止遍历
-bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-  bool stop = false;  // 用于控制是否继续递归
-  context.visitChildElements((element) {
-    if (stop) return; // 如果已经找到并触发了操作，停止递归
-    stop = visitor(element);  // 如果触发了操作，stop 会变为 true
-    if (!stop) {
-      stop = _visitAllElements(element, visitor);  // 递归遍历子元素
-    }
-  });
-  return stop;  // 返回是否已停止查找
-}
+      // 识别并触发交互控件的操作，找到并触发后停止递归
+      return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
+    });
+  }
+
+  // 遍历函数，遇到交互控件后终止遍历
+  bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
+    bool stop = false;  // 用于控制是否继续递归
+    context.visitChildElements((element) {
+      if (stop) return; // 如果已经找到并触发了操作，停止递归
+      stop = visitor(element);  // 如果触发了操作，stop 会变为 true
+      if (!stop) {
+        stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+      }
+    });
+    return stop;  // 返回是否已停止查找
+  }
 
 // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
 bool _triggerWidgetAction(Widget widget) {
-  try {
-    _manageDebugOverlay(message: '检查控件类型: ${widget.runtimeType}');
-
-    // 处理 FocusableItem
-    if (widget is FocusableItem) {
-      _manageDebugOverlay(message: '发现 FocusableItem，检查子控件: ${widget.child.runtimeType}');
-      return _triggerWidgetAction(widget.child);
-    }
-
-    // 基础交互组件处理
-    if (widget is SwitchListTile && widget.onChanged != null) {
-      widget.onChanged!(!widget.value);
-      return true;
-    } else if (widget is ElevatedButton && widget.onPressed != null) {
-      widget.onPressed!();
-      return true;
-    } else if (widget is TextButton && widget.onPressed != null) {
-      widget.onPressed!();
-      return true;
-    } else if (widget is OutlinedButton && widget.onPressed != null) {
-      widget.onPressed!();
-      return true;
-    } else if (widget is IconButton && widget.onPressed != null) {
-      widget.onPressed!();
-      return true;
-    } else if (widget is FloatingActionButton && widget.onPressed != null) {
-      widget.onPressed!();
-      return true;
-    } else if (widget is ListTile && widget.onTap != null) {
-      widget.onTap!();
-      return true;
-    } else if (widget is GestureDetector && widget.onTap != null) {
-      widget.onTap!();
-      return true;
-    } else if (widget is PopupMenuButton && widget.onSelected != null) {
-      widget.onSelected!(null);
-      return true;
-    } else if (widget is ChoiceChip && widget.onSelected != null) { 
-      widget.onSelected!(true);
-      return true;
-    }
-
-    // 容器类组件处理
-    if (widget is Container && widget.child != null) {
-      return _triggerWidgetAction(widget.child!);
-    } else if (widget is Center && widget.child != null) {
-      return _triggerWidgetAction(widget.child!);
-    } else if (widget is Padding && widget.child != null) {
-      return _triggerWidgetAction(widget.child!);
-    }
-
-    _manageDebugOverlay(message: '找到控件类型 ${widget.runtimeType}，但无法触发操作');
-    return false;
-  } catch (e) {
-    _manageDebugOverlay(message: '触发操作时出错: $e');
-    return false;
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    Future.microtask(() => widget.onChanged!(!widget.value));
+    return true;
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+    Future.microtask(() => widget.onPressed!());
+    return true;
+  } else if (widget is TextButton && widget.onPressed != null) {
+    Future.microtask(() => widget.onPressed!());
+    return true;
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+    Future.microtask(() => widget.onPressed!());
+    return true;
+  } else if (widget is IconButton && widget.onPressed != null) {
+    Future.microtask(() => widget.onPressed!());
+    return true;
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+    Future.microtask(() => widget.onPressed!());
+    return true;
+  } else if (widget is ListTile && widget.onTap != null) {
+    Future.microtask(() => widget.onTap!());
+    return true;
+  } else if (widget is GestureDetector && widget.onTap != null) {
+    Future.microtask(() => widget.onTap!());
+    return true;
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    Future.microtask(() => widget.onSelected!(null));
+    return true;
+  } else if (widget is ChoiceChip && widget.onSelected != null) { 
+    Future.microtask(() => widget.onSelected!(true));
+    return true;
+  } else {
+    _manageDebugOverlay(message: '找到控件，但无法触发操作');
+    return false; 
   }
 }
   
