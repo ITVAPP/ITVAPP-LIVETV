@@ -616,8 +616,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 重新计算并初始化 FocusNode 列表
       int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
       _initializeFocusNodes(totalFocusNodes);
-      // 屏幕旋转或布局变化后重新初始化焦点监听器
-      _reInitializeFocusListeners();
+      
+      // 确保在状态更新后重新初始化焦点系统
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+          // 调用刷新焦点组件
+            _tvKeyNavigationState?.releaseResources();
+            _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: 0);
+            // 重新初始化所有焦点监听器
+            _reInitializeFocusListeners();
+       });
     }
   }
 
