@@ -817,20 +817,19 @@ void _onGroupTap(int index) {
 
   // 切换频道
 void _onChannelTap(PlayModel? newModel) {
-  if (newModel?.title == widget.playModel?.title) return;
+  if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
 
-  _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
-
-  // 将父组件的回调放在微任务队列中
-  Future.microtask(() {
-    widget.onTapChannel?.call(newModel);
+  // 更新本地状态，立即应用选中的样式
+  setState(() {
+    _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
   });
 
-  // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _loadEPGMsg(newModel).then((_) {
-      setState(() {}); // 更新UI
-    });
+  // 可以调用父组件的回调来处理其它逻辑
+  widget.onTapChannel?.call(newModel);
+
+  // 异步加载 EPG 数据，避免阻塞 UI 渲染
+  _loadEPGMsg(newModel).then((_) {
+    setState(() {}); // 当 EPG 数据加载完后，更新 UI
   });
 }
 
