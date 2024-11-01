@@ -594,7 +594,7 @@ TvKeyNavigationState? _findParentNavigation() {
         return _handleNavigation(key);
       }
 
-  // 判断是否为选择键
+      // 判断是否为选择键
   if (_isSelectKey(key)) {
     try {
       _triggerButtonAction(); // 调用按钮操作
@@ -679,31 +679,48 @@ TvKeyNavigationState? _findParentNavigation() {
     return stop;  // 返回是否已停止查找
   }
 
-  // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
-  bool _triggerWidgetAction(Widget widget) {
-    if (widget is SwitchListTile && widget.onChanged != null) {
-      widget.onChanged!(!widget.value);
-      _manageDebugOverlay(message: '找到onChanged，触发操作');
-      return true;
-    } else if (widget.onPressed != null) {
-      widget.onPressed!();
-      _manageDebugOverlay(message: '找到onPressed，触发操作');
-      return true;
-    } else if (widget.onTap != null) {
-      widget.onTap!();
-      _manageDebugOverlay(message: '找到onTap，触发操作');
-      return true;
-    } else if (widget is PopupMenuButton && widget.onSelected != null) {
-      widget.onSelected!(null);
-      return true;
-    } else if (widget is ChoiceChip && widget.onSelected != null) { 
-      widget.onSelected!(true); 
-      return true;
-    } else {
-      _manageDebugOverlay(message: '找到控件，但无法触发操作');
-      return false; 
-    }
+// 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
+bool _triggerWidgetAction(Widget widget) {
+  if (widget is SwitchListTile && widget.onChanged != null) {
+    Function.apply(widget.onChanged!, [!widget.value]);
+    return true;
+  } else if (widget is ElevatedButton && widget.onPressed != null) {
+   _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
+    Function.apply(widget.onPressed!, []);
+    return true;
+  } else if (widget is TextButton && widget.onPressed != null) {
+     _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
+    Function.apply(widget.onPressed!, []);
+    return true;
+  } else if (widget is OutlinedButton && widget.onPressed != null) {
+      _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
+    Function.apply(widget.onPressed!, []);
+    return true;
+  } else if (widget is IconButton && widget.onPressed != null) {
+      _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
+    Function.apply(widget.onPressed!, []);
+    return true;
+  } else if (widget is FloatingActionButton && widget.onPressed != null) {
+     _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
+    Function.apply(widget.onPressed!, []);
+    return true;
+  } else if (widget is ListTile && widget.onTap != null) {
+    Function.apply(widget.onTap!, []);
+    return true;
+  } else if (widget is GestureDetector && widget.onTap != null) {
+    Function.apply(widget.onTap!, []);
+    return true;
+  } else if (widget is PopupMenuButton && widget.onSelected != null) {
+    Function.apply(widget.onSelected!, [null]);
+    return true;
+  } else if (widget is ChoiceChip && widget.onSelected != null) {
+    Function.apply(widget.onSelected!, [true]);
+    return true;
+  } else {
+    _manageDebugOverlay(message: '找到控件，但无法触发操作');
+    return false;
   }
+}
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
