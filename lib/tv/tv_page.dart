@@ -106,20 +106,20 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         _drawerIsOpen = false;
       });
       _drawerAnimationController.reverse();
-      return true; // 阻止返回事件
+      return true; // 直接返回,中断执行
     }
-  
+
     // 如果抽屉已关闭，且没有其他页面可返回时，显示退出确认对话框
     if (!Navigator.canPop(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
     }
-  
+
     // 如果有其他页面可以返回，则正常返回
     Navigator.pop(context);
     return false;
   }
-
-  // 处理选择键逻辑
+  
+  // 处理选择键逻辑  
   Future<void> _handleSelectPress() async {
     // 合并状态更新以减少重绘
     setState(() {
@@ -160,9 +160,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     // 根据按键的不同逻辑键值执行相应的操作
     switch (e.logicalKey) {
-      case LogicalKeyboardKey.goBack: // 处理返回键
-        bool handled = await _handleBackPress(context);
-        return handled ? KeyEventResult.handled : KeyEventResult.ignored; // 根据处理结果决定是否阻止事件
       case LogicalKeyboardKey.arrowRight:  // 处理右键操作
         setState(() {
           _drawerIsOpen = true;  // 打开频道抽屉菜单
@@ -194,7 +191,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
     return KeyEventResult.handled;  // 返回 KeyEventResult.handled
   }
-
+  
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
@@ -319,7 +316,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     );
   }
-
+  
   // 构建缓冲指示器
   Widget _buildBufferingIndicator() {
     return Align(
