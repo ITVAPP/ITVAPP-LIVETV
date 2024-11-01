@@ -46,7 +46,7 @@ class ShowExitConfirm {
             animation: animation,
             builder: (context, child) => Container(
               // 使用半透明的黑色背景
-              color: Colors.black.withOpacity(0.6 * animation.value), // 60%的不透明度
+              color: Colors.black.withOpacity(0.8 * animation.value), // 不透明度
               child: Center(
                 child: Opacity(
                   opacity: animation.value,
