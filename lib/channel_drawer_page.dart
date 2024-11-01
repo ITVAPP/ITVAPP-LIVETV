@@ -827,13 +827,18 @@ void _onChannelTap(PlayModel? newModel) {
   // 更新本地状态，立即应用选中的样式
   setState(() {
     _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
+    _epgData = null; // 清空当前节目单数据
+    _selEPGIndex = 0; // 重置选中的节目单索引
   });
-
+  
   // 可以调用父组件的回调来处理其它逻辑
-  widget.onTapChannel?.call(newModel);
+  // widget.onTapChannel?.call(newModel);
 
-  // 加载 EPG 数据
-  _loadEPGMsg(newModel);
+  // 使用 WidgetsBinding 来确保 UI 更新后再加载 EPG
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 加载 EPG 数据
+    _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
+  });
 }
 
   // 滚动到顶部
@@ -875,42 +880,66 @@ void _onChannelTap(PlayModel? newModel) {
     controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
   }
 
-  // 加载EPG
-  Future<void> _loadEPGMsg(PlayModel? playModel) async {
-    if (playModel == null) return;
+// 加载EPG
+Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
+  if (playModel == null) return;
 
-    setState(() {
-      _epgData = null; // 清空当前节目单数据
-      _selEPGIndex = 0; // 重置选中的节目单索引
-    });
-
-    try {
-      final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
-      if (res?.epgData == null || res!.epgData!.isEmpty) return;
-
-      final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
-      final selectTimeData = res.epgData!.lastWhere(
-            (element) => element.start!.compareTo(epgRangeTime) < 0,
-        orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
-      ).start;
-      final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
-
+  try {
+    final currentTime = DateTime.now();  
+    // 如果提供了 channelKey，则检查缓存是否存在且未过期
+    if (channelKey != null &&
+        epgCache.containsKey(channelKey) &&
+        epgCache[channelKey]!['timestamp'].day == currentTime.day) {
       setState(() {
-        _epgData = res.epgData!; // 更新节目单数据
-        _selEPGIndex = selectedIndex;
+        _epgData = epgCache[channelKey]!['data'];
+        _selEPGIndex = _getInitialSelectedIndex(_epgData);
       });
 
       // 在节目单数据更新后滚动到当前选中的节目项
-      if (_epgData!.isNotEmpty && _selEPGIndex < _epgData!.length) {
+      if (_epgData!.isNotEmpty) {
         _epgItemScrollController.scrollTo(
           index: _selEPGIndex,
           duration: Duration.zero,
         );
       }
-    } catch (e, stackTrace) {
-      LogUtil.logError('加载EPG数据时出错', e, stackTrace);
+      return;
     }
+
+    // 缓存不存在或过期，重新获取数据
+    final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
+    if (res?.epgData == null || res!.epgData!.isEmpty) return;
+
+    final epgRangeTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm'); // 当前时间
+    final selectTimeData = res.epgData!.lastWhere(
+          (element) => element.start!.compareTo(epgRangeTime) < 0,
+      orElse: () => res.epgData!.first, // 如果未找到，默认选中第一个节目
+    ).start;
+    final selectedIndex = res.epgData!.indexWhere((element) => element.start == selectTimeData);
+
+    setState(() {
+      _epgData = res.epgData!; // 更新节目单数据
+      _selEPGIndex = selectedIndex;
+    });
+
+    // 如果提供了 channelKey，则将数据缓存
+    if (channelKey != null) {
+      epgCache[channelKey] = {
+        'data': res.epgData!,
+        'timestamp': currentTime,
+      };
+    }
+
+    // 在节目单数据更新后滚动到当前选中的节目项
+    if (_epgData!.isNotEmpty) {
+      _epgItemScrollController.scrollTo(
+        index: _selEPGIndex,
+        duration: Duration.zero,
+      );
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('加载EPG数据时出错', e, stackTrace);
   }
+}
 
   // 检查焦点列表是否正确，如果不正确则重建
   List<FocusNode> _ensureCorrectFocusNodes() {
