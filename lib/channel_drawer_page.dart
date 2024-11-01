@@ -827,10 +827,8 @@ void _onChannelTap(PlayModel? newModel) {
   // 可以调用父组件的回调来处理其它逻辑
   widget.onTapChannel?.call(newModel);
 
-  // 异步加载 EPG 数据，避免阻塞 UI 渲染
-  _loadEPGMsg(newModel).then((_) {
-    setState(() {}); // 当 EPG 数据加载完后，更新 UI
-  });
+  // 加载 EPG 数据
+  _loadEPGMsg(newModel);
 }
 
   // 滚动到顶部
