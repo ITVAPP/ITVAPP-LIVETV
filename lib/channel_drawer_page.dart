@@ -816,17 +816,24 @@ void _onGroupTap(int index) {
 }
 
   // 切换频道
-void _onChannelTap(PlayModel? newModel) {
-  if (newModel?.title == widget.playModel?.title) return;
+  void _onChannelTap(PlayModel? newModel) {
+    if (newModel?.title == widget.playModel?.title) return;
 
-  _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
-  
-  // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _loadEPGMsg(newModel);  // 加载 EPG 数据
-    widget.onTapChannel?.call(newModel);  // 执行父组件回调
-  });
-}
+    // 更新频道索引并在 setState 中通知 UI 更新
+    setState(() {
+      _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
+    });
+
+    // 将父组件的回调放在微任务队列中
+    Future.microtask(() {
+      widget.onTapChannel?.call(newModel);
+    });
+
+    // 在当前帧结束后加载 EPG 数据，避免阻塞 UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadEPGMsg(newModel);  // 加载 EPG 数据
+    });
+  }
 
   // 滚动到顶部
   void _scrollToTop(ScrollController controller) {
