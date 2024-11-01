@@ -55,16 +55,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
-  late AnimationController _drawerAnimationController; // 添加抽屉动画控制器
-
-  @override
-  void initState() {
-    super.initState();
-    _drawerAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-  }
 
   // 打开设置页面
   Future<bool?> _opensetting() async {
@@ -105,7 +95,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       setState(() {
         _drawerIsOpen = false;
       });
-      _drawerAnimationController.reverse();
       return false;
     }
 
@@ -163,7 +152,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         setState(() {
           _drawerIsOpen = true;  // 打开频道抽屉菜单
         });
-        _drawerAnimationController.forward(); // 添加动画正向播放
         break;
       case LogicalKeyboardKey.arrowUp:   // 处理上键操作
         await widget.changeChannelSources?.call(); // 切换视频源
@@ -197,7 +185,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     setState(() {
       _drawerIsOpen = false; // 点击节目后关闭抽屉
     });
-    _drawerAnimationController.reverse(); // 添加动画反向播放
   }
   
   @override
@@ -212,7 +199,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     } catch (e) {
       LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
-    _drawerAnimationController.dispose(); // 添加动画控制器释放
     super.dispose(); // 调用父类的 dispose 方法
   }
 
@@ -285,25 +271,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     alignment: Alignment.centerLeft,
                     child: Offstage(
                       offstage: !_drawerIsOpen,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(-1.0, 0.0), // 从左侧进入
-                          end: Offset.zero, // 到达原位
-                        ).animate(CurvedAnimation(
-                          parent: _drawerAnimationController,
-                          curve: Curves.easeInOut,
-                        )),
-                        child: ChannelDrawerPage(
-                          videoMap: widget.videoMap, // 播放列表模型
-                          playModel: widget.playModel, // 当前播放频道模型
-                          isLandscape: true, // 横屏显示
-                          onCloseDrawer: () {
-                            setState(() {
-                              _drawerIsOpen = false; // 点击后关闭抽屉
-                            });
-                            _drawerAnimationController.reverse(); // 添加动画反向播放
-                          },
-                        ),
+                      child: ChannelDrawerPage(
+                        videoMap: widget.videoMap, // 播放列表模型
+                        playModel: widget.playModel, // 当前播放频道模型
+                        isLandscape: true, // 横屏显示
+                        onCloseDrawer: () {
+                          setState(() {
+                            _drawerIsOpen = false; // 点击后关闭抽屉
+                          });
+                        },
                       ),
                     ),
                   ),
@@ -327,21 +303,21 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           children: [
             GradientProgressBar(
               width: MediaQuery.of(context).size.width * 0.3, // 设置进度条宽度
-             height: 5, // 设置进度条高度
-           ),
-           const SizedBox(height: 8), // 设置进度条和提示信息之间的间距
-           _buildToast(S.of(context).loading), // 显示加载提示信息
-         ],
-       ),
-     ),
-   );
- }
+              height: 5, // 设置进度条高度
+            ),
+            const SizedBox(height: 8), // 设置进度条和提示信息之间的间距
+            _buildToast(S.of(context).loading), // 显示加载提示信息
+          ],
+        ),
+      ),
+    );
+  }
 
- // 构建提示信息组件
- Widget _buildToast(String message) {
-   return Text(
-     message, // 显示提示信息
-     style: TextStyle(color: Colors.white, fontSize: 18), // 设置字体颜色和大小
-   );
- }
+  // 构建提示信息组件
+  Widget _buildToast(String message) {
+    return Text(
+      message, // 显示提示信息
+      style: TextStyle(color: Colors.white, fontSize: 18), // 设置字体颜色和大小
+    );
+  }
 }
