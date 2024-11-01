@@ -594,7 +594,7 @@ TvKeyNavigationState? _findParentNavigation() {
         return _handleNavigation(key);
       }
 
-      // 判断是否为选择键
+  // 判断是否为选择键
   if (_isSelectKey(key)) {
     try {
       _triggerButtonAction(); // 调用按钮操作
@@ -628,158 +628,82 @@ TvKeyNavigationState? _findParentNavigation() {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-/// 执行当前焦点控件的点击操作
-void _triggerButtonAction() { 
-  final focusNode = _currentFocus;  // 获取当前焦点
-  if (focusNode != null && focusNode.context != null) {
-    final BuildContext? context = focusNode.context;
+  /// 执行当前焦点控件的点击操作
+  void _triggerButtonAction() { 
+    final focusNode = _currentFocus;  // 获取当前焦点
+    if (focusNode != null && focusNode.context != null) {
+      final BuildContext? context = focusNode.context;
 
-    // 如果上下文不可用，显示调试消息并返回
-    if (context == null) {
-      _manageDebugOverlay(message: '焦点上下文为空，无法操作');
-      return;
-    }
-
-    try {
-      // 查找最近的 FocusableItem 节点
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-
-      if (focusableItem != null) {
-        // 使用当前的 context 而不是 focusableItem.context
-        _triggerActionsInFocusableItem(context); 
-      } else {
-        _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+      // 如果上下文不可用，显示调试消息并返回
+      if (context == null) {
+        _manageDebugOverlay(message: '焦点上下文为空，无法操作');
+        return;
       }
-    } catch (e, stackTrace) {
-      _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+
+      try {
+        // 查找最近的 FocusableItem 节点
+        final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+
+        if (focusableItem != null) {
+          // 使用当前的 context 而不是 focusableItem.context
+          _triggerActionsInFocusableItem(context); // 将 context 传递下去
+        } else {
+          _manageDebugOverlay(message: '未找到 FocusableItem 包裹的控件');
+        }
+      } catch (e, stackTrace) {
+        _manageDebugOverlay(message: '执行操作时发生错误: $e, 堆栈信息: $stackTrace');
+      }
     }
   }
-}
 
-/// 在 FocusableItem 节点下查找并触发第一个交互控件的操作，直到找到一个可交互的控件并触发其操作
-void _triggerActionsInFocusableItem(BuildContext context) {
-  _visitAllElements(context, (element) {
-    final widget = element.widget;
+  // 在 FocusableItem 节点下查找并触发第一个交互控件的操作
+  void _triggerActionsInFocusableItem(BuildContext context) {
+    _visitAllElements(context, (element) {
+      final widget = element.widget;
 
-    // 识别并触发交互控件的操作，找到并触发后停止递归
-    return _triggerWidgetAction(widget, context);  // 如果找到可交互控件，返回 true，停止遍历
-  });
-}
-
-/// 遍历函数，遇到交互控件后终止遍历
-bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-  bool stop = false;  // 用于控制是否继续递归
-  context.visitChildElements((element) {
-    if (stop) return; // 如果已经找到并触发了操作，停止递归
-    stop = visitor(element);  // 如果触发了操作，stop 会变为 true
-    if (!stop) {
-      stop = _visitAllElements(element, visitor);  // 递归遍历子元素
-    }
-  });
-  return stop;  // 返回是否已停止查找
-}
-
-/// 执行目标控件的操作函数，尝试触发控件的各种常见回调，如 onPressed、onTap、onChanged 等
-bool _triggerWidgetAction(Widget widget, BuildContext context) {
-  try {
-    if (widget is ElevatedButton) {
-      widget.onPressed?.call();
-      return true;
-    }
-
-    if (widget is TextButton) {
-      widget.onPressed?.call();
-      return true;
-    }
-
-    if (widget is IconButton) {
-      widget.onPressed?.call();
-      return true;
-    }
-
-    if (widget is GestureDetector) {
-      widget.onTap?.call();
-      return true;
-    }
-
-    if (widget is InkWell) {
-      widget.onTap?.call();
-      return true;
-    }
-
-    if (widget is Checkbox) {
-      widget.onChanged?.call(widget.value == true ? false : true);
-      return true;
-    }
-
-    if (widget is Radio) {
-      widget.onChanged?.call(widget.value);
-      return true;
-    }
-
-    if (widget is Switch) {
-      widget.onChanged?.call(widget.value == true ? false : true);
-      return true;
-    }
-
-    if (widget is Slider) {
-      widget.onChanged?.call(widget.value);
-      return true;
-    }
-
-    if (widget is TextField) {
-      widget.onSubmitted?.call(widget.controller?.text ?? '');
-      return true;
-    }
-
-    if (widget is DropdownButton) {
-      if (widget.items != null && widget.items!.isNotEmpty) {
-        widget.onChanged?.call(widget.items!.first.value);
-      }
-      return true;
-    }
-
-    if (widget is PopupMenuButton) {
-      final items = widget.itemBuilder(context);
-      if (items.isNotEmpty) {
-        final value = (items.first as PopupMenuItem).value;
-        widget.onSelected?.call(value);
-      }
-      return true;
-    }
-
-    // 如果是可交互控件但没有触发任何操作，仍然返回 true
-    if (_isInteractiveWidget(widget)) {
-      return true;
-    }
-
-  } catch (e) {
-    // 捕获任何可能的异常，但仍然返回 true
-    print('触发控件操作时发生错误: $e');
+      // 识别并触发交互控件的操作，找到并触发后停止递归
+      return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
+    });
   }
 
-  // 如果不是可交互控件，显示调试消息并返回 false
-  _manageDebugOverlay(message: '找到控件，但不是可交互的');
-  return false;
-}
+  // 遍历函数，遇到交互控件后终止遍历
+  bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
+    bool stop = false;  // 用于控制是否继续递归
+    context.visitChildElements((element) {
+      if (stop) return; // 如果已经找到并触发了操作，停止递归
+      stop = visitor(element);  // 如果触发了操作，stop 会变为 true
+      if (!stop) {
+        stop = _visitAllElements(element, visitor);  // 递归遍历子元素
+      }
+    });
+    return stop;  // 返回是否已停止查找
+  }
 
-/// 检查是否为可交互的控件
-bool _isInteractiveWidget(Widget widget) {
-  return widget is GestureDetector ||
-         widget is InkWell ||
-         widget is ButtonStyleButton ||
-         widget is IconButton ||
-         widget is FloatingActionButton ||
-         widget is Checkbox ||
-         widget is Radio ||
-         widget is Switch ||
-         widget is Slider ||
-         widget is TextField ||
-         widget is TextFormField ||
-         widget is DropdownButton ||
-         widget is PopupMenuButton ||
-         widget is Draggable;
-}
+  // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
+  bool _triggerWidgetAction(Widget widget) {
+    if (widget is SwitchListTile && widget.onChanged != null) {
+      widget.onChanged!(!widget.value);
+      _manageDebugOverlay(message: '找到onChanged，触发操作');
+      return true;
+    } else if (widget.onPressed != null) {
+      widget.onPressed!();
+      _manageDebugOverlay(message: '找到onPressed，触发操作');
+      return true;
+    } else if (widget.onTap != null) {
+      widget.onTap!();
+      _manageDebugOverlay(message: '找到onTap，触发操作');
+      return true;
+    } else if (widget is PopupMenuButton && widget.onSelected != null) {
+      widget.onSelected!(null);
+      return true;
+    } else if (widget is ChoiceChip && widget.onSelected != null) { 
+      widget.onSelected!(true); 
+      return true;
+    } else {
+      _manageDebugOverlay(message: '找到控件，但无法触发操作');
+      return false; 
+    }
+  }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
