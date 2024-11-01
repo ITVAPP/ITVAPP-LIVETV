@@ -611,6 +611,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
         );
       });
+      // 屏幕旋转或布局变化后重新初始化焦点监听器
+      _reInitializeFocusListeners();
     }
   }
 
