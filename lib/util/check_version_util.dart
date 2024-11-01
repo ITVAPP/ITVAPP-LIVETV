@@ -22,8 +22,8 @@ class CheckVersionUtil {
   // 保存最后一次弹出提示的日期
   static Future<void> saveLastPromptDate() async {
     try {
-      final dateStr = DateTime.now().toIso8601String();
-      await SpUtil.putString(_lastPromptDateKey, dateStr);
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();  // 使用时间戳字符串
+      await SpUtil.putString(_lastPromptDateKey, timestamp);
     } catch (e, stackTrace) {
       LogUtil.logError('保存最后提示日期失败', e, stackTrace);  // 错误处理
     }
@@ -32,16 +32,14 @@ class CheckVersionUtil {
   // 获取最后一次弹出提示的日期
   static Future<String?> getLastPromptDate() async {
     try {
-      final dateStr = SpUtil.getString(_lastPromptDateKey);  // 获取提示日期
-      if (dateStr != null) {
-        final DateTime? parsedDate = DateTime.tryParse(dateStr);
-        if (parsedDate != null) {
-          return dateStr;
-        }
-        // 如果解析失败，清除无效数据
+      final timestamp = SpUtil.getString(_lastPromptDateKey);  // 获取时间戳字符串
+      if (timestamp != null && timestamp.isNotEmpty && int.tryParse(timestamp) != null) {
+        return timestamp;
+      }
+      // 如果不是有效的时间戳，清除数据
+      if (timestamp != null) {
         await SpUtil.remove(_lastPromptDateKey);
       }
-      LogUtil.logError('提示日期格式无效', 'Invalid date format');
       return null;  // 如果格式不正确，返回 null
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
@@ -52,14 +50,14 @@ class CheckVersionUtil {
   // 检查是否超过一天未提示
   static Future<bool> shouldShowPrompt() async {
     try {
-      final lastPromptDate = await getLastPromptDate();  // 获取最后一次提示日期
-      if (lastPromptDate == null) return true;  // 如果没有记录，表示从未提示过，直接返回 true
+      final lastPromptTimestamp = await getLastPromptDate();  // 获取最后一次提示时间戳
+      if (lastPromptTimestamp == null) return true;  // 如果没有记录，表示从未提示过，直接返回 true
 
-      final lastDate = DateTime.parse(lastPromptDate);  // 解析最后提示的日期
-      final currentDate = DateTime.now();  // 获取当前日期
+      final lastTime = int.parse(lastPromptTimestamp);  // 解析时间戳
+      final currentTime = DateTime.now().millisecondsSinceEpoch;  // 获取当前时间戳
 
-      // 检查是否超过1天，若是则返回 true
-      return currentDate.difference(lastDate).inHours >= 24;  // 使用小时计算更精确
+      // 检查是否超过1天（24小时 = 24 * 60 * 60 * 1000 毫秒）
+      return (currentTime - lastTime) >= (24 * 60 * 60 * 1000);  // 使用毫秒计算更精确
     } catch (e, stackTrace) {
       LogUtil.logError('检查提示间隔失败', e, stackTrace);  // 错误处理
       return true;  // 发生错误时，默认返回 true，确保用户仍会收到提示
