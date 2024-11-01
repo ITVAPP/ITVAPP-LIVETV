@@ -28,64 +28,50 @@ class ShowExitConfirm {
     // 如果用户确认退出，执行退出逻辑
     if (exitConfirmed == true) {
       try {
-        // 使用 Overlay 添加全屏淡出动画和 Logo
         final overlayState = Overlay.of(context);
        
         // 创建一个 AnimationController
         final controller = AnimationController(
-          duration: const Duration(milliseconds: 800),  // 增加动画时长以适应 Logo 淡出
+          duration: const Duration(seconds: 3),  // 设置动画时长为 3 秒
           vsync: Navigator.of(context),
         );
        
         final animation = CurvedAnimation(
           parent: controller,
-          curve: Curves.easeInOut,
+          curve: Curves.linear,
         );
+
         final overlayEntry = OverlayEntry(
-          builder: (context) => AnimatedBuilder(
-            animation: animation,
-            builder: (context, child) => Container(
-              // 使用半透明的黑色背景
-              color: Colors.black.withOpacity(0.8 * animation.value), // 不透明度
-              child: Center(
-                child: Opacity(
-                  opacity: animation.value,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // 使用 Container 创建圆形 logo
-                      Container(
-                        width: 108,
-                        height: 108,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,  // 设置形状为圆形
-                          boxShadow: [  // 添加阴影效果
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+          builder: (context) => Center(
+            child: Container(
+              width: 128, // 整个区域大小
+              height: 128,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 圆环进度条
+                  AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: CircleProgressPainter(animation.value),
+                        child: Container(
+                          width: 128, // 整个区域大小
+                          height: 128,
+                          alignment: Alignment.center,
+                          child: ClipOval(  // 裁剪图片为圆形
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              width: 108, // LOGO 的宽度
+                              height: 108, // LOGO 的高度
+                              fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                             ),
-                          ],
-                        ),
-                        child: ClipOval(  // 裁剪图片为圆形
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        S.current.appName,  // 退出文字
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -97,9 +83,6 @@ class ShowExitConfirm {
         // 开始动画
         await controller.forward();
        
-        // 等待一小段时间让用户看清 logo
-        await Future.delayed(const Duration(milliseconds: 1000));
-       
         // 退出应用
         FlutterExitApp.exitApp();  // 直接调用插件退出应用
        
@@ -108,5 +91,43 @@ class ShowExitConfirm {
       }
     }
     return exitConfirmed ?? false;  // 返回非空的 bool 值，如果为空则返回 false
+  }
+}
+
+class CircleProgressPainter extends CustomPainter {
+  final double progress;
+
+  CircleProgressPainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4; // 进度条宽度更窄以符合边框效果
+
+    // 绘制背景圆环
+    canvas.drawCircle(size.center(Offset.zero), size.width / 2, paint);
+
+    // 绘制渐变进度
+    final gradientPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.blue, Colors.purple, Color(0xFFEB144C)],
+      ).createShader(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2));
+
+    // 绘制进度
+    final arcRect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2);
+    canvas.drawArc(
+      arcRect,
+      -90 * (3.14159 / 180), // 从顶部开始
+      360 * progress * (3.14159 / 180), // 根据进度绘制
+      false,
+      gradientPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
