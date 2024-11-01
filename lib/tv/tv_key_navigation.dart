@@ -681,6 +681,44 @@ TvKeyNavigationState? _findParentNavigation() {
 
 // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
 bool _triggerWidgetAction(Widget widget) {
+  // 定义高优先级组件列表
+  final highPriorityWidgets = [
+    ElevatedButton,
+    TextButton,
+    OutlinedButton,
+    IconButton,
+    FloatingActionButton,
+    GestureDetector,
+    ListTile,
+  ];
+
+  // 定义低优先级（可能不包含交互逻辑）的组件列表
+  final lowPriorityWidgets = [
+    Container,
+    Padding,
+    SizedBox,
+    Align,
+    Center,
+  ];
+
+  // 检查是否为低优先级组件，如果是则跳过
+  if (lowPriorityWidgets.contains(widget.runtimeType)) {
+    return false;
+  }
+
+  // 优先检查高优先级组件
+  for (var type in highPriorityWidgets) {
+    if (widget.runtimeType == type) {
+      return _triggerSpecificWidgetAction(widget);
+    }
+  }
+
+  // 如果不是高优先级组件，则按原来的顺序检查
+  return _triggerSpecificWidgetAction(widget);
+}
+
+// 触发特定组件的操作
+bool _triggerSpecificWidgetAction(Widget widget) {
   if (widget is SwitchListTile && widget.onChanged != null) {
     Function.apply(widget.onChanged!, [!widget.value]);
     return true;
