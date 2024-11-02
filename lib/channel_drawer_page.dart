@@ -604,7 +604,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void didChangeMetrics() {
-    final TvKeyNavigationState currentState = _tvKeyNavigationState!;
     final newHeight = MediaQuery.of(context).size.height * 0.5;
     if (newHeight != _viewPortHeight) {
       setState(() {
@@ -614,18 +613,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
         );
       });
-      // 重新计算并初始化 FocusNode 列表
-      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty ? _values[_groupIndex].length : 0);
-      _initializeFocusNodes(totalFocusNodes);
-      
-      // 确保在状态更新后重新初始化焦点系统
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 调用刷新焦点组件
-            currentState.releaseResources();
-            currentState.initializeFocusLogic(initialIndexOverride: 0);
-            // 重新初始化所有焦点监听器
-            _reInitializeFocusListeners();
-       });
     }
   }
 
