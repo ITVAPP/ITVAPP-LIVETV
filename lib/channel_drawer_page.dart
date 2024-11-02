@@ -604,11 +604,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void didChangeMetrics() {
+    final TvKeyNavigationState currentState = _tvKeyNavigationState!;
     final newHeight = MediaQuery.of(context).size.height * 0.5;
     if (newHeight != _viewPortHeight) {
       setState(() {
-        _viewPortHeight = newHeight; // 只在高度变化时更新
-        _adjustScrollPositions(); // 调整滚动位置
+        _viewPortHeight = newHeight;
+        _adjustScrollPositions(); 
         _updateStartIndexes(
           includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
         );
@@ -620,8 +621,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 确保在状态更新后重新初始化焦点系统
       WidgetsBinding.instance.addPostFrameCallback((_) {
           // 调用刷新焦点组件
-            _tvKeyNavigationState?.releaseResources();
-            _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: 0);
+            currentState.releaseResources();
+            currentState.initializeFocusLogic(initialIndexOverride: 0);
             // 重新初始化所有焦点监听器
             _reInitializeFocusListeners();
        });
@@ -633,10 +634,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance?.addPostFrameCallback((_) {
       final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
-        final height = renderBox.size.height * 0.5; // 取窗口高度的一半
+        final height = renderBox.size.height * 0.5;
         setState(() {
-          _viewPortHeight = height; // 仅在初次计算时设置
-          _adjustScrollPositions(); // 调整滚动位置
+          _viewPortHeight = height; 
+          _adjustScrollPositions();
         });
       }
     });
@@ -644,12 +645,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 初始化分类数据
   void _initializeCategoryData() {
-    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[]; // 获取所有分类
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
     _categoryIndex = -1;
     _groupIndex = -1;
     _channelIndex = -1;
 
-    // 遍历每个分类，查找当前播放的频道所属的分组和分类
+    // 查找当前播放的频道所属的分组和分类
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
@@ -686,7 +687,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 初始化频道数据
   void _initializeChannelData() {
-    // 如果索引无效，重置所有数据
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
       _resetChannelData();
       return;
@@ -915,7 +915,7 @@ Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
    final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
    if (res?.epgData == null || res!.epgData!.isEmpty) return;
    
-   // 使用_getInitialSelectedIndex获取当前节目索引
+   // 获取当前节目索引
    final selectedIndex = _getInitialSelectedIndex(res.epgData);
 
    setState(() {
