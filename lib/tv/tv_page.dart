@@ -55,6 +55,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
+  bool _blockSelectKeyEvent = false; // 新增：用于阻止选择键事件
 
   // 打开设置页面
   Future<bool?> _opensetting() async {
@@ -162,7 +163,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         break;
       case LogicalKeyboardKey.select: // 处理选择键
       case LogicalKeyboardKey.enter:  // 处理确认键
-        await _handleSelectPress(); // 使用相同的处理逻辑
+        // 只有在不阻止选择键事件时才处理
+        if (!_blockSelectKeyEvent) {
+          await _handleSelectPress();
+        }
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
         // 处理音量加键操作
@@ -181,9 +185,19 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   
   // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
+    _blockSelectKeyEvent = true; // 标记需要阻止选择键事件
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
     setState(() {
       _drawerIsOpen = false; // 点击节目后关闭抽屉
+    });
+    
+    // 300ms 后重置阻止标记
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) { // 确保 widget 还在树中
+        setState(() {
+          _blockSelectKeyEvent = false;
+        });
+      }
     });
   }
   
@@ -199,6 +213,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     } catch (e) {
       LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
+    _blockSelectKeyEvent = false; // 重置阻止标记
     super.dispose(); // 调用父类的 dispose 方法
   }
 
