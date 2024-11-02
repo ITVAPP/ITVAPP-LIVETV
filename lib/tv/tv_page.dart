@@ -29,6 +29,11 @@ class TvPage extends StatefulWidget {
   final bool isBuffering; // 视频是否在缓冲
   final bool isPlaying; // 视频是否正在播放
   final double aspectRatio; // 视频显示的宽高比
+  
+  // 新增收藏相关属性
+  final Function(String)? toggleFavorite;        // 切换收藏状态的回调
+  final Function(String)? isChannelFavorite;     // 检查收藏状态的回调
+  final String? currentChannelId;                // 当前频道ID
 
   const TvPage({
     super.key,
@@ -43,6 +48,10 @@ class TvPage extends StatefulWidget {
     this.isBuffering = false,
     this.isPlaying = false,
     this.aspectRatio = 16 / 9, // 默认宽高比 16:9
+    // 新增收藏参数
+    this.toggleFavorite,
+    this.isChannelFavorite,
+    this.currentChannelId,
   });
 
   @override
@@ -107,7 +116,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return await ShowExitConfirm.ExitConfirm(context);
     } 
   }
-  
+
   // 处理选择键逻辑  
   Future<void> _handleSelectPress() async {
     // 合并状态更新以减少重绘
@@ -132,7 +141,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       });
     }
   }
-
+  
   // 处理键盘事件的函数，处理遥控器输入
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled; // 只处理按键释放事件
@@ -149,6 +158,24 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     // 根据按键的不同逻辑键值执行相应的操作
     switch (e.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:  // 添加左键收藏功能
+        if (widget.toggleFavorite != null && 
+            widget.isChannelFavorite != null && 
+            widget.currentChannelId != null) {
+          
+          final bool isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
+          widget.toggleFavorite!(widget.currentChannelId!);
+          
+          // 使用 CustomSnackBar 显示操作结果
+          if (mounted) {
+            CustomSnackBar.showSnackBar(
+              context,
+              isFavorite ? S.of(context).removefavorite : S.of(context).newfavorite,
+              duration: const Duration(seconds: 4),
+            );
+          }
+        }
+        break;
       case LogicalKeyboardKey.arrowRight:  // 处理右键操作
         setState(() {
           _drawerIsOpen = true;  // 打开频道抽屉菜单
@@ -216,7 +243,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _blockSelectKeyEvent = false; // 重置阻止标记
     super.dispose(); // 调用父类的 dispose 方法
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
