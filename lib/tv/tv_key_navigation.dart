@@ -259,62 +259,74 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     manageDebugOverlay(context, message: '$message: $error\n位置: $stackTrace');
   }
   
-  /// 查找子页面导航状态
-  TvKeyNavigationState? _findChildNavigation() {
-    TvKeyNavigationState? childNavigation;
-  
-    void visitChild(Element element) {
-      if (element.widget is TvKeyNavigation) {
-        final navigationWidget = element.widget as TvKeyNavigation;
-        // 确保只查找可见的子页面
-        if (navigationWidget.frameType == "child" && 
-            element.renderObject?.paintBounds != null &&
-            !element.renderObject!.paintBounds.isEmpty) {
-          childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-          // 切换到子页面时刷新缓存
-          childNavigation?.initializeFocusLogic();
-          manageDebugOverlay(context, message: '找到可用的子页面导航组件');
-        }
-      }
-      if (childNavigation == null) {
-        element.visitChildren(visitChild);
+/// 查找子页面导航状态
+TvKeyNavigationState? _findChildNavigation() {
+  TvKeyNavigationState? childNavigation;
+
+  // 定义一个内部函数，用于递归地查找子元素
+  void visitChild(Element element) {
+    if (element.widget is TvKeyNavigation) {
+      final navigationWidget = element.widget as TvKeyNavigation;
+
+      // 检查 frameType 是否为 "child" 且是否可见
+      if (navigationWidget.frameType == "child" &&
+          element.renderObject?.paintBounds != null &&
+          !element.renderObject!.paintBounds.isEmpty) {
+        
+        // 找到目标子页面并进行初始化
+        childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
+        childNavigation?.initializeFocusLogic();
+        _manageDebugOverlay(context, message: '找到可用的子页面导航组件');
+        return; // 停止递归
       }
     }
-    
-    context.visitChildElements(visitChild);
-    if (childNavigation == null) {
-      manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
-    }
-    return childNavigation;
+
+    // 继续递归地访问子元素
+    element.visitChildren(visitChild);
   }
 
-  /// 查找父页面导航状态
-  TvKeyNavigationState? _findParentNavigation() {
-    TvKeyNavigationState? parentNavigation;
-    
-    Element? current = context as Element;
-    while (current != null) {
-      if (current.widget is TvKeyNavigation) {
-        final navigationWidget = current.widget as TvKeyNavigation;
-        // 确保只查找可见的父页面
-        if (navigationWidget.frameType == "parent" &&
-            current.renderObject?.paintBounds != null &&
-            !current.renderObject!.paintBounds.isEmpty) {
-          parentNavigation = (current as StatefulElement).state as TvKeyNavigationState;
-          // 切换回父页面时刷新缓存
-          parentNavigation?.initializeFocusLogic();
-          manageDebugOverlay(context, message: '找到可用的父页面导航组件');
-          break;
-        }
-      }
-      current = current.findAncestorElement((element) => true);
-    }
-    
-    if (parentNavigation == null) {
-      manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
-    }
-    return parentNavigation;
+  // 开始从当前 context 访问子元素
+  context.visitChildElements(visitChild);
+
+  // 如果找不到合适的子组件，添加调试信息
+  if (childNavigation == null) {
+    _manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
   }
+
+  return childNavigation;
+}
+
+/// 查找父页面导航状态
+TvKeyNavigationState? _findParentNavigation() {
+  TvKeyNavigationState? parentNavigation;
+
+  // 使用 visitAncestorElements 遍历父元素
+  context.visitAncestorElements((element) {
+    if (element.widget is TvKeyNavigation) {
+      final navigationWidget = element.widget as TvKeyNavigation;
+
+      // 确保只查找 frameType 为 "parent" 且可见的父页面
+      if (navigationWidget.frameType == "parent" &&
+          element.renderObject?.paintBounds != null &&
+          !element.renderObject!.paintBounds.isEmpty) {
+        
+        // 找到目标父页面并进行初始化
+        parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
+        parentNavigation?.initializeFocusLogic();
+        _manageDebugOverlay(context, message: '找到可用的父页面导航组件');
+        return false; // 找到后停止遍历
+      }
+    }
+    return true; // 继续遍历其他祖先元素
+  });
+
+  // 如果找不到合适的父组件，添加调试信息
+  if (parentNavigation == null) {
+    _manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
+  }
+
+  return parentNavigation;
+}
 
   /// 请求将焦点切换到指定索引的控件上
   void _requestFocus(int index, {int? groupIndex}) {
