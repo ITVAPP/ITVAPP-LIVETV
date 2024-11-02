@@ -32,7 +32,7 @@ class ShowExitConfirm {
        
         // 创建一个 AnimationController
         final controller = AnimationController(
-          duration: const Duration(seconds: 3),  // 设置动画时长为 3 秒
+          duration: const Duration(seconds: 5),  // 设置动画时长
           vsync: Navigator.of(context),
         );
        
@@ -62,8 +62,8 @@ class ShowExitConfirm {
                           child: ClipOval(  // 裁剪图片为圆形
                             child: Image.asset(
                               'assets/images/logo.png',
-                              width: 108, // LOGO 的宽度
-                              height: 108, // LOGO 的高度
+                              width: 98, // LOGO 的宽度
+                              height: 98, // LOGO 的高度
                               fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                             ),
                           ),
@@ -111,16 +111,20 @@ class CircleProgressPainter extends CustomPainter {
 
     // 绘制渐变进度
     final gradientPaint = Paint()
-      ..shader = RadialGradient(
+      ..shader = LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
         colors: [Colors.blue, Colors.purple, Color(0xFFEB144C)],
-      ).createShader(Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2));
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
 
     // 绘制进度
     final arcRect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2);
     canvas.drawArc(
       arcRect,
-      -90 * (3.14159 / 180), // 从顶部开始
-      360 * progress * (3.14159 / 180), // 根据进度绘制
+      90 * (3.14159 / 180), // 从底部开始 (90度)
+      -360 * progress * (3.14159 / 180), // 负值使其逆时针方向绘制,乘以进度
       false,
       gradientPaint,
     );
