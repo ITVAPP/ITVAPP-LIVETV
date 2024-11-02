@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-
 class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
-    // 不再需要单独计算 maxWidth，因为宽度将通过 FractionallySizedBox 控制
     // final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
-
-    // 使用 Overlay 替代 BottomSheet
     OverlayEntry overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
         left: 0,  // 确保左右都设置为0，避免固定位置
         right: 0,  // 右侧也设置为0，使SnackBar居中
-        child: FractionallySizedBox(
-          alignment: Alignment.center,  // 水平居中
-          widthFactor: 0.8,  // 设置宽度为屏幕的80%
+        child: Center(  // 使用Center替代FractionallySizedBox
           child: Material(
             color: Colors.transparent,  // 设置透明背景以允许自定义样式
             child: Container(
+              constraints: BoxConstraints(  // 添加约束，确保不会太宽
+                maxWidth: MediaQuery.of(context).size.width * 0.8,
+              ),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [
@@ -37,6 +34,7 @@ class CustomSnackBar {
               ),
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内边距
               child: Row(
+                mainAxisSize: MainAxisSize.min,  // 让Row根据内容自适应宽度
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Flexible(
@@ -45,6 +43,14 @@ class CustomSnackBar {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,  // 字体大小
+                        fontWeight: FontWeight.w600,  // 加粗字体
+                        shadows: [
+                          Shadow(
+                            offset: Offset(0, 1),  // 阴影偏移
+                            blurRadius: 3,  // 阴影模糊半径
+                            color: Colors.black45,  // 阴影颜色
+                          ),
+                        ],
                       ),
                       textAlign: TextAlign.center,  // 文本居中
                       maxLines: null,  // 允许多行
@@ -58,10 +64,7 @@ class CustomSnackBar {
         ),
       ),
     );
-
-    // 显示 OverlayEntry
     Overlay.of(context)?.insert(overlayEntry);
-
     // 设置自动关闭，模拟 SnackBar 的行为
     Future.delayed(duration ?? const Duration(seconds: 4), () {
       overlayEntry.remove();  // 移除 OverlayEntry
