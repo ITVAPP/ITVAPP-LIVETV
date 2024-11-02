@@ -605,6 +605,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         aspectRatio: aspectRatio,
         onChangeSubSource: _parseData,
         changeChannelSources: _changeChannelSources,
+        toggleFavorite: toggleFavorite,              // 传入收藏切换方法
+        isChannelFavorite: isChannelFavorite,        // 传入收藏状态检查方法
+        currentChannelId: _currentChannel?.id ?? 'exampleChannelId',  // 传入当前频道 ID
       );
     }
 
