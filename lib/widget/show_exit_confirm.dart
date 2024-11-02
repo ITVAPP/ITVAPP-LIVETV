@@ -32,46 +32,54 @@ class ShowExitConfirm {
        
         // 创建一个 AnimationController
         final controller = AnimationController(
-          duration: const Duration(seconds: 5),  // 设置动画时长
+          duration: const Duration(milliseconds: 5000),  // 使用毫秒确保更精确的时间控制
           vsync: Navigator.of(context),
-        );
+        )..addStatusListener((status) {
+          LogUtil.d('Animation status: $status'); // 添加日志记录动画状态
+        });
        
         final animation = CurvedAnimation(
           parent: controller,
-          curve: Curves.linear,
+          curve: const Interval(0.0, 1.0, curve: Curves.linear), // 使用 Interval 确保动画平滑
         );
 
         final overlayEntry = OverlayEntry(
-          builder: (context) => Center(
-            child: Container(
-              width: 138, // 整个区域大小
-              height: 138,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // 圆环进度条
-                  AnimatedBuilder(
-                    animation: animation,
-                    builder: (context, child) {
-                      return CustomPaint(
-                        painter: CircleProgressPainter(animation.value),
-                        child: Container(
-                          width: 138, // 整个区域大小
-                          height: 138,
-                          alignment: Alignment.center,
-                          child: ClipOval(  // 裁剪图片为圆形
-                            child: Image.asset(
-                              'assets/images/logo.png',
-                              width: 98, // LOGO 的宽度
-                              height: 98, // LOGO 的高度
-                              fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+          builder: (context) => Material(  // 添加 Material widget 确保正确渲染
+            type: MaterialType.transparency,
+            child: Center(
+              child: Container(
+                width: 108, // 整个区域大小
+                height: 108,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 圆环进度条
+                    AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: CircleProgressPainter(
+                            animation.value,
+                            strokeWidth: 6.0, // 通过参数控制圆环粗细
+                          ),
+                          child: Container(
+                            width: 108, // 整个区域大小
+                            height: 108,
+                            alignment: Alignment.center,
+                            child: ClipOval(  // 裁剪图片为圆形
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                width: 88, // LOGO 的宽度
+                                height: 88, // LOGO 的高度
+                                fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -80,14 +88,20 @@ class ShowExitConfirm {
         // 插入 Overlay
         overlayState.insert(overlayEntry);
        
-        // 开始动画
-        await controller.forward();
-       
-        // 退出应用
-        FlutterExitApp.exitApp();  // 直接调用插件退出应用
+        // 开始动画，使用 try-catch 确保动画完成后的清理工作
+        try {
+          await controller.forward();
+        } catch (e) {
+          LogUtil.e('Animation error: $e');
+        } finally {
+          controller.dispose();
+          overlayEntry.remove();
+          FlutterExitApp.exitApp();  // 直接调用插件退出应用
+        }
        
       } catch (e) {
         LogUtil.e('退出应用错误: $e');  // 记录日志
+        FlutterExitApp.exitApp(); // 确保在出错时也能退出
       }
     }
     return exitConfirmed ?? false;  // 返回非空的 bool 值，如果为空则返回 false
@@ -96,18 +110,23 @@ class ShowExitConfirm {
 
 class CircleProgressPainter extends CustomPainter {
   final double progress;
+  final double strokeWidth; // 添加圆环粗细参数
 
-  CircleProgressPainter(this.progress);
+  CircleProgressPainter(this.progress, {this.strokeWidth = 6.0}); // 默认粗细为 6.0
 
   @override
   void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.width - strokeWidth) / 2; // 考虑线宽来计算半径
+
     final paint = Paint()
       ..color = Colors.grey.withOpacity(0.5)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4; // 进度条宽度更窄以符合边框效果
+      ..strokeWidth = strokeWidth // 使用传入的粗细参数
+      ..strokeCap = StrokeCap.round; // 添加圆角效果
 
     // 绘制背景圆环
-    canvas.drawCircle(size.center(Offset.zero), size.width / 2, paint);
+    canvas.drawCircle(center, radius, paint);
 
     // 绘制渐变进度
     final gradientPaint = Paint()
@@ -115,23 +134,26 @@ class CircleProgressPainter extends CustomPainter {
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
         colors: [Colors.blue, Colors.purple, Color(0xFFEB144C)],
+        stops: const [0.0, 0.5, 1.0], // 添加渐变停止点使颜色过渡更均匀
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
+      ..strokeWidth = strokeWidth // 使用传入的粗细参数
+      ..strokeCap = StrokeCap.round;
 
     // 绘制进度
-    final arcRect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.width / 2);
+    final arcRect = Rect.fromCircle(center: center, radius: radius);
     canvas.drawArc(
       arcRect,
       90 * (3.14159 / 180), // 从底部开始 (90度)
-      -360 * progress * (3.14159 / 180), // 负值使其逆时针方向绘制,乘以进度
+      -360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 负值使其逆时针方向绘制,乘以进度
       false,
       gradientPaint,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant CircleProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress || 
+           oldDelegate.strokeWidth != strokeWidth;
   }
 }
