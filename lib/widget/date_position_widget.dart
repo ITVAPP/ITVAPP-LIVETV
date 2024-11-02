@@ -57,7 +57,7 @@ class DatePositionWidget extends StatelessWidget {
                 ),
                 // 第二行显示时间
                 Positioned(
-                  top: isLandscape ? 12 : 8, // 控制日期和时间之间的间距
+                  top: isLandscape ? 18 : 9, // 控制日期和时间之间的间距
                   right: 0, // 右对齐
                   child: Text(
                     formattedTime,
