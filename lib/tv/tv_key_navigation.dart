@@ -276,7 +276,7 @@ TvKeyNavigationState? _findChildNavigation() {
         // 找到目标子页面并进行初始化
         childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
         childNavigation?.initializeFocusLogic();
-        _manageDebugOverlay(context, message: '找到可用的子页面导航组件');
+        manageDebugOverlay(context, message: '找到可用的子页面导航组件');
         return; // 停止递归
       }
     }
@@ -290,7 +290,7 @@ TvKeyNavigationState? _findChildNavigation() {
 
   // 如果找不到合适的子组件，添加调试信息
   if (childNavigation == null) {
-    _manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
+    manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
   }
 
   return childNavigation;
@@ -313,7 +313,7 @@ TvKeyNavigationState? _findParentNavigation() {
         // 找到目标父页面并进行初始化
         parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
         parentNavigation?.initializeFocusLogic();
-        _manageDebugOverlay(context, message: '找到可用的父页面导航组件');
+        manageDebugOverlay(context, message: '找到可用的父页面导航组件');
         return false; // 找到后停止遍历
       }
     }
@@ -322,7 +322,7 @@ TvKeyNavigationState? _findParentNavigation() {
 
   // 如果找不到合适的父组件，添加调试信息
   if (parentNavigation == null) {
-    _manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
+    manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
   }
 
   return parentNavigation;
