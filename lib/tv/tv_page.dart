@@ -275,6 +275,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                         videoMap: widget.videoMap, // 播放列表模型
                         playModel: widget.playModel, // 当前播放频道模型
                         isLandscape: true, // 横屏显示
+                        onTapChannel: _handleEPGProgramTap,
                         onCloseDrawer: () {
                           setState(() {
                             _drawerIsOpen = false; // 点击后关闭抽屉
