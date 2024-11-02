@@ -995,7 +995,7 @@ Widget build(BuildContext context) {
       currentFocusIndex += _keys.length; // 更新焦点索引
       channelListWidget = ChannelList(
         channels: _values[_groupIndex],
-        selectedChannelName: widget.playModel?.title,
+        selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
         onChannelTap: _onChannelTap,
         isTV: isTV,
         scrollController: _scrollChannelController,
