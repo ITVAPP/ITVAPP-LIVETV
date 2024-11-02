@@ -116,7 +116,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return await ShowExitConfirm.ExitConfirm(context);
     } 
   }
-
+  
   // 处理选择键逻辑  
   Future<void> _handleSelectPress() async {
     // 合并状态更新以减少重绘
@@ -131,6 +131,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _pauseIconTimer = Timer(const Duration(seconds: 3), () {
         setState(() {
           _isShowPauseIcon = false; // 3秒后隐藏暂停图标
+          _isDatePositionVisible = false; // 同时隐藏时间和收藏图标
         });
       });
     } else {
@@ -218,8 +219,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerIsOpen = false; // 点击节目后关闭抽屉
     });
     
-    // 300ms 后重置阻止标记
-    Future.delayed(const Duration(milliseconds: 300), () {
+    // 500ms 后重置阻止标记
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) { // 确保 widget 还在树中
         setState(() {
           _blockSelectKeyEvent = false;
@@ -244,6 +245,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.dispose(); // 调用父类的 dispose 方法
   }
   
+  // 构建收藏图标
+  Widget _buildFavoriteIcon() {
+    if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
+      return const SizedBox(); // 如果没有必要的数据，返回空组件
+    }
+
+    return Positioned(
+      right: 20,
+      bottom: 20,
+      child: Icon(
+        widget.isChannelFavorite!(widget.currentChannelId!) 
+            ? Icons.favorite 
+            : Icons.favorite_border,
+        color: widget.isChannelFavorite!(widget.currentChannelId!) 
+            ? Colors.red 
+            : Colors.white,
+        size: 24,
+      ),
+    );
+  }
+  
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -259,7 +281,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black, // 设置容器背景颜色为黑色
               child: Stack(
                 children: [
-                  // 显示视频播放器
+                	// 显示视频播放器
                   if (widget.controller != null && widget.controller!.value.isInitialized)
                     AspectRatio(
                       aspectRatio: widget.controller!.value.aspectRatio, // 根据视频控制器的宽高比设置
@@ -301,8 +323,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
                   // 显示日期位置组件
                   if (_isDatePositionVisible) const DatePositionWidget(),
-
-                  // 显示缓冲指示器
+                  
+                  // 添加收藏图标显示 - 仅在显示时间时显示
+                  if (_isDatePositionVisible && !_drawerIsOpen) 
+                    _buildFavoriteIcon(),
+                 
+                 // 显示缓冲指示器
                   if (widget.controller != null &&
                       widget.controller!.value.isInitialized &&
                       (widget.isBuffering || _isError) && !_drawerIsOpen)
