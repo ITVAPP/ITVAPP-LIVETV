@@ -42,7 +42,7 @@ class CustomSnackBar {
                       message,  // 显示传入的消息
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 17,  // 字体大小
+                        fontSize: 18,  // 字体大小
                         fontWeight: FontWeight.w500,  // 加粗字体
                         shadows: [
                           Shadow(
