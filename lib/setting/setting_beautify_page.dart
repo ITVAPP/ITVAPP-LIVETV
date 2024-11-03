@@ -14,7 +14,6 @@ class SettingBeautifyPage extends StatefulWidget {
 }
 
 class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
-
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
@@ -51,28 +50,28 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
       // 设置最大容器宽度为 580，适用于大屏幕设备
       double maxContainerWidth = 580;
 
-      // 使用 FocusScope 包裹 TvKeyNavigation，确保焦点正确管理
-      return FocusScope(
-        child: TvKeyNavigation(
-          focusNodes: _focusNodes, // 传入焦点节点列表
-          isHorizontalGroup: true, // 启用横向分组
-          initialIndex: 0, // 设置初始焦点索引为 0
-          isFrame: isTV ? true : false, // TV 模式下启用框架模式
-          frameType: isTV ? "child" : null, // TV 模式下设置为子页面
-          child: Scaffold(
-            backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置背景颜色
-            appBar: AppBar(
-              title: Text(
-                S.of(context).backgroundImageTitle, // AppBar 标题
-                style: const TextStyle(
-                  fontSize: 22, // 设置字号
-                  fontWeight: FontWeight.bold, // 设置加粗
-                ),
-              ),
-              backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
-              leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
+      // 使用 Scaffold 包裹，并在 body 内使用 FocusScope 包裹 TvKeyNavigation
+      return Scaffold(
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置背景颜色
+        appBar: AppBar(
+          title: Text(
+            S.of(context).backgroundImageTitle, // AppBar 标题
+            style: const TextStyle(
+              fontSize: 22, // 设置字号
+              fontWeight: FontWeight.bold, // 设置加粗
             ),
-            body: Align(
+          ),
+          backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
+          leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
+        ),
+        body: FocusScope(
+          child: TvKeyNavigation(
+            focusNodes: _focusNodes, // 传入焦点节点列表
+            isHorizontalGroup: true, // 启用横向分组
+            initialIndex: 0, // 设置初始焦点索引为 0
+            isFrame: isTV ? true : false, // TV 模式下启用框架模式
+            frameType: isTV ? "child" : null, // TV 模式下设置为子页面
+            child: Align(
               alignment: Alignment.center, // 内容居中显示
               child: Container(
                 constraints: BoxConstraints(
