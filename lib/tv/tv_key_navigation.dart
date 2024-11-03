@@ -139,14 +139,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   int? _lastParentFocusIndex;
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
-    return {
-      LogicalKeyboardKey.arrowUp,
-      LogicalKeyboardKey.arrowDown,
-      LogicalKeyboardKey.arrowLeft,
-      LogicalKeyboardKey.arrowRight,
-      LogicalKeyboardKey.select,
-      LogicalKeyboardKey.enter,
-    }.contains(key);
+    return _isDirectionKey(key) || _isSelectKey(key);
   }
   
   @override
@@ -174,8 +167,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void initState() {
     super.initState();
     widget.onStateCreated?.call(this);
-    // 根据 frameType 初始化焦点管理状态
-    _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
     initializeFocusLogic(); // 调用初始化焦点逻辑
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
@@ -213,6 +204,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) { 
+    // 根据 frameType 初始化焦点管理状态
+    _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 如果焦点管理未激活，不进行初始化
