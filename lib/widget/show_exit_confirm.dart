@@ -33,7 +33,7 @@ class ShowExitConfirm {
         // 创建一个 AnimationController
         final controller = AnimationController(
           duration: const Duration(milliseconds: 3000),  // 使用毫秒确保更精确的时间控制
-          vsync: OverlayState.of(context), // 修改为使用 OverlayState 作为 vsync
+          vsync: Navigator.of(context), // 保持不变，使用 Navigator 作为 vsync
         );
        
         final animation = CurvedAnimation(
@@ -58,7 +58,7 @@ class ShowExitConfirm {
                         return CustomPaint(
                           painter: CircleProgressPainter(
                             animation.value,
-                            strokeWidth: 6.0, // 通过参数控制圆环粗细
+                            strokeWidth: 5.0, // 通过参数控制圆环粗细
                           ),
                           child: Container(
                             width: 118, // 整个区域大小
@@ -119,7 +119,7 @@ class CircleProgressPainter extends CustomPainter {
   final double progress;
   final double strokeWidth; // 添加圆环粗细参数
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = 6.0}); // 默认粗细
+  CircleProgressPainter(this.progress, {this.strokeWidth = 5.0}); // 默认粗细
 
   @override
   void paint(Canvas canvas, Size size) {
