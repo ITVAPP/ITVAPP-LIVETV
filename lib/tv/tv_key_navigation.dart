@@ -299,7 +299,7 @@ TvKeyNavigationState? _findParentNavigation() {
        if (navigationWidget.frameType == "parent") {
          // 找到目标父页面并进行初始化
          parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-         parentNavigation?.initializeFocusLogic(_lastParentFocusIndex ?? 0);
+         parentNavigation?.initializeFocusLogic(initialIndexOverride: _lastParentFocusIndex ?? 0);
          manageDebugOverlay(context, message: '找到可用的父页面导航组件');
          return; // 找到后停止遍历
        }
