@@ -24,24 +24,22 @@ class ShowExitConfirm {
       },
       isDismissible: false,  // 点击对话框外部不关闭弹窗
     );
-
+   
     // 如果用户确认退出，执行退出逻辑
     if (exitConfirmed == true) {
       try {
         final overlayState = Overlay.of(context);
-       
-        // 创建一个 AnimationController
-        final controller = AnimationController(
-          duration: const Duration(milliseconds: 3000),  // 使用毫秒确保更精确的时间控制
-          vsync: Navigator.of(context), // 保持不变，使用 Navigator 作为 vsync
-        );
-       
-        final animation = CurvedAnimation(
-          parent: controller,
-          curve: const Interval(0.0, 1.0, curve: Curves.linear), // 使用 Interval 确保动画平滑
-        );
+        final completer = Completer<void>();
+        
+        // 定义总步数和时间间隔
+        const totalSteps = 100; // 100个百分点
+        const stepDuration = 30; // 每步30毫秒，总共3000毫秒
+        
+        int currentStep = 0;
+        Timer? timer;
+        OverlayEntry? overlayEntry;
 
-        final overlayEntry = OverlayEntry(
+        overlayEntry = OverlayEntry(
           builder: (context) => Material( 
             type: MaterialType.transparency,
             child: Center(
@@ -52,29 +50,24 @@ class ShowExitConfirm {
                   alignment: Alignment.center,
                   children: [
                     // 圆环进度条
-                    AnimatedBuilder(
-                      animation: animation,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: CircleProgressPainter(
-                            animation.value,
-                            strokeWidth: 5.0, // 通过参数控制圆环粗细
+                    CustomPaint(
+                      painter: CircleProgressPainter(
+                        currentStep / totalSteps, // 转换为0-1的进度值
+                        strokeWidth: 5.0, // 通过参数控制圆环粗细
+                      ),
+                      child: Container(
+                        width: 118, // 整个区域大小
+                        height: 118,
+                        alignment: Alignment.center,
+                        child: ClipOval(  // 裁剪图片为圆形
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            width: 88, // LOGO 的宽度
+                            height: 88, // LOGO 的高度
+                            fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                           ),
-                          child: Container(
-                            width: 118, // 整个区域大小
-                            height: 118,
-                            alignment: Alignment.center,
-                            child: ClipOval(  // 裁剪图片为圆形
-                              child: Image.asset(
-                                'assets/images/logo.png',
-                                width: 88, // LOGO 的宽度
-                                height: 88, // LOGO 的高度
-                                fit: BoxFit.cover,  // 确保图片填充整个圆形区域
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -82,30 +75,30 @@ class ShowExitConfirm {
             ),
           ),
         );
-
-        // 插入 Overlay
-        overlayState.insert(overlayEntry);
-        
-        // 添加动画状态监听
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            // 记录动画完成时的状态
-            LogUtil.d('Animation completed');
-          }
+       
+        // 使用 WidgetsBinding 确保在下一帧渲染时开始动画
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          overlayState.insert(overlayEntry!);
+          
+          // 使用Timer.periodic更新进度
+          timer = Timer.periodic(Duration(milliseconds: stepDuration), (timer) {
+            currentStep++;
+            if (currentStep >= totalSteps) {
+              timer.cancel();
+              completer.complete();
+            }
+            overlayEntry?.markNeedsBuild();
+          });
         });
         
-        try {
-          await controller.forward();
-          // 确保动画至少展示3秒
-          await Future.delayed(const Duration(milliseconds: 3000));
-        } catch (e) {
-          LogUtil.e('Animation error: $e');
-        } finally {
-          controller.dispose();
-          overlayEntry.remove();
-          FlutterExitApp.exitApp();  // 直接调用插件退出应用
-        }
+        // 等待动画完成
+        await completer.future;
         
+        // 清理资源并退出
+        timer?.cancel();
+        overlayEntry?.remove();
+        FlutterExitApp.exitApp();  // 直接调用插件退出应用
+       
       } catch (e) {
         LogUtil.e('退出应用错误: $e');  // 记录日志
         FlutterExitApp.exitApp(); // 确保在出错时也能退出
