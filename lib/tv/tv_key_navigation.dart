@@ -167,16 +167,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void initState() {
     super.initState();
     widget.onStateCreated?.call(this);
+    // 根据 frameType 初始化焦点管理状态
+    _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
     initializeFocusLogic(); // 调用初始化焦点逻辑
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
-  
+
   /// 激活焦点管理
-  void activateFocusManagement() {
+  void activateFocusManagement({int? initialIndexOverride}) {
     if (!_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = true;
       });
+      
+      // 激活时重新初始化焦点系统，不传递则使用 0
+      initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
       manageDebugOverlay(context, message: '激活 ${widget.frameType} 页面的焦点管理');
     }
   }
@@ -204,8 +209,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) { 
-    // 根据 frameType 初始化焦点管理状态
-    _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
+   if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 如果焦点管理未激活，不进行初始化
@@ -244,6 +248,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = false; // 确保焦点管理被停用
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
+    _groupFocusCache.clear(); // 清除分组缓存
     WidgetsBinding.instance.removeObserver(this);
   }
 
@@ -294,7 +299,7 @@ TvKeyNavigationState? _findParentNavigation() {
        if (navigationWidget.frameType == "parent") {
          // 找到目标父页面并进行初始化
          parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-         parentNavigation?.initializeFocusLogic();
+         parentNavigation?.initializeFocusLogic(_lastParentFocusIndex);
          manageDebugOverlay(context, message: '找到可用的父页面导航组件');
          return; // 找到后停止遍历
        }
@@ -567,7 +572,6 @@ TvKeyNavigationState? _findParentNavigation() {
             if (childNavigation != null) {
               deactivateFocusManagement(); // 停用父页面焦点
               childNavigation.activateFocusManagement(); // 激活子页面焦点
-              childNavigation._requestFocus(0); // 设置子页面初始焦点
               manageDebugOverlay(context, message: '切换到子页面');
               return KeyEventResult.handled;
             }
@@ -844,8 +848,6 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
            if (parentNavigation != null) {
              deactivateFocusManagement(); // 停用子页面焦点
              parentNavigation.activateFocusManagement(); // 激活父页面焦点
-             // 恢复父页面上次的焦点位置
-             parentNavigation._requestFocus(parentNavigation._lastParentFocusIndex ?? 0);
              manageDebugOverlay(context, message: '返回父页面');
            } else {
              manageDebugOverlay(context, message: '尝试返回父页面但失败');
