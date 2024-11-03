@@ -172,9 +172,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
 /// 激活焦点管理
-Future<void> activateFocusManagement() async {
+void activateFocusManagement() {
   if (!mounted) return;
-  
+
   try {
     if (_isFocusManagementActive) {
       manageDebugOverlay(context, message: '${widget.frameType} 页面焦点管理已处于激活状态');
@@ -186,7 +186,8 @@ Future<void> activateFocusManagement() async {
       _currentFocus = null; // 清除旧焦点
     });
 
-    await Future.microtask(() => initializeFocusLogic());
+    // 使用直接调用替代异步调用
+    initializeFocusLogic();
     manageDebugOverlay(context, message: '激活 ${widget.frameType} 页面的焦点管理');
   } catch (e) {
     manageDebugOverlay(context, message: '激活焦点管理失败: $e');
@@ -614,7 +615,7 @@ TvKeyNavigationState? _findParentNavigation() {
             final childNavigation = _findChildNavigation();
             if (childNavigation != null) {
               deactivateFocusManagement(); // 停用父页面焦点
-              await childNavigation.activateFocusManagement(); // 激活子页面焦点
+              childNavigation.activateFocusManagement(); // 激活子页面焦点
               childNavigation._requestFocus(0); // 设置子页面初始焦点
               manageDebugOverlay(context, message: '切换到子页面');
               return KeyEventResult.handled;
@@ -891,7 +892,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
            final parentNavigation = _findParentNavigation();
            if (parentNavigation != null) {
              deactivateFocusManagement(); // 停用子页面焦点
-             await parentNavigation.activateFocusManagement(); // 激活父页面焦点
+             parentNavigation.activateFocusManagement(); // 激活父页面焦点
              // 恢复父页面上次的焦点位置
              parentNavigation._requestFocus(parentNavigation._lastParentFocusIndex ?? 0);
              manageDebugOverlay(context, message: '返回父页面');
