@@ -34,7 +34,7 @@ class ShowExitConfirm {
         
         // 定义总步数和时间间隔
         const totalSteps = 100; // 100个百分点
-        const stepDuration = 30; // 每步30毫秒，总共3000毫秒
+        const stepDuration = 50; // 每步50毫秒，总共5000毫秒
         
         int currentStep = 0;
         Timer? timer;
@@ -45,7 +45,7 @@ class ShowExitConfirm {
             children: [
               // 添加全屏半透明背景
               Container(
-                color: Colors.black.withOpacity(0.6), // 设置半透明背景颜色
+                color: Colors.black.withOpacity(0.7), // 设置半透明背景颜色
               ),
               Material( 
                 type: MaterialType.transparency,
