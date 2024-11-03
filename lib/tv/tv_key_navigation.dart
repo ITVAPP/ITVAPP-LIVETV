@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// 用于将颜色变暗的函数
-Color darkenColor(Color color, [double amount = 0.2]) {
+Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
   final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
   return darkened.toColor();
