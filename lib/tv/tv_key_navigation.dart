@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// 用于将颜色变暗的函数
-Color darkenColor(Color color, [double amount = 0.3]) {
+Color darkenColor(Color color, [double amount = 0.2]) {
   final hsl = HSLColor.fromColor(color);
   final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
   return darkened.toColor();
@@ -139,7 +139,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   int? _lastParentFocusIndex;
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
-    return _isDirectionKey(key) || _isSelectKey(key);
+    return {
+      LogicalKeyboardKey.arrowUp,
+      LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.arrowLeft,
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.select,
+      LogicalKeyboardKey.enter,
+    }.contains(key);
   }
   
   @override
@@ -172,22 +179,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     initializeFocusLogic(); // 调用初始化焦点逻辑
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
-
+  
   /// 激活焦点管理
-  void activateFocusManagement({int? initialIndexOverride}) {
+  void _activateFocusManagement() {
     if (!_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = true;
       });
-      
-      // 激活时重新初始化焦点系统，不传递则使用 0
-      initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
       manageDebugOverlay(context, message: '激活 ${widget.frameType} 页面的焦点管理');
     }
   }
 
   /// 停用焦点管理
-  void deactivateFocusManagement() {
+  void _deactivateFocusManagement() {
     if (_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = false;
@@ -209,7 +213,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) { 
-   if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 如果焦点管理未激活，不进行初始化
@@ -248,7 +251,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = false; // 确保焦点管理被停用
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
-    _groupFocusCache.clear(); // 清除分组缓存
     WidgetsBinding.instance.removeObserver(this);
   }
 
@@ -259,68 +261,71 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
 /// 查找子页面导航状态
 TvKeyNavigationState? _findChildNavigation() {
- TvKeyNavigationState? childNavigation;
- // 定义一个内部函数，用于递归地查找子元素
- void visitChild(Element element) {
-   if (element.widget is TvKeyNavigation) {
-     final navigationWidget = element.widget as TvKeyNavigation;
-     // 检查 frameType 是否为 "child"
-     if (navigationWidget.frameType == "child") {
-       // 找到目标子页面并进行初始化
-       childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-       childNavigation?.initializeFocusLogic();
-       manageDebugOverlay(context, message: '找到可用的子页面导航组件');
-       return; // 停止递归
-     }
-   }
-   // 继续递归地访问子元素
-   element.visitChildren(visitChild);
- }
- // 开始从当前 context 访问子元素
- context.visitChildElements(visitChild);
- // 如果找不到合适的子组件，添加调试信息
- if (childNavigation == null) {
-   manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
- }
- return childNavigation;
+  TvKeyNavigationState? childNavigation;
+
+  // 定义一个内部函数，用于递归地查找子元素
+  void visitChild(Element element) {
+    if (element.widget is TvKeyNavigation) {
+      final navigationWidget = element.widget as TvKeyNavigation;
+
+      // 检查 frameType 是否为 "child" 且是否可见
+      if (navigationWidget.frameType == "child" &&
+          element.renderObject?.paintBounds != null &&
+          !element.renderObject!.paintBounds.isEmpty) {
+        
+        // 找到目标子页面并进行初始化
+        childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
+        childNavigation?.initializeFocusLogic();
+        manageDebugOverlay(context, message: '找到可用的子页面导航组件');
+        return; // 停止递归
+      }
+    }
+
+    // 继续递归地访问子元素
+    element.visitChildren(visitChild);
+  }
+
+  // 开始从当前 context 访问子元素
+  context.visitChildElements(visitChild);
+
+  // 如果找不到合适的子组件，添加调试信息
+  if (childNavigation == null) {
+    manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
+  }
+
+  return childNavigation;
 }
 
 /// 查找父页面导航状态
 TvKeyNavigationState? _findParentNavigation() {
- TvKeyNavigationState? parentNavigation;
+  TvKeyNavigationState? parentNavigation;
 
- // 在整个页面范围内查找 parent navigation
- void findInContext(BuildContext context) {
-   context.visitChildElements((element) {
-     // 检查是否是 TvKeyNavigation
-     if (element.widget is TvKeyNavigation) {
-       final navigationWidget = element.widget as TvKeyNavigation;
-       // 确保只查找 frameType 为 "parent" 且可见的父页面
-       if (navigationWidget.frameType == "parent") {
-         // 找到目标父页面并进行初始化
-         parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-         parentNavigation?.initializeFocusLogic(initialIndexOverride: _lastParentFocusIndex ?? 0);
-         manageDebugOverlay(context, message: '找到可用的父页面导航组件');
-         return; // 找到后停止遍历
-       }
-     }
-     // 继续递归查找
-     findInContext(element);
-   });
- }
+  // 使用 visitAncestorElements 遍历父元素
+  context.visitAncestorElements((element) {
+    if (element.widget is TvKeyNavigation) {
+      final navigationWidget = element.widget as TvKeyNavigation;
 
- // 从根部开始查找
- final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
- if (rootElement != null) {
-   findInContext(rootElement);
- }
+      // 确保只查找 frameType 为 "parent" 且可见的父页面
+      if (navigationWidget.frameType == "parent" &&
+          element.renderObject?.paintBounds != null &&
+          !element.renderObject!.paintBounds.isEmpty) {
+        
+        // 找到目标父页面并进行初始化
+        parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
+        parentNavigation?.initializeFocusLogic();
+        manageDebugOverlay(context, message: '找到可用的父页面导航组件');
+        return false; // 找到后停止遍历
+      }
+    }
+    return true; // 继续遍历其他祖先元素
+  });
 
- // 如果找不到合适的父组件，添加调试信息
- if (parentNavigation == null) {
-   manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
- }
+  // 如果找不到合适的父组件，添加调试信息
+  if (parentNavigation == null) {
+    manageDebugOverlay(context, message: '未找到可用的父页面导航组件');
+  }
 
- return parentNavigation;
+  return parentNavigation;
 }
 
   /// 请求将焦点切换到指定索引的控件上
@@ -411,6 +416,50 @@ TvKeyNavigationState? _findParentNavigation() {
     } else {
       _cacheMultipleGroups(groups);
     }
+  }
+
+  /// 检查是否在左侧面板
+  bool _isInLeftPanel(int currentIndex) {
+    return currentIndex < widget.focusNodes.length ~/ 2;
+  }
+
+  /// 获取最近可用的父页面焦点索引
+  int _getValidParentFocusIndex() {
+    // 优先使用保存的上次焦点位置
+    if (_lastParentFocusIndex != null &&
+        _lastParentFocusIndex! >= 0 &&
+        _lastParentFocusIndex! < widget.focusNodes.length) {
+      return _lastParentFocusIndex!;
+    }
+
+    // 如果没有有效的保存位置，查找第一个可用的焦点节点
+    for (int i = 0; i < widget.focusNodes.length ~/ 2; i++) {
+      if (widget.focusNodes[i].canRequestFocus) {
+        return i;
+      }
+    }
+
+    // 如果都不可用，返回 0
+    return 0;
+  }
+
+  /// 切换到子页面时的焦点设置
+  void _switchToChildFocus(TvKeyNavigationState childNavigation) {
+    _deactivateFocusManagement(); // 停用父页面焦点管理
+    childNavigation._activateFocusManagement(); // 激活子页面焦点管理
+    // 设置子页面初始焦点
+    childNavigation._requestFocus(0);
+    manageDebugOverlay(context, message: '切换到子页面焦点');
+  }
+
+  /// 返回父页面时的焦点设置
+  void _returnToParentFocus(TvKeyNavigationState parentNavigation) {
+    _deactivateFocusManagement(); // 停用子页面焦点管理
+    parentNavigation._activateFocusManagement(); // 激活父页面焦点管理
+    // 获取并设置有效的父页面焦点
+    int focusIndex = parentNavigation._getValidParentFocusIndex();
+    parentNavigation._requestFocus(focusIndex);
+    manageDebugOverlay(context, message: '返回父页面焦点，索引: $focusIndex');
   }
   
   // 缓存默认分组（无分组或单一分组）的焦点节点
@@ -560,18 +609,21 @@ TvKeyNavigationState? _findParentNavigation() {
 
     // 获取当前焦点的 groupIndex，如果找不到，默认为 -1
     int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
+
+    manageDebugOverlay(context, message: '当前索引=$currentIndex, 当前Group=$groupIndex, 总节点数=${widget.focusNodes.length}');
     
     try {
       // 判断是否启用了框架模式 (isFrame)
       if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {
           // 父页面导航逻辑
-          if (key == LogicalKeyboardKey.arrowRight) {
+          if (key == LogicalKeyboardKey.arrowRight && currentIndex < widget.focusNodes.length ~/ 2) {
             // 按下右键时，尝试切换到子页面
             final childNavigation = _findChildNavigation();
             if (childNavigation != null) {
-              deactivateFocusManagement(); // 停用父页面焦点
-              childNavigation.activateFocusManagement(); // 激活子页面焦点
+              _deactivateFocusManagement(); // 停用父页面焦点
+              childNavigation._activateFocusManagement(); // 激活子页面焦点
+              childNavigation._requestFocus(0); // 设置子页面初始焦点
               manageDebugOverlay(context, message: '切换到子页面');
               return KeyEventResult.handled;
             }
@@ -814,57 +866,60 @@ TvKeyNavigationState? _findParentNavigation() {
   }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
-void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-   // 如果焦点管理未激活，则不处理导航
-   if (!_isFocusManagementActive) {
-     manageDebugOverlay(context, message: '焦点管理未激活，不处理导航');
-     return;
-   }
-   
-   String action = '';
-   int nextIndex = 0;
-   // 获取当前组的首尾节点
-   FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
-   FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-   
-   // 获取焦点范围
-   int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
-   int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
-   if (forward) {
-     // 前进逻辑
-     if (currentIndex == lastFocusIndex) {
-       nextIndex = firstFocusIndex; // 循环到第一个焦点
-       action = "循环到第一个焦点 (索引: $nextIndex)";
-     } else {
-       nextIndex = currentIndex + 1;
-       action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-     }
-   } else {
-     // 后退逻辑
-     if (currentIndex == firstFocusIndex) {
-       if (widget.frameType == "child") {
-           // 在子页面的第一个焦点按左键时，一定要返回父页面
-           final parentNavigation = _findParentNavigation();
-           if (parentNavigation != null) {
-             deactivateFocusManagement(); // 停用子页面焦点
-             parentNavigation.activateFocusManagement(); // 激活父页面焦点
-             manageDebugOverlay(context, message: '返回父页面');
-           } else {
-             manageDebugOverlay(context, message: '尝试返回父页面但失败');
-           }
-           return; // 无论成功失败都返回，不要循环到最后
-       } else {
-         nextIndex = lastFocusIndex;
-         action = "循环到最后一个焦点 (索引: $nextIndex)";
-       } 
-     } else {
-       nextIndex = currentIndex - 1;
-       action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-     }
-   }
-   _requestFocus(nextIndex, groupIndex: groupIndex);
-   manageDebugOverlay(context, message: '操作: $action (组: $groupIndex)');
- }
+  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
+    // 如果焦点管理未激活，则不处理导航
+    if (!_isFocusManagementActive) {
+      manageDebugOverlay(context, message: '焦点管理未激活，不处理导航');
+      return;
+    }
+    
+    String action = '';
+    int nextIndex = 0;
+
+    // 获取当前组的首尾节点
+    FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
+    FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
+    
+    // 获取焦点范围
+    int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
+    int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+    if (forward) {
+      // 前进逻辑
+      if (currentIndex == lastFocusIndex) {
+        nextIndex = firstFocusIndex; // 循环到第一个焦点
+        action = "循环到第一个焦点 (索引: $nextIndex)";
+      } else {
+        nextIndex = currentIndex + 1;
+        action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
+    } else {
+      // 后退逻辑
+      if (currentIndex == firstFocusIndex) {
+        if (widget.frameType == "child") {
+            // 返回父页面的焦点
+            final parentNavigation = _findParentNavigation();
+            if (parentNavigation != null) {
+              _deactivateFocusManagement(); // 停用子页面焦点
+              parentNavigation._activateFocusManagement(); // 激活父页面焦点
+              // 恢复父页面上次的焦点位置
+              parentNavigation._requestFocus(parentNavigation._lastParentFocusIndex ?? 0);
+              manageDebugOverlay(context, message: '返回父页面');
+              return;
+            }
+        } else {
+          nextIndex = lastFocusIndex;
+          action = "循环到最后一个焦点 (索引: $nextIndex)";
+        } 
+      } else {
+        nextIndex = currentIndex - 1;
+        action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
+    }
+
+    _requestFocus(nextIndex, groupIndex: groupIndex);
+    manageDebugOverlay(context, message: '操作: $action (组: $groupIndex)');
+  }
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
