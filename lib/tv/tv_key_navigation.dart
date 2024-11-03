@@ -679,86 +679,43 @@ TvKeyNavigationState? _findParentNavigation() {
     return stop;  // 返回是否已停止查找
   }
 
-// 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
-bool _triggerWidgetAction(Widget widget) {
-  // 定义高优先级组件列表
-  final highPriorityWidgets = [
-    ElevatedButton,
-    TextButton,
-    OutlinedButton,
-    IconButton,
-    FloatingActionButton,
-    GestureDetector,
-    ListTile,
-  ];
-
-  // 定义低优先级（可能不包含交互逻辑）的组件列表
-  final lowPriorityWidgets = [
-    Container,
-    Padding,
-    SizedBox,
-    Align,
-    Center,
-  ];
-
-  // 检查是否为低优先级组件，如果是则跳过
-  if (lowPriorityWidgets.contains(widget.runtimeType)) {
-    return false;
-  }
-
-  // 优先检查高优先级组件
-  for (var type in highPriorityWidgets) {
-    if (widget.runtimeType == type) {
-      return _triggerSpecificWidgetAction(widget);
+  // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
+  bool _triggerWidgetAction(Widget widget) {
+    if (widget is SwitchListTile && widget.onChanged != null) {
+      widget.onChanged!(!widget.value);
+      return true;
+    } else if (widget is ElevatedButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is TextButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is OutlinedButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is IconButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is FloatingActionButton && widget.onPressed != null) {
+      widget.onPressed!();
+      return true;
+    } else if (widget is ListTile && widget.onTap != null) {
+      widget.onTap!();
+      return true;
+    } else if (widget is GestureDetector && widget.onTap != null) {
+      widget.onTap!();
+      return true;
+    } else if (widget is PopupMenuButton && widget.onSelected != null) {
+      widget.onSelected!(null);
+      return true;
+    } else if (widget is ChoiceChip && widget.onSelected != null) { 
+      widget.onSelected!(true); 
+      return true;
+    } else {
+      _manageDebugOverlay(message: '找到控件，但无法触发操作');
+      return false; 
     }
   }
-
-  // 如果不是高优先级组件，则按原来的顺序检查
-  return _triggerSpecificWidgetAction(widget);
-}
-
-// 触发特定组件的操作
-bool _triggerSpecificWidgetAction(Widget widget) {
-  if (widget is SwitchListTile && widget.onChanged != null) {
-    Function.apply(widget.onChanged!, [!widget.value]);
-    return true;
-  } else if (widget is ElevatedButton && widget.onPressed != null) {
-   _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
-    Function.apply(widget.onPressed!, []);
-    return true;
-  } else if (widget is TextButton && widget.onPressed != null) {
-     _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
-    Function.apply(widget.onPressed!, []);
-    return true;
-  } else if (widget is OutlinedButton && widget.onPressed != null) {
-      _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
-    Function.apply(widget.onPressed!, []);
-    return true;
-  } else if (widget is IconButton && widget.onPressed != null) {
-      _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
-    Function.apply(widget.onPressed!, []);
-    return true;
-  } else if (widget is FloatingActionButton && widget.onPressed != null) {
-     _manageDebugOverlay(message: '找到onPressed控件，触发操作');	
-    Function.apply(widget.onPressed!, []);
-    return true;
-  } else if (widget is ListTile && widget.onTap != null) {
-    Function.apply(widget.onTap!, []);
-    return true;
-  } else if (widget is GestureDetector && widget.onTap != null) {
-    Function.apply(widget.onTap!, []);
-    return true;
-  } else if (widget is PopupMenuButton && widget.onSelected != null) {
-    Function.apply(widget.onSelected!, [null]);
-    return true;
-  } else if (widget is ChoiceChip && widget.onSelected != null) {
-    Function.apply(widget.onSelected!, [true]);
-    return true;
-  } else {
-    _manageDebugOverlay(message: '找到控件，但无法触发操作');
-    return false;
-  }
-}
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
