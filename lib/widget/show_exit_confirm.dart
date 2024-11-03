@@ -41,39 +41,47 @@ class ShowExitConfirm {
         OverlayEntry? overlayEntry;
 
         overlayEntry = OverlayEntry(
-          builder: (context) => Material( 
-            type: MaterialType.transparency,
-            child: Center(
-              child: Container(
-                width: 118, // 整个区域大小
-                height: 118,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // 圆环进度条
-                    CustomPaint(
-                      painter: CircleProgressPainter(
-                        currentStep / totalSteps, // 转换为0-1的进度值
-                        strokeWidth: 5.0, // 通过参数控制圆环粗细
-                      ),
-                      child: Container(
-                        width: 118, // 整个区域大小
-                        height: 118,
-                        alignment: Alignment.center,
-                        child: ClipOval(  // 裁剪图片为圆形
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            width: 88, // LOGO 的宽度
-                            height: 88, // LOGO 的高度
-                            fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+          builder: (context) => Stack(
+            children: [
+              // 添加全屏半透明背景
+              Container(
+                color: Colors.black.withOpacity(0.6), // 设置半透明背景颜色
+              ),
+              Material( 
+                type: MaterialType.transparency,
+                child: Center(
+                  child: Container(
+                    width: 118, // 整个区域大小
+                    height: 118,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // 圆环进度条
+                        CustomPaint(
+                          painter: CircleProgressPainter(
+                            currentStep / totalSteps, // 转换为0-1的进度值
+                            strokeWidth: 6.0, // 通过参数控制圆环粗细
+                          ),
+                          child: Container(
+                            width: 118, // 整个区域大小
+                            height: 118,
+                            alignment: Alignment.center,
+                            child: ClipOval(  // 裁剪图片为圆形
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                width: 88, // LOGO 的宽度
+                                height: 88, // LOGO 的高度
+                                fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         );
        
@@ -113,7 +121,7 @@ class CircleProgressPainter extends CustomPainter {
   final double progress;
   final double strokeWidth; // 添加圆环粗细参数
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = 5.0}); // 默认粗细
+  CircleProgressPainter(this.progress, {this.strokeWidth = 6.0}); // 默认粗细
 
   @override
   void paint(Canvas canvas, Size size) {
