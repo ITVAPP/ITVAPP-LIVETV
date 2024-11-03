@@ -51,7 +51,7 @@ class DatePositionWidget extends StatelessWidget {
                       Shadow(
                         blurRadius: 8.0, // 增加模糊效果
                         color: Colors.black,
-                        offset: Offset(0, 2),
+                        offset: Offset(0, 1),
                       ),
                     ],
                   ),
@@ -70,7 +70,7 @@ class DatePositionWidget extends StatelessWidget {
                         Shadow(
                           blurRadius: 10.0, // 模糊效果
                           color: Colors.black,
-                          offset: Offset(0, 2),
+                          offset: Offset(0, 1),
                         ),
                       ],
                     ),
