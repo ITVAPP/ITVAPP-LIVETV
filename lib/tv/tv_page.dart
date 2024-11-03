@@ -119,26 +119,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   
   // 处理选择键逻辑  
   Future<void> _handleSelectPress() async {
-    // 合并状态更新以减少重绘
-    setState(() {
-      _isDatePositionVisible = !_isDatePositionVisible; // 切换日期位置组件显示
-      _isShowPauseIcon = widget.isPlaying; // 根据当前播放状态显示暂停图标
-    });
-
-    // 启动计时器控制暂停图标显示时间
-    if (widget.isPlaying) {
-      _pauseIconTimer?.cancel(); // 取消之前的计时器
+    // 如果有一个定时器在运行，说明暂停图标正在显示
+    if (_pauseIconTimer?.isActive ?? false) {
+      widget.controller?.pause(); // 暂停视频播放
+      _pauseIconTimer?.cancel(); // 取消定时器
+    } else if (widget.isPlaying) {
+      // 如果视频正在播放且没有定时器，显示暂停图标并启动定时器
+      setState(() {
+        _isShowPauseIcon = true; // 显示暂停图标
+      });
       _pauseIconTimer = Timer(const Duration(seconds: 3), () {
         setState(() {
           _isShowPauseIcon = false; // 3秒后隐藏暂停图标
-          _isDatePositionVisible = false; // 同时隐藏时间和收藏图标
         });
       });
-    } else {
-      // 播放视频并确保暂停图标不显示
+    } else if (widget.controller != null && !widget.controller!.value.isPlaying) {
+      // 如果视频已暂停且定时器未运行，则继续播放视频
       widget.controller?.play();
+    } else {
+      // 如果既没有定时器且视频也不在暂停状态，控制时间和收藏图标的显示和隐藏
       setState(() {
-        _isShowPauseIcon = false; // 播放时不显示暂停图标
+        _isDatePositionVisible = !_isDatePositionVisible;
       });
     }
   }
@@ -261,7 +262,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         color: widget.isChannelFavorite!(widget.currentChannelId!) 
             ? Colors.red 
             : Colors.white,
-        size: 24,
+        size: 32, // 收藏图标大小
       ),
     );
   }
@@ -281,7 +282,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black, // 设置容器背景颜色为黑色
               child: Stack(
                 children: [
-                	// 显示视频播放器
+                    // 显示视频播放器
                   if (widget.controller != null && widget.controller!.value.isInitialized)
                     AspectRatio(
                       aspectRatio: widget.controller!.value.aspectRatio, // 根据视频控制器的宽高比设置
