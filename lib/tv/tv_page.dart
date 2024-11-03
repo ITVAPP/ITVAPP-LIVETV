@@ -357,7 +357,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                           // 确保在状态设置后再根据抽屉状态设置焦点管理
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             if (_drawerIsOpen) {
-                              await state.activateFocusManagement();
+                              state.activateFocusManagement();
                             } else {
                               state.deactivateFocusManagement();
                             }
@@ -386,7 +386,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     // 根据抽屉状态控制焦点管理
     if (_drawerNavigationState != null) {
       if (isOpen) {
-        await _drawerNavigationState!.activateFocusManagement();
+        _drawerNavigationState!.activateFocusManagement();
       } else {
         _drawerNavigationState!.deactivateFocusManagement();
       }
