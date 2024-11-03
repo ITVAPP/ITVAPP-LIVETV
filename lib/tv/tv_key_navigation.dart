@@ -254,39 +254,30 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
 /// 查找子页面导航状态
 TvKeyNavigationState? _findChildNavigation() {
-  TvKeyNavigationState? childNavigation;
-
-  // 定义一个内部函数，用于递归地查找子元素
-  void visitChild(Element element) {
-    if (element.widget is TvKeyNavigation) {
-      final navigationWidget = element.widget as TvKeyNavigation;
-
-      // 检查 frameType 是否为 "child" 且是否可见
-      if (navigationWidget.frameType == "child" &&
-          element.renderObject?.paintBounds != null &&
-          !element.renderObject!.paintBounds.isEmpty) {
-        
-        // 找到目标子页面并进行初始化
-        childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-        childNavigation?.initializeFocusLogic();
-        manageDebugOverlay(context, message: '找到可用的子页面导航组件');
-        return; // 停止递归
-      }
-    }
-
-    // 继续递归地访问子元素
-    element.visitChildren(visitChild);
-  }
-
-  // 开始从当前 context 访问子元素
-  context.visitChildElements(visitChild);
-
-  // 如果找不到合适的子组件，添加调试信息
-  if (childNavigation == null) {
-    manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
-  }
-
-  return childNavigation;
+ TvKeyNavigationState? childNavigation;
+ // 定义一个内部函数，用于递归地查找子元素
+ void visitChild(Element element) {
+   if (element.widget is TvKeyNavigation) {
+     final navigationWidget = element.widget as TvKeyNavigation;
+     // 检查 frameType 是否为 "child"
+     if (navigationWidget.frameType == "child") {
+       // 找到目标子页面并进行初始化
+       childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
+       childNavigation?.initializeFocusLogic();
+       manageDebugOverlay(context, message: '找到可用的子页面导航组件');
+       return; // 停止递归
+     }
+   }
+   // 继续递归地访问子元素
+   element.visitChildren(visitChild);
+ }
+ // 开始从当前 context 访问子元素
+ context.visitChildElements(visitChild);
+ // 如果找不到合适的子组件，添加调试信息
+ if (childNavigation == null) {
+   manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
+ }
+ return childNavigation;
 }
 
 /// 查找父页面导航状态
