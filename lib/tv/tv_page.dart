@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
+import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
@@ -65,7 +66,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
   bool _blockSelectKeyEvent = false; // 新增：用于阻止选择键事件
-
+  // 添加 TvKeyNavigationState 用于控制焦点管理
+  TvKeyNavigationState? _drawerNavigationState;
+  
   // 打开设置页面
   Future<bool?> _opensetting() async {
     try {
@@ -102,9 +105,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Future<bool> _handleBackPress(BuildContext context) async {
     // 如果抽屉是打开的，则关闭抽屉
     if (_drawerIsOpen) {
-      setState(() {
-        _drawerIsOpen = false;
-      });
+      _toggleDrawer(false);
       return false;
     }
 
@@ -179,9 +180,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         }
         break;
       case LogicalKeyboardKey.arrowRight:  // 处理右键操作
-        setState(() {
-          _drawerIsOpen = true;  // 打开频道抽屉菜单
-        });
+        _toggleDrawer(!_drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:   // 处理上键操作
         await widget.changeChannelSources?.call(); // 切换视频源
@@ -216,9 +215,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true; // 标记需要阻止选择键事件
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
-    setState(() {
-      _drawerIsOpen = false; // 点击节目后关闭抽屉
-    });
+    _toggleDrawer(false);
     
     // 500ms 后重置阻止标记
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -243,6 +240,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
     _blockSelectKeyEvent = false; // 重置阻止标记
+    if (_drawerNavigationState != null) {
+      _drawerNavigationState!.deactivateFocusManagement();
+      _drawerNavigationState = null;
+    }
     super.dispose(); // 调用父类的 dispose 方法
   }
   
@@ -253,8 +254,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
 
     return Positioned(
-      right: 20,
-      bottom: 20,
+      right: 28,
+      bottom: 28,
       child: Icon(
         widget.isChannelFavorite!(widget.currentChannelId!) 
             ? Icons.favorite 
@@ -262,7 +263,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         color: widget.isChannelFavorite!(widget.currentChannelId!) 
             ? Colors.red 
             : Colors.white,
-        size: 32, // 收藏图标大小
+        size: 38, // 收藏图标大小
       ),
     );
   }
@@ -341,13 +342,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     child: Offstage(
                       offstage: !_drawerIsOpen,
                       child: ChannelDrawerPage(
+                      	key: const ValueKey('channel_drawer'),
                         videoMap: widget.videoMap, // 播放列表模型
                         playModel: widget.playModel, // 当前播放频道模型
                         isLandscape: true, // 横屏显示
                         onTapChannel: _handleEPGProgramTap,
                         onCloseDrawer: () {
+                          _toggleDrawer(false);
+                        },
+                        onTvKeyNavigationStateCreated: (state) {
                           setState(() {
-                            _drawerIsOpen = false; // 点击后关闭抽屉
+                            _drawerNavigationState = state;
+                          });
+                          // 确保在状态设置后再根据抽屉状态设置焦点管理
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_drawerIsOpen) {
+                              state.activateFocusManagement();
+                            } else {
+                              state.deactivateFocusManagement();
+                            }
                           });
                         },
                       ),
@@ -362,6 +375,23 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
+  // 管理抽屉显示/隐藏和焦点管理的方法
+  void _toggleDrawer(bool isOpen) {
+    if (_drawerIsOpen == isOpen) return;
+
+    setState(() {
+      _drawerIsOpen = isOpen;
+    });
+
+    // 根据抽屉状态控制焦点管理
+    if (_drawerNavigationState != null) {
+      if (isOpen) {
+        _drawerNavigationState!.activateFocusManagement();
+      } else {
+        _drawerNavigationState!.deactivateFocusManagement();
+      }
+    }
+  }
   // 构建缓冲指示器
   Widget _buildBufferingIndicator() {
     return Align(
