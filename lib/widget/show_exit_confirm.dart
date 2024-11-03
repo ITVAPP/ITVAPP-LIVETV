@@ -24,7 +24,7 @@ class ShowExitConfirm {
       },
       isDismissible: false,  // 点击对话框外部不关闭弹窗
     );
-   
+
     // 如果用户确认退出，执行退出逻辑
     if (exitConfirmed == true) {
       try {
@@ -33,7 +33,7 @@ class ShowExitConfirm {
         // 创建一个 AnimationController
         final controller = AnimationController(
           duration: const Duration(milliseconds: 3000),  // 使用毫秒确保更精确的时间控制
-          vsync: Navigator.of(context),
+          vsync: OverlayState.of(context), // 修改为使用 OverlayState 作为 vsync
         );
        
         final animation = CurvedAnimation(
@@ -58,7 +58,7 @@ class ShowExitConfirm {
                         return CustomPaint(
                           painter: CircleProgressPainter(
                             animation.value,
-                            strokeWidth: 5.0, // 通过参数控制圆环粗细
+                            strokeWidth: 6.0, // 通过参数控制圆环粗细
                           ),
                           child: Container(
                             width: 118, // 整个区域大小
@@ -82,35 +82,30 @@ class ShowExitConfirm {
             ),
           ),
         );
-       
-        // 使用 WidgetsBinding 确保在下一帧渲染时开始动画
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          final startTime = DateTime.now().millisecondsSinceEpoch;
-          
-          // 插入 Overlay
-          overlayState.insert(overlayEntry);
-          
-          // 添加动画状态监听
-          controller.addStatusListener((status) {
-            if (status == AnimationStatus.completed) {
-              final endTime = DateTime.now().millisecondsSinceEpoch;
-            }
-          });
-          
-          try {
-            await controller.forward();
-          } catch (e) {
-            LogUtil.e('Animation error: $e');
-          } finally {
-            controller.dispose();
-            overlayEntry.remove();
-            FlutterExitApp.exitApp();  // 直接调用插件退出应用
+
+        // 插入 Overlay
+        overlayState.insert(overlayEntry);
+        
+        // 添加动画状态监听
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            // 记录动画完成时的状态
+            LogUtil.d('Animation completed');
           }
         });
         
-        // 等待动画完成
-        await Future.delayed(const Duration(milliseconds: 5000));
-       
+        try {
+          await controller.forward();
+          // 确保动画至少展示3秒
+          await Future.delayed(const Duration(milliseconds: 3000));
+        } catch (e) {
+          LogUtil.e('Animation error: $e');
+        } finally {
+          controller.dispose();
+          overlayEntry.remove();
+          FlutterExitApp.exitApp();  // 直接调用插件退出应用
+        }
+        
       } catch (e) {
         LogUtil.e('退出应用错误: $e');  // 记录日志
         FlutterExitApp.exitApp(); // 确保在出错时也能退出
@@ -124,7 +119,7 @@ class CircleProgressPainter extends CustomPainter {
   final double progress;
   final double strokeWidth; // 添加圆环粗细参数
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = 5.0}); // 默认粗细
+  CircleProgressPainter(this.progress, {this.strokeWidth = 6.0}); // 默认粗细
 
   @override
   void paint(Canvas canvas, Size size) {
