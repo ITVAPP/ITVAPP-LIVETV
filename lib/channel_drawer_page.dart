@@ -527,8 +527,6 @@ class ChannelDrawerPage extends StatefulWidget {
   final bool isLandscape;
   final Function(PlayModel? newModel)? onTapChannel;
   final VoidCallback onCloseDrawer;
-  // 添加 TvKeyNavigation 状态回调属性
-  final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
 
   const ChannelDrawerPage({
     super.key,
@@ -537,7 +535,6 @@ class ChannelDrawerPage extends StatefulWidget {
     this.onTapChannel,
     this.isLandscape = true,
     required this.onCloseDrawer,
-    this.onTvKeyNavigationStateCreated,
   });
 
   @override
@@ -1021,7 +1018,8 @@ Widget build(BuildContext context) {
     isVerticalGroup: true, // 启用竖向分组
     initialIndex: 0, // 组件不自动设置初始焦点
     onStateCreated: (state) {
-      widget.onTvKeyNavigationStateCreated?.call(state);
+      // 当 TvKeyNavigation 的 State 创建时保存引用
+      _tvKeyNavigationState = state;
     },
     child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
   );
