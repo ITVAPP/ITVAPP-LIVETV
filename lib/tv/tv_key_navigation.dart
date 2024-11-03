@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   /// 激活焦点管理
-  void _activateFocusManagement() {
+  void activateFocusManagement() {
     if (!_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = true;
@@ -182,7 +182,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 停用焦点管理
-  void _deactivateFocusManagement() {
+  void deactivateFocusManagement() {
     if (_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = false;
@@ -435,8 +435,8 @@ TvKeyNavigationState? _findParentNavigation() {
 
   /// 切换到子页面时的焦点设置
   void _switchToChildFocus(TvKeyNavigationState childNavigation) {
-    _deactivateFocusManagement(); // 停用父页面焦点管理
-    childNavigation._activateFocusManagement(); // 激活子页面焦点管理
+    deactivateFocusManagement(); // 停用父页面焦点管理
+    childNavigation.activateFocusManagement(); // 激活子页面焦点管理
     // 设置子页面初始焦点
     childNavigation._requestFocus(0);
     manageDebugOverlay(context, message: '切换到子页面焦点');
@@ -444,8 +444,8 @@ TvKeyNavigationState? _findParentNavigation() {
 
   /// 返回父页面时的焦点设置
   void _returnToParentFocus(TvKeyNavigationState parentNavigation) {
-    _deactivateFocusManagement(); // 停用子页面焦点管理
-    parentNavigation._activateFocusManagement(); // 激活父页面焦点管理
+    deactivateFocusManagement(); // 停用子页面焦点管理
+    parentNavigation.activateFocusManagement(); // 激活父页面焦点管理
     // 获取并设置有效的父页面焦点
     int focusIndex = parentNavigation._getValidParentFocusIndex();
     parentNavigation._requestFocus(focusIndex);
@@ -611,8 +611,8 @@ TvKeyNavigationState? _findParentNavigation() {
             // 按下右键时，尝试切换到子页面
             final childNavigation = _findChildNavigation();
             if (childNavigation != null) {
-              _deactivateFocusManagement(); // 停用父页面焦点
-              childNavigation._activateFocusManagement(); // 激活子页面焦点
+              deactivateFocusManagement(); // 停用父页面焦点
+              childNavigation.activateFocusManagement(); // 激活子页面焦点
               childNavigation._requestFocus(0); // 设置子页面初始焦点
               manageDebugOverlay(context, message: '切换到子页面');
               return KeyEventResult.handled;
@@ -888,8 +888,8 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
            // 在子页面的第一个焦点按左键时，一定要返回父页面
            final parentNavigation = _findParentNavigation();
            if (parentNavigation != null) {
-             _deactivateFocusManagement(); // 停用子页面焦点
-             parentNavigation._activateFocusManagement(); // 激活父页面焦点
+             deactivateFocusManagement(); // 停用子页面焦点
+             parentNavigation.activateFocusManagement(); // 激活父页面焦点
              // 恢复父页面上次的焦点位置
              parentNavigation._requestFocus(parentNavigation._lastParentFocusIndex ?? 0);
              manageDebugOverlay(context, message: '返回父页面');
