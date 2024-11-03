@@ -241,7 +241,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
     _blockSelectKeyEvent = false; // 重置阻止标记
     if (_drawerNavigationState != null) {
-      _drawerNavigationState!._deactivateFocusManagement();
+      _drawerNavigationState!.deactivateFocusManagement();
       _drawerNavigationState = null;
     }
     super.dispose(); // 调用父类的 dispose 方法
@@ -357,9 +357,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                           // 确保在状态设置后再根据抽屉状态设置焦点管理
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             if (_drawerIsOpen) {
-                              state._activateFocusManagement();
+                              state.activateFocusManagement();
                             } else {
-                              state._deactivateFocusManagement();
+                              state.deactivateFocusManagement();
                             }
                           });
                         },
@@ -386,9 +386,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     // 根据抽屉状态控制焦点管理
     if (_drawerNavigationState != null) {
       if (isOpen) {
-        _drawerNavigationState!._activateFocusManagement();
+        _drawerNavigationState!.activateFocusManagement();
       } else {
-        _drawerNavigationState!._deactivateFocusManagement();
+        _drawerNavigationState!.deactivateFocusManagement();
       }
     }
   }
