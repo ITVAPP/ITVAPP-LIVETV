@@ -290,9 +290,7 @@ TvKeyNavigationState? _findParentNavigation() {
       final navigationWidget = element.widget as TvKeyNavigation;
 
       // 确保只查找 frameType 为 "parent" 且可见的父页面
-      if (navigationWidget.frameType == "parent" &&
-          element.renderObject?.paintBounds != null &&
-          !element.renderObject!.paintBounds.isEmpty) {
+      if (navigationWidget.frameType == "parent") {
         
         // 找到目标父页面并进行初始化
         parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
@@ -601,7 +599,7 @@ TvKeyNavigationState? _findParentNavigation() {
       if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {
           // 父页面导航逻辑
-          if (key == LogicalKeyboardKey.arrowRight && currentIndex < widget.focusNodes.length ~/ 2) {
+          if (key == LogicalKeyboardKey.arrowRight) {
             // 按下右键时，尝试切换到子页面
             final childNavigation = _findChildNavigation();
             if (childNavigation != null) {
