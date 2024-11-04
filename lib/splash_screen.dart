@@ -173,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Align(
       alignment: Alignment.bottomCenter, // UI 内容在屏幕底部对齐
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 68.0), // 底部的内边距
+        padding: const EdgeInsets.only(bottom: 58.0), // 底部的内边距
         child: Column(
           mainAxisSize: MainAxisSize.min, // 列表仅占用其子组件的最小空间
           children: [
@@ -182,7 +182,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)), // 加载动画颜色
                 strokeWidth: 4.0, // 加载动画的粗细
               ),
-            if (isLoading) const SizedBox(height: 18), // 加载动画与提示文字之间的间距
+            if (isLoading) const SizedBox(height: 15), // 加载动画与提示文字之间的间距
             Text(
               message, // 提示信息文本
               style: const TextStyle(
@@ -192,7 +192,7 @@ class _SplashScreenState extends State<SplashScreen> {
               textAlign: TextAlign.center, // 提示文字居中对齐
             ),
             if (showRetryButton) ...[
-              const SizedBox(height: 16), // 提示文字与重试按钮之间的间距
+              const SizedBox(height: 15), // 提示文字与重试按钮之间的间距
               ElevatedButton(
                 focusNode: _retryButtonFocusNode, // 设置按钮的 FocusNode
                 onPressed: () {
