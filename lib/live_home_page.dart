@@ -159,7 +159,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
             videoPlayerOptions: VideoPlayerOptions(
                 allowBackgroundPlayback: false,
                 mixWithOthers: false,
-                webOptions: const VideoPlayerWebOptionsControls.enabled(),
+                webOptions: const VideoPlayerWebOptions(
+                    controls: VideoPlayerWebOptionsControls.enabled()
+                ),
             ),
         )..setVolume(1.0);
         
