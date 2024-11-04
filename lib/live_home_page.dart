@@ -191,15 +191,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 创建新的播放器
       if (_isDisposing) return;  // 二次检查，避免异步操作过程中状态改变
-      
-      _playerController = VideoPlayerController.networkUrl(
-        Uri.parse(parsedUrl),
-        videoPlayerOptions: VideoPlayerOptions(
-          allowBackgroundPlayback: false,
-          mixWithOthers: false,
-          webOptions: const VideoPlayerWebOptionsControls.enabled(),
-        ),
-      )..setVolume(1.0);
+
+        _playerController = VideoPlayerController.networkUrl(
+            Uri.parse(parsedUrl),
+            videoPlayerOptions: VideoPlayerOptions(
+                allowBackgroundPlayback: false,
+                mixWithOthers: false,
+                webOptions: const VideoPlayerWebOptions(
+                    controls: VideoPlayerWebOptionsControls.enabled()
+                ),
+            ),
+        )..setVolume(1.0);
       
       await _playerController?.initialize();
       
@@ -352,13 +354,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _playVideo();
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
-      if (mounted) {
-        CustomSnackBar.showSnackBar(
-          context,
-          S.current.channelSwitchError,
-          duration: Duration(seconds: 4),
-        );
-      }
     } finally {
       _isSwitchingChannel = false;  // 确保切换状态被重置
     }
@@ -688,13 +683,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('切换视频源时出错', e, stackTrace);
-      if (mounted) {
-        CustomSnackBar.showSnackBar(
-          context,
-          S.current.sourceChangeError,
-          duration: Duration(seconds: 4),
-        );
-      }
     }
   }
 
