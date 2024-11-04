@@ -191,7 +191,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     if (_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = false;
-        // 保存父页面最后的焦点位置
         if (widget.frameType == "parent" && _currentFocus != null) {
           _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
           manageDebugOverlay(context, message: '保存父页面焦点位置: $_lastParentFocusIndex');
@@ -203,7 +202,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   @override
   void dispose() {
-    releaseResources(); // 调用资源释放逻辑
+    releaseResources();
     super.dispose();
   }
 
@@ -212,12 +211,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
    if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 如果焦点管理未激活，不进行初始化
-        if (!_isFocusManagementActive) {
-          manageDebugOverlay(context, message: '焦点管理未激活，跳过初始化');
-          return;
-        }
-        
         // 判断 focusNodes 是否有效
         if (widget.focusNodes.isEmpty) {
           manageDebugOverlay(context, message: 'focusNodes 为空，无法设置焦点');
@@ -245,10 +238,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void releaseResources() {
     _cancelTimer();
     manageDebugOverlay(context);
-    _isFocusManagementActive = false; // 确保焦点管理被停用
+    _isFocusManagementActive = !(widget.isFrame);  // 如果是Frame组件，禁用焦点管理
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
-    _groupFocusCache.clear(); // 清除分组缓存
     WidgetsBinding.instance.removeObserver(this);
   }
 
@@ -325,12 +317,7 @@ TvKeyNavigationState? _findParentNavigation() {
 
   /// 请求将焦点切换到指定索引的控件上
   void _requestFocus(int index, {int? groupIndex}) {
-    // 如果焦点管理未激活，不处理焦点请求
-    if (!_isFocusManagementActive) {
-      manageDebugOverlay(context, message: '焦点管理未激活，不处理焦点请求');
-      return;
-    }
-    
+  	
     if (widget.focusNodes.isEmpty) {
       manageDebugOverlay(context, message: '焦点节点列表为空，无法设置焦点');
       return;
@@ -393,14 +380,7 @@ TvKeyNavigationState? _findParentNavigation() {
   
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
-    // 如果焦点管理未激活，不进行缓存
-    if (!_isFocusManagementActive) {
-      manageDebugOverlay(context, message: '焦点管理未激活，跳过缓存 Group 信息');
-      return;
-    }
-    
     _groupFocusCache.clear();  // 清空缓存
-    
     // 获取所有的分组
     final groups = _getAllGroups();
     manageDebugOverlay(context, message: '缓存分组：找到的总组数: ${groups.length}');
@@ -682,12 +662,7 @@ TvKeyNavigationState? _findParentNavigation() {
   
   /// 执行当前焦点控件的点击操作
   void _triggerButtonAction() { 
-    // 如果焦点管理未激活，则不处理点击操作
-    if (!_isFocusManagementActive) {
-      manageDebugOverlay(context, message: '焦点管理未激活，不处理点击操作');
-      return;
-    }
-    
+  
     final focusNode = _currentFocus;  // 获取当前焦点
     if (focusNode != null && focusNode.context != null) {
       final BuildContext? context = focusNode.context;
