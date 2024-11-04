@@ -200,14 +200,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 播放器资源释放
-  Future<void> _disposePlayer() async {
+Future<void> _disposePlayer() async {
     if (!_isDisposing) {
       _isDisposing = true;  // 标记为正在释放资源
+      
       // 取消超时检测和重试逻辑
       _timeoutActive = false;
-      // 移除与播放器相关的监听器
-      _playerController?.removeListener(_videoListener);
+      
       try {
+        // 移除与播放器相关的监听器
+        _playerController?.removeListener(_videoListener);
+        
+        // 先暂停播放
+        await _playerController?.pause();
+        
         _disposeStreamUrl();  // 释放 StreamUrl 相关资源
         await _playerController?.dispose();  // 释放播放器资源
       } catch (e, stackTrace) {
@@ -217,7 +223,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _isDisposing = false;
       }
     }
-  }
+}
 
   /// 释放 StreamUrl 实例
   void _disposeStreamUrl() {
@@ -318,21 +324,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 处理频道切换操作
-  Future<void> _onTapChannel(PlayModel? model) async {
-    _isSwitchingChannel = false;
-    _currentChannel = model;
-    _sourceIndex = 0; // 重置视频源索引
-    _retryCount = 0; // 重置重试次数计数器
-    _timeoutActive = false; // 取消超时检测
-    _shouldUpdateAspectRatio = true; // 重置宽高比标志位
+Future<void> _onTapChannel(PlayModel? model) async {
+    if (_isSwitchingChannel || model == null) return;  // 添加状态检查防止重复切换
+    
+    _isSwitchingChannel = true;  // 设置切换状态
+    try {
+      // 如果正在播放，先暂停
+      if (_playerController?.value.isPlaying ?? false) {
+        await _playerController?.pause();
+      }
+      
+      // 释放当前播放器资源
+      await _disposePlayer();
+      
+      _currentChannel = model;
+      _sourceIndex = 0; // 重置视频源索引
+      _retryCount = 0; // 重置重试次数计数器
+      _timeoutActive = false; // 取消超时检测
+      _shouldUpdateAspectRatio = true; // 重置宽高比标志位
 
-    // 发送流量统计数据
-    if (Config.Analytics) {
-      await _sendTrafficAnalytics(context, _currentChannel!.title);
+      // 发送流量统计数据
+      if (Config.Analytics) {
+        await _sendTrafficAnalytics(context, _currentChannel!.title);
+      }
+
+      await _playVideo();
+    } finally {
+      _isSwitchingChannel = false;  // 确保切换状态被重置
     }
-
-    _playVideo(); 
-  }
+}
 
   @override
   void initState() {
@@ -364,7 +384,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
        };
     }
-    LogUtil.i('初始化的收藏列表: ${favoriteList}');
   }
 
   // 获取当前频道的分组名字
@@ -445,12 +464,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         LogUtil.i('保存后的收藏列表: ${favoriteList}');
-
         // 更新播放列表中的收藏部分
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
-
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
-        // 保存更新后的播放列表到缓存
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         setState(() {}); // 重新渲染频道列表
       } catch (error) {
