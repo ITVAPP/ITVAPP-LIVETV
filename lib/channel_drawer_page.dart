@@ -823,6 +823,9 @@ void _onGroupTap(int index) {
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
 
+  // 向父组件发送选中的频道
+  widget.onTapChannel?.call(newModel);
+  
   // 更新本地状态，立即应用选中的样式
   setState(() {
     _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
@@ -836,8 +839,6 @@ void _onChannelTap(PlayModel? newModel) {
     _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
   });
   
-  // 可以调用父组件的回调来处理其它逻辑
-  widget.onTapChannel?.call(newModel);
 }
 
   // 滚动到顶部
