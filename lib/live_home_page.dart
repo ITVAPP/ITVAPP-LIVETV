@@ -124,7 +124,7 @@ class ResourceManager {
   
   Future<void> disposeStreamUrl() async {
     try {
-      await _streamUrl?.dispose();
+      _streamUrl?.dispose();
       _streamUrl = null;
     } catch (e) {
       LogUtil.logError('释放StreamUrl时出错', e);
@@ -148,7 +148,7 @@ class ResourceManager {
   Future<void> disposeAll() async {
     cancelTimeoutTimer();
     await disposeController();
-    await disposeStreamUrl();
+    disposeStreamUrl();
   }
 }
 
@@ -741,7 +741,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       S.current.newfavoriteerror,
       duration: Duration(seconds: 4),
     );
-    LogUtil.logError('收藏状态保存失败');
+    LogUtil.e('收藏状态保存失败');
   }
 
   @override
