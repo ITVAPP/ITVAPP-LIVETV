@@ -175,7 +175,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 激活焦点管理
   void activateFocusManagement({int? initialIndexOverride}) {
-    if (!_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = true;
       });
@@ -183,12 +182,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       // 激活时重新初始化焦点系统，不传递则使用 0
       initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
       manageDebugOverlay(context, message: '激活 ${widget.frameType} 页面的焦点管理');
-    }
   }
 
   /// 停用焦点管理
   void deactivateFocusManagement() {
-    if (_isFocusManagementActive) {
       setState(() {
         _isFocusManagementActive = false;
         if (widget.frameType == "parent" && _currentFocus != null) {
@@ -197,7 +194,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         }
       });
       manageDebugOverlay(context, message: '停用 ${widget.frameType} 页面的焦点管理');
-    }
   }
 
   @override
@@ -208,7 +204,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) { 
-   if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 判断 focusNodes 是否有效
