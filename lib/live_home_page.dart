@@ -72,32 +72,71 @@ class ResourceManager {
   VideoPlayerController? get controller => _controller;
   bool get isDisposing => _isDisposing;
   
-  Future<void> initializeController({
-    required String url,
-    required Function onError,
-    required Function(VideoPlayerController) onInitialized,
-  }) async {
+Future<void> initializeController({
+  required String url,
+  required Function onError,
+  required Function(VideoPlayerController) onInitialized,
+}) async {
+  try {
+    // 1. 先释放旧控制器
     await disposeController();
     
-    try {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(url),
-        videoPlayerOptions: VideoPlayerOptions(
-          allowBackgroundPlayback: false,
-          mixWithOthers: false,
-          webOptions: const VideoPlayerWebOptions(
-            controls: VideoPlayerWebOptionsControls.enabled()
-          ),
-        ),
-      )..setVolume(1.0);
+    // 2. 添加短暂延时确保资源完全释放
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // 3. 检查参数和状态
+    if (_isDisposing) return;
+    if (url.isEmpty) {
+      LogUtil.logError('初始化播放器失败', 'URL is empty');
+      onError();
+      return;
+    }
 
+    // 4. 创建新控制器
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      videoPlayerOptions: VideoPlayerOptions(
+        allowBackgroundPlayback: false,
+        mixWithOthers: false,
+        webOptions: const VideoPlayerWebOptions(
+          controls: VideoPlayerWebOptionsControls.enabled()
+        ),
+      ),
+    )..setVolume(1.0);
+
+    // 5. 初始化带超时检测
+    bool initialized = false;
+    Timer? timeoutTimer;
+    
+    try {
+      timeoutTimer = Timer(const Duration(seconds: 15), () {
+        if (!initialized) {
+          LogUtil.logError('初始化播放器超时', 'Timeout after 15 seconds');
+          onError();
+        }
+      });
+      
       await _controller?.initialize();
+      initialized = true;
+      
+      if (_isDisposing) {
+        onError();
+        return;
+      }
+      
       onInitialized(_controller!);
     } catch (e, stack) {
       LogUtil.logError('初始化播放器失败', e, stack);
       onError();
+    } finally {
+      timeoutTimer?.cancel();
     }
+    
+  } catch (e, stack) {
+    LogUtil.logError('初始化播放器过程出错', e, stack);
+    onError();
   }
+}
   
   Future<void> disposeController() async {
     if (_isDisposing) return;
