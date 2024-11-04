@@ -116,6 +116,7 @@ Future<void> _playVideo() async {
     
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+        _isRetrying = false;  // 新播放开始时重置重试状态
     });
     
     try {
@@ -173,8 +174,7 @@ Future<void> _playVideo() async {
         setState(() {
             _playerController = newController;
             toastString = S.current.loading;
-            _isRetrying = false;
-            _retryCount = 0;
+            _retryCount = 0;       // 移除这里的 _isRetrying = false
             _timeoutActive = false;
         });
 
@@ -184,7 +184,7 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _retryPlayback();
+        _retryPlayback();  // 出错时进入重试逻辑
     }
 }
 
@@ -234,7 +234,7 @@ void _videoListener() {
 
 /// 重试播放方法
 void _retryPlayback() {
-    if (_isRetrying) return;  // 防止重复重试
+    if (_isRetrying) return;
     
     _isRetrying = true;
     _timeoutActive = false;
@@ -247,10 +247,16 @@ void _retryPlayback() {
         
         _retryTimer?.cancel();
         _retryTimer = Timer(const Duration(seconds: 3), () {
+            setState(() {
+               _isRetrying = false;  // 重要：重试前重置状态
+            });
             _playVideo();
         });
     } else {
-        _isRetrying = false;  // 重试结束后重置状态
+        setState(() {
+            _retryCount = 0;  // 重要：重置重试计数，这样新的源可以重试
+            _isRetrying = false;  // 重要：重置重试状态
+        });
         _handleSourceSwitch();
     }
 }
@@ -263,6 +269,7 @@ void _handleSourceSwitch() {
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;
+            _retryCount = 0;
         });
         return;
     }
@@ -273,7 +280,8 @@ void _handleSourceSwitch() {
         _sourceIndex = 0;  // 循环切换回第一个源
         setState(() {
             toastString = S.current.playError;
-            _isRetrying = false;
+            _isRetrying = false;  
+            _retryCount = 0;
         });
         return;
     }
@@ -285,8 +293,10 @@ void _handleSourceSwitch() {
     // 延迟后尝试新源
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
-        _retryCount = 0;  // 切换源后重置重试计数
-        _isRetrying = false;  // 切换源前重置状态
+        setState(() {
+            _retryCount = 0;  // 重要：新源从0开始计数重试
+            _isRetrying = false;  
+        });
         _playVideo();
     });
 }
@@ -344,7 +354,7 @@ Future<void> _disposePlayer() async {
     }
   }
 
-  /// 处理频道切换操作 - 修改后增加了状态重置
+  /// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
     if (_isSwitchingChannel || model == null) return;
     
@@ -356,8 +366,10 @@ Future<void> _onTapChannel(PlayModel? model) async {
     try {
         // 先停止当前播放和清理状态
         _retryTimer?.cancel();
-        _isRetrying = false;
-        _timeoutActive = false;
+        setState(() { 
+            _isRetrying = false;
+            _timeoutActive = false;
+        });
         
         // 更新频道信息
         _currentChannel = model;
@@ -403,9 +415,11 @@ Future<void> _onTapChannel(PlayModel? model) async {
   Future<void> _loadData() async {
     // 重置所有状态
     _retryTimer?.cancel();
-    _isRetrying = false;
-    _timeoutActive = false;
-    _retryCount = 0;
+    setState(() { 
+        _isRetrying = false;
+        _timeoutActive = false;
+        _retryCount = 0;
+    });
     
     try {
       _videoMap = widget.m3uData;
@@ -429,8 +443,8 @@ Future<void> _onTapChannel(PlayModel? model) async {
     }
   }
 
-  /// 处理播放列表 - 修改后增加了错误处理
-  Future<void> _handlePlaylist() async {
+/// 处理播放列表 - 不修改这部分代码
+Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       // 获取第一个可用的频道
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
@@ -444,16 +458,14 @@ Future<void> _onTapChannel(PlayModel? model) async {
         setState(() {
           // 重置重试相关状态
           _retryCount = 0;
-          _isRetrying = false;
           _timeoutActive = false;
-          
-          _playVideo();
+          _playVideo(); 
         });
       } else {
         // 没有可用的频道
         setState(() {
           toastString = 'UNKNOWN';
-          _isRetrying = false;  // 确保重试状态被重置
+          _isRetrying = false;
         });
       }
     } else {
@@ -461,10 +473,10 @@ Future<void> _onTapChannel(PlayModel? model) async {
       setState(() {
         _currentChannel = null;
         toastString = 'UNKNOWN';
-        _isRetrying = false;  // 确保重试状态被重置
+        _isRetrying = false;
       });
     }
-  }
+}
   
 /// 从播放列表中动态提取频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
@@ -694,7 +706,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
     }
   }
 
-  /// 修改 dispose 方法，确保清理所有资源
+  /// 清理所有资源
   @override
   void dispose() {
     _retryTimer?.cancel();
