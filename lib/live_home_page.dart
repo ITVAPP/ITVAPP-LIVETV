@@ -686,7 +686,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           isLandscape: true,
                           onToggleDrawer: () {
                             setState(() {
-                              _drawerIsOpen = false;
+                              _drawerIsOpen = !_drawerIsOpen;  // 切换抽屉的状态
                             });
                           }
                         ),
