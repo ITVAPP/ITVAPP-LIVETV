@@ -139,6 +139,9 @@ Future<void> _playVideo() async {
         
         // 等待当前播放器完全释放
         await _disposePlayer();
+
+        // 启动超时检测
+        _startTimeoutCheck();
         
         // 创建新的播放器控制器
         final newController = VideoPlayerController.networkUrl(
@@ -178,17 +181,14 @@ Future<void> _playVideo() async {
         // 添加监听并开始播放
         _playerController?.addListener(_videoListener);
         await _playerController?.play();
-
-        // 启动超时检测
-        _startTimeoutCheck();
-        
+   
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
         _retryPlayback();
     }
 }
 
-  /// 修改后的播放器监听方法
+  /// 播放器监听方法
 void _videoListener() {
     if (_playerController == null || _isDisposing || _isRetrying) return;
 
@@ -215,7 +215,7 @@ void _videoListener() {
     }
 }
 
-  /// 修改后的超时检测方法
+  /// 超时检测方法
   void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying) return;
     
@@ -232,8 +232,8 @@ void _videoListener() {
     });
   }
 
-  /// 修改后的重试播放方法
-  void _retryPlayback() {
+/// 重试播放方法
+void _retryPlayback() {
     if (_isRetrying) return;  // 防止重复重试
     
     _isRetrying = true;
@@ -241,55 +241,57 @@ void _videoListener() {
     _retryCount += 1;
 
     if (_retryCount <= maxRetries) {
-      setState(() {
-        toastString = S.current.retryplay;
-      });
-      
-      _retryTimer?.cancel();
-      _retryTimer = Timer(const Duration(seconds: 3), () {
-        _playVideo();
-      });
+        setState(() {
+            toastString = S.current.retryplay;
+        });
+        
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(seconds: 3), () {
+            _playVideo();
+        });
     } else {
-      _handleSourceSwitch();
+        _isRetrying = false;  // 重试结束后重置状态
+        _handleSourceSwitch();
     }
-  }
+}
 
-  /// 新增：处理视频源切换的方法
-  void _handleSourceSwitch() {
+/// 处理视频源切换的方法
+void _handleSourceSwitch() {
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
-      setState(() {
-        toastString = S.current.playError;
-        _isRetrying = false;
-      });
-      return;
+        setState(() {
+            toastString = S.current.playError;
+            _isRetrying = false;
+        });
+        return;
     }
 
     // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
-      _sourceIndex = 0;  // 循环切换回第一个源
-      setState(() {
-        toastString = S.current.playError;
-        _isRetrying = false;
-      });
-      return;
+        _sourceIndex = 0;  // 循环切换回第一个源
+        setState(() {
+            toastString = S.current.playError;
+            _isRetrying = false;
+        });
+        return;
     }
 
     setState(() {
-      toastString = S.current.switchLine(_sourceIndex + 1);
+        toastString = S.current.switchLine(_sourceIndex + 1);
     });
 
     // 延迟后尝试新源
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
-      _retryCount = 0;  // 切换源后重置重试计数
-      _playVideo();
+        _retryCount = 0;  // 切换源后重置重试计数
+        _isRetrying = false;  // 切换源前重置状态
+        _playVideo();
     });
-  }
+}
   
-/// 修改后的播放器资源释放方法
+/// 播放器资源释放方法
 Future<void> _disposePlayer() async {
     if (_isDisposing) return;
     
@@ -491,7 +493,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
     return null;
   }
 
-  /// 修改后的切换视频源方法，增加了状态重置
+  /// 切换视频源方法，增加了状态重置
   Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
