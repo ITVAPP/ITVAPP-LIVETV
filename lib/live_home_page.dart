@@ -73,69 +73,75 @@ class ResourceManager {
   bool get isDisposing => _isDisposing;
   
 Future<void> initializeController({
-  required String url,
-  required Function onError,
-  required Function(VideoPlayerController) onInitialized,
+    required String url,
+    required Function onError,
+    required Function(VideoPlayerController) onInitialized,
 }) async {
-  try {
-    // 1. 先释放旧控制器
-    await disposeController();
-    
-    // 2. 添加短暂延时确保资源完全释放
-    await Future.delayed(const Duration(milliseconds: 100));
-    
-    // 3. 检查参数和状态
-    if (_isDisposing) return;
-    if (url.isEmpty) {
-      LogUtil.logError('初始化播放器失败', 'URL is empty');
-      onError();
-      return;
-    }
-
-    // 4. 创建新控制器
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      videoPlayerOptions: VideoPlayerOptions(
-        allowBackgroundPlayback: false,
-        mixWithOthers: false,
-        webOptions: const VideoPlayerWebOptions(
-          controls: VideoPlayerWebOptionsControls.enabled()
-        ),
-      ),
-    )..setVolume(1.0);
-
-    // 5. 初始化带超时检测
-    bool initialized = false;
-    Timer? timeoutTimer;
-    
-    try {
-      timeoutTimer = Timer(const Duration(seconds: 15), () {
-        if (!initialized) {
-          LogUtil.logError('初始化播放器超时', 'Timeout after 15 seconds');
-          onError();
-        }
-      });
-      
-      await _controller?.initialize();
-      initialized = true;
-      
-      if (_isDisposing) {
+    if (_isDisposing) {
+        LogUtil.logError('初始化播放器失败', 'Still disposing previous controller');
         onError();
         return;
-      }
-      
-      onInitialized(_controller!);
-    } catch (e, stack) {
-      LogUtil.logError('初始化播放器失败', e, stack);
-      onError();
-    } finally {
-      timeoutTimer?.cancel();
     }
+
+    // 释放旧的控制器
+    await disposeController();
     
-  } catch (e, stack) {
-    LogUtil.logError('初始化播放器过程出错', e, stack);
-    onError();
-  }
+    // 等待资源完全释放
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    try {
+        // 验证 URL
+        if (url.isEmpty || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+            LogUtil.logError('初始化播放器失败', 'Invalid URL: $url');
+            onError();
+            return;
+        }
+
+        // 创建新的播放器
+        _controller = VideoPlayerController.networkUrl(
+            Uri.parse(url),
+            videoPlayerOptions: VideoPlayerOptions(
+                allowBackgroundPlayback: false,
+                mixWithOthers: false,
+                webOptions: const VideoPlayerWebOptions(
+                    controls: VideoPlayerWebOptionsControls.enabled()
+                ),
+            ),
+        );
+
+        // 设置音量
+        _controller?.setVolume(1.0);
+
+        // 带超时的初始化
+        bool initialized = false;
+        Timer? timeoutTimer;
+
+        try {
+            timeoutTimer = Timer(const Duration(seconds: 10), () {
+                if (!initialized) {
+                    LogUtil.logError('初始化播放器失败', 'Initialization timeout');
+                    onError();
+                }
+            });
+
+            await _controller?.initialize();
+            initialized = true;
+
+            // 确保控制器还存在
+            if (_controller == null) {
+                LogUtil.logError('初始化播放器失败', 'Controller was disposed during initialization');
+                onError();
+                return;
+            }
+
+            onInitialized(_controller!);
+        } finally {
+            timeoutTimer?.cancel();
+        }
+    } catch (e, stack) {
+        LogUtil.logError('初始化播放器失败', e, stack);
+        onError();
+    }
 }
   
   Future<void> disposeController() async {
