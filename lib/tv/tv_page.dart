@@ -284,9 +284,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               child: Stack(
                 children: [
                   // 使用 ValueListenableBuilder 监听视频控制器状态变化
-                  ValueListenableBuilder(
-                    valueListenable: widget.controller ?? ValueNotifier(null),
-                    builder: (context, VideoPlayerValue? value, child) {
+                  ValueListenableBuilder<VideoPlayerValue?>(
+                    valueListenable: widget.controller ?? ValueNotifier<VideoPlayerValue?>(null),
+                    builder: (BuildContext context, VideoPlayerValue? value, Widget? child) {
                       if (widget.controller != null && value?.isInitialized == true) {
                         return AspectRatio(
                           aspectRatio: value!.aspectRatio,
@@ -316,7 +316,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                               spreadRadius: 2, // 阴影扩散半径
                               blurRadius: 10, // 阴影模糊半径
                               offset: const Offset(0, 3), // 阴影偏移量
-                            ),
+                              ),
                           ],
                         ),
                         padding: const EdgeInsets.all(10.0), // 设置内边距
