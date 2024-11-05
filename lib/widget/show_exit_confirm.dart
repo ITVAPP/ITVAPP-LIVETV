@@ -51,8 +51,8 @@ class ShowExitConfirm {
                 type: MaterialType.transparency,
                 child: Center(
                   child: Container(
-                    width: 118, // 整个区域大小
-                    height: 118,
+                    width: 108, // 整个区域大小
+                    height: 108,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -63,14 +63,14 @@ class ShowExitConfirm {
                             strokeWidth: 6.0, // 通过参数控制圆环粗细
                           ),
                           child: Container(
-                            width: 118, // 整个区域大小
-                            height: 118,
+                            width: 108, // 整个区域大小
+                            height: 108,
                             alignment: Alignment.center,
                             child: ClipOval(  // 裁剪图片为圆形
                               child: Image.asset(
                                 'assets/images/logo.png',
-                                width: 88, // LOGO 的宽度
-                                height: 88, // LOGO 的高度
+                                width: 68, // LOGO 的宽度
+                                height: 68, // LOGO 的高度
                                 fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                               ),
                             ),
