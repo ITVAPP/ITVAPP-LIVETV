@@ -23,7 +23,7 @@ class TvPage extends StatefulWidget {
   final Function(PlayModel? newModel)? onTapChannel; // 点击频道时调用的回调函数
 
   final VideoPlayerController? controller; // 视频播放器控制器
-  final Future<void> Function()? changeChannelSources; // 频道源切换函数
+  final Future<void> Function()? changeChannelSources; // 频道源切换函数 
   final GestureTapCallback? onChangeSubSource; // 视频源切换的回调函数
   final String? toastString; // 显示提示信息的字符串
   final bool isLandscape; // 是否横屏显示
@@ -268,7 +268,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  @override
+@override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context), // 确保在退出前调用
@@ -283,22 +283,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black, // 设置容器背景颜色为黑色
               child: Stack(
                 children: [
-                    // 显示视频播放器
-                  if (widget.controller != null && widget.controller!.value.isInitialized)
-                    AspectRatio(
-                      aspectRatio: widget.controller!.value.aspectRatio, // 根据视频控制器的宽高比设置
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: VideoPlayer(widget.controller!), // 创建视频播放器组件
-                      ),
-                    )
-                  // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
-                  else
-                    VideoHoldBg(
-                      toastString: _drawerIsOpen ? '' : widget.toastString, // 显示提示信息
-                      videoController: VideoPlayerController.network(''), // 为空的网络视频控制器
-                    ),
-                    // 仅在视频播放器显示且视频暂停时显示播放图标
+                  // 使用 ValueListenableBuilder 监听视频控制器状态变化
+                  ValueListenableBuilder(
+                    valueListenable: widget.controller ?? ValueNotifier(null),
+                    builder: (context, VideoPlayerValue? value, child) {
+                      if (widget.controller != null && value?.isInitialized == true) {
+                        return AspectRatio(
+                          aspectRatio: value!.aspectRatio,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: VideoPlayer(widget.controller!),
+                          ),
+                        );
+                      }
+                      return VideoHoldBg(
+                        toastString: _drawerIsOpen ? '' : widget.toastString,
+                        videoController: VideoPlayerController.network(''),
+                      );
+                    },
+                  ),
+
+                  // 仅在视频播放器显示且视频暂停时显示播放图标
                   if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
                     Center(
                       child: Container(
@@ -342,7 +347,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     child: Offstage(
                       offstage: !_drawerIsOpen,
                       child: ChannelDrawerPage(
-                      	key: const ValueKey('channel_drawer'),
+                        key: const ValueKey('channel_drawer'),
                         videoMap: widget.videoMap, // 播放列表模型
                         playModel: widget.playModel, // 当前播放频道模型
                         isLandscape: true, // 横屏显示
@@ -366,7 +371,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
-                  ],
+                ],
               ),
             ),
           );
@@ -375,7 +380,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 管理抽屉显示/隐藏和焦点管理的方法
+// 管理抽屉显示/隐藏和焦点管理的方法
   void _toggleDrawer(bool isOpen) {
     if (_drawerIsOpen == isOpen) return;
 
@@ -392,6 +397,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       }
     }
   }
+  
   // 构建缓冲指示器
   Widget _buildBufferingIndicator() {
     return Align(
