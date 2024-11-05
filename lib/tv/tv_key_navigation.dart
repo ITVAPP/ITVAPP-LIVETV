@@ -135,11 +135,30 @@ class TvKeyNavigation extends StatefulWidget {
 class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver, DebugOverlayManager {
   FocusNode? _currentFocus;
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+  // 按页面名称存储的缓存
+  static Map<String, Map<int, Map<String, FocusNode>>> _namedCaches = {};
   bool _isFocusManagementActive = false;
   int? _lastParentFocusIndex;
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
+  }
+  
+  // 获取文件名设置缓存名字
+  String getCacheName() {
+    if (context == null) return '';
+    try {
+      Element? element = context as Element;
+      while (element != null) {
+        final name = element.widget.runtimeType.toString().toLowerCase();
+        return 'groupCache-$name';
+      
+        element = element.parent as Element?;
+      }
+    } catch (e) {
+    manageDebugOverlay(context, message: '获取文件名失败: $e');
+    }
+    return '';
   }
   
   @override
@@ -178,8 +197,20 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       setState(() {
         _isFocusManagementActive = true;
       });
+    
       if (widget.isFrame) {
-        initializeFocusLogic();
+      	if (widget.frameType == "parent") {
+      	// 直接使用页面缓存，无需重新初始化
+        _groupFocusCache = Map.from('groupCache-tvsettingpage');
+        manageDebugOverlay(context, message: '使用 $cacheName 的缓存');
+        // 恢复焦点位置
+        if (_lastParentFocusIndex != null) {
+          _requestFocus(_lastParentFocusIndex!);
+          manageDebugOverlay(context, message: '恢复焦点到: $_lastParentFocusIndex');	
+          } 
+      } else  {
+         initializeFocusLogic();
+      }
       }
       manageDebugOverlay(context, message: '激活页面的焦点管理');
   }
@@ -236,6 +267,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = !(widget.isFrame);  // 如果是Frame组件，禁用焦点管理
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
+    String cacheName = _getCacheName();
+    _namedCaches.remove(cacheName);
     WidgetsBinding.instance.removeObserver(this);
   }
 
@@ -247,7 +280,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 /// 查找子页面导航状态
 TvKeyNavigationState? _findChildNavigation() {
  TvKeyNavigationState? childNavigation;
- // 定义一个内部函数，用于递归地查找子元素
  void visitChild(Element element) {
    if (element.widget is TvKeyNavigation) {
      final navigationWidget = element.widget as TvKeyNavigation;
@@ -385,6 +417,14 @@ TvKeyNavigationState? _findParentNavigation() {
       _cacheDefaultGroup();
     } else {
       _cacheMultipleGroups(groups);
+    }
+    
+    // 获取当前页面名称
+    String cacheName = _getCacheName();
+    if (cacheName.isNotEmpty) {
+      // 保存页面专用缓存
+      _namedCaches[cacheName] = Map.from(_groupFocusCache);
+      manageDebugOverlay(context, message: '保存 $cacheName 的缓存');
     }
   }
   
