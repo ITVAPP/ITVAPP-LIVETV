@@ -69,8 +69,8 @@ class ShowExitConfirm {
                             child: ClipOval(  // 裁剪图片为圆形
                               child: Image.asset(
                                 'assets/images/logo.png',
-                                width: 68, // LOGO 的宽度
-                                height: 68, // LOGO 的高度
+                                width: 78, // LOGO 的宽度
+                                height: 78, // LOGO 的高度
                                 fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                               ),
                             ),
