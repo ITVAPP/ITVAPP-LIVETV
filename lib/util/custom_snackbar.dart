@@ -32,7 +32,7 @@ class CustomSnackBar {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),  // 设置内边距
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),  // 设置内边距
               child: Row(
                 mainAxisSize: MainAxisSize.min,  // 让Row根据内容自适应宽度
                 mainAxisAlignment: MainAxisAlignment.center,
