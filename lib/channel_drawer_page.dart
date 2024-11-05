@@ -1030,6 +1030,7 @@ Widget build(BuildContext context) {
 
   return TvKeyNavigation(  // 包裹整个抽屉页面，处理焦点和导航
     focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
+    cacheName: 'ChannelDrawerPage',  // 指定缓存名称
     isVerticalGroup: true, // 启用竖向分组
     initialIndex: 0, // 组件不自动设置初始焦点
     onStateCreated: _handleTvKeyNavigationStateCreated, 
