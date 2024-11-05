@@ -166,7 +166,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     widget.onStateCreated?.call(this);
     // 根据 frameType 初始化焦点管理状态
     _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
-    initializeFocusLogic(); // 调用初始化焦点逻辑
+    // 如果焦点管理未激活，则不处理按键事件
+    if (!_isFocusManagementActive) {
+       initializeFocusLogic(); // 调用初始化焦点逻辑
+    }
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
 
@@ -175,6 +178,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       setState(() {
         _isFocusManagementActive = true;
       });
+      if (widget.isFrame) {
+        initializeFocusLogic();
+      }
       manageDebugOverlay(context, message: '激活页面的焦点管理');
   }
 
@@ -197,7 +203,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 初始化焦点逻辑
-  void initializeFocusLogic({int? initialIndexOverride}) { 
+  void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         // 判断 focusNodes 是否有效
@@ -604,11 +610,6 @@ TvKeyNavigationState? _findParentNavigation() {
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {    
     if (event is KeyEvent && event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
-
-      // 父页面按右键，子页面按左键，不需检查焦点状态
-      if (widget.frameType == "parent" && key == LogicalKeyboardKey.arrowRight || widget.frameType == "child" && key == LogicalKeyboardKey.arrowLeft) {
-        return _handleNavigation(key);
-      }
       
       // 如果焦点管理未激活，则不处理按键事件
       if (!_isFocusManagementActive) {
