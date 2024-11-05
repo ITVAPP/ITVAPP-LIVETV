@@ -529,6 +529,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final VoidCallback onCloseDrawer;
   // 添加 TvKeyNavigation 状态回调属性
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
+  final ValueKey<int>? refreshKey; // 刷新键
 
   const ChannelDrawerPage({
     super.key,
@@ -538,6 +539,7 @@ class ChannelDrawerPage extends StatefulWidget {
     this.isLandscape = true,
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
+    this.refreshKey, 
   });
 
   @override
@@ -570,9 +572,40 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initializeData(); // 调用统一的初始化方法
+  }
+
+  @override
+  void didUpdateWidget(ChannelDrawerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 当刷新键变化时重新初始化
+    if (widget.refreshKey != oldWidget.refreshKey) {
+      _initializeData();
+    }
+  }
+
+  // 统一的初始化方法
+  void _initializeData() {
+    // 1. 初始化基础数据
     _initializeCategoryData();
     _initializeChannelData();
 
+    // 2. 计算并初始化焦点节点
+    int totalFocusNodes = _calculateTotalFocusNodes();
+    _initializeFocusNodes(totalFocusNodes);
+
+    // 3. 计算视图高度
+    _calculateViewportHeight();
+
+    // 4. 加载EPG数据（如果需要）
+    if (_shouldLoadEpg()) {
+      _loadEPGMsg(widget.playModel);
+    }
+  }
+
+  // 计算总焦点节点数
+  int _calculateTotalFocusNodes() {
     int totalFocusNodes = _categories.length;
     totalFocusNodes += _keys.length;
     if (_values.isNotEmpty &&
@@ -581,15 +614,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_values[_groupIndex].length > 0)) {
       totalFocusNodes += (_values[_groupIndex].length);
     }
-    _initializeFocusNodes(totalFocusNodes);
-
-    _calculateViewportHeight(); // 计算视图窗口的高度
-
-    if (_keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty) {
-      _loadEPGMsg(widget.playModel);
-    }
+    return totalFocusNodes;
   }
 
+  // 判断是否需要加载EPG
+  bool _shouldLoadEpg() {
+    return _keys.isNotEmpty && 
+           _values.isNotEmpty && 
+           _values[_groupIndex].isNotEmpty;
+  }
+  
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
