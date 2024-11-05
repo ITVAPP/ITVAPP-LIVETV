@@ -605,6 +605,11 @@ TvKeyNavigationState? _findParentNavigation() {
     if (event is KeyEvent && event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
 
+      // 父页面按右键，子页面按左键，不需检查焦点状态
+      if (widget.frameType == "parent" && key == LogicalKeyboardKey.arrowRight || widget.frameType == "child" && key == LogicalKeyboardKey.arrowLeft) {
+        return _handleNavigation(key);
+      }
+      
       // 如果焦点管理未激活，则不处理按键事件
       if (!_isFocusManagementActive) {
         manageDebugOverlay(context, message: '焦点管理未激活，不处理按键事件');
@@ -779,12 +784,6 @@ TvKeyNavigationState? _findParentNavigation() {
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
 void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-   // 如果焦点管理未激活，则不处理导航
-   if (!_isFocusManagementActive) {
-     manageDebugOverlay(context, message: '焦点管理未激活，不处理导航');
-     return;
-   }
-   
    String action = '';
    int nextIndex = 0;
    // 获取当前组的首尾节点
@@ -832,12 +831,7 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    // 如果焦点管理未激活，则不处理跳转
-    if (!_isFocusManagementActive) {
-      manageDebugOverlay(context, message: '焦点管理未激活，不处理组间跳转');
-      return false;
-    }
-    
+  	    
     if (_groupFocusCache.isEmpty) {
       manageDebugOverlay(context, message: '没有缓存的分组信息，无法跳转');
       return false;
