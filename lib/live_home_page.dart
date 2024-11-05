@@ -106,6 +106,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
+  
+  // 抽屉刷新键
+  ValueKey<int>? _drawerRefreshKey;
 
   // 实例化 TrafficAnalytics 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
@@ -694,7 +697,10 @@ Future<void> _handlePlaylist() async {
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
-        setState(() {}); // 重新渲染频道列表
+        // 更新刷新键，触发抽屉重建
+        setState(() {
+          _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+        });
       } catch (error) {
         CustomSnackBar.showSnackBar(
           context,
@@ -772,6 +778,8 @@ Future<void> _handlePlaylist() async {
               aspectRatio: aspectRatio,
               onChangeSubSource: _parseData,
               drawChild: ChannelDrawerPage(
+              	key: _drawerRefreshKey,
+                refreshKey: _drawerRefreshKey,
                 videoMap: _videoMap,
                 playModel: _currentChannel,
                 onTapChannel: _onTapChannel,
@@ -825,6 +833,8 @@ Future<void> _handlePlaylist() async {
                       });
                     },
                     child: ChannelDrawerPage(
+                      key: _drawerRefreshKey,
+                      refreshKey: _drawerRefreshKey,
                       videoMap: _videoMap,
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
