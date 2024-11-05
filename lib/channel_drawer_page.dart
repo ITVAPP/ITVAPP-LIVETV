@@ -619,6 +619,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 保存 TvKeyNavigationState
+  void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
+    _tvKeyNavigationState = state;
+    // 如果父组件提供了回调，也调用它
+    widget.onTvKeyNavigationStateCreated?.call(state);
+  }
+  
   // 计算视图窗口的高度
   void _calculateViewportHeight() {
     WidgetsBinding.instance?.addPostFrameCallback((_) {
@@ -778,13 +785,15 @@ void _onCategoryTap(int index) {
   // 确保在状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
     // 调用刷新焦点组件
-      _tvKeyNavigationState?.releaseResources();
-      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: index);
+      if (_tvKeyNavigationState != null) { // 添加空值检查
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
+      }
       // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
   });
 }
-
+      
 // 切换分组时更新频道
 void _onGroupTap(int index) {
   setState(() {
@@ -808,12 +817,14 @@ void _onGroupTap(int index) {
     _scrollToTop(_scrollChannelController);
   });
 
-  // 确保在状态更新后重新初始化焦点系统
+  // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
       // 计算当前分组第一个频道项的焦点索引
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-      _tvKeyNavigationState?.releaseResources();
-      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      }
       // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
   });
@@ -1021,9 +1032,7 @@ Widget build(BuildContext context) {
     focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
     isVerticalGroup: true, // 启用竖向分组
     initialIndex: 0, // 组件不自动设置初始焦点
-    onStateCreated: (state) {
-      widget.onTvKeyNavigationStateCreated?.call(state);
-    },
+    onStateCreated: _handleTvKeyNavigationStateCreated, 
     child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),  // 构建抽屉页面
   );
 }
