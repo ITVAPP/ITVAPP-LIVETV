@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -148,7 +147,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 获取当前页面（widget）的类型名称
   String _getCacheName(BuildContext context) {
     String pageName = context.widget.runtimeType.toString();
-    // 将其与 "groupCache-" 拼接并返回
     return 'groupCache-$pageName';
   }
 
@@ -192,13 +190,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (widget.isFrame) {
       	if (widget.frameType == "parent") {
       	// 直接使用页面缓存，无需重新初始化
-        _groupFocusCache = Map.from('groupCache-tvsettingpage');
-        manageDebugOverlay(context, message: '使用 tvsettingpage 的缓存');
-        // 恢复焦点位置
-        if (_lastParentFocusIndex != null) {
-          _requestFocus(_lastParentFocusIndex!);
-          manageDebugOverlay(context, message: '恢复焦点到: $_lastParentFocusIndex');	
-          } 
+        	    String cacheName = 'groupCache-tvsettingpage';
+        	    if (_namedCaches.containsKey(cacheName)) {
+         	     _groupFocusCache = Map.from(_namedCaches[cacheName]!);
+          	    manageDebugOverlay(context, message: '使用 tvsettingpage 的缓存');
+         	   } else {
+          	    manageDebugOverlay(context, message: '未找到 tvsettingpage 的缓存');
+         	   }
+      
+         	   // 恢复焦点位置
+         	   if (_lastParentFocusIndex != null) {
+           	   _requestFocus(_lastParentFocusIndex!);
+         	     manageDebugOverlay(context, message: '恢复焦点到: $_lastParentFocusIndex');
+         	   }
       } else  {
          initializeFocusLogic();
       }
@@ -258,7 +262,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = !(widget.isFrame);  // 如果是Frame组件，禁用焦点管理
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
-    final cacheName = _getCacheName();
+    final cacheName = _getCacheName(context);
     if (cacheName.isNotEmpty) {
       _namedCaches.remove(cacheName);
     }
@@ -413,7 +417,7 @@ TvKeyNavigationState? _findParentNavigation() {
     }
     
     // 获取当前页面名称并保存缓存
-    final cacheName = _getCacheName();
+    final cacheName = _getCacheName(context);
     if (cacheName.isNotEmpty) {
       _namedCaches[cacheName] = Map.from(_groupFocusCache);
       manageDebugOverlay(context, message: '保存 $cacheName 的缓存');
