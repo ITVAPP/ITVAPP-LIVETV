@@ -68,6 +68,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false; // 新增：用于阻止选择键事件
   // 添加 TvKeyNavigationState 用于控制焦点管理
   TvKeyNavigationState? _drawerNavigationState;
+  ValueKey<int>? _drawerRefreshKey; // 刷新键状态
   
   // 打开设置页面
   Future<bool?> _opensetting() async {
@@ -168,6 +169,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           
           final bool isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
           widget.toggleFavorite!(widget.currentChannelId!);
+          
+          // 触发抽屉刷新
+          setState(() {
+            _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+          });
           
           // 使用 CustomSnackBar 显示操作结果
           if (mounted) {
@@ -347,7 +353,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     child: Offstage(
                       offstage: !_drawerIsOpen,
                       child: ChannelDrawerPage(
-                        key: const ValueKey('channel_drawer'),
+                        key: _drawerRefreshKey ?? const ValueKey('channel_drawer'), 
+                        refreshKey: _drawerRefreshKey, // 传递刷新键
                         videoMap: widget.videoMap, // 播放列表模型
                         playModel: widget.playModel, // 当前播放频道模型
                         isLandscape: true, // 横屏显示
