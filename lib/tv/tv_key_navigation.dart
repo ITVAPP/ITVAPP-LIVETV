@@ -145,21 +145,18 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   Widget build(BuildContext context) {
     return Focus(
-      canRequestFocus: _isFocusManagementActive,
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
+          // 如果是导航相关的按键，处理并阻止传递
           if (_isNavigationKey(event.logicalKey)) {
-            // 只在焦点管理激活时处理导航
-            if (_isFocusManagementActive) {
-              final result = _handleKeyEvent(node, event);
-              return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
-            }
-            return KeyEventResult.ignored;
+            final result = _handleKeyEvent(node, event);
+            return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
           }
         }
+        // 其他按键继续传递
         return KeyEventResult.ignored;
       },
-      child: widget.child,
+      child: widget.child, // 直接使用传入的子组件
     );
   }
 
