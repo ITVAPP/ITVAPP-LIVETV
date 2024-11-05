@@ -167,7 +167,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 根据 frameType 初始化焦点管理状态
     _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
     // 如果焦点管理未激活，则不处理按键事件
-    if (!_isFocusManagementActive) {
+    if (_isFocusManagementActive) {
        initializeFocusLogic(); // 调用初始化焦点逻辑
     }
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
