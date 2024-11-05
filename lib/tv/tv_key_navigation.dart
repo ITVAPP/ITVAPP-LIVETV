@@ -255,7 +255,7 @@ TvKeyNavigationState? _findChildNavigation() {
      if (navigationWidget.frameType == "child") {
        // 找到目标子页面并进行初始化
        childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-       childNavigation?.initializeFocusLogic();
+       // childNavigation?.initializeFocusLogic();
        manageDebugOverlay(context, message: '找到可用的子页面导航组件');
        return; // 停止递归
      }
@@ -286,7 +286,7 @@ TvKeyNavigationState? _findParentNavigation() {
        if (navigationWidget.frameType == "parent") {
          // 找到目标父页面并进行初始化
          parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
-         parentNavigation?.initializeFocusLogic(initialIndexOverride: _lastParentFocusIndex ?? 0);
+         // parentNavigation?.initializeFocusLogic(initialIndexOverride: _lastParentFocusIndex ?? 0);
          manageDebugOverlay(context, message: '找到可用的父页面导航组件');
          return; // 找到后停止遍历
        }
