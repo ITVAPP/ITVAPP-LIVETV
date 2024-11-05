@@ -151,11 +151,12 @@ class TvSettingPageState extends State<TvSettingPage> {
     // 获取当前语言
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    // 使用 FocusScope 包裹父页面的 TvKeyNavigation，确保父子页面焦点隔离
+    // 使用 FocusScope 包裹父页面的 TvKeyNavigation
     return FocusScope(
       child: TvKeyNavigation(
-        focusNodes: focusNodes, // 使用公有字段
-        initialIndex: selectedIndex + 1, // 使用公有字段
+        focusNodes: focusNodes, 
+        cacheName: 'TvSettingPage',  // 指定缓存名称
+        initialIndex: selectedIndex + 1, 
         isFrame: true, // 启用框架模式
         frameType: "parent", // 设置为父框架
         isVerticalGroup: true, // 启用竖向分组
