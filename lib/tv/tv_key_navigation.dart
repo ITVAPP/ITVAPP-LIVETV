@@ -175,10 +175,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       setState(() {
         _isFocusManagementActive = true;
       });
-      
-      // 激活时重新初始化焦点系统，不传递则使用 0
-      initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
-      manageDebugOverlay(context, message: '激活 ${widget.frameType} 页面的焦点管理');
+      manageDebugOverlay(context, message: '激活页面的焦点管理');
   }
 
   /// 停用焦点管理
@@ -190,7 +187,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           manageDebugOverlay(context, message: '保存父页面焦点位置: $_lastParentFocusIndex');
         }
       });
-      manageDebugOverlay(context, message: '停用 ${widget.frameType} 页面的焦点管理');
+      manageDebugOverlay(context, message: '停用页面的焦点管理');
   }
 
   @override
