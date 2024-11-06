@@ -131,5 +131,6 @@
   "copy": "複製",
   "copyok": "內容已複製到剪貼簿",
   "startsurlerror": "解析 URL 失敗",
-  "gethttperror": "本地網路配置失敗"
+  "gethttperror": "本地網路配置失敗",
+  "exittip": "期待你下一次的訪問！"
 }
