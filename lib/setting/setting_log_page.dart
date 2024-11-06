@@ -121,35 +121,37 @@ class _SettinglogPageState extends State<SettinglogPage> {
                     Group(
                       groupIndex: 0, // 日志开关分组
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 5.0),
-                          child: FocusableItem(
-                            focusNode: _focusNodes[0], // 为开关分配焦点节点
-                            child: SwitchListTile(
-                              title: Text(
-                                S.of(context).SwitchTitle,
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                              ),
-                              subtitle: Text(
-                                S.of(context).logSubtitle,
-                                style: TextStyle(fontSize: 16),
-                              ),
-                              value: isLogOn,
-                              onChanged: (value) {
-                                LogUtil.safeExecute(() {
-                                  context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
-                                }, '设置日志开关状态时出错');
-                              },
-                              activeColor: Colors.white, // 滑块的颜色
-                              activeTrackColor: _focusNodes[0].hasFocus
-                                  ? selectedColor // 聚焦时颜色变暗
-                                  : unselectedColor, // 启动时背景颜色
-                              inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
-                              inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
-                            ),
-                          ),
-                        ),
-                      ],
+                       Padding(
+                         padding: const EdgeInsets.symmetric(vertical: 5.0),
+                         child: FocusableItem(
+                           focusNode: _focusNodes[0], // 为开关分配焦点节点
+                           child: SwitchListTile(
+                             title: Text(
+                               S.of(context).SwitchTitle,
+                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                             ),
+                             subtitle: Text(
+                               S.of(context).logSubtitle,
+                               style: TextStyle(fontSize: 16),
+                             ),
+                             value: isLogOn,
+                             onChanged: (value) {
+                               LogUtil.safeExecute(() {
+                                 context.read<ThemeProvider>().setLogOn(value); // 使用 ThemeProvider 更新日志状态
+                               }, '设置日志开关状态时出错');
+                             },
+                             activeColor: Colors.white, // 滑块的颜色
+                             activeTrackColor: _focusNodes[0].hasFocus
+                                 ? selectedColor // 聚焦时颜色变暗
+                                 : unselectedColor, // 启动时背景颜色
+                             inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
+                             inactiveTrackColor: _focusNodes[0].hasFocus
+                                 ? selectedColor // 聚焦时颜色变暗
+                                 : Colors.grey, // 关闭时轨道的背景颜色
+                           ),
+                         ),
+                       ),
+                     ],
                     ),
                     if (isLogOn)
                       Expanded(
