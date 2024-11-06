@@ -34,7 +34,7 @@ class ShowExitConfirm {
         
         // 定义总步数和时间间隔
         const totalSteps = 100; // 100个百分点
-        const stepDuration = 50; // 每步50毫秒，总共5000毫秒
+        const stepDuration = 35; // 每步35毫秒，总共3500毫秒
         
         int currentStep = 0;
         Timer? timer;
@@ -50,34 +50,47 @@ class ShowExitConfirm {
               Material( 
                 type: MaterialType.transparency,
                 child: Center(
-                  child: Container(
-                    width: 108, // 整个区域大小
-                    height: 108,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // 圆环进度条
-                        CustomPaint(
-                          painter: CircleProgressPainter(
-                            currentStep / totalSteps, // 转换为0-1的进度值
-                            strokeWidth: 6.0, // 通过参数控制圆环粗细
-                          ),
-                          child: Container(
-                            width: 108, // 整个区域大小
-                            height: 108,
-                            alignment: Alignment.center,
-                            child: ClipOval(  // 裁剪图片为圆形
-                              child: Image.asset(
-                                'assets/images/logo.png',
-                                width: 78, // LOGO 的宽度
-                                height: 78, // LOGO 的高度
-                                fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 108, // logo区域大小
+                        height: 108,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // 圆环进度条
+                            CustomPaint(
+                              painter: CircleProgressPainter(
+                                currentStep / totalSteps, // 转换为0-1的进度值
+                                strokeWidth: 5.0, // 通过参数控制圆环粗细
+                              ),
+                              child: Container(
+                                width: 108, // logo区域大小
+                                height: 108,
+                                alignment: Alignment.center,
+                                child: ClipOval(  // 裁剪图片为圆形
+                                  child: Image.asset(
+                                    'assets/images/logo.png',
+                                    width: 78, // LOGO 的宽度
+                                    height: 78, // LOGO 的高度
+                                    fit: BoxFit.cover,  // 确保图片填充整个圆形区域
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8), // 添加间距
+                      Text(
+                        S.current.exittip,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -121,7 +134,7 @@ class CircleProgressPainter extends CustomPainter {
   final double progress;
   final double strokeWidth; // 添加圆环粗细参数
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = 6.0}); // 默认粗细
+  CircleProgressPainter(this.progress, {this.strokeWidth = 5.0}); // 默认粗细
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -153,8 +166,8 @@ class CircleProgressPainter extends CustomPainter {
     final arcRect = Rect.fromCircle(center: center, radius: radius);
     canvas.drawArc(
       arcRect,
-      90 * (3.14159 / 180), // 从底部开始 (90度)
-      -360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 负值使其逆时针方向绘制,乘以进度
+      90 * (3.14159 / 180), 
+      360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 正值使其顺时针方向绘制
       false,
       gradientPaint,
     );
