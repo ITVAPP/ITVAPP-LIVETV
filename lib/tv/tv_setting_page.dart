@@ -28,6 +28,7 @@ class TvSettingPageState extends State<TvSettingPage> {
   final List<FocusNode> focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
+  final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时背景颜色
 
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (_) => FocusNode());
@@ -86,19 +87,26 @@ class TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
+    final bool isSelected = selectedIndex == index;
+    final bool hasFocus = focusNodes[index + 1].hasFocus;
+    
     return FocusableItem(
       focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
       child: ListTile(
-        leading: Icon(icon), // 图标
+        leading: Icon(
+          icon,
+          color: Colors.white,
+        ), // 图标
         title: Text(
           title,
-          style: const TextStyle(fontSize: 22), // 设置文字大小
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: Colors.white,
+          ), // 设置文字大小
         ), // 标题
-        selected: selectedIndex == index, // 判断是否选中
-        selectedTileColor: selectedColor, // 选中时背景颜色
-        tileColor: focusNodes[index + 1].hasFocus
-            ? darkenColor(selectedIndex == index ? selectedColor : Colors.transparent) // 聚焦时变暗颜色
-            : (selectedIndex == index ? selectedColor : null), // 未选中时默认颜色
+        selected: isSelected, // 判断是否选中
+        tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 聚焦时显示黄色，选中时显示红色，否则透明
         onTap: () {
           if (selectedIndex != index) {
             setState(() {
@@ -179,7 +187,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                       child: ListTile(
                         leading: Icon(
                           Icons.arrow_back,
-                          color: focusNodes[0].hasFocus ? darkenColor(selectedColor) : Colors.white, // 焦点时改变颜色
+                          color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时改变为黄色
                         ),
                         onTap: () {
                           Navigator.of(context).pop(); // 返回到上一个页面
