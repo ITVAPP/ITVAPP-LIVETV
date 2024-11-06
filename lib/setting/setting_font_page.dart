@@ -45,8 +45,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
     for (var node in _focusNodes) node.dispose(); // 释放所有焦点节点资源
     super.dispose();
   }
-
-  Widget _buildFontSizeSection() {
+  
+Widget _buildFontSizeSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -80,14 +80,13 @@ class _SettingFontPageState extends State<SettingFontPage> {
                     onSelected: (bool selected) {
                       context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 更新字体大小
                     },
-                    selectedColor: _selectedColor,
+                    // 当选中时使用selectedColor
+                    selectedColor: _focusNodes[index].hasFocus 
+                        ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
+                        : _selectedColor,  // 选中但未聚焦时保持原色
                     backgroundColor: _focusNodes[index].hasFocus
-                        ? (context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                            ? darkenColor(_selectedColor) // 已选中且聚焦时
-                            : darkenColor(_unselectedColor)) // 未选中但聚焦时
-                        : (context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
-                            ? _selectedColor // 已选中且未聚焦
-                            : _unselectedColor), // 未选中且未聚焦
+                        ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
+                        : _unselectedColor,  // 未选中且未聚焦时保持原色
                     shape: _buttonShape,
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
                   ),
@@ -99,8 +98,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
       ],
     );
   }
-
-  Widget _buildLanguageSection() {
+  
+Widget _buildLanguageSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,14 +140,13 @@ class _SettingFontPageState extends State<SettingFontPage> {
                         onSelected: (bool selected) {
                           context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
                         },
-                        selectedColor: _selectedColor,
+                        // 当选中时使用selectedColor
+                        selectedColor: _focusNodes[index + 5].hasFocus 
+                            ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
+                            : _selectedColor,  // 选中但未聚焦时保持原色
                         backgroundColor: _focusNodes[index + 5].hasFocus
-                            ? (context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                ? darkenColor(_selectedColor) // 已选中且聚焦时
-                                : darkenColor(_unselectedColor)) // 未选中但聚焦时
-                            : (context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
-                                ? _selectedColor // 已选中且未聚焦
-                                : _unselectedColor), // 未选中且未聚焦
+                            ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
+                            : _unselectedColor,  // 未选中且未聚焦时保持原色
                         shape: _buttonShape,
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
                       ),
@@ -162,7 +160,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
       ],
     );
   }
-
+  
   @override
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
