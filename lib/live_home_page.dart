@@ -571,19 +571,32 @@ Future<void> _handlePlaylist() async {
     ) ?? false;
   }
 
-  /// 处理返回按键逻辑
-  Future<bool> _handleBackPress(BuildContext context) async {
-    if (_drawerIsOpen) {
-      // 如果抽屉打开则关闭抽屉
-      setState(() {
-        _drawerIsOpen = false;
-      });
-      return false;
-    }
-
-    // 弹出退出确认对话框
-    return await ShowExitConfirm.ExitConfirm(context);
+/// 处理返回按键逻辑
+Future<bool> _handleBackPress(BuildContext context) async {
+  if (_drawerIsOpen) {
+    // 如果抽屉打开则关闭抽屉
+    setState(() {
+      _drawerIsOpen = false;
+    });
+    return false;
   }
+
+  // 在显示退出确认对话框前检查视频状态并暂停
+  bool wasPlaying = _playerController?.value.isPlaying ?? false;
+  if (wasPlaying) {
+    await _playerController?.pause();
+  }
+
+  // 弹出退出确认对话框
+  bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+  
+  // 如果取消退出且视频之前在播放，则恢复播放
+  if (!shouldExit && wasPlaying && mounted) {
+    await _playerController?.play();
+  }
+  
+  return shouldExit;
+}
 
   @override
   void initState() {
