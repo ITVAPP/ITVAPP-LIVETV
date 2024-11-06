@@ -34,7 +34,7 @@ class ShowExitConfirm {
         
         // 定义总步数和时间间隔
         const totalSteps = 100; // 100个百分点
-        const stepDuration = 35; // 每步35毫秒，总共3500毫秒
+        const stepDuration = 50; // 每步50毫秒，总共5000毫秒
         
         int currentStep = 0;
         Timer? timer;
@@ -54,8 +54,8 @@ class ShowExitConfirm {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 108, // logo区域大小
-                        height: 108,
+                        width: 118, // logo区域大小
+                        height: 118,
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
@@ -66,14 +66,14 @@ class ShowExitConfirm {
                                 strokeWidth: 5.0, // 通过参数控制圆环粗细
                               ),
                               child: Container(
-                                width: 108, // logo区域大小
-                                height: 108,
+                                width: 118, // logo区域大小
+                                height: 118,
                                 alignment: Alignment.center,
                                 child: ClipOval(  // 裁剪图片为圆形
                                   child: Image.asset(
                                     'assets/images/logo.png',
-                                    width: 78, // LOGO 的宽度
-                                    height: 78, // LOGO 的高度
+                                    width: 88, // LOGO 的宽度
+                                    height: 88, // LOGO 的高度
                                     fit: BoxFit.cover,  // 确保图片填充整个圆形区域
                                   ),
                                 ),
@@ -88,6 +88,14 @@ class ShowExitConfirm {
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.5),
+                              offset: Offset(0, 1),
+                              blurRadius: 3,
+                            ),
+                          ],
                         ),
                       ),
                     ],
