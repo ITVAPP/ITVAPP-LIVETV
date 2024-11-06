@@ -53,12 +53,95 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   bool _isShowMenuBar = true; // 控制是否显示底部菜单栏
   bool _isShowPauseIcon = false; // 控制是否显示暂停图标
+  bool _isShowPlayIcon = false; // 新增：控制播放图标显示
+  bool _isShowDatePosition = false; // 新增：控制时间显示
   Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
 
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
+  
+// 统一的控制图标样式方法
+  Widget _buildControlIcon({
+    required IconData icon,
+    Color backgroundColor = Colors.black,
+    Color iconColor = Colors.white,
+    VoidCallback? onTap,
+  }) {
+    Widget iconWidget = Center(
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: backgroundColor.withOpacity(0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.7),
+              spreadRadius: 2,
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(10.0),
+        child: Icon(
+          icon,
+          size: 78,
+          color: iconColor.withOpacity(0.85),
+        ),
+      ),
+    );
 
-  // 创建一个私有方法，用于关闭抽屉
+    // 如果有点击事件,则包装 GestureDetector
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: iconWidget,
+      );
+    }
+    return iconWidget;
+  }
+
+  // 新增：处理选择键和确认键的点击事件
+  Future<void> _handleSelectPress() async {
+    // 1. 如果视频正在播放
+    if (widget.isPlaying) {
+      // 1.1 如果没有定时器在运行
+      if (!(_pauseIconTimer?.isActive ?? false)) {
+        // 1.11 如果正在播放中，显示暂停图标，并启动一个 3 秒的定时器
+        setState(() {
+          _isShowPauseIcon = true;
+          _isShowPlayIcon = false; // 确保播放图标隐藏
+        });
+        _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _isShowPauseIcon = false; // 在定时器结束时，隐藏暂停图标
+            });
+          }
+        });
+      } else {
+        // 1.2 如果有定时器在运行
+        await widget.controller?.pause(); // 暂停视频播放
+        _pauseIconTimer?.cancel(); // 取消定时器
+        setState(() {
+          _isShowPauseIcon = false; // 隐藏暂停图标
+          _isShowPlayIcon = true;   // 显示播放图标
+        });
+      }
+    } else {
+      // 1.12 如果正在暂停中，隐藏播放图标，播放视频
+      await widget.controller?.play();
+      setState(() {
+        _isShowPlayIcon = false; // 隐藏播放图标
+      });
+    }
+
+    // 2. 无论视频是否正在播放，切换时间的显示/隐藏状态
+    setState(() {
+      _isShowDatePosition = !_isShowDatePosition;
+    });
+  }
+
+  // 创建一个私有方法，用于关闭抽屉 (保持不变)
   void _closeDrawerIfOpen() {
     if (_drawerIsOpen) {
       setState(() {
@@ -67,8 +150,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
   }
-
-  @override
+  
+@override
   void initState() {
     super.initState();
     _drawerIsOpen = widget.drawerIsOpen; // 初始状态设置为 widget 传递的值
@@ -174,13 +257,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               _closeDrawerIfOpen(); 
               setState(() => _isShowMenuBar = false); // 隐藏菜单栏
           }
-          LogUtil.i('切换频道源按钮被点击');
           widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
       },
     );
   }
-
-  @override
+  
+@override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
 
@@ -188,45 +270,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       children: [
         // 视频播放区域
         GestureDetector(
-          onTap: () {
-          	
-           // 仅在横屏模式下操作
-            if (widget.isLandscape) {
-              _closeDrawerIfOpen(); 
-            setState(() {
-              _isShowMenuBar = !_isShowMenuBar; // 切换菜单栏显示/隐藏状态
-            });
-            }
-            
-            // 如果视频已暂停，单击继续播放视频
-            if (!widget.isPlaying) {
-              widget.controller?.play();
-            } else {
-              if (_isShowPauseIcon) {
-                // 如果暂停图标已显示，则暂停视频
-                widget.controller?.pause();
-                _pauseIconTimer?.cancel(); // 取消计时器
-                setState(() {
-                  _isShowPauseIcon = false;
-                });
-              } else {
-                // 显示暂停图标并启动计时器
-                setState(() {
-                  _isShowPauseIcon = true;
-                });
-                _pauseIconTimer?.cancel(); // 取消之前的计时器
-                _pauseIconTimer = Timer(const Duration(seconds: 2), () {
-                  if (mounted) {
-                    setState(() {
-                      _isShowPauseIcon = false;
-                    });
-                  }
-                });
-              }
-            }
-          },
-          // 双击播放/暂停视频
-          onDoubleTap: () {
+          onTap: _drawerIsOpen ? null : () => _handleSelectPress(),
+          onDoubleTap: _drawerIsOpen ? null : () {
             LogUtil.safeExecute(() {
               widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
             }, '双击播放/暂停发生错误');
@@ -244,22 +289,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频的实际宽高比
                         child: VideoPlayer(widget.controller!),
                       ),
-                      // 如果视频未播放且抽屉未打开，显示播放按钮
-                      if (!widget.isPlaying)
-                        GestureDetector(
-                          onTap: () {
-                            LogUtil.safeExecute(() => widget.controller?.play(), '显示播放按钮发生错误');
-                          },
-                          child: Opacity(
-                            opacity: 0.5, // 设置透明度
-                            child: Icon(Icons.play_circle_outline, color: _iconColor, size: 88),
-                          ),
+                      // 修改: 如果显示播放图标或视频未播放且抽屉未打开时显示播放按钮
+                      if (_isShowPlayIcon || (!widget.isPlaying && !_drawerIsOpen))
+                        _buildControlIcon(
+                          icon: Icons.play_arrow,
+                          onTap: () => _handleSelectPress(),
                         ),
-                      // 显示暂停图标
+                      // 修改: 显示暂停图标
                       if (_isShowPauseIcon)
-                        Opacity(
-                          opacity: 0.5, // 设置透明度
-                          child: Icon(Icons.pause_circle_outline, color: _iconColor, size: 88),
+                        _buildControlIcon(
+                          icon: Icons.pause,
                         ),
                     ],
                   )
@@ -272,9 +311,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         ),
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
-        // 横屏模式下的底部菜单栏按钮
+        // 修改：根据 _isShowDatePosition 控制时间显示
+        if (_isShowDatePosition && !_drawerIsOpen)
+          const DatePositionWidget(),
+          // 横屏模式下的底部菜单栏按钮
         if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar) ...[
-          const DatePositionWidget(), // 显示时间和日期的组件
           AnimatedPositioned(
             left: 0,
             right: 0,
