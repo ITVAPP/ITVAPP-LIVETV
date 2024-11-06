@@ -60,8 +60,12 @@ class TvPage extends StatefulWidget {
 }
 
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
+  // 添加常量定义暂停图标显示时间
+  static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
+  
   bool _drawerIsOpen = false; // 频道抽屉是否打开
   bool _isShowPauseIcon = false; // 是否显示暂停图标
+  bool _isShowPlayIcon = false; // 新增：是否显示播放图标
   Timer? _pauseIconTimer; // 暂停图标显示的计时器
   bool _isDatePositionVisible = false; // 控制 DatePositionWidget 显示隐藏
   bool _isError = false; // 标识是否播放过程中发生错误
@@ -70,7 +74,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey; // 刷新键状态
   
-  // 打开设置页面
+// 打开设置页面
   Future<bool?> _opensetting() async {
     try {
       return Navigator.push<bool>( // 使用 Navigator 打开新的页面
@@ -133,34 +137,90 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     } 
   }
   
-// 处理选择键逻辑  
-  Future<void> _handleSelectPress() async {
-    // 如果有一个定时器在运行，说明暂停图标正在显示
-    if (_pauseIconTimer?.isActive ?? false) {
-      widget.controller?.pause(); // 暂停视频播放
-      _pauseIconTimer?.cancel(); // 取消定时器
-    } else if (widget.isPlaying) {
-      // 如果视频正在播放且没有定时器，显示暂停图标并启动定时器
-      setState(() {
-        _isShowPauseIcon = true; // 显示暂停图标
-      });
-      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-        setState(() {
-          _isShowPauseIcon = false; // 3秒后隐藏暂停图标
-        });
-      });
-    } else if (widget.controller != null && !widget.controller!.value.isPlaying) {
-      // 如果视频已暂停且定时器未运行，则继续播放视频
-      widget.controller?.play();
-    } else {
-      // 如果既没有定时器且视频也不在暂停状态，控制时间和收藏图标的显示和隐藏
-      setState(() {
-        _isDatePositionVisible = !_isDatePositionVisible;
-      });
-    }
+// 新增显示控制图标的工具方法
+  Widget _buildControlIcon({
+    required IconData icon,
+    Color backgroundColor = Colors.black,
+    Color iconColor = Colors.white,
+  }) {
+    return Center(
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: backgroundColor.withOpacity(0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.7),
+              spreadRadius: 2,
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(10.0),
+        child: Icon(
+          icon,
+          size: 78,
+          color: iconColor.withOpacity(0.85),
+        ),
+      ),
+    );
+  }
+
+  // 构建暂停图标
+  Widget _buildPauseIcon() {
+    return _buildControlIcon(icon: Icons.pause);
+  }
+
+  // 构建播放图标
+  Widget _buildPlayIcon() {
+    return _buildControlIcon(icon: Icons.play_arrow);
   }
   
-  // 处理键盘事件的函数，处理遥控器输入
+  // 修改后的选择键处理逻辑
+  Future<void> _handleSelectPress() async {
+    // 1. 如果视频正在播放
+    if (widget.isPlaying) {
+      // 1.1 如果没有定时器在运行
+      if (!(_pauseIconTimer?.isActive ?? false)) {
+        // 1.11 如果正在播放中，显示暂停图标，并启动定时器
+        setState(() {
+          _isShowPauseIcon = true;
+          _isShowPlayIcon = false;  // 确保播放图标隐藏
+        });
+        _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
+          if (mounted) {
+            setState(() {
+              _isShowPauseIcon = false;
+            });
+          }
+        });
+      } else {
+        // 1.2 如果有定时器在运行
+        await widget.controller?.pause(); // 暂停视频播放
+        _pauseIconTimer?.cancel(); // 取消定时器
+        setState(() {
+          _isShowPauseIcon = false; // 隐藏暂停图标
+          _isShowPlayIcon = true;   // 显示播放图标
+        });
+      }
+    } else {
+      // 1.12 如果正在暂停中，隐藏播放图标，播放视频
+      if (widget.controller != null && !widget.controller!.value.isPlaying) {
+        await widget.controller?.play();
+        setState(() {
+          _isShowPlayIcon = false;  // 隐藏播放图标
+        });
+      }
+    }
+
+    // 2. 无论视频是否正在播放，都切换时间和收藏图标的显示状态
+    setState(() {
+      _isDatePositionVisible = !_isDatePositionVisible;
+    });
+  }
+  
+// 处理键盘事件的函数
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled; // 只处理按键释放事件
 
@@ -260,6 +320,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       LogUtil.logError('释放 controller 失败', e); // 记录释放失败的错误
     }
     _blockSelectKeyEvent = false; // 重置阻止标记
+    _isShowPlayIcon = false; // 新增：重置播放图标状态
+    _isShowPauseIcon = false; // 新增：重置暂停图标状态
     if (_drawerNavigationState != null) {
       _drawerNavigationState!.deactivateFocusManagement();
       _drawerNavigationState = null;
@@ -267,7 +329,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.dispose(); // 调用父类的 dispose 方法
   }
   
-  // 构建收藏图标
+// 构建收藏图标
   Widget _buildFavoriteIcon() {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
       return const SizedBox(); // 如果没有必要的数据，返回空组件
@@ -322,31 +384,17 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       );
                     },
                   ),
-
-                  // 仅在视频播放器显示且视频暂停时显示播放图标
-                  if (widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying)
-                    Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle, // 设置形状为圆形
-                          color: Colors.black.withOpacity(0.5), // 半透明黑色背景
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.7), // 阴影颜色
-                              spreadRadius: 2, // 阴影扩散半径
-                              blurRadius: 10, // 阴影模糊半径
-                              offset: const Offset(0, 3), // 阴影偏移量
-                              ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(10.0), // 设置内边距
-                        child: Icon(
-                          Icons.play_arrow, // 播放图标
-                          size: 78,
-                          color: Colors.white.withOpacity(0.85), // 半透明白色
-                        ),
-                      ),
-                    ),
+                  
+                  // 显示暂停图标
+                  if (_isShowPauseIcon) 
+                    _buildPauseIcon(),
+                    
+                  // 修改后的播放图标显示逻辑，使用 _isShowPlayIcon 来控制
+                  if (_isShowPlayIcon &&
+                      widget.controller != null && 
+                      widget.controller!.value.isInitialized && 
+                      !widget.controller!.value.isPlaying)
+                    _buildPlayIcon(),
 
                   // 显示日期位置组件
                   if (_isDatePositionVisible) const DatePositionWidget(),
@@ -355,7 +403,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                   if (_isDatePositionVisible && !_drawerIsOpen) 
                     _buildFavoriteIcon(),
                  
-                 // 显示缓冲指示器
+                  // 显示缓冲指示器
                   if (widget.controller != null &&
                       widget.controller!.value.isInitialized &&
                       (widget.isBuffering || _isError) && !_drawerIsOpen)
