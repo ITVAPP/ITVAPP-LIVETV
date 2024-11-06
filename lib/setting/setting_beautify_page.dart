@@ -23,7 +23,6 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
   @override
   void initState() {
     super.initState();
-    // 监听焦点变化，焦点变化时触发重绘
     for (var focusNode in _focusNodes) {
       focusNode.addListener(() {
         setState(() {}); // 焦点变化时触发setState来重绘UI
@@ -33,7 +32,6 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
   
   @override
   void dispose() {
-    // 释放焦点资源
     _focusNodes.forEach((node) => node.dispose()); // 释放所有焦点节点
     super.dispose();
   }
@@ -109,10 +107,12 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                                 },
                                 activeColor: Colors.white, // 滑块的颜色
                                 activeTrackColor: _focusNodes[0].hasFocus
-                                   ? selectedColor // 聚焦时颜色变暗
-                                   : selectedColor, // 启动时背景颜色
+                                   ? selectedColor // 聚焦时颜色
+                                   : unselectedColor, // 未聚焦时颜色
                                 inactiveThumbColor: Colors.white, // 关闭时滑块的颜色
-                                inactiveTrackColor: Colors.grey, // 关闭时轨道的背景颜色
+                                inactiveTrackColor: _focusNodes[0].hasFocus
+                                   ? selectedColor // 聚焦时颜色
+                                   : Colors.grey, // 未聚焦时颜色
                               ),
                             ),
                           ),
