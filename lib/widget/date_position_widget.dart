@@ -49,7 +49,7 @@ class DatePositionWidget extends StatelessWidget {
                     fontWeight: FontWeight.bold, // 增加字体粗细
                     shadows: const [
                       Shadow(
-                        blurRadius: 8.0, // 增加模糊效果
+                        blurRadius: 3.0, // 模糊效果
                         color: Colors.black,
                         offset: Offset(0, 1),
                       ),
@@ -68,7 +68,7 @@ class DatePositionWidget extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       shadows: const [
                         Shadow(
-                          blurRadius: 10.0, // 模糊效果
+                          blurRadius: 3.0, // 模糊效果
                           color: Colors.black,
                           offset: Offset(0, 1),
                         ),
