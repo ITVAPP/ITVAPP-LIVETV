@@ -131,5 +131,6 @@
   "copy": "Copy",
   "copyok": "Content copied to clipboard",
   "startsurlerror": "Failed to parse URL",
-  "gethttperror": "Local network configuration failed"
+  "gethttperror": "Local network configuration failed",
+  "exittip": "We look forward to your next visit！"
 }
