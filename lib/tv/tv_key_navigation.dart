@@ -256,11 +256,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = !(widget.isFrame);  // 如果是Frame组件，禁用焦点管理
     _currentFocus = null; // 清除当前焦点
     _lastParentFocusIndex = null; // 清除父页面焦点记录
-    // 修改使用 widget.cacheName
-    final cacheName = 'groupCache-${widget.cacheName ?? "TvKeyNavigation"}';
-    if (cacheName.isNotEmpty) {
-      _namedCaches.remove(cacheName);
-    }
     WidgetsBinding.instance.removeObserver(this);
   }
 
