@@ -151,6 +151,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "copy": MessageLookupByLibrary.simpleMessage("Copy"),
         "copyok": MessageLookupByLibrary.simpleMessage("Content copied to clipboard"),
         "startsurlerror": MessageLookupByLibrary.simpleMessage("Failed to parse URL"),
-        "gethttperror": MessageLookupByLibrary.simpleMessage("Local network configuration failed")
+        "gethttperror": MessageLookupByLibrary.simpleMessage("Local network configuration failed"),
+        "exittip": MessageLookupByLibrary.simpleMessage("We look forward to your next visit")
       };
 }
