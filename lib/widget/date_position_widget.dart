@@ -17,8 +17,8 @@ class DatePositionWidget extends StatelessWidget {
       (_) => DateTime.now(),
     );
     return Positioned(
-      top: isLandscape ? 18 : 12, // 横屏时距离顶部更远
-      right: isLandscape ? 22 : 12, // 横屏时距离右侧更远
+      top: isLandscape ? 12 : 8, // 横屏时距离顶部更远
+      right: isLandscape ? 16 : 6, // 横屏时距离右侧更远
       child: IgnorePointer(
         child: StreamBuilder<DateTime>(
           stream: timeStream,  // 监听时间流
@@ -58,7 +58,7 @@ class DatePositionWidget extends StatelessWidget {
                 ),
                 // 第二行显示时间
                 Positioned(
-                  top: isLandscape ? 18 : 9, // 控制日期和时间之间的间距
+                  top: isLandscape ? 16 : 8, // 控制日期和时间之间的间距
                   right: 0, // 右对齐
                   child: Text(
                     formattedTime,
