@@ -102,7 +102,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 处理返回按键逻辑
+  // 处理返回按键逻辑 - 已修改
   Future<bool> _handleBackPress(BuildContext context) async {
     // 如果抽屉是打开的，则关闭抽屉
     if (_drawerIsOpen) {
@@ -115,11 +115,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       Navigator.pop(context);
       return false;
     } else {
-      return await ShowExitConfirm.ExitConfirm(context);
+      // 在显示退出确认对话框前检查视频状态并暂停
+      bool wasPlaying = widget.controller?.value.isPlaying ?? false;
+      if (wasPlaying) {
+        await widget.controller?.pause();
+      }
+      
+      // 显示退出确认对话框
+      bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+      
+      // 如果取消退出且视频之前在播放，则恢复播放
+      if (!shouldExit && wasPlaying) {
+        await widget.controller?.play();
+      }
+      
+      return shouldExit;
     } 
   }
   
-  // 处理选择键逻辑  
+// 处理选择键逻辑  
   Future<void> _handleSelectPress() async {
     // 如果有一个定时器在运行，说明暂停图标正在显示
     if (_pauseIconTimer?.isActive ?? false) {
@@ -217,7 +231,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;  // 返回 KeyEventResult.handled
   }
   
-  // 处理 EPGList 节目点击事件，确保点击后抽屉关闭
+// 处理 EPGList 节目点击事件，确保点击后抽屉关闭
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true; // 标记需要阻止选择键事件
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
@@ -387,7 +401,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-// 管理抽屉显示/隐藏和焦点管理的方法
+  // 管理抽屉显示/隐藏和焦点管理的方法
   void _toggleDrawer(bool isOpen) {
     if (_drawerIsOpen == isOpen) return;
 
