@@ -60,7 +60,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
   
-// 统一的控制图标样式方法
+  // 统一的控制图标样式方法
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -151,7 +151,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
   
-@override
+  @override
   void initState() {
     super.initState();
     _drawerIsOpen = widget.drawerIsOpen; // 初始状态设置为 widget 传递的值
@@ -262,7 +262,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
   
-@override
+  @override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
 
@@ -304,8 +304,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   )
                 // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
                 : VideoHoldBg(
-                    videoController: widget.controller ?? VideoPlayerController.network(''),
                     toastString: _drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
+                    showBingBackground: false, // 可根据需求设置为 true 或 false
                   ),
           ),
         ),
@@ -314,7 +314,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 修改：根据 _isShowDatePosition 控制时间显示
         if (_isShowDatePosition && !_drawerIsOpen)
           const DatePositionWidget(),
-          // 横屏模式下的底部菜单栏按钮
+        // 横屏模式下的底部菜单栏按钮
         if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar) ...[
           AnimatedPositioned(
             left: 0,
