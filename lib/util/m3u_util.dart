@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:sp_util/sp_util.dart';
+import 'package:intl/intl.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:sp_util/sp_util.dart';
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 import '../config.dart';
@@ -256,7 +257,12 @@ class M3uUtil {
   static Future<String> _fetchData() async {
     try {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
-      final res = await HttpUtil().getRequest(defaultM3u);
+      
+      // 添加时间参数，格式为 "yyyyMMddHH"
+      final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
+      final urlWithTimeParam = '$defaultM3u?time=$timeParam'; // 将时间参数附加到 URL 中
+
+      final res = await HttpUtil().getRequest(urlWithTimeParam);
       return res ?? ''; // 返回空字符串表示获取失败
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
@@ -526,7 +532,7 @@ class M3uUtil {
       } else {
         // 处理非标准M3U文件
         String tempGroup = S.current.defaultText;
-        for (int i = 0; i < lines.length; i++) {
+                for (int i = 0; i < lines.length; i++) {
           final line = lines[i];
           final lineList = line.split(',');
           if (lineList.length >= 2) {
