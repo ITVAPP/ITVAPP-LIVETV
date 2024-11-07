@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../generated/l10n.dart';
@@ -10,8 +9,9 @@ import '../gradient_progress_bar.dart';
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
-  final VideoPlayerController videoController;
-  const VideoHoldBg({Key? key, required this.toastString, required this.videoController}) : super(key: key);
+  final bool showBingBackground; // 可选参数：是否显示 Bing 背景，默认 false
+
+  const VideoHoldBg({Key? key, required this.toastString, this.showBingBackground = false}) : super(key: key);
 
   @override
   _VideoHoldBgState createState() => _VideoHoldBgState();
@@ -41,14 +41,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     // 启动动画
     _animationController.forward();
 
-    // 监听视频播放状态，判断是否为音频，并且仅当状态变化时更新 UI
-    widget.videoController.addListener(_handleVideoUpdate);
-
-    // 初始化时检查是否播放音频，直接判断当前状态
-    final videoSize = widget.videoController.value.size;
-    final isPlayingAudio = widget.videoController.value.isPlaying &&
-        (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
-    if (isPlayingAudio && !_isBingLoaded) {
+    // 判断是否需要加载 Bing 背景
+    if (widget.showBingBackground && !_isBingLoaded) {
       _loadBingBackgrounds();
     }
 
@@ -70,18 +64,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     });
 
     _textAnimationController.forward();
-  }
-
-  // 处理视频播放状态变化，仅在状态变化时更新 UI
-  void _handleVideoUpdate() {
-    final videoSize = widget.videoController.value.size;
-    final isPlayingAudio = widget.videoController.value.isPlaying &&
-        (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
-
-    // 仅当状态发生变化时才更新 UI
-    if (isPlayingAudio && !_isBingLoaded) {
-      setState(() {});
-    }
   }
 
   // 异步加载 Bing 图片 URL 列表
@@ -117,7 +99,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     _textAnimationController.dispose(); // 销毁文字滚动动画控制器
     _timer?.cancel();  // 销毁定时器
     _timer = null;  // 将定时器置空，防止多次调用
-    widget.videoController.removeListener(_handleVideoUpdate); // 移除监听器，防止内存泄漏
     super.dispose();
   }
 
@@ -140,33 +121,23 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       // 使用Selector从ThemeProvider中选择isBingBg属性，确定是否启用Bing背景
       selector: (_, provider) => provider.isBingBg,
       builder: (BuildContext context, bool isBingBg, Widget? child) {
-        // 判断是否启用 Bing 背景并且视频正在播放音频（通过尺寸判断）
-        final videoSize = widget.videoController.value.size;
-        final isPlayingAudio = widget.videoController.value.isPlaying &&
-            (videoSize == null || videoSize.width == 0 || videoSize.height == 0);
-
-        if (isBingBg && isPlayingAudio && !_isBingLoaded) {
-          // 如果启用Bing背景且播放的是音频，并且未加载过，开始加载Bing图片
+        // 判断是否启用 Bing 背景，取决于外部传入的 showBingBackground 参数
+        if (widget.showBingBackground && isBingBg && !_isBingLoaded) {
           _loadBingBackgrounds();
         }
 
         return Stack(
           children: [
-            // 判断视频是否开始播放
-            if (!widget.videoController.value.isInitialized || !widget.videoController.value.isPlaying)
-              // 视频未开始播放，显示本地背景
-              _buildLocalBg()
-            else if (isPlayingAudio)
-              // 视频播放音频时，根据isBingBg决定背景
-              AnimatedBuilder(
-                animation: _fadeAnimation,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: _fadeAnimation.value,
-                    child: isBingBg ? _buildBingBg() : _buildLocalBg(),
-                  );
-                },
-              ),
+            // 根据showBingBackground决定背景
+            AnimatedBuilder(
+              animation: _fadeAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: (widget.showBingBackground && isBingBg) ? _buildBingBg() : _buildLocalBg(),
+                );
+              },
+            ),
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
