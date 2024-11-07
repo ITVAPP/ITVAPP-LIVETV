@@ -21,9 +21,14 @@ class StreamUrl {
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
       // 如果不是需要解析的URL，避免后续处理
-      if (!_isVideoPlatformUrl(url)) {
+      
+       if (_isLZUrl(url)){
+        return 'https://lz.qaiu.top/parser?url=$url'; 
+      } 
+      
+      if (!_isYTUrl(url)) {
         return url; // 直接返回原始 URL
-      }
+      } 
       
       // 如果是需要解析的URL，判断是哪个平台，或是youtube的直播流还是普通视频
       if (url.contains('ytlive')) {
@@ -78,7 +83,12 @@ class StreamUrl {
   }
 
   // 判断 URL 是否为需要解析处理的链接
-  bool _isVideoPlatformUrl(String url) {
+  bool _isLZUrl(String url) {
+    return url.contains('lanzou.com') ;
+  }
+  
+  // 判断 URL 是否为需要解析处理的链接
+  bool _isYTUrl(String url) {
     return url.contains('youtube.com') || url.contains('youtu.be');
   }
 
