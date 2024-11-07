@@ -394,7 +394,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       }
                       return VideoHoldBg(
                         toastString: _drawerIsOpen ? '' : widget.toastString,
-                        videoController: VideoPlayerController.network(''),
+                        showBingBackground: false, // 可根据需求设置为 true 或 false
                       );
                     },
                   ),
