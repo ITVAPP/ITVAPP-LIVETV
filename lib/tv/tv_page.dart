@@ -73,10 +73,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 添加 TvKeyNavigationState 用于控制焦点管理
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey; // 刷新键状态
-  
 // 打开设置页面
   Future<bool?> _opensetting() async {
     try {
+      // 在打开设置页面前设置播放图标显示
+      setState(() {
+        _isShowPlayIcon = true;
+      });
+      
       return Navigator.push<bool>( // 使用 Navigator 打开新的页面
         context,
         PageRouteBuilder(
@@ -123,21 +127,28 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       bool wasPlaying = widget.controller?.value.isPlaying ?? false;
       if (wasPlaying) {
         await widget.controller?.pause();
+        // 添加显示播放图标
+        setState(() {
+          _isShowPlayIcon = true;
+        });
       }
       
       // 显示退出确认对话框
       bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
       
-      // 如果取消退出且视频之前在播放，则恢复播放
+      // 如果取消退出且视频之前在播放，则恢复播放并隐藏播放图标
       if (!shouldExit && wasPlaying) {
         await widget.controller?.play();
+        setState(() {
+          _isShowPlayIcon = false;
+        });
       }
       
       return shouldExit;
     } 
   }
-  
-// 新增显示控制图标的工具方法
+
+  // 保持原有的控制图标构建方法不变
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -177,7 +188,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
   
-  // 修改后的选择键处理逻辑
+// 保持原有的选择键处理逻辑不变
   Future<void> _handleSelectPress() async {
     // 1. 如果视频正在播放
     if (widget.isPlaying) {
@@ -220,7 +231,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
   
-// 处理键盘事件的函数
+// 处理键盘事件的函数 - 修改了下方向键处理部分
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled; // 只处理按键释放事件
 
@@ -266,7 +277,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         await widget.changeChannelSources?.call(); // 切换视频源
         break;
       case LogicalKeyboardKey.arrowDown:   // 处理下键操作
-        widget.controller?.pause(); // 暂停视频播放	
+        widget.controller?.pause(); // 暂停视频播放
+        setState(() {
+          _isShowPlayIcon = true;  // 显示播放图标
+        });
         _opensetting(); // 打开设置页面
         break;
       case LogicalKeyboardKey.select: // 处理选择键
@@ -291,7 +305,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;  // 返回 KeyEventResult.handled
   }
   
-// 处理 EPGList 节目点击事件，确保点击后抽屉关闭
+// 保持 EPGList 节目点击事件处理不变
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true; // 标记需要阻止选择键事件
     widget.onTapChannel?.call(selectedProgram); // 切换到选中的节目
@@ -329,7 +343,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.dispose(); // 调用父类的 dispose 方法
   }
   
-// 构建收藏图标
+// 保持收藏图标构建方法不变
   Widget _buildFavoriteIcon() {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
       return const SizedBox(); // 如果没有必要的数据，返回空组件
@@ -409,7 +423,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       (widget.isBuffering || _isError) && !_drawerIsOpen)
                     _buildBufferingIndicator(),
 
-                  // 频道抽屉显示 - 修改后的实现
+                  // 频道抽屉显示
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Offstage(
@@ -449,7 +463,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 管理抽屉显示/隐藏和焦点管理的方法
+// 管理抽屉显示/隐藏和焦点管理的方法
   void _toggleDrawer(bool isOpen) {
     if (_drawerIsOpen == isOpen) return;
 
