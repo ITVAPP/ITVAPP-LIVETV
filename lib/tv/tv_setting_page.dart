@@ -79,8 +79,8 @@ class TvSettingPageState extends State<TvSettingPage> {
       );
     }
   }
-
-  // 通用方法：构建菜单项
+  
+// 通用方法：构建菜单项
   Widget buildListTile({
     required IconData icon,
     required String title,
@@ -88,33 +88,79 @@ class TvSettingPageState extends State<TvSettingPage> {
     required VoidCallback onTap,
   }) {
     final bool isSelected = selectedIndex == index;
-    final bool hasFocus = focusNodes[index + 1].hasFocus;
     
     return FocusableItem(
       focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: Colors.white,
-        ), // 图标
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: Colors.white,
-          ), // 设置文字大小
-        ), // 标题
-        selected: isSelected, // 判断是否选中
-        tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 聚焦时显示黄色，选中时显示红色，否则透明
-        onTap: () {
-          if (selectedIndex != index) {
-            setState(() {
-              selectedIndex = index; // 更新选中项索引
-              _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
-            });
-          }
-          onTap(); // 触发传入的 onTap 事件
+      child: Builder(
+        builder: (context) {
+          final bool hasFocus = focusNodes[index + 1].hasFocus;
+          
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 2), // 添加垂直间距
+            decoration: BoxDecoration(
+              color: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent),
+              borderRadius: BorderRadius.circular(4), // 添加圆角
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: ListTile(
+                leading: Icon(
+                  icon,
+                  color: Colors.white,
+                ), // 图标
+                title: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: (isSelected || hasFocus) ? FontWeight.bold : FontWeight.normal,
+                    color: Colors.white,
+                  ), // 设置文字大小
+                ), // 标题
+                selected: isSelected, // 判断是否选中
+                onTap: () {
+                  if (selectedIndex != index) {
+                    setState(() {
+                      selectedIndex = index; // 更新选中项索引
+                      _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
+                    });
+                  }
+                  onTap(); // 触发传入的 onTap 事件
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // 构建返回按钮
+  Widget buildBackButton() {
+    return FocusableItem(
+      focusNode: focusNodes[0], // 返回按钮的 FocusNode
+      child: Builder(
+        builder: (context) {
+          final bool hasFocus = focusNodes[0].hasFocus;
+          
+          return Container(
+            margin: const EdgeInsets.all(8), // 添加边距
+            decoration: BoxDecoration(
+              color: hasFocus ? focusedColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(4), // 添加圆角
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: ListTile(
+                leading: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                ),
+                onTap: () {
+                  Navigator.of(context).pop(); // 返回到上一个页面
+                },
+              ),
+            ),
+          );
         },
       ),
     );
@@ -153,7 +199,7 @@ class TvSettingPageState extends State<TvSettingPage> {
         return Container(); // 空页面，避免未匹配的索引时出错
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     // 获取当前语言
@@ -177,23 +223,15 @@ class TvSettingPageState extends State<TvSettingPage> {
           children: [
             // 左侧菜单部分
             SizedBox(
-              width: 218,
+              width: 228,
               child: Group(
                 groupIndex: 0, // 菜单分组
                 child: Scaffold(
+                  backgroundColor: Colors.transparent, // 设置透明背景
                   appBar: AppBar(
-                    leading: FocusableItem(
-                      focusNode: focusNodes[0], // 返回按钮的 FocusNode
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.arrow_back,
-                          color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时改变为黄色
-                        ),
-                        onTap: () {
-                          Navigator.of(context).pop(); // 返回到上一个页面
-                        },
-                      ),
-                    ),
+                    backgroundColor: Colors.transparent, // 设置透明背景
+                    elevation: 0, // 移除阴影
+                    leading: buildBackButton(), // 使用新的返回按钮构建方法
                     title: Consumer<LanguageProvider>(
                       builder: (context, languageProvider, child) {
                         return Text(
@@ -207,65 +245,68 @@ class TvSettingPageState extends State<TvSettingPage> {
                     ),
                   ),
                   // 使用 Group 包裹所有 FocusableItem 分组
-                  body: Column(
-                    children: [
-                      buildListTile(
-                        icon: Icons.subscriptions,
-                        title: S.of(context).subscribe, // 订阅
-                        index: 0,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 0;
-                            _confirmedIndex = 0; // 用户按下确认键后更新页面
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.font_download,
-                        title: S.of(context).fontTitle, // 字体
-                        index: 1,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 1;
-                            _confirmedIndex = 1; // 用户按下确认键后更新页面
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.brush,
-                        title: S.of(context).backgroundImageTitle, // 背景图
-                        index: 2,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 2;
-                            _confirmedIndex = 2; // 用户按下确认键后更新页面
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.view_list,
-                        title: S.of(context).slogTitle, // 日志
-                        index: 3,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 3;
-                            _confirmedIndex = 3; // 用户按下确认键后更新页面
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.system_update,
-                        title: S.of(context).updateTitle, // 更新
-                        index: 4,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 4;
-                            _confirmedIndex = 4; // 用户按下确认键后更新页面
-                          });
-                          _checkForUpdates(); // 调用检查更新逻辑
-                        },
-                      ),
-                    ],
+                  body: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // 添加内边距
+                    child: Column(
+                      children: [
+                        buildListTile(
+                          icon: Icons.subscriptions,
+                          title: S.of(context).subscribe, // 订阅
+                          index: 0,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 0;
+                              _confirmedIndex = 0; // 用户按下确认键后更新页面
+                            });
+                          },
+                        ),
+                        buildListTile(
+                          icon: Icons.font_download,
+                          title: S.of(context).fontTitle, // 字体
+                          index: 1,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 1;
+                              _confirmedIndex = 1; // 用户按下确认键后更新页面
+                            });
+                          },
+                        ),
+                        buildListTile(
+                          icon: Icons.brush,
+                          title: S.of(context).backgroundImageTitle, // 背景图
+                          index: 2,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 2;
+                              _confirmedIndex = 2; // 用户按下确认键后更新页面
+                            });
+                          },
+                        ),
+                        buildListTile(
+                          icon: Icons.view_list,
+                          title: S.of(context).slogTitle, // 日志
+                          index: 3,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 3;
+                              _confirmedIndex = 3; // 用户按下确认键后更新页面
+                            });
+                          },
+                        ),
+                        buildListTile(
+                          icon: Icons.system_update,
+                          title: S.of(context).updateTitle, // 更新
+                          index: 4,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 4;
+                              _confirmedIndex = 4; // 用户按下确认键后更新页面
+                            });
+                            _checkForUpdates(); // 调用检查更新逻辑
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
