@@ -165,6 +165,8 @@ Future<void> _playVideo() async {
           });
         }
 
+        LogUtil.i('准备播放：$parsedUrl');
+
         // 如果是调试模式，显示确认对话框
         if (isDebugMode) {
             bool shouldPlay = await _showConfirmationDialog(context, parsedUrl);
@@ -186,9 +188,9 @@ Future<void> _playVideo() async {
         // 等待初始化完成
         try {
             await newController.initialize();
-        } catch (e) {
+        } catch (e, stackTrace) {
             await newController.dispose();
-            throw e;
+            LogUtil.logError('初始化出错', e, stackTrace);
         }
 
         // 确保状态正确后再设置控制器
@@ -210,8 +212,6 @@ Future<void> _playVideo() async {
             _retryCount = 0;
             _timeoutActive = false;
         });
-
-        LogUtil.i('准备播放：$parsedUrl');
       
         // 添加监听并开始播放
         _playerController?.addListener(_videoListener);
