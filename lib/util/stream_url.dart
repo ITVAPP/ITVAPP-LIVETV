@@ -112,19 +112,27 @@ class StreamUrl {
   Future<String?> _getYouTubeVideoUrl() async {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      var video = await yt.videos.get(url).timeout(timeoutDuration);  
+      // 提取视频ID
+      String videoId = url;
+      if (url.contains('youtube.com')) {
+        videoId = Uri.parse(url).queryParameters['v'] ?? url;
+      } else if (url.contains('youtu.be')) {
+        videoId = url.split('/').last;
+      }
+
+      var video = await yt.videos.get(videoId).timeout(timeoutDuration);  
       if (_isDisposed) return null;  // 如果资源被释放，立即退出
           
       if (video.isLive) {
         return await _getYouTubeLiveStreamUrl();
       } else {
-        var manifest = await yt.videos.streamsClient.getManifest(video.id).timeout(timeoutDuration);  
+        var manifest = await yt.videos.streams.getManifest(video.id).timeout(timeoutDuration);  
         var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
         var streamUrl = streamInfo?.url.toString();
             
         if (streamUrl != null && streamUrl.contains('http')) {
           // 如果解析成功，返回 URL
-          LogUtil.i('获取到 YT 直播流地址: $streamUrl');
+          LogUtil.i('获取到 YT 视频流地址: $streamUrl');
           return streamUrl;
         }
       }
@@ -139,19 +147,30 @@ class StreamUrl {
   StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
+      // 首先尝试找到指定清晰度的流
       for (var quality in preferredQualities) {
-        var streamInfo = manifest.muxed.firstWhere(
-          (element) => element.qualityLabel == quality,
-          orElse: () => manifest.muxed.last,
-        );
-        if (streamInfo != null) {
-          return streamInfo;
+        try {
+          var streamInfo = manifest.muxed.firstWhere(
+            (element) => element.qualityLabel == quality,
+            orElse: () => manifest.muxed.last,
+          );
+          if (streamInfo != null) {
+            return streamInfo;
+          }
+        } catch (_) {
+          continue;
         }
         if (_isDisposed) return null;  // 资源释放后立即退出
+      }
+      
+      // 如果没找到指定清晰度，返回最高品质的流
+      if (manifest.muxed.isNotEmpty) {
+        return manifest.muxed.withHighestBitrate();
       }
       return null;
     } catch (e, stackTrace) {
       if (!_isDisposed) {
+        LogUtil.logError('选择视频流时发生错误', e, stackTrace);
         return null;
       }
       return null;
@@ -181,6 +200,7 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
+        LogUtil.logError('获取 YT m3u8 地址时发生错误', e, stackTrace);
         return null;
       }
     }
@@ -224,6 +244,7 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
+        LogUtil.logError('获取 m3u8 质量地址时发生错误', e, stackTrace);
         return null;
       }
     }
