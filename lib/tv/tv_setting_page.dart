@@ -35,15 +35,28 @@ class TvSettingPageState extends State<TvSettingPage> {
   }
 
   @override
-  void dispose() {
-    _disposeFocusNodes(focusNodes); // 使用统一的焦点销毁方法
-    super.dispose();
+  void initState() {
+    super.initState();
+    // 为每个焦点节点添加监听器
+    for (var i = 0; i < focusNodes.length; i++) {
+      focusNodes[i].addListener(() {
+        if (focusNodes[i].hasFocus && i > 0) {
+          setState(() {
+            selectedIndex = i - 1;
+          });
+        }
+      });
+    }
   }
 
-  void _disposeFocusNodes(List<FocusNode> focusNodes) {
+  @override
+  void dispose() {
+    // 移除所有监听器并释放焦点节点
     for (var focusNode in focusNodes) {
+      focusNode.removeListener(() {});
       focusNode.dispose();
     }
+    super.dispose();
   }
 
   // 用于检查版本更新的逻辑
@@ -97,10 +110,7 @@ class TvSettingPageState extends State<TvSettingPage> {
           
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 2), // 添加垂直间距
-            decoration: BoxDecoration(
-              color: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent),
-              borderRadius: BorderRadius.circular(4), // 添加圆角
-            ),
+            color: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent),
             child: Material(
               color: Colors.transparent,
               child: ListTile(
@@ -142,23 +152,16 @@ class TvSettingPageState extends State<TvSettingPage> {
         builder: (context) {
           final bool hasFocus = focusNodes[0].hasFocus;
           
-          return Container(
-            margin: const EdgeInsets.all(8), // 添加边距
-            decoration: BoxDecoration(
-              color: hasFocus ? focusedColor : Colors.transparent,
-              borderRadius: BorderRadius.circular(4), // 添加圆角
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: ListTile(
-                leading: Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                ),
-                onTap: () {
-                  Navigator.of(context).pop(); // 返回到上一个页面
-                },
+          return Material(
+            color: Colors.transparent,
+            child: ListTile(
+              leading: Icon(
+                Icons.arrow_back,
+                color: hasFocus ? focusedColor : Colors.white,
               ),
+              onTap: () {
+                Navigator.of(context).pop(); // 返回到上一个页面
+              },
             ),
           );
         },
@@ -217,6 +220,7 @@ class TvSettingPageState extends State<TvSettingPage> {
         onSelect: (index) {
           setState(() {
             selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
+            _confirmedIndex = selectedIndex; // 同步更新确认索引
           });
         },
         child: Row(
