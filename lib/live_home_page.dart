@@ -137,16 +137,15 @@ import 'dart:convert';
 Future<void> _verifyUrl(String url) async {
   try {
     // 1. 打印完整的 URL
-    LogUtil.i('验证 URL: $url');
-    LogUtil.i('URL 长度: ${url.length}');
+    LogUtil.i('验证 URL: $url\nURL 长度: ${url.length}');
 
     // 2. 检查 URL 基本组成部分
     final uri = Uri.parse(url);
-    LogUtil.i('URL 组成部分:');
-    LogUtil.i('- scheme: ${uri.scheme}');
-    LogUtil.i('- host: ${uri.host}');
-    LogUtil.i('- path: ${uri.path}');
-    LogUtil.i('- query parameters: ${uri.queryParameters.length}');
+    LogUtil.i('URL 组成部分:\n'
+          '- scheme: ${uri.scheme}\n'
+          '- host: ${uri.host}\n'
+          '- path: ${uri.path}\n'
+          '- query parameters: ${uri.queryParameters.length}');
     
     // 3. 测试发送请求
     final request = await HttpClient().getUrl(uri);
