@@ -132,6 +132,7 @@ Future<void> _playVideo() async {
             setState(() {
                 toastString = S.current.vpnplayError;
             });
+            _retryPlayback();
             return;
         }
 
@@ -140,13 +141,7 @@ Future<void> _playVideo() async {
             bool shouldPlay = await _showConfirmationDialog(context, parsedUrl);
             if (!shouldPlay) return;
         }
-        
-        // 等待当前播放器完全释放
-        await _disposePlayer();
 
-        // 启动超时检测
-        _startTimeoutCheck();
-        
         // 创建新的播放器控制器
         final newController = VideoPlayerController.networkUrl(
             Uri.parse(parsedUrl),
@@ -173,11 +168,17 @@ Future<void> _playVideo() async {
             return;
         }
 
+        // 先释放旧播放器，再设置新播放器
+        await _disposePlayer();
+        
+        // 启动超时检测
+        _startTimeoutCheck();
+
         // 设置新的控制器
         setState(() {
             _playerController = newController;
             toastString = S.current.loading;
-            _retryCount = 0;       // 移除这里的 _isRetrying = false
+            _retryCount = 0;
             _timeoutActive = false;
         });
 
@@ -191,7 +192,7 @@ Future<void> _playVideo() async {
     }
 }
 
-  /// 播放器监听方法
+/// 播放器监听方法
 void _videoListener() {
     if (_playerController == null || _isDisposing || _isRetrying) return;
 
@@ -218,8 +219,8 @@ void _videoListener() {
     }
 }
 
-  /// 超时检测方法
-  void _startTimeoutCheck() {
+/// 超时检测方法
+void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying) return;
     
     _timeoutActive = true;
@@ -233,7 +234,7 @@ void _videoListener() {
         _retryPlayback();
       }
     });
-  }
+}
 
 /// 重试播放方法
 void _retryPlayback() {
@@ -303,7 +304,7 @@ void _handleSourceSwitch() {
         _playVideo();
     });
 }
-  
+
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
     if (_isDisposing) return;
@@ -349,15 +350,15 @@ Future<void> _disposePlayer() async {
     }
 }
 
-  /// 释放 StreamUrl 实例
-  void _disposeStreamUrl() {
+/// 释放 StreamUrl 实例
+void _disposeStreamUrl() {
     if (_streamUrl != null) {
       _streamUrl!.dispose();
       _streamUrl = null;
     }
-  }
+}
 
-  /// 处理频道切换操作
+/// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
     if (_isSwitchingChannel || model == null) return;
     
@@ -368,6 +369,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
     
     try {
         // 先停止当前播放和清理状态
+        await _disposePlayer();  // 确保先释放当前播放器资源
         _retryTimer?.cancel();
         setState(() { 
             _isRetrying = false;
@@ -403,8 +405,8 @@ Future<void> _onTapChannel(PlayModel? model) async {
     }
 }
 
-  /// 发送页面访问统计数据
-  Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
+/// 发送页面访问统计数据
+Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
     if (channelName != null && channelName.isNotEmpty) {
       try {
         await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: channelName);
@@ -412,10 +414,10 @@ Future<void> _onTapChannel(PlayModel? model) async {
         LogUtil.logError('发送流量统计时发生错误', e, stackTrace);
       }
     }
-  }
+}
 
-  /// 异步加载视频数据 - 修改后增加了错误处理和状态重置
-  Future<void> _loadData() async {
+/// 异步加载视频数据 - 修改后增加了错误处理和状态重置
+Future<void> _loadData() async {
     // 重置所有状态
     _retryTimer?.cancel();
     setState(() { 
@@ -432,10 +434,10 @@ Future<void> _onTapChannel(PlayModel? model) async {
       LogUtil.logError('加载数据时出错', e, stackTrace);
       await _parseData();
     }
-  }
+}
 
-  /// 解析并加载本地播放列表
-  Future<void> _parseData() async {
+/// 解析并加载本地播放列表
+Future<void> _parseData() async {
     try {
       final resMap = await M3uUtil.getLocalM3uData();
       _videoMap = resMap.data;
@@ -444,9 +446,9 @@ Future<void> _onTapChannel(PlayModel? model) async {
     } catch (e, stackTrace) {
       LogUtil.logError('解析播放列表时出错', e, stackTrace);
     }
-  }
+}
 
-/// 处理播放列表 - 不修改这部分代码
+/// 处理播放列表
 Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       // 获取第一个可用的频道
@@ -480,9 +482,9 @@ Future<void> _handlePlaylist() async {
       });
     }
 }
-  
+
 /// 从播放列表中动态提取频道
-  PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
+PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     for (String category in playList.keys) {
       if (playList[category] is Map<String, Map<String, PlayModel>>) {
         Map<String, Map<String, PlayModel>> groupMap = playList[category];
@@ -506,10 +508,10 @@ Future<void> _handlePlaylist() async {
       }
     }
     return null;
-  }
+}
 
-  /// 切换视频源方法，增加了状态重置
-  Future<void> _changeChannelSources() async {
+/// 切换视频源方法，增加了状态重置
+Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
       LogUtil.e('未找到有效的视频源');
@@ -529,10 +531,10 @@ Future<void> _handlePlaylist() async {
       _retryCount = 0;  // 重置重试次数
       _playVideo();
     }
-  }
+}
 
-  /// 新增：日志记录增强方法，用于重试相关的日志
-  void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
+/// 新增：日志记录增强方法，用于重试相关的日志
+void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
     final channelInfo = '频道: ${_currentChannel?.title ?? 'unknown'}, 源索引: $_sourceIndex';
     final retryInfo = '重试次数: $_retryCount, 是否重试中: $_isRetrying';
     final message = '$event\n$channelInfo\n$retryInfo';
@@ -542,55 +544,51 @@ Future<void> _handlePlaylist() async {
     } else {
       LogUtil.i(message);
     }
-  }
+}
 
-  /// 新增：检查播放状态的辅助方法
-  bool _isPlaybackHealthy() {
+/// 新增：检查播放状态的辅助方法
+bool _isPlaybackHealthy() {
     if (_playerController == null) return false;
     
     return _playerController!.value.isPlaying && 
            !_playerController!.value.hasError &&
            !isBuffering;
-  }
+}
 
-  /// 显示播放确认对话框
-  Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
+/// 显示播放确认对话框
+Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
     return await DialogUtil.showCustomDialog(
       context,
-      title: S.current.foundStreamTitle,  // 传入标题
-      content: S.current.streamUrlContent(url),  // 传入内容
+      title: S.current.foundStreamTitle,
+      content: S.current.streamUrlContent(url),
       positiveButtonLabel: S.current.playButton,
       onPositivePressed: () {
-        Navigator.of(context).pop(true);  // 确认播放
+        Navigator.of(context).pop(true);
       },
       negativeButtonLabel: S.current.cancelButton,
       onNegativePressed: () {
-        Navigator.of(context).pop(false);  // 取消播放
+        Navigator.of(context).pop(false);
       },
-      isDismissible: false,  // 禁止点击外部关闭
+      isDismissible: false,
     ) ?? false;
-  }
+}
 
 /// 处理返回按键逻辑
 Future<bool> _handleBackPress(BuildContext context) async {
   if (_drawerIsOpen) {
-    // 如果抽屉打开则关闭抽屉
     setState(() {
       _drawerIsOpen = false;
     });
     return false;
   }
 
-  // 在显示退出确认对话框前检查视频状态并暂停
   bool wasPlaying = _playerController?.value.isPlaying ?? false;
   if (wasPlaying) {
     await _playerController?.pause();
   }
 
-  // 弹出退出确认对话框
   bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
   
-  // 如果取消退出且视频之前在播放，则恢复播放
   if (!shouldExit && wasPlaying && mounted) {
     await _playerController?.play();
   }
@@ -598,27 +596,8 @@ Future<bool> _handleBackPress(BuildContext context) async {
   return shouldExit;
 }
 
-  @override
-  void initState() {
-    super.initState();
-
-    // 如果是桌面设备，隐藏窗口标题栏
-    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-
-    // 加载播放列表数据
-    _loadData();
-
-    // 加载收藏列表
-    _extractFavoriteList();
-
-    // 延迟1分钟后执行版本检测
-    Future.delayed(Duration(minutes: 1), () {
-      CheckVersionUtil.checkVersion(context, false, false);
-    });
-  }
-
-  /// 从传递的播放列表中提取"我的收藏"部分
-  void _extractFavoriteList() {
+/// 从传递的播放列表中提取"我的收藏"部分
+void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
        favoriteList = {
           Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!
@@ -628,32 +607,32 @@ Future<bool> _handleBackPress(BuildContext context) async {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
        };
     }
-  }
-  
+}
+
 // 获取当前频道的分组名字
-  String getGroupName(String channelId) {
+String getGroupName(String channelId) {
     return _currentChannel?.group ?? '';
-  }
+}
 
-  // 获取当前频道名字
-  String getChannelName(String channelId) {
+// 获取当前频道名字
+String getChannelName(String channelId) {
     return _currentChannel?.title ?? '';
-  }
+}
 
-  // 获取当前频道的播放地址列表
-  List<String> getPlayUrls(String channelId) {
+// 获取当前频道的播放地址列表
+List<String> getPlayUrls(String channelId) {
     return _currentChannel?.urls ?? [];
-  }
+}
 
-  // 检查当前频道是否已收藏
-  bool isChannelFavorite(String channelId) {
+// 检查当前频道是否已收藏
+bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
-  }
+}
 
-  // 添加或取消收藏
-  void toggleFavorite(String channelId) async {
+// 添加或取消收藏
+void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = getGroupName(actualChannelId);
@@ -723,11 +702,30 @@ Future<bool> _handleBackPress(BuildContext context) async {
         LogUtil.logError('收藏状态保存失败', error);
       }
     }
-  }
+}
 
-  /// 清理所有资源
-  @override
-  void dispose() {
+@override
+void initState() {
+    super.initState();
+
+    // 如果是桌面设备，隐藏窗口标题栏
+    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+
+    // 加载播放列表数据
+    _loadData();
+
+    // 加载收藏列表
+    _extractFavoriteList();
+
+    // 延迟1分钟后执行版本检测
+    Future.delayed(Duration(minutes: 1), () {
+      CheckVersionUtil.checkVersion(context, false, false);
+    });
+}
+
+/// 清理所有资源
+@override
+void dispose() {
     _retryTimer?.cancel();
     _timeoutActive = false;
     _isRetrying = false;
@@ -735,10 +733,10 @@ Future<bool> _handleBackPress(BuildContext context) async {
     _isDisposing = true;
     _disposePlayer();
     super.dispose();
-  }
+}
 
-  /// 播放器公共属性
-  Map<String, dynamic> _buildCommonProps() {
+/// 播放器公共属性
+Map<String, dynamic> _buildCommonProps() {
     return {
       'videoMap': _videoMap,
       'playModel': _currentChannel,
@@ -751,10 +749,10 @@ Future<bool> _handleBackPress(BuildContext context) async {
       'onChangeSubSource': _parseData,
       'changeChannelSources': _changeChannelSources,
     };
-  }
+}
 
-  @override
-  Widget build(BuildContext context) {
+@override
+Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
 
     if (isTV) {
@@ -791,7 +789,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
               aspectRatio: aspectRatio,
               onChangeSubSource: _parseData,
               drawChild: ChannelDrawerPage(
-              	key: _drawerRefreshKey,
+                key: _drawerRefreshKey,
                 refreshKey: _drawerRefreshKey,
                 videoMap: _videoMap,
                 playModel: _currentChannel,
@@ -866,5 +864,5 @@ Future<bool> _handleBackPress(BuildContext context) async {
         },
       ),
     );
-  }
+}
 }
