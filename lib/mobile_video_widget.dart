@@ -24,6 +24,7 @@ class MobileVideoWidget extends StatefulWidget {
   final Function(String) toggleFavorite; 
   final bool Function(String) isChannelFavorite;
   final String currentChannelId; // 当前频道ID
+  final bool isAudio; // 新增音频模式参数
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -40,6 +41,7 @@ class MobileVideoWidget extends StatefulWidget {
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
+    this.isAudio = false, // 默认为视频模式
   }) : super(key: key);
 
   @override
@@ -157,6 +159,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
               currentChannelId: currentChannelId,  // 传递当前频道ID
               changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
+              isAudio: widget.isAudio, // 传递音频状态
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
