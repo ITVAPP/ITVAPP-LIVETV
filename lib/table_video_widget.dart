@@ -515,3 +515,4 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ],
     );
   }
+}
