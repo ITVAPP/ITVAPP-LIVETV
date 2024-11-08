@@ -135,10 +135,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
 
-    // 2. 无论视频是否正在播放，切换时间的显示/隐藏状态
-    setState(() {
-      _isShowDatePosition = !_isShowDatePosition;
-    });
+     // 2. 仅在横屏模式下切换时间和菜单栏显示状态
+     if (widget.isLandscape) {
+       setState(() {
+         _isShowDatePosition = !_isShowDatePosition;
+         _isShowMenuBar = !_isShowMenuBar;
+       });
+     }
   }
 
   // 创建一个私有方法，用于关闭抽屉 (保持不变)
