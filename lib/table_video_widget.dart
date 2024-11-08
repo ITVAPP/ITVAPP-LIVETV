@@ -374,7 +374,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 _buildVideoPlayer(playerHeight),
                 
                 // 播放控制图标
-                if (_isShowPlayIcon || (!widget.isPlaying && !_drawerIsOpen))
+                if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.isPlaying && !_drawerIsOpen) || _isShowPlayIcon)
                   _buildControlIcon(
                     icon: Icons.play_arrow,
                     onTap: () => _handleSelectPress(),
