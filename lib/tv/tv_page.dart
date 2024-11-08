@@ -24,6 +24,7 @@ class VideoPlayerWidget extends StatelessWidget {
   final bool drawerIsOpen;
   final bool isBuffering;
   final bool isError;
+  final bool isAudio; 
   
   const VideoPlayerWidget({
     Key? key,
@@ -32,6 +33,7 @@ class VideoPlayerWidget extends StatelessWidget {
     this.drawerIsOpen = false,
     this.isBuffering = false,
     this.isError = false,
+    this.isAudio = false, // 默认为视频模式
   }) : super(key: key);
 
   Widget _buildBufferingIndicator(BuildContext context) {
@@ -64,7 +66,7 @@ class VideoPlayerWidget extends StatelessWidget {
         ValueListenableBuilder<VideoPlayerValue?>(
           valueListenable: controller ?? ValueNotifier<VideoPlayerValue?>(null),
           builder: (BuildContext context, VideoPlayerValue? value, Widget? child) {
-            if (controller != null && value?.isInitialized == true) {
+            if (controller != null && value?.isInitialized == true && isAudio == false) {
               return Center(  // 使用 Center 包裹 AspectRatio 确保视频居中显示
                 child: AspectRatio(
                   aspectRatio: value!.aspectRatio,
@@ -133,6 +135,7 @@ class TvPage extends StatefulWidget {
   final Function(String)? toggleFavorite;
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
+  final bool isAudio;
 
   const TvPage({
     super.key,
@@ -150,6 +153,7 @@ class TvPage extends StatefulWidget {
     this.toggleFavorite,
     this.isChannelFavorite,
     this.currentChannelId,
+    this.isAudio = false,
   });
 
   @override
@@ -480,6 +484,7 @@ Future<bool?> _opensetting() async {
                     drawerIsOpen: _drawerIsOpen,
                     isBuffering: widget.isBuffering,
                     isError: _isError,
+                    isAudio: widget.isAudio, // 传递音频状态
                   ),
                   
                   // 使用 ValueListenableBuilder 监听图标状态
