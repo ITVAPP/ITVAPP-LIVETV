@@ -127,6 +127,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
            lowercaseUrl.endsWith('.ogg') ||
            lowercaseUrl.endsWith('.wav');
   }
+
+/// 播放视频前的调试代码
+Future<void> _verifyUrl(String url) async {
+  try {
+    // 1. 验证 URL 是否可以访问
+    final response = await HttpClient().getUrl(Uri.parse(url));
+    final httpResponse = await response.close();
+    LogUtil.i('URL 状态码: ${httpResponse.statusCode}');
+    
+    // 2. 获取内容类型
+    final contentType = httpResponse.headers.value('content-type');
+    LogUtil.i('Content-Type: $contentType');
+    
+    // 3. 读取前100个字节的内容查看格式
+    final content = await utf8.decodeStream(httpResponse.take(100));
+    LogUtil.i('Content 前100字节: $content');
+  } catch (e) {
+    LogUtil.logError('验证 URL 时出错', e);
+  }
+}
   
 /// 播放前解析频道的视频源
 Future<void> _playVideo() async {
@@ -150,11 +170,13 @@ Future<void> _playVideo() async {
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
-        if (parsedUrl == 'ERROR') {
+        if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
                 toastString = S.current.vpnplayError;
+                _retryCount = 0;  // 重置重试计数，这样新的源可以重试
+                _isRetrying = false;  // 重置重试状态
             });
-            _retryPlayback();
+            _handleSourceSwitch();
             return;
         }
 
@@ -164,7 +186,9 @@ Future<void> _playVideo() async {
             _isAudio = _checkIsAudioStream(parsedUrl);
           });
         }
-
+      
+        // 添加 URL 验证
+        await _verifyUrl(parsedUrl);
         LogUtil.i('准备播放：$parsedUrl');
 
         // 如果是调试模式，显示确认对话框
@@ -283,14 +307,14 @@ void _retryPlayback() {
         _retryTimer?.cancel();
         _retryTimer = Timer(const Duration(seconds: 3), () {
             setState(() {
-               _isRetrying = false;  // 重要：重试前重置状态
+               _isRetrying = false;  // 重试前重置状态
             });
             _playVideo();
         });
     } else {
         setState(() {
-            _retryCount = 0;  // 重要：重置重试计数，这样新的源可以重试
-            _isRetrying = false;  // 重要：重置重试状态
+            _retryCount = 0;  // 重置重试计数，这样新的源可以重试
+            _isRetrying = false;  // 重置重试状态
         });
         _handleSourceSwitch();
     }
@@ -332,7 +356,7 @@ void _handleSourceSwitch() {
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
         setState(() {
-            _retryCount = 0;  // 重要：新源从0开始计数重试
+            _retryCount = 0;  // 新源从0开始计数重试
             _isRetrying = false;  
         });
         _playVideo();
