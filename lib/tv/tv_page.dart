@@ -495,11 +495,8 @@ Future<bool?> _opensetting() async {
                         children: [
                           if (iconState.showPause) 
                             _buildPauseIcon(),
-                            
-                          if (iconState.showPlay &&
-                              widget.controller != null && 
-                              widget.controller!.value.isInitialized && 
-                              !widget.controller!.value.isPlaying)
+                              
+                          if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying && !_drawerIsOpen) || iconState.showPlay)    
                             _buildPlayIcon(),
 
                           if (iconState.showDatePosition) 
