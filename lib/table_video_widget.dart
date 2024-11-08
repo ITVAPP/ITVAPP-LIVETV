@@ -54,7 +54,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   bool _isShowMenuBar = true; // 控制是否显示底部菜单栏
   bool _isShowPauseIcon = false; // 控制是否显示暂停图标
   bool _isShowPlayIcon = false; // 新增：控制播放图标显示
-  bool _isShowDatePosition = false; // 新增：控制时间显示
   Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
 
   // 维护 drawerIsOpen 的本地状态
@@ -135,16 +134,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
 
-    // 2. 仅在横屏模式下切换时间和菜单栏显示状态
+    // 2. 仅在横屏模式下切换菜单栏显示状态，菜单栏显示同时显示时间
     if (widget.isLandscape) {
       setState(() {
-        _isShowDatePosition = !_isShowDatePosition;
         _isShowMenuBar = !_isShowMenuBar;
       });
     }
   }
 
-  // 创建一个私有方法，用于关闭抽屉 (保持不变)
+  // 创建一个私有方法，用于关闭抽屉
   void _closeDrawerIfOpen() {
     if (_drawerIsOpen) {
       setState(() {
@@ -153,8 +151,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
   }
-
-  @override
+  
+@override
   void initState() {
     super.initState();
     _drawerIsOpen = widget.drawerIsOpen; // 初始状态设置为 widget 传递的值
@@ -220,54 +218,68 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 收藏按钮的逻辑
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
-    return IconButton(
-      tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
-      padding: showBackground ? null : EdgeInsets.zero, // 竖屏下移除内边距
-      constraints: showBackground ? null : const BoxConstraints(), // 竖屏下移除默认大小限制
-      style: showBackground
-          ? IconButton.styleFrom(
-              backgroundColor: _backgroundColor, // 使用提取的背景颜色
-              side: _iconBorderSide, // 使用提取的边框样式
-            )
-          : null,
-      icon: Icon(
-        widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
-        color: widget.isChannelFavorite(currentChannelId) ? Colors.red : _iconColor,
+    return Container(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
+          color: widget.isChannelFavorite(currentChannelId) ? Colors.red : _iconColor,
+          size: 24, // 固定图标大小
+        ),
+        onPressed: () {
+          widget.toggleFavorite(currentChannelId);
+          setState(() {});
+        },
       ),
-      onPressed: () {
-        widget.toggleFavorite(currentChannelId); // 切换收藏状态
-        setState(() {}); // 刷新UI以更新图标状态
-      },
     );
   }
 
   // 切换频道源按钮的逻辑
   Widget buildChangeChannelSourceButton(bool showBackground) {
-    return IconButton(
-      tooltip: S.of(context).tipChangeLine, // 提示信息
-      padding: showBackground ? null : EdgeInsets.zero, // 竖屏下移除内边距
-      constraints: showBackground ? null : const BoxConstraints(), // 竖屏下移除大小限制
-      style: showBackground
-          ? IconButton.styleFrom(
-              backgroundColor: _backgroundColor, // 使用提取的背景颜色
-              side: _iconBorderSide, // 使用提取的边框样式
-            )
-          : null,
-      icon: Icon(Icons.legend_toggle, color: _iconColor),
-      onPressed: () {
-        // 仅在横屏模式下隐藏菜单栏和抽屉
-        if (widget.isLandscape) {
-          _closeDrawerIfOpen();
-          setState(() => _isShowMenuBar = false); // 隐藏菜单栏
-        }
-        widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
-      },
+    return Container(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        tooltip: S.of(context).tipChangeLine,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          Icons.legend_toggle,
+          color: _iconColor,
+          size: 24, // 固定图标大小
+        ),
+        onPressed: () {
+          if (widget.isLandscape) {
+            _closeDrawerIfOpen();
+            setState(() => _isShowMenuBar = false);
+          }
+          widget.changeChannelSources?.call();
+        },
+      ),
     );
   }
-
-  @override
+  
+@override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
+    // 计算播放器容器的高度
+    final playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
     return Stack(
       children: [
@@ -281,61 +293,93 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           },
           child: Container(
             alignment: Alignment.center,
-            color: Colors.black, // 黑色背景
-            // 如果视频控制器已初始化，显示视频播放器，否则显示占位背景
+            color: Colors.black,
             child: widget.controller != null && widget.controller!.value.isInitialized
                 ? Stack(
                     alignment: Alignment.center,
                     children: [
-                      // 仅在竖屏模式下应用固定高度逻辑
-                      !widget.isLandscape
-                          ? Container(
-                              width: double.infinity,
-                              height: MediaQuery.of(context).size.width / (16 / 9),
-                              child: FittedBox(
-                                fit: BoxFit.contain,
-                                child: SizedBox(
-                                  width: MediaQuery.of(context).size.width,
-                                  height: MediaQuery.of(context).size.width / widget.controller!.value.aspectRatio,
-                                  child: VideoPlayer(widget.controller!),
+                      // 竖屏模式下的视频显示
+                      if (!widget.isLandscape)
+                        Container(
+                          width: double.infinity,
+                          height: playerHeight,
+                          child: Stack(
+                            children: [
+                              // 视频容器
+                              Container(
+                                width: double.infinity,
+                                height: playerHeight,
+                                child: Center(
+                                  child: SizedBox.expand(
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: playerHeight * widget.controller!.value.aspectRatio,
+                                        height: playerHeight,
+                                        child: VideoPlayer(widget.controller!),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            )
-                          : AspectRatio(
-                              aspectRatio: widget.controller!.value.aspectRatio, // 动态获取视频的实际宽高比
-                              child: VideoPlayer(widget.controller!),
-                            ),
-                      // 显示播放图标或视频未播放且抽屉未打开时显示播放按钮
+                              // 黑色背景填充
+                              if (widget.controller!.value.aspectRatio < 16/9)
+                                Container(
+                                  width: double.infinity,
+                                  height: playerHeight,
+                                  color: Colors.black,
+                                ),
+                              // 视频显示
+                              Center(
+                                child: SizedBox(
+                                  height: playerHeight,
+                                  child: AspectRatio(
+                                    aspectRatio: widget.controller!.value.aspectRatio,
+                                    child: VideoPlayer(widget.controller!),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      // 横屏模式下的视频显示
+                      else
+                        AspectRatio(
+                          aspectRatio: widget.controller!.value.aspectRatio,
+                          child: VideoPlayer(widget.controller!),
+                        ),
+                      // 播放控制图标
                       if (_isShowPlayIcon || (!widget.isPlaying && !_drawerIsOpen))
                         _buildControlIcon(
                           icon: Icons.play_arrow,
                           onTap: () => _handleSelectPress(),
                         ),
-                      // 显示暂停图标
                       if (_isShowPauseIcon)
                         _buildControlIcon(
                           icon: Icons.pause,
                         ),
                     ],
                   )
-                // 如果没有视频控制器或未初始化，显示 VideoHoldBg 占位
                 : VideoHoldBg(
-                    toastString: _drawerIsOpen ? '' : widget.toastString, // 提示缓冲或加载状态
-                    showBingBackground: false, // 可根据需求设置为 true 或 false
+                    toastString: _drawerIsOpen ? '' : widget.toastString,
+                    showBingBackground: false,
                   ),
           ),
         ),
+
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
-        // 根据 _isShowDatePosition 控制时间显示
-        if (_isShowDatePosition && !_drawerIsOpen) 
-        const DatePositionWidget(),
-        // 横屏模式下的底部菜单栏按钮
+
+        // 时间显示
+        if (_isShowMenuBar && !_drawerIsOpen) 
+          const DatePositionWidget(),
+
+        // 横屏模式下的底部菜单栏
         if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar) ...[
           AnimatedPositioned(
             left: 0,
             right: 0,
-            bottom: _isShowMenuBar ? 20 : -50, // 根据播放状态调整菜单栏的显示/隐藏
+            bottom: _isShowMenuBar ? 20 : -50,
             duration: const Duration(milliseconds: 100),
             child: Container(
               height: 50,
@@ -351,7 +395,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       LogUtil.safeExecute(() {
                         setState(() {
                           _isShowMenuBar = false;
-                          widget.onToggleDrawer?.call(); // 通过回调打开/关闭抽屉
+                          widget.onToggleDrawer?.call();
                         });
                       }, '切换频道发生错误');
                     },
@@ -414,7 +458,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       onPressed: () async {
                         LogUtil.safeExecute(() async {
                           final isFullScreen = await windowManager.isFullScreen();
-                          windowManager.setFullScreen(!isFullScreen); // 切换全屏状态
+                          windowManager.setFullScreen(!isFullScreen);
                         }, '切换为全屏时发生错误');
                       },
                     ),
@@ -423,36 +467,51 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             ),
           ),
         ],
-        // 非横屏时右下角的按钮
+
+        // 竖屏模式下的右下角控制按钮
         if (!widget.isLandscape)
           Positioned(
             right: 8,
-            bottom: 5,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                buildFavoriteButton(currentChannelId, false),
-                buildChangeChannelSourceButton(false),
-                IconButton(
-                  tooltip: S.of(context).landscape,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () async {
-                    if (EnvUtil.isMobile) {
-                      SystemChrome.setPreferredOrientations(
-                          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                      return;
-                    }
-                    await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                    await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                    Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                  },
-                  icon: Icon(Icons.screen_rotation, color: _iconColor),
-                ),
-              ],
+            bottom: 8,  // 固定位置在播放器底部
+            child: Container(
+              width: 32,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildFavoriteButton(currentChannelId, false),
+                  const SizedBox(height: 5),
+                  buildChangeChannelSourceButton(false),
+                  const SizedBox(height: 5),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      tooltip: S.of(context).landscape,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () async {
+                        if (EnvUtil.isMobile) {
+                          SystemChrome.setPreferredOrientations([
+                            DeviceOrientation.landscapeLeft,
+                            DeviceOrientation.landscapeRight
+                          ]);
+                          return;
+                        }
+                        await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                        await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                        Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                      },
+                      icon: Icon(
+                        Icons.screen_rotation,
+                        color: _iconColor,
+                        size: 24, // 固定图标大小
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
       ],
     );
   }
-}
