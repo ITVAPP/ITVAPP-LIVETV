@@ -65,11 +65,13 @@ class VideoPlayerWidget extends StatelessWidget {
           valueListenable: controller ?? ValueNotifier<VideoPlayerValue?>(null),
           builder: (BuildContext context, VideoPlayerValue? value, Widget? child) {
             if (controller != null && value?.isInitialized == true) {
-              return AspectRatio(
-                aspectRatio: value!.aspectRatio,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: VideoPlayer(controller!),
+              return Center(  // 使用 Center 包裹 AspectRatio 确保视频居中显示
+                child: AspectRatio(
+                  aspectRatio: value!.aspectRatio,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: VideoPlayer(controller!),
+                  ),
                 ),
               );
             }
