@@ -112,6 +112,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 实例化 TrafficAnalytics 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
+
+  // 音频检测状态
+  bool _isAudio = false;
+
+  // 检查是否为音频流
+  bool _checkIsAudioStream(String? url) {
+    if (url == null || url.isEmpty) return false;
+    
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.mp3') || 
+           lowercaseUrl.endsWith('.aac') || 
+           lowercaseUrl.endsWith('.m4a') ||
+           lowercaseUrl.endsWith('.ogg') ||
+           lowercaseUrl.endsWith('.wav');
+  }
   
 /// 播放前解析频道的视频源
 Future<void> _playVideo() async {
@@ -125,6 +140,13 @@ Future<void> _playVideo() async {
     try {
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
+        
+        // 先检查是否为直接的音频URL
+        bool isDirectAudio = _checkIsAudioStream(url);
+        setState(() {
+          _isAudio = isDirectAudio;
+        });
+        
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
@@ -134,6 +156,13 @@ Future<void> _playVideo() async {
             });
             _retryPlayback();
             return;
+        }
+
+        // 如果不是直接音频，检查解析后的URL
+        if (!isDirectAudio) {
+          setState(() {
+            _isAudio = _checkIsAudioStream(parsedUrl);
+          });
         }
 
         // 如果是调试模式，显示确认对话框
@@ -292,7 +321,10 @@ void _handleSourceSwitch() {
         return;
     }
 
+    // 检查新的源是否为音频
+    bool isDirectAudio = _checkIsAudioStream(urls[_sourceIndex]);
     setState(() {
+        _isAudio = isDirectAudio;
         toastString = S.current.switchLine(_sourceIndex + 1);
     });
 
@@ -384,6 +416,13 @@ Future<void> _onTapChannel(PlayModel? model) async {
         _retryCount = 0;
         _shouldUpdateAspectRatio = true;
 
+        // 检查新频道是否为音频
+        final String? url = model.urls?.isNotEmpty == true ? model.urls![0] : null;
+        bool isDirectAudio = _checkIsAudioStream(url);
+        setState(() {
+          _isAudio = isDirectAudio;
+        });
+
         // 发送统计数据
         if (Config.Analytics) {
             await _sendTrafficAnalytics(context, _currentChannel!.title);
@@ -426,6 +465,7 @@ Future<void> _loadData() async {
         _isRetrying = false;
         _timeoutActive = false;
         _retryCount = 0;
+        _isAudio = false; // 重置音频状态
     });
     
     try {
@@ -457,6 +497,13 @@ Future<void> _handlePlaylist() async {
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
       if (_currentChannel != null) {
+        // 检查频道是否为音频
+        final String? url = _currentChannel?.urls?.isNotEmpty == true ? _currentChannel?.urls![0] : null;
+        bool isDirectAudio = _checkIsAudioStream(url);
+        setState(() {
+          _isAudio = isDirectAudio;
+        });
+
         // 发送流量统计数据
         if (Config.Analytics) {
           await _sendTrafficAnalytics(context, _currentChannel!.title);
@@ -530,13 +577,18 @@ Future<void> _changeChannelSources() async {
     // 切换到选中的视频播放
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
+      // 检查新选择的源是否为音频
+      bool isDirectAudio = _checkIsAudioStream(sources[selectedIndex]);
+      setState(() {
+        _isAudio = isDirectAudio;
+      });
       _retryCount = 0;  // 重置重试次数
       _playVideo();
     }
 }
 
-/// 新增：日志记录增强方法，用于重试相关的日志
-void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
+/// 日志记录增强方法，用于重试相关的日志
+  void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
     final channelInfo = '频道: ${_currentChannel?.title ?? 'unknown'}, 源索引: $_sourceIndex';
     final retryInfo = '重试次数: $_retryCount, 是否重试中: $_isRetrying';
     final message = '$event\n$channelInfo\n$retryInfo';
@@ -546,19 +598,19 @@ void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
     } else {
       LogUtil.i(message);
     }
-}
+  }
 
-/// 新增：检查播放状态的辅助方法
-bool _isPlaybackHealthy() {
+  /// 检查播放状态的辅助方法
+  bool _isPlaybackHealthy() {
     if (_playerController == null) return false;
     
     return _playerController!.value.isPlaying && 
            !_playerController!.value.hasError &&
            !isBuffering;
-}
+  }
 
-/// 显示播放确认对话框
-Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
+  /// 显示播放确认对话框
+  Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
     return await DialogUtil.showCustomDialog(
       context,
       title: S.current.foundStreamTitle,
@@ -573,9 +625,9 @@ Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
       },
       isDismissible: false,
     ) ?? false;
-}
-
-/// 处理返回按键逻辑
+  }
+  
+  /// 处理返回按键逻辑
 Future<bool> _handleBackPress(BuildContext context) async {
   if (_drawerIsOpen) {
     setState(() {
@@ -706,8 +758,8 @@ void toggleFavorite(String channelId) async {
     }
 }
 
-@override
-void initState() {
+  @override
+  void initState() {
     super.initState();
 
     // 如果是桌面设备，隐藏窗口标题栏
@@ -723,11 +775,11 @@ void initState() {
     Future.delayed(Duration(minutes: 1), () {
       CheckVersionUtil.checkVersion(context, false, false);
     });
-}
+  }
 
-/// 清理所有资源
-@override
-void dispose() {
+  /// 清理所有资源
+  @override
+  void dispose() {
     _retryTimer?.cancel();
     _timeoutActive = false;
     _isRetrying = false;
@@ -735,7 +787,7 @@ void dispose() {
     _isDisposing = true;
     _disposePlayer();
     super.dispose();
-}
+  }
 
 /// 播放器公共属性
 Map<String, dynamic> _buildCommonProps() {
@@ -772,6 +824,7 @@ Widget build(BuildContext context) {
         toggleFavorite: toggleFavorite,
         isChannelFavorite: isChannelFavorite,
         currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+        isAudio: _isAudio, // 传递音频状态
       );
     }
 
@@ -806,6 +859,7 @@ Widget build(BuildContext context) {
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
               isChannelFavorite: isChannelFavorite,
+              isAudio: _isAudio, // 传递音频状态
             ),
           );
         },
@@ -830,11 +884,12 @@ Widget build(BuildContext context) {
                           currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
                           toggleFavorite: toggleFavorite,
                           isLandscape: true,
+                          isAudio: _isAudio, // 传递音频状态
                           onToggleDrawer: () {
                             setState(() {
-                              _drawerIsOpen = !_drawerIsOpen;  // 切换抽屉的状态
+                              _drawerIsOpen = !_drawerIsOpen;
                             });
-                          }
+                          },
                         ),
                 ),
                 Offstage(
@@ -866,5 +921,5 @@ Widget build(BuildContext context) {
         },
       ),
     );
-}
+  }
 }
