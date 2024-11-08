@@ -84,7 +84,7 @@ class StreamUrl {
 
   // 判断 URL 是否为需要解析处理的链接
   bool _isLZUrl(String url) {
-    return url.contains('lanzou.com') ;
+    return url.contains('lanzou') ;
   }
   
   // 判断 URL 是否为需要解析处理的链接
