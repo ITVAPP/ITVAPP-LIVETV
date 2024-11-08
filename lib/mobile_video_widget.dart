@@ -136,22 +136,30 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       body: Column(
         children: [
-          AspectRatio(
-            aspectRatio: widget.controller?.value.isInitialized == true
-                ? widget.controller!.value.aspectRatio  // 视频初始化后，设置实际宽高比
-                : 16 / 9,  // 加载时默认占位符宽高比
-            child: TableVideoWidget(
-              controller: widget.controller,  // 传入视频控制器
-              toastString: widget.toastString,  // 提示信息
-              isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
-              isBuffering: widget.isBuffering,  // 是否缓冲
-              isPlaying: widget.isPlaying,  // 是否正在播放
-              drawerIsOpen: false,  // 抽屉菜单关闭状态
-              toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
-              isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
-              currentChannelId: currentChannelId,  // 传递当前频道ID
-              changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
+          // 设置固定高度以保持一致的视频显示区域
+          Container(
+            color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
+            width: double.infinity,
+            height: MediaQuery.of(context).size.width / (16 / 9), // 固定播放器高度为16:9比例宽高比
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.width / (widget.controller?.value.aspectRatio ?? 16 / 9),
+                child: TableVideoWidget(
+                  controller: widget.controller,  // 传入视频控制器
+                  toastString: widget.toastString,  // 提示信息
+                  isLandscape: isLandscape,  // 动态判断是否为横屏
+                  aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
+                  isBuffering: widget.isBuffering,  // 是否缓冲
+                  isPlaying: widget.isPlaying,  // 是否正在播放
+                  drawerIsOpen: false,  // 抽屉菜单关闭状态
+                  toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
+                  isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
+                  currentChannelId: currentChannelId,  // 传递当前频道ID
+                  changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
+                ),
+              ),
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
