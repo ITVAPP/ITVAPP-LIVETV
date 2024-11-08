@@ -137,7 +137,7 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
       // 先在 videoOnly 流中查找指定清晰度
       var videoStreamInfo = manifest.videoOnly.firstWhere(
         (element) => element.qualityLabel == quality,
-        orElse: () => null,
+        orElse: () => manifest.videoOnly.last,
       );
       if (videoStreamInfo != null) {
         return videoStreamInfo;
@@ -146,7 +146,7 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
       // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
       var muxedStreamInfo = manifest.muxed.firstWhere(
         (element) => element.qualityLabel == quality,
-        orElse: () => null,
+        orElse: () => manifest.muxed.last,
       );
       if (muxedStreamInfo != null) {
         return muxedStreamInfo;
