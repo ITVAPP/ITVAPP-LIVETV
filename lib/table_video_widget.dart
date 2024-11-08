@@ -53,13 +53,44 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   bool _isShowMenuBar = true; // 控制是否显示底部菜单栏
   bool _isShowPauseIcon = false; // 控制是否显示暂停图标
-  bool _isShowPlayIcon = false; // 新增：控制播放图标显示
+  bool _isShowPlayIcon = false; // 控制播放图标显示
   Timer? _pauseIconTimer; // 用于控制暂停图标显示时间的计时器
 
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
 
-  // 统一的控制图标样式方法
+  // 统一的视频播放组件创建方法
+  Widget _buildVideoPlayer(double containerHeight) {
+    if (widget.controller == null || !widget.controller!.value.isInitialized) {
+      return VideoHoldBg(
+        toastString: _drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: false,
+      );
+    }
+
+    // 竖屏模式下的视频显示
+    if (!widget.isLandscape) {
+      return Container(
+        width: double.infinity,
+        height: containerHeight,
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: widget.controller!.value.aspectRatio,
+            child: VideoPlayer(widget.controller!),
+          ),
+        ),
+      );
+    }
+
+    // 横屏模式下的视频显示
+    return AspectRatio(
+      aspectRatio: widget.controller!.value.aspectRatio,
+      child: VideoPlayer(widget.controller!),
+    );
+  }
+  
+// 统一的控制图标样式方法
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -99,7 +130,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return iconWidget;
   }
 
-  // 新增：处理选择键和确认键的点击事件
+  // 处理选择键和确认键的点击事件
   Future<void> _handleSelectPress() async {
     // 1. 如果视频正在播放
     if (widget.isPlaying) {
@@ -150,6 +181,37 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         widget.onToggleDrawer?.call();  // 调用关闭抽屉的回调
       });
     }
+  }
+
+  // 创建统一样式的控制按钮
+  Widget _buildControlButton({
+    required IconData icon,
+    required String tooltip,
+    VoidCallback? onPressed,
+    Color? iconColor,
+    bool showBackground = false,
+  }) {
+    return Container(
+      width: 32,  // 固定宽度
+      height: 32, // 固定高度
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          icon,
+          color: iconColor ?? _iconColor,
+          size: 24,  // 固定图标大小
+        ),
+        onPressed: onPressed,
+      ),
+    );
   }
   
 @override
@@ -222,7 +284,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       width: 32,
       height: 32,
       child: IconButton(
-        tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
+        tooltip: widget.isChannelFavorite(currentChannelId) 
+            ? S.current.removeFromFavorites 
+            : S.current.addToFavorites,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
         style: showBackground
@@ -232,8 +296,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               )
             : null,
         icon: Icon(
-          widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
-          color: widget.isChannelFavorite(currentChannelId) ? Colors.red : _iconColor,
+          widget.isChannelFavorite(currentChannelId) 
+              ? Icons.favorite 
+              : Icons.favorite_border,
+          color: widget.isChannelFavorite(currentChannelId) 
+              ? Colors.red 
+              : _iconColor,
           size: 24, // 固定图标大小
         ),
         onPressed: () {
@@ -275,10 +343,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
   
-@override
+  @override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
-    // 计算播放器容器的高度
+    // 计算播放器容器的高度，统一使用 16:9 比例
     final playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
     return Stack(
@@ -288,94 +356,44 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           onTap: _drawerIsOpen ? null : () => _handleSelectPress(),
           onDoubleTap: _drawerIsOpen ? null : () {
             LogUtil.safeExecute(() {
-              widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
+              widget.isPlaying 
+                  ? widget.controller?.pause() 
+                  : widget.controller?.play();
             }, '双击播放/暂停发生错误');
           },
           child: Container(
             alignment: Alignment.center,
             color: Colors.black,
-            child: widget.controller != null && widget.controller!.value.isInitialized
-                ? Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // 竖屏模式下的视频显示
-                      if (!widget.isLandscape)
-                        Container(
-                          width: double.infinity,
-                          height: playerHeight,
-                          child: Stack(
-                            children: [
-                              // 视频容器
-                              Container(
-                                width: double.infinity,
-                                height: playerHeight,
-                                child: Center(
-                                  child: SizedBox.expand(
-                                    child: FittedBox(
-                                      fit: BoxFit.cover,
-                                      child: SizedBox(
-                                        width: playerHeight * widget.controller!.value.aspectRatio,
-                                        height: playerHeight,
-                                        child: VideoPlayer(widget.controller!),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // 黑色背景填充
-                              if (widget.controller!.value.aspectRatio < 16/9)
-                                Container(
-                                  width: double.infinity,
-                                  height: playerHeight,
-                                  color: Colors.black,
-                                ),
-                              // 视频显示
-                              Center(
-                                child: SizedBox(
-                                  height: playerHeight,
-                                  child: AspectRatio(
-                                    aspectRatio: widget.controller!.value.aspectRatio,
-                                    child: VideoPlayer(widget.controller!),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      // 横屏模式下的视频显示
-                      else
-                        AspectRatio(
-                          aspectRatio: widget.controller!.value.aspectRatio,
-                          child: VideoPlayer(widget.controller!),
-                        ),
-                      // 播放控制图标
-                      if (_isShowPlayIcon || (!widget.isPlaying && !_drawerIsOpen))
-                        _buildControlIcon(
-                          icon: Icons.play_arrow,
-                          onTap: () => _handleSelectPress(),
-                        ),
-                      if (_isShowPauseIcon)
-                        _buildControlIcon(
-                          icon: Icons.pause,
-                        ),
-                    ],
-                  )
-                : VideoHoldBg(
-                    toastString: _drawerIsOpen ? '' : widget.toastString,
-                    showBingBackground: false,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 视频播放器
+                _buildVideoPlayer(playerHeight),
+                
+                // 播放控制图标
+                if (_isShowPlayIcon || (!widget.isPlaying && !_drawerIsOpen))
+                  _buildControlIcon(
+                    icon: Icons.play_arrow,
+                    onTap: () => _handleSelectPress(),
                   ),
+                if (_isShowPauseIcon)
+                  _buildControlIcon(
+                    icon: Icons.pause,
+                  ),
+              ],
+            ),
           ),
         ),
 
         // 音量和亮度控制组件
         const VolumeBrightnessWidget(),
 
-        // 时间显示
-        if (_isShowMenuBar && !_drawerIsOpen) 
+        // 时间显示（仅在横屏模式且菜单栏显示时）
+        if (_isShowMenuBar && !_drawerIsOpen && widget.isLandscape) 
           const DatePositionWidget(),
 
         // 横屏模式下的底部菜单栏
-        if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar) ...[
+        if (widget.isLandscape && !_drawerIsOpen && _isShowMenuBar)
           AnimatedPositioned(
             left: 0,
             right: 0,
@@ -387,10 +405,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               child: Row(
                 children: [
                   const Spacer(),
-                  IconButton(
+                  // 频道列表按钮
+                  _buildControlButton(
+                    icon: Icons.list_alt,
                     tooltip: S.of(context).tipChannelList,
-                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
-                    icon: Icon(Icons.list_alt, color: _iconColor),
+                    showBackground: true,
                     onPressed: () {
                       LogUtil.safeExecute(() {
                         setState(() {
@@ -401,14 +420,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     },
                   ),
                   const SizedBox(width: 3),
+                  // 收藏按钮
                   buildFavoriteButton(currentChannelId, true),
                   const SizedBox(width: 3),
+                  // 切换源按钮
                   buildChangeChannelSourceButton(true),
                   const SizedBox(width: 3),
-                  IconButton(
+                  // 设置按钮
+                  _buildControlButton(
+                    icon: Icons.settings,
                     tooltip: S.of(context).settings,
-                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
-                    icon: Icon(Icons.settings, color: _iconColor),
+                    showBackground: true,
                     onPressed: () {
                       _closeDrawerIfOpen();
                       LogUtil.safeExecute(() {
@@ -421,10 +443,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     },
                   ),
                   const SizedBox(width: 3),
-                  IconButton(
+                  // 横竖屏切换按钮
+                  _buildControlButton(
+                    icon: Icons.screen_rotation,
                     tooltip: S.of(context).portrait,
-                    style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
-                    icon: Icon(Icons.screen_rotation, color: _iconColor),
+                    showBackground: true,
                     onPressed: () async {
                       LogUtil.safeExecute(() async {
                         if (EnvUtil.isMobile) {
@@ -437,24 +460,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '切换为竖屏时发生错误');
                     },
                   ),
-                  if (!EnvUtil.isMobile) const SizedBox(width: 6),
-                  if (!EnvUtil.isMobile)
-                    IconButton(
+                  // 全屏按钮（非移动设备）
+                  if (!EnvUtil.isMobile) ...[
+                    const SizedBox(width: 6),
+                    _buildControlButton(
+                      icon: Icons.fit_screen_outlined,
                       tooltip: S.of(context).fullScreen,
-                      style: IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide),
-                      icon: FutureBuilder<bool>(
-                        future: windowManager.isFullScreen(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData) {
-                            return Icon(
-                              snapshot.data! ? Icons.close_fullscreen : Icons.fit_screen_outlined,
-                              color: _iconColor,
-                            );
-                          } else {
-                            return Icon(Icons.fit_screen_outlined, color: _iconColor);
-                          }
-                        },
-                      ),
+                      showBackground: true,
                       onPressed: () async {
                         LogUtil.safeExecute(() async {
                           final isFullScreen = await windowManager.isFullScreen();
@@ -462,17 +474,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         }, '切换为全屏时发生错误');
                       },
                     ),
+                  ],
                 ],
               ),
             ),
           ),
-        ],
 
         // 竖屏模式下的右下角控制按钮
         if (!widget.isLandscape)
           Positioned(
             right: 8,
-            bottom: 8,  // 固定位置在播放器底部
+            // 使用 playerHeight 确保按钮位置始终在播放器区域内
+            bottom: 8,
             child: Container(
               width: 32,
               child: Column(
@@ -482,31 +495,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   const SizedBox(height: 5),
                   buildChangeChannelSourceButton(false),
                   const SizedBox(height: 5),
-                  Container(
-                    width: 32,
-                    height: 32,
-                    child: IconButton(
-                      tooltip: S.of(context).landscape,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () async {
-                        if (EnvUtil.isMobile) {
-                          SystemChrome.setPreferredOrientations([
-                            DeviceOrientation.landscapeLeft,
-                            DeviceOrientation.landscapeRight
-                          ]);
-                          return;
-                        }
-                        await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                        await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                        Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                      },
-                      icon: Icon(
-                        Icons.screen_rotation,
-                        color: _iconColor,
-                        size: 24, // 固定图标大小
-                      ),
-                    ),
+                  _buildControlButton(
+                    icon: Icons.screen_rotation,
+                    tooltip: S.of(context).landscape,
+                    onPressed: () async {
+                      if (EnvUtil.isMobile) {
+                        SystemChrome.setPreferredOrientations([
+                          DeviceOrientation.landscapeLeft,
+                          DeviceOrientation.landscapeRight
+                        ]);
+                        return;
+                      }
+                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                    },
                   ),
                 ],
               ),
