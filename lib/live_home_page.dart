@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:sp_util/sp_util.dart';
@@ -129,22 +130,41 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
 /// 播放视频前的调试代码
+import 'dart:io';
+import 'dart:convert';
+
+/// 添加到播放视频前的调试代码
 Future<void> _verifyUrl(String url) async {
   try {
-    // 1. 验证 URL 是否可以访问
-    final response = await HttpClient().getUrl(Uri.parse(url));
-    final httpResponse = await response.close();
-    LogUtil.i('URL 状态码: ${httpResponse.statusCode}');
+    // 1. 打印完整的 URL
+    LogUtil.i('验证 URL: $url');
+    LogUtil.i('URL 长度: ${url.length}');
+
+    // 2. 检查 URL 基本组成部分
+    final uri = Uri.parse(url);
+    LogUtil.i('URL 组成部分:');
+    LogUtil.i('- scheme: ${uri.scheme}');
+    LogUtil.i('- host: ${uri.host}');
+    LogUtil.i('- path: ${uri.path}');
+    LogUtil.i('- query parameters: ${uri.queryParameters.length}');
     
-    // 2. 获取内容类型
-    final contentType = httpResponse.headers.value('content-type');
-    LogUtil.i('Content-Type: $contentType');
+    // 3. 测试发送请求
+    final request = await HttpClient().getUrl(uri);
+    request.headers.add('User-Agent', 'Mozilla/5.0');
+    final response = await request.close();
+    LogUtil.i('响应状态码: ${response.statusCode}');
     
-    // 3. 读取前100个字节的内容查看格式
-    final content = await utf8.decodeStream(httpResponse.take(100));
-    LogUtil.i('Content 前100字节: $content');
-  } catch (e) {
-    LogUtil.logError('验证 URL 时出错', e);
+    // 4. 获取响应头
+    LogUtil.i('响应头:');
+    response.headers.forEach((name, values) {
+      LogUtil.i('$name: $values');
+    });
+    
+    // 5. 读取部分响应内容
+    final content = await response.transform(utf8.decoder).take(1).join();
+    LogUtil.i('响应内容开头: $content');
+  } catch (e, stackTrace) {
+    LogUtil.logError('验证 URL 时出错', e, stackTrace);
   }
 }
   
