@@ -24,6 +24,7 @@ class TableVideoWidget extends StatefulWidget {
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
   final String currentChannelId;
   final VoidCallback? onToggleDrawer;
+  final bool isAudio; // 新增音频模式参数
 
   const TableVideoWidget({
     super.key,
@@ -39,6 +40,7 @@ class TableVideoWidget extends StatefulWidget {
     this.changeChannelSources,
     this.isLandscape = true,
     this.onToggleDrawer,
+    this.isAudio = false, // 默认为视频模式
   });
 
   @override
@@ -61,7 +63,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 统一的视频播放组件创建方法
   Widget _buildVideoPlayer(double containerHeight) {
-    if (widget.controller == null || !widget.controller!.value.isInitialized) {
+
+    if (widget.controller == null || !widget.controller!.value.isInitialized || widget.isAudio == true) {
       return VideoHoldBg(
         toastString: _drawerIsOpen ? '' : widget.toastString,
         showBingBackground: false,
@@ -397,10 +400,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           AnimatedPositioned(
             left: 0,
             right: 0,
-            bottom: _isShowMenuBar ? 20 : -50,
-            duration: const Duration(milliseconds: 100),
+            bottom: _isShowMenuBar ? 15 : -50,
+            duration: const Duration(milliseconds: 200),
             child: Container(
-              height: 50,
+              height: 32,
               padding: const EdgeInsets.symmetric(horizontal: 15),
               child: Row(
                 children: [
@@ -419,13 +422,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '切换频道发生错误');
                     },
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 5),
                   // 收藏按钮
                   buildFavoriteButton(currentChannelId, true),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 5),
                   // 切换源按钮
                   buildChangeChannelSourceButton(true),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 5),
                   // 设置按钮
                   _buildControlButton(
                     icon: Icons.settings,
@@ -442,7 +445,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       }, '进入设置页面发生错误');
                     },
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 5),
                   // 横竖屏切换按钮
                   _buildControlButton(
                     icon: Icons.screen_rotation,
@@ -462,7 +465,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   ),
                   // 全屏按钮（非移动设备）
                   if (!EnvUtil.isMobile) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     _buildControlButton(
                       icon: Icons.fit_screen_outlined,
                       tooltip: S.of(context).fullScreen,
@@ -484,7 +487,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         if (!widget.isLandscape)
           Positioned(
             right: 8,
-            // 使用 playerHeight 确保按钮位置始终在播放器区域内
             bottom: 8,
             child: Container(
               width: 32,
@@ -492,9 +494,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   buildFavoriteButton(currentChannelId, false),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 2),
                   buildChangeChannelSourceButton(false),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 2),
                   _buildControlButton(
                     icon: Icons.screen_rotation,
                     tooltip: S.of(context).landscape,
