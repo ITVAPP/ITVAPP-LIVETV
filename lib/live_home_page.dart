@@ -182,6 +182,8 @@ Future<void> _playVideo() async {
             _timeoutActive = false;
         });
 
+        LogUtil.i('准备播放：$parsedUrl');
+      
         // 添加监听并开始播放
         _playerController?.addListener(_videoListener);
         await _playerController?.play();
