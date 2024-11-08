@@ -58,8 +58,8 @@ class TvSettingPageState extends State<TvSettingPage> {
     }
     super.dispose();
   }
-
-  // 用于检查版本更新的逻辑
+  
+// 用于检查版本更新的逻辑
   Future<void> _checkForUpdates() async {
     try {
       await CheckVersionUtil.checkVersion(context, true, true, true);
@@ -94,55 +94,55 @@ class TvSettingPageState extends State<TvSettingPage> {
   }
   
 // 通用方法：构建菜单项
-  Widget buildListTile({
-    required IconData icon,
-    required String title,
-    required int index,
-    required VoidCallback onTap,
-  }) {
-    final bool isSelected = selectedIndex == index;
-    
-    return FocusableItem(
-      focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
-      child: Builder(
-        builder: (context) {
-          final bool hasFocus = focusNodes[index + 1].hasFocus;
-          
-          return Container(
-            margin: const EdgeInsets.symmetric(vertical: 2), // 添加垂直间距
-            color: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent),
-            child: Material(
-              color: Colors.transparent,
-              child: ListTile(
-                leading: Icon(
-                  icon,
-                  color: Colors.white,
-                ), // 图标
-                title: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: (isSelected || hasFocus) ? FontWeight.bold : FontWeight.normal,
-                    color: Colors.white,
-                  ), // 设置文字大小
-                ), // 标题
-                selected: isSelected, // 判断是否选中
-                onTap: () {
-                  if (selectedIndex != index) {
-                    setState(() {
-                      selectedIndex = index; // 更新选中项索引
-                      _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
-                    });
-                  }
-                  onTap(); // 触发传入的 onTap 事件
-                },
+Widget buildListTile({
+  required IconData icon,
+  required String title,
+  required int index,
+  required VoidCallback onTap,
+}) {
+  // 使用 _confirmedIndex 判断选中状态
+  final bool isSelected = _confirmedIndex == index;
+  
+  return FocusableItem(
+    focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
+    child: Builder(
+      builder: (context) {
+        final bool hasFocus = focusNodes[index + 1].hasFocus;
+        
+        return Container(
+          // 移除外边距，使用纯色背景
+          color: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent),
+          child: Material(
+            color: Colors.transparent,
+            child: ListTile(
+              // 使用内边距代替外边距
+              contentPadding: const EdgeInsets.symmetric(vertical: 2, horizontal: 16),
+              leading: Icon(
+                icon,
+                color: Colors.white,
               ),
+              title: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: (isSelected || hasFocus) ? FontWeight.bold : FontWeight.normal,
+                  color: Colors.white,
+                ),
+              ),
+              selected: isSelected,
+              onTap: () {
+                setState(() {
+                  _confirmedIndex = index; // 更新显示的子页面对应的索引
+                });
+                onTap();
+              },
             ),
-          );
-        },
-      ),
-    );
-  }
+          ),
+        );
+      },
+    ),
+  );
+}
 
   // 构建返回按钮
   Widget buildBackButton() {
@@ -168,8 +168,8 @@ class TvSettingPageState extends State<TvSettingPage> {
       ),
     );
   }
-
-  // 根据确认选择的索引构建右侧页面
+  
+// 根据确认选择的索引构建右侧页面
   Widget _buildRightPanel() {
     switch (_confirmedIndex) {
       case 0:
@@ -219,8 +219,8 @@ class TvSettingPageState extends State<TvSettingPage> {
         isVerticalGroup: true, // 启用竖向分组
         onSelect: (index) {
           setState(() {
-            selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
-            _confirmedIndex = selectedIndex; // 同步更新确认索引
+            selectedIndex = index - 1; // 焦点索引更新
+            _confirmedIndex = selectedIndex; // 同步更新确认索引以显示对应页面
           });
         },
         child: Row(
@@ -259,8 +259,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           index: 0,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 0;
-                              _confirmedIndex = 0; // 用户按下确认键后更新页面
+                              _confirmedIndex = 0; // 更新显示的子页面
                             });
                           },
                         ),
@@ -270,8 +269,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           index: 1,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 1;
-                              _confirmedIndex = 1; // 用户按下确认键后更新页面
+                              _confirmedIndex = 1; // 更新显示的子页面
                             });
                           },
                         ),
@@ -281,8 +279,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           index: 2,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 2;
-                              _confirmedIndex = 2; // 用户按下确认键后更新页面
+                              _confirmedIndex = 2; // 更新显示的子页面
                             });
                           },
                         ),
@@ -292,8 +289,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           index: 3,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 3;
-                              _confirmedIndex = 3; // 用户按下确认键后更新页面
+                              _confirmedIndex = 3; // 更新显示的子页面
                             });
                           },
                         ),
@@ -303,8 +299,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           index: 4,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 4;
-                              _confirmedIndex = 4; // 用户按下确认键后更新页面
+                              _confirmedIndex = 4; // 更新显示的子页面
                             });
                             _checkForUpdates(); // 调用检查更新逻辑
                           },
