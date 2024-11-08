@@ -21,8 +21,7 @@ class StreamUrl {
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
       // 如果不是需要解析的URL，避免后续处理
-      
-       if (_isLZUrl(url)){
+      if (_isLZUrl(url)){
         return 'https://lz.qaiu.top/parser?url=$url'; 
       } 
       
@@ -30,20 +29,46 @@ class StreamUrl {
         return url; // 直接返回原始 URL
       } 
       
-      // 如果是需要解析的URL，判断是哪个平台，或是youtube的直播流还是普通视频
-      if (url.contains('ytlive')) {
-        return await retry(() => _getYouTubeLiveStreamUrl(), retries: 2)
-          .timeout(timeoutDuration, onTimeout: () {
-          LogUtil.e('获取 YT 直播流超时');
-          return 'ERROR';
-        }) ?? 'ERROR';  // 处理 YouTube 直播视频
-      } else {
-        return await retry(() => _getYouTubeVideoUrl(), retries: 2)
-          .timeout(timeoutDuration, onTimeout: () {
-          LogUtil.e('获取 YT 视频流超时');
-          return 'ERROR';
-        }) ?? 'ERROR';  // 处理普通 YouTube 视频
+      // 选择处理函数
+      final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
+      
+      // 第一次尝试
+      try {
+        final result = await task().timeout(timeoutDuration);
+        if (result != null) {
+          LogUtil.i('首次获取视频流成功');
+          return result;
+        }
+        LogUtil.e('首次获取视频流返回空结果，准备重试');
+      } catch (e) {
+        if (e is TimeoutException) {
+          LogUtil.e('首次获取视频流超时，准备重试');
+        } else {
+          LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
+        }
       }
+      
+      // 等待短暂时间后重试
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // 第二次尝试
+      try {
+        final result = await task().timeout(timeoutDuration);
+        if (result != null) {
+          LogUtil.i('重试获取视频流成功');
+          return result;
+        }
+        LogUtil.e('重试获取视频流返回空结果');
+        return 'ERROR';
+      } catch (retryError) {
+        if (retryError is TimeoutException) {
+          LogUtil.e('重试获取视频流超时');
+        } else {
+          LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
+        }
+        return 'ERROR';
+      }
+      
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';  // 出现异常时返回 'ERROR'
@@ -108,56 +133,56 @@ class StreamUrl {
     }
   }
 
-// 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
-Future<String?> _getYouTubeVideoUrl() async {
-  if (_isDisposed) return null;  // 检查是否已经释放资源
-  try {
-    if (_isDisposed) return null;  // 如果资源被释放，立即退出
-      var video = await yt.videos.get(url).timeout(timeoutDuration);  
-      var manifest = await yt.videos.streams.getManifest(video.id).timeout(timeoutDuration);  
+  // 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
+  Future<String?> _getYouTubeVideoUrl() async {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
+    try {
+      if (_isDisposed) return null;  // 如果资源被释放，立即退出
+      var video = await yt.videos.get(url);  
+      var manifest = await yt.videos.streams.getManifest(video.id);  
       var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
       var streamUrl = streamInfo?.url.toString();
       if (streamUrl != null && streamUrl.contains('http')) {
         // 如果解析成功，返回 URL
-        LogUtil.i('获取到 YT 视频流地址: $streamUrl');
+        LogUtil.i('解析到 YT 视频流地址: $streamUrl');
         return streamUrl;
       }
-  } catch (e, stackTrace) {
-    LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
-    return null;
-  }
-  return null;  // 最终未成功，返回 null
-}
-
-// 根据指定的清晰度列表，获取最佳的视频流信息
-StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
-  if (_isDisposed) return null;  // 检查是否已经释放资源
-  try {
-    for (var quality in preferredQualities) {
-      // 先在 videoOnly 流中查找指定清晰度
-      var videoStreamInfo = manifest.videoOnly.firstWhere(
-        (element) => element.qualityLabel == quality,
-        orElse: () => manifest.videoOnly.last,
-      );
-      if (videoStreamInfo != null) {
-        return videoStreamInfo;
-      }
-
-      // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
-      var muxedStreamInfo = manifest.muxed.firstWhere(
-        (element) => element.qualityLabel == quality,
-        orElse: () => manifest.muxed.last,
-      );
-      if (muxedStreamInfo != null) {
-        return muxedStreamInfo;
-      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
+      return null;
     }
-    return null;
-  } catch (e, stackTrace) {
-    LogUtil.logError('在获取最佳视频流时发生错误', e, stackTrace);
-    return null;
+    return null;  // 最终未成功，返回 null
   }
-}
+
+  // 根据指定的清晰度列表，获取最佳的视频流信息
+  StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
+    if (_isDisposed) return null;  // 检查是否已经释放资源
+    try {
+      for (var quality in preferredQualities) {
+        // 先在 videoOnly 流中查找指定清晰度
+        var videoStreamInfo = manifest.videoOnly.firstWhere(
+          (element) => element.qualityLabel == quality,
+          orElse: () => manifest.videoOnly.last,
+        );
+        if (videoStreamInfo != null) {
+          return videoStreamInfo;
+        }
+
+        // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
+        var muxedStreamInfo = manifest.muxed.firstWhere(
+          (element) => element.qualityLabel == quality,
+          orElse: () => manifest.muxed.last,
+        );
+        if (muxedStreamInfo != null) {
+          return muxedStreamInfo;
+        }
+      }
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('在获取最佳视频流时发生错误', e, stackTrace);
+      return null;
+    }
+  }
 
   // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
@@ -239,20 +264,6 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
 
     if (match != null) {
       return match.group(1);
-    }
-    return null;
-  }
-
-  // 通用的重试函数
-  Future<T?> retry<T>(Future<T?> Function() task, {int retries = 2}) async {
-    for (int attempt = 0; attempt < retries; attempt++) {
-      try {
-        return await task();
-      } catch (e) {
-        if (attempt == retries - 1) {
-          throw e;
-        }
-      }
     }
     return null;
   }
