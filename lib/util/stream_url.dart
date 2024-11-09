@@ -120,10 +120,10 @@ class StreamUrl {
   }
 
 // 获取普通 YouTube 视频的流媒体 URL
-Future<String?> _getYouTubeVideoUrl() async {
-  if (_isDisposed) return null;  // 检查是否已经释放资源
+Future<String> _getYouTubeVideoUrl() async {
+  if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
   try {
-    if (_isDisposed) return null;  // 如果资源被释放，立即退出
+    if (_isDisposed) return 'ERROR';  // 如果资源被释放，立即退出
     var video = await yt.videos.get(url);  
     var manifest = await yt.videos.streams.getManifest(video.id);  
 
@@ -150,9 +150,9 @@ Future<String?> _getYouTubeVideoUrl() async {
     }
   } catch (e, stackTrace) {
     LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
-    return null;
+    return 'ERROR';
   }
-  return null;  // 最终未成功，返回 null
+  return 'ERROR';  // 最终未成功，返回 'ERROR'
 }
 
 // 根据指定的清晰度列表，获取最佳的视频流信息
@@ -164,7 +164,7 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
       // 先在 muxed 流中查找指定清晰度
       var muxedStreamInfo = manifest.muxed.firstWhere(
         (element) => element.qualityLabel == quality,
-        orElse: () => null
+        orElse: () => manifest.muxed.isNotEmpty ? manifest.muxed.last : throw Exception('未找到匹配的 muxed 流')
       );
       if (muxedStreamInfo != null) {
         LogUtil.i('在 muxed 流中找到匹配清晰度: ${muxedStreamInfo.qualityLabel}');
@@ -174,7 +174,7 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
       // 如果在 muxed 中找不到，才尝试 videoOnly 流
       var videoStreamInfo = manifest.videoOnly.firstWhere(
         (element) => element.qualityLabel == quality,
-        orElse: () => null
+        orElse: () => manifest.videoOnly.isNotEmpty ? manifest.videoOnly.last : throw Exception('未找到匹配的 videoOnly 流')
       );
       if (videoStreamInfo != null) {
         LogUtil.i('在 videoOnly 流中找到匹配清晰度: ${videoStreamInfo.qualityLabel}');
