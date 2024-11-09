@@ -274,7 +274,7 @@ Future<void> _playVideo() async {
             _isRetrying = false;
             _retryCount = 0;
         });
-         return;
+        _handleSourceSwitch();
          // _retryPlayback();  // 出错时进入重试逻辑
     }
 }
