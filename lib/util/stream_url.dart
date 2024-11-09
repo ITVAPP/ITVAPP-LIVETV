@@ -138,57 +138,84 @@ class StreamUrl {
     }
   }
 
-  // 获取普通 YouTube 视频的流媒体 URL
-  Future<String> _getYouTubeVideoUrl() async {
-    if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
-    try {
-      if (_isDisposed) return 'ERROR';  // 如果资源被释放，立即退出
-      var video = await yt.videos.get(url);  
-      var manifest = await yt.videos.streams.getManifest(video.id);
+// 获取普通 YouTube 视频的流媒体 URL
+Future<String> _getYouTubeVideoUrl() async {
+  if (_isDisposed) return 'ERROR';
+  try {
+    var video = await yt.videos.get(url);
+    var manifest = await yt.videos.streams.getManifest(
+      video.id,
+      ytClients: [
+        YoutubeApiClient.safari,  // Safari 客户端通常更容易获取到 HLS 流
+        YoutubeApiClient.android  // Android 客户端作为备选
+      ]
+    );
 
-      // 1. 尝试获取HLS流
-      var hlsUrl = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-      if (hlsUrl != null) {
+    // 1. 首选：获取 HLS 流（m3u8），video_player 对此支持最好
+    if (manifest.hls != null) {
+      final hlsUrl = manifest.hls.url.toString();
+      if (hlsUrl.isNotEmpty && hlsUrl.startsWith('http')) {
         LogUtil.i('获取到 HLS 流地址: $hlsUrl');
         return hlsUrl;
       }
-
-      // 2. 如果没有 HLS 流，获取最高质量的 muxed 流
-      var muxedStreams = manifest.muxed.toList();
-      if (muxedStreams.isNotEmpty) {
-        // 按视频分辨率排序以获取最高质量的流
-        muxedStreams.sort((a, b) => 
-          b.videoResolution.height.compareTo(a.videoResolution.height));
-        var bestStream = muxedStreams.first;
-        var streamUrl = bestStream.url.toString();
-        
-        if (streamUrl.contains('http')) {
-          LogUtil.i('获取到 muxed 流地址: $streamUrl');
-          return streamUrl;
-        }
-      }
-      
-      LogUtil.e('未能获取到有效的视频流地址');
-      return 'ERROR';
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
-      return 'ERROR';
     }
+
+    // 2. 次选：获取最高质量的 mp4 混合流
+    var mp4Streams = manifest.muxed
+        .where((s) => s.container == Container.mp4)  // video_player 需要 mp4 格式
+        .toList();
+    
+    if (mp4Streams.isNotEmpty) {
+      // 按质量排序
+      mp4Streams.sort((a, b) => 
+        b.videoResolution.height.compareTo(a.videoResolution.height));
+      
+      var bestStream = mp4Streams.first;
+      var streamUrl = bestStream.url.toString();
+      
+      if (streamUrl.isNotEmpty && streamUrl.startsWith('http')) {
+        LogUtil.i('获取到 mp4 流地址: $streamUrl (${bestStream.videoResolution.height}p)');
+        return streamUrl;
+      }
+    }
+
+    // 3. 备选：使用你原有的可靠的 HLS 获取方式
+    var hlsUrl = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+    if (hlsUrl != null) {
+      LogUtil.i('通过备选方案获取到 HLS 流地址: $hlsUrl');
+      return hlsUrl;
+    }
+      
+    LogUtil.e('未能获取到有效的视频流地址');
+    return 'ERROR';
+  } catch (e, stackTrace) {
+    LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
+    return 'ERROR';
   }
+}
 
   // 获取最佳的流媒体信息
-  StreamInfo? _getBestStream(StreamManifest manifest) {
+  StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      // 获取所有 muxed 流并排序
-      var muxedStreams = manifest.muxed.toList();
-      if (muxedStreams.isNotEmpty) {
-        // 按视频分辨率排序
-        muxedStreams.sort((a, b) => 
-          b.videoResolution.height.compareTo(a.videoResolution.height));
-        var bestStream = muxedStreams.first;
-        LogUtil.i('找到最高质量的 muxed 流: ${bestStream.videoResolution.height}p');
-        return bestStream;
+      for (var quality in preferredQualities) {
+        // 先在 videoOnly 流中查找指定清晰度
+        var videoStreamInfo = manifest.videoOnly.firstWhere(
+          (element) => element.qualityLabel == quality,
+          orElse: () => manifest.videoOnly.last,
+        );
+        if (videoStreamInfo != null) {
+          return videoStreamInfo;
+        }
+
+        // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
+        var muxedStreamInfo = manifest.muxed.firstWhere(
+          (element) => element.qualityLabel == quality,
+          orElse: () => manifest.muxed.last,
+        );
+        if (muxedStreamInfo != null) {
+          return muxedStreamInfo;
+        }
       }
       return null;
     } catch (e, stackTrace) {
