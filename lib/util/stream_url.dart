@@ -35,11 +35,12 @@ class StreamUrl {
       // 第一次尝试
       try {
         final result = await task().timeout(timeoutDuration);
-        if (result != null) {
+        // 现在只需要检查是否为 'ERROR'，因为内部方法已经处理了所有失败情况
+        if (result != 'ERROR') {
           LogUtil.i('首次获取视频流成功');
           return result;
         }
-        LogUtil.e('首次获取视频流返回空结果，准备重试');
+        LogUtil.e('首次获取视频流失败，准备重试');
       } catch (e) {
         if (e is TimeoutException) {
           LogUtil.e('首次获取视频流超时，准备重试');
@@ -54,11 +55,12 @@ class StreamUrl {
       // 第二次尝试
       try {
         final result = await task().timeout(timeoutDuration);
-        if (result != null) {
+        // 同样只需要检查是否为 'ERROR'
+        if (result != 'ERROR') {
           LogUtil.i('重试获取视频流成功');
           return result;
         }
-        LogUtil.e('重试获取视频流返回空结果');
+        LogUtil.e('重试获取视频流失败');
         return 'ERROR';
       } catch (retryError) {
         if (retryError is TimeoutException) {
@@ -117,62 +119,74 @@ class StreamUrl {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
 
-  // 获取 YouTube 直播流的 URL，如果解析失败，返回 null
-  Future<String?> _getYouTubeLiveStreamUrl() async {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
-    String? m3u8Url;
+  // 获取 YouTube 直播流的 URL
+  Future<String> _getYouTubeLiveStreamUrl() async {
+    if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
     try {
-      m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-      LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
-      return m3u8Url;
+      final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+      if (m3u8Url != null) {
+        LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
+        return m3u8Url;
+      }
+      LogUtil.e('未能获取到有效的直播流地址');
+      return 'ERROR';
     } catch (e, stackTrace) {
       if (!_isDisposed) {
         LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
-      return null;
+      return 'ERROR';
     }
   }
 
-  // 获取普通 YouTube 视频的流媒体 URL，如果解析失败，返回 null
-  Future<String?> _getYouTubeVideoUrl() async {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
+  // 获取普通 YouTube 视频的流媒体 URL
+  Future<String> _getYouTubeVideoUrl() async {
+    if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
     try {
-      if (_isDisposed) return null;  // 如果资源被释放，立即退出
+      if (_isDisposed) return 'ERROR';  // 如果资源被释放，立即退出
       var video = await yt.videos.get(url);  
       var manifest = await yt.videos.streams.getManifest(video.id);
 
-      // 1. 优先尝试获取 HLS 流（可能提供更高质量）
-      if (manifest.hlsManifestUrl != null) {
-        var hlsUrl = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
-        if (hlsUrl != null) {
-          LogUtil.i('获取到 HLS 流地址: $hlsUrl');
-          return hlsUrl;
+      // 1. 尝试获取HLS流
+      var hlsUrl = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+      if (hlsUrl != null) {
+        LogUtil.i('获取到 HLS 流地址: $hlsUrl');
+        return hlsUrl;
+      }
+
+      // 2. 如果没有 HLS 流，获取最高质量的 muxed 流
+      var muxedStreams = manifest.muxed.toList();
+      if (muxedStreams.isNotEmpty) {
+        // 按视频质量排序以获取最高质量的流
+        muxedStreams.sort((a, b) => b.videoQuality.compareTo(a.videoQuality));
+        var bestStream = muxedStreams.first;
+        var streamUrl = bestStream.url.toString();
+        
+        if (streamUrl.contains('http')) {
+          LogUtil.i('获取到 muxed 流地址: $streamUrl');
+          return streamUrl;
         }
       }
-
-      // 2. 如果没有 HLS 流，直接获取最高质量的 muxed 流（最高 360p）
-      var streamInfo = _getBestStream(manifest);
-      var streamUrl = streamInfo?.url.toString();
-      if (streamUrl != null && streamUrl.contains('http')) {
-        LogUtil.i('获取到 muxed 流地址: $streamUrl');
-        return streamUrl;
-      }
+      
+      LogUtil.e('未能获取到有效的视频流地址');
+      return 'ERROR';
     } catch (e, stackTrace) {
       LogUtil.logError('获取 YT 流媒体地址时发生错误', e, stackTrace);  
-      return null;
+      return 'ERROR';
     }
-    return null;  // 最终未成功，返回 null
   }
 
-  // 获取最佳的流媒体信息（简化版本 - 只返回最高质量的 muxed 流）
+  // 获取最佳的流媒体信息
   StreamInfo? _getBestStream(StreamManifest manifest) {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      // 由于 muxed 流限制在 360p，直接获取最高质量的 muxed 流
-      var muxedStreamInfo = manifest.muxed.withHighestVideoQuality();
-      if (muxedStreamInfo != null) {
-        LogUtil.i('找到最高质量的 muxed 流: ${muxedStreamInfo.qualityLabel}');
-        return muxedStreamInfo;
+      // 获取所有 muxed 流并排序
+      var muxedStreams = manifest.muxed.toList();
+      if (muxedStreams.isNotEmpty) {
+        // 按视频质量排序
+        muxedStreams.sort((a, b) => b.videoQuality.compareTo(a.videoQuality));
+        var bestStream = muxedStreams.first;
+        LogUtil.i('找到最高质量的 muxed 流: ${bestStream.videoQuality.label}');
+        return bestStream;
       }
       return null;
     } catch (e, stackTrace) {
@@ -204,8 +218,9 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
       }
+      return null;
     }
     return null;
   }
@@ -247,8 +262,9 @@ class StreamUrl {
       }
     } catch (e, stackTrace) {
       if (!_isDisposed) {
-        return null;
+        LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
       }
+      return null;
     }
     return null;
   }
