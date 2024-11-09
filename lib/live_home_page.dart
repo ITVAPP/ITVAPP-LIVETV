@@ -36,23 +36,36 @@ class SeparatedStreamHandler {
   VideoPlayerController? _audioController;
   Timer? _syncTimer;
   
+  // YouTube请求所需的标准头部
+  static final Map<String, String> _youtubeHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  };
+  
   // 检查是否为分离流
   Future<bool> isSeparatedStream(String url) async {
     if (!url.endsWith('.m3u8')) return false;
     
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _youtubeHeaders
+      ).timeout(const Duration(seconds: 10));
+      
       if (response.statusCode != 200) return false;
       
       final content = response.body;
-      return content.contains('itag=140') && // 音频流标记
-             content.contains(RegExp(r'itag=(13[6-9]|9[5-9])')); // 视频流标记
+      // 检查是否包含YouTube的音频和视频流标记
+      bool hasAudioStream = content.contains('itag=140') || content.contains('AUDIO.*itag/140');
+      bool hasVideoStream = content.contains(RegExp(r'itag=(13[6-9]|9[5-9]|24[0-9]|25[0-9])')) || 
+                           content.contains(RegExp(r'VIDEO.*itag/(13[6-9]|9[5-9]|24[0-9]|25[0-9])'));
+      
+      return hasAudioStream && hasVideoStream;
     } catch (e) {
-      LogUtil.logError('检查分离流时出错', e);
+      LogUtil.logError('检查YouTube分离流时出错', e);
       return false;
     }
   }
-
+  
   // 提取音视频流地址
   Future<Map<String, String>> extractStreams(String m3u8Content) async {
     final lines = m3u8Content.split('\n');
@@ -63,15 +76,17 @@ class SeparatedStreamHandler {
       final line = lines[i].trim();
       if (line.isEmpty || line.startsWith('#')) continue;
       
-      if (line.contains('itag=140')) {
+      // 扩展视频格式支持
+      if (line.contains('itag=140') || line.contains('AUDIO.*itag/140')) {
         audioUrl = line;
-      } else if (line.contains(RegExp(r'itag=(13[6-9]|9[5-9])'))) {
+      } else if (line.contains(RegExp(r'itag=(13[6-9]|9[5-9]|24[0-9]|25[0-9])')) ||
+                 line.contains(RegExp(r'VIDEO.*itag/(13[6-9]|9[5-9]|24[0-9]|25[0-9])'))) {
         videoUrl = line;
       }
     }
 
     if (videoUrl == null) {
-      throw Exception('无法提取视频流地址');
+      throw Exception('无法提取YouTube视频流地址');
     }
 
     return {
@@ -83,9 +98,16 @@ class SeparatedStreamHandler {
   // 初始化播放器
   Future<VideoPlayerController> initialize(String url, Map<String, String> headers) async {
     try {
-      final response = await http.get(Uri.parse(url));
+      // 合并用户提供的headers和YouTube必需的headers
+      final combinedHeaders = {..._youtubeHeaders, ...headers};
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: combinedHeaders
+      ).timeout(const Duration(seconds: 10));
+      
       if (response.statusCode != 200) {
-        throw Exception('获取流媒体列表失败');
+        throw Exception('获取YouTube流媒体列表失败');
       }
 
       final streams = await extractStreams(response.body);
@@ -93,7 +115,7 @@ class SeparatedStreamHandler {
       // 初始化视频控制器
       _videoController = VideoPlayerController.networkUrl(
         Uri.parse(streams['video']!),
-        httpHeaders: headers,
+        httpHeaders: combinedHeaders,
         formatHint: VideoFormat.hls,
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: true,
@@ -105,7 +127,7 @@ class SeparatedStreamHandler {
       if (streams['audio']!.isNotEmpty) {
         _audioController = VideoPlayerController.networkUrl(
           Uri.parse(streams['audio']!),
-          httpHeaders: headers,
+          httpHeaders: combinedHeaders,
           videoPlayerOptions: VideoPlayerOptions(
             mixWithOthers: true,
             allowBackgroundPlayback: false,
@@ -269,7 +291,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
            lowercaseUrl.endsWith('.wav');
   }
   
-/// 播放前解析频道的视频源 - 修改以支持分离流
+/// 播放前解析频道的视频源 
 Future<void> _playVideo() async {
     if (_currentChannel == null) return;
     
@@ -281,12 +303,6 @@ Future<void> _playVideo() async {
     try {
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
-        
-        // 先检查是否为直接的音频URL
-        bool isDirectAudio = _checkIsAudioStream(url);
-        setState(() {
-          _isAudio = isDirectAudio;
-        });
         
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
@@ -300,12 +316,11 @@ Future<void> _playVideo() async {
             return;
         }
 
-        // 如果不是直接音频，检查解析后的URL
-        if (!isDirectAudio) {
-          setState(() {
-            _isAudio = _checkIsAudioStream(parsedUrl);
-          });
-        }
+        // 检查是否为音频URL
+        bool isDirectAudio = _checkIsAudioStream(parsedUrl);
+        setState(() {
+          _isAudio = isDirectAudio;
+        });
       
         LogUtil.i('准备播放：$parsedUrl');
 
@@ -317,7 +332,11 @@ Future<void> _playVideo() async {
         VideoPlayerController newController;
 
         // 检查是否为 YouTube 分离流并处理
+       if ( _streamUrl?.isYTUrl(parsedUrl) == true) {
         bool isSeparatedStream = await _separatedStreamHandler.isSeparatedStream(parsedUrl);
+        } else {
+        isSeparatedStream = false;
+        }
         
         // 启动超时检测
         _startTimeoutCheck();
@@ -345,7 +364,10 @@ Future<void> _playVideo() async {
                 await newController.initialize();
             } catch (e, stackTrace) {
                 await newController.dispose();
-                _retryPlayback();
+                setState(() {
+                    _retryCount = 0;
+                });
+                _handleSourceSwitch();
                 LogUtil.logError('初始化出错', e, stackTrace);
                 throw e;
             }
