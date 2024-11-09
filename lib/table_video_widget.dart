@@ -67,7 +67,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     if (widget.controller == null || !widget.controller!.value.isInitialized || widget.isAudio == true) {
       return VideoHoldBg(
         toastString: _drawerIsOpen ? '' : widget.toastString,
-        showBingBackground: false,
+        showBingBackground: isAudio, // 音频播放时显示背景
       );
     }
 
