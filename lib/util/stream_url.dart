@@ -146,14 +146,15 @@ Future<String> _getYouTubeVideoUrl() async {
     var manifest = await yt.videos.streams.getManifest(
       video.id,
       ytClients: [
-        YoutubeApiClient.safari,  // Safari 客户端通常更容易获取到 HLS 流
-        YoutubeApiClient.android  // Android 客户端作为备选
+      	YoutubeApiClient.browser,   // 浏览器客户端
+        YoutubeApiClient.safari,  // Safari 客户端
+        YoutubeApiClient.android  // Android 客户端
       ]
     );
 
     // 1. 首选：获取 HLS 流（m3u8），video_player 对此支持最好
-    if (manifest.hls != null) {
-      final hlsUrl = manifest.hls.url.toString();
+    if (manifest.hls.isNotEmpty) {  // 修改：检查 HLS 列表是否不为空
+      final hlsUrl = manifest.hls.first.url.toString();  // 修改：获取第一个 HLS 流的 URL
       if (hlsUrl.isNotEmpty && hlsUrl.startsWith('http')) {
         LogUtil.i('获取到 HLS 流地址: $hlsUrl');
         return hlsUrl;
@@ -162,7 +163,7 @@ Future<String> _getYouTubeVideoUrl() async {
 
     // 2. 次选：获取最高质量的 mp4 混合流
     var mp4Streams = manifest.muxed
-        .where((s) => s.container == Container.mp4)  // video_player 需要 mp4 格式
+        .where((s) => s.container == StreamContainer.mp4)  // 修改：使用 StreamContainer.mp4 代替 Container.mp4
         .toList();
     
     if (mp4Streams.isNotEmpty) {
@@ -194,35 +195,35 @@ Future<String> _getYouTubeVideoUrl() async {
   }
 }
 
-  // 获取最佳的流媒体信息
-  StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
-    try {
-      for (var quality in preferredQualities) {
-        // 先在 videoOnly 流中查找指定清晰度
-        var videoStreamInfo = manifest.videoOnly.firstWhere(
-          (element) => element.qualityLabel == quality,
-          orElse: () => manifest.videoOnly.last,
-        );
-        if (videoStreamInfo != null) {
-          return videoStreamInfo;
-        }
-
-        // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
-        var muxedStreamInfo = manifest.muxed.firstWhere(
-          (element) => element.qualityLabel == quality,
-          orElse: () => manifest.muxed.last,
-        );
-        if (muxedStreamInfo != null) {
-          return muxedStreamInfo;
-        }
+// 获取最佳的流媒体信息
+StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
+  if (_isDisposed) return null;  // 检查是否已经释放资源
+  try {
+    for (var quality in preferredQualities) {
+      // 先在 videoOnly 流中查找指定清晰度
+      var videoStreamInfo = manifest.videoOnly.firstWhere(
+        (element) => element.qualityLabel == quality,
+        orElse: () => manifest.videoOnly.last,
+      );
+      if (videoStreamInfo != null) {
+        return videoStreamInfo;
       }
-      return null;
-    } catch (e, stackTrace) {
-      LogUtil.logError('在获取最佳视频流时发生错误', e, stackTrace);
-      return null;
+
+      // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
+      var muxedStreamInfo = manifest.muxed.firstWhere(
+        (element) => element.qualityLabel == quality,
+        orElse: () => manifest.muxed.last,
+      );
+      if (muxedStreamInfo != null) {
+        return muxedStreamInfo;
+      }
     }
+    return null;
+  } catch (e, stackTrace) {
+    LogUtil.logError('在获取最佳视频流时发生错误', e, stackTrace);
+    return null;
   }
+}
 
   // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
