@@ -139,12 +139,22 @@ class StreamUrl {
     try {
       if (_isDisposed) return null;  // 如果资源被释放，立即退出
       var video = await yt.videos.get(url);  
-      var manifest = await yt.videos.streams.getManifest(video.id);  
-      var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
+      var manifest = await yt.videos.streams.getManifest(video.id);
+
+      // 1. 优先尝试获取 HLS 流（可能提供更高质量）
+      if (manifest.hlsManifestUrl != null) {
+        var hlsUrl = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+        if (hlsUrl != null) {
+          LogUtil.i('获取到 HLS 流地址: $hlsUrl');
+          return hlsUrl;
+        }
+      }
+
+      // 2. 如果没有 HLS 流，直接获取最高质量的 muxed 流（最高 360p）
+      var streamInfo = _getBestStream(manifest);
       var streamUrl = streamInfo?.url.toString();
       if (streamUrl != null && streamUrl.contains('http')) {
-        // 如果解析成功，返回 URL
-        LogUtil.i('解析到 YT 视频流地址: $streamUrl');
+        LogUtil.i('获取到 muxed 流地址: $streamUrl');
         return streamUrl;
       }
     } catch (e, stackTrace) {
@@ -154,28 +164,15 @@ class StreamUrl {
     return null;  // 最终未成功，返回 null
   }
 
-  // 根据指定的清晰度列表，获取最佳的视频流信息
-  StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
+  // 获取最佳的流媒体信息（简化版本 - 只返回最高质量的 muxed 流）
+  StreamInfo? _getBestStream(StreamManifest manifest) {
     if (_isDisposed) return null;  // 检查是否已经释放资源
     try {
-      for (var quality in preferredQualities) {
-        // 先在 videoOnly 流中查找指定清晰度
-        var videoStreamInfo = manifest.videoOnly.firstWhere(
-          (element) => element.qualityLabel == quality,
-          orElse: () => manifest.videoOnly.last,
-        );
-        if (videoStreamInfo != null) {
-          return videoStreamInfo;
-        }
-
-        // 如果在 videoOnly 中找不到，降级到 muxed 流中查找清晰度
-        var muxedStreamInfo = manifest.muxed.firstWhere(
-          (element) => element.qualityLabel == quality,
-          orElse: () => manifest.muxed.last,
-        );
-        if (muxedStreamInfo != null) {
-          return muxedStreamInfo;
-        }
+      // 由于 muxed 流限制在 360p，直接获取最高质量的 muxed 流
+      var muxedStreamInfo = manifest.muxed.withHighestVideoQuality();
+      if (muxedStreamInfo != null) {
+        LogUtil.i('找到最高质量的 muxed 流: ${muxedStreamInfo.qualityLabel}');
+        return muxedStreamInfo;
       }
       return null;
     } catch (e, stackTrace) {
