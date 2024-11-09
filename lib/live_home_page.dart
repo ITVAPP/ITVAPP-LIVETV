@@ -234,7 +234,6 @@ Future<void> _playVideo() async {
                 mixWithOthers: false,
                 webOptions: VideoPlayerWebOptions(
                     controls: VideoPlayerWebOptionsControls.enabled(),
-                    allowHlsInitializationForMp4: true,  // 允许 HLS 初始化
                 ),
             ),
         )..setVolume(1.0);
