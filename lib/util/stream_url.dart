@@ -126,14 +126,36 @@ Future<String> _getYouTubeVideoUrl() async {
     if (_isDisposed) return 'ERROR';  // 如果资源被释放，立即退出
     var video = await yt.videos.get(url);  
     var manifest = await yt.videos.streams.getManifest(video.id);  
-    // 打印所有 manifest 的信息
-    LogUtil.i('manifest 的信息: ${manifest.toString()}');
+
+    // 先打印原始的格式化信息
+    LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
+    
+    // 打印 StreamManifest 的类型和属性
+    LogUtil.i('======= StreamManifest 类信息 =======');
+    LogUtil.i('Runtime type: ${manifest.runtimeType}');
+    LogUtil.i('Instance properties: ${manifest.toString()}');
+    
+    // 取第一个流来查看所有可用的属性和方法
+    if (manifest.streams.isNotEmpty) {
+      var firstStream = manifest.streams.first;
+      LogUtil.i('======= StreamInfo 类信息 =======');
+      LogUtil.i('Runtime type: ${firstStream.runtimeType}');
+      // 使用 toString() 来获取所有属性
+      LogUtil.i('Available properties: ${firstStream.toString()}');
+      
+      // 尝试访问所有可能的属性并记录日志
+      LogUtil.i('''
+Stream Instance 可用的属性值:
+${firstStream.toString()}
+===============================''');
+    }
+
     var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
     var streamUrl = streamInfo?.url.toString();
     if (streamUrl != null && streamUrl.contains('http')) {
       // 如果解析成功，返回 URL
       LogUtil.i('最终选择的视频流地址: $streamUrl');
-      LogUtil.i('选择的清晰度: ${streamInfo?.quality}');
+      LogUtil.i('选择的清晰度: ${streamInfo?.videoResolution}');
       return streamUrl;
     }
   } catch (e, stackTrace) {
@@ -145,23 +167,27 @@ Future<String> _getYouTubeVideoUrl() async {
 
 // 判断是否是混合流
 bool _hasCombinedCodecs(StreamInfo stream) {
-  final codecs = stream.codecs;
-  // 只要包含逗号就说明是混合流（同时包含视频和音频编解码器）
-  return codecs != null && codecs.contains(',');
+  // 判断同时存在视频和音频编解码器
+  return stream.videoCodec != null && stream.audioCodec != null;
 }
 
 // 根据指定的清晰度列表，获取最佳的视频流信息
 StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
   if (_isDisposed) return null;  // 检查是否已经释放资源
   try {
-    // 1. 排除 quality 为空和不含音频编解码器的流
+    // 1. 排除不包含视频和音频编解码器的流
     var potentialMuxedStreams = manifest.streams.where((element) => 
-      element.quality != null && _hasCombinedCodecs(element)
+      element.videoResolution != null && _hasCombinedCodecs(element)
     ).toList();
 
-    // 打印找到的所有混合流信息
+    // 打印找到的所有混合流信息，先打印完整属性再进行筛选
     for (var stream in potentialMuxedStreams) {
-      LogUtil.i('找到潜在混合流: quality=${stream.quality}, format=${stream.container.name}, bitrate=${stream.bitrate}, codecs=${stream.codecs}');
+      LogUtil.i('''
+找到潜在混合流的完整信息:
+${stream.toString()}
+全部属性:
+${stream.runtimeType} 的所有属性: ${stream.toString()}
+''');
     }
 
     for (var quality in preferredQualities) {
@@ -169,10 +195,9 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
       
       // 2. 筛选出符合清晰度的流
       var qualityStreams = potentialMuxedStreams.where((element) {
-        // 处理类似 "720p25" 这样的 quality 值，提取出基本分辨率部分
-        // 确保 quality 值存在且以目标分辨率开头
-        var streamQuality = element.quality?.toLowerCase() ?? '';
-        return streamQuality.startsWith(quality.toLowerCase());
+        // 处理类似 "720p" 这样的 resolution 值
+        var streamResolution = element.videoResolution?.toLowerCase() ?? '';
+        return streamResolution.startsWith(quality.toLowerCase());
       }).toList();
 
       if (qualityStreams.isNotEmpty) {
@@ -182,13 +207,15 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
         for (var format in formatOrder) {
           var selectedStream = qualityStreams.firstWhere(
             (element) => element.container.name.toLowerCase() == format,
-            orElse: () => null
+            orElse: () => qualityStreams.first
           );
 
-          if (selectedStream != null) {
-            LogUtil.i('找到匹配的混合流清晰度和格式: ${selectedStream.quality}, ${selectedStream.container.name}, codecs=${selectedStream.codecs}');
-            return selectedStream;
-          }
+          // 打印选中流的完整信息
+          LogUtil.i('''
+找到匹配的流，完整信息:
+${selectedStream.toString()}
+''');
+          return selectedStream;
         }
         
         // 如果没有找到首选格式，返回当前清晰度的第一个可用流
@@ -200,7 +227,10 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
     // 如果按优先清晰度和格式未找到，返回剩余的第一个混合流
     if (potentialMuxedStreams.isNotEmpty) {
       var fallbackStream = potentialMuxedStreams.first;
-      LogUtil.i('未找到指定清晰度和格式，使用第一个可用的混合流: ${fallbackStream.quality}');
+      LogUtil.i('''
+使用默认流，完整信息:
+${fallbackStream.toString()}
+''');
       return fallbackStream;
     }
 
