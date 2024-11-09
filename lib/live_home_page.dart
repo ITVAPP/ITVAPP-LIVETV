@@ -216,14 +216,23 @@ Future<void> _playVideo() async {
         // 创建新的播放器控制器
         final newController = VideoPlayerController.networkUrl(
             Uri.parse(parsedUrl),
-            httpHeaders: {
+            httpHeaders: isYTUrl(parsedUrl) ? {
+                // YouTube 视频的请求头
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Origin': 'https://www.youtube.com',
+                'Referer': url,
+            } : {
+                // 其他视频的请求头
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },
+            formatHint: parsedUrl.endsWith('.m3u8') ? VideoFormat.hls : null,  // 根据文件类型设置格式
             videoPlayerOptions: VideoPlayerOptions(
                 allowBackgroundPlayback: false,
                 mixWithOthers: false,
-                webOptions: const VideoPlayerWebOptions(
-                    controls: VideoPlayerWebOptionsControls.enabled()
+                webOptions: VideoPlayerWebOptions(
+                    controls: VideoPlayerWebOptionsControls.enabled(),
+                    // 如果是 m3u8，设置相应的 MIME type
+                    forcedType: parsedUrl.endsWith('.m3u8') ? 'application/x-mpegURL' : null,
                 ),
             ),
         )..setVolume(1.0);
@@ -262,7 +271,13 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _retryPlayback();  // 出错时进入重试逻辑
+        setState(() {
+            toastString = S.current.playError;
+            _isRetrying = false;
+            _retryCount = 0;
+        });
+         return;
+         // _retryPlayback();  // 出错时进入重试逻辑
     }
 }
 
@@ -272,7 +287,6 @@ void _videoListener() {
 
     if (_playerController!.value.hasError) {
         LogUtil.logError('播放器错误', _playerController!.value.errorDescription);
-        _retryPlayback();
         return;
     }
 
