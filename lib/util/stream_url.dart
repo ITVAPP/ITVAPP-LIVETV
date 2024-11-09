@@ -151,7 +151,7 @@ StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualit
   try {
     // 1. 排除 video only 和 audio only 的流，保留可能的混合流
     var potentialMuxedStreams = manifest.streams.where((element) => 
-      !element.info.contains('video only') && !element.info.contains('audio only')
+      element.resolution != null && element.quality != null && !element.info.contains('video only')
     ).toList();
 
     for (var quality in preferredQualities) {
