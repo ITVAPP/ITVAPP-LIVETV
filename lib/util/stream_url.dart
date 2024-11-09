@@ -21,11 +21,11 @@ class StreamUrl {
     _completer = Completer<void>(); // 每次调用都创建一个新的 completer
     try {
       // 如果不是需要解析的URL，避免后续处理
-      if (_isLZUrl(url)){
+      if (isLZUrl(url)){
         return 'https://lz.qaiu.top/parser?url=$url'; 
       } 
       
-      if (!_isYTUrl(url)) {
+      if (!isYTUrl(url)) {
         return url; // 直接返回原始 URL
       } 
       
@@ -108,13 +108,13 @@ class StreamUrl {
   }
 
   // 判断 URL 是否为需要解析处理的链接
-  bool _isLZUrl(String url) {
+  bool isLZUrl(String url) {
     return url.contains('lanzou') ;
   }
   
   // 判断 URL 是否为需要解析处理的链接
-  bool _isYTUrl(String url) {
-    return url.contains('youtube.com') || url.contains('youtu.be');
+  bool isYTUrl(String url) {
+    return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
 
   // 获取 YouTube 直播流的 URL，如果解析失败，返回 null
