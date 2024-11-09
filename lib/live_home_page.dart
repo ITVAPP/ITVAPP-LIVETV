@@ -216,7 +216,7 @@ Future<void> _playVideo() async {
         // 创建新的播放器控制器
         final newController = VideoPlayerController.networkUrl(
             Uri.parse(parsedUrl),
-            httpHeaders: isYTUrl(parsedUrl) ? {
+            httpHeaders: _streamUrl?.isYTUrl(parsedUrl) == true ? {
                 // YouTube 视频的请求头
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Origin': 'https://www.youtube.com',
@@ -231,8 +231,6 @@ Future<void> _playVideo() async {
                 mixWithOthers: false,
                 webOptions: VideoPlayerWebOptions(
                     controls: VideoPlayerWebOptionsControls.enabled(),
-                    // 如果是 m3u8，设置相应的 MIME type
-                    forcedType: parsedUrl.endsWith('.m3u8') ? 'application/x-mpegURL' : null,
                 ),
             ),
         )..setVolume(1.0);
