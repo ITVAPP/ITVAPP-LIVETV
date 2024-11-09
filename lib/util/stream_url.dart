@@ -127,18 +127,8 @@ Future<String> _getYouTubeVideoUrl() async {
     var video = await yt.videos.get(url);  
     var manifest = await yt.videos.streams.getManifest(video.id);  
 
-    // 打印所有 muxed 流的信息
-    LogUtil.i('所有可用的 muxed 流信息:');
-    for (var stream in manifest.muxed) {
-      LogUtil.i('''
-        清晰度: ${stream.qualityLabel}
-        容器格式: ${stream.container}
-        编码格式: ${stream.videoCodec}
-        比特率: ${stream.bitrate}
-        URL: ${stream.url}
-        ----------------------------------------
-      ''');
-    }
+    // 打印所有 manifest 的信息
+    LogUtil.i('manifest 的信息: ${manifest.toString()}');
 
     var streamInfo = _getBestStream(manifest, ['720p', '480p', '360p', '240p', '144p']);
     var streamUrl = streamInfo?.url.toString();
