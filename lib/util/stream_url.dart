@@ -146,9 +146,8 @@ Future<String> _getYouTubeVideoUrl() async {
     var manifest = await yt.videos.streams.getManifest(
       video.id,
       ytClients: [
-      	YoutubeApiClient.browser,   // 浏览器客户端
         YoutubeApiClient.safari,  // Safari 客户端
-        YoutubeApiClient.android  // Android 客户端
+        YoutubeApiClient.androidVr  // Android 客户端
       ]
     );
 
