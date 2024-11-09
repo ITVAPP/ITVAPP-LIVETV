@@ -362,12 +362,12 @@ Future<void> _playVideo() async {
         };
 
         VideoPlayerController newController;
+      
+        bool isSeparatedStream = false;  // 声明并初始化变量
 
         // 检查是否为 YouTube 分离流并处理
-       if ( _streamUrl?.isYTUrl(parsedUrl) == true) {
-        bool isSeparatedStream = await _separatedStreamHandler.isSeparatedStream(parsedUrl);
-        } else {
-        isSeparatedStream = false;
+        if (_streamUrl?.isYTUrl(parsedUrl) == true) {
+            isSeparatedStream = await _separatedStreamHandler.isSeparatedStream(parsedUrl);
         }
         
         // 启动超时检测
