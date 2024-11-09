@@ -221,6 +221,9 @@ Future<void> _playVideo() async {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Origin': 'https://www.youtube.com',
                 'Referer': url,
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive',
             } : {
                 // 其他视频的请求头
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -231,6 +234,7 @@ Future<void> _playVideo() async {
                 mixWithOthers: false,
                 webOptions: VideoPlayerWebOptions(
                     controls: VideoPlayerWebOptionsControls.enabled(),
+                    allowHlsInitializationForMp4: true,  // 允许 HLS 初始化
                 ),
             ),
         )..setVolume(1.0);
@@ -270,7 +274,6 @@ Future<void> _playVideo() async {
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
         setState(() {
-            toastString = S.current.playError;
             _isRetrying = false;
             _retryCount = 0;
         });
@@ -367,11 +370,11 @@ void _handleSourceSwitch() {
     // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
-        _sourceIndex = 0;  // 循环切换回第一个源
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;  
             _retryCount = 0;
+            _sourceIndex = 0;
         });
         return;
     }
