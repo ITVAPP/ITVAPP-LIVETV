@@ -76,9 +76,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 标记侧边抽屉（频道选择）是否打开
   bool _drawerIsOpen = false;
-  
-  // 调试模式开关，调试时为 true，生产环境为 false
-  bool isDebugMode = false;
 
   // 重试次数计数器
   int _retryCount = 0;
@@ -129,40 +126,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
            lowercaseUrl.endsWith('.ogg') ||
            lowercaseUrl.endsWith('.wav');
   }
-
-/// 添加到播放视频前的调试代码
-Future<void> _verifyUrl(String url) async {
-  try {
-    // 1. 打印完整的 URL
-    LogUtil.i('验证 URL: $url\nURL 长度: ${url.length}');
-
-    // 2. 检查 URL 基本组成部分
-    final uri = Uri.parse(url);
-    LogUtil.i('URL 组成部分:\n'
-          '- scheme: ${uri.scheme}\n'
-          '- host: ${uri.host}\n'
-          '- path: ${uri.path}\n'
-          '- query parameters: ${uri.queryParameters.length}');
-    
-    // 3. 测试发送请求
-    final request = await HttpClient().getUrl(uri);
-    request.headers.add('User-Agent', 'Mozilla/5.0');
-    final response = await request.close();
-    LogUtil.i('响应状态码: ${response.statusCode}');
-    
-    // 4. 获取响应头
-    LogUtil.i('响应头:');
-    response.headers.forEach((name, values) {
-      LogUtil.i('$name: $values');
-    });
-    
-    // 5. 读取部分响应内容
-    final content = await response.transform(utf8.decoder).take(1).join();
-    LogUtil.i('响应内容开头: $content');
-  } catch (e, stackTrace) {
-    LogUtil.logError('验证 URL 时出错', e, stackTrace);
-  }
-}
   
 /// 播放前解析频道的视频源
 Future<void> _playVideo() async {
@@ -203,31 +166,12 @@ Future<void> _playVideo() async {
           });
         }
       
-        // 添加 URL 验证
-        await _verifyUrl(parsedUrl);
         LogUtil.i('准备播放：$parsedUrl');
-
-        // 如果是调试模式，显示确认对话框
-        if (isDebugMode) {
-            bool shouldPlay = await _showConfirmationDialog(context, parsedUrl);
-            if (!shouldPlay) return;
-        }
 
         // 创建新的播放器控制器
         final newController = VideoPlayerController.networkUrl(
             Uri.parse(parsedUrl),
-            httpHeaders: _streamUrl?.isYTUrl(parsedUrl) == true ? {
-                // YouTube 视频的请求头
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': 'https://www.youtube.com',
-                'Referer': url,
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Connection': 'keep-alive',
-            } : {
-                // 其他视频的请求头
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
+            httpHeaders: 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             formatHint: parsedUrl.endsWith('.m3u8') ? VideoFormat.hls : null,  // 根据文件类型设置格式
             videoPlayerOptions: VideoPlayerOptions(
                 allowBackgroundPlayback: false,
@@ -243,6 +187,11 @@ Future<void> _playVideo() async {
             await newController.initialize();
         } catch (e, stackTrace) {
             await newController.dispose();
+            setState(() {
+               _isRetrying = false;
+               _retryCount = 0;
+            });
+            _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
         }
 
@@ -666,24 +615,6 @@ Future<void> _changeChannelSources() async {
            !isBuffering;
   }
 
-  /// 显示播放确认对话框
-  Future<bool> _showConfirmationDialog(BuildContext context, String url) async {
-    return await DialogUtil.showCustomDialog(
-      context,
-      title: S.current.foundStreamTitle,
-      content: S.current.streamUrlContent(url),
-      positiveButtonLabel: S.current.playButton,
-      onPositivePressed: () {
-        Navigator.of(context).pop(true);
-      },
-      negativeButtonLabel: S.current.cancelButton,
-      onNegativePressed: () {
-        Navigator.of(context).pop(false);
-      },
-      isDismissible: false,
-    ) ?? false;
-  }
-  
   /// 处理返回按键逻辑
 Future<bool> _handleBackPress(BuildContext context) async {
   if (_drawerIsOpen) {
