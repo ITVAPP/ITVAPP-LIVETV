@@ -79,7 +79,7 @@ class VideoPlayerWidget extends StatelessWidget {
             }
             return VideoHoldBg(
               toastString: drawerIsOpen ? '' : toastString,
-              showBingBackground: false,
+              showBingBackground: isAudio, // 音频播放时显示背景
             );
           },
         ),
