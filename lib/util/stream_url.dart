@@ -156,8 +156,9 @@ class StreamUrl {
       // 2. 如果没有 HLS 流，获取最高质量的 muxed 流
       var muxedStreams = manifest.muxed.toList();
       if (muxedStreams.isNotEmpty) {
-        // 按视频质量排序以获取最高质量的流
-        muxedStreams.sort((a, b) => b.videoQuality.compareTo(a.videoQuality));
+        // 按视频分辨率排序以获取最高质量的流
+        muxedStreams.sort((a, b) => 
+          b.videoResolution.height.compareTo(a.videoResolution.height));
         var bestStream = muxedStreams.first;
         var streamUrl = bestStream.url.toString();
         
@@ -182,10 +183,11 @@ class StreamUrl {
       // 获取所有 muxed 流并排序
       var muxedStreams = manifest.muxed.toList();
       if (muxedStreams.isNotEmpty) {
-        // 按视频质量排序
-        muxedStreams.sort((a, b) => b.videoQuality.compareTo(a.videoQuality));
+        // 按视频分辨率排序
+        muxedStreams.sort((a, b) => 
+          b.videoResolution.height.compareTo(a.videoResolution.height));
         var bestStream = muxedStreams.first;
-        LogUtil.i('找到最高质量的 muxed 流: ${bestStream.videoQuality.label}');
+        LogUtil.i('找到最高质量的 muxed 流: ${bestStream.videoResolution.height}p');
         return bestStream;
       }
       return null;
