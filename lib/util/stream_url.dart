@@ -149,44 +149,45 @@ Future<String> _getYouTubeVideoUrl() async {
 StreamInfo? _getBestStream(StreamManifest manifest, List<String> preferredQualities) {
   if (_isDisposed) return null;  // 检查是否已经释放资源
   try {
+    // 1. 排除 video only 和 audio only 的流，保留可能的混合流
+    var potentialMuxedStreams = manifest.streams.where((element) => 
+      !element.info.contains('video only') && !element.info.contains('audio only')
+    ).toList();
+
     for (var quality in preferredQualities) {
       LogUtil.i('尝试查找清晰度: $quality');
-      // 先在 muxed 流中查找指定清晰度
-      var muxedStreamInfo = manifest.muxed.firstWhere(
-        (element) => element.qualityLabel == quality,
-        orElse: () => manifest.muxed.isNotEmpty ? manifest.muxed.last : throw Exception('未找到匹配的 muxed 流')
-      );
-      if (muxedStreamInfo != null) {
-        LogUtil.i('在 muxed 流中找到匹配清晰度: ${muxedStreamInfo.qualityLabel}');
-        return muxedStreamInfo;
-      }
+      
+      // 2. 筛选出符合清晰度的流
+      var qualityStreams = potentialMuxedStreams.where(
+        (element) => element.qualityLabel == quality
+      ).toList();
 
-      // 如果在 muxed 中找不到，才尝试 videoOnly 流
-      var videoStreamInfo = manifest.videoOnly.firstWhere(
-        (element) => element.qualityLabel == quality,
-        orElse: () => manifest.videoOnly.isNotEmpty ? manifest.videoOnly.last : throw Exception('未找到匹配的 videoOnly 流')
-      );
-      if (videoStreamInfo != null) {
-        LogUtil.i('在 videoOnly 流中找到匹配清晰度: ${videoStreamInfo.qualityLabel}');
-        return videoStreamInfo;
+      if (qualityStreams.isNotEmpty) {
+        // 3. 按格式优先级排序：mp4 > m3u8 > webm
+        var formatOrder = ['mp4', 'm3u8', 'webm'];
+        
+        for (var format in formatOrder) {
+          var selectedStream = qualityStreams.firstWhere(
+            (element) => element.extension == format,
+            orElse: () => null
+          );
+
+          if (selectedStream != null) {
+            LogUtil.i('找到匹配的混合流清晰度和格式: ${selectedStream.qualityLabel}, ${selectedStream.extension}');
+            return selectedStream;
+          }
+        }
       }
-    }
-    
-    // 如果按质量没找到，返回可用的最后一个 muxed 流
-    if (manifest.muxed.isNotEmpty) {
-      var lastMuxed = manifest.muxed.last;
-      LogUtil.i('未找到匹配清晰度，使用最后一个可用的 muxed 流: ${lastMuxed.qualityLabel}');
-      return lastMuxed;
-    }
-    
-    // 如果 muxed 流为空，才返回 videoOnly 流
-    if (manifest.videoOnly.isNotEmpty) {
-      var lastVideoOnly = manifest.videoOnly.last;
-      LogUtil.i('muxed 流为空，使用最后一个可用的 videoOnly 流: ${lastVideoOnly.qualityLabel}');
-      return lastVideoOnly;
     }
 
-    LogUtil.e('没有找到任何可用的视频流');
+    // 如果按优先清晰度和格式未找到，返回剩余的第一个混合流
+    if (potentialMuxedStreams.isNotEmpty) {
+      var fallbackStream = potentialMuxedStreams.first;
+      LogUtil.i('未找到指定清晰度和格式，使用第一个可用的混合流: ${fallbackStream.qualityLabel}');
+      return fallbackStream;
+    }
+
+    LogUtil.e('没有找到任何可用的混合流');
     return null;
   } catch (e, stackTrace) {
     LogUtil.logError('在获取最佳视频流时发生错误', e, stackTrace);
