@@ -23,7 +23,7 @@ dependencies:
   http: ^1.2.2  # 用于发起 HTTP 请求的库。
   fvp: ^0.27.0  # Flutter 视频播放器插件，提供视频播放功能。
   video_player: ^2.9.2  # Flutter的官方视频播放库，用于播放视频内容。
-  better_player: ^0.8.4  # 用于播放视频内容。
+  better_player: ^0.0.84  # 用于播放视频内容。
   responsive_builder: ^0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
   flutter_easyloading: ^3.0.3  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
   wakelock_plus: ^1.2.8  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
