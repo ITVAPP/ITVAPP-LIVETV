@@ -231,7 +231,7 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-  // 新增：分离流处理器实例
+  // 离流处理器实例
   final SeparatedStreamHandler _separatedStreamHandler = SeparatedStreamHandler();
 
   // 超时重试次数
@@ -342,7 +342,6 @@ Future<void> _playVideo() async {
         if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
                 toastString = S.current.vpnplayError;
-                _retryCount = 0;  // 重置重试计数，这样新的源可以重试
             });
             _handleSourceSwitch();
             return;
@@ -355,21 +354,7 @@ Future<void> _playVideo() async {
         });
 
         LogUtil.i('准备播放：$parsedUrl');
-
-        // 准备 HTTP 头
-
-final headers = {
-    'Origin': 'https://www.youtube.com',
-    'Referer': 'https://www.youtube.com/',
-    'User-Agent': 'GooglePlayer',           
-    'X-YouTube-Client-Name': '3',
-    'X-YouTube-Client-Version': '19.29.37',
-    'Accept': '*/*',
-    'Accept-Language': 'en-US',              
-    'Accept-Encoding': 'gzip, deflate',     
-    'Connection': 'keep-alive'              
-};
-      
+        
         VideoPlayerController newController;
       
         bool isSeparatedStream = false;  // 声明并初始化变量
@@ -389,10 +374,13 @@ final headers = {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
                 Uri.parse(parsedUrl),
-                httpHeaders:headers,
+                httpHeaders:{
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                },
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
+                    webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
                 ),
             )..setVolume(1.0);
 
@@ -401,9 +389,6 @@ final headers = {
                 await newController.initialize();
             } catch (e, stackTrace) {
                 await newController.dispose();
-                setState(() {
-                    _retryCount = 0;
-                });
                 _handleSourceSwitch();
                 LogUtil.logError('初始化出错', e, stackTrace);
                 throw e;
@@ -432,7 +417,6 @@ final headers = {
         LogUtil.logError('播放出错', e, stackTrace);
         setState(() {
             _isRetrying = false;
-            _retryCount = 0;
         });
         _handleSourceSwitch();
     }
@@ -525,8 +509,6 @@ void _handleSourceSwitch() {
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;  
-            _retryCount = 0;
-            _sourceIndex = 0;
         });
         return;
     }
@@ -789,28 +771,6 @@ Future<void> _changeChannelSources() async {
     }
 }
 
-/// 日志记录增强方法
-void _logRetryEvent(String event, [dynamic error, StackTrace? stackTrace]) {
-    final channelInfo = '频道: ${_currentChannel?.title ?? 'unknown'}, 源索引: $_sourceIndex';
-    final retryInfo = '重试次数: $_retryCount, 是否重试中: $_isRetrying';
-    final message = '$event\n$channelInfo\n$retryInfo';
-    
-    if (error != null) {
-      LogUtil.logError(message, error, stackTrace);
-    } else {
-      LogUtil.i(message);
-    }
-}
-
-/// 检查播放状态的辅助方法
-bool _isPlaybackHealthy() {
-    if (_playerController == null) return false;
-    
-    return _playerController!.value.isPlaying && 
-           !_playerController!.value.hasError &&
-           !isBuffering;
-}
-
 /// 处理返回按键逻辑
 Future<bool> _handleBackPress(BuildContext context) async {
   if (_drawerIsOpen) {
@@ -834,7 +794,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
   return shouldExit;
 }
 
-/// 收藏列表相关方法
+/// 从传递的播放列表中提取"我的收藏"部分
 void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
        favoriteList = {
@@ -847,44 +807,120 @@ void _extractFavoriteList() {
     }
 }
 
-// 以下各种获取方法保持不变
+// 获取当前频道的分组名字
 String getGroupName(String channelId) {
     return _currentChannel?.group ?? '';
 }
 
+// 获取当前频道名字
 String getChannelName(String channelId) {
     return _currentChannel?.title ?? '';
 }
 
+// 获取当前频道的播放地址列表
 List<String> getPlayUrls(String channelId) {
     return _currentChannel?.urls ?? [];
 }
 
+// 检查当前频道是否已收藏
 bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
 }
 
-// 添加或取消收藏方法保持不变
+// 添加或取消收藏
 void toggleFavorite(String channelId) async {
-    // ... 保持原有实现不变 ...
+    bool isFavoriteChanged = false;
+    String actualChannelId = _currentChannel?.id ?? channelId;
+    String groupName = getGroupName(actualChannelId);
+    String channelName = getChannelName(actualChannelId);
+
+    // 验证分组名字、频道名字和播放地址是否正确
+    if (groupName.isEmpty || channelName.isEmpty) {
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.channelnofavorite,
+        duration: Duration(seconds: 4),
+      );
+      return;
+    }
+
+    if (isChannelFavorite(actualChannelId)) {
+      // 取消收藏
+      favoriteList[Config.myFavoriteKey]![groupName]?.remove(channelName);
+      if (favoriteList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
+        favoriteList[Config.myFavoriteKey]!.remove(groupName);
+      }
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.removefavorite,
+        duration: Duration(seconds: 4),
+      );
+      isFavoriteChanged = true;
+    } else {
+      // 添加收藏
+      if (favoriteList[Config.myFavoriteKey]![groupName] == null) {
+        favoriteList[Config.myFavoriteKey]![groupName] = {};
+      }
+
+      PlayModel newFavorite = PlayModel(
+        id: actualChannelId,
+        group: groupName,
+        logo: _currentChannel?.logo,
+        title: channelName,
+        urls: getPlayUrls(actualChannelId),
+      );
+      favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.newfavorite,
+        duration: Duration(seconds: 4),
+      );
+      isFavoriteChanged = true;
+    }
+
+    if (isFavoriteChanged) {
+      try {
+        // 保存收藏列表到缓存
+        await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
+        _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
+        LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
+        await M3uUtil.saveCachedM3uData(_videoMap.toString());
+        // 更新刷新键，触发抽屉重建
+        setState(() {
+          _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+        });
+      } catch (error) {
+        CustomSnackBar.showSnackBar(
+          context,
+          S.current.newfavoriteerror,
+          duration: Duration(seconds: 4),
+        );
+        LogUtil.logError('收藏状态保存失败', error);
+      }
+    }
 }
 
-/// 初始化方法 - 修改以初始化分离流处理器
-@override
-void initState() {
+/// 初始化方法
+  @override
+  void initState() {
     super.initState();
 
+    // 如果是桌面设备，隐藏窗口标题栏
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
+    // 加载播放列表数据
     _loadData();
+
+    // 加载收藏列表
     _extractFavoriteList();
 
+    // 延迟1分钟后执行版本检测
     Future.delayed(Duration(minutes: 1), () {
       CheckVersionUtil.checkVersion(context, false, false);
     });
-}
+  }
 
 /// 清理所有资源 - 修改以清理分离流处理器
 @override
