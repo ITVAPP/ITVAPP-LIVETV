@@ -351,17 +351,27 @@ Future<void> _playVideo() async {
           _isAudio = isDirectAudio;
         });
 
-        String parsedUrl2 = Uri.decodeFull(Uri.decodeFull(parsedUrl));
-        LogUtil.i('准备播放：$parsedUrl2');
+        LogUtil.i('准备播放：$parsedUrl');
 
         // 准备 HTTP 头
 
-    final headers = {
-      'origin': 'https://www.youtube.com',
-      'X-YouTube-Client-Name': '3',
-      'X-YouTube-Client-Version': '16.20',
-      'content-type': 'application/json',
-    };
+final headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate',
+    'Origin': 'https://www.youtube.com',
+    'Referer': 'https://www.youtube.com/',
+    'Connection': 'keep-alive',
+    'Range': 'bytes=0-', 
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors', 
+    'Sec-Fetch-Site': 'cross-site',
+    'Sec-CH-UA': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+    'Sec-CH-UA-Mobile': '?0',
+    'Sec-CH-UA-Platform': '"Windows"',
+    'TE': 'trailers'
+};
       
         VideoPlayerController newController;
       
@@ -381,13 +391,13 @@ Future<void> _playVideo() async {
         } else {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
-                Uri.parse(parsedUrl2),
+                Uri.parse(parsedUrl),
                 httpHeaders:headers,
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
                     webOptions: const VideoPlayerWebOptions(
-                        controls: VideoPlayerWebOptionsControls.enabled(),
+                        controls: VideoPlayerWebOptionsControls.none(),
                     ),
                 ),
             )..setVolume(1.0);
