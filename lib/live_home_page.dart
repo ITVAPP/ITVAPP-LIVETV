@@ -351,8 +351,8 @@ Future<void> _playVideo() async {
           _isAudio = isDirectAudio;
         });
 
-        String parsedUrl = Uri.decodeFull(Uri.decodeFull(parsedUrl));
-        LogUtil.i('准备播放：$parsedUrl');
+        String parsedUrl2 = Uri.decodeFull(Uri.decodeFull(parsedUrl));
+        LogUtil.i('准备播放：$parsedUrl2');
 
         // 准备 HTTP 头
 
@@ -381,7 +381,7 @@ Future<void> _playVideo() async {
         } else {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
-                Uri.parse(parsedUrl),
+                Uri.parse(parsedUrl2),
                 httpHeaders:headers,
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
