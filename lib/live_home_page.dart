@@ -385,8 +385,6 @@ Future<void> _playVideo() async {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
                 Uri.parse(parsedUrl),
-                httpHeaders: headers,
-                formatHint: parsedUrl.endsWith('.m3u8') ? VideoFormat.hls : null,  // 根据文件类型设置格式
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
