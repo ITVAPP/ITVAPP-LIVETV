@@ -369,7 +369,7 @@ Future<void> _playVideo() async {
         
         if (isSeparatedStream) {
             // 使用分离流处理器初始化
-            newController = await _separatedStreamHandler.initialize(parsedUrl, headers);
+            newController = await _separatedStreamHandler.initialize(parsedUrl);
         } else {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
