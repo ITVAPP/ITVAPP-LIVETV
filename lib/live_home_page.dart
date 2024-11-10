@@ -378,6 +378,7 @@ final headers = {
             final jsData = await getYouTubeJs();
             // 进行完整的签名处理
             parsedUrl = await processSignature(parsedUrl, jsData, '');
+            LogUtil.i('准备播放签名处理后的地址：$parsedUrl');
           
         }
         
