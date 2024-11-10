@@ -125,14 +125,10 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
 }
 
   // 初始化播放器
-  Future<VideoPlayerController> initialize(String url, Map<String, String> headers) async {
+  Future<VideoPlayerController> initialize(String url) async {
     try {
-      // 合并用户提供的headers和YouTube必需的headers
-      final combinedHeaders = {..._youtubeHeaders, ...headers};
-      
       final response = await http.get(
         Uri.parse(url),
-        headers: combinedHeaders
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode != 200) {
