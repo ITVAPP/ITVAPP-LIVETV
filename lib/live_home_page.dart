@@ -385,7 +385,7 @@ Future<void> _playVideo() async {
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
-                    webOptions: VideoPlayerWebOptions(
+                    webOptions: const VideoPlayerWebOptions(
                         controls: VideoPlayerWebOptionsControls.enabled(),
                     ),
                 ),
