@@ -48,12 +48,6 @@ void main() async {
   ThemeProvider themeProvider = ThemeProvider();
   await themeProvider.initialize();  // 等待 ThemeProvider 完全初始化
 
-  // 注册 FVP 播放器，支持不同平台和解码器
-  fvp.registerWith(options: {
-    'platforms': ['android', 'ios'],  // 支持的平台
-    'video.decoders': ['FFmpeg']  // 使用 FFmpeg 进行视频解码
-  });
-
   // 如果当前环境不是移动端
   if (!EnvUtil.isMobile) {
     // 初始化窗口管理器（用于桌面端窗口管理）
