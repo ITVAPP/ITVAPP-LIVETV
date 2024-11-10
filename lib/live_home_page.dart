@@ -350,17 +350,14 @@ Future<void> _playVideo() async {
         setState(() {
           _isAudio = isDirectAudio;
         });
-      
+
+        String parsedUrl = Uri.decodeFull(Uri.decodeFull(parsedUrl));
         LogUtil.i('准备播放：$parsedUrl');
 
         // 准备 HTTP 头
 
     final headers = {
-      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'referer': 'https://www.youtube.com/',
       'origin': 'https://www.youtube.com',
-      'accept': '*/*',
-      'accept-language': 'en-US,en;q=0.9',
       'X-YouTube-Client-Name': '3',
       'X-YouTube-Client-Version': '16.20',
       'content-type': 'application/json',
@@ -385,6 +382,7 @@ Future<void> _playVideo() async {
             // 创建普通播放器控制器
             newController = VideoPlayerController.networkUrl(
                 Uri.parse(parsedUrl),
+                httpHeaders:headers,
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
