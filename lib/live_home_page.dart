@@ -497,10 +497,6 @@ void _retryPlayback() {
             _playVideo();
         });
     } else {
-        setState(() {
-            _retryCount = 0;  // 重置重试计数，这样新的源可以重试
-            _isRetrying = false;  // 重置重试状态
-        });
         _handleSourceSwitch();
     }
 }
@@ -542,7 +538,6 @@ void _handleSourceSwitch() {
     _retryTimer = Timer(const Duration(seconds: 2), () {
         setState(() {
             _retryCount = 0;  // 新源从0开始计数重试
-            _isRetrying = false;  
         });
         _playVideo();
     });
