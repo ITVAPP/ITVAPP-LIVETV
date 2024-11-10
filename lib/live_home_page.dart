@@ -356,21 +356,14 @@ Future<void> _playVideo() async {
         // 准备 HTTP 头
 
 final headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate',
-    'Origin': 'https://www.youtube.com',
-    'Referer': 'https://www.youtube.com/',
-    'Connection': 'keep-alive',
-    'Range': 'bytes=0-', 
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors', 
-    'Sec-Fetch-Site': 'cross-site',
-    'Sec-CH-UA': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-    'Sec-CH-UA-Mobile': '?0',
-    'Sec-CH-UA-Platform': '"Windows"',
-    'TE': 'trailers'
+            'X-YouTube-Client-Name': '3',
+            'X-YouTube-Client-Version': '19.29.37', 
+            'Origin': 'https://www.youtube.com',
+            'content-type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': '*/*',
 };
       
         VideoPlayerController newController;
@@ -379,7 +372,13 @@ final headers = {
 
         // 检查是否为 YouTube 分离流并处理
         if (_streamUrl?.isYTUrl(parsedUrl) == true) {
-            isSeparatedStream = await _separatedStreamHandler.isSeparatedStream(parsedUrl);
+            // isSeparatedStream = await _separatedStreamHandler.isSeparatedStream(parsedUrl);
+
+            // 获取YouTube js数据
+            final jsData = await getYouTubeJs();
+            // 进行完整的签名处理
+            parsedUrl = await processSignature(parsedUrl, jsData, '');
+          
         }
         
         // 启动超时检测
@@ -443,6 +442,148 @@ final headers = {
         _handleSourceSwitch();
     }
 }
+
+
+
+
+// 添加签名处理相关的函数
+Future<String> getYouTubeJs() async {
+    // 首先尝试从页面提取js url
+    final response = await http.get(
+        Uri.parse('https://www.youtube.com'),
+        headers: {'User-Agent': 'Mozilla/5.0'},
+    );
+    
+    String jsUrl = '';
+    final match = RegExp(r'\"jsUrl\":\"([^\"]+)\"').firstMatch(response.body);
+    if (match != null) {
+        jsUrl = match.group(1) ?? '';
+        jsUrl = 'https://www.youtube.com' + jsUrl;
+    } else {
+        jsUrl = 'https://www.youtube.com/yts/jsbin/player-vflset/en_US/base.js';
+    }
+
+    final jsResponse = await http.get(Uri.parse(jsUrl));
+    return jsResponse.body;
+}
+
+Future<String> processSignature(String url, String jsData, String webData) async {
+    final match = RegExp(r'/s/([0-9A-Z]+.[0-9A-Z]+)').firstMatch(url);
+    if (match != null) {
+        final signature = match.group(1) ?? '';
+        final jsFuncs = <int>[];
+        final jsFuncArgs = <int>[];
+
+        // 解析JavaScript函数
+        final funcName = getFunctionName(jsData);
+        if (funcName.isNotEmpty) {
+            final funcBody = getFunctionBody(jsData, funcName);
+            if (funcBody.isNotEmpty) {
+                parseOperations(funcBody, jsFuncs, jsFuncArgs);
+            }
+        }
+
+        // 执行签名转换
+        if (jsFuncs.isNotEmpty && jsFuncs.length == jsFuncArgs.length) {
+            List<String> sigChars = signature.split('');
+            
+            for (int i = 0; i < jsFuncs.length; i++) {
+                switch (jsFuncs[i]) {
+                    case 0: // DELETE
+                        deleteChars(sigChars, jsFuncArgs[i]);
+                        break;
+                    case 1: // REVERSE
+                        reverseChars(sigChars);
+                        break;
+                    case 2: // SWAP
+                        swapChars(sigChars, jsFuncArgs[i]);
+                        break;
+                }
+            }
+            
+            final newSignature = sigChars.join();
+            url = url.replaceAll('/s/$signature', '/signature/$newSignature');
+        }
+    }
+    return url;
+}
+
+// 签名操作辅助函数
+void deleteChars(List<String> chars, int pos) {
+    if (pos > 0 && pos < chars.length) {
+        chars.removeRange(0, pos);
+    }
+}
+
+void reverseChars(List<String> chars) {
+    int len = chars.length;
+    for (int i = 0; i < len ~/ 2; i++) {
+        String temp = chars[i];
+        chars[i] = chars[len - 1 - i];
+        chars[len - 1 - i] = temp;
+    }
+}
+
+void swapChars(List<String> chars, int pos) {
+    if (pos >= chars.length) return;
+    String temp = chars[0];
+    chars[0] = chars[pos];
+    chars[pos] = temp;
+}
+
+String getFunctionName(String jsData) {
+    final regexps = [
+        r'(?:\b|[^a-zA-Z0-9$])([a-zA-Z0-9$]{2,})\s*=\s*function\(\s*a\s*\)\s*\{\s*a\s*=\s*a\.split\(\s*""\s*\)',
+        r'(?:\b|[^a-zA-Z0-9$])([a-zA-Z0-9$]{2,})\s*=\s*function\(\s*a\s*\)\s*\{\s*a\s*=\s*a\.split\(\s*""\s*\);[a-zA-Z0-9$]{2}\.[a-zA-Z0-9$]{2}\(a,\d+\)',
+        r'\b[cs]\s*&&\s*[adf]\.set\([^,]+\s*,\s*encodeURIComponent\s*\(\s*([a-zA-Z0-9$]+)\(',
+    ];
+
+    for (var regexp in regexps) {
+        final match = RegExp(regexp).firstMatch(jsData);
+        if (match != null) {
+            return match.group(1) ?? '';
+        }
+    }
+    return '';
+}
+
+String getFunctionBody(String jsData, String funcName) {
+    final varfunc = '$funcName=function(a){';
+    int startPos = jsData.indexOf(varfunc);
+    if (startPos >= 0) {
+        startPos += varfunc.length;
+        int endPos = jsData.indexOf('};', startPos);
+        if (endPos > startPos) {
+            return jsData.substring(startPos, endPos);
+        }
+    }
+    return '';
+}
+
+void parseOperations(String funcBody, List<int> jsFuncs, List<int> jsFuncArgs) {
+    final lines = funcBody.split(';');
+    for (var line in lines) {
+        if (line.contains('split') || line.contains('return')) continue;
+        
+        if (line.contains('splice')) {
+            jsFuncs.add(0); // DELETE
+            final arg = RegExp(r'\d+').firstMatch(line)?.group(0);
+            jsFuncArgs.add(int.parse(arg ?? '0'));
+        } else if (line.contains('reverse')) {
+            jsFuncs.add(1); // REVERSE
+            jsFuncArgs.add(0);
+        } else if (line.contains('.length]')) {
+            jsFuncs.add(2); // SWAP
+            final arg = RegExp(r'\d+').firstMatch(line)?.group(0);
+            jsFuncArgs.add(int.parse(arg ?? '0'));
+        }
+    }
+}
+
+
+
+
+  
 
 /// 播放器监听方法
 void _videoListener() {
