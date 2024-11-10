@@ -396,9 +396,6 @@ final headers = {
                 videoPlayerOptions: VideoPlayerOptions(
                     allowBackgroundPlayback: false,
                     mixWithOthers: false,
-                    webOptions: const VideoPlayerWebOptions(
-                        controls: VideoPlayerWebOptionsControls.none(),
-                    ),
                 ),
             )..setVolume(1.0);
 
