@@ -140,7 +140,6 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
       // 初始化视频控制器
       _videoController = VideoPlayerController.networkUrl(
         Uri.parse(streams['video']!),
-        httpHeaders: combinedHeaders,
         formatHint: VideoFormat.hls,
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: true,
@@ -152,7 +151,6 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
       if (streams['audio']!.isNotEmpty) {
         _audioController = VideoPlayerController.networkUrl(
           Uri.parse(streams['audio']!),
-          httpHeaders: combinedHeaders,
           videoPlayerOptions: VideoPlayerOptions(
             mixWithOthers: true,
             allowBackgroundPlayback: false,
