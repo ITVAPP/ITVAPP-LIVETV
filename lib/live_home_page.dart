@@ -157,18 +157,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
            lowercaseUrl.endsWith('.wav');
   }
 
-/// 播放前解析频道的视频源 
-Future<void> _playVideo() async {
+  /// 播放前解析频道的视频源 
+  Future<void> _playVideo() async {
     if (_currentChannel == null || _currentChannel!.urls == null || 
         _currentChannel!.urls!.isEmpty || _sourceIndex >= _currentChannel!.urls!.length) {
-      if (!mounted) return;  // 添加mounted检查
       setState(() {
         toastString = S.current.playError;
       });
       return;
     }
 
-    if (!mounted) return;
     setState(() {
       toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
       _isRetrying = false;
@@ -180,7 +178,6 @@ Future<void> _playVideo() async {
       _streamUrl = StreamUrl(url);
       String parsedUrl = await _streamUrl!.getStreamUrl();
 
-      if (!mounted) return;
       if (parsedUrl == 'ERROR') {
         setState(() {
           toastString = S.current.vpnplayError;
@@ -196,16 +193,17 @@ Future<void> _playVideo() async {
 
       LogUtil.i('准备播放：$parsedUrl');
       
-      // 等待释放完成
+      // 释放旧播放器
       await _playerManager.dispose();
-      if (!mounted) return;
       
+      // 启动超时检测
+      _startTimeoutCheck();
+
       // 初始化新播放器
       bool initialized = await _playerManager.initializePlayer(
         parsedUrl,
         timeout: Duration(seconds: timeoutSeconds),
         onError: (error) {
-          if (!mounted) return;
           LogUtil.e('播放器错误：$error');
           _handleSourceSwitch();
         },
@@ -221,74 +219,59 @@ Future<void> _playVideo() async {
         _timeoutActive = false;
       });
 
-      // 启动超时检测
-      _startTimeoutCheck();
+      // 添加监听器
+      _playerController?.addListener(_videoListener);
       
       // 开始播放
-      if (!mounted) return;
       await _playerManager.play();
 
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
-      if (!mounted) return;
       setState(() {
         _isRetrying = false;
       });
       _handleSourceSwitch();
     }
-}
+  }
 
-/// 视频状态监听器
-void _videoListener() {
-    if (_playerController == null || _isDisposing || _isRetrying || !mounted) return;
+  /// 视频状态监听器
+  void _videoListener() {
+    if (_playerController == null || _isDisposing || _isRetrying) return;
 
     try {
-      final bool wasBuffering = isBuffering;
       _playerManager.updateState(_playerController!);
-      
-      // 仅在需要时更新宽高比
-      if (_shouldUpdateAspectRatio) {
-        _shouldUpdateAspectRatio = false;
-      }
+      _shouldUpdateAspectRatio = false;
 
       // 检查错误状态
       if (_playerManager.state.hasError) {
         LogUtil.logError('播放器错误', _playerManager.state.errorMessage ?? 'Unknown Error');
-        if (!mounted) return;
         _handleSourceSwitch();
-      }
-
-      // 检查缓冲状态变化
-      if (wasBuffering && !isBuffering) {
-        _timeoutActive = false;  // 重置超时检测
       }
     } catch (e, stackTrace) {
       LogUtil.logError('监听器错误', e, stackTrace);
     }
-}
+  }
 
-/// 超时检测方法
-void _startTimeoutCheck() {
-    if (_timeoutActive || _isRetrying || _isDisposing || !mounted) return;
+  /// 超时检测方法
+  void _startTimeoutCheck() {
+    if (_timeoutActive || _isRetrying) return;
     
     _timeoutActive = true;
     Timer(Duration(seconds: timeoutSeconds), () {
-      if (!mounted || !_timeoutActive || _isRetrying) return;
+      if (!_timeoutActive || _isRetrying) return;
       
-      if (_playerController != null) {
-        final playingState = _playerController!.value.playingState;
-        if (playingState != PlayingState.playing && 
-            playingState != PlayingState.buffering) {
-          LogUtil.e('播放超时：$timeoutSeconds seconds');
-          _retryPlayback();
-        }
+      if (_playerController != null && 
+          _playerController!.value.playingState != PlayingState.playing && 
+          _playerController!.value.playingState != PlayingState.buffering) {
+        LogUtil.e('播放超时：$timeoutSeconds seconds');
+        _retryPlayback();
       }
     });
-}
+  }
 
-/// 重试播放方法
-void _retryPlayback() {
-    if (_isRetrying || _isDisposing || !mounted) return;
+  /// 重试播放方法
+  void _retryPlayback() {
+    if (_isRetrying) return;
     
     _isRetrying = true;
     _timeoutActive = false;
@@ -301,7 +284,6 @@ void _retryPlayback() {
       
       _retryTimer?.cancel();
       _retryTimer = Timer(const Duration(seconds: 3), () {
-        if (!mounted) return;
         setState(() {
            _isRetrying = false;
         });
@@ -310,13 +292,11 @@ void _retryPlayback() {
     } else {
       _handleSourceSwitch();
     }
-}
+  }
   
 /// 处理视频源切换的方法
-void _handleSourceSwitch() {
-    if (!mounted) return;
-    
-    final List<String>? urls = _currentChannel?.urls;
+  void _handleSourceSwitch() {
+    final List<String>? urls = _currentChannel?.urls;  // 获取当前频道的视频源列表
     if (urls == null || urls.isEmpty) {
       setState(() {
         toastString = S.current.playError;
@@ -326,45 +306,44 @@ void _handleSourceSwitch() {
       return;
     }
 
+    // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
       setState(() {
         toastString = S.current.playError;
-        _isRetrying = false;
-        _retryCount = 0;
+        _isRetrying = false;  
       });
       return;
     }
 
+    // 检查新的源是否为音频
     bool isDirectAudio = _checkIsAudioStream(urls[_sourceIndex]);
     setState(() {
       _isAudio = isDirectAudio;
       toastString = S.current.switchLine(_sourceIndex + 1);
     });
 
+    // 延迟后尝试新源
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
       setState(() {
-        _retryCount = 0;
+        _retryCount = 0;  // 新源从0开始计数重试
       });
       _playVideo();
     });
-}
+  }
 
-/// 处理频道切换操作
-Future<void> _onTapChannel(PlayModel? model) async {
-    if (_isSwitchingChannel || model == null || !mounted) return;
+  /// 处理频道切换操作
+  Future<void> _onTapChannel(PlayModel? model) async {
+    if (_isSwitchingChannel || model == null) return;
     
     setState(() {
       _isSwitchingChannel = true;
-      toastString = S.current.loading;
+      toastString = S.current.loading; // 更新加载状态
     });
     
     try {
       _retryTimer?.cancel();
-      if (!mounted) return;
-      
       setState(() { 
         _isRetrying = false;
         _timeoutActive = false;
@@ -379,8 +358,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
       // 检查新频道是否为音频
       final String? url = model.urls?.isNotEmpty == true ? model.urls![0] : null;
       bool isDirectAudio = _checkIsAudioStream(url);
-      
-      if (!mounted) return;
       setState(() {
         _isAudio = isDirectAudio;
       });
@@ -390,12 +367,12 @@ Future<void> _onTapChannel(PlayModel? model) async {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
 
-      if (!mounted || !_isSwitchingChannel) return;
+      // 确保状态正确后开始新的播放
+      if (!_isSwitchingChannel) return; // 如果状态已改变则退出
       await _playVideo();
       
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
-      if (!mounted) return;
       setState(() {
         toastString = S.current.playError;
       });
@@ -406,19 +383,17 @@ Future<void> _onTapChannel(PlayModel? model) async {
         });
       }
     }
-}
+  }
 
   /// 异步加载视频数据
-Future<void> _loadData() async {
+  Future<void> _loadData() async {
     // 重置所有状态
     _retryTimer?.cancel();
-    if (!mounted) return;
-    
     setState(() { 
       _isRetrying = false;
       _timeoutActive = false;
       _retryCount = 0;
-      _isAudio = false;
+      _isAudio = false; // 重置音频状态
     });
     
     try {
@@ -427,11 +402,9 @@ Future<void> _loadData() async {
       await _handlePlaylist();
     } catch (e, stackTrace) {
       LogUtil.logError('加载数据时出错', e, stackTrace);
-      if (mounted) {
-        await _parseData();
-      }
+      await _parseData();
     }
-}
+  }
 
   /// 解析并加载本地播放列表
   Future<void> _parseData() async {
@@ -446,48 +419,40 @@ Future<void> _loadData() async {
   }
 
   /// 处理播放列表
-Future<void> _handlePlaylist() async {
-    if (!mounted) return;
-    
+  Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
       if (_currentChannel != null) {
-        final String? url = _currentChannel?.urls?.isNotEmpty == true ? 
-                           _currentChannel?.urls![0] : null;
+        final String? url = _currentChannel?.urls?.isNotEmpty == true ? _currentChannel?.urls![0] : null;
         bool isDirectAudio = _checkIsAudioStream(url);
-        
-        if (!mounted) return;
         setState(() {
           _isAudio = isDirectAudio;
         });
 
-        if (Config.Analytics && mounted) {
+        if (Config.Analytics) {
           await _sendTrafficAnalytics(context, _currentChannel!.title);
         }
         
-        if (!mounted) return;
         setState(() {
           _retryCount = 0;
           _timeoutActive = false;
+          _playVideo(); 
         });
-        await _playVideo();
       } else {
-        if (!mounted) return;
         setState(() {
           toastString = 'UNKNOWN';
           _isRetrying = false;
         });
       }
     } else {
-      if (!mounted) return;
       setState(() {
         _currentChannel = null;
         toastString = 'UNKNOWN';
         _isRetrying = false;
       });
     }
-}
+  }
 
   /// 从播放列表中动态提取频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
@@ -516,9 +481,7 @@ Future<void> _handlePlaylist() async {
   }
 
   /// 切换视频源的外部调用方法
- Future<void> _changeChannelSources() async {
-    if (!mounted) return;
-    
+  Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
       LogUtil.e('未找到有效的视频源');
@@ -530,7 +493,6 @@ Future<void> _handlePlaylist() async {
     _timeoutActive = false;
 
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
-    if (!mounted) return;
 
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
@@ -541,7 +503,7 @@ Future<void> _handlePlaylist() async {
       _retryCount = 0;
       _playVideo();
     }
-}
+  }
 
   /// 发送页面访问统计数据
   Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
@@ -613,39 +575,36 @@ Future<void> _handlePlaylist() async {
   }
 
   // 添加或取消收藏
-void toggleFavorite(String channelId) async {
-    if (!mounted) return;
-    
+  void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = getGroupName(actualChannelId);
     String channelName = getChannelName(actualChannelId);
 
+    // 验证分组名字、频道名字和播放地址是否正确
     if (groupName.isEmpty || channelName.isEmpty) {
-      if (mounted) {
-        CustomSnackBar.showSnackBar(
-          context,
-          S.current.channelnofavorite,
-          duration: Duration(seconds: 4),
-        );
-      }
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.channelnofavorite,
+        duration: Duration(seconds: 4),
+      );
       return;
     }
 
     if (isChannelFavorite(actualChannelId)) {
+      // 取消收藏
       favoriteList[Config.myFavoriteKey]![groupName]?.remove(channelName);
       if (favoriteList[Config.myFavoriteKey]![groupName]?.isEmpty ?? true) {
         favoriteList[Config.myFavoriteKey]!.remove(groupName);
       }
-      if (mounted) {
-        CustomSnackBar.showSnackBar(
-          context,
-          S.current.removefavorite,
-          duration: Duration(seconds: 4),
-        );
-      }
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.removefavorite,
+        duration: Duration(seconds: 4),
+      );
       isFavoriteChanged = true;
     } else {
+      // 添加收藏
       if (favoriteList[Config.myFavoriteKey]![groupName] == null) {
         favoriteList[Config.myFavoriteKey]![groupName] = {};
       }
@@ -658,56 +617,45 @@ void toggleFavorite(String channelId) async {
         urls: getPlayUrls(actualChannelId),
       );
       favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
-      if (mounted) {
-        CustomSnackBar.showSnackBar(
-          context,
-          S.current.newfavorite,
-          duration: Duration(seconds: 4),
-        );
-      }
+      CustomSnackBar.showSnackBar(
+        context,
+        S.current.newfavorite,
+        duration: Duration(seconds: 4),
+      );
       isFavoriteChanged = true;
     }
 
-    if (isFavoriteChanged && mounted) {
+    if (isFavoriteChanged) {
       try {
+        // 保存收藏列表到缓存
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
-        
-        if (mounted) {
-          setState(() {
-            _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
-          });
-        }
+        // 更新刷新键，触发抽屉重建
+        setState(() {
+          _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+        });
       } catch (error, stackTrace) {
-        if (mounted) {
-          CustomSnackBar.showSnackBar(
-            context,
-            S.current.newfavoriteerror,
-            duration: Duration(seconds: 4),
-          );
-        }
+        CustomSnackBar.showSnackBar(
+          context,
+          S.current.newfavoriteerror,
+          duration: Duration(seconds: 4),
+        );
         LogUtil.logError('收藏状态保存失败', error, stackTrace);
       }
     }
-}
+  }
 
-@override
-void dispose() {
+  @override
+  void dispose() {
     _retryTimer?.cancel();
     _timeoutActive = false;
     _isRetrying = false;
-    _isDisposing = true;  // 标记正在释放
     WakelockPlus.disable();
-    
-    // 确保播放器管理器释放
-    _playerManager.dispose().then((_) {
-      if (mounted) {
-        super.dispose();
-      }
-    });
-}
+    _playerManager.dispose();
+    super.dispose();
+  }
 
   /// 播放器公共属性
   Map<String, dynamic> _buildCommonProps() {
