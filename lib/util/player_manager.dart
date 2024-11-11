@@ -58,6 +58,7 @@ class PlayerManager {
   final Function(String)? onError;  // onError function
   Timer? _initializationTimer;
   bool _isDisposing = false;
+  Completer<void>? _disposingCompleter;  // 新增同步标记
   
   // Constructor with onError parameter
   PlayerManager({this.onError});
@@ -72,16 +73,29 @@ class PlayerManager {
     VlcPlayerOptions? options,
     Function(String)? onError,
   }) async {
+    // 等待之前的dispose完成
+    if (_disposingCompleter != null) {
+      try {
+        await _disposingCompleter!.future.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => null,
+        );
+      } catch (_) {}
+    }
+    
     if (_isDisposing) return false;
     
     try {
+      // 释放旧控制器
+      await dispose();
+      
       // 创建新控制器
       final newController = VlcPlayerController.network(
         url,
         hwAcc: HwAcc.full,
         options: options ?? PlayerConfig.defaultOptions,
         autoPlay: false,
-        autoInitialize: false,
+        autoInitialize: true,  // 修改为true以确保正确初始化
       );
 
       _controller = newController;
@@ -89,6 +103,13 @@ class PlayerManager {
       _state.hasError = false;
       _state.errorMessage = null;
       _state.errorNotifier.value = null;
+
+      // 添加状态监听
+      newController.addListener(() {
+        if (!_isDisposing) {
+          _handleControllerUpdate(newController);
+        }
+      });
 
       // 设置初始化超时
       _initializationTimer?.cancel();
@@ -98,11 +119,16 @@ class PlayerManager {
         }
       });
 
-      // 初始化播放器
+      // 等待初始化完成
       await newController.initialize().timeout(
         timeout,
         onTimeout: () => throw TimeoutException('播放器初始化超时'),
       );
+
+      // 验证初始化状态
+      if (!newController.value.isInitialized) {
+        throw StateError('Controller initialized but not ready');
+      }
 
       _state.isInitialized = true;
       await newController.setVolume(100);
@@ -112,7 +138,7 @@ class PlayerManager {
     } catch (e, stackTrace) {
       _handleError('初始化失败: $e', onError);
       LogUtil.logError('播放器初始化失败', e, stackTrace);
-      await dispose();
+      await _safeDispose();  // 使用安全释放
       return false;
     } finally {
       _initializationTimer?.cancel();
@@ -174,74 +200,88 @@ class PlayerManager {
 
   // 处理错误
   void _handleError(String message, [Function(String)? errorCallback]) {
+    if (_isDisposing) return;  // 添加释放检查
+    
     _state.hasError = true;
     _state.errorMessage = message;
     _state.errorNotifier.value = message;
-    if (errorCallback != null) {
-      errorCallback(message);  // 使用传入的错误回调
-    } else if (onError != null) {
-      onError!(message);  // 使用构造函数中定义的回调
+    
+    try {
+      if (errorCallback != null) {
+        errorCallback(message);
+      } else if (onError != null) {
+        onError!(message);
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('错误回调执行失败', e, stackTrace);  // 添加错误处理
     }
   }
 
-  // 更新播放器状态
-  void updateState(VlcPlayerController controller) {
-    if (_isDisposing) return;
-    
+  // 新增：处理控制器更新
+  void _handleControllerUpdate(VlcPlayerController controller) {
     try {
       final playingState = controller.value.playingState;
       
-      _state.isBuffering = playingState == PlayingState.buffering;
-      _state.bufferingNotifier.value = _state.isBuffering;
+      final bool newBuffering = playingState == PlayingState.buffering;
+      if (_state.isBuffering != newBuffering) {
+        _state.isBuffering = newBuffering;
+        _state.bufferingNotifier.value = newBuffering;
+      }
       
-      _state.isPlaying = playingState == PlayingState.playing;
-      _state.playingNotifier.value = _state.isPlaying;
+      final bool newPlaying = playingState == PlayingState.playing;
+      if (_state.isPlaying != newPlaying) {
+        _state.isPlaying = newPlaying;
+        _state.playingNotifier.value = newPlaying;
+      }
       
-      if (_state.isPlaying && controller.value.aspectRatio != null) {
+      if (newPlaying && controller.value.aspectRatio != null) {
         _state.aspectRatio = controller.value.aspectRatio!;
       }
 
       if (playingState == PlayingState.error || controller.value.hasError) {
-        _state.hasError = true;
-        _state.errorMessage = controller.value.errorDescription ?? 'Unknown error';
-        _state.errorNotifier.value = _state.errorMessage;
+        _handleError(controller.value.errorDescription ?? 'Unknown error', onError);
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('更新状态失败', e, stackTrace);
+      LogUtil.logError('状态更新失败', e, stackTrace);
     }
   }
 
-  // 释放资源
+  // 新增：安全释放方法
+  Future<void> _safeDispose() async {
+    final currentController = _controller;
+    _controller = null;
+
+    if (currentController != null) {
+      try {
+        if (currentController.value.isPlaying) {
+          await currentController.stop().timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => null,
+          );
+        }
+        
+        await currentController.dispose().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => null,
+        );
+      } catch (e, stackTrace) {
+        LogUtil.logError('安全释放失败', e, stackTrace);
+      }
+    }
+  }
+
+  // 修改后的dispose方法
   Future<void> dispose() async {
     if (_isDisposing) return;
     
     _isDisposing = true;
     _initializationTimer?.cancel();
+    _disposingCompleter = Completer<void>();
     
     try {
-      final currentController = _controller;
-      _controller = null;
+      await _safeDispose();
       
-      if (currentController != null) {
-        try {
-          if (currentController.value.isPlaying) {
-            await currentController.stop();
-          }
-        } catch (e) {
-          LogUtil.logError('停止播放失败', e);
-        }
-
-        try {
-          await currentController.dispose();
-        } catch (e) {
-          LogUtil.logError('释放控制器失败', e);
-        }
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('释放资源失败', e, stackTrace);
-    } finally {
       // 重置所有状态
-      _isDisposing = false;
       _state.isInitialized = false;
       _state.isPlaying = false;
       _state.playingNotifier.value = false;
@@ -250,6 +290,10 @@ class PlayerManager {
       _state.hasError = false;
       _state.errorMessage = null;
       _state.errorNotifier.value = null;
+    } finally {
+      _isDisposing = false;
+      _disposingCompleter?.complete();
+      _disposingCompleter = null;
     }
   }
 }
