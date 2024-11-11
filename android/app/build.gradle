@@ -33,6 +33,11 @@ android {
     compileSdk = 34              // 编译SDK版本，定义编译时使用的Android SDK版本
 //    ndkVersion = flutter.ndkVersion // 可选配置，用于指定NDK版本
 
+    // 添加 packagingOptions 配置，用于处理重复的库文件
+    packagingOptions {
+        pickFirst 'lib/**/libc++_shared.so'
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17  // 指定Java源码的兼容性版本
         targetCompatibility = JavaVersion.VERSION_17  // 指定Java目标字节码的兼容性版本
@@ -63,6 +68,7 @@ android {
         release {
             minifyEnabled true // 启用代码混淆和压缩
             shrinkResources true // 移除未使用的资源，减少APK的大小
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' // 添加 ProGuard 配置文件
             signingConfig = signingConfigs.release // 使用release签名配置
         }
     }
