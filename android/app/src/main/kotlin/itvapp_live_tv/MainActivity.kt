@@ -5,12 +5,20 @@ import android.content.res.Configuration
 import android.os.Build
 import android.content.pm.PackageManager
 import android.util.Log
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "net.itvapp.livetv"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // 设置窗口背景为透明
+        window.setBackgroundDrawableResource(android.R.color.transparent)
+        super.onCreate(savedInstanceState)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
