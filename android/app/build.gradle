@@ -36,6 +36,9 @@ android {
     // 添加 packagingOptions 配置，用于处理重复的库文件
     packagingOptions {
         pickFirst 'lib/**/libc++_shared.so'
+        // 添加以下配置以禁用 Split APKs
+        exclude 'lib/*/libapp.so'
+        exclude 'lib/*/libflutter.so'
     }
 
     compileOptions {
@@ -70,6 +73,9 @@ android {
             shrinkResources true // 移除未使用的资源，减少APK的大小
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' // 添加 ProGuard 配置文件
             signingConfig = signingConfigs.release // 使用release签名配置
+            // 禁用 Split APKs
+            splits.abi.enable = false
+            splits.density.enable = false
         }
     }
 }
