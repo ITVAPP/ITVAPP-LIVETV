@@ -375,9 +375,6 @@ Future<void> _disposePlayer() async {
             // 清理 StreamUrl
             _disposeStreamUrl();
             
-            // 清理分离流处理器
-            await _separatedStreamHandler.dispose();
-            
             try {
                 await currentController.dispose();
             } catch (e) {
@@ -747,7 +744,6 @@ void dispose() {
     WakelockPlus.disable();
     _isDisposing = true;
     _disposePlayer();
-    _separatedStreamHandler.dispose();
     super.dispose();
 }
 
