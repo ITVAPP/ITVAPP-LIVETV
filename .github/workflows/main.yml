@@ -49,15 +49,6 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
-      - name: Build Universal APK (all architectures)  # 构建适用于所有架构的通用 APK
-        run: |
-          flutter build apk --dart-define=isTV=false --release
-          mv build/app/outputs/flutter-apk/app-release.apk apk/ITVAPP-livetv-universal-${{ github.ref_name }}.apk
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-
       - name: Upload Android artifacts  # 上传生成的APK文件作为构建产物
         uses: actions/upload-artifact@v4
         with:
@@ -65,4 +56,3 @@ jobs:
           path: |
             apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
             apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-            apk/ITVAPP-livetv-universal-${{ github.ref_name }}.apk
