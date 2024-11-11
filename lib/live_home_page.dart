@@ -1008,7 +1008,7 @@ Widget build(BuildContext context) {
         toastString: toastString,
         controller: _playerController,
         isBuffering: isBuffering,
-        iisPlaying: _playerController?.value.playingState == PlayingState.playing,
+        isPlaying: _playerController?.value.playingState == PlayingState.playing,
         aspectRatio: aspectRatio,
         onChangeSubSource: _parseData,
         changeChannelSources: _changeChannelSources,
