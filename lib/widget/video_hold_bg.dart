@@ -24,6 +24,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   int _currentImgIndex = 0;  // 当前显示的背景图片索引
   Timer? _timer;  // 定时器，用于切换背景图片
   bool _isBingLoaded = false;  // 用于判断是否已经加载过 Bing 背景
+  bool _isAnimating = false;  // 用于跟踪动画状态
+  
+  // 新增：用于存储当前和下一张图片的索引和状态
+  int _nextImgIndex = 0;
+  bool _showNextImage = false;
 
   late AnimationController _textAnimationController; // 文字滚动动画控制器
   late Animation<Offset> _textAnimation; // 文字滚动动画
@@ -34,17 +39,29 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   void initState() {
     super.initState();
 
-    // 初始化动画控制器，设置动画持续时间为 1 秒
-    _animationController = AnimationController(duration: const Duration(seconds: 1), vsync: this);
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
+    // 初始化动画控制器，使用更长的动画时间实现平滑过渡
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
 
-    // 启动动画
-    _animationController.forward();
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
 
-    // 判断是否需要加载 Bing 背景
-    if (widget.showBingBackground && !_isBingLoaded) {
-      _loadBingBackgrounds();
-    }
+    // 监听动画状态
+    _animationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _isAnimating = false;
+          if (_showNextImage) {
+            _currentImgIndex = _nextImgIndex;
+            _showNextImage = false;
+          }
+        });
+      }
+    });
 
     // 初始化文字滚动动画控制器
     _textAnimationController = AnimationController(
@@ -64,6 +81,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     });
 
     _textAnimationController.forward();
+
+    // 判断是否需要加载 Bing 背景
+    if (widget.showBingBackground && !_isBingLoaded) {
+      _loadBingBackgrounds();
+    }
   }
 
   // 异步加载 Bing 图片 URL 列表
@@ -76,12 +98,11 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
           _isBingLoaded = true;  // 只加载一次 Bing 图片
         });
 
-        // 只有在加载到 Bing 图片时才启动定时器
-        _timer = Timer.periodic(Duration(seconds: 30), (Timer timer) {
-          setState(() {
-            _currentImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;  // 轮换图片
-            _animationController.forward(from: 0.0);  // 每次切换图片时重新播放淡入动画
-          });
+        // 设置图片切换定时器
+        _timer = Timer.periodic(const Duration(seconds: 30), (Timer timer) {
+          if (!_isAnimating && mounted && _bingImgUrls.length > 1) {
+            _startImageTransition();
+          }
         });
       } else {
         LogUtil.e('未获取到任何 Bing 图片 URL');
@@ -91,6 +112,16 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       LogUtil.logError('加载 Bing 图片时发生错误', e);  // 记录详细错误
       _isBingLoaded = true;  // 防止重复尝试加载
     }
+  }
+
+  // 新增：处理图片切换的方法
+  void _startImageTransition() {
+    _isAnimating = true;
+    _nextImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
+    setState(() {
+      _showNextImage = true;
+    });
+    _animationController.forward(from: 0.0);
   }
 
   @override
@@ -126,18 +157,12 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
           _loadBingBackgrounds();
         }
 
+        final bool shouldShowBingBg = widget.showBingBackground && isBingBg;
+
         return Stack(
           children: [
             // 根据showBingBackground决定背景
-            AnimatedBuilder(
-              animation: _fadeAnimation,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _fadeAnimation.value,
-                  child: (widget.showBingBackground && isBingBg) ? _buildBingBg() : _buildLocalBg(),
-                );
-              },
-            ),
+            shouldShowBingBg ? _buildBingBg() : _buildLocalBg(),
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -197,20 +222,45 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 动态加载Bing图片背景，支持多张图片轮换展示
+  // 优化后的 Bing 背景构建方法
   Widget _buildBingBg() {
-    return Container(
-      decoration: BoxDecoration(
-        image: _bingImgUrls.isNotEmpty
-            ? DecorationImage(
+    if (_bingImgUrls.isEmpty) {
+      return _buildLocalBg();
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 当前图片
+        AnimatedOpacity(
+          opacity: _showNextImage ? 0.0 : 1.0,
+          duration: const Duration(milliseconds: 1200),
+          curve: Curves.easeInOut,
+          child: Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(
                 fit: BoxFit.cover,
-                image: NetworkImage(_bingImgUrls[_currentImgIndex]), // 轮换展示的背景图片
-              )
-            : const DecorationImage(
-                fit: BoxFit.cover,
-                image: AssetImage('assets/images/video_bg.png'), // 若无Bing图片，使用本地默认背景
+                image: NetworkImage(_bingImgUrls[_currentImgIndex]),
               ),
-      ),
+            ),
+          ),
+        ),
+        // 下一张图片
+        if (_showNextImage && _nextImgIndex < _bingImgUrls.length)
+          AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 1200),
+            curve: Curves.easeInOut,
+            child: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  fit: BoxFit.cover,
+                  image: NetworkImage(_bingImgUrls[_nextImgIndex]),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
