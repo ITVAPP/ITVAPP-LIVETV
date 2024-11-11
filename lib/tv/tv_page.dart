@@ -51,9 +51,25 @@ class VideoPlayerWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               S.of(context).loading,
-              style: TextStyle(color: Colors.white, fontSize: 18),
+              style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // 播放器构建方法
+  Widget _buildPlayer(VlcPlayerValue value) {
+    return Center(
+      child: AspectRatio(
+        aspectRatio: value.aspectRatio ?? 16/9,
+        child: SizedBox(
+          width: double.infinity,
+          child: VlcPlayer(
+            controller: controller!,
+            aspectRatio: value.aspectRatio ?? 16/9,
+          ),
         ),
       ),
     );
@@ -64,21 +80,10 @@ class VideoPlayerWidget extends StatelessWidget {
     return Stack(
       children: [
         ValueListenableBuilder<VlcPlayerValue>(
-          valueListenable: controller ?? VlcPlayerController.network(''),
-          builder: (BuildContext context, VlcPlayerValue value, Widget? child) {
-            if (controller != null && value.playingState != PlayingState.stopped && isAudio == false) {
-              return Center(  // 使用 Center 包裹 AspectRatio 确保视频居中显示
-                child: AspectRatio(
-                  aspectRatio: value!.aspectRatio,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: VlcPlayer(
-                      controller: controller!,
-                      aspectRatio: value.aspectRatio,
-                    ),
-                  ),
-                ),
-              );
+          valueListenable: controller!,
+          builder: (context, value, _) {
+           if (value.playingState != PlayingState.stopped && !isAudio || controller != null) {
+              return _buildPlayer(value);
             }
             return VideoHoldBg(
               toastString: drawerIsOpen ? '' : toastString,
@@ -172,14 +177,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     )
   );
   
-  // 保持原有状态
   bool _drawerIsOpen = false;
   bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-
+  VlcPlayerController? get _controller => widget.controller;
+  bool get _hasValidController => _controller != null;
+  
   // 图标状态更新方法
   void _updateIconState({
     bool? showPause,
@@ -249,22 +255,26 @@ Future<bool?> _opensetting() async {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
       return false;
-    } else {
-      bool wasPlaying = widget.controller?.value.playingState == PlayingState.playing;
+    }
+
+    if (_hasValidController) {
+      final bool wasPlaying = _controller!.value.playingState == PlayingState.playing;
       if (wasPlaying) {
-        await widget.controller?.pause();
-        _updateIconState(showPlay: true);  // 使用 ValueNotifier
+        await _controller!.pause();
+        _updateIconState(showPlay: true);
       }
       
-      bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+      final bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
       
-      if (!shouldExit && wasPlaying) {
-        await widget.controller?.play();
-        _updateIconState(showPlay: false);  // 使用 ValueNotifier
+      if (!shouldExit && wasPlaying && mounted) {
+        await _controller!.play();
+        _updateIconState(showPlay: false);
       }
       
       return shouldExit;
-    } 
+    }
+    
+    return true;
   }
 
   // 控制图标构建方法
@@ -307,9 +317,9 @@ Future<bool?> _opensetting() async {
   
   // 选择键处理逻辑，使用 ValueNotifier
   Future<void> _handleSelectPress() async {
-    final controller = widget.controller;
-    if (controller == null) return;	
+    if (!_hasValidController) return;	
     
+    final controller = _controller!;
     final isActuallyPlaying = controller.value.playingState == PlayingState.playing;
     
     if (isActuallyPlaying) {
@@ -380,9 +390,11 @@ Future<bool?> _opensetting() async {
         await widget.changeChannelSources?.call();
         break;
       case LogicalKeyboardKey.arrowDown:
-        widget.controller?.pause();
-        _updateIconState(showPlay: true);  // 使用 ValueNotifier
-        _opensetting();
+        if (_hasValidController) {
+          await _controller!.pause();
+          _updateIconState(showPlay: true);
+          await _opensetting();
+        }
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
@@ -391,19 +403,17 @@ Future<bool?> _opensetting() async {
         }
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
-        if (widget.controller != null) {
-          final currentVolume = await widget.controller!.getVolume() ?? 0;
-          // 确保音量在0-100范围内
-          await widget.controller!.setVolume(
+        if (_hasValidController) {
+          final currentVolume = await _controller!.getVolume() ?? 0;
+          await _controller!.setVolume(
             (currentVolume + 10).clamp(0, 100)
           );
         }
         break;
       case LogicalKeyboardKey.audioVolumeDown:
-        if (widget.controller != null) {
-          final currentVolume = await widget.controller!.getVolume() ?? 0;
-          // 确保音量在0-100范围内
-          await widget.controller!.setVolume(
+        if (_hasValidController) {
+          final currentVolume = await _controller!.getVolume() ?? 0;
+          await _controller!.setVolume(
             (currentVolume - 10).clamp(0, 100)
           );
         }
@@ -416,7 +426,7 @@ Future<bool?> _opensetting() async {
     return KeyEventResult.handled;
   }
   
-  // EPGList 节目点击事件处理保持不变
+  // EPGList 节目点击事件处理
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
@@ -435,21 +445,7 @@ Future<bool?> _opensetting() async {
   @override
   void dispose() {
     _iconStateNotifier.dispose();
-    
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放 _pauseIconTimer 失败', e);
-    }
-    try {
-      if (widget.controller != null) {
-        widget.controller!.stop();
-        widget.controller!.dispose();
-      }
-    } catch (e) {
-      LogUtil.logError('释放 controller 失败', e);
-    }
-    
+    _pauseIconTimer?.cancel();
     _blockSelectKeyEvent = false;
     
     if (_drawerNavigationState != null) {
@@ -512,11 +508,8 @@ Widget build(BuildContext context) {
                       children: [
                         if (iconState.showPause) 
                           _buildPauseIcon(),
-                            
-                        if ((widget.controller != null && 
-                             widget.controller!.value.playingState != PlayingState.playing && 
-                             widget.controller!.value.playingState != PlayingState.stopped && 
-                             !_drawerIsOpen) || iconState.showPlay)    
+                          
+                        if (_hasValidController && _controller!.value.playingState != PlayingState.playing && _controller!.value.playingState != PlayingState.stopped && !_drawerIsOpen || iconState.showPlay)    
                           _buildPlayIcon(),
 
                         if (iconState.showDatePosition) 
@@ -568,34 +561,20 @@ Widget build(BuildContext context) {
   );
 }
 
-// 抽屉显示/隐藏和焦点管理的方法
-void _toggleDrawer(bool isOpen) {
-  if (_drawerIsOpen == isOpen) return;
+  // 抽屉显示/隐藏和焦点管理的方法
+  void _toggleDrawer(bool isOpen) {
+    if (_drawerIsOpen == isOpen) return;
 
-  setState(() {
-    _drawerIsOpen = isOpen;
-  });
+    setState(() {
+      _drawerIsOpen = isOpen;
+    });
 
-  if (_drawerNavigationState != null) {
-    if (isOpen) {
-      _drawerNavigationState!.activateFocusManagement();
-    } else {
-      _drawerNavigationState!.deactivateFocusManagement();
+    if (_drawerNavigationState != null) {
+      if (isOpen) {
+        _drawerNavigationState!.activateFocusManagement();
+      } else {
+        _drawerNavigationState!.deactivateFocusManagement();
+      }
     }
   }
-}
-
-// 播放状态检查辅助方法
-bool _isPlaying(VlcPlayerController? controller) {
-  return controller?.value.playingState == PlayingState.playing;
-}
-
-bool _isInitialized(VlcPlayerController? controller) {
-  return controller?.value.playingState != PlayingState.stopped;
-}
-
-bool _isBuffering(VlcPlayerController? controller) {
-  return controller?.value.playingState == PlayingState.buffering;
-}
-
 }
