@@ -7,12 +7,12 @@ import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart'; 
 import 'package:window_manager/window_manager.dart';
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
-  final VideoPlayerController? controller; // 视频控制器，用于控制视频播放
+  final VlcPlayerController? controller; // 视频控制器，用于控制视频播放
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调函数
   final String? toastString; // 显示提示信息的字符串
   final bool isLandscape; // 标识是否为横屏模式
@@ -63,11 +63,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 统一的视频播放组件创建方法
   Widget _buildVideoPlayer(double containerHeight) {
-
-    if (widget.controller == null || !widget.controller!.value.isInitialized || widget.isAudio == true) {
+    if (widget.controller == null || widget.controller!.value.playingState == PlayingState.stopped || widget.isAudio == true) {
       return VideoHoldBg(
         toastString: _drawerIsOpen ? '' : widget.toastString,
-        showBingBackground: widget.isAudio, // 音频播放时显示背景
+        showBingBackground: widget.isAudio,
       );
     }
 
@@ -80,7 +79,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         child: Center(
           child: AspectRatio(
             aspectRatio: widget.controller!.value.aspectRatio,
-            child: VideoPlayer(widget.controller!),
+            child: VlcPlayer(
+              controller: widget.controller!,
+              aspectRatio: widget.controller!.value.aspectRatio,
+            ),
           ),
         ),
       );
@@ -89,7 +91,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 横屏模式下的视频显示
     return AspectRatio(
       aspectRatio: widget.controller!.value.aspectRatio,
-      child: VideoPlayer(widget.controller!),
+      child: VlcPlayer(
+        controller: widget.controller!,
+        aspectRatio: widget.controller!.value.aspectRatio,
+      ),
     );
   }
   
@@ -135,8 +140,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 处理选择键和确认键的点击事件
   Future<void> _handleSelectPress() async {
+    final isPlaying = widget.controller?.value.playingState == PlayingState.playing;
     // 1. 如果视频正在播放
-    if (widget.isPlaying) {
+    if (isPlaying) {
       // 1.1 如果没有定时器在运行
       if (!(_pauseIconTimer?.isActive ?? false)) {
         // 1.11 如果正在播放中，显示暂停图标，并启动一个 3 秒的定时器
@@ -176,7 +182,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
-  // 创建一个私有方法，用于关闭抽屉
+  // 关闭抽屉
   void _closeDrawerIfOpen() {
     if (_drawerIsOpen) {
       setState(() {
@@ -215,6 +221,19 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         onPressed: onPressed,
       ),
     );
+  }
+
+  // 播放状态检查辅助方法
+  bool _isPlaying() {
+    return widget.controller?.value.playingState == PlayingState.playing;
+  }
+
+  bool _isInitialized() {
+    return widget.controller?.value.playingState != PlayingState.stopped;
+  }
+
+  bool _isBuffering() {
+    return widget.controller?.value.playingState == PlayingState.buffering;
   }
   
 @override
@@ -359,7 +378,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           onTap: _drawerIsOpen ? null : () => _handleSelectPress(),
           onDoubleTap: _drawerIsOpen ? null : () {
             LogUtil.safeExecute(() {
-              widget.isPlaying 
+              final isPlaying = widget.controller?.value.playingState == PlayingState.playing;
+              isPlaying 
                   ? widget.controller?.pause() 
                   : widget.controller?.play();
             }, '双击播放/暂停发生错误');
@@ -374,7 +394,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 _buildVideoPlayer(playerHeight),
                 
                 // 播放控制图标
-                if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.isPlaying && !_drawerIsOpen) || _isShowPlayIcon)
+                if ((widget.controller != null && _isInitialized() && widget.controller!.value.playingState != PlayingState.playing && !_drawerIsOpen) || _isShowPlayIcon)
                   _buildControlIcon(
                     icon: Icons.play_arrow,
                     onTap: () => _handleSelectPress(),
