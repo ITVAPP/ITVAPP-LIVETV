@@ -1,6 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:tools="http://schemas.android.com/tools"
     xmlns:android="http://schemas.android.com/apk/res/android">
-
     <!-- 声明支持 Leanback（Android TV）的特性 -->
     <uses-feature
         android:name="android.software.leanback"
@@ -11,10 +11,21 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
-    <!-- 请求使用权限 -->
+    <!-- VLC Player 需要的权限 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- 网络权限：允许应用程序访问互联网，用于播放在线视频流和下载内容 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    
+    <!-- 外部存储写入权限：允许应用程序向设备的外部存储（如SD卡）写入数据，用于缓存视频和保存用户设置 -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    
+    <!-- 外部存储读取权限：允许应用程序从设备的外部存储读取数据，用于读取缓存的视频和用户设置 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    
+    <!-- 安装包权限：允许应用程序安装其他应用程序包，通常用于应用内更新功能 -->
+    <!-- tools:ignore="ProtectedPermissions" 表示忽略这个受保护权限的警告，因为这是一个系统级权限 -->
     <uses-permission android:name="android.permission.INSTALL_PACKAGES"
         tools:ignore="ProtectedPermissions" />
 
@@ -72,6 +83,5 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
     </application>
 </manifest>
