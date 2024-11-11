@@ -1,18 +1,17 @@
-import 'package:itvapp_live_tv/router_keys.dart';
-import 'package:itvapp_live_tv/table_video_widget.dart';
-import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'package:window_manager/window_manager.dart';
-
-import 'generated/l10n.dart';
+import 'router_keys.dart';
+import 'table_video_widget.dart';
 import 'util/env_util.dart';
 import 'util/log_util.dart'; 
+import 'widget/empty_page.dart';
+import 'generated/l10n.dart';
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
-  final VideoPlayerController? controller; // 视频播放器控制器
+  final VlcPlayerController? controller; // 视频播放器控制器
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调
   final String? toastString; // 提示信息字符串
   final bool? isLandscape; // 是否为横屏模式
