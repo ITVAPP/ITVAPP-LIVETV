@@ -52,7 +52,13 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   double get _safeAspectRatio {
     if (widget.controller == null) return widget.aspectRatio;
     return widget.controller!.value.aspectRatio ?? widget.aspectRatio;
-    
+  } 
+
+  // 判断 m3u 数据是否有效的简单方法
+  bool isValidM3U(String data) {
+    return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
+  }
+
   @override
   Widget build(BuildContext context) {
     // 优先使用传入的 isLandscape 参数，如果为空，则动态判断当前设备的方向
@@ -70,7 +76,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
         centerTitle: true,  // 标题居中显示
         title: Text(S.of(context).appName),  // 动态获取应用名称
         actions: [
-          // 添加按钮
           IconButton(
             onPressed: () async {
               LogUtil.safeExecute(() async {
@@ -149,11 +154,12 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
+            // 移除了 FittedBox 和嵌套的 SizedBox，直接使用 TableVideoWidget
             child: TableVideoWidget(
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
               isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: _safeAspectRatio,  // 动态获取视频的宽高比
+              aspectRatio: _safeAspectRatio,  // 使用安全的宽高比获取方法
               isBuffering: widget.isBuffering,  // 是否缓冲
               isPlaying: widget.isPlaying,  // 是否正在播放
               drawerIsOpen: false,  // 抽屉菜单关闭状态
@@ -173,10 +179,5 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
         ],
       ),
     );
-  }
-
-  // 判断 m3u 数据是否有效的简单方法
-  bool isValidM3U(String data) {
-    return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
   }
 }
