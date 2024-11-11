@@ -67,6 +67,7 @@ class PlayerManager {
   
   // 初始化播放器
 Future<bool> initializePlayer(String url, {
+  LogUtil.i('播放器准备初始化播放 $url,');	
   Duration timeout = const Duration(seconds: 10),
   VlcPlayerOptions? options,
   Function(String)? onError,
@@ -82,7 +83,7 @@ Future<bool> initializePlayer(String url, {
 
     final newController = VlcPlayerController.network(
       url,
-      hwAcc: HwAcc.full,
+      hwAcc: HwAcc.auto,
       options: options ?? PlayerConfig.defaultOptions,
       autoPlay: false,
       autoInitialize: true,
@@ -103,14 +104,20 @@ Future<bool> initializePlayer(String url, {
         'hasError=${value.hasError}');
 
       // 错误检查
-      if (value.hasError) {
-        LogUtil.e('播放器报错: ${value.errorDescription}');
-        if (!_initCompleter!.isCompleted) {
-          _initCompleter!.completeError(value.errorDescription ?? 'Unknown error');
-        }
-        _handleError(value.errorDescription ?? 'Unknown error', onError);
-        return;
-      }
+     if (value.hasError) {
+       // 获取错误描述
+       final errorDesc = value.errorDescription;
+       // 获取播放状态
+       final playingState = value.playingState;
+       // 获取错误代码 (可能为 null)
+       final errorCode = value.playingErrorCode;
+    
+       LogUtil.e('''VLC播放器错误:
+         错误代码: $errorCode
+         错误描述: $errorDesc
+         播放状态: $playingState
+       ''');
+     }
 
       // 初始化检查
       if (!_initCompleter!.isCompleted) {
@@ -331,7 +338,6 @@ Future<void> dispose() async {
         }
       } catch (e) {
         LogUtil.e('释放控制器时出错: $e');
-        // 不抛出错误，继续执行清理
       }
     }
     
