@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'channel_drawer_page.dart';
@@ -32,14 +32,35 @@ import 'config.dart';
 
 /// 音视频分离流处理器类
 class SeparatedStreamHandler {
-  VideoPlayerController? _videoController;
-  VideoPlayerController? _audioController;
+  VlcPlayerController? _videoController;
+  VlcPlayerController? _audioController;
   Timer? _syncTimer;
   
   // YouTube请求所需的标准头部
   static final Map<String, String> _youtubeHeaders = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   };
+
+  // VLC播放器选项配置
+  final VlcPlayerOptions _options = VlcPlayerOptions(
+    video: VlcVideoOptions([
+      VlcVideoOptions.dropLateFrames(true),
+      VlcVideoOptions.skipFrames(true),
+    ]),
+    advanced: VlcAdvancedOptions([
+      VlcAdvancedOptions.networkCaching(1500),
+      VlcAdvancedOptions.clockJitter(0),
+      VlcAdvancedOptions.fileCaching(1500),
+      VlcAdvancedOptions.liveCaching(1500),
+    ]),
+    http: VlcHttpOptions([
+      VlcHttpOptions.httpReconnect(true),
+    ]),
+    rtp: VlcRtpOptions([
+      '--rtsp-tcp',
+      '--rtp-timeout=10',
+    ]),
+  );
   
 // 检查是否为分离流
 Future<bool> isSeparatedStream(String url) async {
@@ -125,7 +146,7 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
 }
 
   // 初始化播放器
-  Future<VideoPlayerController> initialize(String url) async {
+ Future<VlcPlayerController> initialize(String url) async {
     try {
       final response = await http.get(
         Uri.parse(url),
@@ -138,23 +159,21 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
       final streams = await extractStreams(response.body);
       
       // 初始化视频控制器
-      _videoController = VideoPlayerController.networkUrl(
-        Uri.parse(streams['video']!),
-        formatHint: VideoFormat.hls,
-        videoPlayerOptions: VideoPlayerOptions(
-          mixWithOthers: true,
-          allowBackgroundPlayback: false,
-        ),
+      _videoController = VlcPlayerController.network(
+        streams['video']!,
+        hwAcc: HwAcc.full,
+        options: _options,
+        autoPlay: true,
+        autoInitialize: true,
       );
 
       // 如果存在音频流，初始化音频控制器
       if (streams['audio']!.isNotEmpty) {
-        _audioController = VideoPlayerController.networkUrl(
-          Uri.parse(streams['audio']!),
-          videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: true,
-            allowBackgroundPlayback: false,
-          ),
+        _audioController = VlcPlayerController.network(
+          streams['audio']!,
+          options: _options,
+          autoPlay: true,
+          autoInitialize: true,
         );
 
         await _audioController!.initialize();
@@ -170,7 +189,7 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
     }
   }
 
-  // 设置同步计时器
+  // 同步计时器方法
   void _setupSyncTimer() {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
@@ -178,36 +197,47 @@ Future<Map<String, String>> extractStreams(String m3u8Content) async {
     });
   }
 
-  // 同步音视频播放
+  // 同步播放方法
   void _synchronizePlayback() {
     if (_videoController == null || _audioController == null) return;
 
-    if (_videoController!.value.isPlaying != _audioController!.value.isPlaying) {
-      if (_videoController!.value.isPlaying) {
+    final videoPlaying = _videoController!.value.playingState == PlayingState.playing;
+    final audioPlaying = _audioController!.value.playingState == PlayingState.playing;
+
+    if (videoPlaying != audioPlaying) {
+      if (videoPlaying) {
         _audioController!.play();
       } else {
         _audioController!.pause();
       }
     }
 
-    final videoDuration = _videoController!.value.position;
-    final audioDuration = _audioController!.value.position;
-    if ((videoDuration - audioDuration).abs() > const Duration(milliseconds: 100)) {
-      _audioController!.seekTo(videoDuration);
-    }
+    // 同步进度
+    _videoController!.getPosition().then((videoPosition) {
+      _audioController!.getPosition().then((audioPosition) {
+        if (videoPosition != null && audioPosition != null) {
+          final diffMs = (videoPosition - audioPosition).inMilliseconds.abs();
+          if (diffMs > 100) {
+            _audioController!.setTime(videoPosition.inMilliseconds);
+          }
+        }
+      });
+    });
   }
 
-  // 资源释放
+  // 资源释放方法
   Future<void> dispose() async {
     _syncTimer?.cancel();
     _syncTimer = null;
 
     if (_audioController != null) {
+      await _audioController!.stop();
       await _audioController!.dispose();
       _audioController = null;
     }
 
     if (_videoController != null) {
+      await _videoController!.stop();
       await _videoController!.dispose();
       _videoController = null;
     }
@@ -228,6 +258,29 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 离流处理器实例
   final SeparatedStreamHandler _separatedStreamHandler = SeparatedStreamHandler();
 
+  // VLC播放器选项配置
+  final VlcPlayerOptions _options = VlcPlayerOptions(
+    video: VlcVideoOptions([
+      VlcVideoOptions.dropLateFrames(true),
+      VlcVideoOptions.skipFrames(true),
+    ]),
+    advanced: VlcAdvancedOptions([
+      VlcAdvancedOptions.networkCaching(1500),
+      VlcAdvancedOptions.clockJitter(0),
+      VlcAdvancedOptions.fileCaching(1500),
+      VlcAdvancedOptions.liveCaching(1500),
+    ]),
+    http: VlcHttpOptions([
+      VlcHttpOptions.httpReconnect(true),
+    ]),
+    rtp: VlcRtpOptions([
+      '--rtsp-tcp',
+      '--rtp-timeout=10',
+      '--rtp-max-src=2',
+    ]),
+    extras: ['--audio-resampler=soxr'],
+  );
+  
   // 超时重试次数
   static const int defaultMaxRetries = 1;
   // 超时检测的时间
@@ -250,7 +303,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   int _sourceIndex = 0;
 
   // 视频播放器控制器
-  VideoPlayerController? _playerController;
+  VlcPlayerController? _playerController;
 
   // 是否处于缓冲状态
   bool isBuffering = false;
@@ -329,7 +382,6 @@ Future<void> _playVideo() async {
     try {
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
-        
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
@@ -348,8 +400,6 @@ Future<void> _playVideo() async {
         });
 
         LogUtil.i('准备播放：$parsedUrl');
-        
-        VideoPlayerController newController;
       
         bool isSeparatedStream = false;  // 声明并初始化变量
 
@@ -361,26 +411,28 @@ Future<void> _playVideo() async {
         // 启动超时检测
         _startTimeoutCheck();
         
+        VlcPlayerController newController;
+        
         if (isSeparatedStream) {
             // 使用分离流处理器初始化
             newController = await _separatedStreamHandler.initialize(parsedUrl);
         } else {
             // 创建普通播放器控制器
-            newController = VideoPlayerController.networkUrl(
-                Uri.parse(parsedUrl),
-                httpHeaders:{
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                },
-                videoPlayerOptions: VideoPlayerOptions(
-                    allowBackgroundPlayback: false,
-                    mixWithOthers: false,
-                    webOptions: const VideoPlayerWebOptions(controls: VideoPlayerWebOptionsControls.enabled()),
-                ),
-            )..setVolume(1.0);
+            newController = VlcPlayerController.network(
+                parsedUrl,
+                hwAcc: HwAcc.full,
+                options: _options,
+                autoPlay: true,
+                autoInitialize: true,
+            );
 
             // 等待初始化完成
             try {
                 await newController.initialize();
+                // 设置初始音量
+                await newController.setVolume(100);
+                // 设置播放速度
+                await newController.setPlaybackSpeed(1.0);
             } catch (e, stackTrace) {
                 await newController.dispose();
                 _handleSourceSwitch();
@@ -420,19 +472,23 @@ Future<void> _playVideo() async {
 void _videoListener() {
     if (_playerController == null || _isDisposing || _isRetrying) return;
 
-    if (_playerController!.value.hasError) {
-        LogUtil.logError('播放器错误', _playerController!.value.errorDescription);
+    final playerState = _playerController!.value.playingState;
+
+    if (playerState == PlayingState.error || _playerController!.value.hasError) {
+        LogUtil.logError('播放器错误', _playerController!.value.errorDescription ?? 'Unknown VLC Error');
+        _handleSourceSwitch();
         return;
     }
 
-    if (mounted) {  // 确保 widget 还在树中
+    if (mounted) {
         setState(() {
             // 更新缓冲状态
-            isBuffering = _playerController!.value.isBuffering;
+            isBuffering = playerState == PlayingState.buffering;
             
             // 更新播放状态和宽高比
-            if (isPlaying != _playerController!.value.isPlaying) {
-                isPlaying = _playerController!.value.isPlaying;
+            bool currentlyPlaying = playerState == PlayingState.playing;
+            if (isPlaying != currentlyPlaying) {
+                isPlaying = currentlyPlaying;
                 if (isPlaying && _shouldUpdateAspectRatio) {
                     aspectRatio = _playerController?.value.aspectRatio ?? 1.78;
                     _shouldUpdateAspectRatio = false;
@@ -451,8 +507,8 @@ void _startTimeoutCheck() {
       if (!_timeoutActive || _isRetrying) return;
       
       if (_playerController != null && 
-          !_playerController!.value.isPlaying && 
-          !isBuffering) {  // 考虑缓冲状态
+          _playerController!.value.playingState != PlayingState.playing && 
+          _playerController!.value.playingState != PlayingState.buffering) {
         LogUtil.logError('播放超时', 'Timeout after $timeoutSeconds seconds');
         _retryPlayback();
       }
@@ -475,7 +531,7 @@ void _retryPlayback() {
         _retryTimer?.cancel();
         _retryTimer = Timer(const Duration(seconds: 3), () {
             setState(() {
-               _isRetrying = false;  // 重试前重置状态
+               _isRetrying = false;
             });
             _playVideo();
         });
@@ -486,8 +542,7 @@ void _retryPlayback() {
 
 /// 处理视频源切换的方法
 void _handleSourceSwitch() {
-    // 获取当前频道的视频源列表
-    final List<String>? urls = _currentChannel?.urls;
+    final List<String>? urls = _currentChannel?.urls;  // 获取当前频道的视频源列表
     if (urls == null || urls.isEmpty) {
         setState(() {
             toastString = S.current.playError;
@@ -524,7 +579,7 @@ void _handleSourceSwitch() {
     });
 }
 
-/// 播放器资源释放方法 - 修改以支持分离流
+/// 播放器资源释放方法
 Future<void> _disposePlayer() async {
     if (_isDisposing) return;
     
@@ -533,17 +588,16 @@ Future<void> _disposePlayer() async {
     
     try {
         if (currentController != null) {
-            // 先移除监听器避免回调
             currentController.removeListener(_videoListener);
             _timeoutActive = false;
             _retryTimer?.cancel();
             
-            // 尝试暂停播放
-            if (currentController.value.isPlaying) {
+            // 停止播放
+            if (currentController.value.playingState != PlayingState.stopped) {
                 try {
-                    await currentController.pause();
+                    await currentController.stop();
                 } catch (e) {
-                    LogUtil.logError('暂停播放时出错', e);
+                    LogUtil.logError('停止播放时出错', e);
                 }
             }
             
@@ -553,14 +607,12 @@ Future<void> _disposePlayer() async {
             // 清理分离流处理器
             await _separatedStreamHandler.dispose();
             
-            // 释放播放器
             try {
                 await currentController.dispose();
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
             }
             
-            // 只有在确保释放完成后才置空控制器
             if (_playerController == currentController) {
                 _playerController = null;
             }
@@ -590,7 +642,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
     });
     
     try {
-        // 先停止当前播放和清理状态
         await _disposePlayer();  // 确保先释放当前播放器资源
         _retryTimer?.cancel();
         setState(() { 
@@ -626,7 +677,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
             toastString = S.current.playError;
         });
     } finally {
-        if (mounted) { // 确保 widget 还在树中
+        if (mounted) {
             setState(() {
                 _isSwitchingChannel = false;
             });
@@ -740,7 +791,7 @@ PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     return null;
 }
 
-/// 切换视频源方法
+/// 切换视频源的外部调用方法
 Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
@@ -774,14 +825,14 @@ Future<bool> _handleBackPress(BuildContext context) async {
     return false;
   }
 
-  bool wasPlaying = _playerController?.value.isPlaying ?? false;
-  if (wasPlaying) {
+  final isPlaying = _playerController?.value.playingState == PlayingState.playing;
+  if (isPlaying) {
     await _playerController?.pause();
   }
 
   bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
   
-  if (!shouldExit && wasPlaying && mounted) {
+  if (!shouldExit && isPlaying && mounted) {
     await _playerController?.play();
   }
   
@@ -916,7 +967,7 @@ void toggleFavorite(String channelId) async {
     });
   }
 
-/// 清理所有资源 - 修改以清理分离流处理器
+/// 清理所有资源
 @override
 void dispose() {
     _retryTimer?.cancel();
@@ -925,7 +976,6 @@ void dispose() {
     WakelockPlus.disable();
     _isDisposing = true;
     _disposePlayer();
-    // 确保分离流处理器被清理
     _separatedStreamHandler.dispose();
     super.dispose();
 }
@@ -939,7 +989,7 @@ Map<String, dynamic> _buildCommonProps() {
       'toastString': toastString,
       'controller': _playerController,
       'isBuffering': isBuffering,
-      'isPlaying': isPlaying,
+      'isPlaying': _playerController?.value.playingState == PlayingState.playing,
       'aspectRatio': aspectRatio,
       'onChangeSubSource': _parseData,
       'changeChannelSources': _changeChannelSources,
@@ -958,7 +1008,7 @@ Widget build(BuildContext context) {
         toastString: toastString,
         controller: _playerController,
         isBuffering: isBuffering,
-        isPlaying: isPlaying,
+        iisPlaying: _playerController?.value.playingState == PlayingState.playing,
         aspectRatio: aspectRatio,
         onChangeSubSource: _parseData,
         changeChannelSources: _changeChannelSources,
@@ -981,7 +1031,7 @@ Widget build(BuildContext context) {
               changeChannelSources: _changeChannelSources,
               isLandscape: false,
               isBuffering: isBuffering,
-              isPlaying: isPlaying,
+              isPlaying: _playerController?.value.playingState == PlayingState.playing,
               aspectRatio: aspectRatio,
               onChangeSubSource: _parseData,
               drawChild: ChannelDrawerPage(
@@ -1017,7 +1067,7 @@ Widget build(BuildContext context) {
                           toastString: toastString,
                           controller: _playerController,
                           isBuffering: isBuffering,
-                          isPlaying: isPlaying,
+                          isPlaying: _playerController?.value.playingState == PlayingState.playing,
                           aspectRatio: aspectRatio,
                           drawerIsOpen: _drawerIsOpen,
                           changeChannelSources: _changeChannelSources,
