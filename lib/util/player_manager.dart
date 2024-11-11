@@ -70,6 +70,7 @@ class PlayerManager {
   Future<bool> initializePlayer(String url, {
     Duration timeout = const Duration(seconds: 10),
     VlcPlayerOptions? options,
+    Function(String)? onError,
   }) async {
     if (_isDisposing) return false;
     
@@ -93,7 +94,7 @@ class PlayerManager {
       _initializationTimer?.cancel();
       _initializationTimer = Timer(timeout, () {
         if (!_state.isInitialized) {
-          _handleError('初始化超时');
+          _handleError('初始化超时', onError);
         }
       });
 
@@ -109,7 +110,7 @@ class PlayerManager {
       
       return true;
     } catch (e, stackTrace) {
-      _handleError('初始化失败: $e');
+      _handleError('初始化失败: $e', onError);
       LogUtil.logError('播放器初始化失败', e, stackTrace);
       await dispose();
       return false;
@@ -172,12 +173,14 @@ class PlayerManager {
   }
 
   // 处理错误
-  void _handleError(String message) {
+  void _handleError(String message, [Function(String)? errorCallback]) {
     _state.hasError = true;
     _state.errorMessage = message;
     _state.errorNotifier.value = message;
-    if (onError != null) {
-      onError!(message);
+    if (errorCallback != null) {
+      errorCallback(message);  // 使用传入的错误回调
+    } else if (onError != null) {
+      onError!(message);  // 使用构造函数中定义的回调
     }
   }
 
