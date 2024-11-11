@@ -55,9 +55,13 @@ class PlayerConfig {
 class PlayerManager {
   VlcPlayerController? _controller;
   final PlayerState _state = PlayerState();
+  final Function(String)? onError;  // onError function
   Timer? _initializationTimer;
   bool _isDisposing = false;
   
+  // Constructor with onError parameter
+  PlayerManager({this.onError});
+
   // Getter方法
   VlcPlayerController? get controller => _controller;
   PlayerState get state => _state;
@@ -65,7 +69,6 @@ class PlayerManager {
   // 初始化播放器
   Future<bool> initializePlayer(String url, {
     Duration timeout = const Duration(seconds: 10),
-    required Function(String) onError,
     VlcPlayerOptions? options,
   }) async {
     if (_isDisposing) return false;
@@ -90,7 +93,7 @@ class PlayerManager {
       _initializationTimer?.cancel();
       _initializationTimer = Timer(timeout, () {
         if (!_state.isInitialized) {
-          _handleError('初始化超时', onError);
+          _handleError('初始化超时');
         }
       });
 
@@ -106,7 +109,7 @@ class PlayerManager {
       
       return true;
     } catch (e, stackTrace) {
-      _handleError('初始化失败: $e', onError);
+      _handleError('初始化失败: $e');
       LogUtil.logError('播放器初始化失败', e, stackTrace);
       await dispose();
       return false;
@@ -169,11 +172,13 @@ class PlayerManager {
   }
 
   // 处理错误
-  void _handleError(String message, Function(String) onError) {
+  void _handleError(String message) {
     _state.hasError = true;
     _state.errorMessage = message;
     _state.errorNotifier.value = message;
-    onError(message);
+    if (onError != null) {
+      onError!(message);
+    }
   }
 
   // 更新播放器状态
