@@ -68,10 +68,15 @@ class BingUtil {
   // 新增：异步缓存 URL 列表
   static Future<void> _cacheUrls(List<String> urls) async {
     try {
-      await Future.wait([
-        SpUtil.putString(_cacheKeyUrls, urls.join(',')),
-        SpUtil.putInt(_cacheKeyUrlsTime, DateTime.now().millisecondsSinceEpoch),
-      ]);
+      final futures = <Future<void>>[];
+      
+      final urlsFuture = SpUtil.putString(_cacheKeyUrls, urls.join(','));
+      if (urlsFuture != null) futures.add(urlsFuture);
+      
+      final timeFuture = SpUtil.putInt(_cacheKeyUrlsTime, DateTime.now().millisecondsSinceEpoch);
+      if (timeFuture != null) futures.add(timeFuture);
+      
+      await Future.wait(futures);
     } catch (e) {
       LogUtil.logError('缓存 Bing 图片 URLs 时发生错误', e);
     }
@@ -118,10 +123,15 @@ class BingUtil {
   // 新增：异步缓存单个 URL
   static Future<void> _cacheSingleUrl(String url) async {
     try {
-      await Future.wait([
-        SpUtil.putString(_cacheKeySingleUrl, url),
-        SpUtil.putInt(_cacheKeySingleUrlTime, DateTime.now().millisecondsSinceEpoch),
-      ]);
+      final futures = <Future<void>>[];
+      
+      final urlFuture = SpUtil.putString(_cacheKeySingleUrl, url);
+      if (urlFuture != null) futures.add(urlFuture);
+      
+      final timeFuture = SpUtil.putInt(_cacheKeySingleUrlTime, DateTime.now().millisecondsSinceEpoch);
+      if (timeFuture != null) futures.add(timeFuture);
+      
+      await Future.wait(futures);
     } catch (e) {
       LogUtil.logError('缓存单个 Bing 图片 URL 时发生错误', e);
     }
@@ -154,12 +164,21 @@ class BingUtil {
     try {
       bingImgUrls = [];
       bingImgUrl = null;
-      await Future.wait([
-        SpUtil.remove(_cacheKeyUrls),
-        SpUtil.remove(_cacheKeyUrlsTime),
-        SpUtil.remove(_cacheKeySingleUrl),
-        SpUtil.remove(_cacheKeySingleUrlTime),
-      ]);
+      final futures = <Future<void>>[];
+      
+      final urlsFuture = SpUtil.remove(_cacheKeyUrls);
+      if (urlsFuture != null) futures.add(urlsFuture);
+      
+      final urlsTimeFuture = SpUtil.remove(_cacheKeyUrlsTime);
+      if (urlsTimeFuture != null) futures.add(urlsTimeFuture);
+      
+      final singleUrlFuture = SpUtil.remove(_cacheKeySingleUrl);
+      if (singleUrlFuture != null) futures.add(singleUrlFuture);
+      
+      final singleUrlTimeFuture = SpUtil.remove(_cacheKeySingleUrlTime);
+      if (singleUrlTimeFuture != null) futures.add(singleUrlTimeFuture);
+      
+      await Future.wait(futures);
     } catch (e) {
       LogUtil.logError('清除 Bing 图片缓存时发生错误', e);
     }
