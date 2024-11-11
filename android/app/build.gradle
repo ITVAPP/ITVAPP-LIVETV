@@ -31,7 +31,8 @@ if (flutterVersionName == null) {
 android {
     namespace = "itvapp_live_tv" // 命名空间，用于定义应用的包名
     compileSdk = 34              // 编译SDK版本，定义编译时使用的Android SDK版本
-//    ndkVersion = flutter.ndkVersion // 可选配置，用于指定NDK版本
+    enableSplit = false          // 禁用 Split APK
+    //    ndkVersion = flutter.ndkVersion // 可选配置，用于指定NDK版本
 
     // 添加 packagingOptions 配置，用于处理 VLC 重复的库文件
     packagingOptions {
