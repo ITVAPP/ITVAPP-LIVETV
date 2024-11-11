@@ -392,14 +392,20 @@ Future<bool?> _opensetting() async {
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
         if (widget.controller != null) {
-          final currentVolume = await widget.controller!.getVolume();
-          await widget.controller!.setVolume(currentVolume + 10);
+          final currentVolume = await widget.controller!.getVolume() ?? 0;
+          // 确保音量在0-100范围内
+          await widget.controller!.setVolume(
+            (currentVolume + 10).clamp(0, 100)
+          );
         }
         break;
       case LogicalKeyboardKey.audioVolumeDown:
         if (widget.controller != null) {
-          final currentVolume = await widget.controller!.getVolume();
-          await widget.controller!.setVolume(currentVolume - 10);
+          final currentVolume = await widget.controller!.getVolume() ?? 0;
+          // 确保音量在0-100范围内
+          await widget.controller!.setVolume(
+            (currentVolume - 10).clamp(0, 100)
+          );
         }
         break;
       case LogicalKeyboardKey.f5:
@@ -590,4 +596,6 @@ bool _isInitialized(VlcPlayerController? controller) {
 
 bool _isBuffering(VlcPlayerController? controller) {
   return controller?.value.playingState == PlayingState.buffering;
+}
+
 }
