@@ -16,15 +16,15 @@ if (localPropertiesFile.exists()) {
 }
 
 // 从local.properties中获取flutter版本代码，如果不存在则设置为"1"
-def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
 if (flutterVersionCode == null) {
-    flutterVersionCode = "1"
+    flutterVersionCode = '1'
 }
 
 // 从local.properties中获取flutter版本名称，如果不存在则设置为"1.0"
-def flutterVersionName = localProperties.getProperty("flutter.versionName")
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
 if (flutterVersionName == null) {
-    flutterVersionName = "1.0"
+    flutterVersionName = '1.0'
 }
 
 // Android配置块，用于配置Android构建相关的选项
@@ -54,7 +54,7 @@ android {
         applicationId = "net.itvapp.livetv" // 应用程序ID，即包名
         minSdk = 21                         // 最低支持的Android SDK版本
         targetSdk = 34                      // 目标SDK版本，定义应用针对的Android SDK版本
-        versionCode = flutterVersionCode.toInteger() // 应用版本代码，从local.properties读取
+        versionCode = (flutterVersionCode.toString().toLong() ?: 1).toInteger() // 修改这里的转换方式
         versionName = flutterVersionName             // 应用版本名称，从local.properties读取
     }
 
