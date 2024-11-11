@@ -1,11 +1,16 @@
 // 根目录的 build.gradle 文件
 buildscript {
+    ext.kotlin_version = '1.8.0' // 添加 Kotlin 版本定义
+    
     repositories {
         google() // 添加 Google 仓库
         mavenCentral() // 添加 Maven Central 仓库
     }
+    
     dependencies {
         classpath 'com.android.tools.build:gradle:8.0.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // 添加 Kotlin 插件
+        classpath "com.android.tools.build:gradle:8.1.0"
     }
 }
 
@@ -16,18 +21,28 @@ allprojects {
     }
 }
 
-rootProject.buildDir = "../build"
-
+rootProject.buildDir = '../build'
 subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    if (project.name != 'app') { // 检查项目名称
+        project.buildDir = "${rootProject.buildDir}/${project.name}"
+    }
+    project.evaluationDependsOn(':app')
 }
 
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-tasks.register("clean") {
+tasks.register('clean') {
     doLast {
         delete rootProject.buildDir
+    }
+}
+
+// 为每个子项目设置默认值
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            android {
+                buildToolsVersion = "33.0.0"
+                compileSdkVersion = 33
+            }
+        }
     }
 }
