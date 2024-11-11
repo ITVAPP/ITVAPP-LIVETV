@@ -1,4 +1,8 @@
-# VLC Player specific rules
+# 忽略 Play Core 相关警告
+-dontwarn com.google.android.play.core.**
+-dontwarn io.flutter.embedding.engine.deferredcomponents.**
+
+# VLC Player 规则
 -keep class org.videolan.libvlc.** { *; }
 
 # Flutter wrapper
@@ -13,7 +17,7 @@
 -keep class kotlin.** { *; }
 -keep class kotlin.Metadata { *; }
 
-# 保持你的 MainActivity
+# 保持 MainActivity
 -keep class itvapp_live_tv.MainActivity { *; }
 
 # 保持 MethodChannel 相关代码
