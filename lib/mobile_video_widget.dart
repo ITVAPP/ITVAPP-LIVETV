@@ -48,7 +48,11 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-
+  // 获取视频宽高比
+  double get _safeAspectRatio {
+    if (widget.controller == null) return widget.aspectRatio;
+    return widget.controller!.value.aspectRatio ?? widget.aspectRatio;
+    
   @override
   Widget build(BuildContext context) {
     // 优先使用传入的 isLandscape 参数，如果为空，则动态判断当前设备的方向
@@ -145,12 +149,11 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
-            // 移除了 FittedBox 和嵌套的 SizedBox，直接使用 TableVideoWidget
             child: TableVideoWidget(
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
               isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: widget.controller?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
+              aspectRatio: _safeAspectRatio,  // 动态获取视频的宽高比
               isBuffering: widget.isBuffering,  // 是否缓冲
               isPlaying: widget.isPlaying,  // 是否正在播放
               drawerIsOpen: false,  // 抽屉菜单关闭状态
