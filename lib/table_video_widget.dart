@@ -63,6 +63,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 统一的视频播放组件创建方法
   Widget _buildVideoPlayer(double containerHeight) {
+    // 默认的宽高比
+    final safeAspectRatio = widget.controller?.value.aspectRatio ?? widget.aspectRatio;
+    
     if (widget.controller == null || widget.controller!.value.playingState == PlayingState.stopped || widget.isAudio == true) {
       return VideoHoldBg(
         toastString: _drawerIsOpen ? '' : widget.toastString,
@@ -78,10 +81,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         color: Colors.black,
         child: Center(
           child: AspectRatio(
-            aspectRatio: widget.controller!.value.aspectRatio,
+            aspectRatio: safeAspectRatio,
             child: VlcPlayer(
               controller: widget.controller!,
-              aspectRatio: widget.controller!.value.aspectRatio,
+              aspectRatio: safeAspectRatio,
             ),
           ),
         ),
@@ -90,10 +93,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
     // 横屏模式下的视频显示
     return AspectRatio(
-      aspectRatio: widget.controller!.value.aspectRatio,
+      aspectRatio: safeAspectRatio,
       child: VlcPlayer(
         controller: widget.controller!,
-        aspectRatio: widget.controller!.value.aspectRatio,
+        aspectRatio: safeAspectRatio,
       ),
     );
   }
