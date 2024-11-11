@@ -156,12 +156,12 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
                         Icon(
                           _controlType == 1 ? Icons.light_mode : Icons.volume_up_outlined,  // 图标根据类型显示
                           color: Colors.white,
-                          size: 22,
+                          size: 18,  // 修改图标尺寸为18
                         ),
                         const SizedBox(width: 5),
                         Expanded(
                           child: SizedBox(
-                            height: 12,
+                            height: 20,  // 修改进度条容器高度为20
                             child: LinearProgressIndicator(
                               value: _controlType == 1
                                   ? _brightnessLevel / _maxLevel  // 显示当前亮度进度
