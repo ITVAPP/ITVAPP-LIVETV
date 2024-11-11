@@ -124,8 +124,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void initState() {
     super.initState();
     _playerManager = PlayerManager(
-      onError: (error, stackTrace) {
-        LogUtil.logError('播放器错误', error, stackTrace);
+      onError: (error) {
+        LogUtil.e('播放器错误：$error');
         _handleSourceSwitch();
       }
     );
@@ -203,8 +203,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       bool initialized = await _playerManager.initializePlayer(
         parsedUrl,
         timeout: Duration(seconds: timeoutSeconds),
-        onError: (error, stackTrace) {
-          LogUtil.logError('播放器错误', error, stackTrace);
+        onError: (error) {
+          LogUtil.e('播放器错误：$error');
           _handleSourceSwitch();
         },
       );
