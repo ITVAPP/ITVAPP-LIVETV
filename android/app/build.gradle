@@ -16,15 +16,15 @@ if (localPropertiesFile.exists()) {
 }
 
 // 从local.properties中获取flutter版本代码，如果不存在则设置为"1"
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
+    flutterVersionCode = "1"
 }
 
 // 从local.properties中获取flutter版本名称，如果不存在则设置为"1.0"
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
+def flutterVersionName = localProperties.getProperty("flutter.versionName")
 if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
+    flutterVersionName = "1.0"
 }
 
 // Android配置块，用于配置Android构建相关的选项
@@ -33,12 +33,9 @@ android {
     compileSdk = 34              // 编译SDK版本，定义编译时使用的Android SDK版本
 //    ndkVersion = flutter.ndkVersion // 可选配置，用于指定NDK版本
 
-    // 添加 packagingOptions 配置，用于处理重复的库文件
+    // 添加 packagingOptions 配置，用于处理 VLC 重复的库文件
     packagingOptions {
         pickFirst 'lib/**/libc++_shared.so'
-        // 添加以下配置以禁用 Split APKs
-        exclude 'lib/*/libapp.so'
-        exclude 'lib/*/libflutter.so'
     }
 
     compileOptions {
@@ -54,7 +51,7 @@ android {
         applicationId = "net.itvapp.livetv" // 应用程序ID，即包名
         minSdk = 21                         // 最低支持的Android SDK版本
         targetSdk = 34                      // 目标SDK版本，定义应用针对的Android SDK版本
-        versionCode = (flutterVersionCode.toString().toLong() ?: 1).toInteger() // 修改这里的转换方式
+        versionCode = flutterVersionCode.toInteger() // 应用版本代码，从local.properties读取
         versionName = flutterVersionName             // 应用版本名称，从local.properties读取
     }
 
@@ -71,11 +68,8 @@ android {
         release {
             minifyEnabled true // 启用代码混淆和压缩
             shrinkResources true // 移除未使用的资源，减少APK的大小
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' // 添加 ProGuard 配置文件
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' // 添加此行以支持 VLC
             signingConfig = signingConfigs.release // 使用release签名配置
-            // 禁用 Split APKs
-            splits.abi.enable = false
-            splits.density.enable = false
         }
     }
 }
