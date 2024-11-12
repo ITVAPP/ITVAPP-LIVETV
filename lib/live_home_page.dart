@@ -204,9 +204,23 @@ Future<void> _playVideo() async {
 
         // 等待初始化完成
         try {
-            await newController.initialize();
+
+    // 等待直到平台准备就绪再初始化
+    if (newController.isReadyToInitialize == true) {
+      await newController.initialize();
+      // 判断初始化结果，检查是否支持 VLC
+if (newController.value.playingState == PlayingState.error) {
+  String errorReason = newController.value.errorDescription ?? '未知错误';
+  throw Exception('设备不支持 VLC 播放器，错误原因：$errorReason');
+}
             // 设置初始音量
             await newController.setVolume(100);
+    } else {
+      LogUtil.i('平台未准备好初始化播放器');
+      return;
+    }
+    
+
             
             // 检查初始化状态
             if (newController.value.playingState == PlayingState.error) {
