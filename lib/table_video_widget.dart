@@ -61,31 +61,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
 
-  // 抽取重复的视频播放组件
-  Widget _buildVlcPlayer(double safeAspectRatio) {
-    return AspectRatio(
-      aspectRatio: safeAspectRatio,
-      child: FutureBuilder(
-        future: widget.controller!.initialize(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            return VlcPlayer(
-              controller: widget.controller!,
-              aspectRatio: widget.aspectRatio,
-              placeholder: const Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-          } else {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-        },
-      ),
-    );
-  }
-
   // 统一的视频播放组件创建方法
   Widget _buildVideoPlayer(double containerHeight) {
     // 默认的宽高比
@@ -115,13 +90,31 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         height: containerHeight,
         color: Colors.black,
         child: Center(
-          child: _buildVlcPlayer(safeAspectRatio),
+          child: AspectRatio(
+            aspectRatio: safeAspectRatio,
+            child: VlcPlayer(
+              controller: widget.controller!,
+              aspectRatio: safeAspectRatio,
+              placeholder: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          ),
         ),
       );
     }
 
     // 横屏模式下的视频显示
-    return _buildVlcPlayer(safeAspectRatio);
+    return AspectRatio(
+      aspectRatio: safeAspectRatio,
+      child: VlcPlayer(
+        controller: widget.controller!,
+        aspectRatio: safeAspectRatio,
+        placeholder: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
   }
   
 // 统一的控制图标样式方法
