@@ -698,7 +698,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 isChannelFavorite: isChannelFavorite,
                 currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
                 isAudio: _isAudio,
-                onPlatformViewCreated: _playerManager.onPlatformViewCreated,
               );
             }
           );
@@ -744,7 +743,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
                       isChannelFavorite: isChannelFavorite,
                       isAudio: _isAudio,
-                      onPlatformViewCreated: _playerManager.onPlatformViewCreated,
                     );
                   }
                 );
@@ -780,7 +778,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                                   toggleFavorite: toggleFavorite,
                                   isLandscape: true,
                                   isAudio: _isAudio,
-                                  onPlatformViewCreated: _playerManager.onPlatformViewCreated,
                                   onToggleDrawer: () {
                                     setState(() {
                                       _drawerIsOpen = !_drawerIsOpen;
