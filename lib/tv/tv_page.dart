@@ -26,7 +26,7 @@ class VideoPlayerWidget extends StatelessWidget {
   final bool isBuffering;
   final bool isError;
   final bool isAudio; 
-  final Function(int)? onInit;
+  final Function(int)? onPlatformViewCreated;
   
   const VideoPlayerWidget({
     Key? key,
@@ -36,7 +36,7 @@ class VideoPlayerWidget extends StatelessWidget {
     this.isBuffering = false,
     this.isError = false,
     this.isAudio = false, // 默认为视频模式
-    this.onInit,
+    this.onPlatformViewCreated,
   }) : super(key: key);
 
   Widget _buildBufferingIndicator(BuildContext context) {
@@ -72,7 +72,7 @@ class VideoPlayerWidget extends StatelessWidget {
           child: VlcPlayer(
             controller: controller!,
             aspectRatio: value.aspectRatio ?? 16/9,
-            onInit: onInit,
+            onPlatformViewCreated: onPlatformViewCreated,
           ),
         ),
       ),
@@ -145,7 +145,7 @@ class TvPage extends StatefulWidget {
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
   final bool isAudio;
-  final Function(int)? onInit;
+  final Function(int)? onPlatformViewCreated;
 
   const TvPage({
     super.key,
@@ -164,7 +164,7 @@ class TvPage extends StatefulWidget {
     this.isChannelFavorite,
     this.currentChannelId,
     this.isAudio = false,
-    this.onInit,
+    this.onPlatformViewCreated,
   });
 
   @override
@@ -504,7 +504,7 @@ Widget build(BuildContext context) {
                   isBuffering: widget.isBuffering,
                   isError: _isError,
                   isAudio: widget.isAudio,
-                  onInit: widget.onInit, 
+                  onPlatformViewCreated: widget.onPlatformViewCreated, 
                 ),
                 
                 // 使用 ValueListenableBuilder 监听图标状态
