@@ -87,7 +87,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             child: VlcPlayer(
               controller: widget.controller!,
               aspectRatio: safeAspectRatio,
-              onPlatformViewCreated: widget.onPlatformViewCreated,
+              onInit: widget.onPlatformViewCreated,
             ),
           ),
         ),
@@ -100,7 +100,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       child: VlcPlayer(
         controller: widget.controller!,
         aspectRatio: safeAspectRatio,
-        onPlatformViewCreated: widget.onPlatformViewCreated,
+        onInit: widget.onPlatformViewCreated,
       ),
     );
   }
