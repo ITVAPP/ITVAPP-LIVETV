@@ -202,7 +202,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 初始化新播放器
       bool initialized = await _playerManager.initializePlayer(
         parsedUrl,
-        timeout: Duration(seconds: timeoutSeconds),
         onError: (error) {
           LogUtil.e('播放器错误：$error');
           _handleSourceSwitch();
