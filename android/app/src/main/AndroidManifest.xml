@@ -80,7 +80,12 @@
             </intent-filter>
         </activity>
 
-        <!-- 指定 Flutter 引擎版本为2 -->
+        <!-- 多窗口支持配置 -->
+        <meta-data
+            android:name="android.allow_multiple_resumed_activities"
+            android:value="true" />
+            
+        <!-- 指定 Flutter 引擎版本 -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
