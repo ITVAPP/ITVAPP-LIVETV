@@ -67,7 +67,7 @@ class PlayerManager {
   
   // 初始化播放器
 Future<bool> initializePlayer(String url, {
-  Duration timeout = const Duration(seconds: 10),
+  Duration timeout = const Duration(seconds: 20),
   VlcPlayerOptions? options,
   Function(String)? onError,
 }) async {
@@ -143,7 +143,6 @@ Future<bool> initializePlayer(String url, {
         'isCompleted=${_initCompleter?.isCompleted}');
         
       if (!_state.isInitialized && !_initCompleter!.isCompleted) {
-        LogUtil.e('播放器初始化超时');
         _initCompleter!.completeError(TimeoutException('播放器初始化超时'));
       }
     });
