@@ -85,7 +85,6 @@ Future<bool> initializePlayer(String url, {
       url,
       hwAcc: HwAcc.auto,
       // options: options ?? PlayerConfig.defaultOptions,
-      options: VlcPlayerOptions(),
       autoPlay: false,
       autoInitialize: true,
     );
