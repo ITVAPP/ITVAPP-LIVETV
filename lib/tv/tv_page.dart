@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart'; // 修改: 导入 VLC 播放器
 
 import '../channel_drawer_page.dart';
 import '../gradient_progress_bar.dart';
@@ -19,12 +19,12 @@ import '../generated/l10n.dart';
 
 // 播放器组件
 class VideoPlayerWidget extends StatelessWidget {
-  final VlcPlayerController? controller;
+  final VlcPlayerController? controller; // 修改: 改为 VLC 控制器
   final String? toastString;
   final bool drawerIsOpen;
   final bool isBuffering;
   final bool isError;
-  final bool isAudio; 
+  final bool isAudio;
   
   const VideoPlayerWidget({
     Key? key,
@@ -33,7 +33,7 @@ class VideoPlayerWidget extends StatelessWidget {
     this.drawerIsOpen = false,
     this.isBuffering = false,
     this.isError = false,
-    this.isAudio = false, // 默认为视频模式
+    this.isAudio = false,
   }) : super(key: key);
 
   Widget _buildBufferingIndicator(BuildContext context) {
@@ -59,16 +59,28 @@ class VideoPlayerWidget extends StatelessWidget {
     );
   }
 
-  // 播放器构建方法
+  // 播放器构建方法 - 修改为使用 VLC 播放器
   Widget _buildPlayer(VlcPlayerValue value) {
+    // 获取安全的宽高比
+    double safeAspectRatio;
+    final size = value.size;
+    if (size.width > 0 && size.height > 0) {
+      safeAspectRatio = size.width / size.height;
+    } else {
+      safeAspectRatio = 16/9;
+    }
+
     return Center(
       child: AspectRatio(
-        aspectRatio: value.aspectRatio ?? 16/9,
+        aspectRatio: safeAspectRatio,
         child: SizedBox(
           width: double.infinity,
           child: VlcPlayer(
             controller: controller!,
-            aspectRatio: value.aspectRatio ?? 16/9,
+            aspectRatio: safeAspectRatio,
+            placeholder: const Center(
+              child: CircularProgressIndicator(),
+            ),
           ),
         ),
       ),
@@ -79,27 +91,36 @@ class VideoPlayerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        ValueListenableBuilder<VlcPlayerValue>(
-          valueListenable: controller!,
-          builder: (context, value, _) {
-           if (value.playingState != PlayingState.stopped && !isAudio || controller != null) {
-              return _buildPlayer(value);
-            }
-            return VideoHoldBg(
-              toastString: drawerIsOpen ? '' : toastString,
-              showBingBackground: isAudio, // 音频播放时显示背景
-            );
-          },
-        ),
+        if (controller != null)
+          ValueListenableBuilder<VlcPlayerValue>(
+            valueListenable: controller!,
+            builder: (context, value, _) {
+              if (value.playingState != PlayingState.stopped && !isAudio) {
+                return _buildPlayer(value);
+              }
+              return VideoHoldBg(
+                toastString: drawerIsOpen ? '' : toastString,
+                showBingBackground: isAudio,
+              );
+            },
+          ),
+        else
+          VideoHoldBg(
+            toastString: drawerIsOpen ? '' : toastString,
+            showBingBackground: isAudio,
+          ),
         
-        if (controller != null && controller!.value.playingState != PlayingState.stopped && (isBuffering || isError) && !drawerIsOpen)
+        if (controller != null && 
+            controller!.value.playingState != PlayingState.stopped && 
+            (isBuffering || isError) && 
+            !drawerIsOpen)
           _buildBufferingIndicator(context),
       ],
     );
   }
 }
 
-// IconState 类
+// IconState 类保持不变,因为它是一个纯数据类
 class IconState {
   final bool showPause;
   final bool showPlay;
@@ -124,12 +145,12 @@ class IconState {
   }
 }
 
-// TvPage
+// TvPage 组件
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
   final Function(PlayModel? newModel)? onTapChannel;
-  final VlcPlayerController? controller;
+  final VlcPlayerController? controller; // 修改: VideoPlayerController 替换为 VlcPlayerController
   final Future<void> Function()? changeChannelSources;
   final GestureTapCallback? onChangeSubSource;
   final String? toastString;
@@ -183,9 +204,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  VlcPlayerController? get _controller => widget.controller;
+  VlcPlayerController? get _controller => widget.controller; // 修改: 类型替换为 VlcPlayerController
   bool get _hasValidController => _controller != null;
-  
+
   // 图标状态更新方法
   void _updateIconState({
     bool? showPause,
@@ -213,10 +234,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = null;
   }
-  
+
+// 设置页面打开方法
 Future<bool?> _opensetting() async {
     try {
-      // 使用 ValueNotifier 更新播放图标状态
       _updateIconState(showPlay: true);
       
       return Navigator.push<bool>(
@@ -245,8 +266,8 @@ Future<bool?> _opensetting() async {
     }
   }
 
-  // 返回按键处理方法
-  Future<bool> _handleBackPress(BuildContext context) async {
+// 返回按键处理方法 - 修改为使用 VLC 播放状态
+Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       _toggleDrawer(false);
       return false;
@@ -276,8 +297,8 @@ Future<bool?> _opensetting() async {
     
     return true;
   }
-
-  // 控制图标构建方法
+  
+// 控制图标构建方法
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -315,7 +336,7 @@ Future<bool?> _opensetting() async {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
   
-  // 选择键处理逻辑，使用 ValueNotifier
+  // 选择键处理逻辑，使用 VLC 播放状态
   Future<void> _handleSelectPress() async {
     if (!_hasValidController) return;	
     
@@ -348,7 +369,7 @@ Future<bool?> _opensetting() async {
     );
   }
   
-// 键盘事件处理，使用 ValueNotifier
+  // 键盘事件处理，使用 VLC API
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
@@ -405,20 +426,14 @@ Future<bool?> _opensetting() async {
       case LogicalKeyboardKey.audioVolumeUp:
         if (_hasValidController) {
           final currentVolume = await _controller!.getVolume() ?? 0;
-          await _controller!.setVolume(
-            (currentVolume + 10).clamp(0, 100)
-          );
+          await _controller!.setVolume((currentVolume + 10).clamp(0, 100));
         }
         break;
       case LogicalKeyboardKey.audioVolumeDown:
         if (_hasValidController) {
           final currentVolume = await _controller!.getVolume() ?? 0;
-          await _controller!.setVolume(
-            (currentVolume - 10).clamp(0, 100)
-          );
+          await _controller!.setVolume((currentVolume - 10).clamp(0, 100));
         }
-        break;
-      case LogicalKeyboardKey.f5:
         break;
       default:
         break;
@@ -441,7 +456,6 @@ Future<bool?> _opensetting() async {
     });
   }
   
-  // dispose 方法
   @override
   void dispose() {
     _iconStateNotifier.dispose();
@@ -500,7 +514,6 @@ Widget build(BuildContext context) {
                   isAudio: widget.isAudio,
                 ),
                 
-                // 使用 ValueListenableBuilder 监听图标状态
                 ValueListenableBuilder<IconState>(
                   valueListenable: _iconStateNotifier,
                   builder: (context, iconState, child) {
@@ -509,7 +522,11 @@ Widget build(BuildContext context) {
                         if (iconState.showPause) 
                           _buildPauseIcon(),
                           
-                        if (_hasValidController && _controller!.value.playingState != PlayingState.playing && _controller!.value.playingState != PlayingState.stopped && !_drawerIsOpen || iconState.showPlay)    
+                        if (_hasValidController && 
+                            _controller!.value.playingState != PlayingState.playing && 
+                            _controller!.value.playingState != PlayingState.stopped && 
+                            !_drawerIsOpen || 
+                            iconState.showPlay)    
                           _buildPlayIcon(),
 
                         if (iconState.showDatePosition) 
