@@ -83,14 +83,14 @@ class PlayerManager {
 
       final newController = VlcPlayerController.network(
         url,
-        hwAcc: HwAcc.disabled,
-        // options: options ?? PlayerConfig.defaultOptions,
+        hwAcc: HwAcc.full,  // 建议使用硬件加速，提升播放性能
+        options: options ?? PlayerConfig.defaultOptions,
         autoPlay: false,
         autoInitialize: true,
       );
 
       // 添加详细的状态监听和日志
-      newController.addListener(() {
+      void controllerListener() {
         if (_isDisposing) {
           LogUtil.i('播放器正在释放中，忽略状态更新');
           return;
@@ -129,7 +129,9 @@ class PlayerManager {
             _state.bufferingNotifier.value = true;
           }
         }
-      });
+      }
+
+      newController.addListener(controllerListener);
 
       _controller = newController;
       _state.isInitialized = false;
@@ -309,7 +311,7 @@ class PlayerManager {
         
         // 移除监听器
         currentController.removeListener(() {});
-        
+
         try {
           // 检查初始化和播放状态
           final isInitialized = currentController.value.isInitialized;
