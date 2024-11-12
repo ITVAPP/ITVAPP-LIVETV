@@ -75,12 +75,23 @@ class VideoPlayerWidget extends StatelessWidget {
         aspectRatio: safeAspectRatio,
         child: SizedBox(
           width: double.infinity,
-          child: VlcPlayer(
-            controller: controller!,
-            aspectRatio: safeAspectRatio,
-            placeholder: const Center(
-              child: CircularProgressIndicator(),
-            ),
+          child: FutureBuilder(
+            future: controller!.initialize(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                return VlcPlayer(
+                  controller: controller!,
+                  aspectRatio: safeAspectRatio,
+                  placeholder: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              } else {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+            },
           ),
         ),
       ),
