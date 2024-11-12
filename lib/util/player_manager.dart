@@ -1,7 +1,6 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'log_util.dart';
 
 /// 播放器状态类，用于管理播放器的所有状态
@@ -84,10 +83,10 @@ class PlayerManager {
 
       final newController = VlcPlayerController.network(
         url,
-        hwAcc: HwAcc.full,  // 建议使用硬件加速，提升播放性能
-        options: options ?? PlayerConfig.defaultOptions,
+        hwAcc: HwAcc.full,  // 使用硬件加速，提升播放性能
+        // options: options ?? PlayerConfig.defaultOptions,
+        options: VlcPlayerOptions(),
         autoPlay: false,
-        autoInitialize: true,
       );
 
       // 添加详细的状态监听和日志
