@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart'; // 修改: 导入 VLC 播放器
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 
 import '../channel_drawer_page.dart';
 import '../gradient_progress_bar.dart';
@@ -19,7 +19,7 @@ import '../generated/l10n.dart';
 
 // 播放器组件
 class VideoPlayerWidget extends StatelessWidget {
-  final VlcPlayerController? controller; // 修改: 改为 VLC 控制器
+  final VlcPlayerController? controller;
   final String? toastString;
   final bool drawerIsOpen;
   final bool isBuffering;
@@ -59,7 +59,7 @@ class VideoPlayerWidget extends StatelessWidget {
     );
   }
 
-  // 播放器构建方法 - 修改为使用 VLC 播放器
+  // 播放器构建方法
   Widget _buildPlayer(VlcPlayerValue value) {
     // 获取安全的宽高比
     double safeAspectRatio;
@@ -75,23 +75,12 @@ class VideoPlayerWidget extends StatelessWidget {
         aspectRatio: safeAspectRatio,
         child: SizedBox(
           width: double.infinity,
-          child: FutureBuilder(
-            future: controller!.initialize(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done) {
-                return VlcPlayer(
-                  controller: controller!,
-                  aspectRatio: safeAspectRatio,
-                  placeholder: const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              } else {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              }
-            },
+          child: VlcPlayer(
+            controller: controller!,
+            aspectRatio: safeAspectRatio,
+            placeholder: const Center(
+              child: CircularProgressIndicator(),
+            ),
           ),
         ),
       ),
@@ -125,7 +114,7 @@ class VideoPlayerWidget extends StatelessWidget {
   }
 }
 
-// IconState 类保持不变,因为它是一个纯数据类
+// IconState 类
 class IconState {
   final bool showPause;
   final bool showPlay;
