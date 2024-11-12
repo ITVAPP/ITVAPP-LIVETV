@@ -24,7 +24,7 @@ class MobileVideoWidget extends StatefulWidget {
   final bool Function(String) isChannelFavorite;
   final String currentChannelId; // 当前频道ID
   final bool isAudio; // 新增音频模式参数
-  final Function(int)? onPlatformViewCreated;
+  final Future<void> Function(int)? onPlatformViewCreated;
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -156,7 +156,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
-            // 移除了 FittedBox 和嵌套的 SizedBox，直接使用 TableVideoWidget
             child: TableVideoWidget(
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
@@ -170,6 +169,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               currentChannelId: currentChannelId,  // 传递当前频道ID
               changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
               isAudio: widget.isAudio, // 传递音频状态
+              onPlatformViewCreated: widget.onPlatformViewCreated,
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
