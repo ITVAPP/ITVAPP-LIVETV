@@ -3,18 +3,65 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'log_util.dart';
 
-// PlayerState 和 PlayerConfig 类保持不变...
+/// 播放器状态类，用于管理播放器的所有状态
+class PlayerState {
+  bool isInitialized = false;
+  bool isPlaying = false;
+  bool isBuffering = false;
+  bool hasError = false;
+  String? errorMessage;
+  double aspectRatio = 1.78;
+
+  // 添加状态变更通知
+  final ValueNotifier<bool> playingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> bufferingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<String?> errorNotifier = ValueNotifier<String?>(null);
+}
+
+/// 播放器配置类，用于管理播放器的配置参数
+class PlayerConfig {
+  // 缓冲设置 (毫秒)
+  static const int networkCacheTime = 3000;   // 网络文件缓冲时间
+  static const int fileCacheTime = 2000;      // 本地文件缓冲时间
+  static const int liveCacheTime = 3000;      // 直播文件缓冲时间
+  
+  // VLC播放器选项配置
+  static final VlcPlayerOptions defaultOptions = VlcPlayerOptions(
+    video: VlcVideoOptions([
+      VlcVideoOptions.dropLateFrames(true),
+      VlcVideoOptions.skipFrames(true),
+      '--no-audio-time-stretch',  // 禁用音频时间拉伸
+      '--audio-resampler=soxr',   // 使用高质量重采样
+    ]),
+    advanced: VlcAdvancedOptions([
+      VlcAdvancedOptions.networkCaching(networkCacheTime),  // 网络缓冲
+      VlcAdvancedOptions.clockJitter(0),                    // 时钟抖动修正
+      VlcAdvancedOptions.fileCaching(fileCacheTime),        // 文件缓冲
+      VlcAdvancedOptions.liveCaching(liveCacheTime),        // 直播缓冲
+    ]),
+    http: VlcHttpOptions([
+      VlcHttpOptions.httpReconnect(true),
+    ]),
+    rtp: VlcRtpOptions([
+      '--rtsp-tcp',
+      '--rtp-timeout=10',
+      '--rtp-max-src=2',
+    ]),
+    extras: ['--audio-resampler=soxr'],
+  );
+}
 
 /// 播放器管理器类
 class PlayerManager {
   VlcPlayerController? _controller;
+  VlcPlayerController? _newController;  // 新增：临时控制器
   final PlayerState _state = PlayerState();
-  final Function(String)? onError;
+  final Function(String)? onError;  // onError function
   Timer? _initializationTimer;
   bool _isDisposing = false;
-  Completer<void>? _initCompleter;
-  VlcPlayerController? _newController;
+  Completer<void>? _initCompleter;  // 初始化完成器
   
+  // Constructor with onError parameter
   PlayerManager({this.onError});
   VlcPlayerController? get controller => _controller;
   PlayerState get state => _state;
@@ -39,97 +86,124 @@ Future<bool> initializePlayer(String url, {
     LogUtil.i('4. 创建新的初始化完成器');
     _initCompleter = Completer<void>();
 
-    LogUtil.i('5. 准备创建VLC控制器，配置信息：hwAcc=full, options=${options ?? PlayerConfig.defaultOptions}');
-    try {
-      // 移除 isVlcInit 检查，因为新版本不支持此API
-      
-      _newController = VlcPlayerController.network(
-        url,
-        hwAcc: HwAcc.full,
-        options: options ?? PlayerConfig.defaultOptions,
-        autoPlay: false,
-      );
-      LogUtil.i('6. VLC控制器创建完成，初始状态：${_newController?.value.toString()}');
-    } catch (e) {
-      LogUtil.e('5.2 VLC控制器创建失败: $e');
-      rethrow;
-    }
+    // 新增：状态检查标记
+    bool hasReceivedCallback = false;
+    bool isRetrying = false;
 
+    // 定义统一的监听器
     void controllerListener() {
       LogUtil.i('7. 进入控制器监听回调');
-      if (_isDisposing) {
-        LogUtil.i('8. 播放器正在释放中，忽略状态更新');
-        return;
-      }
+      if (_isDisposing) return;
       
-      final value = _newController?.value;
-      LogUtil.i('9. VLC当前状态: ' + 
-        'playingState=${value?.playingState}, ' +
-        'isInitialized=${value?.isInitialized}, ' +
-        'isBuffering=${value?.isBuffering}, ' +
-        'hasError=${value?.hasError}, ' +
-        'position=${value?.position}, ' +
-        'duration=${value?.duration}, ' +
-        'size=${value?.size}, ' +
-        'aspectRatio=${value?.aspectRatio}, ' +
-        'playbackSpeed=${value?.playbackSpeed}, ' +
-        'isPlaying=${value?.isPlaying}');
+      final value = _newController?.value;  // 修改：使用 _newController
+      if (value == null) return;
 
-      if (value?.hasError == true) {
-        LogUtil.e('10. VLC播放器错误: ' +
-          '错误描述: ${value?.errorDescription}, ' +
-          '播放状态: ${value?.playingState}, ' +
-          '初始化状态: ${value?.isInitialized}');
+      // 标记已收到回调
+      hasReceivedCallback = true;
+
+      LogUtil.i('8. VLC当前状态: ' + 
+        'isInitialized=${value.isInitialized}, ' +
+        'isPlaying=${value.isPlaying}, ' +
+        'isBuffering=${value.isBuffering}, ' +
+        'playingState=${value.playingState}, ' +
+        'position=${value.position}, ' +
+        'duration=${value.duration}, ' +
+        'size=${value.size}, ' +
+        'aspectRatio=${value.aspectRatio}');
+
+      if (value.hasError) {
+        _handleError(value.errorDescription ?? '未知错误');
         if (!_initCompleter!.isCompleted) {
-          LogUtil.i('11. 初始化未完成，报告错误');
-          _initCompleter!.completeError(value?.errorDescription ?? '未知错误');
+          _initCompleter!.completeError(value.errorDescription ?? '未知错误');
         }
-        _handleError(value?.errorDescription ?? '未知错误');
         return;
       }
 
-      if (!_initCompleter!.isCompleted) {
-        LogUtil.i('12. 检查初始化状态');
-        if (value?.isInitialized == true) {
-          LogUtil.i('13. 播放器初始化完成');
-          _state.isInitialized = true;
-          _initCompleter!.complete();
-        } else if (value?.playingState == PlayingState.buffering) {
-          LogUtil.i('14. 播放器正在缓冲');
-          _state.isBuffering = true;
-          _state.bufferingNotifier.value = true;
-        } else {
-          LogUtil.i('15. 播放器当前状态: ' +
-            '播放状态=${value?.playingState}, ' +
-            '是否初始化=${value?.isInitialized}');
-        }
+      _state.isInitialized = value.isInitialized;
+      _state.isPlaying = value.isPlaying;
+      _state.isBuffering = value.playingState == PlayingState.buffering;
+      _state.bufferingNotifier.value = _state.isBuffering;
+      _state.playingNotifier.value = _state.isPlaying;
+
+      if (value.aspectRatio != null) {
+        _state.aspectRatio = value.aspectRatio!;
+      }
+
+      // 如果初始化成功且未完成初始化过程，则完成初始化
+      if (value.isInitialized && !_initCompleter!.isCompleted) {
+        _initCompleter!.complete();
       }
     }
+    
+LogUtil.i('5. 准备创建VLC控制器');
+    _newController = VlcPlayerController.network(
+      url,
+      hwAcc: HwAcc.full,
+      options: options ?? PlayerConfig.defaultOptions,
+      autoPlay: false,
+    );
 
-    LogUtil.i('16. 准备添加控制器监听器');
+    // 添加监听器
+    _newController?.addListener(controllerListener);
+    
+    LogUtil.i('6. 开始初始化控制器');
     try {
-      _newController?.addListener(controllerListener);
-      LogUtil.i('17. 控制器监听器添加完成');
+      await _newController?.initialize();
+      LogUtil.i('6.1 控制器初始化完成');
     } catch (e) {
-      LogUtil.e('17.1 添加监听器失败: $e');
+      LogUtil.e('6.2 控制器初始化失败: $e');
+      if (!_initCompleter!.isCompleted) {
+        _initCompleter!.completeError(e);
+      }
+      throw e;
     }
 
-    _controller = _newController;
-    LogUtil.i('18. 控制器赋值完成');
-      
-    LogUtil.i('19. 重置播放器状态');
-    _state.isInitialized = false;
-    _state.hasError = false;
-    _state.errorMessage = null;
-    _state.errorNotifier.value = null;
+    // 设置重试定时器
+    Timer(const Duration(seconds: 2), () async {
+      if (!hasReceivedCallback && !isRetrying && !_initCompleter!.isCompleted) {
+        LogUtil.e('初始化状态检查：2秒内未收到任何状态回调，尝试重新初始化');
+        isRetrying = true;
+        
+        // 保存旧控制器引用
+        final oldController = _newController;
+        
+        try {
+          // 尝试释放旧控制器
+          if (oldController != null) {
+            oldController.removeListener(controllerListener);
+            await oldController.dispose();
+          }
+          
+          if (_initCompleter!.isCompleted) return;
+          
+          LogUtil.i('重新创建控制器(使用自动硬件加速模式)');
+          _newController = VlcPlayerController.network(
+            url,
+            hwAcc: HwAcc.auto,  // 切换到自动硬件加速模式
+            options: options ?? PlayerConfig.defaultOptions,
+            autoPlay: false,
+          );
+          
+          _newController?.addListener(controllerListener);
+          await _newController?.initialize();
+        } catch (e) {
+          LogUtil.e('重试初始化失败: $e');
+          if (!_initCompleter!.isCompleted) {
+            _initCompleter!.completeError(e);
+          }
+        }
+      }
+    });
 
+    // 设置超时定时器
     LogUtil.i('20. 设置初始化超时检查，超时时间: ${timeout.inSeconds}秒');
     _initializationTimer = Timer(timeout, () {
-      LogUtil.i('21. 超时检查触发，当前状态: ' +
+      LogUtil.i('21. 超时检查触发，当前状态: ' + 
         'isInitialized=${_state.isInitialized}, ' +
-        'isCompleted=${_initCompleter?.isCompleted}, ' + 
-        '控制器Value=${_newController?.value.toString()}');
-          
+        'isCompleted=${_initCompleter?.isCompleted}, ' +
+        'hasReceivedCallback=$hasReceivedCallback, ' +
+        'isRetrying=$isRetrying');
+        
       if (!_state.isInitialized && !_initCompleter!.isCompleted) {
         LogUtil.i('22. 播放器初始化超时，准备报告错误');
         _initCompleter!.completeError(TimeoutException('播放器初始化超时'));
@@ -137,11 +211,14 @@ Future<bool> initializePlayer(String url, {
       }
     });
 
+    // 等待初始化完成
     LogUtil.i('23. 等待初始化完成');
     try {
       await _initCompleter!.future;
       
-      if (_controller != null && _controller!.value.isInitialized) {
+      // 成功初始化后设置参数
+      if (_newController != null && _newController!.value.isInitialized) {
+        _controller = _newController;  // 初始化成功后才赋值给 _controller
         LogUtil.i('24. 设置播放器音量和速度');
         await _controller!.setVolume(100);
         await _controller!.setPlaybackSpeed(1.0);
@@ -166,7 +243,7 @@ Future<bool> initializePlayer(String url, {
   }
 }
 
-// 开始播放
+ // 开始播放
  Future<bool> play() async {
    if (_controller == null || !_state.isInitialized || _isDisposing) {
      return false;
@@ -278,6 +355,16 @@ Future<bool> initializePlayer(String url, {
      _initializationTimer?.cancel();
      _initializationTimer = null;
 
+     // 清理 _newController
+     if (_newController != null) {
+       try {
+         await _newController!.dispose();
+       } catch (e) {
+         LogUtil.e('释放临时控制器时出错: $e');
+       }
+       _newController = null;
+     }
+
      // 保存引用后立即清空
      final currentController = _controller;
      _controller = null;
@@ -297,10 +384,10 @@ Future<bool> initializePlayer(String url, {
      if (currentController != null) {
        LogUtil.i('开始释放控制器资源');
        
-       try {
-         // 移除监听器
-         currentController.removeListener(() {});
+       // 移除监听器
+       currentController.removeListener(() {});
 
+       try {
          // 检查初始化和播放状态
          final isInitialized = currentController.value.isInitialized;
          final isPlaying = currentController.value.isPlaying;
@@ -332,16 +419,6 @@ Future<bool> initializePlayer(String url, {
        } catch (e) {
          LogUtil.e('释放控制器时出错: $e');
        }
-     }
-
-     // 清理 newController
-     if (_newController != null) {
-       try {
-         await _newController!.dispose();
-       } catch (e) {
-         LogUtil.e('释放临时控制器时出错: $e');
-       }
-       _newController = null;
      }
      
    } catch (e, stackTrace) {
