@@ -89,8 +89,7 @@ class PlayerManager {
       final newController = VlcPlayerController.network(
         url,
         hwAcc: HwAcc.full,  // 使用硬件加速，提升播放性能
-        // options: options ?? PlayerConfig.defaultOptions,
-        options: VlcPlayerOptions(),
+        options: options ?? PlayerConfig.defaultOptions,
         autoPlay: false,
       );
       LogUtil.i('6. VLC控制器创建完成'); // 新增日志
