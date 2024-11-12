@@ -57,11 +57,19 @@ class PlayerManager {
   final PlayerState _state = PlayerState();
   final Function(String)? onError;  // onError function
   bool _isDisposing = false;
+  final Completer<void> _viewCreatedCompleter = Completer<void>();  // 新增: 用于等待视图创建完成
   
   // Constructor with onError parameter
   PlayerManager({this.onError});
   VlcPlayerController? get controller => _controller;
   PlayerState get state => _state;
+
+  // 新增: 视图创建完成时调用
+  void onPlatformViewCreated(int viewId) {
+    if (!_viewCreatedCompleter.isCompleted) {
+      _viewCreatedCompleter.complete();
+    }
+  }
   
 // 初始化播放器
 Future<bool> initializePlayer(String url, {
@@ -81,6 +89,12 @@ Future<bool> initializePlayer(String url, {
       _controller = null;
     }
 
+    // 等待视图创建完成 - 新增
+    if (!_viewCreatedCompleter.isCompleted) {
+      LogUtil.i('等待视图创建完成');
+      await _viewCreatedCompleter.future;
+    }
+
     // 创建新控制器
     LogUtil.i('创建新的VLC控制器');
     _controller = VlcPlayerController.network(
@@ -89,6 +103,9 @@ Future<bool> initializePlayer(String url, {
       options: options ?? PlayerConfig.defaultOptions,
       autoPlay: false,
     );
+
+    // 等待一段时间确保视图完全就绪 - 新增
+    await Future.delayed(const Duration(milliseconds: 50));
 
     // 添加状态监听
     _controller!.addListener(_controllerListener);
