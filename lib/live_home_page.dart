@@ -200,19 +200,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _startTimeoutCheck();
 
       // 初始化新播放器
-      bool initialized = await _playerManager.initializePlayer(
-        parsedUrl,
-        onError: (error) {
-          LogUtil.e('播放器错误：$error');
-          _handleSourceSwitch();
-        },
-      );
+     //  bool initialized = await _playerManager.initializePlayer(
+      //   parsedUrl,
+      //   onError: (error) {
+      //     LogUtil.e('播放器错误：$error');
+      //     _handleSourceSwitch();
+     //    },
+    //   );
+
+    _controller = VlcPlayerController.network(
+      parsedUrl,
+      hwAcc: HwAcc.FULL,
+      autoPlay: false,
+    );
 
       if (!initialized || !mounted) return;
 
       // 设置状态和开始播放
       setState(() {
-        _playerController = _playerManager.controller;
+        // _playerController = _playerManager.controller;
+        _playerController = _controller;
         toastString = S.current.loading;
         _retryCount = 0;
         _timeoutActive = false;
