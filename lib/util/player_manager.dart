@@ -71,16 +71,21 @@ class PlayerManager {
     VlcPlayerOptions? options,
     Function(String)? onError,
   }) async {
-    LogUtil.i('播放器准备初始化播放: $url');    
-    if (_isDisposing) return false;
+    LogUtil.i('1. 播放器准备初始化播放: $url'); // 新增日志
+    if (_isDisposing) {
+      LogUtil.i('2. 播放器正在释放中，初始化失败'); // 新增日志
+      return false;
+    }
     
     try {
-      // 先确保没有遗留的计时器
+      LogUtil.i('3. 开始取消已有计时器'); // 新增日志
       _initializationTimer?.cancel();
       _initializationTimer = null;
 
+      LogUtil.i('4. 创建新的初始化完成器'); // 新增日志
       _initCompleter = Completer<void>();
 
+      LogUtil.i('5. 准备创建VLC控制器'); // 新增日志
       final newController = VlcPlayerController.network(
         url,
         hwAcc: HwAcc.full,  // 使用硬件加速，提升播放性能
@@ -88,91 +93,106 @@ class PlayerManager {
         options: VlcPlayerOptions(),
         autoPlay: false,
       );
+      LogUtil.i('6. VLC控制器创建完成'); // 新增日志
 
-      // 添加详细的状态监听和日志
       void controllerListener() {
+        LogUtil.i('7. 进入控制器监听回调'); // 新增日志
         if (_isDisposing) {
-          LogUtil.i('播放器正在释放中，忽略状态更新');
+          LogUtil.i('8. 播放器正在释放中，忽略状态更新'); // 新增日志
           return;
         }
         
         final value = newController.value;
-        LogUtil.i('VLC状态: ' + 
+        LogUtil.i('9. VLC当前状态: ' + // 新增日志
           'playingState=${value.playingState}, ' +
           'isInitialized=${value.isInitialized}, ' +
           'isBuffering=${value.isBuffering}, ' +
-          'hasError=${value.hasError}');
+          'hasError=${value.hasError}, ' +
+          'position=${value.position}, ' +
+          'duration=${value.duration}, ' +
+          'size=${value.size}, ' +
+          'playbackSpeed=${value.playbackSpeed}');
 
-        // 错误检查
         if (value.hasError) {
-          LogUtil.e('VLC播放器错误: '
-            '错误描述: ${value.errorDescription}, '
-            '播放状态: ${value.playingState}, '
+          LogUtil.e('10. VLC播放器错误: ' + // 新增日志
+            '错误描述: ${value.errorDescription}, ' +
+            '播放状态: ${value.playingState}, ' +
             '初始化状态: ${value.isInitialized}'
           );
           if (!_initCompleter!.isCompleted) {
+            LogUtil.i('11. 初始化未完成，报告错误'); // 新增日志
             _initCompleter!.completeError(value.errorDescription ?? '未知错误');
           }
-          _handleError(value.errorDescription ?? '未知错误');  // 调用错误处理函数
+          _handleError(value.errorDescription ?? '未知错误');
           return;
         }
 
-        // 初始化检查
         if (!_initCompleter!.isCompleted) {
+          LogUtil.i('12. 检查初始化状态'); // 新增日志
           if (value.isInitialized) {
-            LogUtil.i('播放器初始化完成');
+            LogUtil.i('13. 播放器初始化完成'); // 新增日志
             _state.isInitialized = true;
             _initCompleter!.complete();
           } else if (value.playingState == PlayingState.buffering) {
-            LogUtil.i('播放器正在缓冲');
+            LogUtil.i('14. 播放器正在缓冲'); // 新增日志
             _state.isBuffering = true;
             _state.bufferingNotifier.value = true;
+          } else {
+            LogUtil.i('15. 播放器当前状态: ${value.playingState}'); // 新增日志
           }
         }
       }
 
+      LogUtil.i('16. 准备添加控制器监听器'); // 新增日志
       newController.addListener(controllerListener);
+      LogUtil.i('17. 控制器监听器添加完成'); // 新增日志
 
       _controller = newController;
+      LogUtil.i('18. 控制器赋值完成'); // 新增日志
+      
+      LogUtil.i('19. 重置播放器状态'); // 新增日志
       _state.isInitialized = false;
       _state.hasError = false;
       _state.errorMessage = null;
       _state.errorNotifier.value = null;
 
-      // 设置超时检查
+      LogUtil.i('20. 设置初始化超时检查，超时时间: ${timeout.inSeconds}秒'); // 新增日志
       _initializationTimer = Timer(timeout, () {
-        LogUtil.i('检查初始化状态: ' +
+        LogUtil.i('21. 超时检查触发，当前状态: ' + // 新增日志
           'isInitialized=${_state.isInitialized}, ' +
           'isCompleted=${_initCompleter?.isCompleted}');
           
         if (!_state.isInitialized && !_initCompleter!.isCompleted) {
+          LogUtil.i('22. 播放器初始化超时，准备报告错误'); // 新增日志
           _initCompleter!.completeError(TimeoutException('播放器初始化超时'));
-          _handleError('播放器初始化超时');  // 调用错误处理函数
+          _handleError('播放器初始化超时');
         }
       });
 
-      // 等待初始化完成
+      LogUtil.i('23. 等待初始化完成'); // 新增日志
       try {
         await _initCompleter!.future;
         
         if (_controller != null && _controller!.value.isInitialized) {
+          LogUtil.i('24. 设置播放器音量和速度'); // 新增日志
           await _controller!.setVolume(100);
           await _controller!.setPlaybackSpeed(1.0);
-          LogUtil.i('播放器初始化并设置参数完成');
+          LogUtil.i('25. 播放器初始化完全完成'); // 新增日志
           return true;
         }
         
         throw Exception('播放器初始化失败');
       } catch (e) {
-        LogUtil.e('等待初始化完成时出错: $e');
+        LogUtil.e('26. 等待初始化完成时出错: $e'); // 新增日志
         rethrow;
       }
 
     } catch (e, stackTrace) {
-      LogUtil.logError('初始化失败', e, stackTrace);
+      LogUtil.logError('27. 初始化失败', e, stackTrace); // 新增日志
       _handleError('初始化失败: $e', onError);
       return false;
     } finally {
+      LogUtil.i('28. 清理初始化计时器'); // 新增日志
       _initializationTimer?.cancel();
       _initializationTimer = null;
     }
@@ -329,37 +349,37 @@ class PlayerManager {
             LogUtil.i('释放已初始化的控制器');
             await Future.delayed(const Duration(milliseconds: 100));
             await currentController.dispose();
-          } else {
-            LogUtil.i('控制器未初始化，直接释放');
-            try {
-              await currentController.dispose();
-            } catch (e) {
-              if (e.toString().contains('_viewId')) {
-                LogUtil.i('忽略 _viewId 未初始化错误');
-              } else {
-                rethrow;
-              }
-            }
-          }
-        } catch (e) {
-          LogUtil.e('释放控制器时出错: $e');
-        }
-      }
-      
-    } catch (e, stackTrace) {
-      LogUtil.logError('释放资源时出错', e, stackTrace);
-      _handleError('释放资源时出错: $e');  // 调用错误处理函数
-    } finally {
-      LogUtil.i('重置所有状态');
-      _state.isInitialized = false;
-      _state.isPlaying = false;
-      _state.playingNotifier.value = false;
-      _state.isBuffering = false;
-      _state.bufferingNotifier.value = false;
-      _state.hasError = false;
-      _state.errorMessage = null;
-      _state.errorNotifier.value = null;
-      _isDisposing = false;
-    }
-  }
+} else {
+           LogUtil.i('控制器未初始化，直接释放');
+           try {
+             await currentController.dispose();
+           } catch (e) {
+             if (e.toString().contains('_viewId')) {
+               LogUtil.i('忽略 _viewId 未初始化错误');
+             } else {
+               rethrow;
+             }
+           }
+         }
+       } catch (e) {
+         LogUtil.e('释放控制器时出错: $e');
+       }
+     }
+     
+   } catch (e, stackTrace) {
+     LogUtil.logError('释放资源时出错', e, stackTrace);
+     _handleError('释放资源时出错: $e');  // 调用错误处理函数
+   } finally {
+     LogUtil.i('重置所有状态');
+     _state.isInitialized = false;
+     _state.isPlaying = false;
+     _state.playingNotifier.value = false;
+     _state.isBuffering = false;
+     _state.bufferingNotifier.value = false;
+     _state.hasError = false;
+     _state.errorMessage = null;
+     _state.errorNotifier.value = null;
+     _isDisposing = false;
+   }
+ }
 }
