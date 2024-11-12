@@ -1,22 +1,21 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:sp_util/sp_util.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
-import '../util/player_manager.dart';
-import '../util/log_util.dart';
-import '../util/custom_snackbar.dart';
-import '../channel_drawer_page.dart';
-import '../gradient_progress_bar.dart';
-import '../entity/playlist_model.dart';
-import '../generated/l10n.dart';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sp_util/sp_util.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
+
+import '../channel_drawer_page.dart';
+import '../gradient_progress_bar.dart';
+import '../entity/playlist_model.dart';
+import '../util/log_util.dart';
+import '../util/custom_snackbar.dart';
+import '../generated/l10n.dart';
 
 // 播放器组件
 class VideoPlayerWidget extends StatelessWidget {
@@ -26,7 +25,6 @@ class VideoPlayerWidget extends StatelessWidget {
   final bool isBuffering;
   final bool isError;
   final bool isAudio; 
-  final Future<void> Function(int)? onPlatformViewCreated;
   
   const VideoPlayerWidget({
     Key? key,
@@ -36,7 +34,6 @@ class VideoPlayerWidget extends StatelessWidget {
     this.isBuffering = false,
     this.isError = false,
     this.isAudio = false, // 默认为视频模式
-    this.onPlatformViewCreated,
   }) : super(key: key);
 
   Widget _buildBufferingIndicator(BuildContext context) {
@@ -72,7 +69,6 @@ class VideoPlayerWidget extends StatelessWidget {
           child: VlcPlayer(
             controller: controller!,
             aspectRatio: value.aspectRatio ?? 16/9,
-            platformViewCreated: onPlatformViewCreated,
           ),
         ),
       ),
@@ -145,7 +141,6 @@ class TvPage extends StatefulWidget {
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
   final bool isAudio;
-  final Future<void> Function(int)? onPlatformViewCreated;
 
   const TvPage({
     super.key,
@@ -164,7 +159,6 @@ class TvPage extends StatefulWidget {
     this.isChannelFavorite,
     this.currentChannelId,
     this.isAudio = false,
-    this.onPlatformViewCreated,
   });
 
   @override
@@ -504,7 +498,6 @@ Widget build(BuildContext context) {
                   isBuffering: widget.isBuffering,
                   isError: _isError,
                   isAudio: widget.isAudio,
-                  platformViewCreated: widget.onPlatformViewCreated, 
                 ),
                 
                 // 使用 ValueListenableBuilder 监听图标状态
