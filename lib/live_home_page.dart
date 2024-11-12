@@ -133,7 +133,7 @@ Future<void> _playVideo() async {
     
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
-        _isRetrying = false;
+        _isRetrying = false;  // 播放开始时重置重试状态
     });
 
     // 先释放旧播放器，再设置新播放器
@@ -146,7 +146,7 @@ Future<void> _playVideo() async {
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
-        if (parsedUrl == 'ERROR') {
+        if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
                 toastString = S.current.vpnplayError;
             });
@@ -162,63 +162,54 @@ Future<void> _playVideo() async {
 
         LogUtil.i('准备播放：$parsedUrl');
         
-        // 确保已经创建了平台视图
-        if (!mounted) return;
+        VlcPlayerController newController;
         
         // 启动超时检测
         _startTimeoutCheck();
         
-        // 创建 VLC 播放器控制器
-        final newController = VlcPlayerController.network(
+        // 创建 VLC 播放器控制器，添加所有必要的配置
+        newController = VlcPlayerController.network(
           parsedUrl,
           autoPlay: false,
-          autoInitialize: false,
-          allowBackgroundPlayback: false,
-          hwAcc: HwAcc.auto,
+          autoInitialize: false, // 自动初始化
+          allowBackgroundPlayback: false, // 禁止后台播放
+          hwAcc: HwAcc.auto, // 使用自动硬件加速
           options: VlcPlayerOptions(
             advanced: VlcAdvancedOptions([
               VlcAdvancedOptions.networkCaching(1000),
               VlcAdvancedOptions.fileCaching(1000),
               VlcAdvancedOptions.liveCaching(1000),
-              VlcAdvancedOptions.clockJitter(0),
-              VlcAdvancedOptions.clockSynchronization(0),
+              VlcAdvancedOptions.clockJitter(0), // 添加时钟抖动配置
+              VlcAdvancedOptions.clockSynchronization(0), // 禁用时钟同步以改善实时流
             ]),
             http: VlcHttpOptions([
-              VlcHttpOptions.httpReconnect(true),
-              VlcHttpOptions.httpForwardCookies(true),
+              VlcHttpOptions.httpReconnect(true), // 启用自动重连
+              VlcHttpOptions.httpForwardCookies(true), // 启用 cookie 转发
             ]),
             video: VlcVideoOptions([
               VlcVideoOptions.dropLateFrames(true),
               VlcVideoOptions.skipFrames(true),
             ]),
             rtp: VlcRtpOptions([
-              VlcRtpOptions.rtpOverRtsp(true),
+              VlcRtpOptions.rtpOverRtsp(true), // 启用 RTP over RTSP
             ]),
             audio: VlcAudioOptions([
-              VlcAudioOptions.audioTimeStretch(true),
+              VlcAudioOptions.audioTimeStretch(true), // 启用音频时间拉伸
             ]),
             sout: VlcStreamOutputOptions([
-              VlcStreamOutputOptions.soutMuxCaching(1500),
+              VlcStreamOutputOptions.soutMuxCaching(1500), // 设置输出缓存
             ]),
           ),
         );
 
+        // 等待初始化完成
         try {
-            // 等待初始化完成
-            await newController.initialize().timeout(
-                Duration(seconds: 5),
-                onTimeout: () {
-                    throw TimeoutException('播放器初始化超时');
-                }
-            );
-            
-            // 设置音量
-            if (!mounted) throw Exception('Widget no longer mounted');
+            await newController.initialize();
+            // 设置初始音量
             await newController.setVolume(100);
             
             // 检查初始化状态
-            final playingState = newController.value.playingState;
-            if (playingState == PlayingState.error) {
+            if (newController.value.playingState == PlayingState.error) {
                 throw Exception('VLC player initialization failed');
             }
         } catch (e, stackTrace) {
@@ -257,29 +248,28 @@ Future<void> _playVideo() async {
 
 /// 播放器监听方法
 void _videoListener() {
-    if (_playerController == null || _isDisposing || _isRetrying || !mounted) return;
+    if (_playerController == null || _isDisposing || _isRetrying) return;
 
-    final controller = _playerController!;
-    
-    if (controller.value.playingState == PlayingState.error) {
-        LogUtil.logError('播放器错误', controller.value.errorDescription);
-        if (!_isRetrying) {
-            _retryPlayback();
-        }
+    if (_playerController!.value.playingState == PlayingState.error) {
+        LogUtil.logError('播放器错误', _playerController!.value.errorDescription);
         return;
     }
 
-    if (mounted) {
+    if (mounted) {  // 确保 widget 还在树中
         setState(() {
-            isBuffering = controller.value.playingState == PlayingState.buffering;
-            isPlaying = controller.value.playingState == PlayingState.playing;
+            // 更新缓冲状态
+            isBuffering = _playerController!.value.playingState == PlayingState.buffering;
+            
+            // 更新播放状态和宽高比
+            isPlaying = _playerController!.value.playingState == PlayingState.playing;
             
             if (isPlaying && _shouldUpdateAspectRatio) {
-                final videoSize = controller.value.size;
+                // 使用安全的宽高比计算
+                final videoSize = _playerController!.value.size;
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     aspectRatio = videoSize.width / videoSize.height;
                 } else {
-                    aspectRatio = 16 / 9;
+                    aspectRatio = 16 / 9; // 默认宽高比
                 }
                 _shouldUpdateAspectRatio = false;
             }
@@ -293,7 +283,6 @@ Future<void> _disposePlayer() async {
     
     _isDisposing = true;
     final currentController = _playerController;
-    _playerController = null;  // 置空避免并发访问
     
     try {
         if (currentController != null) {
@@ -306,6 +295,7 @@ Future<void> _disposePlayer() async {
             if (currentController.value.isPlaying) {
                 try {
                     await currentController.stop();
+                    // 确保完全停止播放
                     await currentController.pause();
                 } catch (e) {
                     LogUtil.logError('停止播放时出错', e);
@@ -320,6 +310,11 @@ Future<void> _disposePlayer() async {
                 await currentController.dispose();
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
+            }
+            
+            // 只有在确保释放完成后才置空控制器
+            if (_playerController == currentController) {
+                _playerController = null;
             }
         }
     } catch (e, stackTrace) {
@@ -343,7 +338,7 @@ void _startTimeoutCheck() {
     
     _timeoutActive = true;
     Timer(Duration(seconds: timeoutSeconds), () {
-      if (!mounted || !_timeoutActive || _isRetrying) return;
+      if (!_timeoutActive || _isRetrying) return;
       
       if (_playerController != null && 
           _playerController!.value.playingState != PlayingState.playing && 
@@ -356,7 +351,7 @@ void _startTimeoutCheck() {
 
 /// 重试播放方法
 void _retryPlayback() {
-    if (_isRetrying || !mounted) return;
+    if (_isRetrying) return;
     
     _isRetrying = true;
     _timeoutActive = false;
@@ -369,9 +364,8 @@ void _retryPlayback() {
         
         _retryTimer?.cancel();
         _retryTimer = Timer(const Duration(seconds: 3), () {
-            if (!mounted) return;
             setState(() {
-               _isRetrying = false;
+               _isRetrying = false;  // 重试前重置状态
             });
             _playVideo();
         });
@@ -426,33 +420,38 @@ Future<void> _onTapChannel(PlayModel? model) async {
     
     setState(() {
         _isSwitchingChannel = true;
-        toastString = S.current.loading;
+        toastString = S.current.loading; // 更新加载状态
     });
     
     try {
-        await _disposePlayer();
+        // 先停止当前播放和清理状态
+        await _disposePlayer();  // 确保先释放当前播放器资源
         _retryTimer?.cancel();
         setState(() { 
             _isRetrying = false;
             _timeoutActive = false;
         });
         
+        // 更新频道信息
         _currentChannel = model;
         _sourceIndex = 0;
         _retryCount = 0;
         _shouldUpdateAspectRatio = true;
 
+        // 检查新频道是否为音频
         final String? url = model.urls?.isNotEmpty == true ? model.urls![0] : null;
         bool isDirectAudio = _checkIsAudioStream(url);
         setState(() {
           _isAudio = isDirectAudio;
         });
 
+        // 发送统计数据
         if (Config.Analytics) {
             await _sendTrafficAnalytics(context, _currentChannel!.title);
         }
 
-        if (!mounted || !_isSwitchingChannel) return;
+        // 确保状态正确后开始新的播放
+        if (!_isSwitchingChannel) return; // 如果状态已改变则退出
         await _playVideo();
         
     } catch (e, stackTrace) {
@@ -461,7 +460,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
             toastString = S.current.playError;
         });
     } finally {
-        if (mounted) {
+        if (mounted) { // 确保 widget 还在树中
             setState(() {
                 _isSwitchingChannel = false;
             });
@@ -737,15 +736,7 @@ void initState() {
     super.initState();
 
     // 如果是桌面设备，隐藏窗口标题栏
-    if (!EnvUtil.isMobile) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-            try {
-                await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-            } catch (e) {
-                LogUtil.logError('设置窗口样式失败', e);
-            }
-        });
-    }
+    if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
 
     // 加载播放列表数据
     _loadData();
@@ -755,32 +746,29 @@ void initState() {
 
     // 延迟1分钟后执行版本检测
     Future.delayed(Duration(minutes: 1), () {
-        if (mounted) {
-            CheckVersionUtil.checkVersion(context, false, false);
-        }
+      CheckVersionUtil.checkVersion(context, false, false);
+    });
+
+    // 使用 addPostFrameCallback 确保控件挂载后再初始化播放器
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_playerController != null) {
+        Future.delayed(Duration(milliseconds: 500), () async {
+          await _playerController?.initialize();
+          setState(() {});
+        });
+      }
     });
 }
 
 /// 清理所有资源
 @override
 void dispose() {
-    // 1. 取消所有定时器
     _retryTimer?.cancel();
-    
-    // 2. 重置状态标志
     _timeoutActive = false;
     _isRetrying = false;
-    
-    // 3. 关闭屏幕常亮
     WakelockPlus.disable();
-    
-    // 4. 标记释放状态
     _isDisposing = true;
-    
-    // 5. 释放播放器资源
     _disposePlayer();
-    
-    // 6. 调用父类释放
     super.dispose();
 }
 
