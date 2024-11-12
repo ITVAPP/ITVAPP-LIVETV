@@ -324,6 +324,14 @@ Future<void> _disposePlayer() async {
     }
 }
 
+/// 释放 StreamUrl 实例
+void _disposeStreamUrl() {
+    if (_streamUrl != null) {
+      _streamUrl!.dispose();
+      _streamUrl = null;
+    }
+}
+
 /// 超时检测方法
 void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying) return;
