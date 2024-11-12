@@ -154,30 +154,20 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
-            child: FutureBuilder(
-              future: widget.controller?.initialize(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  return TableVideoWidget(
-                    controller: widget.controller,  
-                    toastString: widget.toastString,  
-                    isLandscape: isLandscape,  
-                    aspectRatio: _safeAspectRatio,  
-                    isBuffering: widget.isBuffering,  
-                    isPlaying: widget.isPlaying,  
-                    drawerIsOpen: false,  
-                    toggleFavorite: widget.toggleFavorite,  
-                    isChannelFavorite: widget.isChannelFavorite,  
-                    currentChannelId: currentChannelId,  
-                    changeChannelSources: widget.changeChannelSources,  
-                    isAudio: widget.isAudio, 
-                  );
-                } else {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-              },
+            // 移除了 FittedBox 和嵌套的 SizedBox，直接使用 TableVideoWidget
+            child: TableVideoWidget(
+              controller: widget.controller,  // 传入视频控制器
+              toastString: widget.toastString,  // 提示信息
+              isLandscape: isLandscape,  // 动态判断是否为横屏
+              aspectRatio: _safeAspectRatio,  // 使用安全的宽高比获取方法
+              isBuffering: widget.isBuffering,  // 是否缓冲
+              isPlaying: widget.isPlaying,  // 是否正在播放
+              drawerIsOpen: false,  // 抽屉菜单关闭状态
+              toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
+              isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
+              currentChannelId: currentChannelId,  // 传递当前频道ID
+              changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
+              isAudio: widget.isAudio, // 传递音频状态
             ),
           ),
           // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
