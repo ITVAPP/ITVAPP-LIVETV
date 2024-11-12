@@ -43,7 +43,6 @@ class MobileVideoWidget extends StatefulWidget {
     this.isLandscape = true,
     this.isAudio = false, // 默认为视频模式
     this.onPlatformViewCreated,
-    onPlatformViewCreated: widget.onPlatformViewCreated,
   }) : super(key: key);
 
   @override
