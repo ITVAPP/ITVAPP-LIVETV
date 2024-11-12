@@ -24,6 +24,7 @@ class MobileVideoWidget extends StatefulWidget {
   final bool Function(String) isChannelFavorite;
   final String currentChannelId; // 当前频道ID
   final bool isAudio; // 新增音频模式参数
+  final Function(int)? onPlatformViewCreated;
 
   // MobileVideoWidget 构造函数
   const MobileVideoWidget({
@@ -41,6 +42,8 @@ class MobileVideoWidget extends StatefulWidget {
     this.changeChannelSources,
     this.isLandscape = true,
     this.isAudio = false, // 默认为视频模式
+    this.onPlatformViewCreated,
+    onPlatformViewCreated: widget.onPlatformViewCreated,
   }) : super(key: key);
 
   @override
