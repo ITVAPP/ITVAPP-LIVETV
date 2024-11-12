@@ -180,4 +180,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
     );
   }
+
+  // 判断 m3u 数据是否有效
+  bool isValidM3U(String data) {
+    return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
+  }
 }
