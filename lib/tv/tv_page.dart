@@ -26,7 +26,7 @@ class VideoPlayerWidget extends StatelessWidget {
   final bool isBuffering;
   final bool isError;
   final bool isAudio; 
-  final Function(int)? onPlatformViewCreated;
+  final Future<void> Function(int)? onPlatformViewCreated;
   
   const VideoPlayerWidget({
     Key? key,
@@ -72,7 +72,7 @@ class VideoPlayerWidget extends StatelessWidget {
           child: VlcPlayer(
             controller: controller!,
             aspectRatio: value.aspectRatio ?? 16/9,
-            onPlatformViewCreated: onPlatformViewCreated,
+            platformViewCreated: onPlatformViewCreated,
           ),
         ),
       ),
@@ -145,7 +145,7 @@ class TvPage extends StatefulWidget {
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
   final bool isAudio;
-  final Function(int)? onPlatformViewCreated;
+  final Future<void> Function(int)? onPlatformViewCreated;
 
   const TvPage({
     super.key,
@@ -504,7 +504,7 @@ Widget build(BuildContext context) {
                   isBuffering: widget.isBuffering,
                   isError: _isError,
                   isAudio: widget.isAudio,
-                  onPlatformViewCreated: widget.onPlatformViewCreated, 
+                  platformViewCreated: widget.onPlatformViewCreated, 
                 ),
                 
                 // 使用 ValueListenableBuilder 监听图标状态
