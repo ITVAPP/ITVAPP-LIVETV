@@ -91,11 +91,10 @@ class VideoPlayerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        if (controller != null)
           ValueListenableBuilder<VlcPlayerValue>(
             valueListenable: controller!,
             builder: (context, value, _) {
-              if (value.playingState != PlayingState.stopped && !isAudio) {
+              if (controller != null && value.playingState != PlayingState.stopped && !isAudio) {
                 return _buildPlayer(value);
               }
               return VideoHoldBg(
@@ -103,11 +102,6 @@ class VideoPlayerWidget extends StatelessWidget {
                 showBingBackground: isAudio,
               );
             },
-          ),
-        else
-          VideoHoldBg(
-            toastString: drawerIsOpen ? '' : toastString,
-            showBingBackground: isAudio,
           ),
         
         if (controller != null && 
