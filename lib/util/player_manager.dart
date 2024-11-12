@@ -57,7 +57,8 @@ class PlayerManager {
   final PlayerState _state = PlayerState();
   final Function(String)? onError;  // onError function
   bool _isDisposing = false;
-  Completer<void> _viewCreatedCompleter = Completer<void>();  // 修改：移除 final 关键字
+  bool _isInitializing = false; // 新增初始化状态标志
+  Completer<void> _viewCreatedCompleter = Completer<void>();
   
   // Constructor with onError parameter
   PlayerManager({this.onError});
@@ -78,23 +79,44 @@ Future<bool> initializePlayer(String url, {
   Function(String)? onError,
 }) async {
   LogUtil.i('播放器准备初始化播放: $url');    
-  if (_isDisposing) {
-    LogUtil.i('播放器正在释放中，初始化失败');
+  if (_isDisposing || _isInitializing) {
+    LogUtil.i('播放器正在释放或初始化中，初始化失败');
     return false;
   }
+  
+  _isInitializing = true;
   
   try {
     // 释放旧控制器
     if (_controller != null) {
-      await _controller!.dispose();
-      _controller = null;
-      
-      // 重置 completer
-      if (_viewCreatedCompleter.isCompleted) {
-        _viewCreatedCompleter = Completer<void>();
-      }
+      await dispose();
+      // 等待释放完成
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
+    // 重置 completer
+    if (_viewCreatedCompleter.isCompleted) {
+      _viewCreatedCompleter = Completer<void>();
+    }
+
+    // 创建新控制器，但设置 autoInitialize 为 false
+    LogUtil.i('创建新的VLC控制器');
+    _controller = VlcPlayerController.network(
+      url,
+      hwAcc: HwAcc.full,
+      options: options ?? PlayerConfig.defaultOptions,
+      autoInitialize: false, // 重要：设置为false以手动控制初始化
+      autoPlay: false,
+    );
+
+    // 添加状态监听
+    _controller!.addListener(_controllerListener);
+
+    // 添加初始化完成监听
+    _controller!.addOnInitListener(() {
+      LogUtil.i('VLC控制器初始化完成回调');
+    });
+    
     // 等待视图创建完成
     LogUtil.i('等待视图创建完成');
     await _viewCreatedCompleter.future.timeout(
@@ -105,18 +127,6 @@ Future<bool> initializePlayer(String url, {
       },
     );
 
-    // 创建新控制器
-    LogUtil.i('创建新的VLC控制器');
-    _controller = VlcPlayerController.network(
-      url,
-      hwAcc: HwAcc.full,
-      options: options ?? PlayerConfig.defaultOptions,
-      autoPlay: false,
-    );
-
-    // 添加状态监听
-    _controller!.addListener(_controllerListener);
-    
     // 初始化控制器
     LogUtil.i('开始初始化控制器');
     await _controller!.initialize();
@@ -133,7 +143,21 @@ Future<bool> initializePlayer(String url, {
     LogUtil.logError('初始化失败', e, stackTrace);
     _handleError('初始化失败: $e', onError);
     _state.isInitialized = false;
+    
+    // 清理失败的初始化
+    try {
+      if (_controller != null) {
+        _controller!.removeListener(_controllerListener);
+        await _controller!.dispose();
+        _controller = null;
+      }
+    } catch (cleanupError) {
+      LogUtil.e('清理失败的初始化时出错: $cleanupError');
+    }
+    
     return false;
+  } finally {
+    _isInitializing = false;
   }
 }
 
