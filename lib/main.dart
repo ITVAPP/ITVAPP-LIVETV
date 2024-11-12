@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
@@ -37,9 +36,6 @@ void main() async {
   
   // 确保 WidgetsFlutterBinding 已经初始化，必要时会为应用的生命周期提供必要的绑定。
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 添加 VLC 播放器的初始化
-  await VlcPlayerPlatform.instance.initPlayer();
   
   // 启用 WakelockPlus 以防止屏幕锁定（用于移动设备）
   WakelockPlus.enable();
