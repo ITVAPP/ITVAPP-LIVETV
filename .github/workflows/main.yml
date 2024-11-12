@@ -24,6 +24,10 @@ jobs:
 
       - run: flutter pub get  # 获取项目依赖
 
+      - name: Add namespace to better_player  # 添加 namespace
+        run: |
+          sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
+
       - name: Create apk directory in root  # 创建存放APK文件的目录
         run: mkdir -p apk
 
