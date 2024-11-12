@@ -165,16 +165,14 @@ Future<void> _playVideo() async {
         // 确保已经创建了平台视图
         if (!mounted) return;
         
-        VlcPlayerController newController;
-        
         // 启动超时检测
         _startTimeoutCheck();
         
         // 创建 VLC 播放器控制器
-        newController = VlcPlayerController.network(
+        final newController = VlcPlayerController.network(
           parsedUrl,
-          autoPlay: true,
-          autoInitialize: true,
+          autoPlay: false,
+          autoInitialize: false,
           allowBackgroundPlayback: false,
           hwAcc: HwAcc.auto,
           options: VlcPlayerOptions(
@@ -265,6 +263,9 @@ void _videoListener() {
     
     if (controller.value.playingState == PlayingState.error) {
         LogUtil.logError('播放器错误', controller.value.errorDescription);
+        if (!_isRetrying) {
+            _retryPlayback();
+        }
         return;
     }
 
@@ -292,6 +293,7 @@ Future<void> _disposePlayer() async {
     
     _isDisposing = true;
     final currentController = _playerController;
+    _playerController = null;  // 置空避免并发访问
     
     try {
         if (currentController != null) {
@@ -318,11 +320,6 @@ Future<void> _disposePlayer() async {
                 await currentController.dispose();
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
-            }
-            
-            // 只有在确保释放完成后才置空控制器
-            if (_playerController == currentController) {
-                _playerController = null;
             }
         }
     } catch (e, stackTrace) {
