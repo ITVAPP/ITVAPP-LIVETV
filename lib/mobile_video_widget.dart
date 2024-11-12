@@ -51,12 +51,11 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   // 获取视频宽高比
   double get _safeAspectRatio {
     if (widget.controller == null) return widget.aspectRatio;
-    return widget.controller!.value.aspectRatio ?? widget.aspectRatio;
-  } 
-
-  // 判断 m3u 数据是否有效的简单方法
-  bool isValidM3U(String data) {
-    return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
+    final size = widget.controller!.value.size;
+    if (size.width > 0 && size.height > 0) {
+      return size.width / size.height;
+    }
+    return widget.aspectRatio;
   }
 
   @override
@@ -85,17 +84,18 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 }
 
                 // 暂停视频播放，如果当前视频正在播放
-                final wasPlaying = widget.controller?.value.isPlaying ?? false;
+                final wasPlaying = widget.controller?.value.playingState == 
+                                 PlayingState.playing;
                 if (wasPlaying) {
-                  widget.controller?.pause();
+                   await widget.controller?.pause();
                 }
 
                 // 跳转到订阅页面
                 await Navigator.of(context).pushNamed(RouterKeys.subScribe);
 
                 // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying) {
-                  widget.controller?.play();
+                if (wasPlaying && mounted) {
+                  await widget.controller?.play();
                 }
 
                 // 检查缓存的 m3u 数据源是否存在且有效
@@ -112,7 +112,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             },
             icon: const Icon(Icons.add),  // 添加频道的图标
           ),
-          // 以控制图标间距
           const SizedBox(width: 5),
           // 设置按钮
           IconButton(
@@ -124,17 +123,18 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 }
 
                 // 暂停视频播放
-                final wasPlaying = widget.controller?.value.isPlaying ?? false;
+                final wasPlaying = widget.controller?.value.playingState == 
+                                 PlayingState.playing; 
                 if (wasPlaying) {
-                  widget.controller?.pause();
+                  await widget.controller?.pause();
                 }
 
                 // 跳转到设置页面
                 await Navigator.of(context).pushNamed(RouterKeys.setting);
 
                 // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying) {
-                  widget.controller?.play();
+                if (wasPlaying && mounted) {
+                  await widget.controller?.play();
                 }
 
                 // 恢复窗口标题栏显示
