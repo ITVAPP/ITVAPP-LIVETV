@@ -25,7 +25,7 @@ class TableVideoWidget extends StatefulWidget {
   final String currentChannelId;
   final VoidCallback? onToggleDrawer;
   final bool isAudio; // 新增音频模式参数
-  final Function(int)? onPlatformViewCreated;
+  final Function(int)? onInit;
 
   const TableVideoWidget({
     super.key,
@@ -42,7 +42,7 @@ class TableVideoWidget extends StatefulWidget {
     this.isLandscape = true,
     this.onToggleDrawer,
     this.isAudio = false, // 默认为视频模式
-    this.onPlatformViewCreated, 
+    this.onInit, 
   });
 
   @override
