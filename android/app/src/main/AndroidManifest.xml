@@ -58,7 +58,8 @@
         android:label="电视宝直播"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
         
         <!-- 定义主活动（MainActivity）的属性 -->
         <activity
