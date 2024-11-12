@@ -64,15 +64,15 @@ class PlayerManager {
   VlcPlayerController? get controller => _controller;
   PlayerState get state => _state;
 
-  // 修改：视图创建完成时调用
-  void onPlatformViewCreated(int viewId) {
+  // 视图创建完成时调用
+  Future<void> onPlatformViewCreated(int viewId) async {
     LogUtil.i('视图创建完成, viewId: $viewId');
     if (!_viewCreatedCompleter.isCompleted) {
       _viewCreatedCompleter.complete();
     }
   }
   
-// 修改：初始化播放器
+// 初始化播放器
 Future<bool> initializePlayer(String url, {
   VlcPlayerOptions? options,
   Function(String)? onError,
