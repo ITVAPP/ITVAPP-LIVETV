@@ -83,7 +83,7 @@ Future<bool> initializePlayer(String url, {
 
     final newController = VlcPlayerController.network(
       url,
-      hwAcc: HwAcc.auto,
+      hwAcc: HwAcc.disabled,
       // options: options ?? PlayerConfig.defaultOptions,
       autoPlay: false,
       autoInitialize: true,
