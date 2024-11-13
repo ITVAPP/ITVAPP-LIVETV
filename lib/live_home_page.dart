@@ -265,14 +265,13 @@ class VideoPlayerManager {
           DeviceOrientation.landscapeRight,   // 横屏-右
           DeviceOrientation.portraitUp,       // 竖屏-正向
         ],
-        eventListener: eventListener,         // 事件监听器
       );
-
-      // 创建并初始化新的播放器控制器
-      final newController = BetterPlayerController(betterPlayerConfiguration);
       
       try {
+        // 创建并初始化新的播放器控制器
+        final newController = BetterPlayerController(betterPlayerConfiguration);
         await newController.setupDataSource(dataSource);
+        newController.events.listen(eventListener);
         _controller = newController;
         return newController;
       } catch (e, stackTrace) {
@@ -344,20 +343,16 @@ class BetterPlayerRetryConfig {
 /// 重试管理，包括自动重试、超时检测等
 mixin BetterPlayerRetryMixin {
   int _retryCount = 0;           // 当前重试次数
-  Timer? _retryTimer;            // 重试定时器
-  Timer? _timeoutTimer;          // 超时定时器
+  Timer? _retryTimer;            
+  Timer? _timeoutTimer;         
   bool _isRetrying = false;      // 是否正在重试标志
   bool _isDisposing = false;     // 是否正在销毁标志
-  StreamSubscription? _playerEventSubscription;  // 播放器事件订阅
-  final BetterPlayerRetryConfig retryConfig;    // 重试配置
-  
-  BetterPlayerRetryMixin(this.retryConfig);
-
-  // 抽象成员，需要实现类提供具体实现
+  StreamSubscription? _playerEventSubscription; 
+  BetterPlayerRetryConfig get retryConfig;  
   BetterPlayerController? get playerController;
-  void onRetryStarted();         // 重试开始回调
-  void onRetryFailed();          // 重试失败回调
-  void onSourceSwitchNeeded();   // 需要切换源回调
+  void onRetryStarted();        
+  void onRetryFailed();          
+  void onSourceSwitchNeeded();   
   Future<void> initializePlayer();  // 初始化播放器方法
   
   /// 设置重试机制
@@ -366,7 +361,7 @@ mixin BetterPlayerRetryMixin {
     _playerEventSubscription?.cancel();
     
     // 设置播放器事件监听
-    _playerEventSubscription = playerController?.getBetterPlayerEventsStream().listen((event) {
+    _playerEventSubscription = playerController?.events.listen((event) {
       if (_isDisposing) return;
       
       switch (event.betterPlayerEventType) {
@@ -413,36 +408,44 @@ mixin BetterPlayerRetryMixin {
   Future<void> _handlePlaybackError() async {
     if (_isRetrying || _isDisposing) return;
     
-    // 检查是否达到最大重试次数
-    if (_retryCount < retryConfig.maxRetries) {
-      _isRetrying = true;
-      _retryCount++;
-      
-      // 通知重试开始
-      onRetryStarted();
-      
-      // 取消之前的重试定时器（如果存在）
-      _retryTimer?.cancel();
-      
-      // 设置新的重试定时器
-      _retryTimer = Timer(retryConfig.retryDelay, () async {
-        if (_isDisposing) return;
+    try {
+      // 检查是否达到最大重试次数
+      if (_retryCount < retryConfig.maxRetries) {
+        _isRetrying = true;
+        _retryCount++;
         
-        try {
-          // 尝试重新初始化播放器
-          await initializePlayer();
-          if (!_isDisposing) {
-            _isRetrying = false;
+        // 通知重试开始
+        onRetryStarted();
+        
+        // 取消之前的重试定时器（如果存在）
+        _retryTimer?.cancel();
+        
+        // 设置新的重试定时器
+        _retryTimer = Timer(retryConfig.retryDelay, () async {
+          if (_isDisposing) return;
+          
+          try {
+            // 尝试重新初始化播放器
+            await initializePlayer();
+            if (!_isDisposing) {
+              _isRetrying = false;
+            }
+          } catch (e, stackTrace) {
+            LogUtil.logError('重试播放失败', e, stackTrace);
+            if (!_isDisposing) {
+              _handlePlaybackError();
+            }
           }
-        } catch (e, stackTrace) {
-          LogUtil.logError('重试播放失败', e, stackTrace);
-          if (!_isDisposing) {
-            _handlePlaybackError();
-          }
+        });
+      } else {
+        // 重试次数用尽，通知失败并请求切换源
+        if (!_isDisposing) {
+          onRetryFailed();
+          onSourceSwitchNeeded();
         }
-      });
-    } else {
-      // 重试次数用尽，通知失败并请求切换源
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('重试播放过程中发生错误', e, stackTrace);
       if (!_isDisposing) {
         onRetryFailed();
         onSourceSwitchNeeded();
@@ -511,12 +514,18 @@ class _LiveHomePageState extends State<LiveHomePage>
     with BetterPlayerRetryMixin, AudioDetectionMixin, PlayerEventHandlerMixin, FavoriteChannelMixin {
   
   /// 构造函数，初始化重试配置
-  _LiveHomePageState() : super(const BetterPlayerRetryConfig(
-    maxRetries: defaultMaxRetries,         // 最大重试次数
-    retryDelay: Duration(seconds: 3),      // 重试延迟
-    timeoutDuration: Duration(seconds: defaultTimeoutSeconds),  // 超时时间
-    autoRetry: true,                       // 启用自动重试
-  ));
+  late final BetterPlayerRetryConfig _retryConfig;
+  _LiveHomePageState() {
+    _retryConfig = const BetterPlayerRetryConfig(
+      maxRetries: defaultMaxRetries,
+      retryDelay: Duration(seconds: 3),
+      timeoutDuration: Duration(seconds: defaultTimeoutSeconds),
+      autoRetry: true,
+    );
+  }
+  
+  @override 
+  BetterPlayerRetryConfig get retryConfig => _retryConfig;
   
   // 默认配置常量
   static const int defaultMaxRetries = 1;        // 默认重试次数
