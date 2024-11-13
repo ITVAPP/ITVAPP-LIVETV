@@ -287,51 +287,41 @@ class _GroupListState extends State<GroupList> {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      color: defaultBackgroundColor,
-      child: SingleChildScrollView(
-        controller: widget.scrollController,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
-          child: IntrinsicHeight(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: widget.keys.isEmpty && widget.isFavoriteCategory
-                  ? [
-                      Container(
-                        constraints: BoxConstraints(minHeight: defaultMinHeight),
-                        child: Center(
-                          child: Text(
-                            S.of(context).nofavorite,
-                            style: defaultTextStyle.merge(
-                              const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ]
-                  : [
-                      Group(
-                        groupIndex: 1,
-                        children: List.generate(widget.keys.length, (index) {
-                          return buildListItem(
-                            title: widget.keys[index],
-                            isSelected: widget.selectedGroupIndex == index,
-                            onTap: () => widget.onGroupTap(index),
-                            isCentered: true,
-                            isTV: widget.isTV,
-                            minHeight: defaultMinHeight,
-                            context: context,
-                            index: widget.startIndex + index,
-                          );
-                        }),
-                      ),
-                    ],
+  return Container(
+    color: defaultBackgroundColor,
+    child: widget.keys.isEmpty && widget.isFavoriteCategory
+      ? Container(
+          constraints: BoxConstraints(minHeight: defaultMinHeight),
+          child: Center(
+            child: Text(
+              S.of(context).nofavorite,
+              style: defaultTextStyle.merge(
+                const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
+        )
+      : ListView(  // 替换 SingleChildScrollView
+          controller: widget.scrollController,
+          children: [
+            Group(
+              groupIndex: 1,
+              children: List.generate(widget.keys.length, (index) {
+                return buildListItem(
+                  title: widget.keys[index],
+                  isSelected: widget.selectedGroupIndex == index,
+                  onTap: () => widget.onGroupTap(index),
+                  isCentered: true,
+                  isTV: widget.isTV,
+                  minHeight: defaultMinHeight,
+                  context: context,
+                  index: widget.startIndex + index,
+                );
+              }),
+            ),
+          ],
         ),
-      ),
-    );
+  );
   }
 }
 
@@ -395,42 +385,34 @@ class _ChannelListState extends State<ChannelList> {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      color: defaultBackgroundColor,
-      child: SingleChildScrollView(
-        controller: widget.scrollController,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
-          child: IntrinsicHeight(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, 
-              children: [
-                RepaintBoundary(
-                  child: Group(
-                    groupIndex: 2,
-                    children: List.generate(channelList.length, (index) {
-                      final channelEntry = channelList[index];
-                      final channelName = channelEntry.key;
-                      final isSelect = widget.selectedChannelName == channelName;
-                      return buildListItem(
-                        title: channelName,
-                        isSelected: isSelect,
-                        onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                        isCentered: true,
-                        minHeight: defaultMinHeight,
-                        isTV: widget.isTV,
-                        context: context,
-                        index: widget.startIndex + index,
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
+  return Container(
+    color: defaultBackgroundColor,
+    child: ListView( 
+      controller: widget.scrollController,
+      children: [
+        RepaintBoundary(
+          child: Group(
+            groupIndex: 2,
+            children: List.generate(channelList.length, (index) {
+              final channelEntry = channelList[index];
+              final channelName = channelEntry.key;
+              final isSelect = widget.selectedChannelName == channelName;
+              return buildListItem(
+                title: channelName,
+                isSelected: isSelect,
+                onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                isCentered: true,
+                minHeight: defaultMinHeight,
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+              );
+            }),
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  );
   }
 }
 // EPG列表组件
@@ -1132,6 +1114,5 @@ Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListW
       ],
     ),
   );
-}
-
+ }
 }
