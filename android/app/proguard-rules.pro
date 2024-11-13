@@ -2,9 +2,6 @@
 -dontwarn com.google.android.play.core.**
 -dontwarn io.flutter.embedding.engine.deferredcomponents.**
 
-# VLC Player 规则
--keep class org.videolan.libvlc.** { *; }
-
 # Flutter wrapper
 -keep class io.flutter.app.** { *; }
 -keep class io.flutter.plugin.**  { *; }
