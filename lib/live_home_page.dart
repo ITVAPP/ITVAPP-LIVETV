@@ -115,8 +115,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 音频检测状态
   bool _isAudio = false;
-
-  // 检查是否为音频流
+  
+// 检查是否为音频流
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
     
@@ -224,15 +224,15 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            await newController.dispose();
+            newController.dispose();  // dispose() 是同步方法
             _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
-            throw e;
+            return;  // 使用return而不是throw e
         }
 
         // 确保状态正确后再设置控制器
         if (!mounted || _isDisposing) {
-            await newController.dispose();
+            newController.dispose();  // dispose() 是同步方法
             return;
         }
 
@@ -418,7 +418,7 @@ Future<void> _disposePlayer() async {
             // 停止播放
             if (currentController.isPlaying() ?? false) {
                 try {
-                    await currentController.pause();
+                    await currentController.pause();  // pause() 返回 Future
                 } catch (e) {
                     LogUtil.logError('暂停播放时出错', e);
                 }
@@ -426,7 +426,7 @@ Future<void> _disposePlayer() async {
             
             // 清理数据源
             try {
-                await currentController.clearCache();
+                currentController.clearCache();  // clearCache() 是同步方法
             } catch (e) {
                 LogUtil.logError('清理缓存时出错', e);
             }
@@ -436,7 +436,7 @@ Future<void> _disposePlayer() async {
             
             // 释放控制器
             try {
-                await currentController.dispose(forceDispose: true);
+                currentController.dispose(forceDispose: true);  // dispose() 是同步方法
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
             }
