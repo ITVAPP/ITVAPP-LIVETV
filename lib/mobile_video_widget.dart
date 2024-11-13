@@ -145,7 +145,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
-            // 移除了 FittedBox 和嵌套的 SizedBox，直接使用 TableVideoWidget
             child: TableVideoWidget(
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
