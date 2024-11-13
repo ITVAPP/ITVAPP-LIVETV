@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
+import 'package:better_player/better_player.dart';
 import 'package:window_manager/window_manager.dart';
-import 'router_keys.dart';
-import 'table_video_widget.dart';
-import 'util/env_util.dart';
-import 'util/log_util.dart'; 
-import 'widget/empty_page.dart';
+import 'package:itvapp_live_tv/router_keys.dart';
+import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/table_video_widget.dart';
+import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'generated/l10n.dart';
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
-  final VlcPlayerController? controller; // 视频播放器控制器
+  final BetterPlayerController? controller; // 视频播放器控制器
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调
   final String? toastString; // 提示信息字符串
   final bool? isLandscape; // 是否为横屏模式
@@ -48,15 +48,6 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  // 获取视频宽高比
-  double get _safeAspectRatio {
-    if (widget.controller == null) return widget.aspectRatio;
-    final size = widget.controller!.value.size;
-    if (size.width > 0 && size.height > 0) {
-      return size.width / size.height;
-    }
-    return widget.aspectRatio;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +66,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
         centerTitle: true,  // 标题居中显示
         title: Text(S.of(context).appName),  // 动态获取应用名称
         actions: [
+          // 添加按钮
           IconButton(
             onPressed: () async {
               LogUtil.safeExecute(() async {
@@ -84,18 +76,17 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 }
 
                 // 暂停视频播放，如果当前视频正在播放
-                final wasPlaying = widget.controller?.value.playingState == 
-                                 PlayingState.playing;
+                final wasPlaying = widget.controller?.isPlaying() ?? false;
                 if (wasPlaying) {
-                   await widget.controller?.pause();
+                  widget.controller?.pause();
                 }
 
                 // 跳转到订阅页面
                 await Navigator.of(context).pushNamed(RouterKeys.subScribe);
 
                 // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying && mounted) {
-                  await widget.controller?.play();
+                if (wasPlaying) {
+                  widget.controller?.play();
                 }
 
                 // 检查缓存的 m3u 数据源是否存在且有效
@@ -112,6 +103,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             },
             icon: const Icon(Icons.add),  // 添加频道的图标
           ),
+          // 以控制图标间距
           const SizedBox(width: 5),
           // 设置按钮
           IconButton(
@@ -123,18 +115,17 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                 }
 
                 // 暂停视频播放
-                final wasPlaying = widget.controller?.value.playingState == 
-                                 PlayingState.playing; 
+                final wasPlaying = widget.controller?.isPlaying() ?? false;
                 if (wasPlaying) {
-                  await widget.controller?.pause();
+                  widget.controller?.pause();
                 }
 
                 // 跳转到设置页面
                 await Navigator.of(context).pushNamed(RouterKeys.setting);
 
                 // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying && mounted) {
-                  await widget.controller?.play();
+                if (wasPlaying) {
+                  widget.controller?.play();
                 }
 
                 // 恢复窗口标题栏显示
@@ -159,7 +150,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
               isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: _safeAspectRatio,  // 使用安全的宽高比获取方法
+              aspectRatio: widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
               isBuffering: widget.isBuffering,  // 是否缓冲
               isPlaying: widget.isPlaying,  // 是否正在播放
               drawerIsOpen: false,  // 抽屉菜单关闭状态
@@ -181,7 +172,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     );
   }
 
-  // 判断 m3u 数据是否有效
+  // 判断 m3u 数据是否有效的简单方法
   bool isValidM3U(String data) {
     return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
   }
