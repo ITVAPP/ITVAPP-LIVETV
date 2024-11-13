@@ -63,7 +63,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 视频播放组件创建方法
   Widget _buildVideoPlayer(double containerHeight) {
-    if (widget.controller == null || !widget.controller!.isVideoInitialized() || widget.isAudio == true) {
+    if (widget.controller == null || widget.controller!.isVideoInitialized() != true || widget.isAudio == true) {
       return VideoHoldBg(
         toastString: _drawerIsOpen ? '' : widget.toastString,
         showBingBackground: widget.isAudio,
@@ -345,7 +345,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
   
-  @override
+@override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
     // 计算播放器容器的高度，统一使用 16:9 比例
@@ -372,8 +372,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 // 视频播放器
                 _buildVideoPlayer(playerHeight),
                 
-                // 播放控制图标
-                if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.isPlaying && !_drawerIsOpen) || _isShowPlayIcon)
+                // 修复播放控制图标的显示逻辑
+                if ((widget.controller != null && 
+                     widget.controller!.isVideoInitialized() == true && 
+                     !(widget.controller!.isPlaying() ?? false) && 
+                     !_drawerIsOpen) || _isShowPlayIcon)
                   _buildControlIcon(
                     icon: Icons.play_arrow,
                     onTap: () => _handleSelectPress(),
