@@ -31,12 +31,6 @@ if (flutterVersionName == null) {
 android {
     namespace = "itvapp_live_tv" // 命名空间，用于定义应用的包名
     compileSdk = 34              // 编译SDK版本，定义编译时使用的Android SDK版本
-//    ndkVersion = flutter.ndkVersion // 可选配置，用于指定NDK版本
-
-    // 添加 packagingOptions 配置，用于处理 VLC 重复的库文件
-    packagingOptions {
-        pickFirst 'lib/**/libc++_shared.so'
-    }
 
     // 添加以下配置来禁用 Split APK
     bundle {
@@ -92,7 +86,6 @@ android {
         release {
             minifyEnabled true // 启用代码混淆和压缩
             shrinkResources true // 移除未使用的资源，减少APK的大小
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' // 添加此行以支持 VLC
             signingConfig = signingConfigs.release // 使用release签名配置
         }
     }
