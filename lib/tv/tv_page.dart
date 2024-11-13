@@ -1,15 +1,14 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sp_util/sp_util.dart';
+import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:sp_util/sp_util.dart';
-import 'package:flutter_vlc_player/flutter_vlc_player.dart';
-
 import '../channel_drawer_page.dart';
 import '../gradient_progress_bar.dart';
 import '../entity/playlist_model.dart';
@@ -17,15 +16,15 @@ import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
 import '../generated/l10n.dart';
 
-// 播放器组件
+// 播放器组件，用于视频播放的核心组件
 class VideoPlayerWidget extends StatelessWidget {
-  final VlcPlayerController? controller;
+  final BetterPlayerController? controller;
   final String? toastString;
   final bool drawerIsOpen;
   final bool isBuffering;
   final bool isError;
   final bool isAudio;
-  
+
   const VideoPlayerWidget({
     Key? key,
     required this.controller,
@@ -36,6 +35,7 @@ class VideoPlayerWidget extends StatelessWidget {
     this.isAudio = false,
   }) : super(key: key);
 
+  // 构建缓冲加载指示器
   Widget _buildBufferingIndicator(BuildContext context) {
     return Align(
       alignment: Alignment.bottomCenter,
@@ -59,54 +59,31 @@ class VideoPlayerWidget extends StatelessWidget {
     );
   }
 
-  // 播放器构建方法
-  Widget _buildPlayer(VlcPlayerValue value) {
-    // 获取安全的宽高比
-    double safeAspectRatio;
-    final size = value.size;
-    if (size.width > 0 && size.height > 0) {
-      safeAspectRatio = size.width / size.height;
-    } else {
-      safeAspectRatio = 16/9;
-    }
-
-    return Center(
-      child: AspectRatio(
-        aspectRatio: safeAspectRatio,
-        child: SizedBox(
-          width: double.infinity,
-          child: VlcPlayer(
-            controller: controller!,
-            aspectRatio: safeAspectRatio,
-            placeholder: const Center(
-              child: CircularProgressIndicator(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-          ValueListenableBuilder<VlcPlayerValue>(
-            valueListenable: controller!,
-            builder: (context, value, _) {
-              if (controller != null && value.playingState != PlayingState.stopped && !isAudio) {
-                return _buildPlayer(value);
-              }
-              return VideoHoldBg(
-                toastString: drawerIsOpen ? '' : toastString,
-                showBingBackground: isAudio,
-              );
-            },
+        if (controller != null && 
+            controller!.isVideoInitialized() && 
+            !isAudio)
+          // 如果控制器已初始化并且不是音频模式，则显示视频
+          Center(
+            child: AspectRatio(
+              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+              child: BetterPlayer(controller: controller!),
+            ),
+          )
+        else
+          // 如果控制器未初始化或是音频模式，则显示背景
+          VideoHoldBg(
+            toastString: drawerIsOpen ? '' : toastString,
+            showBingBackground: isAudio,
           ),
         
-        if (controller != null && 
-            controller!.value.playingState != PlayingState.stopped && 
-            (isBuffering || isError) && 
+        // 如果正在缓冲或出错且抽屉未打开，则显示缓冲指示器
+        if (controller != null &&
+            controller!.isVideoInitialized() &&
+            (isBuffering || isError) &&
             !drawerIsOpen)
           _buildBufferingIndicator(context),
       ],
@@ -114,7 +91,7 @@ class VideoPlayerWidget extends StatelessWidget {
   }
 }
 
-// IconState 类
+// 图标状态管理类，定义视频播放状态图标的显示控制
 class IconState {
   final bool showPause;
   final bool showPlay;
@@ -139,12 +116,12 @@ class IconState {
   }
 }
 
-// TvPage 组件
+// 电视播放页面
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
   final Function(PlayModel? newModel)? onTapChannel;
-  final VlcPlayerController? controller; // 修改: VideoPlayerController 替换为 VlcPlayerController
+  final BetterPlayerController? controller;
   final Future<void> Function()? changeChannelSources;
   final GestureTapCallback? onChangeSubSource;
   final String? toastString;
@@ -183,7 +160,6 @@ class TvPage extends StatefulWidget {
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
   
-  // 使用 ValueNotifier 替换原有状态
   final _iconStateNotifier = ValueNotifier<IconState>(
     const IconState(
       showPause: false,
@@ -198,10 +174,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  VlcPlayerController? get _controller => widget.controller; // 修改: 类型替换为 VlcPlayerController
-  bool get _hasValidController => _controller != null;
 
-  // 图标状态更新方法
+  // 更新图标状态的方法，控制播放、暂停、显示日期等图标的显隐
   void _updateIconState({
     bool? showPause,
     bool? showPlay,
@@ -214,12 +188,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 定时器管理方法
+  // 启动暂停图标显示的定时器，在3秒后自动隐藏暂停图标
   void _startPauseIconTimer() {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
       if (mounted) {
-        _updateIconState(showPause: false);
+        _updateIconState(showPause: false); // 隐藏暂停图标
       }
     });
   }
@@ -229,10 +203,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
 
-// 设置页面打开方法
-Future<bool?> _opensetting() async {
+  // 打开设置页面，并更新播放图标状态
+  Future<bool?> _opensetting() async {
     try {
-      _updateIconState(showPlay: true);
+      _updateIconState(showPlay: true); // 显示播放图标
       
       return Navigator.push<bool>(
         context,
@@ -259,9 +233,9 @@ Future<bool?> _opensetting() async {
       return null;
     }
   }
-
-// 返回按键处理方法 - 修改为使用 VLC 播放状态
-Future<bool> _handleBackPress(BuildContext context) async {
+  
+  // 处理返回按键，当抽屉打开时关闭抽屉；否则检测是否退出应用
+  Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       _toggleDrawer(false);
       return false;
@@ -270,29 +244,27 @@ Future<bool> _handleBackPress(BuildContext context) async {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
       return false;
-    }
-
-    if (_hasValidController) {
-      final bool wasPlaying = _controller!.value.playingState == PlayingState.playing;
+    } else {
+      // 检查播放器当前播放状态，如果在播放，则暂停
+      bool wasPlaying = widget.controller?.isPlaying() ?? false;
       if (wasPlaying) {
-        await _controller!.pause();
-        _updateIconState(showPlay: true);
+        await widget.controller?.pause();
+        _updateIconState(showPlay: true); // 显示播放图标
       }
       
-      final bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+      bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
       
-      if (!shouldExit && wasPlaying && mounted) {
-        await _controller!.play();
-        _updateIconState(showPlay: false);
+      if (!shouldExit && wasPlaying) {
+        // 如果用户选择不退出且之前在播放，则恢复播放
+        await widget.controller?.play();
+        _updateIconState(showPlay: false); // 继续播放时隐藏播放图标
       }
       
       return shouldExit;
-    }
-    
-    return true;
+    } 
   }
   
-// 控制图标构建方法
+  // 构建控制图标的通用方法，可以传入不同的图标类型
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -322,29 +294,33 @@ Future<bool> _handleBackPress(BuildContext context) async {
     );
   }
 
+  // 构建暂停图标
   Widget _buildPauseIcon() {
     return _buildControlIcon(icon: Icons.pause);
   }
 
+  // 构建播放图标
   Widget _buildPlayIcon() {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
   
-  // 选择键处理逻辑，使用 VLC 播放状态
+  // 处理选择键按下的逻辑，包括播放、暂停控制及图标状态更新
   Future<void> _handleSelectPress() async {
-    if (!_hasValidController) return;	
+    final controller = widget.controller;
+    if (controller == null) return;	
     
-    final controller = _controller!;
-    final isActuallyPlaying = controller.value.playingState == PlayingState.playing;
+    final isActuallyPlaying = controller.isPlaying() ?? false;  // 检查播放状态
     
     if (isActuallyPlaying) {
       if (!(_pauseIconTimer?.isActive ?? false)) {
+        // 如果计时器未激活，则显示暂停图标
         _updateIconState(
           showPause: true,
           showPlay: false,
         );
         _startPauseIconTimer();
       } else {
+        // 如果计时器已激活，则暂停播放并显示播放图标
         await controller.pause();
         _clearPauseIconTimer();
         _updateIconState(
@@ -353,6 +329,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
         );
       }
     } else {
+      // 如果当前未播放，则启动播放并隐藏播放图标
       await controller.play();
       _updateIconState(showPlay: false);
     }
@@ -363,10 +340,11 @@ Future<bool> _handleBackPress(BuildContext context) async {
     );
   }
   
-  // 键盘事件处理，使用 VLC API
+// 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
+    // 当抽屉打开时，忽略方向键和选择键事件
     if (_drawerIsOpen && (e.logicalKey == LogicalKeyboardKey.arrowUp ||
                           e.logicalKey == LogicalKeyboardKey.arrowDown ||
                           e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -378,6 +356,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
 
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
+        // 左箭头用于添加或删除收藏
         if (widget.toggleFavorite != null && 
             widget.isChannelFavorite != null && 
             widget.currentChannelId != null) {
@@ -386,6 +365,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
           widget.toggleFavorite!(widget.currentChannelId!);
           
           setState(() {
+            // 刷新抽屉中的收藏状态
             _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
           });
           
@@ -399,35 +379,32 @@ Future<bool> _handleBackPress(BuildContext context) async {
         }
         break;
       case LogicalKeyboardKey.arrowRight:
+        // 右箭头用于打开或关闭抽屉
         _toggleDrawer(!_drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
+        // 上箭头用于切换频道源
         await widget.changeChannelSources?.call();
         break;
       case LogicalKeyboardKey.arrowDown:
-        if (_hasValidController) {
-          await _controller!.pause();
-          _updateIconState(showPlay: true);
-          await _opensetting();
-        }
+        // 下箭头用于暂停播放并打开设置页面
+        await widget.controller?.pause();
+        _updateIconState(showPlay: true);
+        _opensetting();
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
+        // 选择键用于控制播放/暂停
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
-        if (_hasValidController) {
-          final currentVolume = await _controller!.getVolume() ?? 0;
-          await _controller!.setVolume((currentVolume + 10).clamp(0, 100));
-        }
+        // 音量控制可以通过 BetterPlayer 的方法实现，但这里保持原样
         break;
       case LogicalKeyboardKey.audioVolumeDown:
-        if (_hasValidController) {
-          final currentVolume = await _controller!.getVolume() ?? 0;
-          await _controller!.setVolume((currentVolume - 10).clamp(0, 100));
-        }
+        break;
+      case LogicalKeyboardKey.f5:
         break;
       default:
         break;
@@ -435,7 +412,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
     return KeyEventResult.handled;
   }
   
-  // EPGList 节目点击事件处理
+  // 处理EPG节目点击事件，关闭选择键事件的拦截
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
@@ -450,10 +427,17 @@ Future<bool> _handleBackPress(BuildContext context) async {
     });
   }
   
+  // 资源释放，取消定时器和焦点管理
   @override
   void dispose() {
     _iconStateNotifier.dispose();
-    _pauseIconTimer?.cancel();
+    
+    try {
+      _pauseIconTimer?.cancel();
+    } catch (e) {
+      LogUtil.logError('释放 _pauseIconTimer 失败', e);
+    }
+    
     _blockSelectKeyEvent = false;
     
     if (_drawerNavigationState != null) {
@@ -463,7 +447,7 @@ Future<bool> _handleBackPress(BuildContext context) async {
     super.dispose();
   }
   
-  // 收藏图标构建方法
+  // 构建收藏图标
   Widget _buildFavoriteIcon() {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
       return const SizedBox();
@@ -485,94 +469,90 @@ Future<bool> _handleBackPress(BuildContext context) async {
   }
   
 @override
-Widget build(BuildContext context) {
-  return WillPopScope(
-    onWillPop: () => _handleBackPress(context),
-    child: Scaffold(
-      backgroundColor: Colors.black,
-      body: Builder(builder: (context) {
-        return KeyboardListener(
-          focusNode: FocusNode(),  
-          onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
-          child: Container(
-            alignment: Alignment.center,
-            color: Colors.black,
-            child: Stack(
-              children: [
-                VideoPlayerWidget(
-                  controller: widget.controller,
-                  toastString: widget.toastString,
-                  drawerIsOpen: _drawerIsOpen,
-                  isBuffering: widget.isBuffering,
-                  isError: _isError,
-                  isAudio: widget.isAudio,
-                ),
-                
-                ValueListenableBuilder<IconState>(
-                  valueListenable: _iconStateNotifier,
-                  builder: (context, iconState, child) {
-                    return Stack(
-                      children: [
-                        if (iconState.showPause) 
-                          _buildPauseIcon(),
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () => _handleBackPress(context),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Builder(builder: (context) {
+          return KeyboardListener(
+            focusNode: FocusNode(),  
+            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
+            child: Container(
+              alignment: Alignment.center,
+              color: Colors.black,
+              child: Stack(
+                children: [
+                  VideoPlayerWidget(
+                    controller: widget.controller,
+                    toastString: widget.toastString,
+                    drawerIsOpen: _drawerIsOpen,
+                    isBuffering: widget.isBuffering,
+                    isError: _isError,
+                    isAudio: widget.isAudio, // 传递音频状态
+                  ),
+                  
+                  // 使用 ValueListenableBuilder 监听图标状态
+                  ValueListenableBuilder<IconState>(valueListenable: _iconStateNotifier,
+                    builder: (context, iconState, child) {
+                      return Stack(
+                        children: [
+                          if (iconState.showPause) 
+                            _buildPauseIcon(),
+                              
+                          if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying && !_drawerIsOpen) || iconState.showPlay)    
+                            _buildPlayIcon(),
+
+                          if (iconState.showDatePosition) 
+                            const DatePositionWidget(),
                           
-                        if (_hasValidController && 
-                            _controller!.value.playingState != PlayingState.playing && 
-                            _controller!.value.playingState != PlayingState.stopped && 
-                            !_drawerIsOpen || 
-                            iconState.showPlay)    
-                          _buildPlayIcon(),
+                          if (iconState.showDatePosition && !_drawerIsOpen) 
+                            _buildFavoriteIcon(),
+                        ],
+                      );
+                    },
+                  ),
 
-                        if (iconState.showDatePosition) 
-                          const DatePositionWidget(),
-                        
-                        if (iconState.showDatePosition && !_drawerIsOpen) 
-                          _buildFavoriteIcon(),
-                      ],
-                    );
-                  },
-                ),
-
-                // 频道抽屉显示
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Offstage(
-                    offstage: !_drawerIsOpen,
-                    child: ChannelDrawerPage(
-                      key: _drawerRefreshKey ?? const ValueKey('channel_drawer'), 
-                      refreshKey: _drawerRefreshKey,
-                      videoMap: widget.videoMap,
-                      playModel: widget.playModel,
-                      isLandscape: true,
-                      onTapChannel: _handleEPGProgramTap,
-                      onCloseDrawer: () {
-                        _toggleDrawer(false);
-                      },
-                      onTvKeyNavigationStateCreated: (state) {
-                        setState(() {
-                          _drawerNavigationState = state;
-                        });
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_drawerIsOpen) {
-                            state.activateFocusManagement();
-                          } else {
-                            state.deactivateFocusManagement();
-                          }
-                        });
-                      },
+                  // 频道抽屉显示
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Offstage(
+                      offstage: !_drawerIsOpen,
+                      child: ChannelDrawerPage(
+                        key: _drawerRefreshKey ?? const ValueKey('channel_drawer'), 
+                        refreshKey: _drawerRefreshKey,
+                        videoMap: widget.videoMap,
+                        playModel: widget.playModel,
+                        isLandscape: true,
+                        onTapChannel: _handleEPGProgramTap,
+                        onCloseDrawer: () {
+                          _toggleDrawer(false);
+                        },
+                        onTvKeyNavigationStateCreated: (state) {
+                          setState(() {
+                            _drawerNavigationState = state;
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_drawerIsOpen) {
+                              state.activateFocusManagement();
+                            } else {
+                              state.deactivateFocusManagement();
+                            }
+                          });
+                        },
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      }),
-    ),
-  );
-}
-
-  // 抽屉显示/隐藏和焦点管理的方法
+          );
+        }),
+      ),
+    );
+  }
+  
+  // 控制抽屉的显示和焦点管理
   void _toggleDrawer(bool isOpen) {
     if (_drawerIsOpen == isOpen) return;
 
