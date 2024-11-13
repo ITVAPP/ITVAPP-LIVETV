@@ -16,6 +16,22 @@ import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
 import '../generated/l10n.dart';
 
+// 辅助方法用于统一处理播放器状态
+bool isPlayerInitialized(BetterPlayerController? controller) {
+  if (controller == null) return false;
+  return controller.isVideoInitialized() ?? false;
+}
+
+bool isPlayerPlaying(BetterPlayerController? controller) {
+  if (controller == null) return false;
+  return controller.isPlaying() ?? false;
+}
+
+double getPlayerAspectRatio(BetterPlayerController? controller) {
+  if (controller?.videoPlayerController == null) return 16/9;
+  return controller!.videoPlayerController?.value.aspectRatio ?? 16/9;
+}
+
 // 播放器组件，用于视频播放的核心组件
 class VideoPlayerWidget extends StatelessWidget {
   final BetterPlayerController? controller;
@@ -64,25 +80,22 @@ class VideoPlayerWidget extends StatelessWidget {
     return Stack(
       children: [
         if (controller != null && 
-            controller!.isVideoInitialized() && 
+            (controller!.isVideoInitialized() ?? false) && 
             !isAudio)
-          // 如果控制器已初始化并且不是音频模式，则显示视频
           Center(
             child: AspectRatio(
-              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+              aspectRatio: getPlayerAspectRatio(controller),
               child: BetterPlayer(controller: controller!),
             ),
           )
         else
-          // 如果控制器未初始化或是音频模式，则显示背景
           VideoHoldBg(
             toastString: drawerIsOpen ? '' : toastString,
             showBingBackground: isAudio,
           ),
         
-        // 如果正在缓冲或出错且抽屉未打开，则显示缓冲指示器
         if (controller != null &&
-            controller!.isVideoInitialized() &&
+            (controller!.isVideoInitialized() ?? false) &&
             (isBuffering || isError) &&
             !drawerIsOpen)
           _buildBufferingIndicator(context),
@@ -193,7 +206,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
       if (mounted) {
-        _updateIconState(showPause: false); // 隐藏暂停图标
+        _updateIconState(showPause: false);
       }
     });
   }
@@ -206,7 +219,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 打开设置页面，并更新播放图标状态
   Future<bool?> _opensetting() async {
     try {
-      _updateIconState(showPlay: true); // 显示播放图标
+      _updateIconState(showPlay: true);
       
       return Navigator.push<bool>(
         context,
@@ -245,19 +258,17 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       Navigator.pop(context);
       return false;
     } else {
-      // 检查播放器当前播放状态，如果在播放，则暂停
-      bool wasPlaying = widget.controller?.isPlaying() ?? false;
+      bool wasPlaying = isPlayerPlaying(widget.controller);
       if (wasPlaying) {
         await widget.controller?.pause();
-        _updateIconState(showPlay: true); // 显示播放图标
+        _updateIconState(showPlay: true);
       }
       
       bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
       
-      if (!shouldExit && wasPlaying) {
-        // 如果用户选择不退出且之前在播放，则恢复播放
+      if (!shouldExit && wasPlaying && mounted) {
         await widget.controller?.play();
-        _updateIconState(showPlay: false); // 继续播放时隐藏播放图标
+        _updateIconState(showPlay: false);
       }
       
       return shouldExit;
@@ -294,12 +305,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建暂停图标
   Widget _buildPauseIcon() {
     return _buildControlIcon(icon: Icons.pause);
   }
 
-  // 构建播放图标
   Widget _buildPlayIcon() {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
@@ -309,18 +318,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     final controller = widget.controller;
     if (controller == null) return;	
     
-    final isActuallyPlaying = controller.isPlaying() ?? false;  // 检查播放状态
+    final isActuallyPlaying = isPlayerPlaying(controller);
     
     if (isActuallyPlaying) {
       if (!(_pauseIconTimer?.isActive ?? false)) {
-        // 如果计时器未激活，则显示暂停图标
         _updateIconState(
           showPause: true,
           showPlay: false,
         );
         _startPauseIconTimer();
       } else {
-        // 如果计时器已激活，则暂停播放并显示播放图标
         await controller.pause();
         _clearPauseIconTimer();
         _updateIconState(
@@ -329,22 +336,19 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         );
       }
     } else {
-      // 如果当前未播放，则启动播放并隐藏播放图标
       await controller.play();
       _updateIconState(showPlay: false);
     }
 
-    // 切换时间和收藏图标的显示状态
     _updateIconState(
       showDatePosition: !_iconStateNotifier.value.showDatePosition
     );
   }
   
-// 处理键盘事件，包括方向键和选择键的逻辑处理
+  // 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
-    // 当抽屉打开时，忽略方向键和选择键事件
     if (_drawerIsOpen && (e.logicalKey == LogicalKeyboardKey.arrowUp ||
                           e.logicalKey == LogicalKeyboardKey.arrowDown ||
                           e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -356,7 +360,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
-        // 左箭头用于添加或删除收藏
         if (widget.toggleFavorite != null && 
             widget.isChannelFavorite != null && 
             widget.currentChannelId != null) {
@@ -365,7 +368,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           widget.toggleFavorite!(widget.currentChannelId!);
           
           setState(() {
-            // 刷新抽屉中的收藏状态
             _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
           });
           
@@ -379,28 +381,23 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         }
         break;
       case LogicalKeyboardKey.arrowRight:
-        // 右箭头用于打开或关闭抽屉
         _toggleDrawer(!_drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
-        // 上箭头用于切换频道源
         await widget.changeChannelSources?.call();
         break;
       case LogicalKeyboardKey.arrowDown:
-        // 下箭头用于暂停播放并打开设置页面
         await widget.controller?.pause();
         _updateIconState(showPlay: true);
         _opensetting();
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
-        // 选择键用于控制播放/暂停
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
-        // 音量控制可以通过 BetterPlayer 的方法实现，但这里保持原样
         break;
       case LogicalKeyboardKey.audioVolumeDown:
         break;
@@ -412,7 +409,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;
   }
   
-  // 处理EPG节目点击事件，关闭选择键事件的拦截
+  // EPG节目点击事件处理
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
@@ -427,7 +424,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
   
-  // 资源释放，取消定时器和焦点管理
+  // 资源释放
   @override
   void dispose() {
     _iconStateNotifier.dispose();
@@ -468,7 +465,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-@override
+  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
@@ -489,18 +486,24 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     drawerIsOpen: _drawerIsOpen,
                     isBuffering: widget.isBuffering,
                     isError: _isError,
-                    isAudio: widget.isAudio, // 传递音频状态
+                    isAudio: widget.isAudio,
                   ),
                   
                   // 使用 ValueListenableBuilder 监听图标状态
-                  ValueListenableBuilder<IconState>(valueListenable: _iconStateNotifier,
+                  ValueListenableBuilder<IconState>(
+                    valueListenable: _iconStateNotifier,
                     builder: (context, iconState, child) {
                       return Stack(
                         children: [
                           if (iconState.showPause) 
                             _buildPauseIcon(),
                               
-                          if ((widget.controller != null && widget.controller!.value.isInitialized && !widget.controller!.value.isPlaying && !_drawerIsOpen) || iconState.showPlay)    
+                          // 修改这里的条件判断，使用辅助方法检查播放器状态
+                          if ((widget.controller != null && 
+                              (widget.controller!.isVideoInitialized() ?? false) && 
+                              !(widget.controller!.isPlaying() ?? false) && 
+                              !_drawerIsOpen) || 
+                              iconState.showPlay)    
                             _buildPlayIcon(),
 
                           if (iconState.showDatePosition) 
