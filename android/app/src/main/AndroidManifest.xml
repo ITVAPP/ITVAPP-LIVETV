@@ -10,10 +10,6 @@
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
-
-    <!-- VLC Player 需要的权限 -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
     <!-- 网络权限：允许应用程序访问互联网，用于播放在线视频流和下载内容 -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -58,8 +54,7 @@
         android:label="电视宝直播"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:icon="@mipmap/ic_launcher">
         
         <!-- 定义主活动（MainActivity）的属性 -->
         <activity
