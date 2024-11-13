@@ -60,11 +60,10 @@ mixin BetterPlayerRetryMixin {
   bool _isDisposing = false;
   /// 播放器事件订阅
   StreamSubscription? _playerEventSubscription;
-  /// 重试配置对象
-  final BetterPlayerRetryConfig retryConfig;
   
-  BetterPlayerRetryMixin(this.retryConfig);
-
+  /// 获取重试配置对象的抽象getter方法
+  BetterPlayerRetryConfig get retryConfig;
+  
   /// 获取播放器控制器的抽象方法
   BetterPlayerController? get playerController;
   void onRetryStarted();
@@ -75,7 +74,7 @@ mixin BetterPlayerRetryMixin {
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
     _playerEventSubscription?.cancel();
-    _playerEventSubscription = playerController?.getBetterPlayerEventsStream().listen((event) {
+    _playerEventSubscription = playerController?.eventStream.listen((event) {
       if (_isDisposing) return;
       
       switch (event.betterPlayerEventType) {
@@ -214,12 +213,19 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin {
-  _LiveHomePageState() : super(const BetterPlayerRetryConfig(
+  
+  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig(
     maxRetries: defaultMaxRetries,
     retryDelay: Duration(seconds: 3),
     timeoutDuration: Duration(seconds: defaultTimeoutSeconds),
     autoRetry: true,
-  ));
+  );
+
+  @override
+  BetterPlayerRetryConfig get retryConfig => _retryConfig;
+
+  @override
+  BetterPlayerController? get playerController => _playerController;
   
   // 超时重试次数
   static const int defaultMaxRetries = 1;
