@@ -32,7 +32,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   Timer? _timer;  // 定时器，用于切换背景图片
   bool _isBingLoaded = false;  // 用于判断是否已经加载过 Bing 背景
   bool _isAnimating = false;  // 用于跟踪动画状态
-  bool _isTransitionLocked = false; // 新增：状态锁，防止并发操作
+  bool _isTransitionLocked = false; // 状态锁，防止并发操作
   late int _nextImgIndex;  // 下一张图片的索引
   late int _currentAnimationType; // 当前动画类型
 
@@ -72,7 +72,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: const Interval(0.1, 0.9, curve: Curves.easeOutElastic),
+      // 修改：使用 easeOutBack 替代 easeOutElastic
+      curve: const Interval(0.1, 0.9, curve: Curves.easeOutBack),
     ));
 
     // 调整径向扩散动画，延长扩散时间
@@ -182,7 +183,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     
     try {
       _isTransitionLocked = true;
-      _bingImgUrls = await BingUtil.getBingImgUrls();
+      _bingImgUrls = await BingUtil.getBingImgUrls();  // 获取Bing图片
       
       if (!mounted) return;  // 添加提前返回检查
       
@@ -375,7 +376,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 显示当前背景图片
         Container(
           decoration: BoxDecoration(
             image: DecorationImage(
@@ -384,7 +384,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             ),
           ),
         ),
-        // 当动画进行时，显示动画过渡效果
         if (_isAnimating && !_isTransitionLocked)
           _buildAnimatedTransition(),
       ],
@@ -584,20 +583,9 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       return const SizedBox.shrink();
     }
   }
-
-  Widget _buildLocalBg() {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          fit: BoxFit.cover,
-          image: AssetImage('assets/images/video_bg.png'),
-        ),
-      ),
-    );
-  }
 }
 
-// 优化：径向扩散效果的裁剪器
+// 径向扩散效果的裁剪器
 class CircleRevealClipper extends CustomClipper<Path> {
   final double fraction;
   final Alignment centerAlignment;
