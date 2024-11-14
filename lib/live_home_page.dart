@@ -39,7 +39,7 @@ class BetterPlayerRetryConfig {
   
   /// 构造函数，设置默认值
   const BetterPlayerRetryConfig({
-    this.maxRetries = 2,          // 默认最多重试2次
+    this.maxRetries = 1,          // 默认最多重试1次
     this.retryDelay = const Duration(seconds: 2),      // 默认重试间隔2秒
     this.timeoutDuration = const Duration(seconds: 18), // 默认超时时间18秒
     this.autoRetry = true,        // 默认启用自动重试
@@ -238,12 +238,6 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   @override
   BetterPlayerController? get betterPlayerController => _playerController;
-  
-  // 超时重试次数
-  static const int defaultMaxRetries = 1;
-  
-  // 超时检测的时间
-  static const int defaultTimeoutSeconds = 18;
   
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
@@ -466,7 +460,7 @@ Future<void> _playVideo() async {
         setupRetryMechanism();
         
         // 开始播放
-        await _playerController?.play();
+        await newController.play();
    
     } catch (e, stackTrace) {
         // 捕获并记录所有其他错误，然后尝试切换源
