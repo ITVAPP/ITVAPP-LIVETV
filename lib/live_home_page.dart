@@ -153,6 +153,7 @@ Future<void> _playVideo() async {
         
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
+        _currentPlayUrl = parsedUrl;  // 保存解析后的地址
         
         if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
@@ -282,9 +283,12 @@ void _videoListener(BetterPlayerEvent event) {
             break;
             
         case BetterPlayerEventType.exception:
-            LogUtil.logError('播放器错误', event.parameters?["error"]?.toString());
-            _handleError();
-            break;
+           // 对于 HLS 流不做处理,让播放器自动重试
+           if (!_isHlsStream(_currentPlayUrl)) {
+               LogUtil.logError('播放器错误', event.parameters?["error"]?.toString());
+               _handleError();
+           }
+           break;
             
         case BetterPlayerEventType.bufferingStart:
         case BetterPlayerEventType.bufferingUpdate:
