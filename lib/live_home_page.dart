@@ -58,6 +58,9 @@ mixin BetterPlayerRetryMixin {
   bool _isDisposing = false;
   StreamSubscription? _eventSubscription;
   
+  // 添加这个字段来保存事件监听器的引用
+  void Function(BetterPlayerEvent)? _eventListener;
+  
   /// 获取重试配置对象的抽象getter方法
   BetterPlayerRetryConfig get retryConfig;
   
@@ -80,7 +83,7 @@ mixin BetterPlayerRetryMixin {
   void setupRetryMechanism() {
     _eventSubscription?.cancel();
     
-    betterPlayerController?.addEventsListener((BetterPlayerEvent event) {
+    _eventListener = (BetterPlayerEvent event) {
       if (_isDisposing) return;
 
       switch (event.betterPlayerEventType) {
@@ -99,8 +102,14 @@ mixin BetterPlayerRetryMixin {
             _resetAndReplay();
           }
           break;
+        
+        // 添加默认分支以处理其他事件类型
+        default:
+          break;
       }
-    });
+    };
+    
+    betterPlayerController?.addEventsListener(_eventListener!);
     
     // 如果配置了超时检测时间，启动超时检测
     if (retryConfig.timeoutDuration.inSeconds > 0) {
@@ -195,7 +204,9 @@ mixin BetterPlayerRetryMixin {
   /// 清理重试机制相关资源
   void disposeRetryMechanism() {
     _isDisposing = true;
-    betterPlayerController?.removeEventsListener();
+    if (_eventListener != null) {
+      betterPlayerController?.removeEventsListener(_eventListener!);
+    }
     _eventSubscription?.cancel();
     _retryTimer?.cancel();
     _timeoutTimer?.cancel();
