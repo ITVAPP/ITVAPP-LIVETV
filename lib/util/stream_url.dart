@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
 class StreamUrl {
@@ -124,90 +124,100 @@ Future<String> _getYouTubeVideoUrl() async {
   if (_isDisposed) return 'ERROR';
   try {
     var video = await yt.videos.get(url);  
-    var manifest = await yt.videos.streams.getManifest(video.id);  
+    var manifest = await yt.videos.streams.getManifest(video.id);
 
-    LogUtil.i('''======= Manifest 流信息 =======
-- 混合流数量: ${manifest.muxed.length}
+    LogUtil.i('''
+======= Manifest 流信息 =======
 - HLS流数量: ${manifest.hls.length}
-- 纯视频流数量: ${manifest.videoOnly.length}
-- 纯音频流数量: ${manifest.audioOnly.length}
+- 混合流数量: ${manifest.muxed.length}
 ===============================''');
 
-    // 打印每个混合流的详细信息，方便调试
-    for (var stream in manifest.muxed) {
-      LogUtil.i('''
-流 ID: ${stream.tag}
-- qualityLabel: ${stream.qualityLabel}
-- container: ${stream.container.name}
-- videoCodec: ${stream.videoCodec}
-- audioCodec: ${stream.audioCodec}
-===============================''');
-    }
-
-    // 先检查是否有匹配的 HLS 流
-    var selectedHlsUrl;
+    // 1. 先尝试在 HLS 流中按质量查找
     if (manifest.hls.isNotEmpty) {
-      LogUtil.i('检查 HLS 流分辨率...');
-      try {
-        var hlsUrl = manifest.hls.first.url.toString();
-        var response = await _client.get(Uri.parse(hlsUrl));
-        var m3u8Content = response.body;
-        
-        // 按 720p/480p/360p 顺序检查
-        var resolutions = ['720', '480', '360'];
-        for (var res in resolutions) {
-          if (m3u8Content.contains('=${res}') || m3u8Content.contains('x$res')) {
-            selectedHlsUrl = hlsUrl;
-            LogUtil.i('找到匹配分辨率的 HLS 流: ${res}p');
-            break;
+      for (var quality in ['720p', '480p', '360p', '240p']) {
+        var hlsStream = manifest.hls
+            .where((s) => s.qualityLabel == quality)
+            .firstOrNull;
+            
+        if (hlsStream != null) {
+          var hlsUrl = hlsStream.url.toString();
+          if (hlsUrl.isNotEmpty && hlsUrl.contains('http')) {
+            LogUtil.i('找到 $quality HLS 流');
+            return hlsUrl;
           }
         }
-      } catch (e) {
-        LogUtil.e('解析 HLS 流失败: $e');
+      }
+      LogUtil.i('HLS 流中未找到指定质量的流');
+    } else {
+      LogUtil.i('没有可用的 HLS 流');
+    }
+
+    // 2. 如果找不到合适的 HLS 流，尝试混合流
+    var streamInfo = _getBestMuxedStream(manifest, ['720p', '480p', '360p', '240p']);
+    if (streamInfo != null) {
+      var streamUrl = streamInfo.url.toString();
+      if (streamUrl.isNotEmpty && streamUrl.contains('http')) {
+        LogUtil.i('''选择的混合流:
+- 清晰度: ${streamInfo.qualityLabel}
+- 容器格式: ${streamInfo.container.name}
+- 比特率: ${streamInfo.bitrate}''');
+        return streamUrl;
       }
     }
 
-    if (selectedHlsUrl != null) {
-      return selectedHlsUrl;
-    }
-
-    // 如果没有合适的 HLS 流，查找混合流
-    LogUtil.i('开始查找混合流...');
-    var preferredQualities = ['720p', '480p', '360p', '240p', '144p'];
-    
-    // 按分辨率优先级遍历
-    for (var quality in preferredQualities) {
-      var matchingStreams = manifest.muxed.where((stream) {
-        // 匹配分辨率
-        var label = stream.qualityLabel.toLowerCase();
-        return label.contains(quality.toLowerCase());
-      }).toList();
-
-      if (matchingStreams.isNotEmpty) {
-        // 如果找到多个相同分辨率的流，按格式排序
-        matchingStreams.sort((a, b) {
-          var aFormat = a.container.name.toLowerCase();
-          var bFormat = b.container.name.toLowerCase();
-          
-          // mp4 优先级高于 webm
-          if (aFormat == 'mp4' && bFormat != 'mp4') return -1;
-          if (aFormat != 'mp4' && bFormat == 'mp4') return 1;
-          return 0;
-        });
-
-        var selectedStream = matchingStreams.first;
-        LogUtil.i('''选择了混合流:
-质量: ${selectedStream.qualityLabel}
-格式: ${selectedStream.container.name}''');
-        return selectedStream.url.toString();
-      }
-    }
-
-    LogUtil.e('没有找到合适的流');
+    // 3. 如果两种方式都没找到，返回 ERROR
+    LogUtil.e('未找到任何符合条件的流');
     return 'ERROR';
   } catch (e, stackTrace) {
-    LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
+    LogUtil.logError('获取视频流时发生错误', e, stackTrace);
     return 'ERROR';
+  }
+}
+
+// 按质量和格式优先级选择最佳混合流
+StreamInfo? _getBestMuxedStream(StreamManifest manifest, List<String> preferredQualities) {
+  if (manifest.muxed.isEmpty) {
+    LogUtil.i('没有可用的混合流');
+    return null;
+  }
+
+  try {
+    // 按质量优先级查找
+    for (var quality in preferredQualities) {
+      LogUtil.i('查找 $quality 质量的混合流');
+      
+      // 找出指定质量的所有流
+      var qualityStreams = manifest.muxed
+          .where((s) => s.qualityLabel == quality)
+          .toList();
+
+      if (qualityStreams.isNotEmpty) {
+        // 按容器格式优先级：mp4 > webm
+        var mp4Stream = qualityStreams
+            .where((s) => s.container.name.toLowerCase() == 'mp4')
+            .firstOrNull;
+            
+        if (mp4Stream != null) {
+          LogUtil.i('找到 MP4 格式的 $quality 流');
+          return mp4Stream;
+        }
+
+        var webmStream = qualityStreams
+            .where((s) => s.container.name.toLowerCase() == 'webm')
+            .firstOrNull;
+            
+        if (webmStream != null) {
+          LogUtil.i('找到 WebM 格式的 $quality 流');
+          return webmStream;
+        }
+      }
+    }
+
+    LogUtil.i('未找到指定质量的混合流');
+    return null;
+  } catch (e, stackTrace) {
+    LogUtil.logError('选择混合流时发生错误', e, stackTrace);
+    return null;
   }
 }
   
