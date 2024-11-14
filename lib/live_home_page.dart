@@ -180,8 +180,8 @@ Future<void> _playVideo() async {
           BetterPlayerDataSourceType.network,
           parsedUrl, 
           liveStream: isHls,          // 根据URL判断是否为直播流
-          useAsmsTracks: !isYoutubeHls,     // YouTube HLS 时关闭 
-          useAsmsAudioTracks: !isYoutubeHls, // YouTube HLS 时关闭
+          useAsmsTracks: isHls,       // YouTube HLS 时关闭 
+          useAsmsAudioTracks: isHls,    // YouTube HLS 时关闭
           useAsmsSubtitles: false,    // 禁用字幕减少开销
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
@@ -191,11 +191,11 @@ Future<void> _playVideo() async {
             minBufferMs: 10000,            // 最小缓冲时间(10秒)
             maxBufferMs: 60000,           // 最大缓冲时间(60秒)
             bufferForPlaybackMs: 5000,     // 开始播放所需的最小缓冲(5秒)
-            bufferForPlaybackAfterRebufferMs: 10000 // 重新缓冲后开始播放所需的最小缓冲(10秒)
+            bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: !isYoutubeHls,                // YouTube HLS 时关闭  启用缓存
-            preCacheSize: 30 * 1024 * 1024, // 预缓存大小
+            useCache: !isYoutubeHls,                // 启用缓存，YouTube HLS 时关闭 否则播放直播流有中断问题
+            preCacheSize: 10 * 1024 * 1024, // 预缓存大小
             maxCacheSize: 100 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
           ),
@@ -204,14 +204,14 @@ Future<void> _playVideo() async {
           },
         );
 
-        // 创建播放器的基本配置
+        // 播放器基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
           fit: BoxFit.contain,        // 自动缩放
           autoPlay: false,              // 自动播放
-          looping: true,        // 开启循环
+          looping: true,        // 开启循环播放
           allowedScreenSleep: false,   // 禁止屏幕休眠
-          autoDispose: !isYoutubeHls,         // YouTube HLS 时关闭，自动释放资源
-          handleLifecycle: !isYoutubeHls,     // YouTube HLS 时关闭，处理生命周期事件
+          autoDispose: true,         // 自动释放资源
+          handleLifecycle: true,     // 自动处理生命周期事件
           // 禁用错误处理UI
           errorBuilder: (BuildContext context, String? errorMessage) {
              return const SizedBox.shrink();
@@ -243,7 +243,7 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            newController.dispose();  // dispose() 是同步方法
+            newController.dispose(); 
             _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
@@ -251,7 +251,7 @@ Future<void> _playVideo() async {
 
         // 确保状态正确后再设置控制器
         if (!mounted || _isDisposing) {
-            newController.dispose();  // dispose() 是同步方法
+            newController.dispose(); 
             return;
         }
 
@@ -278,111 +278,119 @@ Future<void> _playVideo() async {
 void _videoListener(BetterPlayerEvent event) {
     if (_playerController == null || _isDisposing || _isRetrying) return;
 
+    // 根据事件类型执行不同的处理逻辑
     switch (event.betterPlayerEventType) {
+        // 当事件类型为播放器初始化完成时，更新视频的宽高比
         case BetterPlayerEventType.initialized:
             if (mounted) {
                 setState(() {
                     if (_shouldUpdateAspectRatio) {
+                        // 如果未提供则使用默认值1.78
                         aspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
-                        _shouldUpdateAspectRatio = false;
+                        _shouldUpdateAspectRatio = false;  
                     }
                 });
             }
             break;
-            
+        
+        // 当事件类型为异常时，调用错误处理函数
         case BetterPlayerEventType.exception:
-          // 对于 HLS 流忽略异常，让播放器自行处理重试
-          if (_isHlsStream(_currentPlayUrl)) {
-              return;
-          } else {
-              LogUtil.logError('监听到播放器错误', event.parameters?["error"]?.toString());
-              _handleError(); 
-          }
-           break;
-            
+                LogUtil.logError('监听到播放器错误', event.parameters?["error"]?.toString());
+                _handleError(); 
+            break;
+        
+        // 当事件类型为缓冲开始、缓冲更新或缓冲结束时，更新缓冲状态
         case BetterPlayerEventType.bufferingStart:
         case BetterPlayerEventType.bufferingUpdate:
         case BetterPlayerEventType.bufferingEnd:
             if (mounted) {
                 setState(() {
+                    // 如果事件类型为缓冲开始或缓冲更新，将 isBuffering 设为 true；缓冲结束时设为 false
                     isBuffering = event.betterPlayerEventType == BetterPlayerEventType.bufferingStart ||
-                                event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate;
+                                  event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate;
                 });
             }
             break;
-            
+        
+        // 当事件类型为播放或暂停时，更新播放状态
         case BetterPlayerEventType.play:
         case BetterPlayerEventType.pause:
             if (mounted) {
                 setState(() {
+                    // 如果事件类型为 play，将 isPlaying 设为 true；pause 时设为 false
                     isPlaying = event.betterPlayerEventType == BetterPlayerEventType.play;
                 });
             }
             break;
-            
+        
+        // 当事件类型为播放结束时，调用播放结束的处理函数
         case BetterPlayerEventType.finished:
             _handlePlaybackFinished();
             break;
-            
+        
+        // 默认情况，忽略所有其他未处理的事件类型
         default:
             break;
     }
 }
 
+/// 处理播放器发生错误的方法
 void _handleError() {
     if (_retryCount < defaultMaxRetries) {
-        _retryPlayback();
+        _retryPlayback();  // 如果重试次数未超限，则进行重试播放
     } else {
-        _handleSourceSwitch();
+        _handleSourceSwitch();  // 重试次数超限时切换到其他视频源
     }
 }
 
+/// 处理播放结束事件的方法
 void _handlePlaybackFinished() {
     if (mounted && _playerController != null) {
-        _playerController!.seekTo(Duration.zero);
-        _playerController!.play();
+        _playerController!.seekTo(Duration.zero);  // 将播放位置重置为起点
+        _playerController!.play();  // 开始播放
     }
 }
 
-/// 超时检测方法
+/// 超时检测方法，用于检测播放启动超时
 void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying) return;
-    
-    _timeoutActive = true;
+    _timeoutActive = true;  // 标记超时检测已启动
     Timer(Duration(seconds: defaultTimeoutSeconds), () {
       if (!_timeoutActive || _isRetrying) return;
       
-      if (_playerController != null && 
-          !(_playerController!.isPlaying() ?? false) && 
-          !isBuffering) {  // 考虑缓冲状态
-        LogUtil.logError('播放超时', 'Timeout after $defaultTimeoutSeconds seconds');
-        _retryPlayback();
+      // 检查播放器是否存在且未播放
+      if (_playerController != null && !(_playerController!.isPlaying() ?? false) && !isBuffering) { 
+        LogUtil.logError('播放超时', '$defaultTimeoutSeconds seconds');
+        _retryPlayback(); 
       }
     });
 }
 
-/// 重试播放方法
+/// 重试播放方法，用于重新尝试播放失败的视频
 void _retryPlayback() {
     if (_isRetrying) return;
-    
-    _isRetrying = true;
-    _timeoutActive = false;
-    _retryCount += 1;
 
+    _isRetrying = true;  // 标记进入重试状态
+    _timeoutActive = false;  // 重试期间取消超时检测
+    _retryCount += 1;  // 增加重试计数
+
+    // 检查是否在重试次数范围内
     if (_retryCount <= defaultMaxRetries) {
         setState(() {
-            toastString = S.current.retryplay;
+            toastString = S.current.retryplay; 
         });
         
+        // 取消当前的重试计时器
         _retryTimer?.cancel();
-        _retryTimer = Timer(const Duration(seconds: 3), () {
+        // 2秒延迟后重新调用播放方法
+        _retryTimer = Timer(const Duration(seconds: 2), () {
             setState(() {
-               _isRetrying = false;  // 重试前重置状态
+               _isRetrying = false;  // 重试前重置重试状态
             });
-            _playVideo();
+            _playVideo();  // 再次尝试播放
         });
     } else {
-        _handleSourceSwitch();
+        _handleSourceSwitch();  // 重试次数用尽，切换视频源
     }
 }
 
@@ -437,7 +445,7 @@ Future<void> _disposePlayer() async {
             // 停止播放
             if (currentController.isPlaying() ?? false) {
                 try {
-                    await currentController.pause();  // pause() 返回 Future
+                    await currentController.pause(); 
                 } catch (e) {
                     LogUtil.logError('暂停播放时出错', e);
                 }
@@ -445,7 +453,7 @@ Future<void> _disposePlayer() async {
             
             // 清理数据源
             try {
-                currentController.clearCache();  // clearCache() 是同步方法
+                currentController.clearCache();  
             } catch (e) {
                 LogUtil.logError('清理缓存时出错', e);
             }
@@ -455,7 +463,7 @@ Future<void> _disposePlayer() async {
             
             // 释放控制器
             try {
-                currentController.dispose(forceDispose: true);  // dispose() 是同步方法
+                currentController.dispose(forceDispose: true); 
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
             }
@@ -491,7 +499,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
     
     try {
         // 先停止当前播放和清理状态
-        await _disposePlayer();  // 确保先释放当前播放器资源
+        await _disposePlayer(); 
         _retryTimer?.cancel();
         setState(() { 
             _isRetrying = false;
@@ -553,26 +561,29 @@ Future<void> _changeChannelSources() async {
     }
 }
 
-/// 处理返回按键逻辑
+/// 处理返回按键逻辑，返回值为 true 表示退出应用，false`表示不退出
 Future<bool> _handleBackPress(BuildContext context) async {
   if (_drawerIsOpen) {
+    // 如果抽屉打开，则关闭抽屉
     setState(() {
       _drawerIsOpen = false;
     });
-    return false;
+    return false; 
   }
 
+  // 如果正在播放则暂停
   bool wasPlaying = _playerController?.isPlaying() ?? false;
   if (wasPlaying) {
-    await _playerController?.pause();
+    await _playerController?.pause();  // 暂停视频播放
   }
 
+  // 显示退出确认对话框
   bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
   
+  // 如果用户选择不退出，恢复播放
   if (!shouldExit && wasPlaying && mounted) {
-    await _playerController?.play();
+    await _playerController?.play(); 
   }
-  
   return shouldExit;
 }
 
