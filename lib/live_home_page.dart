@@ -64,8 +64,8 @@ mixin BetterPlayerRetryMixin {
   /// 获取重试配置对象的抽象getter方法
   BetterPlayerRetryConfig get retryConfig;
   
-  /// 获取播放器控制器的抽象方法 
-  BetterPlayerController? get _playerController;
+  /// 获取播放器控制器的抽象方法 - 修改这里
+  BetterPlayerController? get playerController;
   
   /// 重试开始时的回调
   void onRetryStarted();
@@ -81,7 +81,7 @@ mixin BetterPlayerRetryMixin {
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
-       if (_playerController == null) return;
+       if (playerController == null) return;
        
       // 确保清理之前的事件监听
       disposeRetryMechanism();
@@ -111,7 +111,7 @@ mixin BetterPlayerRetryMixin {
         }
       };
     
-      _playerController!.addEventsListener(_eventListener!);
+      playerController!.addEventsListener(_eventListener!);
     
       // 如果配置了超时检测时间，启动超时检测
       if (retryConfig.timeoutDuration.inSeconds > 0) {
@@ -174,7 +174,7 @@ mixin BetterPlayerRetryMixin {
       if (_isDisposing) return;
       
       // 检查播放状态，如果未在播放且不在重试中，则处理播放错误  
-      final isPlaying = betterPlayerController?.isPlaying() ?? false;
+      final isPlaying = playerController?.isPlaying() ?? false;
       if (!isPlaying && !_isRetrying) {
         _handlePlaybackError();
       }
@@ -186,7 +186,7 @@ mixin BetterPlayerRetryMixin {
     if (_isDisposing) return;
     
     try {
-      final controller = betterPlayerController;
+      final controller = playerController;
       if (controller != null) {
         // 将播放位置重置到开始
         await controller.seekTo(Duration.zero);
@@ -207,7 +207,7 @@ mixin BetterPlayerRetryMixin {
   void disposeRetryMechanism() {
     _isDisposing = true;
     if (_eventListener != null) {
-      betterPlayerController?.removeEventsListener(_eventListener!);
+      playerController?.removeEventsListener(_eventListener!);
     }
     _eventSubscription?.cancel();
     _retryTimer?.cancel();
@@ -241,8 +241,10 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
+  
+  // 实现 BetterPlayerRetryMixin 的抽象 getter
   @override
-  BetterPlayerController? get _playerController => _playerController;
+  BetterPlayerController? get playerController => _playerController;
 
   // 视频播放器控制器设置
   final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
