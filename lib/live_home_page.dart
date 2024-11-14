@@ -394,11 +394,12 @@ Future<void> _playVideo() async {
           },
           // 使用通用格式播放
           videoFormat: BetterPlayerVideoFormat.other,
+          overriddenDuration: const Duration(seconds: 1), 
         );
 
         // 创建播放器的基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
-          autoPlay: true,              // 自动播放
+          autoPlay: false,              // 自动播放
           fit: BoxFit.contain,         // 视频适配模式
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
