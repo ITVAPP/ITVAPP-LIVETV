@@ -181,18 +181,19 @@ Future<void> _playVideo() async {
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
           parsedUrl,
-          liveStream: isHls,              // 根据URL判断是否为直播流
+          liveStream: isHls,          // 根据URL判断是否为直播流
           useAsmsTracks: isHls,       // HLS 音轨
           useAsmsAudioTracks: isHls,  // HLS 音频轨道
+          useAsmsSubtitles: false,    // 禁用字幕减少开销
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
             showNotification: false,
           ),
           bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-            minBufferMs: 20000,            // 最小缓冲时间(20秒)
-            maxBufferMs: 360000,           // 最大缓冲时间(6分钟)
-            bufferForPlaybackMs: 3000,     // 开始播放所需的最小缓冲(3秒)
-            bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
+            minBufferMs: 10000,            // 最小缓冲时间(10秒)
+            maxBufferMs: 60000,           // 最大缓冲时间(60秒)
+            bufferForPlaybackMs: 5000,     // 开始播放所需的最小缓冲(5秒)
+            bufferForPlaybackAfterRebufferMs: 10000 // 重新缓冲后开始播放所需的最小缓冲(10秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
             useCache: true,                // 启用缓存
