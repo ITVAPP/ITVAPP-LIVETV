@@ -389,7 +389,7 @@ Future<void> _playVideo() async {
             maxCacheSize: 100 * 1024 * 1024,  // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
           ),
-          httpHeaders: {
+          headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
           },
           // 使用通用格式播放
