@@ -323,7 +323,6 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   // 检查是否为音频流
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
-    
     final lowercaseUrl = url.toLowerCase();
     return lowercaseUrl.endsWith('.mp3') || 
            lowercaseUrl.endsWith('.aac') || 
@@ -334,6 +333,7 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   
   // 判断是否是HLS流
   bool _isHlsStream(String? url) {
+    if (url == null || url.isEmpty) return false;
     final lowercaseUrl = url.toLowerCase();
     return lowercaseUrl.endsWith('.m3u8') || lowercaseUrl.endsWith('.m3u');
   }
@@ -384,9 +384,7 @@ Future<void> _playVideo() async {
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
           parsedUrl,
-          // 如果是HLS流，添加相关配置
           liveStream: isHls,              // 根据URL判断是否为直播流
-          useHlsSubtitles: isHls,         // HLS字幕
           useHlsTracks: isHls,            // HLS音轨
           useHlsAudioTracks: isHls,       // HLS音频轨道
           // 禁用系统通知栏的播放控制
@@ -417,7 +415,21 @@ Future<void> _playVideo() async {
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
           handleLifecycle: true,       // 处理生命周期事件
-          controlsEnabled: false,      // 完全禁用所有控制和交互
+          // 控制界面配置
+          controlsConfiguration: BetterPlayerControlsConfiguration(
+            enableFullscreen: false,     // 启用全屏
+            enableMute: false,           // 启用静音
+            enablePlayPause: false,      // 启用播放/暂停
+            enableProgressBar: false,    // 启用进度条
+            enableSkips: false,         // 启用跳过
+            enableAudioTracks: false,    // 启用音轨选择
+            loadingWidget: const CircularProgressIndicator(),  // 显示加载指示器
+            showControlsOnInitialize: false,   // 启用初始化时显示控制栏
+            enableOverflowMenu: false,       // 启用溢出菜单
+            enablePlaybackSpeed: false,  // 启用播放速度控制
+            enableProgressText: false,   // 禁用进度时间显示
+            showControls: false,  // 禁用控制界面显示
+          ),
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
             DeviceOrientation.landscapeLeft,
