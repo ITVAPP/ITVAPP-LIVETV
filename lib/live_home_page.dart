@@ -79,12 +79,18 @@ mixin BetterPlayerRetryMixin {
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
     _playerEventSubscription?.cancel();
-    _playerEventSubscription = betterPlayerController?.videoPlayerController?.position.listen((duration) {
-      // 监听视频播放位置变化来判断播放状态
+    
+    // 使用 videoPlayerController 的 videoEventStream
+    _playerEventSubscription = betterPlayerController?.videoPlayerController?.videoEventStream.listen((event) {
       if (_isDisposing) return;
-      
-      if (duration == null) {
-        // 播放位置为空，可能表示播放出错
+
+      if (event.eventType == VideoEventType.initialized) {
+        _resetRetryState();
+      } else if (event.eventType == VideoEventType.completed) {
+        if (retryConfig.autoRetry && !_isDisposing) {
+          _resetAndReplay();
+        }
+      } else if (event.eventType == VideoEventType.failed) {
         if (retryConfig.autoRetry && !_isDisposing) {
           _handlePlaybackError();
         }
