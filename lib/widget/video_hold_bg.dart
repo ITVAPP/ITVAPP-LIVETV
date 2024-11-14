@@ -20,15 +20,15 @@ class VideoHoldBg extends StatefulWidget {
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   late AnimationController _animationController; // 动画控制器，控制背景淡入淡出效果
   late Animation<double> _fadeAnimation; // 淡入淡出的动画效果
+  late Animation<Offset> _slideAnimation; // 幻灯片动画效果
+  late Animation<double> _scaleAnimation; // 缩放动画效果
   List<String> _bingImgUrls = [];  // 用于存储多个 Bing 背景图片 URL
   int _currentImgIndex = 0;  // 当前显示的背景图片索引
   Timer? _timer;  // 定时器，用于切换背景图片
   bool _isBingLoaded = false;  // 用于判断是否已经加载过 Bing 背景
   bool _isAnimating = false;  // 用于跟踪动画状态
-  
-  // 新增：用于存储当前和下一张图片的索引和状态
-  int _nextImgIndex = 0;
-  bool _showNextImage = false;
+  late int _nextImgIndex;  // 下一张图片的索引
+  late int _currentAnimationType; // 当前动画类型
 
   late AnimationController _textAnimationController; // 文字滚动动画控制器
   late Animation<Offset> _textAnimation; // 文字滚动动画
@@ -41,7 +41,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
     // 初始化动画控制器，使用更长的动画时间实现平滑过渡
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
@@ -50,16 +50,33 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       curve: Curves.easeInOut,
     );
 
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(1.0, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _currentAnimationType = _getRandomAnimationType();
+
     // 监听动画状态
     _animationController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         setState(() {
           _isAnimating = false;
-          if (_showNextImage) {
-            _currentImgIndex = _nextImgIndex;
-            _showNextImage = false;
-          }
+          _currentImgIndex = _nextImgIndex;
+          _currentAnimationType = _getRandomAnimationType();
         });
+        _animationController.value = 0.0;
       }
     });
 
@@ -69,8 +86,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       vsync: this,
     );
     _textAnimation = Tween<Offset>(
-      begin: Offset(1.0, 0.0),
-      end: Offset(-1.0, 0.0),
+      begin: const Offset(1.0, 0.0),
+      end: const Offset(-1.0, 0.0),
     ).animate(_textAnimationController);
 
     _textAnimationController.addStatusListener((status) {
@@ -86,6 +103,10 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     if (widget.showBingBackground && !_isBingLoaded) {
       _loadBingBackgrounds();
     }
+  }
+
+  int _getRandomAnimationType() {
+    return DateTime.now().millisecondsSinceEpoch % 3;
   }
 
   // 异步加载 Bing 图片 URL 列表
@@ -116,11 +137,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
   // 新增：处理图片切换的方法
   void _startImageTransition() {
-    _isAnimating = true;
-    _nextImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
+    if (_isAnimating || _bingImgUrls.length <= 1) return;
+    
     setState(() {
-      _showNextImage = true;
+      _isAnimating = true;
+      _nextImgIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
     });
+    
     _animationController.forward(from: 0.0);
   }
 
@@ -231,37 +254,52 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 当前图片
-        AnimatedOpacity(
-          opacity: _showNextImage ? 0.0 : 1.0,
-          duration: const Duration(milliseconds: 1200),
-          curve: Curves.easeInOut,
-          child: Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                fit: BoxFit.cover,
-                image: NetworkImage(_bingImgUrls[_currentImgIndex]),
-              ),
+        Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              fit: BoxFit.cover,
+              image: NetworkImage(_bingImgUrls[_currentImgIndex]),
             ),
           ),
         ),
-        // 下一张图片
-        if (_showNextImage && _nextImgIndex < _bingImgUrls.length)
-          AnimatedOpacity(
-            opacity: 1.0,
-            duration: const Duration(milliseconds: 1200),
-            curve: Curves.easeInOut,
-            child: Container(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  fit: BoxFit.cover,
-                  image: NetworkImage(_bingImgUrls[_nextImgIndex]),
-                ),
-              ),
-            ),
-          ),
+        if (_isAnimating)
+          _buildAnimatedTransition(),
       ],
     );
+  }
+
+  Widget _buildAnimatedTransition() {
+    final nextImage = Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          fit: BoxFit.cover,
+          image: NetworkImage(_bingImgUrls[_nextImgIndex]),
+        ),
+      ),
+    );
+
+    switch (_currentAnimationType) {
+      case 0: // 淡入淡出
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: nextImage,
+        );
+      case 1: // 幻灯片
+        return SlideTransition(
+          position: _slideAnimation,
+          child: nextImage,
+        );
+      case 2: // 缩放
+        return ScaleTransition(
+          scale: _scaleAnimation,
+          child: nextImage,
+        );
+      default:
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: nextImage,
+        );
+    }
   }
 
   // 使用本地图片背景，当未启用Bing背景或未能加载Bing背景时调用此方法
