@@ -65,7 +65,7 @@ mixin BetterPlayerRetryMixin {
   BetterPlayerRetryConfig get retryConfig;
   
   /// 获取播放器控制器的抽象方法 
-  BetterPlayerController? get betterPlayerController;
+  BetterPlayerController? get _playerController;
   
   /// 重试开始时的回调
   void onRetryStarted();
@@ -85,8 +85,6 @@ mixin BetterPlayerRetryMixin {
        
       // 确保清理之前的事件监听
       disposeRetryMechanism();
-    
-      if (_playerController == null) return;
     
       _eventListener = (BetterPlayerEvent event) {
        if (_isDisposing) return;
@@ -113,7 +111,7 @@ mixin BetterPlayerRetryMixin {
         }
       };
     
-      playerController!.addEventsListener(_eventListener!);
+      _playerController!.addEventsListener(_eventListener!);
     
       // 如果配置了超时检测时间，启动超时检测
       if (retryConfig.timeoutDuration.inSeconds > 0) {
@@ -228,16 +226,7 @@ class LiveHomePage extends StatefulWidget {
   State<LiveHomePage> createState() => _LiveHomePageState();
 }
 
-class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin {
-  
-  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
-
-  @override
-  BetterPlayerRetryConfig get retryConfig => _retryConfig;
-
-  @override
-  BetterPlayerController? get betterPlayerController => _playerController;
-  
+class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin { 
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
 
@@ -252,9 +241,13 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
-  
   @override
-  BetterPlayerController? get playerController => _playerController;
+  BetterPlayerController? get _playerController => _playerController;
+
+  // 视频播放器控制器设置
+  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
+  @override
+  BetterPlayerRetryConfig get retryConfig => _retryConfig;
 
   // 是否处于缓冲状态
   bool isBuffering = false;
