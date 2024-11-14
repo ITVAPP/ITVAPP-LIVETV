@@ -22,6 +22,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   late Animation<double> _fadeAnimation; // 淡入淡出的动画效果
   late Animation<Offset> _slideAnimation; // 幻灯片动画效果
   late Animation<double> _scaleAnimation; // 缩放动画效果
+  late Animation<double> _slideScaleAnimation; // 幻灯片缩放动画效果
   List<String> _bingImgUrls = [];  // 用于存储多个 Bing 背景图片 URL
   int _currentImgIndex = 0;  // 当前显示的背景图片索引
   Timer? _timer;  // 定时器，用于切换背景图片
@@ -41,29 +42,42 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
     // 初始化动画控制器，使用更长的动画时间实现平滑过渡
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 3000),
       vsync: this,
     );
 
+    // 使用 interval 让淡入淡出效果持续整个动画过程
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: const Interval(0.1, 0.8, curve: Curves.easeInOut),
+      reverseCurve: const Interval(0.1, 0.8, curve: Curves.easeInOut),
     );
 
+    // 调整滑动动画参数，减小位移使切换更自然
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(1.0, 0.0),
+      begin: const Offset(0.25, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: const Interval(0.0, 0.8, curve: Curves.elasticOut),
     ));
 
+    // 优化缩放动画参数，减小缩放比例使过渡更柔和
     _scaleAnimation = Tween<double>(
-      begin: 0.0,
+      begin: 1.08,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+    ));
+
+    // 幻灯片的附加缩放效果
+    _slideScaleAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
     ));
 
     _currentAnimationType = _getRandomAnimationType();
@@ -278,27 +292,30 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       ),
     );
 
+    // 为所有动画添加淡入淡出效果，增加过渡自然度
+    final fadeTransition = FadeTransition(
+      opacity: _fadeAnimation,
+      child: nextImage,
+    );
+
     switch (_currentAnimationType) {
       case 0: // 淡入淡出
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: nextImage,
-        );
+        return fadeTransition;
       case 1: // 幻灯片
         return SlideTransition(
           position: _slideAnimation,
-          child: nextImage,
+          child: ScaleTransition(
+            scale: _slideScaleAnimation,
+            child: fadeTransition,
+          ),
         );
       case 2: // 缩放
         return ScaleTransition(
           scale: _scaleAnimation,
-          child: nextImage,
+          child: fadeTransition,
         );
       default:
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: nextImage,
-        );
+        return fadeTransition;
     }
   }
 
@@ -306,7 +323,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
-        // 本地图片作为背景，图片根据容器大小覆盖整个背景
         image: DecorationImage(
           fit: BoxFit.cover,
           image: AssetImage('assets/images/video_bg.png'),
