@@ -151,10 +151,10 @@ Future<void> _playVideo() async {
         _currentPlayUrl = parsedUrl;  // 保存解析后的地址
         
         if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
+            await _disposePlayer();  // 资源释放
             setState(() {
                 toastString = S.current.vpnplayError;
             });
-            _handleSourceSwitch();
             return;
         }
 
@@ -194,7 +194,7 @@ Future<void> _playVideo() async {
             bufferForPlaybackAfterRebufferMs: 10000 // 重新缓冲后开始播放所需的最小缓冲(10秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: true,                // 启用缓存
+            useCache: !isYoutubeHls,                // YouTube HLS 时关闭  启用缓存
             preCacheSize: 30 * 1024 * 1024, // 预缓存大小
             maxCacheSize: 100 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
@@ -212,6 +212,14 @@ Future<void> _playVideo() async {
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: !isYoutubeHls,         // YouTube HLS 时关闭，自动释放资源
           handleLifecycle: !isYoutubeHls,     // YouTube HLS 时关闭，处理生命周期事件
+          // 禁用错误处理UI
+          errorBuilder: (BuildContext context, String errorMessage) {
+             return const SizedBox.shrink();
+          },
+          // 禁用控制UI
+          controlsConfiguration: const BetterPlayerControlsConfiguration(
+             showControls: false,
+          ),
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
             DeviceOrientation.landscapeLeft,
@@ -383,6 +391,7 @@ void _handleSourceSwitch() {
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
+    	await _disposePlayer();
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;
@@ -394,6 +403,7 @@ void _handleSourceSwitch() {
     // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
+    	await _disposePlayer();
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;  
@@ -505,6 +515,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
         
     } catch (e, stackTrace) {
         LogUtil.logError('切换频道失败', e, stackTrace);
+        await _disposePlayer();
         setState(() {
             toastString = S.current.playError;
         });
