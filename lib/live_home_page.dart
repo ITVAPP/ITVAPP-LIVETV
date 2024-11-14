@@ -234,8 +234,10 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
+  
+  // 实现 BetterPlayerRetryMixin 的抽象 getter
   @override
-  BetterPlayerController? get _playerController => _playerController;
+  BetterPlayerController? get playerController => _playerController;
 
   // 视频播放器控制器设置
   final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
