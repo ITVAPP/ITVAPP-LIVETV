@@ -81,6 +81,8 @@ mixin BetterPlayerRetryMixin {
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
+       if (_playerController == null) return;
+       
       // 确保清理之前的事件监听
       disposeRetryMechanism();
     
@@ -252,7 +254,7 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   BetterPlayerController? _playerController;
   
   @override
-  BetterPlayerController? get playerController => _playerController;
+  BetterPlayerController? get _playerController => _playerController; 
 
   // 是否处于缓冲状态
   bool isBuffering = false;
@@ -385,8 +387,8 @@ Future<void> _playVideo() async {
           BetterPlayerDataSourceType.network,
           parsedUrl,
           liveStream: isHls,              // 根据URL判断是否为直播流
-          useHlsTracks: isHls,            // HLS音轨
-          useHlsAudioTracks: isHls,       // HLS音频轨道
+          useAsmsTracks: isHls,       // HLS 音轨
+          useAsmsAudioTracks: isHls,  // HLS 音频轨道
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
             showNotification: false,
