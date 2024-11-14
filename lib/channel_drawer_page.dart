@@ -287,15 +287,17 @@ class _GroupListState extends State<GroupList> {
       return const SizedBox.shrink();
     }
 
-  return Container(
+return Container(
     color: defaultBackgroundColor,
     child: widget.keys.isEmpty && widget.isFavoriteCategory
       ? Container(
-      	  alignment: Alignment.topCenter,
+          width: double.infinity,
           constraints: BoxConstraints(minHeight: defaultMinHeight),
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: Text(
               S.of(context).nofavorite,
+              textAlign: TextAlign.center,
               style: defaultTextStyle.merge(
                 const TextStyle(fontWeight: FontWeight.bold),
               ),
