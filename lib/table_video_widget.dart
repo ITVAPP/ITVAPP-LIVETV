@@ -61,40 +61,36 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 维护 drawerIsOpen 的本地状态
   bool _drawerIsOpen = false;
 
-// 视频播放组件创建方法
-Widget _buildVideoPlayer(double containerHeight) {
-   if (widget.controller == null || widget.controller!.isVideoInitialized() != true || widget.isAudio == true) {
-     return VideoHoldBg(
-       toastString: _drawerIsOpen ? '' : widget.toastString,
-       showBingBackground: widget.isAudio,
-     );
-   }
-   // 竖屏模式下的视频显示
-   if (!widget.isLandscape) {
-     return Container(
-       width: double.infinity,
-       height: containerHeight,
-       color: Colors.black,
-       child: Align(
-         alignment: Alignment.center,
-         child: ConstrainedBox(  // 添加约束确保不超出容器
-           constraints: BoxConstraints(
-             maxHeight: containerHeight
-           ),
-           child: AspectRatio(
-             aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
-             child: BetterPlayer(controller: widget.controller!),
-           ),
-         ),
-       ),
-     );
-   }
-   // 横屏模式下的视频显示
-   return AspectRatio(
-      aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
-      child: BetterPlayer(controller: widget.controller!),
-   );
-}
+  // 视频播放组件创建方法
+  Widget _buildVideoPlayer(double containerHeight) {
+    if (widget.controller == null || widget.controller!.isVideoInitialized() != true || widget.isAudio == true) {
+      return VideoHoldBg(
+        toastString: _drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: widget.isAudio,
+      );
+    }
+
+    // 竖屏模式下的视频显示
+    if (!widget.isLandscape) {
+      return Container(
+        width: double.infinity,
+        height: containerHeight,
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+            child: BetterPlayer(controller: widget.controller!),
+          ),
+        ),
+      );
+    }
+
+    // 横屏模式下的视频显示
+    return AspectRatio(
+       aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+       child: BetterPlayer(controller: widget.controller!),
+    );
+  }
   
 // 统一的控制图标样式方法
   Widget _buildControlIcon({
