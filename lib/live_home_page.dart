@@ -167,14 +167,14 @@ Future<void> _playVideo() async {
         setState(() {
           _isAudio = isDirectAudio;
         });
-
-        LogUtil.i('准备播放：$parsedUrl');
         
         // 启动超时检测
         _startTimeoutCheck();
         
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
+
+        LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为hls流：$isHls');
 
         // 播放器的数据源配置
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
@@ -188,7 +188,7 @@ Future<void> _playVideo() async {
             showNotification: false,
           ),
           bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-            minBufferMs: 60000,            // 最小缓冲时间(60秒)
+            minBufferMs: 20000,            // 最小缓冲时间(20秒)
             maxBufferMs: 360000,           // 最大缓冲时间(6分钟)
             bufferForPlaybackMs: 3000,     // 开始播放所需的最小缓冲(3秒)
             bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
