@@ -30,188 +30,9 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-mixin BetterPlayerRetryMixin {
-  /// 当前重试次数
-  int _retryCount = 0;
-  Timer? _retryTimer;
-  Timer? _timeoutTimer;
-  /// 是否正在重试中
-  bool _isRetrying = false;
-  /// 是否正在销毁中 
-  bool _isDisposing = false;
-  StreamSubscription? _eventSubscription;
-  
-  // 事件监听器引用
-  void Function(BetterPlayerEvent)? _eventListener;
-  
-  // 添加播放器初始化状态跟踪
-  bool get _isPlayerInitialized => _playerController?.isInitialized() ?? false;
-  
-  /// 获取重试配置对象的抽象getter方法
-  BetterPlayerRetryConfig get retryConfig;
-  
-  /// 获取播放器控制器的抽象方法 
-  BetterPlayerController? get _playerController;
-  
-  /// 重试开始时的回调
-  void onRetryStarted();
-  
-  /// 重试失败时的回调
-  void onRetryFailed();
-  
-  /// 需要切换视频源时的回调
-  void onSourceSwitchNeeded();
-  
-  /// 初始化播放器
-  Future<void> initializePlayer();
-  
-  /// 设置重试机制，监听播放器事件
-  void setupRetryMechanism() {
-    if (_playerController == null) return;
-       
-    // 确保清理之前的事件监听
-    if (_eventListener != null) {
-      _playerController?.removeEventsListener(_eventListener!);
-    }
-    
-    _eventListener = (BetterPlayerEvent event) {
-      if (_isDisposing) return;
-
-      switch (event.betterPlayerEventType) {
-        case BetterPlayerEventType.initialized:
-          _resetRetryState();
-          break;
-          
-        case BetterPlayerEventType.exception:
-          if (!_isPlayerInitialized) {
-            // 初始化失败，直接切换源
-            onSourceSwitchNeeded();
-          } else if (retryConfig.autoRetry && !_isDisposing) {
-            _handlePlaybackError();
-          }
-          break;
-          
-        case BetterPlayerEventType.finished:
-          if (retryConfig.autoRetry && !_isDisposing) {
-            _resetAndReplay();
-          }
-          break;
-        
-        default:
-          break;
-      }
-    };
-    
-    _playerController!.addEventsListener(_eventListener!);
-    
-    // 如果配置了超时检测时间，启动超时检测
-    if (retryConfig.timeoutDuration.inSeconds > 0) {
-      _startTimeoutCheck();
-    }
-  }
-  
-  /// 重置重试状态
-  void _resetRetryState() {
-    if (_isDisposing) return;
-    _retryCount = 0;
-    _isRetrying = false;
-    _retryTimer?.cancel();
-    _timeoutTimer?.cancel();
-  }
-
-  /// 处理播放错误
-  Future<void> _handlePlaybackError() async {
-    if (_isRetrying || _isDisposing) return;
-    
-    // 增加重试保护
-    final currentRetryCount = _retryCount + 1;
-    if (currentRetryCount > retryConfig.maxRetries) {
-      if (!_isDisposing) {
-        onRetryFailed();
-        onSourceSwitchNeeded();
-      }
-      return;
-    }
-    
-    _isRetrying = true;
-    _retryCount = currentRetryCount;
-    
-    // 触发重试开始回调
-    onRetryStarted();
-    
-    // 取消之前的重试定时器
-    _retryTimer?.cancel();
-    // 延迟指定时间后重试
-    _retryTimer = Timer(retryConfig.retryDelay, () async {
-      if (_isDisposing) return;
-      
-      try {
-        // 重新创建播放器而不是调用 initializePlayer
-        await _playVideo();
-        if (!_isDisposing) {
-          _isRetrying = false;
-        }
-      } catch (e, stackTrace) {
-        LogUtil.logError('重试播放失败', e, stackTrace);
-        if (!_isDisposing) {
-          _handlePlaybackError();
-        }
-      }
-    });
-  }
-  
-  /// 启动超时检测
-  void _startTimeoutCheck() {
-    _timeoutTimer?.cancel();
-    _timeoutTimer = Timer(retryConfig.timeoutDuration, () {
-      if (_isDisposing) return;
-      
-      // 检查播放状态，如果未在播放且不在重试中，则处理播放错误  
-      final isPlaying = _playerController?.isPlaying() ?? false;
-      if (!isPlaying && !_isRetrying) {
-        _handlePlaybackError();
-      }
-    });
-  }
-  
-  /// 重置并重新播放
-  Future<void> _resetAndReplay() async {
-    if (_isDisposing) return;
-    
-    try {
-      final controller = _playerController;
-      if (controller != null) {
-        // 将播放位置重置到开始
-        await controller.seekTo(Duration.zero);
-        if (!_isDisposing) {
-          // 开始播放
-          await controller.play();
-        }
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('重置播放失败', e, stackTrace);
-      if (!_isDisposing) {
-        _handlePlaybackError();
-      }
-    }
-  }
-  
-  /// 清理重试机制相关资源
-  void disposeRetryMechanism() {
-    _isDisposing = true;
-    if (_eventListener != null) {
-      _playerController?.removeEventsListener(_eventListener!);
-    }
-    _eventSubscription?.cancel();
-    _retryTimer?.cancel();
-    _timeoutTimer?.cancel();
-    _resetRetryState();
-  }
-}
-
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
-  final PlaylistModel m3uData; // 接收传递的 PlaylistModel 数据
+  final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
   const LiveHomePage({super.key, required this.m3uData});
 
@@ -219,7 +40,17 @@ class LiveHomePage extends StatefulWidget {
   State<LiveHomePage> createState() => _LiveHomePageState();
 }
 
-class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin { 
+class _LiveHomePageState extends State<LiveHomePage> {
+  // 超时重试次数
+  static const int defaultMaxRetries = 1;
+  
+  // 超时检测的时间
+  static const int defaultTimeoutSeconds = 18;
+  
+  // 新增重试相关的状态管理
+  bool _isRetrying = false;
+  Timer? _retryTimer;
+  
   // 存储加载状态的提示文字
   String toastString = S.current.loading;
 
@@ -234,15 +65,6 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
-  
-  // 实现 BetterPlayerRetryMixin 的抽象 getter
-  @override
-  BetterPlayerController? get playerController => _playerController;
-
-  // 视频播放器控制器设置
-  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
-  @override
-  BetterPlayerRetryConfig get retryConfig => _retryConfig;
 
   // 是否处于缓冲状态
   bool isBuffering = false;
@@ -256,11 +78,23 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   // 标记侧边抽屉（频道选择）是否打开
   bool _drawerIsOpen = false;
 
+  // 重试次数计数器
+  int _retryCount = 0;
+
+  // 最大重试次数
+  final int maxRetries = defaultMaxRetries;
+
+  // 等待超时检测
+  bool _timeoutActive = false;
+
   // 是否处于释放状态
   bool _isDisposing = false;
 
   // 切换时的竞态条件
   bool _isSwitchingChannel = false;
+
+  // 超时检测时间
+  final int timeoutSeconds = defaultTimeoutSeconds;
 
   // 标记是否需要更新宽高比
   bool _shouldUpdateAspectRatio = true;
@@ -281,38 +115,11 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 音频检测状态
   bool _isAudio = false;
-
-  @override
-  void onRetryStarted() {
-    if (mounted) {
-      setState(() {
-        toastString = S.current.retryplay;
-      });
-    }
-  }
-
-  @override
-  void onRetryFailed() {
-    if (mounted) {
-      setState(() {
-        toastString = S.current.playError;
-      });
-    }
-  }
-
-  @override
-  void onSourceSwitchNeeded() {
-    _handleSourceSwitch();
-  }
-
-  @override
-  Future<void> initializePlayer() async {
-    await _playVideo();
-  }
   
   // 检查是否为音频流
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
+    
     final lowercaseUrl = url.toLowerCase();
     return lowercaseUrl.endsWith('.mp3') || 
            lowercaseUrl.endsWith('.aac') || 
@@ -330,27 +137,24 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   
 /// 播放前解析频道的视频源 
 Future<void> _playVideo() async {
-    // 检查是否有可用的频道数据
     if (_currentChannel == null) return;
     
-    // 更新UI显示当前播放的线路信息
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+        _isRetrying = false;  // 播放开始时重置重试状态
     });
 
-    // 在创建新播放器之前，确保释放旧播放器的资源
+    // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
     
     try {
-        // 从当前频道获取指定索引的URL并进行解析
+        // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
         
-        // 创建流URL解析器并获取实际的播放地址
         _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
-        // 检查URL解析是否失败，如果失败则切换到下一个源
-        if (parsedUrl == 'ERROR') {
+        if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
                 toastString = S.current.vpnplayError;
             });
@@ -358,14 +162,16 @@ Future<void> _playVideo() async {
             return;
         }
 
-        // 检测是否为音频流，并更新状态
+        // 检查是否为音频URL
         bool isDirectAudio = _checkIsAudioStream(parsedUrl);
         setState(() {
           _isAudio = isDirectAudio;
         });
 
-        // 记录日志
         LogUtil.i('准备播放：$parsedUrl');
+        
+        // 启动超时检测
+        _startTimeoutCheck();
         
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
@@ -425,44 +231,43 @@ Future<void> _playVideo() async {
         // 禁用所有控件
         newController.setControlsEnabled(false);
 
-        // 设置播放器的重试机制
-        setupRetryMechanism();
-        
-        // 尝试设置数据源
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            newController.dispose();  // 出错时释放控制器资源
-            _handleSourceSwitch();    // 切换到下一个源
+            newController.dispose();  // dispose() 是同步方法
+            _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
-            return;
+            return;  // 使用return而不是throw e
         }
 
-        // 确保组件还在树中且未处于释放状态
+        // 确保状态正确后再设置控制器
         if (!mounted || _isDisposing) {
-            newController.dispose();
+            newController.dispose();  // dispose() 是同步方法
             return;
         }
 
-        // 更新状态，设置新的控制器
+        // 设置新的控制器
         setState(() {
             _playerController = newController;
             toastString = S.current.loading;
-        }); 
-        
-        // 开始播放
+            _retryCount = 0;
+            _timeoutActive = false;
+        });
+      
         await _playerController?.play();
    
     } catch (e, stackTrace) {
-        // 捕获并记录所有其他错误，然后尝试切换源
         LogUtil.logError('播放出错', e, stackTrace);
+        setState(() {
+            _isRetrying = false;
+        });
         _handleSourceSwitch();
     }
 }
 
 /// 播放器监听方法
 void _videoListener(BetterPlayerEvent event) {
-    if (_playerController == null || _isDisposing) return;
+    if (_playerController == null || _isDisposing || _isRetrying) return;
 
     switch (event.betterPlayerEventType) {
         case BetterPlayerEventType.initialized:
@@ -474,6 +279,11 @@ void _videoListener(BetterPlayerEvent event) {
                     }
                 });
             }
+            break;
+            
+        case BetterPlayerEventType.exception:
+            LogUtil.logError('播放器错误', event.parameters?["error"]?.toString());
+            _handleError();
             break;
             
         case BetterPlayerEventType.bufferingStart:
@@ -496,17 +306,81 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
             
+        case BetterPlayerEventType.finished:
+            _handlePlaybackFinished();
+            break;
+            
         default:
             break;
     }
 }
 
+void _handleError() {
+    if (_retryCount < maxRetries) {
+        _retryPlayback();
+    } else {
+        _handleSourceSwitch();
+    }
+}
+
+void _handlePlaybackFinished() {
+    if (mounted && _playerController != null) {
+        _playerController!.seekTo(Duration.zero);
+        _playerController!.play();
+    }
+}
+
+/// 超时检测方法
+void _startTimeoutCheck() {
+    if (_timeoutActive || _isRetrying) return;
+    
+    _timeoutActive = true;
+    Timer(Duration(seconds: timeoutSeconds), () {
+      if (!_timeoutActive || _isRetrying) return;
+      
+      if (_playerController != null && 
+          !(_playerController!.isPlaying() ?? false) && 
+          !isBuffering) {  // 考虑缓冲状态
+        LogUtil.logError('播放超时', 'Timeout after $timeoutSeconds seconds');
+        _retryPlayback();
+      }
+    });
+}
+
+/// 重试播放方法
+void _retryPlayback() {
+    if (_isRetrying) return;
+    
+    _isRetrying = true;
+    _timeoutActive = false;
+    _retryCount += 1;
+
+    if (_retryCount <= maxRetries) {
+        setState(() {
+            toastString = S.current.retryplay;
+        });
+        
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(seconds: 3), () {
+            setState(() {
+               _isRetrying = false;  // 重试前重置状态
+            });
+            _playVideo();
+        });
+    } else {
+        _handleSourceSwitch();
+    }
+}
+
 /// 处理视频源切换的方法
 void _handleSourceSwitch() {
+    // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
         setState(() {
             toastString = S.current.playError;
+            _isRetrying = false;
+            _retryCount = 0;
         });
         return;
     }
@@ -516,6 +390,7 @@ void _handleSourceSwitch() {
     if (_sourceIndex >= urls.length) {
         setState(() {
             toastString = S.current.playError;
+            _isRetrying = false;  
         });
         return;
     }
@@ -527,8 +402,14 @@ void _handleSourceSwitch() {
         toastString = S.current.switchLine(_sourceIndex + 1);
     });
 
-    // 直接重新初始化播放器
-    initializePlayer();
+    // 延迟后尝试新源
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(seconds: 2), () {
+        setState(() {
+            _retryCount = 0;  // 新源从0开始计数重试
+        });
+        _playVideo();
+    });
 }
 
 /// 播放器资源释放方法
@@ -540,7 +421,9 @@ Future<void> _disposePlayer() async {
     
     try {
         if (currentController != null) {
-            disposeRetryMechanism(); // 清理重试机制
+            // 重置状态
+            _timeoutActive = false;
+            _retryTimer?.cancel();
             
             // 停止播放
             if (currentController.isPlaying() ?? false) {
@@ -594,15 +477,22 @@ Future<void> _onTapChannel(PlayModel? model) async {
     
     setState(() {
         _isSwitchingChannel = true;
-        toastString = S.current.loading;
+        toastString = S.current.loading; // 更新加载状态
     });
     
     try {
+        // 先停止当前播放和清理状态
         await _disposePlayer();  // 确保先释放当前播放器资源
+        _retryTimer?.cancel();
+        setState(() { 
+            _isRetrying = false;
+            _timeoutActive = false;
+        });
         
         // 更新频道信息
         _currentChannel = model;
         _sourceIndex = 0;
+        _retryCount = 0;
         _shouldUpdateAspectRatio = true;
 
         // 检查新频道是否为音频
@@ -618,7 +508,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
         }
 
         // 确保状态正确后开始新的播放
-        if (!_isSwitchingChannel) return;
+        if (!_isSwitchingChannel) return; // 如果状态已改变则退出
         await _playVideo();
         
     } catch (e, stackTrace) {
@@ -643,7 +533,9 @@ Future<void> _changeChannelSources() async {
       return;
     }
 
-    disposeRetryMechanism(); // 切换源前清理重试机制
+    _retryTimer?.cancel();
+    _isRetrying = false;
+    _timeoutActive = false;
 
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
 
@@ -653,10 +545,32 @@ Future<void> _changeChannelSources() async {
       setState(() {
         _isAudio = isDirectAudio;
       });
-      await _playVideo();
-    } else {
-      setupRetryMechanism(); // 如果没有切换源，重新设置重试机制
+      _retryCount = 0;
+      _playVideo();
     }
+}
+
+/// 处理返回按键逻辑
+Future<bool> _handleBackPress(BuildContext context) async {
+  if (_drawerIsOpen) {
+    setState(() {
+      _drawerIsOpen = false;
+    });
+    return false;
+  }
+
+  bool wasPlaying = _playerController?.isPlaying() ?? false;
+  if (wasPlaying) {
+    await _playerController?.pause();
+  }
+
+  bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+  
+  if (!shouldExit && wasPlaying && mounted) {
+    await _playerController?.play();
+  }
+  
+  return shouldExit;
 }
 
 /// 初始化方法
@@ -674,7 +588,7 @@ void initState() {
     _extractFavoriteList();
 
     // 延迟1分钟后执行版本检测
-    Future.delayed(const Duration(minutes: 1), () {
+    Future.delayed(Duration(minutes: 1), () {
       CheckVersionUtil.checkVersion(context, false, false);
     });
 }
@@ -682,9 +596,11 @@ void initState() {
 /// 清理所有资源
 @override
 void dispose() {
-    _isDisposing = true;
-    disposeRetryMechanism();  // 清理重试机制
+    _retryTimer?.cancel();
+    _timeoutActive = false;
+    _isRetrying = false;
     WakelockPlus.disable();
+    _isDisposing = true;
     _disposePlayer();
     super.dispose();
 }
@@ -702,7 +618,14 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
 
 /// 异步加载视频数据
 Future<void> _loadData() async {
-    disposeRetryMechanism(); // 先清理当前的重试机制
+    // 重置所有状态
+    _retryTimer?.cancel();
+    setState(() { 
+        _isRetrying = false;
+        _timeoutActive = false;
+        _retryCount = 0;
+        _isAudio = false; // 重置音频状态
+    });
     
     try {
       _videoMap = widget.m3uData;
@@ -742,16 +665,22 @@ Future<void> _handlePlaylist() async {
           await _sendTrafficAnalytics(context, _currentChannel!.title);
         }
         
-        await _playVideo(); // 会重新设置重试机制
+        setState(() {
+          _retryCount = 0;
+          _timeoutActive = false;
+          _playVideo(); 
+        });
       } else {
         setState(() {
           toastString = 'UNKNOWN';
+          _isRetrying = false;
         });
       }
     } else {
       setState(() {
         _currentChannel = null;
         toastString = 'UNKNOWN';
+        _isRetrying = false;
       });
     }
 }
@@ -815,29 +744,6 @@ bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
-}
-
-/// 处理返回按键逻辑
-Future<bool> _handleBackPress(BuildContext context) async {
-  if (_drawerIsOpen) {
-    setState(() {
-      _drawerIsOpen = false;
-    });
-    return false;
-  }
-
-  bool wasPlaying = _playerController?.isPlaying() ?? false;
-  if (wasPlaying) {
-    await _playerController?.pause();
-  }
-
-  bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
-  
-  if (!shouldExit && wasPlaying && mounted) {
-    await _playerController?.play();
-  }
-  
-  return shouldExit;
 }
 
 // 添加或取消收藏
