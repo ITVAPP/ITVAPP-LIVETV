@@ -39,8 +39,8 @@ class BetterPlayerRetryConfig {
   
   /// 构造函数，设置默认值
   const BetterPlayerRetryConfig({
-    this.maxRetries = 3,          // 默认最多重试3次
-    this.retryDelay = const Duration(seconds: 3),      // 默认重试间隔3秒
+    this.maxRetries = 2,          // 默认最多重试2次
+    this.retryDelay = const Duration(seconds: 2),      // 默认重试间隔2秒
     this.timeoutDuration = const Duration(seconds: 18), // 默认超时时间18秒
     this.autoRetry = true,        // 默认启用自动重试
   });
@@ -50,55 +50,44 @@ class BetterPlayerRetryConfig {
 mixin BetterPlayerRetryMixin {
   /// 当前重试次数
   int _retryCount = 0;
-  /// 重试定时器
   Timer? _retryTimer;
-  /// 超时检测定时器
   Timer? _timeoutTimer;
   /// 是否正在重试中
   bool _isRetrying = false;
   /// 是否正在销毁中
   bool _isDisposing = false;
-  /// 播放器事件订阅
   StreamSubscription? _playerEventSubscription;
   
   /// 获取重试配置对象的抽象getter方法
   BetterPlayerRetryConfig get retryConfig;
   
-  /// 获取播放器控制器的抽象方法
-  BetterPlayerController? get playerController;
+  /// 获取播放器控制器的抽象方法 
+  BetterPlayerController? get betterPlayerController;
+  
+  /// 重试开始时的回调
   void onRetryStarted();
+  
+  /// 重试失败时的回调
   void onRetryFailed();
+  
+  /// 需要切换视频源时的回调
   void onSourceSwitchNeeded();
+  
+  /// 初始化播放器
   Future<void> initializePlayer();
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
     _playerEventSubscription?.cancel();
-    _playerEventSubscription = playerController?.eventStream.listen((event) {
+    _playerEventSubscription = betterPlayerController?.videoPlayerController?.position.listen((duration) {
+      // 监听视频播放位置变化来判断播放状态
       if (_isDisposing) return;
       
-      switch (event.betterPlayerEventType) {
-        case BetterPlayerEventType.initialized:
-          // 播放器初始化成功时重置重试状态
-          _resetRetryState();
-          break;
-          
-        case BetterPlayerEventType.exception:
-          // 发生错误时，如果开启了自动重试且不在销毁状态，则处理播放错误
-          if (retryConfig.autoRetry && !_isDisposing) {
-            _handlePlaybackError();
-          }
-          break;
-          
-        case BetterPlayerEventType.finished:
-          // 播放结束时，如果开启了自动重试且不在销毁状态，则重置并重新播放
-          if (retryConfig.autoRetry && !_isDisposing) {
-            _resetAndReplay();
-          }
-          break;
-          
-        default:
-          break;
+      if (duration == null) {
+        // 播放位置为空，可能表示播放出错
+        if (retryConfig.autoRetry && !_isDisposing) {
+          _handlePlaybackError();
+        }
       }
     });
     
@@ -162,8 +151,8 @@ mixin BetterPlayerRetryMixin {
     _timeoutTimer = Timer(retryConfig.timeoutDuration, () {
       if (_isDisposing) return;
       
-      // 检查播放状态，如果未在播放且不在重试中，则处理播放错误
-      final isPlaying = playerController?.isPlaying() ?? false;
+      // 检查播放状态，如果未在播放且不在重试中，则处理播放错误  
+      final isPlaying = betterPlayerController?.isPlaying() ?? false;
       if (!isPlaying && !_isRetrying) {
         _handlePlaybackError();
       }
@@ -175,7 +164,7 @@ mixin BetterPlayerRetryMixin {
     if (_isDisposing) return;
     
     try {
-      final controller = playerController;
+      final controller = betterPlayerController;
       if (controller != null) {
         // 将播放位置重置到开始
         await controller.seekTo(Duration.zero);
@@ -225,7 +214,7 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   BetterPlayerRetryConfig get retryConfig => _retryConfig;
 
   @override
-  BetterPlayerController? get playerController => _playerController;
+  BetterPlayerController? get betterPlayerController => _playerController;
   
   // 超时重试次数
   static const int defaultMaxRetries = 1;
@@ -376,27 +365,17 @@ Future<void> _playVideo() async {
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
             showNotification: false,
           ),
-          // 配置缓冲参数
-          // minBufferMs: 最小缓冲时间(50秒)
-          // maxBufferMs: 最大缓冲时间(6分钟)
-          // bufferForPlaybackMs: 开始播放所需的最小缓冲(2.5秒)
-          // bufferForPlaybackAfterRebufferMs: 重新缓冲后开始播放所需的最小缓冲(5秒)
           bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-            minBufferMs: 50000,
-            maxBufferMs: 360000,
-            bufferForPlaybackMs: 2500,
-            bufferForPlaybackAfterRebufferMs: 5000
+            minBufferMs: 60000,  // 最小缓冲时间(60秒)
+            maxBufferMs: 360000,  // 最大缓冲时间(6分钟)
+            bufferForPlaybackMs: 3000, // 开始播放所需的最小缓冲(3秒)
+            bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
           ),
-          // 配置缓存参数
-          // useCache: 启用缓存
-          // preCacheSize: 预缓存大小(10MB)
-          // maxCacheSize: 最大缓存大小(100MB)
-          // maxCacheFileSize: 单个文件最大缓存大小(10MB)
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: true,
-            preCacheSize: 10 * 1024 * 1024,
-            maxCacheSize: 100 * 1024 * 1024,
-            maxCacheFileSize: 10 * 1024 * 1024,
+            useCache: true, // 启用缓存
+            preCacheSize: 20 * 1024 * 1024,  // 预缓存大小(20MB)
+            maxCacheSize: 100 * 1024 * 1024,  // 最大缓存大小(100MB)
+            maxCacheFileSize: 20 * 1024 * 1024, // 单个文件最大缓存大小(20MB)
           ),
           // 根据是否为音频流选择不同的视频格式
           videoFormat: isDirectAudio ? BetterPlayerVideoFormat.dash : BetterPlayerVideoFormat.hls,
@@ -404,7 +383,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器的基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
-          autoPlay: true,              // 自动播放
+          autoPlay: false,              // 自动播放
           fit: BoxFit.contain,         // 视频适配模式
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
@@ -414,11 +393,11 @@ Future<void> _playVideo() async {
             enableFullscreen: true,     // 启用全屏
             enableMute: true,           // 启用静音
             enablePlayPause: true,      // 启用播放/暂停
-            enableProgressBar: true,    // 启用进度条
+            enableProgressBar: false,    // 启用进度条
             enableSkips: false,         // 禁用跳过
-            enableAudioTracks: true,    // 启用音轨选择
-            loadingWidget: const CircularProgressIndicator(),  // 加载指示器
-            showControlsOnInitialize: true,  // 初始化时显示控制栏
+            enableAudioTracks: false,    // 启用音轨选择
+            loadingWidget: SizedBox.shrink(),  // 要显示加载指示器 则改为 const CircularProgressIndicator()
+            showControlsOnInitialize: false,   // 初始化时不显示控制栏
             enableOverflowMenu: false,       // 禁用溢出菜单
           ),
           // 全屏后支持的设备方向
@@ -516,7 +495,6 @@ void _videoListener(BetterPlayerEvent event) {
 
 /// 处理视频源切换的方法
 void _handleSourceSwitch() {
-    // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
         setState(() {
@@ -612,7 +590,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
     });
     
     try {
-        // 先停止当前播放和清理状态
         await _disposePlayer();  // 确保先释放当前播放器资源
         
         // 更新频道信息
@@ -668,7 +645,7 @@ Future<void> _changeChannelSources() async {
       setState(() {
         _isAudio = isDirectAudio;
       });
-      await _playVideo(); // 会重新设置重试机制
+      await _playVideo();
     } else {
       setupRetryMechanism(); // 如果没有切换源，重新设置重试机制
     }
