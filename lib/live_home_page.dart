@@ -226,12 +226,7 @@ class LiveHomePage extends StatefulWidget {
 
 class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin {
   
-  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig(
-    maxRetries: defaultMaxRetries,
-    retryDelay: Duration(seconds: 3),
-    timeoutDuration: Duration(seconds: defaultTimeoutSeconds),
-    autoRetry: true,
-  );
+  final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
 
   @override
   BetterPlayerRetryConfig get retryConfig => _retryConfig;
