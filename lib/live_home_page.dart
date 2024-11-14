@@ -169,16 +169,19 @@ Future<void> _playVideo() async {
         
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
+        
+        // 判断是否是 YouTube HLS 直播流
+        final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
 
-        LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为hls流：$isHls');
+        LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
 
         // 播放器的数据源配置
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
           parsedUrl,
           liveStream: isHls,          // 根据URL判断是否为直播流
-          useAsmsTracks: isHls,       // HLS 音轨
-          useAsmsAudioTracks: isHls,  // HLS 音频轨道
+          useAsmsTracks: !isYoutubeHls,     // YouTube HLS 时关闭 
+          useAsmsAudioTracks: !isYoutubeHls, // YouTube HLS 时关闭
           useAsmsSubtitles: false,    // 禁用字幕减少开销
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
@@ -204,7 +207,7 @@ Future<void> _playVideo() async {
         // 创建播放器的基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
           autoPlay: false,              // 自动播放
-          fit: BoxFit.contain,         // 视频适配模式
+          looping: true,        // 开启循环
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
           handleLifecycle: true,       // 处理生命周期事件
