@@ -81,40 +81,42 @@ mixin BetterPlayerRetryMixin {
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
-    _eventSubscription?.cancel();
+      // 确保清理之前的事件监听
+      disposeRetryMechanism();
     
-    _eventListener = (BetterPlayerEvent event) {
-      if (_isDisposing) return;
+      if (_playerController == null) return;
+    
+      _eventListener = (BetterPlayerEvent event) {
+       if (_isDisposing) return;
 
-      switch (event.betterPlayerEventType) {
-        case BetterPlayerEventType.initialized:
-          _resetRetryState();
-          break;
+        switch (event.betterPlayerEventType) {
+          case BetterPlayerEventType.initialized:
+            _resetRetryState();
+            break;
             
-        case BetterPlayerEventType.exception:
-          if (retryConfig.autoRetry && !_isDisposing) {
-            _handlePlaybackError();
-          }
-          break;
+          case BetterPlayerEventType.exception:
+            if (retryConfig.autoRetry && !_isDisposing) {
+              _handlePlaybackError();
+            }
+            break;
             
-        case BetterPlayerEventType.finished:
-          if (retryConfig.autoRetry && !_isDisposing) {
-            _resetAndReplay();
-          }
-          break;
-        
-        // 添加默认分支以处理其他事件类型
-        default:
-          break;
+          case BetterPlayerEventType.finished:
+            if (retryConfig.autoRetry && !_isDisposing) {
+              _resetAndReplay();
+            }
+            break;
+          
+          default:
+            break;
+        }
+      };
+    
+      _playerController!.addEventsListener(_eventListener!);
+    
+      // 如果配置了超时检测时间，启动超时检测
+      if (retryConfig.timeoutDuration.inSeconds > 0) {
+        _startTimeoutCheck();
       }
-    };
-    
-    betterPlayerController?.addEventsListener(_eventListener!);
-    
-    // 如果配置了超时检测时间，启动超时检测
-    if (retryConfig.timeoutDuration.inSeconds > 0) {
-      _startTimeoutCheck();
-    }
   }
   
   /// 重置重试状态
@@ -318,7 +320,7 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
     await _playVideo();
   }
   
-// 检查是否为音频流
+  // 检查是否为音频流
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
     
@@ -328,6 +330,12 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
            lowercaseUrl.endsWith('.m4a') ||
            lowercaseUrl.endsWith('.ogg') ||
            lowercaseUrl.endsWith('.wav');
+  }
+  
+  // 判断是否是HLS流
+  bool _isHlsStream(String? url) {
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.m3u8') || lowercaseUrl.endsWith('.m3u');
   }
   
 /// 播放前解析频道的视频源 
@@ -369,24 +377,32 @@ Future<void> _playVideo() async {
         // 记录日志
         LogUtil.i('准备播放：$parsedUrl');
         
-        // 创建播放器的数据源配置
+        // 检测是否为hls流
+        final bool isHls = _isHlsStream(parsedUrl);
+
+        // 播放器的数据源配置
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
           parsedUrl,
+          // 如果是HLS流，添加相关配置
+          liveStream: isHls,              // 根据URL判断是否为直播流
+          useHlsSubtitles: isHls,         // HLS字幕
+          useHlsTracks: isHls,            // HLS音轨
+          useHlsAudioTracks: isHls,       // HLS音频轨道
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
             showNotification: false,
           ),
           bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-            minBufferMs: 60000,  // 最小缓冲时间(60秒)
-            maxBufferMs: 360000,  // 最大缓冲时间(6分钟)
-            bufferForPlaybackMs: 3000, // 开始播放所需的最小缓冲(3秒)
+            minBufferMs: 60000,            // 最小缓冲时间(60秒)
+            maxBufferMs: 360000,           // 最大缓冲时间(6分钟)
+            bufferForPlaybackMs: 3000,     // 开始播放所需的最小缓冲(3秒)
             bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: true, // 启用缓存
-            preCacheSize: 30 * 1024 * 1024,  // 预缓存大小
-            maxCacheSize: 100 * 1024 * 1024,  // 最大缓存大小
+            useCache: true,                // 启用缓存
+            preCacheSize: 30 * 1024 * 1024, // 预缓存大小
+            maxCacheSize: 100 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
           ),
           headers: {
@@ -401,18 +417,7 @@ Future<void> _playVideo() async {
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
           handleLifecycle: true,       // 处理生命周期事件
-          // 控制界面配置
-          controlsConfiguration: BetterPlayerControlsConfiguration(
-            enableFullscreen: false,     // 启用全屏
-            enableMute: false,           // 启用静音
-            enablePlayPause: false,      // 启用播放/暂停
-            enableProgressBar: false,    // 启用进度条
-            enableSkips: false,         // 禁用跳过
-            enableAudioTracks: false,    // 启用音轨选择
-            loadingWidget: const CircularProgressIndicator(),  // 显示加载指示器
-            showControlsOnInitialize: false,   // 初始化时不显示控制栏
-            enableOverflowMenu: false,       // 禁用溢出菜单
-          ),
+          controlsEnabled: false,      // 完全禁用所有控制和交互
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
             DeviceOrientation.landscapeLeft,
@@ -430,6 +435,9 @@ Future<void> _playVideo() async {
           betterPlayerConfiguration,
         );
 
+        // 设置播放器的重试机制
+        setupRetryMechanism();
+        
         // 尝试设置数据源
         try {
             await newController.setupDataSource(dataSource);
@@ -450,10 +458,7 @@ Future<void> _playVideo() async {
         setState(() {
             _playerController = newController;
             toastString = S.current.loading;
-        });
-        
-        // 设置播放器的重试机制
-        setupRetryMechanism();
+        }); 
         
         // 开始播放
         await _playerController?.play();
