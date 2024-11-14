@@ -392,9 +392,6 @@ Future<void> _playVideo() async {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
           },
-          // 使用通用格式播放
-          videoFormat: BetterPlayerVideoFormat.other,
-          overriddenDuration: const Duration(seconds: 1), 
         );
 
         // 创建播放器的基本配置
