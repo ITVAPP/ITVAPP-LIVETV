@@ -146,6 +146,7 @@ Future<void> _playVideo() async {
     try {
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
+        _streamUrl = StreamUrl(url); 
         String parsedUrl = await _streamUrl!.getStreamUrl();
         _currentPlayUrl = parsedUrl;  // 保存解析后的地址
         
@@ -233,7 +234,7 @@ Future<void> _playVideo() async {
             newController.dispose();  // dispose() 是同步方法
             _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
-            return;  // 使用return而不是throw e
+            return; 
         }
 
         // 确保状态正确后再设置控制器
