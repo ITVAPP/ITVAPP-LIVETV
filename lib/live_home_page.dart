@@ -398,7 +398,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器的基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
-          autoPlay: false,              // 自动播放
+          autoPlay: true,              // 自动播放
           fit: BoxFit.contain,         // 视频适配模式
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
