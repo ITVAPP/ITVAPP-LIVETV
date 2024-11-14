@@ -56,7 +56,7 @@ mixin BetterPlayerRetryMixin {
   bool _isRetrying = false;
   /// 是否正在销毁中
   bool _isDisposing = false;
-  StreamSubscription? _playerEventSubscription;
+  VoidCallback? _videoPlayerListener;
   
   /// 获取重试配置对象的抽象getter方法
   BetterPlayerRetryConfig get retryConfig;
@@ -78,24 +78,43 @@ mixin BetterPlayerRetryMixin {
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
-    _playerEventSubscription?.cancel();
+    // 移除旧的监听器
+    if (_videoPlayerListener != null) {
+      betterPlayerController?.videoPlayerController?.removeListener(_videoPlayerListener!);
+      _videoPlayerListener = null;
+    }
     
-    // 使用 videoPlayerController 的 videoEventStream
-    _playerEventSubscription = betterPlayerController?.videoPlayerController?.videoEventStream.listen((event) {
+    // 创建新的监听器
+    _videoPlayerListener = () {
       if (_isDisposing) return;
 
-      if (event.eventType == VideoEventType.initialized) {
+      final controller = betterPlayerController?.videoPlayerController;
+      if (controller == null) return;
+
+      // 检查初始化状态
+      if (controller.value.isInitialized) {
         _resetRetryState();
-      } else if (event.eventType == VideoEventType.completed) {
-        if (retryConfig.autoRetry && !_isDisposing) {
-          _resetAndReplay();
-        }
-      } else if (event.eventType == VideoEventType.failed) {
+      }
+
+      // 检查错误状态
+      if (controller.value.hasError) {
         if (retryConfig.autoRetry && !_isDisposing) {
           _handlePlaybackError();
         }
       }
-    });
+
+      // 检查播放结束状态
+      if (controller.value.duration != null && 
+          controller.value.position != null &&
+          controller.value.position! >= controller.value.duration!) {
+        if (retryConfig.autoRetry && !_isDisposing) {
+          _resetAndReplay();
+        }
+      }
+    };
+
+    // 添加监听器
+    betterPlayerController?.videoPlayerController?.addListener(_videoPlayerListener!);
     
     // 如果配置了超时检测时间，启动超时检测
     if (retryConfig.timeoutDuration.inSeconds > 0) {
@@ -158,7 +177,7 @@ mixin BetterPlayerRetryMixin {
       if (_isDisposing) return;
       
       // 检查播放状态，如果未在播放且不在重试中，则处理播放错误  
-      final isPlaying = betterPlayerController?.isPlaying() ?? false;
+      final isPlaying = betterPlayerController?.videoPlayerController?.value.isPlaying ?? false;
       if (!isPlaying && !_isRetrying) {
         _handlePlaybackError();
       }
@@ -190,7 +209,10 @@ mixin BetterPlayerRetryMixin {
   /// 清理重试机制相关资源
   void disposeRetryMechanism() {
     _isDisposing = true;
-    _playerEventSubscription?.cancel();
+    if (_videoPlayerListener != null) {
+      betterPlayerController?.videoPlayerController?.removeListener(_videoPlayerListener!);
+      _videoPlayerListener = null;
+    }
     _retryTimer?.cancel();
     _timeoutTimer?.cancel();
     _resetRetryState();
