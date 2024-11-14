@@ -213,7 +213,7 @@ Future<void> _playVideo() async {
           autoDispose: !isYoutubeHls,         // YouTube HLS 时关闭，自动释放资源
           handleLifecycle: !isYoutubeHls,     // YouTube HLS 时关闭，处理生命周期事件
           // 禁用错误处理UI
-          errorBuilder: (BuildContext context, String errorMessage) {
+          errorBuilder: (BuildContext context, String? errorMessage) {
              return const SizedBox.shrink();
           },
           // 禁用控制UI
@@ -391,7 +391,7 @@ void _handleSourceSwitch() {
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
-    	await _disposePlayer();
+    	_disposePlayer();
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;
@@ -403,7 +403,7 @@ void _handleSourceSwitch() {
     // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
-    	await _disposePlayer();
+    	_disposePlayer();
         setState(() {
             toastString = S.current.playError;
             _isRetrying = false;  
