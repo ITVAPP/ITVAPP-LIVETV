@@ -113,7 +113,7 @@ mixin BetterPlayerRetryMixin {
         }
       };
     
-      _playerController!.addEventsListener(_eventListener!);
+      playerController!.addEventsListener(_eventListener!);
     
       // 如果配置了超时检测时间，启动超时检测
       if (retryConfig.timeoutDuration.inSeconds > 0) {
@@ -254,7 +254,7 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
   BetterPlayerController? _playerController;
   
   @override
-  BetterPlayerController? get _playerController => _playerController; 
+  BetterPlayerController? get playerController => _playerController;
 
   // 是否处于缓冲状态
   bool isBuffering = false;
