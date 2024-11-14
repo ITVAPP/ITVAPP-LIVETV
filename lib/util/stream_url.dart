@@ -132,6 +132,8 @@ Future<String> _getYouTubeVideoUrl() async {
 - 混合流数量: ${manifest.muxed.length}
 ===============================''');
 
+LogUtil.i('manifest：$manifest');
+
     // 1. 先尝试在 HLS 流中按质量查找
     if (manifest.hls.isNotEmpty) {
       for (var quality in ['720p', '480p', '360p', '240p']) {
