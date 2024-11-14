@@ -178,7 +178,7 @@ Future<void> _playVideo() async {
         // 播放器的数据源配置
         BetterPlayerDataSource dataSource = BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
-          parsedUrl,
+          parsedUrl, 
           liveStream: isHls,          // 根据URL判断是否为直播流
           useAsmsTracks: !isYoutubeHls,     // YouTube HLS 时关闭 
           useAsmsAudioTracks: !isYoutubeHls, // YouTube HLS 时关闭
@@ -206,6 +206,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器的基本配置
         BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
+          fit: BoxFit.contain,        // 自动缩放
           autoPlay: false,              // 自动播放
           looping: true,        // 开启循环
           allowedScreenSleep: false,   // 禁止屏幕休眠
