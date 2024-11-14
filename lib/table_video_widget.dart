@@ -78,7 +78,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         color: Colors.black,
         child: Center(
           child: AspectRatio(
-            aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+            aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio,
             child: BetterPlayer(controller: widget.controller!),
           ),
         ),
@@ -87,7 +87,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
     // 横屏模式下的视频显示
     return AspectRatio(
-       aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16/9,
+       aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio,
        child: BetterPlayer(controller: widget.controller!),
     );
   }
@@ -369,14 +369,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // 视频播放器
                 _buildVideoPlayer(playerHeight),
-                
-                // 修复播放控制图标的显示逻辑
-                if ((widget.controller != null && 
-                     widget.controller!.isVideoInitialized() == true && 
-                     !(widget.controller!.isPlaying() ?? false) && 
-                     !_drawerIsOpen) || _isShowPlayIcon)
+                if ((widget.controller != null && widget.controller!.isVideoInitialized() == true && !(widget.controller!.isPlaying() ?? false) &&  !_drawerIsOpen) || _isShowPlayIcon)
                   _buildControlIcon(
                     icon: Icons.play_arrow,
                     onTap: () => _handleSelectPress(),
