@@ -315,7 +315,7 @@ void _videoListener(BetterPlayerEvent event) {
 }
 
 void _handleError() {
-    if (_retryCount < maxRetries) {
+    if (_retryCount < defaultMaxRetries) {
         _retryPlayback();
     } else {
         _handleSourceSwitch();
@@ -334,13 +334,13 @@ void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying) return;
     
     _timeoutActive = true;
-    Timer(Duration(seconds: timeoutSeconds), () {
+    Timer(Duration(seconds: defaultTimeoutSeconds), () {
       if (!_timeoutActive || _isRetrying) return;
       
       if (_playerController != null && 
           !(_playerController!.isPlaying() ?? false) && 
           !isBuffering) {  // 考虑缓冲状态
-        LogUtil.logError('播放超时', 'Timeout after $timeoutSeconds seconds');
+        LogUtil.logError('播放超时', 'Timeout after $defaultTimeoutSeconds seconds');
         _retryPlayback();
       }
     });
@@ -354,7 +354,7 @@ void _retryPlayback() {
     _timeoutActive = false;
     _retryCount += 1;
 
-    if (_retryCount <= maxRetries) {
+    if (_retryCount <= defaultMaxRetries) {
         setState(() {
             toastString = S.current.retryplay;
         });
