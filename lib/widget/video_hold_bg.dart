@@ -42,42 +42,42 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
     // 初始化动画控制器，使用更长的动画时间实现平滑过渡
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 5000), // 增加到5秒，让动画更明显
       vsync: this,
     );
 
     // 使用 interval 让淡入淡出效果持续整个动画过程
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: const Interval(0.1, 0.8, curve: Curves.easeInOut),
-      reverseCurve: const Interval(0.1, 0.8, curve: Curves.easeInOut),
+      curve: const Interval(0.0, 1.0, curve: Curves.easeInOut), // 使用完整的动画区间
+      reverseCurve: const Interval(0.0, 1.0, curve: Curves.easeInOut),
     );
 
-    // 调整滑动动画参数，减小位移使切换更自然
+    // 调整滑动动画参数，增大滑动距离
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0.25, 0.0),
+      begin: const Offset(0.5, 0.0), // 增大滑动距离，从0.25增加到0.5
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: const Interval(0.0, 0.8, curve: Curves.elasticOut),
+      curve: const Interval(0.0, 1.0, curve: Curves.easeOutQuart), // 更平滑的曲线
     ));
 
-    // 优化缩放动画参数，减小缩放比例使过渡更柔和
+    // 增大缩放动画参数
     _scaleAnimation = Tween<double>(
-      begin: 1.08,
+      begin: 1.15, // 增大缩放比例，从1.08增加到1.15
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+      curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
     ));
 
-    // 幻灯片的附加缩放效果
+    // 优化幻灯片缩放效果
     _slideScaleAnimation = Tween<double>(
-      begin: 0.95,
+      begin: 0.92, // 增大缩放比例，从0.95减小到0.92，使效果更明显
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      curve: const Interval(0.0, 1.0, curve: Curves.easeOut), // 使用完整的动画区间
     ));
 
     _currentAnimationType = _getRandomAnimationType();
