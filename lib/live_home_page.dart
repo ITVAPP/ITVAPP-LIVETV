@@ -385,12 +385,15 @@ Future<void> _playVideo() async {
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
             useCache: true, // 启用缓存
-            preCacheSize: 20 * 1024 * 1024,  // 预缓存大小(20MB)
-            maxCacheSize: 100 * 1024 * 1024,  // 最大缓存大小(100MB)
-            maxCacheFileSize: 20 * 1024 * 1024, // 单个文件最大缓存大小(20MB)
+            preCacheSize: 30 * 1024 * 1024,  // 预缓存大小
+            maxCacheSize: 100 * 1024 * 1024,  // 最大缓存大小
+            maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
           ),
-          // 根据是否为音频流选择不同的视频格式
-          videoFormat: isDirectAudio ? BetterPlayerVideoFormat.dash : BetterPlayerVideoFormat.hls,
+          httpHeaders: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+          },
+          // 使用通用格式播放
+          videoFormat: BetterPlayerVideoFormat.other,
         );
 
         // 创建播放器的基本配置
