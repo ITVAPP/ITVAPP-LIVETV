@@ -415,21 +415,6 @@ Future<void> _playVideo() async {
           allowedScreenSleep: false,   // 禁止屏幕休眠
           autoDispose: true,           // 自动释放资源
           handleLifecycle: true,       // 处理生命周期事件
-          // 控制界面配置
-          controlsConfiguration: BetterPlayerControlsConfiguration(
-            enableFullscreen: false,     // 启用全屏
-            enableMute: false,           // 启用静音
-            enablePlayPause: false,      // 启用播放/暂停
-            enableProgressBar: false,    // 启用进度条
-            enableSkips: false,         // 启用跳过
-            enableAudioTracks: false,    // 启用音轨选择
-            loadingWidget: const CircularProgressIndicator(),  // 显示加载指示器
-            showControlsOnInitialize: false,   // 启用初始化时显示控制栏
-            enableOverflowMenu: false,       // 启用溢出菜单
-            enablePlaybackSpeed: false,  // 启用播放速度控制
-            enableProgressText: false,   // 禁用进度时间显示
-            showControls: false,  // 禁用控制界面显示
-          ),
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
             DeviceOrientation.landscapeLeft,
@@ -446,6 +431,9 @@ Future<void> _playVideo() async {
         BetterPlayerController newController = BetterPlayerController(
           betterPlayerConfiguration,
         );
+        
+        // 禁用所有控件
+        newController.setControlsEnabled(false);
 
         // 设置播放器的重试机制
         setupRetryMechanism();
