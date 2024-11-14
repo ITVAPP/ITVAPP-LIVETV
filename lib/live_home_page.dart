@@ -209,8 +209,8 @@ Future<void> _playVideo() async {
           autoPlay: false,              // 自动播放
           looping: true,        // 开启循环
           allowedScreenSleep: false,   // 禁止屏幕休眠
-          autoDispose: true,           // 自动释放资源
-          handleLifecycle: true,       // 处理生命周期事件
+          autoDispose: !isYoutubeHls,         // YouTube HLS 时关闭，自动释放资源
+          handleLifecycle: !isYoutubeHls,     // YouTube HLS 时关闭，处理生命周期事件
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
             DeviceOrientation.landscapeLeft,
@@ -282,11 +282,13 @@ void _videoListener(BetterPlayerEvent event) {
             break;
             
         case BetterPlayerEventType.exception:
-           // 对于 HLS 流不做处理,让播放器自动重试
-           if (!_isHlsStream(_currentPlayUrl)) {
-               LogUtil.logError('播放器错误', event.parameters?["error"]?.toString());
-               _handleError();
-           }
+          // 对于 HLS 流忽略异常，让播放器自行处理重试
+          if (_isHlsStream(_currentPlayUrl)) {
+              return;
+          } else {
+              LogUtil.logError('监听到播放器错误', event.parameters?["error"]?.toString());
+              _handleError(); 
+          }
            break;
             
         case BetterPlayerEventType.bufferingStart:
