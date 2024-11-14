@@ -459,7 +459,7 @@ Future<void> _playVideo() async {
         setupRetryMechanism();
         
         // 开始播放
-        await newController.play();
+        await _playerController?.play();
    
     } catch (e, stackTrace) {
         // 捕获并记录所有其他错误，然后尝试切换源
