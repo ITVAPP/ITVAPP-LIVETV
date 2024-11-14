@@ -291,6 +291,7 @@ class _GroupListState extends State<GroupList> {
     color: defaultBackgroundColor,
     child: widget.keys.isEmpty && widget.isFavoriteCategory
       ? Container(
+      	  alignment: Alignment.topCenter,
           constraints: BoxConstraints(minHeight: defaultMinHeight),
           child: Center(
             child: Text(
@@ -301,7 +302,7 @@ class _GroupListState extends State<GroupList> {
             ),
           ),
         )
-      : ListView(  // 替换 SingleChildScrollView
+      : ListView( 
           controller: widget.scrollController,
           children: [
             Group(
