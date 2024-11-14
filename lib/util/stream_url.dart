@@ -7,35 +7,35 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 class StreamUrl {
   final String url;
   final YoutubeExplode yt = YoutubeExplode(); // 创建 YouTube API 实例，用于获取视频数据
-  final http.Client _client = http.Client(); // 创建 HTTP 客户端实例
-  bool _isDisposed = false; // 标志位，防止重复释放
-  Completer<void>? _completer; // 用于取消异步任务
-  final Duration timeoutDuration; // 超时时间变量
+  final http.Client _client = http.Client(); // 创建 HTTP 客户端实例，用于发送网络请求
+  bool _isDisposed = false; // 标志位，用于防止资源重复释放和避免已释放资源的操作
+  Completer<void>? _completer; // 用于控制和取消异步任务的完成器
+  final Duration timeoutDuration; // 定义请求超时时间，可在构造时指定
 
-  // 构造函数，初始化播放 URL，并允许传入超时时间，默认为 9 秒
+  // 构造函数：初始化必要的 URL 和可选的超时时间（默认 9 秒）
   StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 9)});
 
-  // 返回处理后的 URL；如果失败或不需要解析，返回原始 URL 或 'ERROR'
+  // 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
-    if (_isDisposed) return 'ERROR';  // 如果已释放资源，直接返回
-    _completer = Completer<void>(); // 每次调用都创建一个新的 completer
+    if (_isDisposed) return 'ERROR';  // 如果资源已释放，返回错误状态
+    _completer = Completer<void>(); // 创建新的完成器用于控制当前请求
     try {
-      // 如果不是需要解析的URL，避免后续处理
+      // 处理蓝奏云链接：直接返回解析接口地址
       if (isLZUrl(url)){
         return 'https://lz.qaiu.top/parser?url=$url'; 
       } 
       
+      // 非 YouTube 链接：直接返回原始 URL
       if (!isYTUrl(url)) {
-        return url; // 直接返回原始 URL
+        return url;
       } 
       
-      // 选择处理函数
+      // 根据 URL 类型选择相应的处理函数：直播流或普通视频
       final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
       
-      // 第一次尝试
+      // 第一次尝试获取流地址
       try {
         final result = await task().timeout(timeoutDuration);
-        // 现在只需要检查是否为 'ERROR'，因为内部方法已经处理了所有失败情况
         if (result != 'ERROR') {
           LogUtil.i('首次获取视频流成功');
           return result;
@@ -49,13 +49,12 @@ class StreamUrl {
         }
       }
       
-      // 等待短暂时间后重试
+      // 首次失败后等待 1 秒进行重试
       await Future.delayed(const Duration(seconds: 1));
       
-      // 第二次尝试
+      // 第二次尝试获取流地址
       try {
         final result = await task().timeout(timeoutDuration);
-        // 同样只需要检查是否为 'ERROR'
         if (result != 'ERROR') {
           LogUtil.i('重试获取视频流成功');
           return result;
@@ -73,34 +72,34 @@ class StreamUrl {
       
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
-      return 'ERROR';  // 出现异常时返回 'ERROR'
+      return 'ERROR';  // 发生任何未处理的异常时返回错误状态
     } finally {
       if (!_isDisposed) {
-        _completer?.complete(); // 确保任务完成
+        _completer?.complete(); // 确保异步任务正常完成
       }
-      _completer = null; // 清除 completer
+      _completer = null; // 清理完成器引用
     }
   }
 
-  // 释放资源（关闭 YouTube API 实例和 HTTP 客户端），防止重复调用
+  // 释放所有资源：包括 YouTube API 实例和 HTTP 客户端
   void dispose() {
-    if (_isDisposed) return; // 如果已经释放了资源，直接返回
-    _isDisposed = true; // 提前设置为已释放，防止重复释放
+    if (_isDisposed) return; // 防止重复释放
+    _isDisposed = true; // 标记为已释放状态
     
-    // 如果有未完成的异步任务，取消它
+    // 取消未完成的异步任务
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
     LogUtil.safeExecute(() {
-      // 关闭 YouTube API 实例，终止未完成的请求
+      // 释放 YouTube API 实例
       try {
         yt.close();
       } catch (e, stackTrace) {
         LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
       }
 
-      // 关闭 HTTP 客户端，终止未完成的 HTTP 请求
+      // 释放 HTTP 客户端实例
       try {
         _client.close();
       } catch (e, stackTrace) {
@@ -109,125 +108,123 @@ class StreamUrl {
     }, '关闭资源时发生错误');
   }
 
-  // 判断 URL 是否为需要解析处理的链接
+  // 判断是否为蓝奏云分享链接
   bool isLZUrl(String url) {
-    return url.contains('lanzou') ;
+    return url.contains('lanzou');
   }
   
-  // 判断 URL 是否为需要解析处理的链接
+  // 判断是否为 YouTube 相关链接
   bool isYTUrl(String url) {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
 
- // 检查 URL 字符串
-bool _isValidUrl(String url) {
- return url.isNotEmpty && url.contains('http');
-}
+  // 验证 URL 的基本有效性：检查是否为空和是否包含 http
+  bool _isValidUrl(String url) {
+    return url.isNotEmpty && url.contains('http');
+  }
 
-// 获取普通 YouTube 视频的流媒体 URL
-Future<String> _getYouTubeVideoUrl() async {
-if (_isDisposed) return 'ERROR';
-try {
-  var video = await yt.videos.get(url);  
-  var manifest = await yt.videos.streams.getManifest(video.id);
-  LogUtil.i('''
+  // 获取普通 YouTube 视频的流媒体 URL
+  Future<String> _getYouTubeVideoUrl() async {
+    if (_isDisposed) return 'ERROR';
+    try {
+      var video = await yt.videos.get(url);  
+      var manifest = await yt.videos.streams.getManifest(video.id);
+      LogUtil.i('''
 ======= Manifest 流信息 =======
 - HLS流数量: ${manifest.hls.length}
 - 混合流数量: ${manifest.muxed.length}
 ===============================''');
-  LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
+      LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
 
-  // 1. 先尝试在 HLS 流(混合流)中按质量查找
-  if (manifest.hls.isNotEmpty) {
-    for (var quality in ['720p', '1080p', '480p', '360p']) {
-      var hlsStream = manifest.hls
-          .where((s) => s.qualityLabel == quality && 
-                       _isValidUrl(s.url.toString()))
-          .firstOrNull;
-          
-      if (hlsStream != null) {
-        LogUtil.i('找到 $quality HLS混合流');
-        return hlsStream.url.toString();
+      // 优先尝试获取 HLS 流，按照优先级顺序查找指定质量
+      if (manifest.hls.isNotEmpty) {
+        LogUtil.i('可用的 HLS 混合流:');
+        manifest.hls
+            .whereType<HlsMuxedStreamInfo>()
+            .forEach((s) => LogUtil.i('''
+- qualityLabel: ${s.qualityLabel}
+- videoQuality: ${s.videoQuality}
+- 音频编码: ${s.audioCodec}
+- 视频编码: ${s.videoCodec}
+'''));
+
+        for (var quality in ['720', '1080', '480']) {
+          var hlsStream = manifest.hls
+              .whereType<HlsMuxedStreamInfo>()
+              .where((s) => s.qualityLabel.contains(quality) && 
+                         _isValidUrl(s.url.toString()))
+              .firstOrNull;
+              
+          if (hlsStream != null) {
+            LogUtil.i('''找到匹配 $quality 的 HLS混合流''');
+            return hlsStream.url.toString();
+          }
+        }
+        LogUtil.i('HLS混合流中未找到指定质量的流');
+      } else {
+        LogUtil.i('没有可用的 HLS 流');
       }
+
+      // 如果没有合适的 HLS 流，尝试获取普通混合流
+      var streamInfo = _getBestMuxedStream(manifest);
+      if (streamInfo != null) {
+        var streamUrl = streamInfo.url.toString();
+        if (_isValidUrl(streamUrl)) {
+          return streamUrl;
+        }
+      }
+
+      LogUtil.e('未找到任何符合条件的流');
+      return 'ERROR';
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取视频流时发生错误', e, stackTrace);
+      return 'ERROR';
     }
-    LogUtil.i('HLS混合流中未找到指定质量的流');
-  } else {
-    LogUtil.i('没有可用的 HLS 流');
   }
 
-  // 2. 如果找不到合适的 HLS 流，尝试混合流
-  var streamInfo = _getBestMuxedStream(manifest, ['720p', '1080p', '480p', '360p']);
-  if (streamInfo != null) {
-    var streamUrl = streamInfo.url.toString();
-    if (_isValidUrl(streamUrl)) {
-      LogUtil.i('''选择的混合流:
-- 清晰度: ${streamInfo.qualityLabel}  
-- 容器格式: ${streamInfo.container.name}
-- 比特率: ${streamInfo.bitrate}''');
-      return streamUrl;
+  // 获取最佳的普通混合流，优先选择 MP4 格式
+  StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
+    if (manifest.muxed.isEmpty) {
+      LogUtil.i('没有可用的混合流');
+      return null;
     }
-  }
 
-  // 3. 如果两种方式都没找到，返回 ERROR
-  LogUtil.e('未找到任何符合条件的流');
-  return 'ERROR';
-} catch (e, stackTrace) {
-  LogUtil.logError('获取视频流时发生错误', e, stackTrace);
-  return 'ERROR';
-}
-}
-
-// 按质量和格式优先级选择最佳混合流
-StreamInfo? _getBestMuxedStream(StreamManifest manifest, List<String> preferredQualities) {
-if (manifest.muxed.isEmpty) {
-  LogUtil.i('没有可用的混合流');
-  return null;
-}
-
-try {
-  // 按质量优先级查找
-  for (var quality in preferredQualities) {
-    LogUtil.i('查找 $quality 质量的混合流');
-    
-    // 找出指定质量的所有流
-    var qualityStreams = manifest.muxed
-        .where((s) => s.qualityLabel == quality)
-        .toList();
-
-    if (qualityStreams.isNotEmpty) {
-      // 按容器格式优先级：mp4 > webm
-      var mp4Stream = qualityStreams
+    try {
+      LogUtil.i('查找普通混合流');
+      
+      // 优先查找 MP4 格式的流
+      var mp4Stream = manifest.muxed
           .where((s) => s.container.name.toLowerCase() == 'mp4' && 
-                       _isValidUrl(s.url.toString()))
+                     _isValidUrl(s.url.toString()))
           .firstOrNull;
           
       if (mp4Stream != null) {
-        LogUtil.i('找到 MP4 格式的 $quality 流');
+        LogUtil.i('找到 MP4 格式混合流');
         return mp4Stream;
       }
 
-      var webmStream = qualityStreams
+      // 如果没有 MP4 格式，尝试查找 WebM 格式
+      var webmStream = manifest.muxed
           .where((s) => s.container.name.toLowerCase() == 'webm' && 
-                       _isValidUrl(s.url.toString()))
+                     _isValidUrl(s.url.toString()))
           .firstOrNull;
           
       if (webmStream != null) {
-        LogUtil.i('找到 WebM 格式的 $quality 流');
+        LogUtil.i('找到 WebM 格式混合流');
         return webmStream;
       }
+
+      LogUtil.i('未找到可用的普通混合流');
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('选择混合流时发生错误', e, stackTrace);
+      return null;
     }
   }
-  LogUtil.i('未找到指定质量的混合流');
-  return null;
-} catch (e, stackTrace) {
-  LogUtil.logError('选择混合流时发生错误', e, stackTrace);
-  return null;
-}
-}
   
   // 获取 YouTube 直播流的 URL
   Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
+    if (_isDisposed) return 'ERROR';
     try {
       final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360']);
       if (m3u8Url != null) {
@@ -244,17 +241,19 @@ try {
     }
   }
 
-  // 获取 YouTube 视频的 m3u8 地址（用于直播流），根据不同的分辨率列表进行选择
+  // 获取 YouTube 直播的 m3u8 清单地址
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
+    if (_isDisposed) return null;
     try {
-      final response = await _client.get(  // 使用 _client 进行请求
+      // 发送请求获取页面内容
+      final response = await _client.get(
         Uri.parse(youtubeUrl),
         headers: _getRequestHeaders(),
       ).timeout(timeoutDuration);
-      if (_isDisposed) return null;  // 资源释放后立即退出
+      if (_isDisposed) return null;
 
       if (response.statusCode == 200) {
+        // 使用正则表达式提取 m3u8 地址
         final regex = RegExp(r'"hlsManifestUrl":"(https://[^"]+\.m3u8)"');
         final match = regex.firstMatch(response.body);
 
@@ -274,18 +273,20 @@ try {
     return null;
   }
 
-  // 根据 m3u8 清单中的分辨率，选择最合适的流 URL
+  // 从 m3u8 清单中选择指定质量的流地址
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
+    if (_isDisposed) return null;
     try {
-      final response = await _client.get(Uri.parse(indexM3u8Url))  // 使用 _client 进行请求
-          .timeout(timeoutDuration);  // 添加超时处理
-      if (_isDisposed) return null;  // 资源释放后立即退出
+      // 获取 m3u8 清单内容
+      final response = await _client.get(Uri.parse(indexM3u8Url))
+          .timeout(timeoutDuration);
+      if (_isDisposed) return null;
 
       if (response.statusCode == 200) {
         final lines = response.body.split('\n');
         final qualityUrls = <String, String>{};
 
+        // 解析清单内容，提取不同质量的流地址
         for (var i = 0; i < lines.length; i++) {
           if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
             final qualityLine = lines[i];
@@ -296,15 +297,17 @@ try {
               qualityUrls[quality] = url;
             }
           }
-          if (_isDisposed) return null;  // 资源释放后立即退出
+          if (_isDisposed) return null;
         }
 
+        // 按照优先级查找指定质量的流
         for (var preferredQuality in preferredQualities) {
           if (qualityUrls.containsKey(preferredQuality)) {
             return qualityUrls[preferredQuality];
           }
         }
 
+        // 如果没有找到指定质量，返回第一个可用的流
         if (qualityUrls.isNotEmpty) {
           return qualityUrls.values.first;
         }
@@ -318,9 +321,10 @@ try {
     return null;
   }
 
-  // 从 m3u8 文件的清单行中提取视频质量（分辨率）
+  // 从 m3u8 清单行提取视频质量信息
   String? _extractQuality(String extInfLine) {
-    if (_isDisposed) return null;  // 检查是否已经释放资源
+    if (_isDisposed) return null;
+    // 使用正则表达式匹配分辨率信息
     final regex = RegExp(r'RESOLUTION=\d+x(\d+)');
     final match = regex.firstMatch(extInfLine);
 
@@ -330,7 +334,7 @@ try {
     return null;
   }
 
-  // 提取 User-Agent 和其他 HTTP 请求头
+// 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
   Map<String, String> _getRequestHeaders() {
     return {
       HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
