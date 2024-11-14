@@ -30,23 +30,6 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-/// 重试配置类，用于配置播放器重试的各项参数
-class BetterPlayerRetryConfig {
-  final int maxRetries;
-  final Duration retryDelay;
-  final Duration timeoutDuration;
-  final bool autoRetry;
-  
-  /// 构造函数，设置默认值
-  const BetterPlayerRetryConfig({
-    this.maxRetries = 1,          // 默认最多重试1次
-    this.retryDelay = const Duration(seconds: 2),      // 默认重试间隔2秒
-    this.timeoutDuration = const Duration(seconds: 18), // 默认超时时间18秒
-    this.autoRetry = true,        // 默认启用自动重试
-  });
-}
-
-/// 重试管理的Mixin，提供播放器重试相关的功能
 mixin BetterPlayerRetryMixin {
   /// 当前重试次数
   int _retryCount = 0;
@@ -54,18 +37,21 @@ mixin BetterPlayerRetryMixin {
   Timer? _timeoutTimer;
   /// 是否正在重试中
   bool _isRetrying = false;
-  /// 是否正在销毁中
+  /// 是否正在销毁中 
   bool _isDisposing = false;
   StreamSubscription? _eventSubscription;
   
-  // 添加这个字段来保存事件监听器的引用
+  // 事件监听器引用
   void Function(BetterPlayerEvent)? _eventListener;
+  
+  // 添加播放器初始化状态跟踪
+  bool get _isPlayerInitialized => _playerController?.isInitialized() ?? false;
   
   /// 获取重试配置对象的抽象getter方法
   BetterPlayerRetryConfig get retryConfig;
   
-  /// 获取播放器控制器的抽象方法 - 修改这里
-  BetterPlayerController? get playerController;
+  /// 获取播放器控制器的抽象方法 
+  BetterPlayerController? get _playerController;
   
   /// 重试开始时的回调
   void onRetryStarted();
@@ -81,42 +67,47 @@ mixin BetterPlayerRetryMixin {
   
   /// 设置重试机制，监听播放器事件
   void setupRetryMechanism() {
-       if (playerController == null) return;
+    if (_playerController == null) return;
        
-      // 确保清理之前的事件监听
-      disposeRetryMechanism();
+    // 确保清理之前的事件监听
+    if (_eventListener != null) {
+      _playerController?.removeEventsListener(_eventListener!);
+    }
     
-      _eventListener = (BetterPlayerEvent event) {
-       if (_isDisposing) return;
+    _eventListener = (BetterPlayerEvent event) {
+      if (_isDisposing) return;
 
-        switch (event.betterPlayerEventType) {
-          case BetterPlayerEventType.initialized:
-            _resetRetryState();
-            break;
-            
-          case BetterPlayerEventType.exception:
-            if (retryConfig.autoRetry && !_isDisposing) {
-              _handlePlaybackError();
-            }
-            break;
-            
-          case BetterPlayerEventType.finished:
-            if (retryConfig.autoRetry && !_isDisposing) {
-              _resetAndReplay();
-            }
-            break;
+      switch (event.betterPlayerEventType) {
+        case BetterPlayerEventType.initialized:
+          _resetRetryState();
+          break;
           
-          default:
-            break;
-        }
-      };
-    
-      playerController!.addEventsListener(_eventListener!);
-    
-      // 如果配置了超时检测时间，启动超时检测
-      if (retryConfig.timeoutDuration.inSeconds > 0) {
-        _startTimeoutCheck();
+        case BetterPlayerEventType.exception:
+          if (!_isPlayerInitialized) {
+            // 初始化失败，直接切换源
+            onSourceSwitchNeeded();
+          } else if (retryConfig.autoRetry && !_isDisposing) {
+            _handlePlaybackError();
+          }
+          break;
+          
+        case BetterPlayerEventType.finished:
+          if (retryConfig.autoRetry && !_isDisposing) {
+            _resetAndReplay();
+          }
+          break;
+        
+        default:
+          break;
       }
+    };
+    
+    _playerController!.addEventsListener(_eventListener!);
+    
+    // 如果配置了超时检测时间，启动超时检测
+    if (retryConfig.timeoutDuration.inSeconds > 0) {
+      _startTimeoutCheck();
+    }
   }
   
   /// 重置重试状态
@@ -132,39 +123,41 @@ mixin BetterPlayerRetryMixin {
   Future<void> _handlePlaybackError() async {
     if (_isRetrying || _isDisposing) return;
     
-    // 判断是否还可以继续重试
-    if (_retryCount < retryConfig.maxRetries) {
-      _isRetrying = true;
-      _retryCount++;
-      
-      // 触发重试开始回调
-      onRetryStarted();
-      
-      // 取消之前的重试定时器
-      _retryTimer?.cancel();
-      // 延迟指定时间后重试
-      _retryTimer = Timer(retryConfig.retryDelay, () async {
-        if (_isDisposing) return;
-        
-        try {
-          await initializePlayer();
-          if (!_isDisposing) {
-            _isRetrying = false;
-          }
-        } catch (e, stackTrace) {
-          LogUtil.logError('重试播放失败', e, stackTrace);
-          if (!_isDisposing) {
-            _handlePlaybackError();
-          }
-        }
-      });
-    } else {
-      // 超过最大重试次数，触发失败回调并切换视频源
+    // 增加重试保护
+    final currentRetryCount = _retryCount + 1;
+    if (currentRetryCount > retryConfig.maxRetries) {
       if (!_isDisposing) {
         onRetryFailed();
         onSourceSwitchNeeded();
       }
+      return;
     }
+    
+    _isRetrying = true;
+    _retryCount = currentRetryCount;
+    
+    // 触发重试开始回调
+    onRetryStarted();
+    
+    // 取消之前的重试定时器
+    _retryTimer?.cancel();
+    // 延迟指定时间后重试
+    _retryTimer = Timer(retryConfig.retryDelay, () async {
+      if (_isDisposing) return;
+      
+      try {
+        // 重新创建播放器而不是调用 initializePlayer
+        await _playVideo();
+        if (!_isDisposing) {
+          _isRetrying = false;
+        }
+      } catch (e, stackTrace) {
+        LogUtil.logError('重试播放失败', e, stackTrace);
+        if (!_isDisposing) {
+          _handlePlaybackError();
+        }
+      }
+    });
   }
   
   /// 启动超时检测
@@ -174,7 +167,7 @@ mixin BetterPlayerRetryMixin {
       if (_isDisposing) return;
       
       // 检查播放状态，如果未在播放且不在重试中，则处理播放错误  
-      final isPlaying = playerController?.isPlaying() ?? false;
+      final isPlaying = _playerController?.isPlaying() ?? false;
       if (!isPlaying && !_isRetrying) {
         _handlePlaybackError();
       }
@@ -186,7 +179,7 @@ mixin BetterPlayerRetryMixin {
     if (_isDisposing) return;
     
     try {
-      final controller = playerController;
+      final controller = _playerController;
       if (controller != null) {
         // 将播放位置重置到开始
         await controller.seekTo(Duration.zero);
@@ -207,7 +200,7 @@ mixin BetterPlayerRetryMixin {
   void disposeRetryMechanism() {
     _isDisposing = true;
     if (_eventListener != null) {
-      playerController?.removeEventsListener(_eventListener!);
+      _playerController?.removeEventsListener(_eventListener!);
     }
     _eventSubscription?.cancel();
     _retryTimer?.cancel();
@@ -241,10 +234,8 @@ class _LiveHomePageState extends State<LiveHomePage> with BetterPlayerRetryMixin
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
-  
-  // 实现 BetterPlayerRetryMixin 的抽象 getter
   @override
-  BetterPlayerController? get playerController => _playerController;
+  BetterPlayerController? get _playerController => _playerController;
 
   // 视频播放器控制器设置
   final BetterPlayerRetryConfig _retryConfig = const BetterPlayerRetryConfig();
