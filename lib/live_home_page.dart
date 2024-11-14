@@ -81,9 +81,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 重试次数计数器
   int _retryCount = 0;
 
-  // 最大重试次数
-  final int maxRetries = defaultMaxRetries;
-
   // 等待超时检测
   bool _timeoutActive = false;
 
@@ -93,14 +90,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 切换时的竞态条件
   bool _isSwitchingChannel = false;
 
-  // 超时检测时间
-  final int timeoutSeconds = defaultTimeoutSeconds;
-
   // 标记是否需要更新宽高比
   bool _shouldUpdateAspectRatio = true;
 
   // 声明变量，存储 StreamUrl 类的实例
   StreamUrl? _streamUrl;
+
+  // 添加当前播放URL变量
+  String? _currentPlayUrl;
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -110,7 +107,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 抽屉刷新键
   ValueKey<int>? _drawerRefreshKey;
 
-  // 实例化 TrafficAnalytics 流量统计
+  // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
 
   // 音频检测状态
@@ -119,7 +116,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 检查是否为音频流
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
-    
     final lowercaseUrl = url.toLowerCase();
     return lowercaseUrl.endsWith('.mp3') || 
            lowercaseUrl.endsWith('.aac') || 
@@ -150,8 +146,6 @@ Future<void> _playVideo() async {
     try {
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
-        
-        _streamUrl = StreamUrl(url);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         _currentPlayUrl = parsedUrl;  // 保存解析后的地址
         
@@ -400,13 +394,6 @@ void _handleSourceSwitch() {
         return;
     }
 
-    // 检查新的源是否为音频
-    bool isDirectAudio = _checkIsAudioStream(urls[_sourceIndex]);
-    setState(() {
-        _isAudio = isDirectAudio;
-        toastString = S.current.switchLine(_sourceIndex + 1);
-    });
-
     // 延迟后尝试新源
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
@@ -499,13 +486,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
         _sourceIndex = 0;
         _retryCount = 0;
         _shouldUpdateAspectRatio = true;
-
-        // 检查新频道是否为音频
-        final String? url = model.urls?.isNotEmpty == true ? model.urls![0] : null;
-        bool isDirectAudio = _checkIsAudioStream(url);
-        setState(() {
-          _isAudio = isDirectAudio;
-        });
 
         // 发送统计数据
         if (Config.Analytics) {
@@ -809,7 +789,6 @@ void toggleFavorite(String channelId) async {
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
-        // 更新刷新键，触发抽屉重建
         setState(() {
           _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
         });
