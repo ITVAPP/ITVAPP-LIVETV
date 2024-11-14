@@ -12,8 +12,8 @@ class StreamUrl {
   Completer<void>? _completer; // 用于取消异步任务
   final Duration timeoutDuration; // 超时时间变量
 
-  // 构造函数，初始化播放 URL，并允许传入超时时间，默认为 8 秒
-  StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 8)});
+  // 构造函数，初始化播放 URL，并允许传入超时时间，默认为 9 秒
+  StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 9)});
 
   // 返回处理后的 URL；如果失败或不需要解析，返回原始 URL 或 'ERROR'
   Future<String> getStreamUrl() async {
@@ -132,11 +132,11 @@ Future<String> _getYouTubeVideoUrl() async {
 - 混合流数量: ${manifest.muxed.length}
 ===============================''');
 
-LogUtil.i('manifest：$manifest');
+  LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
 
     // 1. 先尝试在 HLS 流中按质量查找
     if (manifest.hls.isNotEmpty) {
-      for (var quality in ['720p', '480p', '360p', '240p']) {
+      for (var quality in ['720p', '1080p', '480p', '360p']) {
         var hlsStream = manifest.hls
             .where((s) => s.qualityLabel == quality)
             .firstOrNull;
@@ -155,7 +155,7 @@ LogUtil.i('manifest：$manifest');
     }
 
     // 2. 如果找不到合适的 HLS 流，尝试混合流
-    var streamInfo = _getBestMuxedStream(manifest, ['720p', '480p', '360p', '240p']);
+    var streamInfo = _getBestMuxedStream(manifest, ['720p', '1080p', '480p', '360p']);
     if (streamInfo != null) {
       var streamUrl = streamInfo.url.toString();
       if (streamUrl.isNotEmpty && streamUrl.contains('http')) {
@@ -227,7 +227,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest, List<String> preferredQ
   Future<String> _getYouTubeLiveStreamUrl() async {
     if (_isDisposed) return 'ERROR';  // 检查是否已经释放资源
     try {
-      final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360', '240']);
+      final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360']);
       if (m3u8Url != null) {
         LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
         return m3u8Url;
