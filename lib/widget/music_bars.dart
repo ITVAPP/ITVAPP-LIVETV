@@ -59,11 +59,15 @@ class _DynamicAudioBarsState extends State<DynamicAudioBars>
 
   // 添加暂停/继续控制方法
   void pauseAnimation() {
-    _isAnimating = false;
+    setState(() {
+      _isAnimating = false;
+    });
   }
 
   void resumeAnimation() {
-    _isAnimating = true;
+    setState(() {
+      _isAnimating = true;
+    });
   }
 
   @override
