@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -160,7 +161,7 @@ try {
          .whereType<HlsMuxedStreamInfo>()
          .where((s) => s.qualityLabel.contains(quality) && 
                     _isValidUrl(s.url.toString()) &&
-                    s.videoCodec?.toLowerCase().contains('avc1') ?? false)
+                    (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
          .firstOrNull;
          
      if (hlsStream != null) {
@@ -176,8 +177,9 @@ try {
        .where((a) => 
          (a.audioCodec?.toLowerCase().contains('aac') ?? false) && 
          _isValidUrl(a.url.toString()))
-       .toList()
-       ..sort((a, b) => (b.bitrate ?? 0).compareTo(a.bitrate ?? 0));
+       .toList();
+
+   audioStreams.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
         
    var audioStream = audioStreams.firstOrNull;
        
@@ -201,7 +203,6 @@ try {
               'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
               
           LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
-          import 'dart:convert';
           return 'data:application/vnd.apple.mpegurl;base64,${base64.encode(utf8.encode(combinedM3u8))}';
    }
    LogUtil.i('HLS流中未找到完整的音视频流');
