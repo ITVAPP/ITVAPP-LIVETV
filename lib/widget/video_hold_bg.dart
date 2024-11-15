@@ -458,10 +458,10 @@ Widget build(BuildContext context) {
 
    double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
 
-   final EdgeInsets padding = EdgeInsets.only(bottom: isPortrait ? 10.0 : 15.0);
+   final EdgeInsets padding = EdgeInsets.only(bottom: isPortrait ? 8.0 : 12.0);
    final TextStyle textStyle = TextStyle(
      color: Colors.white,
-     fontSize: isPortrait ? 16 : 18,
+     fontSize: isPortrait ? 15 : 17,
    );
 
    return Selector<ThemeProvider, bool>(
@@ -509,7 +509,7 @@ Widget build(BuildContext context) {
                      width: progressBarWidth,
                      height: 5,
                    ),
-                   const SizedBox(height: 3),
+                   const SizedBox(height: 5),
                    LayoutBuilder(
                      builder: (context, constraints) {
                        _containerWidth = constraints.maxWidth;
