@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:itvapp_live_tv/util/bing_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
+import 'package:itvapp_live_tv/util/bing_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
 
