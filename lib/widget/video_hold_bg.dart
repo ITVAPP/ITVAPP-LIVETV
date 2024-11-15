@@ -155,7 +155,8 @@ void didUpdateWidget(VideoHoldBg oldWidget) {
   // 仅在 showBingBackground=true 时处理音柱动画
   if (widget.showBingBackground) {
     if (oldWidget.toastString != widget.toastString) {
-      if (widget.toastString != null) {
+      // 只有当 toastString 不是 "HIDE_CONTAINER" 且不是 null 时才暂停动画
+      if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {  
         // 有消息时暂停动画
         _audioBarKey.currentState?.pauseAnimation();
       } else {
