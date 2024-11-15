@@ -43,7 +43,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   double _containerWidth = 0;
 
   // 添加音柱控制相关的Key
-  final GlobalKey<_DynamicAudioBarsState> _audioBarKey = GlobalKey();
+  final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
   
 @override
 void initState() {
