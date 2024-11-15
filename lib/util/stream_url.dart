@@ -254,7 +254,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     // 在有效流中查找MP4或WebM
     final streamInfo = validStreams.firstWhere(
       (s) => validContainers.contains(s.container.name.toLowerCase()),
-      orElse: () => null
+      orElse: () => StreamInfo()
     );
     
     if (streamInfo != null) {
