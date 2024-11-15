@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:sp_util/sp_util.dart';
+import 'package:provider/provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
@@ -29,7 +31,7 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 9)});
+  StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 18)});
   
 // 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
@@ -129,7 +131,7 @@ void dispose() {
       return false;
     }
   }
-  
+
 // 获取普通 YouTube 视频的流媒体 URL
 Future<String> _getYouTubeVideoUrl() async {
 if (_isDisposed) return 'ERROR';
@@ -162,11 +164,6 @@ if (manifest.hls.isNotEmpty) {
       );
 
   if (hlsStream != null) {
-    LogUtil.i('''找到 HLS视频流:
-- qualityLabel: ${hlsStream.qualityLabel}
-- container: ${hlsStream.container.name}
-- 视频编码: ${hlsStream.videoCodec}
-''');
     videoUrl = hlsStream.url.toString();
     selectedVideoStream = hlsStream;
   }
@@ -188,22 +185,33 @@ if (manifest.hls.isNotEmpty) {
     audioUrl = audioStream.url.toString();
   }
 
-  // 如果找到了视频和音频流，返回组合的m3u8
+  // 如果找到了视频和音频流，生成并保存 master playlist
   if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
-    final resolution = selectedVideoStream.qualityLabel.replaceAll('p', '');
-    final (width, height) = resolutionMap[resolution] ?? (1280, 720);
+    try {
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/master_youtube.m3u8');
+
+      final resolution = selectedVideoStream.qualityLabel.replaceAll('p', '');
+      final (width, height) = resolutionMap[resolution] ?? (1280, 720);
          
-    final combinedM3u8 = '#EXTM3U\n'
-        '#EXT-X-VERSION:3\n'
-        '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
-        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec ?? 'avc1.42001f'},${audioStream.audioCodec ?? 'mp4a.40.2'}",'
-        'AUDIO="audio_group"\n'
-        '$videoUrl\n'
-        '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
-        'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
+      final combinedM3u8 = '#EXTM3U\n'
+          '#EXT-X-VERSION:3\n'
+          '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
+          'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec ?? 'avc1.42001f'},${audioStream.audioCodec ?? 'mp4a.40.2'}",'
+          'AUDIO="audio_group"\n'
+          '$videoUrl\n'
+          '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
+          'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
              
-    LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
-    return 'data:application/vnd.apple.mpegurl;base64,${base64.encode(utf8.encode(combinedM3u8))}';
+      LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
+      
+      await file.writeAsString(combinedM3u8);
+      return file.path;
+      
+    } catch (e) {
+      LogUtil.logError('保存m3u8文件失败', e);
+      return 'ERROR';
+    }
   }
   LogUtil.i('HLS流中未找到完整的音视频流');
 } else {
