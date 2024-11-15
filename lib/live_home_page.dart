@@ -319,6 +319,7 @@ void _videoListener(BetterPlayerEvent event) {
                 setState(() {
                     // 如果事件类型为 play，将 isPlaying 设为 true；pause 时设为 false
                     isPlaying = event.betterPlayerEventType == BetterPlayerEventType.play;
+                    toastString = '';  // 清空提示
                 });
             }
             break;
