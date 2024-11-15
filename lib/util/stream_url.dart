@@ -142,17 +142,17 @@ Future<String> _getYouTubeVideoUrl() async {
 - 混合流数量: ${manifest.muxed.length}
 ===============================''');
     
+    // 从qualityLabel提取精确分辨率
+    int getExactResolution(String label) {
+      final match = RegExp(r'^(\d+)p').firstMatch(label);
+      return match != null ? int.parse(match.group(1)!) : 0;
+    }
+
     // 记录所有可用的 HLS 混合流信息
     if (manifest.hls.isNotEmpty) {
       LogUtil.i('可用的 HLS 混合流:');
       var hlsStreams = manifest.hls.whereType<HlsMuxedStreamInfo>();
       
-      // 从qualityLabel提取精确分辨率
-      int getExactResolution(String label) {
-        final match = RegExp(r'^(\d+)p').firstMatch(label);
-        return match != null ? int.parse(match.group(1)!) : 0;
-      }
-
       hlsStreams.forEach((s) => LogUtil.i('''
 - 分辨率: ${getExactResolution(s.qualityLabel)}p
 - qualityLabel: ${s.qualityLabel}
@@ -222,11 +222,19 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
   try {
     LogUtil.i('查找最佳质量的普通混合流');
     
+    // 从qualityLabel提取精确分辨率
+    int getExactResolution(String label) {
+      final match = RegExp(r'^(\d+)p').firstMatch(label);
+      return match != null ? int.parse(match.group(1)!) : 0;
+    }
+    
     // 按分辨率降序排列并过滤有效URL
     var sortedStreams = manifest.muxed
         .where((s) => _isValidUrl(s.url.toString()))
         .toList()
-      ..sort((a, b) => b.videoQuality.compareTo(a.videoQuality));
+      ..sort((a, b) => 
+          getExactResolution(b.qualityLabel)
+            .compareTo(getExactResolution(a.qualityLabel)));
 
     // 优先返回最高质量的 MP4 格式
     var mp4Stream = sortedStreams
@@ -234,13 +242,15 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
         .firstOrNull;
         
     if (mp4Stream != null) {
-      LogUtil.i('找到最佳 MP4 格式混合流: ${mp4Stream.videoQuality}');
+      final resolution = getExactResolution(mp4Stream.qualityLabel);
+      LogUtil.i('找到最佳 MP4 格式混合流: ${resolution}p');
       return mp4Stream;
     }
 
     // 如果没有 MP4，返回最高质量的其他格式
     if (sortedStreams.isNotEmpty) {
-      LogUtil.i('找到最佳其他格式混合流: ${sortedStreams.first.videoQuality}');
+      final resolution = getExactResolution(sortedStreams.first.qualityLabel);
+      LogUtil.i('找到最佳其他格式混合流: ${resolution}p');
       return sortedStreams.first;
     }
 
