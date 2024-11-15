@@ -7,34 +7,45 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 
 class StreamUrl {
   final String url;
-  final YoutubeExplode yt = YoutubeExplode(); // 创建 YouTube API 实例，用于获取视频数据
-  final http.Client _client = http.Client(); // 创建 HTTP 客户端实例，用于发送网络请求
-  bool _isDisposed = false; // 标志位，用于防止资源重复释放和避免已释放资源的操作
-  Completer<void>? _completer; // 用于控制和取消异步任务的完成器
-  final Duration timeoutDuration; // 定义请求超时时间，可在构造时指定
+  final YoutubeExplode yt = YoutubeExplode(); 
+  final http.Client _client = http.Client(); 
+  bool _isDisposed = false; 
+  Completer<void>? _completer; 
+  final Duration timeoutDuration;
+  
+  // 预定义视频分辨率映射表，用于提高性能
+  static final Map<String, (int, int)> resolutionMap = {
+    '720': (1280, 720),
+    '1080': (1920, 1080),
+    '480': (854, 480),
+    '360': (640, 360)
+  };
+  
+  // 预定义容器类型集合，提高查找效率
+  static final Set<String> validContainers = {'mp4', 'webm'};
+  
+  // 预编译的正则表达式
+  static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+\.m3u8)"');
+  static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
+  static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  // 构造函数：初始化必要的 URL 和可选的超时时间（默认 9 秒）
   StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 9)});
-
-  // 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
+  
+// 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
-    if (_isDisposed) return 'ERROR';  // 如果资源已释放，返回错误状态
-    _completer = Completer<void>(); // 创建新的完成器用于控制当前请求
+    if (_isDisposed) return 'ERROR';
+    _completer = Completer<void>();
     try {
-      // 处理蓝奏云链接：直接返回解析接口地址
       if (isLZUrl(url)){
         return 'https://lz.qaiu.top/parser?url=$url'; 
       } 
       
-      // 非 YouTube 链接：直接返回原始 URL
       if (!isYTUrl(url)) {
         return url;
       } 
       
-      // 根据 URL 类型选择相应的处理函数：直播流或普通视频
       final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
       
-      // 第一次尝试获取流地址
       try {
         final result = await task().timeout(timeoutDuration);
         if (result != 'ERROR') {
@@ -50,10 +61,8 @@ class StreamUrl {
         }
       }
       
-      // 首次失败后等待 1 秒进行重试
       await Future.delayed(const Duration(seconds: 1));
       
-      // 第二次尝试获取流地址
       try {
         final result = await task().timeout(timeoutDuration);
         if (result != 'ERROR') {
@@ -73,34 +82,30 @@ class StreamUrl {
       
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
-      return 'ERROR';  // 发生任何未处理的异常时返回错误状态
+      return 'ERROR';
     } finally {
       if (!_isDisposed) {
-        _completer?.complete(); // 确保异步任务正常完成
+        _completer?.complete();
       }
-      _completer = null; // 清理完成器引用
+      _completer = null;
     }
   }
-
-  // 释放所有资源：包括 YouTube API 实例和 HTTP 客户端
-  void dispose() {
-    if (_isDisposed) return; // 防止重复释放
-    _isDisposed = true; // 标记为已释放状态
+  
+void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
     
-    // 取消未完成的异步任务
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
     LogUtil.safeExecute(() {
-      // 释放 YouTube API 实例
       try {
         yt.close();
       } catch (e, stackTrace) {
         LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
       }
 
-      // 释放 HTTP 客户端实例
       try {
         _client.close();
       } catch (e, stackTrace) {
@@ -109,26 +114,22 @@ class StreamUrl {
     }, '关闭资源时发生错误');
   }
 
-  // 判断是否为蓝奏云分享链接
   bool isLZUrl(String url) {
     return url.contains('lanzou');
   }
   
-  // 判断是否为 YouTube 相关链接
   bool isYTUrl(String url) {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
 
-
-// 验证 URL 的基本有效性：检查是否为空和是否包含 http
-bool _isValidUrl(String url) {
-try {
-  return Uri.parse(url).isAbsolute;
-} catch (e) {
-  return false;
-}
-}
-
+  bool _isValidUrl(String url) {
+    try {
+      return Uri.parse(url).isAbsolute;
+    } catch (e) {
+      return false;
+    }
+  }
+  
 // 获取普通 YouTube 视频的流媒体 URL
 Future<String> _getYouTubeVideoUrl() async {
 if (_isDisposed) return 'ERROR';
@@ -141,28 +142,32 @@ LogUtil.i('''
 - 混合流数量: ${manifest.muxed.length}
 ===============================''');
 LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
+
 String? videoUrl;
 String? audioUrl;
 HlsMuxedStreamInfo? selectedVideoStream;
 
 // 优先尝试获取 HLS 流
 if (manifest.hls.isNotEmpty) {
-  LogUtil.i('可用的 HLS 流:');
-  manifest.hls
+  // 预先获取并缓存所有HLS流
+  final hlsVideoStreams = manifest.hls
       .whereType<HlsMuxedStreamInfo>()
-      .forEach((s) => LogUtil.i('''
+      .where((s) => _isValidUrl(s.url.toString()) &&
+                   (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
+      .toList();
+
+  LogUtil.i('可用的 HLS 流:');
+  hlsVideoStreams.forEach((s) => LogUtil.i('''
 - qualityLabel: ${s.qualityLabel}
 - videoQuality: ${s.videoQuality}
 - 音频编码: ${s.audioCodec}
 - 视频编码: ${s.videoCodec}
 '''));
-  // 获取视频流
+
+  // 获取视频流 - 使用预先过滤的流列表
   for (var quality in ['720', '1080', '480']) {
-    var hlsStream = manifest.hls
-        .whereType<HlsMuxedStreamInfo>()
-        .where((s) => s.qualityLabel.contains(quality) && 
-                   _isValidUrl(s.url.toString()) &&
-                   (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
+    final hlsStream = hlsVideoStreams
+        .where((s) => s.qualityLabel.contains(quality))
         .firstOrNull;
         
     if (hlsStream != null) {
@@ -172,223 +177,199 @@ if (manifest.hls.isNotEmpty) {
       break;
     }
   }
-  // 获取音频流 - 按比特率排序选择最佳音频流
-  var audioStreams = manifest.hls
+  
+  // 获取音频流 - 预先过滤AAC流
+  final audioStreams = manifest.hls
       .whereType<HlsAudioStreamInfo>()
       .where((a) => 
         (a.audioCodec?.toLowerCase().contains('aac') ?? false) && 
         _isValidUrl(a.url.toString()))
       .toList();
 
-  // 将比特率转换为数字进行排序    
-  audioStreams.sort((a, b) {
-    final aBitrate = a.bitrate ?? 0;
-    final bBitrate = b.bitrate ?? 0;
-    return bBitrate.compareTo(aBitrate);
-  });
-      
-  var audioStream = audioStreams.firstOrNull;
+  // 首选128kbps，没有就用第一个可用的流
+  final audioStream = audioStreams.firstWhere(
+    (a) => (a.bitrate ?? 0) == 128000,
+    orElse: () => audioStreams.firstOrNull ?? audioStreams.first
+  );
       
   if (audioStream != null) {
-    LogUtil.i('''找到可用的 HLS音频流''');
+    LogUtil.i('''找到可用的 HLS音频流，比特率: ${audioStream.bitrate}''');
     audioUrl = audioStream.url.toString();
   }
-  // 如果找到了视频和音频流,返回组合的m3u8
+
+  // 如果找到了视频和音频流，返回组合的m3u8
   if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
-         final resolution = selectedVideoStream.qualityLabel?.replaceAll('p', '') ?? '720'; 
-         final width = resolution == '720' ? 1280 : (resolution == '1080' ? 1920 : 854);
-         final height = int.tryParse(resolution) ?? 720;
+    final resolution = selectedVideoStream.qualityLabel?.replaceAll('p', '') ?? '720';
+    final (width, height) = resolutionMap[resolution] ?? (1280, 720);
          
-         final combinedM3u8 = '#EXTM3U\n'
-             '#EXT-X-VERSION:3\n'
-             '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate ?? 800000},'
-             'RESOLUTION=${width}x${height},CODECS="${selectedVideoStream.videoCodec},${selectedVideoStream.audioCodec}",'
-             'AUDIO="audio_group"\n'
-             '$videoUrl\n'
-             '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
-             'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
+    final combinedM3u8 = '#EXTM3U\n'
+        '#EXT-X-VERSION:3\n'
+        '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate ?? 800000},'
+        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec},${selectedVideoStream.audioCodec}",'
+        'AUDIO="audio_group"\n'
+        '$videoUrl\n'
+        '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
+        'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
              
-         LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
-         return 'data:application/vnd.apple.mpegurl;base64,${base64.encode(utf8.encode(combinedM3u8))}';
+    LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
+    return 'data:application/vnd.apple.mpegurl;base64,${base64.encode(utf8.encode(combinedM3u8))}';
   }
   LogUtil.i('HLS流中未找到完整的音视频流');
 } else {
   LogUtil.i('没有可用的 HLS 流');
 }
 
- // 如果没有合适的 HLS 流，尝试获取普通混合流
- var streamInfo = _getBestMuxedStream(manifest);
- if (streamInfo != null) {
-   var streamUrl = streamInfo.url.toString();
-   if (_isValidUrl(streamUrl)) {
-     return streamUrl;
-   }
- }
+// 如果没有合适的 HLS 流，尝试获取普通混合流
+var streamInfo = _getBestMuxedStream(manifest);
+if (streamInfo != null) {
+  var streamUrl = streamInfo.url.toString();
+  if (_isValidUrl(streamUrl)) {
+    return streamUrl;
+  }
+}
 
- LogUtil.e('未找到任何符合条件的流');
- return 'ERROR';
+LogUtil.e('未找到任何符合条件的流');
+return 'ERROR';
 } catch (e, stackTrace) {
- LogUtil.logError('获取视频流时发生错误', e, stackTrace);
- return 'ERROR';
+  LogUtil.logError('获取视频流时发生错误', e, stackTrace);
+  return 'ERROR';
 }
 }
 
 // 获取最佳的普通混合流，优先选择 MP4 格式
 StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
-if (manifest.muxed.isEmpty) {
- LogUtil.i('没有可用的混合流');
- return null;
-}
-
-try {
- LogUtil.i('查找普通混合流');
- 
- // 优先查找 MP4 格式的流
- var mp4Stream = manifest.muxed
-     .where((s) => s.container.name.toLowerCase() == 'mp4' && 
-                _isValidUrl(s.url.toString()))
-     .firstOrNull;
-     
- if (mp4Stream != null) {
-   LogUtil.i('找到 MP4 格式混合流');
-   return mp4Stream;
- }
-
- // 如果没有 MP4 格式，尝试查找 WebM 格式
- var webmStream = manifest.muxed
-     .where((s) => s.container.name.toLowerCase() == 'webm' && 
-                _isValidUrl(s.url.toString()))
-     .firstOrNull;
-     
- if (webmStream != null) {
-   LogUtil.i('找到 WebM 格式混合流');
-   return webmStream;
- }
-
- LogUtil.i('未找到可用的普通混合流');
- return null;
-} catch (e, stackTrace) {
- LogUtil.logError('选择混合流时发生错误', e, stackTrace);
- return null;
-}
-}
-  
-  // 获取 YouTube 直播流的 URL
-  Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_isDisposed) return 'ERROR';
-    try {
-      final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360']);
-      if (m3u8Url != null) {
-        LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
-        return m3u8Url;
-      }
-      LogUtil.e('未能获取到有效的直播流地址');
-      return 'ERROR';
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
-      }
-      return 'ERROR';
-    }
-  }
-
-  // 获取 YouTube 直播的 m3u8 清单地址
-  Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isDisposed) return null;
-    try {
-      // 发送请求获取页面内容
-      final response = await _client.get(
-        Uri.parse(youtubeUrl),
-        headers: _getRequestHeaders(),
-      ).timeout(timeoutDuration);
-      if (_isDisposed) return null;
-
-      if (response.statusCode == 200) {
-        // 使用正则表达式提取 m3u8 地址
-        final regex = RegExp(r'"hlsManifestUrl":"(https://[^"]+\.m3u8)"');
-        final match = regex.firstMatch(response.body);
-
-        if (match != null) {
-          final indexM3u8Url = match.group(1);
-          if (indexM3u8Url != null) {
-            return await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
-          }
-        }
-      }
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
-      }
-      return null;
-    }
+  if (manifest.muxed.isEmpty) {
+    LogUtil.i('没有可用的混合流');
     return null;
   }
 
-  // 从 m3u8 清单中选择指定质量的流地址
-  Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
+  try {
+    LogUtil.i('查找普通混合流');
+    
+    // 预先过滤出有效URL的流
+    final validStreams = manifest.muxed
+        .where((s) => _isValidUrl(s.url.toString()))
+        .toList();
+    
+    // 在有效流中查找MP4或WebM
+    final streamInfo = validStreams.firstWhere(
+      (s) => validContainers.contains(s.container.name.toLowerCase()),
+      orElse: () => null
+    );
+    
+    if (streamInfo != null) {
+      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
+      return streamInfo;
+    }
+
+    LogUtil.i('未找到可用的普通混合流');
+    return null;
+  } catch (e, stackTrace) {
+    LogUtil.logError('选择混合流时发生错误', e, stackTrace);
+    return null;
+  }
+}
+
+// 获取 YouTube 直播流的 URL
+Future<String> _getYouTubeLiveStreamUrl() async {
+  if (_isDisposed) return 'ERROR';
+  try {
+    final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360']);
+    if (m3u8Url != null) {
+      LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
+      return m3u8Url;
+    }
+    LogUtil.e('未能获取到有效的直播流地址');
+    return 'ERROR';
+  } catch (e, stackTrace) {
+    if (!_isDisposed) {
+      LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
+    }
+    return 'ERROR';
+  }
+}
+
+// 获取 YouTube 直播的 m3u8 清单地址
+Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
+  if (_isDisposed) return null;
+  try {
+    final response = await _client.get(
+      Uri.parse(youtubeUrl),
+      headers: _getRequestHeaders(),
+    ).timeout(timeoutDuration);
     if (_isDisposed) return null;
-    try {
-      // 获取 m3u8 清单内容
-      final response = await _client.get(Uri.parse(indexM3u8Url))
-          .timeout(timeoutDuration);
-      if (_isDisposed) return null;
 
-      if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
-        final qualityUrls = <String, String>{};
-
-        // 解析清单内容，提取不同质量的流地址
-        for (var i = 0; i < lines.length; i++) {
-          if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
-            final qualityLine = lines[i];
-            final quality = _extractQuality(qualityLine);
-
-            if (quality != null && i + 1 < lines.length) {
-              final url = lines[i + 1];
-              qualityUrls[quality] = url;
-            }
-          }
-          if (_isDisposed) return null;
-        }
-
-        // 按照优先级查找指定质量的流
-        for (var preferredQuality in preferredQualities) {
-          if (qualityUrls.containsKey(preferredQuality)) {
-            return qualityUrls[preferredQuality];
-          }
-        }
-
-        // 如果没有找到指定质量，返回第一个可用的流
-        if (qualityUrls.isNotEmpty) {
-          return qualityUrls.values.first;
+    if (response.statusCode == 200) {
+      final match = hlsManifestRegex.firstMatch(response.body);
+      
+      if (match != null) {
+        final indexM3u8Url = match.group(1);
+        if (indexM3u8Url != null) {
+          return await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
         }
       }
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
-      }
-      return null;
+    }
+  } catch (e, stackTrace) {
+    if (!_isDisposed) {
+      LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
     }
     return null;
   }
+  return null;
+}
 
-  // 从 m3u8 清单行提取视频质量信息
-  String? _extractQuality(String extInfLine) {
+// 从 m3u8 清单中选择指定质量的流地址
+Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
+  if (_isDisposed) return null;
+  try {
+    final response = await _client.get(Uri.parse(indexM3u8Url))
+        .timeout(timeoutDuration);
     if (_isDisposed) return null;
-    // 使用正则表达式匹配分辨率信息
-    final regex = RegExp(r'RESOLUTION=\d+x(\d+)');
-    final match = regex.firstMatch(extInfLine);
 
-    if (match != null) {
-      return match.group(1);
+    if (response.statusCode == 200) {
+      final lines = response.body.split('\n');
+      final length = lines.length;  // 缓存长度避免重复访问
+      final qualityUrls = <String, String>{};
+
+      for (var i = 0; i < length; i++) {
+        if (lines[i].contains('#EXT-X-STREAM-INF')) {
+          final quality = _extractQuality(lines[i]);
+          if (quality != null && i + 1 < length) {
+            qualityUrls[quality] = lines[i + 1];
+          }
+        }
+        if (_isDisposed) return null;
+      }
+
+      // 按照优先级查找指定质量的流
+      for (var quality in preferredQualities) {
+        if (qualityUrls.containsKey(quality)) {
+          return qualityUrls[quality];
+        }
+      }
+
+      return qualityUrls.values.firstOrNull;
+    }
+  } catch (e, stackTrace) {
+    if (!_isDisposed) {
+      LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
     }
     return null;
   }
+  return null;
+}
+
+// 从 m3u8 清单行提取视频质量信息
+String? _extractQuality(String extInfLine) {
+  if (_isDisposed) return null;
+  final match = resolutionRegex.firstMatch(extInfLine);
+  return match?.group(1);
+}
 
 // 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
-  Map<String, String> _getRequestHeaders() {
-    return {
-      HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
-  }
+Map<String, String> _getRequestHeaders() {
+  return {
+    HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
+}
 }
