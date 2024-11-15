@@ -182,7 +182,7 @@ if (manifest.hls.isNotEmpty) {
       .whereType<HlsAudioStreamInfo>()
       .where((s) => _isValidUrl(s.url.toString()))
       .firstWhere(
-          (s) => (s.bitrate ?? 0) >= 120000 && (s.bitrate ?? 0) <= 130000,
+          (s) => ((s.bitrate as int?) ?? 0) >= 120000 && ((s.bitrate as int?) ?? 0) <= 130000,
           orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
       );
 
@@ -248,7 +248,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     // 在有效流中查找MP4或WebM
     final streamInfo = validStreams.firstWhere(
       (s) => validContainers.contains(s.container.name.toLowerCase()),
-      orElse: () => null
+      orElse: () => validStreams.first
     );
     
     if (streamInfo != null) {
