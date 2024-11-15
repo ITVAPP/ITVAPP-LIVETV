@@ -135,7 +135,6 @@ Future<String> _getYouTubeVideoUrl() async {
       video.id,
       ytClients: [YoutubeApiClient.safari],
     );
-
     LogUtil.i('格式化manifest的信息调试用: ${manifest.toString()}');
     LogUtil.i('''
 ======= 获取统计 =======
@@ -147,8 +146,15 @@ Future<String> _getYouTubeVideoUrl() async {
     if (manifest.hls.isNotEmpty) {
       LogUtil.i('可用的 HLS 混合流:');
       var hlsStreams = manifest.hls.whereType<HlsMuxedStreamInfo>();
+      
+      // 从qualityLabel提取精确分辨率
+      int getExactResolution(String label) {
+        final match = RegExp(r'^(\d+)p').firstMatch(label);
+        return match != null ? int.parse(match.group(1)!) : 0;
+      }
+
       hlsStreams.forEach((s) => LogUtil.i('''
-- 分辨率: ${s.height}p
+- 分辨率: ${getExactResolution(s.qualityLabel)}p
 - qualityLabel: ${s.qualityLabel}
 - videoQuality: ${s.videoQuality}
 - 音频编码: ${s.audioCodec}
@@ -156,14 +162,14 @@ Future<String> _getYouTubeVideoUrl() async {
 '''));
 
       // 按照优先级尝试获取指定分辨率的 HLS 流
-      for (var targetHeight in [720, 1080, 480]) {
+      for (var targetRes in [720, 1080, 480]) {
         var hlsStream = hlsStreams
-            .where((s) => s.height == targetHeight && 
+            .where((s) => getExactResolution(s.qualityLabel) == targetRes && 
                          _isValidUrl(s.url.toString()))
             .firstOrNull;
             
         if (hlsStream != null) {
-          LogUtil.i('找到 ${targetHeight}p HLS混合流');
+          LogUtil.i('找到精确匹配 ${targetRes}p HLS混合流');
           return hlsStream.url.toString();
         }
       }
@@ -173,12 +179,13 @@ Future<String> _getYouTubeVideoUrl() async {
         var closest = hlsStreams
             .where((s) => _isValidUrl(s.url.toString()))
             .reduce((a, b) {
-              final aDiff = (a.height - 720).abs(); // 以720p为基准
-              final bDiff = (b.height - 720).abs();
+              final aDiff = (getExactResolution(a.qualityLabel) - 720).abs(); // 以720p为基准
+              final bDiff = (getExactResolution(b.qualityLabel) - 720).abs();
               return aDiff < bDiff ? a : b;
             });
             
-        LogUtil.i('使用最接近的HLS流: ${closest.height}p');
+        final resolution = getExactResolution(closest.qualityLabel);
+        LogUtil.i('使用最接近的HLS流: ${resolution}p');
         return closest.url.toString();
       }
       
