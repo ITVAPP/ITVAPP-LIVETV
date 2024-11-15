@@ -180,8 +180,8 @@ Future<void> _playVideo() async {
           BetterPlayerDataSourceType.network,
           parsedUrl, 
           liveStream: isHls,          // 根据URL判断是否为直播流
-          useAsmsTracks: isHls,       // YouTube HLS 时关闭 
-          useAsmsAudioTracks: isHls,    // YouTube HLS 时关闭
+          useAsmsTracks: isHls,       // 不是 HLS 时关闭 
+          useAsmsAudioTracks: isHls,    // 不是 HLS 时关闭
           useAsmsSubtitles: false,    // 禁用字幕减少开销
           // 禁用系统通知栏的播放控制
           notificationConfiguration: const BetterPlayerNotificationConfiguration(
@@ -194,7 +194,7 @@ Future<void> _playVideo() async {
             bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: !isYoutubeHls,                // 启用缓存，YouTube HLS 时关闭 否则播放直播流有中断问题
+            useCache: !isYoutubeHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
             preCacheSize: 10 * 1024 * 1024, // 预缓存大小
             maxCacheSize: 100 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
