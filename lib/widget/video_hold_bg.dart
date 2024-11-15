@@ -498,6 +498,8 @@ Widget build(BuildContext context) {
                ),
              ),
 
+           // 只在 toastString 不等于 "HIDE_CONTAINER" 时显示底部容器
+           if (widget.toastString != "HIDE_CONTAINER")
            Align(
              alignment: Alignment.bottomCenter,
              child: Padding(
