@@ -205,7 +205,7 @@ if (manifest.hls.isNotEmpty) {
     final combinedM3u8 = '#EXTM3U\n'
         '#EXT-X-VERSION:3\n'
         '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
-        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec},${audioStream.audioCodec}",'
+        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec ?? 'avc1.42001f'},${audioStream?.audioCodec ?? 'mp4a.40.2'}",'
         'AUDIO="audio_group"\n'
         '$videoUrl\n'
         '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
