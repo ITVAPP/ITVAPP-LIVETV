@@ -237,10 +237,10 @@ return 'ERROR';
 }
 
 // 获取最佳的普通混合流，优先选择 MP4 格式
-StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
+StreamInfo _getBestMuxedStream(StreamManifest manifest) {
   if (manifest.muxed.isEmpty) {
     LogUtil.i('没有可用的混合流');
-    return null;
+    return StreamInfo(); // 返回一个默认的 StreamInfo 对象
   }
 
   try {
@@ -254,19 +254,14 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     // 在有效流中查找MP4或WebM
     final streamInfo = validStreams.firstWhere(
       (s) => validContainers.contains(s.container.name.toLowerCase()),
-      orElse: () => StreamInfo()
+      orElse: () => StreamInfo(), 
     );
     
-    if (streamInfo != null) {
-      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
-      return streamInfo;
-    }
-
-    LogUtil.i('未找到可用的普通混合流');
-    return null;
+    LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
+    return streamInfo;
   } catch (e, stackTrace) {
     LogUtil.logError('选择混合流时发生错误', e, stackTrace);
-    return null;
+    return StreamInfo(); // 异常时返回一个默认的 StreamInfo 对象
   }
 }
 
