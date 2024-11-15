@@ -178,16 +178,22 @@ if (manifest.hls.isNotEmpty) {
   }
 
   // 获取音频流 - 使用 HlsAudioStreamInfo
-  final audioStream = manifest.hls
+  final audioStreams = manifest.hls
       .whereType<HlsAudioStreamInfo>()
       .where((s) => _isValidUrl(s.url.toString()))
-      .firstWhere(
-          (s) => ((s.bitrate as int?) ?? 0) >= 120000 && ((s.bitrate as int?) ?? 0) <= 130000,
-          orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
-      );
+      .toList();
+
+  // 选择比特率最接近128kbps的音频流
+  final audioStream = audioStreams.isNotEmpty 
+      ? audioStreams.reduce((a, b) {
+          final aDiff = (a.bitrate.bitsPerSecond - 128000).abs();
+          final bDiff = (b.bitrate.bitsPerSecond - 128000).abs();
+          return aDiff < bDiff ? a : b;
+        })
+      : null;
 
   if (audioStream != null) {
-    LogUtil.i('''找到可用的 HLS音频流，比特率: ${audioStream.bitrate}''');
+    LogUtil.i('''找到可用的 HLS音频流，比特率: ${audioStream.bitrate.kiloBitsPerSecond} Kbps''');
     audioUrl = audioStream.url.toString();
   }
 
@@ -198,7 +204,7 @@ if (manifest.hls.isNotEmpty) {
          
     final combinedM3u8 = '#EXTM3U\n'
         '#EXT-X-VERSION:3\n'
-        '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate ?? 800000},'
+        '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
         'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec},${audioStream.audioCodec}",'
         'AUDIO="audio_group"\n'
         '$videoUrl\n'
@@ -248,7 +254,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     // 在有效流中查找MP4或WebM
     final streamInfo = validStreams.firstWhere(
       (s) => validContainers.contains(s.container.name.toLowerCase()),
-      orElse: () => validStreams.first
+      orElse: () => validStreams.first  // 改为返回第一个有效流
     );
     
     if (streamInfo != null) {
