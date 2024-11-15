@@ -145,67 +145,67 @@ LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
 
 String? videoUrl;
 String? audioUrl;
-HlsMuxedStreamInfo? selectedVideoStream;
+HlsVideoStreamInfo? selectedVideoStream;
 
 // 优先尝试获取 HLS 流
 if (manifest.hls.isNotEmpty) {
-  // 预先获取并缓存所有HLS流
+  // 获取video only的HLS流
   final hlsVideoStreams = manifest.hls
-      .whereType<HlsMuxedStreamInfo>()
-      .where((s) => _isValidUrl(s.url.toString()) &&
-                   (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
+      .where((s) => 
+          s.container.name.toLowerCase() == 'm3u8' &&
+          s.streamType == StreamType.video &&
+          _isValidUrl(s.url.toString()) &&
+          (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
       .toList();
 
-  LogUtil.i('可用的 HLS 流:');
+  LogUtil.i('可用的 HLS video only 流:');
   hlsVideoStreams.forEach((s) => LogUtil.i('''
 - qualityLabel: ${s.qualityLabel}
-- videoQuality: ${s.videoQuality}
-- 音频编码: ${s.audioCodec}
+- container: ${s.container.name}
 - 视频编码: ${s.videoCodec}
 '''));
 
-  // 获取视频流 - 使用预先过滤的流列表
-  for (var quality in ['720', '1080', '480']) {
+  // 使用预定义质量查找视频流
+  for (final quality in ['720', '1080', '480']) {
     final hlsStream = hlsVideoStreams
-        .where((s) => s.qualityLabel.contains(quality))
+        .where((s) => s.qualityLabel.contains('${quality}p'))
         .firstOrNull;
         
     if (hlsStream != null) {
-      LogUtil.i('''找到匹配 $quality 的 HLS视频流''');
+      LogUtil.i('''找到匹配 ${quality}p 的 HLS video only 流''');
       videoUrl = hlsStream.url.toString();
-      selectedVideoStream = hlsStream;
+      selectedVideoStream = hlsStream as HlsVideoStreamInfo;
       break;
     }
   }
-  
-  // 获取音频流 - 预先过滤AAC流
-  final audioStreams = manifest.hls
-      .whereType<HlsAudioStreamInfo>()
-      .where((a) => 
-        (a.audioCodec?.toLowerCase().contains('aac') ?? false) && 
-        _isValidUrl(a.url.toString()))
-      .toList();
 
-  // 首选128kbps，没有就用第一个可用的流
-  final audioStream = audioStreams.firstWhere(
-    (a) => (a.bitrate ?? 0) == 128000,
-    orElse: () => audioStreams.firstOrNull ?? audioStreams.first
-  );
+  // 获取audio only的流
+  final audioStream = manifest.hls
+      .where((s) => 
+          s.container.name.toLowerCase() == 'm3u8' &&
+          s.streamType == StreamType.audio &&
+          _isValidUrl(s.url.toString()))
+      .firstWhere(
+          (s) => (s.bitrate ?? 0) >= 120000 && (s.bitrate ?? 0) <= 130000,
+          orElse: () => manifest.hls
+              .where((s) => s.streamType == StreamType.audio)
+              .firstOrNull
+      );
       
   if (audioStream != null) {
-    LogUtil.i('''找到可用的 HLS音频流，比特率: ${audioStream.bitrate}''');
+    LogUtil.i('''找到可用的 HLS audio only 流，比特率: ${audioStream.bitrate}''');
     audioUrl = audioStream.url.toString();
   }
 
   // 如果找到了视频和音频流，返回组合的m3u8
   if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
-    final resolution = selectedVideoStream.qualityLabel?.replaceAll('p', '') ?? '720';
+    final resolution = selectedVideoStream.qualityLabel.replaceAll('p', '');
     final (width, height) = resolutionMap[resolution] ?? (1280, 720);
          
     final combinedM3u8 = '#EXTM3U\n'
         '#EXT-X-VERSION:3\n'
         '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate ?? 800000},'
-        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec},${selectedVideoStream.audioCodec}",'
+        'RESOLUTION=${width}x$height,CODECS="${selectedVideoStream.videoCodec},${audioStream.audioCodec}",'
         'AUDIO="audio_group"\n'
         '$videoUrl\n'
         '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
@@ -236,6 +236,7 @@ return 'ERROR';
 }
 }
 
+// 获取最佳的普通混合流，优先选择 MP4 格式
 StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
   if (manifest.muxed.isEmpty) {
     LogUtil.i('没有可用的混合流');
@@ -250,17 +251,19 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
         .where((s) => _isValidUrl(s.url.toString()))
         .toList();
     
-    if (validStreams.isEmpty) {
-      LogUtil.i('未找到有效URL的混合流');
-      return null;
-    }
-    
     // 在有效流中查找MP4或WebM
-    return validStreams.firstWhere(
+    final streamInfo = validStreams.firstWhere(
       (s) => validContainers.contains(s.container.name.toLowerCase()),
-      orElse: () => validStreams.first  // 如果没有找到指定容器格式，返回第一个有效流
+      orElse: () => null
     );
+    
+    if (streamInfo != null) {
+      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
+      return streamInfo;
+    }
 
+    LogUtil.i('未找到可用的普通混合流');
+    return null;
   } catch (e, stackTrace) {
     LogUtil.logError('选择混合流时发生错误', e, stackTrace);
     return null;
