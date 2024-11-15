@@ -149,16 +149,14 @@ HlsVideoStreamInfo? selectedVideoStream;
 
 // 优先尝试获取 HLS 流
 if (manifest.hls.isNotEmpty) {
-  // 获取video only的HLS流
+  // 预先获取并缓存所有HLS视频流
   final hlsVideoStreams = manifest.hls
-      .where((s) => 
-          s.container.name.toLowerCase() == 'm3u8' &&
-          s.streamType == StreamType.video &&
-          _isValidUrl(s.url.toString()) &&
-          (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
+      .whereType<HlsVideoStreamInfo>()
+      .where((s) => _isValidUrl(s.url.toString()) &&
+                   (s.videoCodec?.toLowerCase().contains('avc1') ?? false))
       .toList();
 
-  LogUtil.i('可用的 HLS video only 流:');
+  LogUtil.i('可用的 HLS 视频流:');
   hlsVideoStreams.forEach((s) => LogUtil.i('''
 - qualityLabel: ${s.qualityLabel}
 - container: ${s.container.name}
@@ -166,34 +164,30 @@ if (manifest.hls.isNotEmpty) {
 '''));
 
   // 使用预定义质量查找视频流
-  for (final quality in ['720', '1080', '480']) {
+  for (final quality in resolutionMap.keys) {
     final hlsStream = hlsVideoStreams
         .where((s) => s.qualityLabel.contains('${quality}p'))
         .firstOrNull;
         
     if (hlsStream != null) {
-      LogUtil.i('''找到匹配 ${quality}p 的 HLS video only 流''');
+      LogUtil.i('''找到匹配 ${quality}p 的 HLS视频流''');
       videoUrl = hlsStream.url.toString();
-      selectedVideoStream = hlsStream as HlsVideoStreamInfo;
+      selectedVideoStream = hlsStream;
       break;
     }
   }
 
-  // 获取audio only的流
+  // 获取音频流 - 使用 HlsAudioStreamInfo
   final audioStream = manifest.hls
-      .where((s) => 
-          s.container.name.toLowerCase() == 'm3u8' &&
-          s.streamType == StreamType.audio &&
-          _isValidUrl(s.url.toString()))
+      .whereType<HlsAudioStreamInfo>()
+      .where((s) => _isValidUrl(s.url.toString()))
       .firstWhere(
           (s) => (s.bitrate ?? 0) >= 120000 && (s.bitrate ?? 0) <= 130000,
-          orElse: () => manifest.hls
-              .where((s) => s.streamType == StreamType.audio)
-              .firstOrNull
+          orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
       );
-      
+
   if (audioStream != null) {
-    LogUtil.i('''找到可用的 HLS audio only 流，比特率: ${audioStream.bitrate}''');
+    LogUtil.i('''找到可用的 HLS音频流，比特率: ${audioStream.bitrate}''');
     audioUrl = audioStream.url.toString();
   }
 
