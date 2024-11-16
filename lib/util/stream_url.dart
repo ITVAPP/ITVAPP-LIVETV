@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:sp_util/sp_util.dart';
-import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
@@ -33,7 +32,7 @@ class StreamUrl {
 
   StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 18)});
   
-// 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
+  // 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
@@ -131,8 +130,8 @@ void dispose() {
       return false;
     }
   }
-
-// 获取普通 YouTube 视频的流媒体 URL
+  
+  // 获取普通 YouTube 视频的流媒体 URL
 Future<String> _getYouTubeVideoUrl() async {
 if (_isDisposed) return 'ERROR';
 try {
@@ -152,20 +151,33 @@ HlsVideoStreamInfo? selectedVideoStream;
 // 优先尝试获取 HLS 流
 if (manifest.hls.isNotEmpty) {
   // 获取视频流
-  final hlsStream = manifest.hls
+  final validStreams = manifest.hls
       .whereType<HlsVideoStreamInfo>()
       .where((s) => 
           _isValidUrl(s.url.toString()) &&
           s.container.name.toLowerCase() == 'm3u8' &&
           s.videoCodec != null)
-      .firstWhere(
-          (s) => s.qualityLabel.contains('720p'),
-          orElse: () => null
-      );
+      .toList();
 
-  if (hlsStream != null) {
-    videoUrl = hlsStream.url.toString();
-    selectedVideoStream = hlsStream;
+  // 按照 resolutionMap 的顺序查找对应分辨率的流
+  for (final res in resolutionMap.keys) {
+    final height = resolutionMap[res]!.$2;
+    selectedVideoStream = validStreams.firstWhere(
+      (s) => s.resolution.height == height,
+      orElse: () => null
+    );
+    if (selectedVideoStream != null) {
+      LogUtil.i('找到 ${res}p 质量的视频流');
+      videoUrl = selectedVideoStream.url.toString();
+      break;
+    }
+  }
+
+  // 如果没有找到匹配的分辨率，使用第一个有效流
+  if (selectedVideoStream == null && validStreams.isNotEmpty) {
+    selectedVideoStream = validStreams.first;
+    videoUrl = selectedVideoStream.url.toString();
+    LogUtil.i('未找到匹配分辨率的流，使用第一个可用流：${selectedVideoStream.qualityLabel}');
   }
 
   // 获取音频流
@@ -188,10 +200,10 @@ if (manifest.hls.isNotEmpty) {
   // 如果找到了视频和音频流，生成并保存 master playlist
   if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
     try {
-      final directory = await getTemporaryDirectory();
+      final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/master_youtube.m3u8');
 
-      final resolution = selectedVideoStream.qualityLabel.replaceAll('p', '');
+      final resolution = selectedVideoStream.resolution.height.toString();
       final (width, height) = resolutionMap[resolution] ?? (1280, 720);
          
       final combinedM3u8 = '#EXTM3U\n'
@@ -274,7 +286,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
 Future<String> _getYouTubeLiveStreamUrl() async {
   if (_isDisposed) return 'ERROR';
   try {
-    final m3u8Url = await _getYouTubeM3U8Url(url, ['720', '1080', '480', '360']);
+    final m3u8Url = await _getYouTubeM3U8Url(url, resolutionMap.keys.toList());
     if (m3u8Url != null) {
       LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
       return m3u8Url;
@@ -335,20 +347,26 @@ Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQu
         if (lines[i].contains('#EXT-X-STREAM-INF')) {
           final quality = _extractQuality(lines[i]);
           if (quality != null && i + 1 < length) {
-            qualityUrls[quality] = lines[i + 1];
+            qualityUrls[quality] = lines[i + 1].trim();
           }
         }
         if (_isDisposed) return null;
       }
 
-      // 按照优先级查找指定质量的流
+      // 按照预定义的分辨率顺序查找
       for (var quality in preferredQualities) {
         if (qualityUrls.containsKey(quality)) {
+          LogUtil.i('找到 ${quality}p 质量的直播流');
           return qualityUrls[quality];
         }
       }
 
-      return qualityUrls.values.firstOrNull;
+      // 如果没有找到指定质量的流，返回第一个可用的流
+      if (qualityUrls.isNotEmpty) {
+        final firstQuality = qualityUrls.keys.first;
+        LogUtil.i('未找到首选质量的直播流，使用 ${firstQuality}p');
+        return qualityUrls.values.first;
+      }
     }
   } catch (e, stackTrace) {
     if (!_isDisposed) {
@@ -371,5 +389,4 @@ Map<String, String> _getRequestHeaders() {
   return {
     HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
-}
 }
