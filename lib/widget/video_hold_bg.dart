@@ -103,24 +103,23 @@ void initState() {
    
    _currentAnimationType = _getRandomAnimationType();
 
+   // 修改: 优化动画状态监听器
    _animationController.addStatusListener((status) {
      if (!mounted) return;
      
      if (status == AnimationStatus.completed) {
+       _animationController.reset(); // 先重置动画控制器
        setState(() {
          _isAnimating = false;
          _currentImgIndex = _nextImgIndex;
          _currentAnimationType = _getRandomAnimationType();
-         _isTransitionLocked = false;
+         _isTransitionLocked = false; // 最后再重置锁定状态
        });
-       _animationController.reset(); // 修改：增加重置动画控制器
        
        if (_bingImgUrls.length > 1) {
          final nextNextIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
          precacheImage(NetworkImage(_bingImgUrls[nextNextIndex]), context);
        }
-     } else if (status == AnimationStatus.dismissed) {
-       _isTransitionLocked = false;
      }
    });
 
@@ -224,16 +223,11 @@ Future<void> _loadBingBackgrounds() async {
    }
 }
 
-// 修改：更新图片切换方法
+// 修改: 优化图片切换逻辑
 void _startImageTransition() {
-   if (_isAnimating || 
-       _isTransitionLocked || 
-       _bingImgUrls.length <= 1 || 
-       !mounted) return;
+   if (_isAnimating) return;  // 简化条件检查，只检查是否在动画中
    
    try {
-     _isTransitionLocked = true;
-     
      final nextIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
      
      precacheImage(
@@ -249,13 +243,13 @@ void _startImageTransition() {
        setState(() {
          _isAnimating = true;
          _nextImgIndex = nextIndex;
-         // 修改：添加新的动画类型选择
+         _isTransitionLocked = false;  // 在动画开始时就重置锁
          _currentAnimationType = _getRandomAnimationType();
        });
        
        WidgetsBinding.instance.addPostFrameCallback((_) {
          if (mounted) {
-           _animationController.reset();  // 修改：确保动画从头开始
+           _animationController.reset();
            _animationController.forward();
          }
        });
@@ -283,9 +277,9 @@ void dispose() {
    super.dispose();
 }
 
-// 修改：优化动画过渡效果构建方法
+// 修改: 优化动画构建方法
 Widget _buildAnimatedTransition() {
-   if (_nextImgIndex >= _bingImgUrls.length || !mounted || _isTransitionLocked) {
+   if (_nextImgIndex >= _bingImgUrls.length || !mounted) {  // 简化条件检查，移除_isTransitionLocked
      return const SizedBox.shrink();
    }
 
@@ -401,7 +395,7 @@ Widget _buildAnimatedTransition() {
            },
          );
          
-       case 4: // 百叶窗效果
+case 4: // 百叶窗效果
          final screenSize = MediaQuery.of(context).size;
          if (screenSize.isEmpty) return const SizedBox.shrink();
          
@@ -460,6 +454,72 @@ Widget _buildAnimatedTransition() {
    } catch (e) {
      LogUtil.logError('构建动画过渡效果时发生错误', e);
      return const SizedBox.shrink();
+   }
+}
+
+// 修改: 优化背景构建方法
+Widget _buildBingBg() {
+   if (_bingImgUrls.isEmpty) {
+     return _buildLocalBg();
+   }
+
+   return Stack(
+     fit: StackFit.expand,
+     children: [
+       // 基础层 - 当前图片
+       Container(
+         decoration: BoxDecoration(
+           image: DecorationImage(
+             fit: BoxFit.cover,
+             image: NetworkImage(_bingImgUrls[_currentImgIndex]),
+           ),
+         ),
+       ),
+       
+       // 动画过渡层 - 简化条件判断
+       if (_isAnimating)  // 只判断是否在动画中
+         _buildAnimatedTransition(),
+     ],
+   );
+}
+
+Widget _buildLocalBg() {
+   return Container(
+     decoration: const BoxDecoration(
+       image: DecorationImage(
+         fit: BoxFit.cover,
+         image: AssetImage('assets/images/video_bg.png'),
+       ),
+     ),
+   );
+}
+
+Widget _buildToast(TextStyle textStyle) {
+   final text = widget.toastString ?? S.of(context).loading;
+   final textSpan = TextSpan(text: text, style: textStyle);
+   final textPainter = TextPainter(
+     text: textSpan,
+     textDirection: TextDirection.ltr,
+   );
+   textPainter.layout(minWidth: 0, maxWidth: double.infinity);
+   _textWidth = textPainter.width;
+
+   if (_textWidth > _containerWidth) {
+     return SlideTransition(
+       position: _textAnimation,
+       child: SingleChildScrollView(
+         scrollDirection: Axis.horizontal,
+         child: Text(
+           text,
+           style: textStyle,
+         ),
+       ),
+     );
+   } else {
+     return Text(
+       text,
+       style: textStyle,
+     );
    }
 }
 
@@ -534,88 +594,6 @@ Widget build(BuildContext context) {
          ],
        );
      },
-   );
-}
-
-Widget _buildToast(TextStyle textStyle) {
-   final text = widget.toastString ?? S.of(context).loading;
-   final textSpan = TextSpan(text: text, style: textStyle);
-   final textPainter = TextPainter(
-     text: textSpan,
-     textDirection: TextDirection.ltr,
-   );
-   textPainter.layout(minWidth: 0, maxWidth: double.infinity);
-   _textWidth = textPainter.width;
-
-   if (_textWidth > _containerWidth) {
-     return SlideTransition(
-       position: _textAnimation,
-       child: SingleChildScrollView(
-         scrollDirection: Axis.horizontal,
-         child: Text(
-           text,
-           style: textStyle,
-         ),
-       ),
-     );
-   } else {
-     return Text(
-       text,
-       style: textStyle,
-     );
-   }
-}
-
-// 修改：优化背景构建方法
-Widget _buildBingBg() {
-   if (_bingImgUrls.isEmpty) {
-     return _buildLocalBg();
-   }
-
-   return Stack(
-     fit: StackFit.expand,
-     children: [
-       // 当前图片（基础层）
-       if (!_isAnimating || _isTransitionLocked)
-         Container(
-           decoration: BoxDecoration(
-             image: DecorationImage(
-               fit: BoxFit.cover,
-               image: NetworkImage(_bingImgUrls[_currentImgIndex]),
-             ),
-           ),
-         ),
-       
-       // 动画过渡层
-       if (_isAnimating && !_isTransitionLocked)
-         Stack(
-           fit: StackFit.expand,
-           children: [
-             // 保持当前图片作为底层
-             Container(
-               decoration: BoxDecoration(
-                 image: DecorationImage(
-                   fit: BoxFit.cover,
-                   image: NetworkImage(_bingImgUrls[_currentImgIndex]),
-                 ),
-               ),
-             ),
-             // 动画过渡效果
-             _buildAnimatedTransition(),
-           ],
-         ),
-     ],
-   );
-}
-
-Widget _buildLocalBg() {
-   return Container(
-     decoration: const BoxDecoration(
-       image: DecorationImage(
-         fit: BoxFit.cover,
-         image: AssetImage('assets/images/video_bg.png'),
-       ),
-     ),
    );
 }
 }
