@@ -2,6 +2,31 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+// 移到外部的音柱特性类
+class _BarCharacteristics {
+  final double baseFrequency; // 基础频率 - 决定基本高度
+  final double amplitude;     // 振幅范围 - 决定可变化范围
+  final double speed;        // 变化速度 - 决定高度变化的快慢
+  
+  _BarCharacteristics({
+    required this.baseFrequency,
+    required this.amplitude,
+    required this.speed,
+  });
+}
+
+// 移到外部的音柱动态参数类
+class _BarDynamics {
+  double velocity = 0;      // 当前速度
+  double acceleration = 0;  // 当前加速度
+  double phase = 0;        // 当前相位
+  
+  // 应用阻尼效果使运动更自然
+  void applyDamping(double dampingFactor) {
+    velocity *= (1 - dampingFactor);
+  }
+}
+
 class DynamicAudioBars extends StatefulWidget {
   final double? maxHeight;
   final double? barWidth;
@@ -33,34 +58,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   bool _isAnimating = true;
   final Random _random = Random();
   
-  // 存储每个音柱的动态特性
   final List<_BarCharacteristics> _barCharacteristics = [];
   final List<_BarDynamics> _barDynamics = [];
-
-  // 音柱特性类 - 存储每个音柱的基本特征
-  class _BarCharacteristics {
-    final double baseFrequency; // 基础频率 - 决定基本高度
-    final double amplitude;     // 振幅范围 - 决定可变化范围
-    final double speed;        // 变化速度 - 决定高度变化的快慢
-    
-    _BarCharacteristics({
-      required this.baseFrequency,
-      required this.amplitude,
-      required this.speed,
-    });
-  }
-
-  // 音柱动态参数类 - 存储每个音柱的实时运动状态
-  class _BarDynamics {
-    double velocity = 0;      // 当前速度
-    double acceleration = 0;  // 当前加速度
-    double phase = 0;        // 当前相位
-    
-    // 应用阻尼效果使运动更自然
-    void applyDamping(double dampingFactor) {
-      velocity *= (1 - dampingFactor);
-    }
-  }
 
   // 根据音柱位置生成其特性参数
   _BarCharacteristics _generateCharacteristics(int index, int totalBars) {
@@ -207,7 +206,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
                     barWidth: effectiveBarWidth,
                     containerHeight: constraints.maxHeight,
                     colorIndices: _colorIndices,
-                    maxHeightRanges: [1.0] * heights.length,  // 使用统一的最大高度范围
+                    maxHeightRanges: List.filled(heights.length, 1.0),  // 修复 * 运算符错误
                   ),
                 );
               },
