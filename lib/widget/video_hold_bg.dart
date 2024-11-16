@@ -493,8 +493,6 @@ Widget build(BuildContext context) {
                height: MediaQuery.of(context).size.height * 0.3,
                child: DynamicAudioBars(
                  key: _audioBarKey,
-                 animationSpeed: const Duration(milliseconds: 100),
-                 smoothness: 0.5,
                ),
              ),
 
