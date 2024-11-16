@@ -130,7 +130,8 @@ void dispose() {
       return false;
     }
   }
-  
+
+// 获取普通 YouTube 视频的流媒体 URL  
 Future<String> _getYouTubeVideoUrl() async {
   if (_isDisposed) return 'ERROR';
   try {
@@ -142,17 +143,19 @@ Future<String> _getYouTubeVideoUrl() async {
     - 混合流数量: ${manifest.muxed.length}
     ===============================''');
     LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
+    
     String? videoUrl;
     String? audioUrl;
     HlsVideoStreamInfo? selectedVideoStream;
-      // 优先尝试获取 HLS 流
-      if (manifest.hls.isNotEmpty) {
-        // 先获取所有HLS视频流并记录详细信息
-        final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
-        LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
-        
-        for (var stream in allVideoStreams) {
-          LogUtil.i('''流信息详情:
+    
+    // 优先尝试获取 HLS 流
+    if (manifest.hls.isNotEmpty) {
+      // 先获取所有HLS视频流并记录详细信息
+      final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
+      LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
+      
+      for (var stream in allVideoStreams) {
+        LogUtil.i('''流信息详情:
           - tag: ${stream.tag}
           - qualityLabel: ${stream.qualityLabel}
           - videoCodec: ${stream.videoCodec}
@@ -161,112 +164,118 @@ Future<String> _getYouTubeVideoUrl() async {
           - bitrate: ${stream.bitrate.kiloBitsPerSecond} Kbps
           - videoQuality: ${stream.videoQuality}
           - videoResolution: ${stream.videoResolution}
-          - framerate: ${stream.framerate}
+          - framerate: ${stream.framerate}fps
           - url valid: ${_isValidUrl(stream.url.toString())}''');
-        }
-        
-        // 然后过滤有效的流
-        final validStreams = allVideoStreams
-            .where((s) => 
-                _isValidUrl(s.url.toString()) &&
-                s.container.name.toLowerCase() == 'm3u8')
-            .toList();
-        
-        // 按照预定义的分辨率顺序查找
-        for (final res in resolutionMap.keys) {
-          selectedVideoStream = validStreams.firstWhere(
-            (s) => s.qualityLabel.contains('${res}p'),
-            orElse: () => validStreams.first   // 不能返回 null，否则会出错
-          );
-          if (selectedVideoStream != null) {
-            LogUtil.i('''找到 ${res}p 质量的视频流
+      }
+      
+      // 然后过滤有效的流
+      final validStreams = allVideoStreams
+          .where((s) => 
+              _isValidUrl(s.url.toString()) &&
+              s.container.name.toLowerCase() == 'm3u8')
+          .toList();
+      
+      // 按照预定义的分辨率顺序查找
+      for (final res in resolutionMap.keys) {
+        selectedVideoStream = validStreams.firstWhere(
+          (s) => s.qualityLabel.contains('${res}p'),
+          orElse: () => validStreams.first
+        );
+        if (selectedVideoStream != null) {
+          LogUtil.i('''找到 ${res}p 质量的视频流
             - toString(): ${selectedVideoStream.toString()}
-            - videoCodec: ${selectedVideoStream.videoCodec}
-            - codec: ${selectedVideoStream.codec}
             - tag: ${selectedVideoStream.tag}
             - qualityLabel: ${selectedVideoStream.qualityLabel}
+            - videoCodec: ${selectedVideoStream.videoCodec}
+            - codec: ${selectedVideoStream.codec}
             - container: ${selectedVideoStream.container}
             - bitrate: ${selectedVideoStream.bitrate.kiloBitsPerSecond} Kbps
             - videoQuality: ${selectedVideoStream.videoQuality}
             - videoResolution: ${selectedVideoStream.videoResolution}
-            - framerate: ${selectedVideoStream.framerate}
+            - framerate: ${selectedVideoStream.framerate}fps
+            - url: ${selectedVideoStream.url}
             ''');
-            videoUrl = selectedVideoStream.url.toString();
-            break;
-          }
-        }
-        
-        // 获取音频流
-        final audioStream = manifest.hls
-            .whereType<HlsAudioStreamInfo>()
-            .where((s) => 
-                _isValidUrl(s.url.toString()) &&
-                s.container.name.toLowerCase() == 'm3u8' &&
-                s.audioCodec != null)
-            .firstWhere(
-                (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
-                orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first    // 不能返回 null，否则会出错
-            );
-        if (audioStream != null) {
-          LogUtil.i('''找到 HLS音频流，比特率: ${audioStream.bitrate.kiloBitsPerSecond} Kbps''');
-          audioUrl = audioStream.url.toString();
-        }
-        // 如果找到了视频和音频流，生成并保存 m3u8 文件
-        if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
-          try {
-            final directory = await getApplicationDocumentsDirectory();
-            final fileName = 'master_youtube.m3u8';
-            final filePath = '${directory.path}/$fileName';
-            final file = File(filePath);
-             
-            // 直接使用流中的分辨率信息
-            final resolution = selectedVideoStream.videoResolution;
-            final width = resolution.width;
-            final height = resolution.height;
-            
-            // 准备编解码器信息,去除可能的null值
-            final videoCodec = selectedVideoStream.videoCodec;
-            final audioCodec = audioStream.audioCodec;
-            final codecs = [videoCodec, audioCodec]
-                .where((codec) => codec != null)
-                .join(',');
-             
-            final combinedM3u8 = '#EXTM3U\n'
-                '#EXT-X-VERSION:3\n'
-                '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
-                'RESOLUTION=${width}x$height,CODECS="${codecs}",'
-                'AUDIO="audio_group"\n'
-                '$videoUrl\n'
-                '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
-                'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
-                 
-            LogUtil.i('''生成新的m3u8文件：\n$combinedM3u8''');
-            
-            await file.writeAsString(combinedM3u8);
-            LogUtil.i('成功保存m3u8文件到: $filePath');
-            
-            return filePath;
-            
-          } catch (e, stackTrace) {
-            LogUtil.logError('保存m3u8文件失败', e, stackTrace);
-            return 'ERROR';
-          }
-        }
-        LogUtil.i('HLS流中未找到完整的音视频流');
-      } else {
-        LogUtil.i('没有可用的 HLS 流');
-      }
-      // 如果没有合适的 HLS 流，尝试获取普通混合流
-      var streamInfo = _getBestMuxedStream(manifest);
-      if (streamInfo != null) {
-        var streamUrl = streamInfo.url.toString();
-        if (_isValidUrl(streamUrl)) {
-          return streamUrl;
+          videoUrl = selectedVideoStream.url.toString();
+          break;
         }
       }
-      LogUtil.e('未找到任何符合条件的流');
-      return 'ERROR';
       
+      // 获取音频流
+      final audioStream = manifest.hls
+          .whereType<HlsAudioStreamInfo>()
+          .where((s) => 
+              _isValidUrl(s.url.toString()) &&
+              s.container.name.toLowerCase() == 'm3u8' &&
+              s.audioCodec != null)
+          .firstWhere(
+              (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
+              orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
+          );
+          
+      if (audioStream != null) {
+        LogUtil.i('''找到 HLS音频流
+          - bitrate: ${audioStream.bitrate.kiloBitsPerSecond} Kbps
+          - codec: ${audioStream.codec}
+          - container: ${audioStream.container}
+          - tag: ${audioStream.tag}
+          - url: ${audioStream.url}
+          ''');
+        audioUrl = audioStream.url.toString();
+      }
+      
+      // 如果找到了视频和音频流，生成并保存 m3u8 文件
+      if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final fileName = 'master_youtube.m3u8';
+          final filePath = '${directory.path}/$fileName';
+          final file = File(filePath);
+           
+          // 直接使用流中的分辨率信息
+          final resolution = selectedVideoStream.videoResolution;
+          final width = resolution.width;
+          final height = resolution.height;
+           
+          final combinedM3u8 = '#EXTM3U\n'
+              '#EXT-X-VERSION:3\n'
+              '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
+              'RESOLUTION=${width}x$height,'
+              'CODECS="${selectedVideoStream.codec}",'
+              'AUDIO="audio_group"\n'
+              '$videoUrl\n'
+              '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
+              'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
+               
+          LogUtil.i('''生成新的m3u8文件：
+$combinedM3u8''');
+          
+          await file.writeAsString(combinedM3u8);
+          LogUtil.i('成功保存m3u8文件到: $filePath');
+          
+          return filePath;
+          
+        } catch (e, stackTrace) {
+          LogUtil.logError('保存m3u8文件失败', e, stackTrace);
+          return 'ERROR';
+        }
+      }
+      LogUtil.i('HLS流中未找到完整的音视频流');
+    } else {
+      LogUtil.i('没有可用的 HLS 流');
+    }
+    
+    // 如果没有合适的 HLS 流，尝试获取普通混合流
+    var streamInfo = _getBestMuxedStream(manifest);
+    if (streamInfo != null) {
+      var streamUrl = streamInfo.url.toString();
+      if (_isValidUrl(streamUrl)) {
+        return streamUrl;
+      }
+    }
+    
+    LogUtil.e('未找到任何符合条件的流');
+    return 'ERROR';
+    
   } catch (e, stackTrace) {
     LogUtil.logError('获取视频流时发生错误', e, stackTrace);
     return 'ERROR';
