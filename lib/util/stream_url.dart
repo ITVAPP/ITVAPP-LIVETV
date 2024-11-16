@@ -163,24 +163,34 @@ Future<String> _getYouTubeVideoUrl() async {
       
       // 按照预定义的分辨率顺序查找
       for (final res in resolutionMap.keys) {
-        selectedVideoStream = validStreams.firstWhere(
-          (s) => s.qualityLabel.contains('${res}p'),
-          orElse: () => validStreams.first
-        );
-        if (selectedVideoStream != null) {
-          LogUtil.i('''找到 ${res}p 质量的视频流
-            - tag: ${selectedVideoStream.tag}
-            - qualityLabel: ${selectedVideoStream.qualityLabel}
-            - videoCodec: ${selectedVideoStream.videoCodec}
-            - codec: ${selectedVideoStream.codec}
-            - container: ${selectedVideoStream.container}
-            - bitrate: ${selectedVideoStream.bitrate.kiloBitsPerSecond} Kbps
-            - videoQuality: ${selectedVideoStream.videoQuality}
-            - videoResolution: ${selectedVideoStream.videoResolution}
-            - framerate: ${selectedVideoStream.framerate}fps
-            - url: ${selectedVideoStream.url}''');
-          videoUrl = selectedVideoStream.url.toString();
-          break;
+        // 找出所有符合当前分辨率的流
+        final matchingStreams = validStreams.where(
+          (s) => s.qualityLabel.contains('${res}p')
+        ).toList();
+        
+        // 如果找到了符合分辨率的流
+        if (matchingStreams.isNotEmpty) {
+          // 优先选择 avc1 编码的流
+          selectedVideoStream = matchingStreams.firstWhere(
+            (s) => s.codec.toString().toLowerCase().contains('avc1'),
+            orElse: () => matchingStreams.first  // 如果没有avc1编码的流，使用第一个流
+          );
+          
+          if (selectedVideoStream != null) {
+            LogUtil.i('''找到 ${res}p 质量的视频流
+              - tag: ${selectedVideoStream.tag}
+              - qualityLabel: ${selectedVideoStream.qualityLabel}
+              - videoCodec: ${selectedVideoStream.videoCodec}
+              - codec: ${selectedVideoStream.codec}
+              - container: ${selectedVideoStream.container}
+              - bitrate: ${selectedVideoStream.bitrate.kiloBitsPerSecond} Kbps
+              - videoQuality: ${selectedVideoStream.videoQuality}
+              - videoResolution: ${selectedVideoStream.videoResolution}
+              - framerate: ${selectedVideoStream.framerate}fps
+              - url: ${selectedVideoStream.url}''');
+            videoUrl = selectedVideoStream.url.toString();
+            break;
+          }
         }
       }
       
@@ -214,7 +224,7 @@ Future<String> _getYouTubeVideoUrl() async {
           final file = File(filePath);
           
           // 从视频流的codec中提取编解码器信息
-          final codecMatch = RegExp(r'codecs="([^"]+)"').firstMatch(selectedVideoStream.codec);
+          final codecMatch = RegExp(r'codecs="([^"]+)"').firstMatch(selectedVideoStream.codec.toString());
           final codecs = codecMatch?.group(1) ?? 'avc1.4D401F,mp4a.40.2';
           
           final resolution = selectedVideoStream.videoResolution;
