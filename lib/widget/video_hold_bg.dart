@@ -113,7 +113,7 @@ void initState() {
          _currentAnimationType = _getRandomAnimationType();
          _isTransitionLocked = false;
        });
-       _animationController.value = 0.0;
+       _animationController.reset(); // 修改：增加重置动画控制器
        
        if (_bingImgUrls.length > 1) {
          final nextNextIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
@@ -223,7 +223,8 @@ Future<void> _loadBingBackgrounds() async {
      }
    }
 }
- 
+
+// 修改：更新图片切换方法
 void _startImageTransition() {
    if (_isAnimating || 
        _isTransitionLocked || 
@@ -248,11 +249,14 @@ void _startImageTransition() {
        setState(() {
          _isAnimating = true;
          _nextImgIndex = nextIndex;
+         // 修改：添加新的动画类型选择
+         _currentAnimationType = _getRandomAnimationType();
        });
        
        WidgetsBinding.instance.addPostFrameCallback((_) {
          if (mounted) {
-           _animationController.forward(from: 0.0);
+           _animationController.reset();  // 修改：确保动画从头开始
+           _animationController.forward();
          }
        });
      });
@@ -279,6 +283,7 @@ void dispose() {
    super.dispose();
 }
 
+// 修改：优化动画过渡效果构建方法
 Widget _buildAnimatedTransition() {
    if (_nextImgIndex >= _bingImgUrls.length || !mounted || _isTransitionLocked) {
      return const SizedBox.shrink();
@@ -296,20 +301,18 @@ Widget _buildAnimatedTransition() {
        ),
      );
 
-     final fadeTransition = FadeTransition(
-       opacity: _fadeAnimation,
-       child: nextImage,
-     );
-
      switch (_currentAnimationType) {
-       case 0:
-         return fadeTransition;
+       case 0: // 淡入淡出效果
+         return FadeTransition(
+           opacity: _fadeAnimation,
+           child: nextImage,
+         );
          
-       case 1:
+       case 1: // 3D旋转效果
          return AnimatedBuilder(
            animation: _rotationAnimation,
            builder: (context, child) {
-             if (_rotationAnimation.value.isNaN) return fadeTransition;
+             if (_rotationAnimation.value.isNaN) return const SizedBox.shrink();
              
              return Transform(
                alignment: Alignment.center,
@@ -319,17 +322,20 @@ Widget _buildAnimatedTransition() {
                  ..scale(_rotationAnimation.value < 0.5 ? 
                          1.0 + (_rotationAnimation.value * 0.4) :
                          1.4 - (_rotationAnimation.value * 0.4)),
-               child: fadeTransition,
+               child: FadeTransition(
+                 opacity: _fadeAnimation,
+                 child: nextImage,
+               ),
              );
            },
          );
 
-       case 2:
+       case 2: // 缩放效果
          return AnimatedBuilder(
            animation: _scaleAnimation,
            builder: (context, child) {
              final progress = _scaleAnimation.value;
-             if (progress.isNaN) return fadeTransition;
+             if (progress.isNaN) return const SizedBox.shrink();
              
              final scale = Tween<double>(begin: 1.4, end: 1.0)
                  .transform(progress)
@@ -348,18 +354,17 @@ Widget _buildAnimatedTransition() {
                  ),
                child: Opacity(
                  opacity: opacity,
-                 child: child,
+                 child: nextImage,
                ),
              );
            },
-           child: fadeTransition,
          );
          
-       case 3:
+       case 3: // 径向扩散效果
          return AnimatedBuilder(
            animation: _radialAnimation,
            builder: (context, child) {
-             if (_radialAnimation.value.isNaN) return fadeTransition;
+             if (_radialAnimation.value.isNaN) return const SizedBox.shrink();
              
              return Stack(
                children: [
@@ -368,7 +373,10 @@ Widget _buildAnimatedTransition() {
                      fraction: _radialAnimation.value.clamp(0.0, 3.2),
                      centerAlignment: Alignment.center,
                    ),
-                   child: fadeTransition,
+                   child: FadeTransition(
+                     opacity: _fadeAnimation,
+                     child: nextImage,
+                   ),
                  ),
                  if (_radialAnimation.value > 0.2 && _radialAnimation.value < 2.8)
                    Opacity(
@@ -393,12 +401,12 @@ Widget _buildAnimatedTransition() {
            },
          );
          
-       case 4:
+       case 4: // 百叶窗效果
          final screenSize = MediaQuery.of(context).size;
-         if (screenSize.isEmpty) return fadeTransition;
+         if (screenSize.isEmpty) return const SizedBox.shrink();
          
          final height = 1.0 / _blindCount.clamp(1, 20);
-         if (height.isNaN || height <= 0) return fadeTransition;
+         if (height.isNaN || height <= 0) return const SizedBox.shrink();
          
          return Stack(
            children: List.generate(_blindCount, (index) {
@@ -437,14 +445,17 @@ Widget _buildAnimatedTransition() {
                      ),
                    );
                  },
-                 child: fadeTransition,
+                 child: nextImage,
                ),
              );
            }),
          );
          
        default:
-         return fadeTransition;
+         return FadeTransition(
+           opacity: _fadeAnimation,
+           child: nextImage,
+         );
      }
    } catch (e) {
      LogUtil.logError('构建动画过渡效果时发生错误', e);
@@ -555,6 +566,7 @@ Widget _buildToast(TextStyle textStyle) {
    }
 }
 
+// 修改：优化背景构建方法
 Widget _buildBingBg() {
    if (_bingImgUrls.isEmpty) {
      return _buildLocalBg();
@@ -563,16 +575,35 @@ Widget _buildBingBg() {
    return Stack(
      fit: StackFit.expand,
      children: [
-       Container(
-         decoration: BoxDecoration(
-           image: DecorationImage(
-             fit: BoxFit.cover,
-             image: NetworkImage(_bingImgUrls[_currentImgIndex]),
+       // 当前图片（基础层）
+       if (!_isAnimating || _isTransitionLocked)
+         Container(
+           decoration: BoxDecoration(
+             image: DecorationImage(
+               fit: BoxFit.cover,
+               image: NetworkImage(_bingImgUrls[_currentImgIndex]),
+             ),
            ),
          ),
-       ),
+       
+       // 动画过渡层
        if (_isAnimating && !_isTransitionLocked)
-         _buildAnimatedTransition(),
+         Stack(
+           fit: StackFit.expand,
+           children: [
+             // 保持当前图片作为底层
+             Container(
+               decoration: BoxDecoration(
+                 image: DecorationImage(
+                   fit: BoxFit.cover,
+                   image: NetworkImage(_bingImgUrls[_currentImgIndex]),
+                 ),
+               ),
+             ),
+             // 动画过渡效果
+             _buildAnimatedTransition(),
+           ],
+         ),
      ],
    );
 }
