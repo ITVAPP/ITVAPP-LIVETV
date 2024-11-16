@@ -143,11 +143,9 @@ Future<String> _getYouTubeVideoUrl() async {
     - 混合流数量: ${manifest.muxed.length}
     ===============================''');
     LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
-
     String? videoUrl;
     String? audioUrl;
     HlsVideoStreamInfo? selectedVideoStream;
-
       // 优先尝试获取 HLS 流
       if (manifest.hls.isNotEmpty) {
         // 获取视频流
@@ -155,15 +153,13 @@ Future<String> _getYouTubeVideoUrl() async {
             .whereType<HlsVideoStreamInfo>()
             .where((s) => 
                 _isValidUrl(s.url.toString()) &&
-                s.container.name.toLowerCase() == 'm3u8' &&
-                s.videoCodec != null)
+                s.container.name.toLowerCase() == 'm3u8')
             .toList();
-
         // 按照预定义的分辨率顺序查找
         for (final res in resolutionMap.keys) {
           selectedVideoStream = validStreams.firstWhere(
             (s) => s.qualityLabel.contains('${res}p'),
-            orElse: () => validStreams.first
+            orElse: () => validStreams.first   // 不能返回 null，否则会出错
           );
           if (selectedVideoStream != null) {
             LogUtil.i('找到 ${res}p 质量的视频流');
@@ -171,7 +167,6 @@ Future<String> _getYouTubeVideoUrl() async {
             break;
           }
         }
-
       // 获取音频流
       final audioStream = manifest.hls
           .whereType<HlsAudioStreamInfo>()
@@ -181,14 +176,12 @@ Future<String> _getYouTubeVideoUrl() async {
               s.audioCodec != null)
           .firstWhere(
               (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
-              orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
+              orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first    // 不能返回 null，否则会出错
           );
-
       if (audioStream != null) {
         LogUtil.i('''找到 HLS音频流，比特率: ${audioStream.bitrate.kiloBitsPerSecond} Kbps''');
         audioUrl = audioStream.url.toString();
       }
-
       // 如果找到了视频和音频流，生成并保存 m3u8 文件
       if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
         try {
@@ -196,7 +189,6 @@ Future<String> _getYouTubeVideoUrl() async {
           final fileName = 'master_youtube.m3u8';
           final filePath = '${directory.path}/$fileName';
           final file = File(filePath);
-
           // 从 qualityLabel 提取分辨率
           final resolution = selectedVideoStream.qualityLabel.replaceAll('p', '');
           final (width, height) = resolutionMap[resolution] ?? (1280, 720);
@@ -226,7 +218,6 @@ Future<String> _getYouTubeVideoUrl() async {
     } else {
       LogUtil.i('没有可用的 HLS 流');
     }
-
     // 如果没有合适的 HLS 流，尝试获取普通混合流
     var streamInfo = _getBestMuxedStream(manifest);
     if (streamInfo != null) {
@@ -235,7 +226,6 @@ Future<String> _getYouTubeVideoUrl() async {
         return streamUrl;
       }
     }
-
     LogUtil.e('未找到任何符合条件的流');
     return 'ERROR';
     
