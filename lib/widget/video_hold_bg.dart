@@ -8,12 +8,19 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
+import '../entity/playlist_model.dart';  // 添加引入 PlayModel
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
   final bool showBingBackground; // 可选参数：是否显示 Bing 背景，默认 false
+  final PlayModel? playModel;    // 添加 playModel
 
-  const VideoHoldBg({Key? key, required this.toastString, this.showBingBackground = false}) : super(key: key);
+  const VideoHoldBg({
+    Key? key, 
+    required this.toastString, 
+    this.showBingBackground = false,
+    this.playModel,             // 添加 playModel 参数
+  }) : super(key: key);
 
   @override
   _VideoHoldBgState createState() => _VideoHoldBgState();
@@ -44,9 +51,56 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
   // 添加音柱控制相关的Key
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
+
+  // 添加新方法: 构建 logo
+  Widget _buildLogo(BuildContext context) {
+    if (!widget.showBingBackground || 
+        widget.playModel?.logo == null || 
+        widget.playModel!.logo!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final mediaQuery = MediaQuery.of(context);
+    final isPortrait = mediaQuery.orientation == Orientation.portrait;
+    
+    // 根据横竖屏设置不同的大小
+    final double logoSize = isPortrait ? 40.0 : 60.0;
+    final double margin = isPortrait ? 16.0 : 24.0;
+
+    return Positioned(
+      left: margin,
+      top: margin,
+      child: Container(
+        width: logoSize,
+        height: logoSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black26,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(2),
+        child: ClipOval(
+          child: Image.network(
+            widget.playModel!.logo!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              LogUtil.logError('加载频道 logo 失败', error, stackTrace);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+  }
   
 @override
-void initState() {
+  void initState() {
     super.initState();
 
     _animationController = AnimationController(
@@ -193,7 +247,8 @@ Future<void> _loadBingBackgrounds() async {
    
    try {
      _isTransitionLocked = true;
-     _bingImgUrls = await BingUtil.getBingImgUrls();
+     final String? channelId = widget.playModel?.id;
+     _bingImgUrls = await BingUtil.getBingImgUrls(channelId: channelId);
      
      if (!mounted) return;
      
@@ -323,8 +378,8 @@ Widget _buildAnimatedTransition() {
              );
            },
          );
-
-       case 2: // 缩放效果
+         
+         case 2: // 缩放效果
          return AnimatedBuilder(
            animation: _scaleAnimation,
            builder: (context, child) {
@@ -585,6 +640,10 @@ Widget build(BuildContext context) {
          children: [
            shouldShowBingBg ? _buildBingBg() : _buildLocalBg(),
            
+           // 添加 logo
+           if (widget.showBingBackground)
+             _buildLogo(context),
+
            // 只在showBingBackground=true时显示音柱
            if (widget.showBingBackground)
              Positioned(
