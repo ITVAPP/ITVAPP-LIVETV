@@ -16,7 +16,6 @@ import 'mobile_video_widget.dart';
 import 'table_video_widget.dart';
 import 'tv/tv_page.dart';
 import 'util/env_util.dart';
-import 'util/check_version_util.dart';
 import 'util/log_util.dart';
 import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
@@ -601,11 +600,6 @@ void initState() {
 
     // 加载收藏列表
     _extractFavoriteList();
-
-    // 延迟1分钟后执行版本检测
-    Future.delayed(Duration(minutes: 1), () {
-      CheckVersionUtil.checkVersion(context, false, false);
-    });
 }
 
 /// 清理所有资源
