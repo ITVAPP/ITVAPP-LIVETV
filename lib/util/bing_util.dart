@@ -7,7 +7,7 @@ class BingUtil {
   static List<String> bingImgUrls = [];
   static String? bingImgUrl; // 存储 Bing 背景图片 URL
   static const cacheDuration = Duration(hours: 12); // 缓存有效期 12 小时
-  static const _maxRetries = 3; // 新增：最大重试次数
+  static const _maxRetries = 2; // 新增：最大重试次数
   static const _cacheKeyUrls = 'bingImgUrls'; // 新增：缓存键常量
   static const _cacheKeyUrlsTime = 'bingImgUrlsCacheTime'; // 新增：缓存时间键常量
   static const _cacheKeySingleUrl = 'bingImgUrl'; // 新增：单张图片缓存键
@@ -20,8 +20,8 @@ class BingUtil {
     return DateTime.now().difference(cachedDate) < cacheDuration;
   }
 
-  // 获取最多 8 张 Bing 图片的 URL
-  static Future<List<String>> getBingImgUrls() async {
+  // 获取最多 8 张 Bing 图片的 URL，添加可选的频道ID参数
+  static Future<List<String>> getBingImgUrls([String? channelId]) async {
     try {
       // 检查是否有缓存的图片 URL 列表
       if (bingImgUrls.isNotEmpty) {
@@ -42,7 +42,7 @@ class BingUtil {
       // 发起新的网络请求，最多获取 8 张图片
       List<Future<String?>> requests = [];
       for (int i = 0; i <= 7; i++) {
-        requests.add(_fetchBingImageUrlWithRetry(i));  // 使用带重试的请求方法
+        requests.add(_fetchBingImageUrlWithRetry(i, 0, channelId));  // 传入channelId
       }
 
       // 等待所有请求完成并收集有效的 URL
@@ -82,29 +82,33 @@ class BingUtil {
     }
   }
 
-  // 优化：带重试机制的图片 URL 获取
-  static Future<String?> _fetchBingImageUrlWithRetry(int idx, [int retryCount = 0]) async {
+  // 优化：带重试机制的图片 URL 获取，添加可选的频道ID参数
+  static Future<String?> _fetchBingImageUrlWithRetry(int idx, [int retryCount = 0, String? channelId]) async {
     try {
-      final res = await HttpUtil().getRequest('https://bing.biturl.top/?resolution=1366&format=json&index=$idx');
+      // 构建请求URL，如果有channelId就添加到参数中
+      final baseUrl = 'https://bing.biturl.top/?resolution=1366&format=json&index=$idx';
+      final url = channelId != null ? '$baseUrl&channelId=$channelId' : baseUrl;
+      
+      final res = await HttpUtil().getRequest(url);
       return res?['url']?.isNotEmpty ?? false ? res['url'] : null;
     } catch (e) {
       if (retryCount < _maxRetries) {
         await Future.delayed(Duration(milliseconds: 200 * (retryCount + 1)));
-        return _fetchBingImageUrlWithRetry(idx, retryCount + 1);
+        return _fetchBingImageUrlWithRetry(idx, retryCount + 1, channelId);
       }
       LogUtil.logError('获取第 $idx 张 Bing 图片 URL 时发生错误', e);
       return null;
     }
   }
 
-  // 只获取一张 Bing 背景图片的 URL
-  static Future<String?> getBingImgUrl() async {
+  // 只获取一张 Bing 背景图片的 URL，添加可选的频道ID参数
+  static Future<String?> getBingImgUrl([String? channelId]) async {
     try {
       if (bingImgUrl?.isNotEmpty ?? false) {
         return bingImgUrl;
       }
 
-      final res = await _fetchBingImageUrlWithRetry(0);  // 使用带重试的请求方法
+      final res = await _fetchBingImageUrlWithRetry(0, 0, channelId);  // 传入channelId
       if (res != null) {
         bingImgUrl = res;
         await _cacheSingleUrl(res);  // 使用异步缓存
@@ -137,8 +141,8 @@ class BingUtil {
     }
   }
 
-  // 从缓存中获取 Bing 背景图片的 URL，带缓存时间检查
-  static Future<String?> getCachedBingImgUrl() async {
+  // 从缓存中获取 Bing 背景图片的 URL，带缓存时间检查，添加可选的频道ID参数
+  static Future<String?> getCachedBingImgUrl([String? channelId]) async {
     try {
       String? cachedUrl = SpUtil.getString(_cacheKeySingleUrl, defValue: null);
       int? cacheTime = SpUtil.getInt(_cacheKeySingleUrlTime, defValue: 0);
@@ -147,7 +151,7 @@ class BingUtil {
         return cachedUrl;
       }
 
-      String? newBingImgUrl = await getBingImgUrl();
+      String? newBingImgUrl = await getBingImgUrl(channelId);  // 传入channelId
       if (newBingImgUrl != null) {
         await _cacheSingleUrl(newBingImgUrl);
       }
