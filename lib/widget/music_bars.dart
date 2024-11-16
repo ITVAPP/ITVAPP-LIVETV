@@ -3,18 +3,18 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 class DynamicAudioBars extends StatefulWidget {
-  final double? maxHeight; // 音柱最大高度（像素）
-  final double? barWidth; // 音柱宽度（像素）
-  final Duration animationSpeed; // 动画更新速度
-  final double smoothness; // 控制音柱高度过渡的平滑度参数
-  final bool respectDeviceOrientation; // 是否根据设备方向调整尺寸
+  final double? maxHeight;
+  final double? barWidth;
+  final Duration animationSpeed;
+  final double smoothness;
+  final bool respectDeviceOrientation;
 
   const DynamicAudioBars({
     Key? key,
     this.maxHeight,
     this.barWidth,
-    this.animationSpeed = const Duration(milliseconds: 100), // 更快的更新速度
-    this.smoothness = 0.8, // 增加平滑度
+    this.animationSpeed = const Duration(milliseconds: 100),
+    this.smoothness = 0.8,
     this.respectDeviceOrientation = true,
   }) : assert(maxHeight == null || maxHeight > 0),
        assert(barWidth == null || barWidth > 0),
@@ -28,19 +28,46 @@ class DynamicAudioBars extends StatefulWidget {
 class DynamicAudioBarsState extends State<DynamicAudioBars>
     with SingleTickerProviderStateMixin {
   final ValueNotifier<List<double>> _heightsNotifier = ValueNotifier<List<double>>([]);
+  final List<int> _colorIndices = [];
   late Timer _timer;
   bool _isAnimating = true;
   final Random _random = Random();
+  
+  // 存储每个音柱的最大高度范围
+  final List<double> _maxHeightRanges = [];
+  // 存储每个音柱的当前目标高度
+  final List<double> _targetHeights = [];
+  // 存储每个音柱的高度变化方向（1表示上升，-1表示下降）
+  final List<int> _heightDirections = [];
 
-  // 生成更自然的目标高度
-  double _generateTargetHeight() {
-    // 使用正弦波生成更自然的波动
-    final time = DateTime.now().millisecondsSinceEpoch / 1000;
-    final baseLine = (sin(time) + 1) / 2; // 基准线，范围在0-1之间
-    
-    // 添加随机噪声，但保持在合理范围内
-    final noise = _random.nextDouble() * 0.3 - 0.15; // 较小的随机波动
-    return (baseLine + noise).clamp(0.1, 0.95); // 确保高度不会太低或太高
+  // 为每个音柱生成随机的最大高度范围
+  double _generateMaxHeightRange() {
+    return 0.2 + _random.nextDouble() * 0.7; // 生成0.2到1.0之间的随机值
+  }
+
+  // 为每个音柱生成目标高度，考虑其最大高度范围
+  double _generateTargetHeight(int index) {
+    if (index >= _maxHeightRanges.length) {
+      return 0.0;
+    }
+
+    final maxRange = _maxHeightRanges[index];
+    final currentHeight = _heightsNotifier.value[index];
+    final direction = _heightDirections[index];
+
+    // 在0到最大范围之间生成新的目标高度
+    double newTarget = currentHeight + (direction * _random.nextDouble() * 0.2);
+
+    // 如果超出范围，改变方向
+    if (newTarget > maxRange) {
+      _heightDirections[index] = -1;
+      newTarget = maxRange;
+    } else if (newTarget < 0.1) {
+      _heightDirections[index] = 1;
+      newTarget = 0.1;
+    }
+
+    return newTarget;
   }
 
   @override
@@ -50,16 +77,18 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
       if (!_isAnimating) return;
 
       final currentHeights = _heightsNotifier.value;
+      if (currentHeights.isEmpty) return;
+
       final newHeights = List<double>.generate(
         currentHeights.length,
         (index) {
           final currentHeight = currentHeights[index];
-          final targetHeight = _generateTargetHeight();
+          final targetHeight = _generateTargetHeight(index);
           
-          // 使用更平滑的插值
+          // 平滑过渡到新的目标高度
           return (currentHeight * widget.smoothness +
                   targetHeight * (1 - widget.smoothness))
-              .clamp(0.0, 1.0);
+              .clamp(0.0, _maxHeightRanges[index]);
         },
       );
 
@@ -93,7 +122,6 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
         final orientation = MediaQuery.of(context).orientation;
         final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
         
-        // 计算有效的音柱宽度
         double effectiveBarWidth;
         if (widget.barWidth != null) {
           effectiveBarWidth = widget.barWidth!;
@@ -103,38 +131,62 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
               : 12.0 * devicePixelRatio;
         }
 
-        // 计算有效的最大高度
         double effectiveMaxHeight;
         if (widget.maxHeight != null) {
           effectiveMaxHeight = widget.maxHeight!;
         } else {
-          // 根据屏幕方向设置默认高度
           effectiveMaxHeight = widget.respectDeviceOrientation && orientation == Orientation.landscape
-              ? constraints.maxHeight * 0.3 // 横屏时高度较小
-              : constraints.maxHeight * 0.2; // 竖屏时高度较大
+              ? constraints.maxHeight * 0.3
+              : constraints.maxHeight * 0.2;
         }
 
-        // 计算可以容纳的音柱数量
-        int numberOfBars = ((constraints.maxWidth - 8.0) / (effectiveBarWidth + 8.0)).floor();
+        int numberOfBars = ((constraints.maxWidth - 4.0) / (effectiveBarWidth + 4.0)).floor();
 
+        // 初始化或更新音柱相关的数据
         if (_heightsNotifier.value.length != numberOfBars) {
-          _heightsNotifier.value = List<double>.filled(numberOfBars, 0.0);
+          // 初始化颜色索引
+          _colorIndices.clear();
+          for (int i = 0; i < numberOfBars; i++) {
+            _colorIndices.add(_random.nextInt(5));
+          }
+
+          // 初始化最大高度范围
+          _maxHeightRanges.clear();
+          for (int i = 0; i < numberOfBars; i++) {
+            _maxHeightRanges.add(_generateMaxHeightRange());
+          }
+
+          // 初始化高度变化方向
+          _heightDirections.clear();
+          for (int i = 0; i < numberOfBars; i++) {
+            _heightDirections.add(_random.nextBool() ? 1 : -1);
+          }
+
+          // 初始化当前高度
+          _heightsNotifier.value = List<double>.generate(
+            numberOfBars,
+            (index) => _random.nextDouble() * _maxHeightRanges[index],
+          );
         }
 
-        return RepaintBoundary(
-          child: ValueListenableBuilder<List<double>>(
-            valueListenable: _heightsNotifier,
-            builder: (context, heights, _) {
-              return CustomPaint(
-                size: Size(double.infinity, effectiveMaxHeight),
-                painter: AudioBarsPainter(
-                  heights,
-                  maxHeight: effectiveMaxHeight,
-                  barWidth: effectiveBarWidth,
-                  containerHeight: constraints.maxHeight,
-                ),
-              );
-            },
+        return Center(
+          child: RepaintBoundary(
+            child: ValueListenableBuilder<List<double>>(
+              valueListenable: _heightsNotifier,
+              builder: (context, heights, _) {
+                return CustomPaint(
+                  size: Size(numberOfBars * (effectiveBarWidth + 4.0) - 4.0, effectiveMaxHeight),
+                  painter: AudioBarsPainter(
+                    heights,
+                    maxHeight: effectiveMaxHeight,
+                    barWidth: effectiveBarWidth,
+                    containerHeight: constraints.maxHeight,
+                    colorIndices: _colorIndices,
+                    maxHeightRanges: _maxHeightRanges,
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
@@ -147,7 +199,9 @@ class AudioBarsPainter extends CustomPainter {
   final double maxHeight;
   final double barWidth;
   final double containerHeight;
-  final double spacing = 8.0;
+  final List<int> colorIndices;
+  final List<double> maxHeightRanges;
+  final double spacing = 5.0;
 
   final List<Color> googleColors = [
     Color(0xFF4285F4), // Google Blue
@@ -162,28 +216,25 @@ class AudioBarsPainter extends CustomPainter {
     required this.maxHeight,
     required this.barWidth,
     required this.containerHeight,
+    required this.colorIndices,
+    required this.maxHeightRanges,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (barHeights.isEmpty) return;
 
-    final totalSpacing = spacing * (barHeights.length - 1);
-
     for (int i = 0; i < barHeights.length; i++) {
-      final colorIndex = i % googleColors.length;
       final paint = Paint()
-        ..color = googleColors[colorIndex]
+        ..color = googleColors[colorIndices[i]]
         ..style = PaintingStyle.fill;
 
-      final barHeight = barHeights[i] * maxHeight;
+      // 根据各自的最大高度范围计算实际高度
+      final barHeight = barHeights[i] * maxHeight * maxHeightRanges[i];
       final barX = i * (barWidth + spacing);
 
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(barX, size.height - barHeight, barWidth, barHeight),
-          Radius.circular(barWidth / 2),
-        ),
+      canvas.drawRect(
+        Rect.fromLTWH(barX, size.height - barHeight, barWidth, barHeight),
         paint,
       );
     }
@@ -193,6 +244,8 @@ class AudioBarsPainter extends CustomPainter {
   bool shouldRepaint(AudioBarsPainter oldDelegate) {
     return oldDelegate.barHeights != barHeights ||
            oldDelegate.maxHeight != maxHeight ||
-           oldDelegate.barWidth != barWidth;
+           oldDelegate.barWidth != barWidth ||
+           oldDelegate.colorIndices != colorIndices ||
+           oldDelegate.maxHeightRanges != maxHeightRanges;
   }
 }
