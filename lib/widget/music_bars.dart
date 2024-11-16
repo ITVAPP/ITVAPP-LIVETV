@@ -160,8 +160,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           effectiveBarWidth = widget.barWidth!;
         } else {
           effectiveBarWidth = widget.respectDeviceOrientation && orientation == Orientation.landscape
-              ? 8.0 * devicePixelRatio
-              : 12.0 * devicePixelRatio;
+              ? 12.0 * devicePixelRatio
+              : 10.0 * devicePixelRatio;
         }
 
         double effectiveMaxHeight;
@@ -181,7 +181,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           _barDynamics.clear();
           
           for (int i = 0; i < numberOfBars; i++) {
-            _colorIndices.add(_random.nextInt(5));
+            _colorIndices.add(_random.nextInt(7)); // 更新为7种颜色
             _barCharacteristics.add(_generateCharacteristics(i, numberOfBars));
             _barDynamics.add(_BarDynamics());
           }
@@ -206,7 +206,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
                     barWidth: effectiveBarWidth,
                     containerHeight: constraints.maxHeight,
                     colorIndices: _colorIndices,
-                    maxHeightRanges: List.filled(heights.length, 1.0),  // 修复 * 运算符错误
+                    maxHeightRanges: List.filled(heights.length, 1.0),
                   ),
                 );
               },
@@ -225,7 +225,7 @@ class AudioBarsPainter extends CustomPainter {
   final double containerHeight;
   final List<int> colorIndices;
   final List<double> maxHeightRanges;
-  final double spacing = 5.0;
+  final double spacing = 6.0;
 
   final List<Color> googleColors = [
     Color(0xFF4285F4), // Google Blue
@@ -233,6 +233,8 @@ class AudioBarsPainter extends CustomPainter {
     Color(0xFFF4B400), // Google Yellow
     Color(0xFF0F9D58), // Google Green
     Color(0xFF4285F4), // Google Blue
+    Color(0xFFEB144C), // Pink
+    Colors.purple,     // Purple
   ];
 
   AudioBarsPainter(
@@ -249,17 +251,27 @@ class AudioBarsPainter extends CustomPainter {
     if (barHeights.isEmpty) return;
 
     for (int i = 0; i < barHeights.length; i++) {
+      final color = googleColors[colorIndices[i]];
+      
+      // 创建半透明效果的画笔
       final paint = Paint()
-        ..color = googleColors[colorIndices[i]]
+        ..color = color.withOpacity(0.8)
         ..style = PaintingStyle.fill;
 
       final barHeight = barHeights[i] * maxHeight;
       final barX = i * (barWidth + spacing);
+      final rect = Rect.fromLTWH(barX, size.height - barHeight, barWidth, barHeight);
 
-      canvas.drawRect(
-        Rect.fromLTWH(barX, size.height - barHeight, barWidth, barHeight),
-        paint,
+      // 绘制阴影
+      canvas.drawShadow(
+        Path()..addRect(rect),
+        Colors.black,
+        3.0,
+        true
       );
+      
+      // 绘制音柱
+      canvas.drawRect(rect, paint);
     }
   }
 
