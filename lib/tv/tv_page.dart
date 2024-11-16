@@ -19,6 +19,7 @@ import '../generated/l10n.dart';
 // 播放器组件，用于视频播放的核心组件
 class VideoPlayerWidget extends StatelessWidget {
   final BetterPlayerController? controller;
+  final PlayModel? playModel;
   final String? toastString;
   final bool drawerIsOpen;
   final bool isBuffering;
@@ -28,6 +29,7 @@ class VideoPlayerWidget extends StatelessWidget {
   const VideoPlayerWidget({
     Key? key,
     required this.controller,
+    this.playModel, 
     this.toastString,
     this.drawerIsOpen = false,
     this.isBuffering = false,
@@ -76,6 +78,7 @@ class VideoPlayerWidget extends StatelessWidget {
         else
           // 如果控制器未初始化或是音频模式，则显示背景
           VideoHoldBg(
+            playModel: playModel,
             toastString: drawerIsOpen ? '' : toastString,
             showBingBackground: isAudio,
           ),
@@ -485,6 +488,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                 children: [
                   VideoPlayerWidget(
                     controller: widget.controller,
+                    playModel: widget.playModel, 
                     toastString: widget.toastString,
                     drawerIsOpen: _drawerIsOpen,
                     isBuffering: widget.isBuffering,
