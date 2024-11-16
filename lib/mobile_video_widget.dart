@@ -58,9 +58,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     // 优先使用传入的 isLandscape 参数，如果为空，则动态判断当前设备的方向
     bool isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
 
-    // 获取当前频道 ID，确保传递给 TableVideoWidget
-    String currentChannelId = widget.currentChannelId;
-
     // 计算播放器固定高度
     final playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
@@ -159,9 +156,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               drawerIsOpen: false,  // 抽屉菜单关闭状态
               toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
               isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
-              currentChannelId: currentChannelId,  // 传递当前频道ID
-              currentChannelLogo: currentChannelLogo,  // 传递当前频道LOGO
-              currentChannelTitle: currentChannelTitle,  // 传递当前频道名字
+              currentChannelId: widget.currentChannelId,  // 传递当前频道ID
+              currentChannelLogo: widget.currentChannelLogo,  // 传递当前频道LOGO
+              currentChannelTitle: widget.currentChannelTitle,  // 传递当前频道名字
               changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
               isAudio: widget.isAudio, // 传递音频状态
             ),
