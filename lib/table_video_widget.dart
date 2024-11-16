@@ -12,7 +12,6 @@ import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
-  final PlayModel? playModel; 
   final BetterPlayerController? controller; // 视频控制器，用于控制视频播放
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调函数
   final String? toastString; // 显示提示信息的字符串
@@ -24,12 +23,13 @@ class TableVideoWidget extends StatefulWidget {
   final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
   final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
   final String currentChannelId;
+  final String currentChannelLogo;
+  final String currentChannelTitle;
   final VoidCallback? onToggleDrawer;
   final bool isAudio; // 新增音频模式参数
 
   const TableVideoWidget({
     super.key,
-    this.playModel,
     required this.controller,
     required this.isBuffering,
     required this.isPlaying,
@@ -38,6 +38,8 @@ class TableVideoWidget extends StatefulWidget {
     required this.toggleFavorite,
     required this.isChannelFavorite,
     required this.currentChannelId,
+    required this.currentChannelLogo,
+    required this.currentChannelTitle,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -67,7 +69,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 Widget _buildVideoPlayer(double containerHeight) {
   if (widget.controller == null || widget.controller!.isVideoInitialized() != true || widget.isAudio == true) {
     return VideoHoldBg(
-      playModel: widget.playModel,
+      currentChannelLogo: widget.currentChannelLogo,
+      currentChannelTitle: widget.currentChannelTitle, 
       toastString: _drawerIsOpen ? '' : widget.toastString,
       showBingBackground: widget.isAudio,
     );
