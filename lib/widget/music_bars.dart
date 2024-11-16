@@ -39,7 +39,7 @@ class DynamicAudioBars extends StatefulWidget {
     this.animationSpeed = const Duration(milliseconds: 50),
     this.smoothness = 0.6,
     this.respectDeviceOrientation = true,
-    this.horizontalPadding = 20.0, // 默认水平边距为20
+    this.horizontalPadding = 18.0, // 默认水平边距
   }) : assert(maxHeight == null || maxHeight > 0),
        assert(barWidth == null || barWidth > 0),
        assert(smoothness >= 0 && smoothness <= 1.0),
@@ -232,7 +232,7 @@ class AudioBarsPainter extends CustomPainter {
   final double containerHeight;
   final List<int> colorIndices;
   final List<double> maxHeightRanges;
-  static const double spacing = 5.0; // 音柱之间的间距
+  static const double spacing = 4.0; // 音柱之间的间距
 
   final List<Color> googleColors = [
     Color(0xFF4285F4),
