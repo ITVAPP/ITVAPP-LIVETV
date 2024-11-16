@@ -110,8 +110,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
         } else {
           // 根据屏幕方向设置默认高度
           effectiveMaxHeight = widget.respectDeviceOrientation && orientation == Orientation.landscape
-              ? constraints.maxHeight * 0.4 // 横屏时高度较小
-              : constraints.maxHeight * 0.6; // 竖屏时高度较大
+              ? constraints.maxHeight * 0.3 // 横屏时高度较小
+              : constraints.maxHeight * 0.2; // 竖屏时高度较大
         }
 
         // 计算可以容纳的音柱数量
