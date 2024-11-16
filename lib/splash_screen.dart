@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/dialog_util.dart'; 
 import 'package:itvapp_live_tv/util/m3u_util.dart'; 
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'generated/l10n.dart';
 import 'live_home_page.dart';
 
@@ -94,6 +95,17 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  // 跳转到主页面的方法
+  void _navigateToHome(PlaylistModel data) {
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => LiveHomePage(m3uData: data),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var orientation = MediaQuery.of(context).orientation;
@@ -149,15 +161,33 @@ class _SplashScreenState extends State<SplashScreen> {
       // 如果加载失败，显示错误信息和刷新按钮
       return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
     } else if (snapshot.hasData && snapshot.data?.data != null) {
-      // 如果加载成功，延迟 3 秒后导航到主页面，并传递获取到的数据
-      Future.delayed(Duration(seconds: 3), () {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            // 提取 M3uResult 中的 PlaylistModel 数据
-            builder: (context) => LiveHomePage(m3uData: snapshot.data!.data!), // 传递 PlaylistModel 数据
-          ),
-        );
+      // 执行版本检测后再跳转到主页面
+      Future.delayed(Duration(seconds: 3), () async {
+        if (!mounted) return;
+
+        try {
+          // 使用 checkVersion 方法，它会根据内部逻辑决定是否显示更新弹窗
+          await CheckVersionUtil.checkVersion(
+            context,
+            false,  // 不显示加载动画
+            false,  // 不显示已是最新版本的提示
+            false   // 不是手动检查
+          );
+          
+          // 检查上下文是否还有效
+          if (mounted) {
+            // 此时如果有更新弹窗，它已经被显示并处理完毕
+            // 我们可以安全地跳转到主页面
+            _navigateToHome(snapshot.data!.data!);
+          }
+        } catch (e, stackTrace) {
+          LogUtil.logError('版本检测时发生错误', e, stackTrace);
+          if (mounted) {
+            _navigateToHome(snapshot.data!.data!);
+          }
+        }
       });
+
       return _buildMessageUI(
         '${S.current.loading} ${S.current.tipChannelList}...',
         isLoading: true,
