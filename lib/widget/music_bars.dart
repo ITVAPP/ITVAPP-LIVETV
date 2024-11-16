@@ -160,8 +160,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           effectiveBarWidth = widget.barWidth!;
         } else {
           effectiveBarWidth = widget.respectDeviceOrientation && orientation == Orientation.landscape
-              ? 12.0 * devicePixelRatio
-              : 10.0 * devicePixelRatio;
+              ? 15.0 * devicePixelRatio
+              : 11.0 * devicePixelRatio;
         }
 
         double effectiveMaxHeight;
@@ -255,7 +255,7 @@ class AudioBarsPainter extends CustomPainter {
       
       // 创建半透明效果的画笔
       final paint = Paint()
-        ..color = color.withOpacity(0.8)
+        ..color = color.withOpacity(0.6)
         ..style = PaintingStyle.fill;
 
       final barHeight = barHeights[i] * maxHeight;
