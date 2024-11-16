@@ -25,12 +25,18 @@ class VideoPlayerWidget extends StatelessWidget {
   final bool isBuffering;
   final bool isError;
   final bool isAudio;
+  final String? currentChannelId;
+  final String? currentChannelLogo;
+  final String? currentChannelTitle;
 
   const VideoPlayerWidget({
     Key? key,
     required this.controller,
     this.playModel, 
     this.toastString,
+    this.currentChannelId,
+    this.currentChannelLogo,
+    this.currentChannelTitle,
     this.drawerIsOpen = false,
     this.isBuffering = false,
     this.isError = false,
@@ -78,7 +84,8 @@ class VideoPlayerWidget extends StatelessWidget {
         else
           // 如果控制器未初始化或是音频模式，则显示背景
           VideoHoldBg(
-            playModel: playModel,
+            currentChannelLogo: currentChannelLogo,  // 传递当前频道LOGO
+            currentChannelTitle: currentChannelTitle,  // 传递当前频道名字
             toastString: drawerIsOpen ? '' : toastString,
             showBingBackground: isAudio,
           ),
@@ -135,6 +142,8 @@ class TvPage extends StatefulWidget {
   final Function(String)? toggleFavorite;
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
+  final String? currentChannelLogo;
+  final String? currentChannelTitle;
   final bool isAudio;
 
   const TvPage({
@@ -153,6 +162,8 @@ class TvPage extends StatefulWidget {
     this.toggleFavorite,
     this.isChannelFavorite,
     this.currentChannelId,
+    this.currentChannelLogo,
+    this. currentChannelTitle,
     this.isAudio = false,
   });
 
@@ -490,6 +501,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     controller: widget.controller,
                     playModel: widget.playModel, 
                     toastString: widget.toastString,
+                    currentChannelLogo: widget.currentChannelLogo,
+                    currentChannelTitle: widget. currentChannelTitle,
                     drawerIsOpen: _drawerIsOpen,
                     isBuffering: widget.isBuffering,
                     isError: _isError,
