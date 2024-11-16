@@ -8,18 +8,19 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
-import '../entity/playlist_model.dart';  // 添加引入 PlayModel
 
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
+  final String? currentChannelLogo;
+  final String? currentChannelTitle;
   final bool showBingBackground; // 可选参数：是否显示 Bing 背景，默认 false
-  final PlayModel? playModel;    // 添加 playModel
 
   const VideoHoldBg({
     Key? key, 
     required this.toastString, 
+    required this.currentChannelLogo, 
+    required this.currentChannelTitle, 
     this.showBingBackground = false,
-    this.playModel,             // 添加 playModel 参数
   }) : super(key: key);
 
   @override
@@ -54,9 +55,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
   // 添加新方法: 构建 logo
   Widget _buildLogo(BuildContext context) {
-    if (!widget.showBingBackground || 
-        widget.playModel?.logo == null || 
-        widget.playModel!.logo!.isEmpty) {
+    if (!widget.showBingBackground || widget.currentChannelLogo == null || widget.currentChannelLogo!.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -87,7 +86,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         padding: const EdgeInsets.all(2),
         child: ClipOval(
           child: Image.network(
-            widget.playModel!.logo!,
+            widget.currentChannelLogo!.logo!,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               LogUtil.logError('加载频道 logo 失败', error, stackTrace);
@@ -247,7 +246,7 @@ Future<void> _loadBingBackgrounds() async {
    
    try {
      _isTransitionLocked = true;
-     final String? channelId = widget.playModel?.id;
+     final String? channelId = widget.currentChannelTitle;
      _bingImgUrls = await BingUtil.getBingImgUrls(channelId: channelId);
      
      if (!mounted) return;
