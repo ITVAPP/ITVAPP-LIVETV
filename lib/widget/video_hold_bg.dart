@@ -395,7 +395,7 @@ Widget _buildAnimatedTransition() {
            },
          );
          
-case 4: // 百叶窗效果
+       case 4: // 百叶窗效果
          final screenSize = MediaQuery.of(context).size;
          if (screenSize.isEmpty) return const SizedBox.shrink();
          
@@ -403,46 +403,76 @@ case 4: // 百叶窗效果
          if (height.isNaN || height <= 0) return const SizedBox.shrink();
          
          return Stack(
-           children: List.generate(_blindCount, (index) {
-             final topPosition = index * height * screenSize.height;
-             final blindHeight = height * screenSize.height;
-             
-             if (topPosition.isNaN || blindHeight.isNaN || 
-                 topPosition < 0 || blindHeight <= 0) {
-               return const SizedBox.shrink();
-             }
-
-             return Positioned(
-               top: topPosition,
-               left: 0,
-               right: 0,
-               height: blindHeight,
-               child: AnimatedBuilder(
-                 animation: _blindAnimations[index],
-                 builder: (context, child) {
-                   final progress = _blindAnimations[index].value;
-                   if (progress.isNaN) return const SizedBox.shrink();
-                   
-                   return Transform(
-                     transform: Matrix4.identity()
-                       ..translate(
-                         -screenSize.width * (1 - progress).clamp(0.0, 1.0),
-                         (1 - progress).clamp(0.0, 1.0) * 8.0,
-                       )
-                       ..scale(
-                         1.0,
-                         (0.92 + (progress * 0.08)).clamp(0.9, 1.0),
+           children: [
+             // 添加一个渐变过渡层
+             AnimatedBuilder(
+               animation: _fadeAnimation,
+               builder: (context, child) {
+                 final fadeProgress = _fadeAnimation.value;
+                 // 只在动画后半段显示渐变层
+                 final opacity = fadeProgress > 0.5 ? 
+                   ((fadeProgress - 0.5) * 2).clamp(0.0, 1.0) : 0.0;
+                 
+                 return Opacity(
+                   opacity: opacity,
+                   child: Container(
+                     decoration: BoxDecoration(
+                       image: DecorationImage(
+                         fit: BoxFit.cover,
+                         image: NetworkImage(_bingImgUrls[_nextImgIndex]),
                        ),
-                     child: Opacity(
-                       opacity: progress.clamp(0.0, 1.0),
-                       child: child,
                      ),
-                   );
-                 },
-                 child: nextImage,
-               ),
-             );
-           }),
+                   ),
+                 );
+               },
+             ),
+             
+             // 百叶窗动画层
+             ...List.generate(_blindCount, (index) {
+               final topPosition = index * height * screenSize.height;
+               final blindHeight = height * screenSize.height;
+               
+               if (topPosition.isNaN || blindHeight.isNaN || 
+                   topPosition < 0 || blindHeight <= 0) {
+                 return const SizedBox.shrink();
+               }
+
+               return Positioned(
+                 top: topPosition,
+                 left: 0,
+                 right: 0,
+                 height: blindHeight,
+                 child: AnimatedBuilder(
+                   animation: _blindAnimations[index],
+                   builder: (context, child) {
+                     final progress = _blindAnimations[index].value;
+                     if (progress.isNaN) return const SizedBox.shrink();
+                     
+                     // 调整百叶窗动画进度，使其在动画后期逐渐消失
+                     final adjustedOpacity = progress < 0.7 ? 
+                       1.0 : (1.0 - ((progress - 0.7) / 0.3)).clamp(0.0, 1.0);
+                     
+                     return Transform(
+                       transform: Matrix4.identity()
+                         ..translate(
+                           -screenSize.width * (1 - progress).clamp(0.0, 1.0),
+                           (1 - progress).clamp(0.0, 1.0) * 8.0,
+                         )
+                         ..scale(
+                           1.0,
+                           (0.92 + (progress * 0.08)).clamp(0.9, 1.0),
+                         ),
+                       child: Opacity(
+                         opacity: adjustedOpacity,
+                         child: child,
+                       ),
+                     );
+                   },
+                   child: nextImage,
+                 ),
+               );
+             }),
+           ],
          );
          
        default:
