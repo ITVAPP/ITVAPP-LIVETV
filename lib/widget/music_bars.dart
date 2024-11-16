@@ -2,11 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-// 移到外部的音柱特性类
 class _BarCharacteristics {
-  final double baseFrequency; // 基础频率 - 决定基本高度
-  final double amplitude;     // 振幅范围 - 决定可变化范围
-  final double speed;        // 变化速度 - 决定高度变化的快慢
+  final double baseFrequency;
+  final double amplitude;    
+  final double speed;       
   
   _BarCharacteristics({
     required this.baseFrequency,
@@ -15,13 +14,11 @@ class _BarCharacteristics {
   });
 }
 
-// 移到外部的音柱动态参数类
 class _BarDynamics {
-  double velocity = 0;      // 当前速度
-  double acceleration = 0;  // 当前加速度
-  double phase = 0;        // 当前相位
+  double velocity = 0;     
+  double acceleration = 0;  
+  double phase = 0;        
   
-  // 应用阻尼效果使运动更自然
   void applyDamping(double dampingFactor) {
     velocity *= (1 - dampingFactor);
   }
@@ -33,14 +30,16 @@ class DynamicAudioBars extends StatefulWidget {
   final Duration animationSpeed;
   final double smoothness;
   final bool respectDeviceOrientation;
+  final double horizontalPadding; // 新增水平边距参数
 
   const DynamicAudioBars({
     Key? key,
     this.maxHeight,
     this.barWidth,
-    this.animationSpeed = const Duration(milliseconds: 50),  // 更快的更新速度
-    this.smoothness = 0.6,  // 降低平滑度以获得更快的响应
+    this.animationSpeed = const Duration(milliseconds: 50),
+    this.smoothness = 0.6,
     this.respectDeviceOrientation = true,
+    this.horizontalPadding = 20.0, // 默认水平边距为20
   }) : assert(maxHeight == null || maxHeight > 0),
        assert(barWidth == null || barWidth > 0),
        assert(smoothness >= 0 && smoothness <= 1.0),
@@ -55,23 +54,22 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   final ValueNotifier<List<double>> _heightsNotifier = ValueNotifier<List<double>>([]);
   final List<int> _colorIndices = [];
   late Timer _timer;
-  bool _isAnimating = true;
+  bool _isAnimating = false; // 初始状态设为false
   final Random _random = Random();
   
   final List<_BarCharacteristics> _barCharacteristics = [];
   final List<_BarDynamics> _barDynamics = [];
 
-  // 根据音柱位置生成其特性参数
+  // 新增：动画延迟启动的计时器
+  Timer? _startupTimer;
+
   _BarCharacteristics _generateCharacteristics(int index, int totalBars) {
-    // 计算音柱的相对位置（0-1之间）
     final position = index / totalBars;
     
-    // 低频音柱（左侧）：振幅大，速度慢
-    // 高频音柱（右侧）：振幅小，速度快
     return _BarCharacteristics(
-      baseFrequency: 0.1 + (position * 0.4),  // 基础频率随位置增加
-      amplitude: 0.8 - (position * 0.3),      // 振幅随位置减小
-      speed: 0.5 + (position * 1.5),         // 速度随位置增加
+      baseFrequency: 0.1 + (position * 0.4),
+      amplitude: 0.8 - (position * 0.3),
+      speed: 0.5 + (position * 1.5),
     );
   }
 
@@ -79,6 +77,15 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   void initState() {
     super.initState();
     _timer = Timer.periodic(widget.animationSpeed, _updateBars);
+    
+    // 新增：3秒后启动动画
+    _startupTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _isAnimating = true;
+        });
+      }
+    });
   }
 
   void _updateBars(Timer timer) {
@@ -93,33 +100,23 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
         final dynamics = _barDynamics[index];
         final chars = _barCharacteristics[index];
         
-        // 更新相位
         dynamics.phase += chars.speed * 0.1;
         
-        // 计算新的目标高度：结合多个因素
-        // 1. 基础高度
         final baseHeight = chars.baseFrequency;
-        // 2. 随机噪声
         final noise = _random.nextDouble() * 0.3;
-        // 3. 正弦波动
         final wave = sin(dynamics.phase) * chars.amplitude;
         
-        // 组合所有因素，计算目标高度
         final targetHeight = (baseHeight + wave * 0.3 + noise * 0.2).clamp(0.1, 1.0);
         
-        // 计算加速度（向目标高度移动）
         final currentHeight = currentHeights[index];
         final heightDiff = targetHeight - currentHeight;
         dynamics.acceleration = heightDiff * 0.8;
         
-        // 更新速度和应用阻尼
         dynamics.velocity += dynamics.acceleration;
         dynamics.applyDamping(0.1);
         
-        // 计算新高度
         final newHeight = (currentHeight + dynamics.velocity).clamp(0.1, 1.0);
             
-        // 应用平滑过渡
         return (currentHeight * widget.smoothness +
                 newHeight * (1 - widget.smoothness))
             .clamp(0.1, 1.0);
@@ -132,6 +129,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   @override
   void dispose() {
     _timer.cancel();
+    _startupTimer?.cancel(); // 新增：清理启动计时器
     _heightsNotifier.dispose();
     super.dispose();
   }
@@ -155,6 +153,9 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
         final orientation = MediaQuery.of(context).orientation;
         final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
         
+        // 计算实际可用宽度（减去左右边距）
+        final availableWidth = constraints.maxWidth - (widget.horizontalPadding * 2);
+        
         double effectiveBarWidth;
         if (widget.barWidth != null) {
           effectiveBarWidth = widget.barWidth!;
@@ -173,7 +174,9 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
               : constraints.maxHeight * 0.2;
         }
 
-        int numberOfBars = ((constraints.maxWidth - 4.0) / (effectiveBarWidth + 4.0)).floor();
+        // 使用可用宽度计算音柱数量
+        // 使用 AudioBarsPainter.spacing 计算音柱数量
+int numberOfBars = ((availableWidth - AudioBarsPainter.spacing) / (effectiveBarWidth + AudioBarsPainter.spacing)).floor();
 
         if (_heightsNotifier.value.length != numberOfBars) {
           _colorIndices.clear();
@@ -181,35 +184,39 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           _barDynamics.clear();
           
           for (int i = 0; i < numberOfBars; i++) {
-            _colorIndices.add(_random.nextInt(7)); // 更新为7种颜色
+            _colorIndices.add(_random.nextInt(7));
             _barCharacteristics.add(_generateCharacteristics(i, numberOfBars));
             _barDynamics.add(_BarDynamics());
           }
 
+          // 初始化时所有音柱都是最低高度 0.1
           _heightsNotifier.value = List<double>.generate(
             numberOfBars,
-            (index) => 0.3 + _random.nextDouble() * 0.3,
+            (index) => 0.1,
           );
         }
 
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: RepaintBoundary(
-            child: ValueListenableBuilder<List<double>>(
-              valueListenable: _heightsNotifier,
-              builder: (context, heights, _) {
-                return CustomPaint(
-                  size: Size(numberOfBars * (effectiveBarWidth + 4.0) - 4.0, effectiveMaxHeight),
-                  painter: AudioBarsPainter(
-                    heights,
-                    maxHeight: effectiveMaxHeight,
-                    barWidth: effectiveBarWidth,
-                    containerHeight: constraints.maxHeight,
-                    colorIndices: _colorIndices,
-                    maxHeightRanges: List.filled(heights.length, 1.0),
-                  ),
-                );
-              },
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: RepaintBoundary(
+              child: ValueListenableBuilder<List<double>>(
+                valueListenable: _heightsNotifier,
+                builder: (context, heights, _) {
+                  return CustomPaint(
+                    size: Size(numberOfBars * (effectiveBarWidth + 4.0) - 4.0, effectiveMaxHeight),
+                    painter: AudioBarsPainter(
+                      heights,
+                      maxHeight: effectiveMaxHeight,
+                      barWidth: effectiveBarWidth,
+                      containerHeight: constraints.maxHeight,
+                      colorIndices: _colorIndices,
+                      maxHeightRanges: List.filled(heights.length, 1.0),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         );
@@ -225,16 +232,16 @@ class AudioBarsPainter extends CustomPainter {
   final double containerHeight;
   final List<int> colorIndices;
   final List<double> maxHeightRanges;
-  final double spacing = 6.0;
+  static const double spacing = 5.0; // 音柱之间的间距
 
   final List<Color> googleColors = [
-    Color(0xFF4285F4), // Google Blue
-    Color(0xFFDB4437), // Google Red
-    Color(0xFFF4B400), // Google Yellow
-    Color(0xFF0F9D58), // Google Green
-    Color(0xFF4285F4), // Google Blue
-    Color(0xFFEB144C), // Pink
-    Colors.purple,     // Purple
+    Color(0xFF4285F4),
+    Color(0xFFDB4437),
+    Color(0xFFF4B400),
+    Color(0xFF0F9D58),
+    Color(0xFF4285F4),
+    Color(0xFFEB144C),
+    Colors.purple,
   ];
 
   AudioBarsPainter(
@@ -253,7 +260,6 @@ class AudioBarsPainter extends CustomPainter {
     for (int i = 0; i < barHeights.length; i++) {
       final color = googleColors[colorIndices[i]];
       
-      // 创建半透明效果的画笔
       final paint = Paint()
         ..color = color.withOpacity(0.6)
         ..style = PaintingStyle.fill;
@@ -262,7 +268,6 @@ class AudioBarsPainter extends CustomPainter {
       final barX = i * (barWidth + spacing);
       final rect = Rect.fromLTWH(barX, size.height - barHeight, barWidth, barHeight);
 
-      // 绘制阴影
       canvas.drawShadow(
         Path()..addRect(rect),
         Colors.black,
@@ -270,7 +275,6 @@ class AudioBarsPainter extends CustomPainter {
         true
       );
       
-      // 绘制音柱
       canvas.drawRect(rect, paint);
     }
   }
