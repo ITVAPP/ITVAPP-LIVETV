@@ -86,7 +86,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         padding: const EdgeInsets.all(2),
         child: ClipOval(
           child: Image.network(
-            widget.currentChannelLogo!.logo!,
+            widget.currentChannelLogo!
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               LogUtil.logError('加载频道 logo 失败', error, stackTrace);
