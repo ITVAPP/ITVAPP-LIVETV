@@ -13,8 +13,8 @@ class DynamicAudioBars extends StatefulWidget {
     Key? key,
     this.maxHeight,
     this.barWidth,
-    this.animationSpeed = const Duration(milliseconds: 100),
-    this.smoothness = 0.8,
+    this.animationSpeed = const Duration(milliseconds: 50),  // 更快的更新速度
+    this.smoothness = 0.6,  // 降低平滑度以获得更快的响应
     this.respectDeviceOrientation = true,
   }) : assert(maxHeight == null || maxHeight > 0),
        assert(barWidth == null || barWidth > 0),
@@ -33,67 +33,101 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   bool _isAnimating = true;
   final Random _random = Random();
   
-  // 存储每个音柱的最大高度范围
-  final List<double> _maxHeightRanges = [];
-  // 存储每个音柱的当前目标高度
-  final List<double> _targetHeights = [];
-  // 存储每个音柱的高度变化方向（1表示上升，-1表示下降）
-  final List<int> _heightDirections = [];
+  // 存储每个音柱的动态特性
+  final List<_BarCharacteristics> _barCharacteristics = [];
+  final List<_BarDynamics> _barDynamics = [];
 
-  // 为每个音柱生成随机的最大高度范围
-  double _generateMaxHeightRange() {
-    return 0.2 + _random.nextDouble() * 0.7; // 生成0.2到1.0之间的随机值
+  // 音柱特性类 - 存储每个音柱的基本特征
+  class _BarCharacteristics {
+    final double baseFrequency; // 基础频率 - 决定基本高度
+    final double amplitude;     // 振幅范围 - 决定可变化范围
+    final double speed;        // 变化速度 - 决定高度变化的快慢
+    
+    _BarCharacteristics({
+      required this.baseFrequency,
+      required this.amplitude,
+      required this.speed,
+    });
   }
 
-  // 为每个音柱生成目标高度，考虑其最大高度范围
-  double _generateTargetHeight(int index) {
-    if (index >= _maxHeightRanges.length) {
-      return 0.0;
+  // 音柱动态参数类 - 存储每个音柱的实时运动状态
+  class _BarDynamics {
+    double velocity = 0;      // 当前速度
+    double acceleration = 0;  // 当前加速度
+    double phase = 0;        // 当前相位
+    
+    // 应用阻尼效果使运动更自然
+    void applyDamping(double dampingFactor) {
+      velocity *= (1 - dampingFactor);
     }
+  }
 
-    final maxRange = _maxHeightRanges[index];
-    final currentHeight = _heightsNotifier.value[index];
-    final direction = _heightDirections[index];
-
-    // 在0到最大范围之间生成新的目标高度
-    double newTarget = currentHeight + (direction * _random.nextDouble() * 0.2);
-
-    // 如果超出范围，改变方向
-    if (newTarget > maxRange) {
-      _heightDirections[index] = -1;
-      newTarget = maxRange;
-    } else if (newTarget < 0.1) {
-      _heightDirections[index] = 1;
-      newTarget = 0.1;
-    }
-
-    return newTarget;
+  // 根据音柱位置生成其特性参数
+  _BarCharacteristics _generateCharacteristics(int index, int totalBars) {
+    // 计算音柱的相对位置（0-1之间）
+    final position = index / totalBars;
+    
+    // 低频音柱（左侧）：振幅大，速度慢
+    // 高频音柱（右侧）：振幅小，速度快
+    return _BarCharacteristics(
+      baseFrequency: 0.1 + (position * 0.4),  // 基础频率随位置增加
+      amplitude: 0.8 - (position * 0.3),      // 振幅随位置减小
+      speed: 0.5 + (position * 1.5),         // 速度随位置增加
+    );
   }
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(widget.animationSpeed, (timer) {
-      if (!_isAnimating) return;
+    _timer = Timer.periodic(widget.animationSpeed, _updateBars);
+  }
 
-      final currentHeights = _heightsNotifier.value;
-      if (currentHeights.isEmpty) return;
+  void _updateBars(Timer timer) {
+    if (!_isAnimating) return;
 
-      final newHeights = List<double>.generate(
-        currentHeights.length,
-        (index) {
-          final currentHeight = currentHeights[index];
-          final targetHeight = _generateTargetHeight(index);
-          
-          // 平滑过渡到新的目标高度
-          return (currentHeight * widget.smoothness +
-                  targetHeight * (1 - widget.smoothness))
-              .clamp(0.0, _maxHeightRanges[index]);
-        },
-      );
+    final currentHeights = _heightsNotifier.value;
+    if (currentHeights.isEmpty) return;
 
-      _heightsNotifier.value = newHeights;
-    });
+    final newHeights = List<double>.generate(
+      currentHeights.length,
+      (index) {
+        final dynamics = _barDynamics[index];
+        final chars = _barCharacteristics[index];
+        
+        // 更新相位
+        dynamics.phase += chars.speed * 0.1;
+        
+        // 计算新的目标高度：结合多个因素
+        // 1. 基础高度
+        final baseHeight = chars.baseFrequency;
+        // 2. 随机噪声
+        final noise = _random.nextDouble() * 0.3;
+        // 3. 正弦波动
+        final wave = sin(dynamics.phase) * chars.amplitude;
+        
+        // 组合所有因素，计算目标高度
+        final targetHeight = (baseHeight + wave * 0.3 + noise * 0.2).clamp(0.1, 1.0);
+        
+        // 计算加速度（向目标高度移动）
+        final currentHeight = currentHeights[index];
+        final heightDiff = targetHeight - currentHeight;
+        dynamics.acceleration = heightDiff * 0.8;
+        
+        // 更新速度和应用阻尼
+        dynamics.velocity += dynamics.acceleration;
+        dynamics.applyDamping(0.1);
+        
+        // 计算新高度
+        final newHeight = (currentHeight + dynamics.velocity).clamp(0.1, 1.0);
+            
+        // 应用平滑过渡
+        return (currentHeight * widget.smoothness +
+                newHeight * (1 - widget.smoothness))
+            .clamp(0.1, 1.0);
+      },
+    );
+
+    _heightsNotifier.value = newHeights;
   }
 
   @override
@@ -142,34 +176,25 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
 
         int numberOfBars = ((constraints.maxWidth - 4.0) / (effectiveBarWidth + 4.0)).floor();
 
-        // 初始化或更新音柱相关的数据
         if (_heightsNotifier.value.length != numberOfBars) {
-          // 初始化颜色索引
           _colorIndices.clear();
+          _barCharacteristics.clear();
+          _barDynamics.clear();
+          
           for (int i = 0; i < numberOfBars; i++) {
             _colorIndices.add(_random.nextInt(5));
+            _barCharacteristics.add(_generateCharacteristics(i, numberOfBars));
+            _barDynamics.add(_BarDynamics());
           }
 
-          // 初始化最大高度范围
-          _maxHeightRanges.clear();
-          for (int i = 0; i < numberOfBars; i++) {
-            _maxHeightRanges.add(_generateMaxHeightRange());
-          }
-
-          // 初始化高度变化方向
-          _heightDirections.clear();
-          for (int i = 0; i < numberOfBars; i++) {
-            _heightDirections.add(_random.nextBool() ? 1 : -1);
-          }
-
-          // 初始化当前高度
           _heightsNotifier.value = List<double>.generate(
             numberOfBars,
-            (index) => _random.nextDouble() * _maxHeightRanges[index],
+            (index) => 0.3 + _random.nextDouble() * 0.3,
           );
         }
 
-        return Center(
+        return Align(
+          alignment: Alignment.bottomCenter,
           child: RepaintBoundary(
             child: ValueListenableBuilder<List<double>>(
               valueListenable: _heightsNotifier,
@@ -182,7 +207,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
                     barWidth: effectiveBarWidth,
                     containerHeight: constraints.maxHeight,
                     colorIndices: _colorIndices,
-                    maxHeightRanges: _maxHeightRanges,
+                    maxHeightRanges: [1.0] * heights.length,  // 使用统一的最大高度范围
                   ),
                 );
               },
@@ -229,8 +254,7 @@ class AudioBarsPainter extends CustomPainter {
         ..color = googleColors[colorIndices[i]]
         ..style = PaintingStyle.fill;
 
-      // 根据各自的最大高度范围计算实际高度
-      final barHeight = barHeights[i] * maxHeight * maxHeightRanges[i];
+      final barHeight = barHeights[i] * maxHeight;
       final barX = i * (barWidth + spacing);
 
       canvas.drawRect(
