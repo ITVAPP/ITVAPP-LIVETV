@@ -154,21 +154,7 @@ Future<String> _getYouTubeVideoUrl() async {
       final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
       LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
       
-      for (var stream in allVideoStreams) {
-        LogUtil.i('''流信息详情:
-          - tag: ${stream.tag}
-          - qualityLabel: ${stream.qualityLabel}
-          - videoCodec: ${stream.videoCodec}
-          - codec: ${stream.codec}
-          - container: ${stream.container}
-          - bitrate: ${stream.bitrate.kiloBitsPerSecond} Kbps
-          - videoQuality: ${stream.videoQuality}
-          - videoResolution: ${stream.videoResolution}
-          - framerate: ${stream.framerate}fps
-          - url valid: ${_isValidUrl(stream.url.toString())}''');
-      }
-      
-      // 然后过滤有效的流
+      // 过滤有效的流
       final validStreams = allVideoStreams
           .where((s) => 
               _isValidUrl(s.url.toString()) &&
@@ -183,7 +169,6 @@ Future<String> _getYouTubeVideoUrl() async {
         );
         if (selectedVideoStream != null) {
           LogUtil.i('''找到 ${res}p 质量的视频流
-            - toString(): ${selectedVideoStream.toString()}
             - tag: ${selectedVideoStream.tag}
             - qualityLabel: ${selectedVideoStream.qualityLabel}
             - videoCodec: ${selectedVideoStream.videoCodec}
@@ -193,8 +178,7 @@ Future<String> _getYouTubeVideoUrl() async {
             - videoQuality: ${selectedVideoStream.videoQuality}
             - videoResolution: ${selectedVideoStream.videoResolution}
             - framerate: ${selectedVideoStream.framerate}fps
-            - url: ${selectedVideoStream.url}
-            ''');
+            - url: ${selectedVideoStream.url}''');
           videoUrl = selectedVideoStream.url.toString();
           break;
         }
@@ -205,8 +189,7 @@ Future<String> _getYouTubeVideoUrl() async {
           .whereType<HlsAudioStreamInfo>()
           .where((s) => 
               _isValidUrl(s.url.toString()) &&
-              s.container.name.toLowerCase() == 'm3u8' &&
-              s.audioCodec != null)
+              s.container.name.toLowerCase() == 'm3u8')
           .firstWhere(
               (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
               orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
@@ -218,8 +201,7 @@ Future<String> _getYouTubeVideoUrl() async {
           - codec: ${audioStream.codec}
           - container: ${audioStream.container}
           - tag: ${audioStream.tag}
-          - url: ${audioStream.url}
-          ''');
+          - url: ${audioStream.url}''');
         audioUrl = audioStream.url.toString();
       }
       
@@ -230,8 +212,11 @@ Future<String> _getYouTubeVideoUrl() async {
           final fileName = 'master_youtube.m3u8';
           final filePath = '${directory.path}/$fileName';
           final file = File(filePath);
-           
-          // 直接使用流中的分辨率信息
+          
+          // 从视频流的codec中提取编解码器信息
+          final codecMatch = RegExp(r'codecs="([^"]+)"').firstMatch(selectedVideoStream.codec);
+          final codecs = codecMatch?.group(1) ?? 'avc1.4D401F,mp4a.40.2';
+          
           final resolution = selectedVideoStream.videoResolution;
           final width = resolution.width;
           final height = resolution.height;
@@ -240,7 +225,7 @@ Future<String> _getYouTubeVideoUrl() async {
               '#EXT-X-VERSION:3\n'
               '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
               'RESOLUTION=${width}x$height,'
-              'CODECS="${selectedVideoStream.codec}",'
+              'CODECS="$codecs",'  // 使用从视频流提取的编解码器信息（已含音频流编码），因为音频流没有提供编码信息
               'AUDIO="audio_group"\n'
               '$videoUrl\n'
               '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
