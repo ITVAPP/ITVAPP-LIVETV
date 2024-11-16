@@ -846,6 +846,8 @@ Widget build(BuildContext context) {
         toggleFavorite: toggleFavorite,
         isChannelFavorite: isChannelFavorite,
         currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+        currentChannelLogo: _currentChannel?.logo, 
+        currentChannelTitle: _currentChannel?.title ?? '', 
         isAudio: _isAudio,
       );
     }
@@ -857,7 +859,6 @@ Widget build(BuildContext context) {
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
             child: MobileVideoWidget(
-              playModel: _currentChannel,
               toastString: toastString,
               controller: _playerController,
               changeChannelSources: _changeChannelSources,
@@ -881,6 +882,8 @@ Widget build(BuildContext context) {
               ),
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+              currentChannelLogo: _currentChannel?.logo, 
+              currentChannelTitle: _currentChannel?.title ?? '', 
               isChannelFavorite: isChannelFavorite,
               isAudio: _isAudio,
             ),
@@ -896,7 +899,6 @@ Widget build(BuildContext context) {
                   body: toastString == 'UNKNOWN'
                       ? EmptyPage(onRefresh: _parseData)
                       : TableVideoWidget(
-                          playModel: _currentChannel,
                           toastString: toastString,
                           controller: _playerController,
                           isBuffering: isBuffering,
@@ -906,6 +908,8 @@ Widget build(BuildContext context) {
                           changeChannelSources: _changeChannelSources,
                           isChannelFavorite: isChannelFavorite,
                           currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
+                          currentChannelLogo: _currentChannel?.logo, 
+                          currentChannelTitle: _currentChannel?.title ?? '', 
                           toggleFavorite: toggleFavorite,
                           isLandscape: true,
                           isAudio: _isAudio,
