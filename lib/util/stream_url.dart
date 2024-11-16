@@ -155,18 +155,28 @@ Future<String> _getYouTubeVideoUrl() async {
                 _isValidUrl(s.url.toString()) &&
                 s.container.name.toLowerCase() == 'm3u8')
             .toList();
-        // 按照预定义的分辨率顺序查找
-        for (final res in resolutionMap.keys) {
-          selectedVideoStream = validStreams.firstWhere(
-            (s) => s.qualityLabel.contains('${res}p'),
-            orElse: () => validStreams.first   // 不能返回 null，否则会出错
-          );
-          if (selectedVideoStream != null) {
-            LogUtil.i('找到 ${res}p 质量的视频流');
-            videoUrl = selectedVideoStream.url.toString();
-            break;
-          }
+        
+      // 按照预定义的分辨率顺序查找
+      for (final res in resolutionMap.keys) {
+        selectedVideoStream = validStreams.firstWhere(
+          (s) => s.qualityLabel.contains('${res}p'),
+          orElse: () => validStreams.first   // 不能返回 null，否则会出错
+        );
+        if (selectedVideoStream != null) {
+          LogUtil.i('''找到 ${res}p 质量的视频流
+          - toString(): ${selectedVideoStream.toString()}
+          - videoCodec: ${selectedVideoStream.videoCodec}
+          - codec: ${selectedVideoStream.codec}
+          - tag: ${selectedVideoStream.tag}
+          - qualityLabel: ${selectedVideoStream.qualityLabel}
+          - container: ${selectedVideoStream.container}
+          - bitrate: ${selectedVideoStream.bitrate.kiloBitsPerSecond} Kbps
+          ''');
+          videoUrl = selectedVideoStream.url.toString();
+          break;
         }
+      }
+        
       // 获取音频流
       final audioStream = manifest.hls
           .whereType<HlsAudioStreamInfo>()
