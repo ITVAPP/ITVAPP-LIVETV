@@ -132,7 +132,6 @@ void dispose() {
   }
   
   // 获取普通 YouTube 视频的流媒体 URL
-// 主要修改的方法：
 Future<String> _getYouTubeVideoUrl() async {
   if (_isDisposed) return 'ERROR';
   try {
@@ -149,38 +148,29 @@ Future<String> _getYouTubeVideoUrl() async {
     String? audioUrl;
     HlsVideoStreamInfo? selectedVideoStream;
 
-    // 优先尝试获取 HLS 流
-    if (manifest.hls.isNotEmpty) {
-      // 获取视频流
-      final validStreams = manifest.hls
-          .whereType<HlsVideoStreamInfo>()
-          .where((s) => 
-              _isValidUrl(s.url.toString()) &&
-              s.container.name.toLowerCase() == 'm3u8' &&
-              s.videoCodec != null)
-          .toList();
+      // 优先尝试获取 HLS 流
+      if (manifest.hls.isNotEmpty) {
+        // 获取视频流
+        final validStreams = manifest.hls
+            .whereType<HlsVideoStreamInfo>()
+            .where((s) => 
+                _isValidUrl(s.url.toString()) &&
+                s.container.name.toLowerCase() == 'm3u8' &&
+                s.videoCodec != null)
+            .toList();
 
-      // 按照预定义的分辨率顺序查找
-      for (final res in resolutionMap.keys) {
-        final matchingStream = validStreams.firstWhere(
-          (s) => s.qualityLabel.contains('${res}p'),
-          orElse: () => null
-        );
-        
-        if (matchingStream != null) {
-          LogUtil.i('找到 ${res}p 质量的视频流');
-          selectedVideoStream = matchingStream;
-          videoUrl = matchingStream.url.toString();
-          break;
+        // 按照预定义的分辨率顺序查找
+        for (final res in resolutionMap.keys) {
+          selectedVideoStream = validStreams.firstWhere(
+            (s) => s.qualityLabel.contains('${res}p'),
+            orElse: () => validStreams.first
+          );
+          if (selectedVideoStream != null) {
+            LogUtil.i('找到 ${res}p 质量的视频流');
+            videoUrl = selectedVideoStream.url.toString();
+            break;
+          }
         }
-      }
-      
-      // 如果没有找到匹配的分辨率，使用第一个有效流
-      if (selectedVideoStream == null && validStreams.isNotEmpty) {
-        selectedVideoStream = validStreams.first;
-        videoUrl = selectedVideoStream.url.toString();
-        LogUtil.i('未找到匹配分辨率的流，使用第一个可用流：${selectedVideoStream.qualityLabel}');
-      }
 
       // 获取音频流
       final audioStream = manifest.hls
@@ -397,4 +387,5 @@ Map<String, String> _getRequestHeaders() {
   return {
     HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   };
+}
 }
