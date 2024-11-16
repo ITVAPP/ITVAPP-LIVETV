@@ -863,6 +863,7 @@ Widget build(BuildContext context) {
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
             child: MobileVideoWidget(
+              playModel: _currentChannel,
               toastString: toastString,
               controller: _playerController,
               changeChannelSources: _changeChannelSources,
@@ -901,6 +902,7 @@ Widget build(BuildContext context) {
                   body: toastString == 'UNKNOWN'
                       ? EmptyPage(onRefresh: _parseData)
                       : TableVideoWidget(
+                          playModel: _currentChannel,
                           toastString: toastString,
                           controller: _playerController,
                           isBuffering: isBuffering,
