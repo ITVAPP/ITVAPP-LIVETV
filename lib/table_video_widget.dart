@@ -12,6 +12,7 @@ import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
 class TableVideoWidget extends StatefulWidget {
+  final PlayModel? playModel; 
   final BetterPlayerController? controller; // 视频控制器，用于控制视频播放
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调函数
   final String? toastString; // 显示提示信息的字符串
@@ -28,6 +29,7 @@ class TableVideoWidget extends StatefulWidget {
 
   const TableVideoWidget({
     super.key,
+    this.playModel,
     required this.controller,
     required this.isBuffering,
     required this.isPlaying,
@@ -65,6 +67,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 Widget _buildVideoPlayer(double containerHeight) {
   if (widget.controller == null || widget.controller!.isVideoInitialized() != true || widget.isAudio == true) {
     return VideoHoldBg(
+      playModel: widget.playModel,
       toastString: _drawerIsOpen ? '' : widget.toastString,
       showBingBackground: widget.isAudio,
     );
