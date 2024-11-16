@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen> {
       return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
     } else if (snapshot.hasData && snapshot.data?.data != null) {
       // 执行版本检测后再跳转到主页面
-      Future.delayed(Duration(seconds: 3), () async {
+      Future.delayed(Duration(seconds: 1), () async {
         if (!mounted) return;
 
         try {
@@ -177,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen> {
           // 检查上下文是否还有效
           if (mounted) {
             // 此时如果有更新弹窗，它已经被显示并处理完毕
-            // 我们可以安全地跳转到主页面
+            await Future.delayed(Duration(seconds: 2)); // 延迟2秒再跳转
             _navigateToHome(snapshot.data!.data!);
           }
         } catch (e, stackTrace) {
@@ -189,7 +189,7 @@ class _SplashScreenState extends State<SplashScreen> {
       });
 
       return _buildMessageUI(
-        '${S.current.loading} ${S.current.tipChannelList}...',
+        '${S.current.loading}...',
         isLoading: true,
       );
     } else {
