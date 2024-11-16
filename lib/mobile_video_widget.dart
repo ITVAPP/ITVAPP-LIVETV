@@ -11,7 +11,6 @@ import 'generated/l10n.dart';
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
-  final PlayModel? playModel; 
   final BetterPlayerController? controller; // 视频播放器控制器
   final GestureTapCallback? changeChannelSources; // 切换频道源的回调
   final String? toastString; // 提示信息字符串
@@ -38,7 +37,6 @@ class MobileVideoWidget extends StatefulWidget {
     required this.toggleFavorite, 
     required this.isChannelFavorite,
     required this.currentChannelId,
-    this.playModel,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -148,7 +146,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             width: double.infinity,
             height: playerHeight, // 固定播放器高度为16:9比例宽高比
             child: TableVideoWidget(
-              playModel: widget.playModel,	
               controller: widget.controller,  // 传入视频控制器
               toastString: widget.toastString,  // 提示信息
               isLandscape: isLandscape,  // 动态判断是否为横屏
@@ -159,6 +156,8 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
               isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
               currentChannelId: currentChannelId,  // 传递当前频道ID
+              currentChannelLogo: currentChannelLogo,  // 传递当前频道LOGO
+              currentChannelTitle: currentChannelTitle,  // 传递当前频道名字
               changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
               isAudio: widget.isAudio, // 传递音频状态
             ),
