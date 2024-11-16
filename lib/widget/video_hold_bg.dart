@@ -53,7 +53,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   // 添加音柱控制相关的Key
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
 
-  // 添加新方法: 构建 logo
+  // 构建 logo
   Widget _buildLogo(BuildContext context) {
     if (!widget.showBingBackground || widget.currentChannelLogo == null || widget.currentChannelLogo!.isEmpty) {
       return const SizedBox.shrink();
@@ -62,8 +62,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     final mediaQuery = MediaQuery.of(context);
     final isPortrait = mediaQuery.orientation == Orientation.portrait;
     
-    // 根据横竖屏设置不同的大小
-    final double logoSize = isPortrait ? 40.0 : 60.0;
+    final double logoSize = isPortrait ? 28.0 : 38.0;
     final double margin = isPortrait ? 16.0 : 24.0;
 
     return Positioned(
@@ -86,9 +85,9 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         padding: const EdgeInsets.all(2),
         child: ClipOval(
           child: Image.network(
-            widget.currentChannelLogo!
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
+            widget.currentChannelLogo!,  // 图片URL
+            fit: BoxFit.cover,  // 图片填充方式
+            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
               LogUtil.logError('加载频道 logo 失败', error, stackTrace);
               return const SizedBox.shrink();
             },
@@ -96,7 +95,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         ),
       ),
     );
-  }
+}
   
 @override
   void initState() {
