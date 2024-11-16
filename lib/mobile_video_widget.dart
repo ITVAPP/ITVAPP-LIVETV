@@ -23,6 +23,8 @@ class MobileVideoWidget extends StatefulWidget {
   final Function(String) toggleFavorite; 
   final bool Function(String) isChannelFavorite;
   final String currentChannelId; // 当前频道ID
+  final String currentChannelLogo;  // 当前频道LOGO
+  final String currentChannelTitle; // 当前频道名字
   final bool isAudio; // 新增音频模式参数
 
   // MobileVideoWidget 构造函数
@@ -37,6 +39,8 @@ class MobileVideoWidget extends StatefulWidget {
     required this.toggleFavorite, 
     required this.isChannelFavorite,
     required this.currentChannelId,
+    required this.currentChannelLogo,
+    required this.currentChannelTitle,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
