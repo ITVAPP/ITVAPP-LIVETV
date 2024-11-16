@@ -9,6 +9,102 @@ import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
 
+// 新增: Logo Widget 组件
+class ChannelLogoWidget extends StatefulWidget {
+  final String? logoUrl;
+  final bool isPortrait;
+  
+  const ChannelLogoWidget({
+    Key? key,
+    required this.logoUrl,
+    required this.isPortrait,
+  }) : super(key: key);
+
+  @override
+  State<ChannelLogoWidget> createState() => _ChannelLogoWidgetState();
+}
+
+class _ChannelLogoWidgetState extends State<ChannelLogoWidget> {
+  bool _isLogoLoadFailed = false;
+  String? _lastLoadedLogoUrl;
+
+  @override
+  void didUpdateWidget(ChannelLogoWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.logoUrl != widget.logoUrl) {
+      _isLogoLoadFailed = false;
+      _lastLoadedLogoUrl = null;
+    }
+  }
+
+  Widget _buildDefaultLogo() {
+    return Image.asset(
+      'assets/images/logo.png',
+      fit: BoxFit.cover,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.logoUrl == null || widget.logoUrl!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // 如果URL没变且之前加载失败，直接返回默认logo
+    if (_lastLoadedLogoUrl == widget.logoUrl && _isLogoLoadFailed) {
+      return _buildDefaultLogo();
+    }
+
+    _lastLoadedLogoUrl = widget.logoUrl;
+
+    final double logoSize = widget.isPortrait ? 38.0 : 58.0;
+    final double margin = widget.isPortrait ? 16.0 : 26.0;
+
+    return Positioned(
+      left: margin,
+      top: margin,
+      child: Container(
+        width: logoSize,
+        height: logoSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black26,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(2),
+        child: ClipOval(
+          child: Image.network(
+            widget.logoUrl!,
+            fit: BoxFit.cover,
+            // 使用key确保URL变化时强制重新加载
+            key: ValueKey(widget.logoUrl),
+            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+              if (!_isLogoLoadFailed) {
+                LogUtil.logError('加载频道 logo 失败', error, stackTrace);
+                _isLogoLoadFailed = true;
+              }
+              return _buildDefaultLogo();
+            },
+            loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+              if (loadingProgress == null) {
+                _isLogoLoadFailed = false;
+                return child;
+              }
+              return const CircularProgressIndicator();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class VideoHoldBg extends StatefulWidget {
   final String? toastString;
   final String? currentChannelLogo;
@@ -53,51 +149,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   // 添加音柱控制相关的Key
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
 
-  // 构建 logo
-  Widget _buildLogo(BuildContext context) {
-    if (!widget.showBingBackground || widget.currentChannelLogo == null || widget.currentChannelLogo!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final mediaQuery = MediaQuery.of(context);
-    final isPortrait = mediaQuery.orientation == Orientation.portrait;
-    
-    final double logoSize = isPortrait ? 28.0 : 38.0;
-    final double margin = isPortrait ? 16.0 : 24.0;
-
-    return Positioned(
-      left: margin,
-      top: margin,
-      child: Container(
-        width: logoSize,
-        height: logoSize,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black26,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(2),
-        child: ClipOval(
-          child: Image.network(
-            widget.currentChannelLogo!,  // 图片URL
-            fit: BoxFit.cover,  // 图片填充方式
-            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
-              LogUtil.logError('加载频道 logo 失败', error, stackTrace);
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      ),
-    );
-}
-  
-@override
+  @override
   void initState() {
     super.initState();
 
@@ -198,525 +250,524 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
    }
 }
 
-// 添加监听toastString变化的方法
 @override
-void didUpdateWidget(VideoHoldBg oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  
-  // 仅在 showBingBackground=true 时处理音柱动画
-  if (widget.showBingBackground) {
-    if (oldWidget.toastString != widget.toastString) {
-      // 只有当 toastString 不是 "HIDE_CONTAINER" 且不是 null 时才暂停动画
-      if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {  
-        // 有消息时暂停动画
-        _audioBarKey.currentState?.pauseAnimation();
-      } else {
-        // 消息消失后继续动画
-        _audioBarKey.currentState?.resumeAnimation();
+  void didUpdateWidget(VideoHoldBg oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 仅在 showBingBackground=true 时处理音柱动画
+    if (widget.showBingBackground) {
+      if (oldWidget.toastString != widget.toastString) {
+        // 只有当 toastString 不是 "HIDE_CONTAINER" 且不是 null 时才暂停动画
+        if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {  
+          // 有消息时暂停动画
+          _audioBarKey.currentState?.pauseAnimation();
+        } else {
+          // 消息消失后继续动画
+          _audioBarKey.currentState?.resumeAnimation();
+        }
       }
     }
   }
-}
 
-int _getRandomAnimationType() {
-   if (!mounted) return 0;
-   
-   final random = Random();
-   final weights = [0.15, 0.25, 0.2, 0.2, 0.2];
-   final value = random.nextDouble();
-   
-   try {
-     double accumulator = 0;
-     for (int i = 0; i < weights.length; i++) {
-       accumulator += weights[i];
-       if (value < accumulator) {
-         return i;
-       }
-     }
-     return 0;
-   } catch (e) {
-     LogUtil.logError('动画类型选择错误', e);
-     return 0;
-   }
-}
+  int _getRandomAnimationType() {
+    if (!mounted) return 0;
+    
+    final random = Random();
+    final weights = [0.15, 0.25, 0.2, 0.2, 0.2];
+    final value = random.nextDouble();
+    
+    try {
+      double accumulator = 0;
+      for (int i = 0; i < weights.length; i++) {
+        accumulator += weights[i];
+        if (value < accumulator) {
+          return i;
+        }
+      }
+      return 0;
+    } catch (e) {
+      LogUtil.logError('动画类型选择错误', e);
+      return 0;
+    }
+  }
 
-Future<void> _loadBingBackgrounds() async {
-   if (_isBingLoaded || _isTransitionLocked) return;
-   
-   try {
-     _isTransitionLocked = true;
-     final String? channelId = widget.currentChannelTitle;
-     _bingImgUrls = await BingUtil.getBingImgUrls(channelId: channelId);
-     
-     if (!mounted) return;
-     
-     if (_bingImgUrls.isNotEmpty) {
-       setState(() {
-         _isBingLoaded = true;
-         precacheImage(NetworkImage(_bingImgUrls[0]), context);
-       });
+  Future<void> _loadBingBackgrounds() async {
+    if (_isBingLoaded || _isTransitionLocked) return;
+    
+    try {
+      _isTransitionLocked = true;
+      final String? channelId = widget.currentChannelTitle;
+      _bingImgUrls = await BingUtil.getBingImgUrls(channelId: channelId);
+      
+      if (!mounted) return;
+      
+      if (_bingImgUrls.isNotEmpty) {
+        setState(() {
+          _isBingLoaded = true;
+          precacheImage(NetworkImage(_bingImgUrls[0]), context);
+        });
 
-       _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
-         if (!_isAnimating && mounted && _bingImgUrls.length > 1 && !_isTransitionLocked) {
-           _startImageTransition();
-         }
-       });
-     } else {
-       LogUtil.e('未获取到任何 Bing 图片 URL');
-     }
-   } catch (e) {
-     LogUtil.logError('加载 Bing 图片时发生错误', e);
-   } finally {
-     if (mounted) {
-       setState(() {
-         _isBingLoaded = true;
-         _isTransitionLocked = false;
-       });
-     }
-   }
-}
+        _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
+          if (!_isAnimating && mounted && _bingImgUrls.length > 1 && !_isTransitionLocked) {
+            _startImageTransition();
+          }
+        });
+      } else {
+        LogUtil.e('未获取到任何 Bing 图片 URL');
+      }
+    } catch (e) {
+      LogUtil.logError('加载 Bing 图片时发生错误', e);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBingLoaded = true;
+          _isTransitionLocked = false;
+        });
+      }
+    }
+  }
 
-// 修改: 优化图片切换逻辑
-void _startImageTransition() {
-   if (_isAnimating) return;  // 简化条件检查，只检查是否在动画中
-   
-   try {
-     final nextIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
-     
-     precacheImage(
-       NetworkImage(_bingImgUrls[nextIndex]),
-       context,
-       onError: (e, stackTrace) {
-         LogUtil.logError('预加载图片失败', e);
-         _isTransitionLocked = false;
-       },
-     ).then((_) {
-       if (!mounted) return;
-       
-       setState(() {
-         _isAnimating = true;
-         _nextImgIndex = nextIndex;
-         _isTransitionLocked = false;  // 在动画开始时就重置锁
-         _currentAnimationType = _getRandomAnimationType();
-       });
-       
-       WidgetsBinding.instance.addPostFrameCallback((_) {
-         if (mounted) {
-           _animationController.reset();
-           _animationController.forward();
-         }
-       });
-     });
-   } catch (e) {
-     LogUtil.logError('开始图片切换时发生错误', e);
-     _isTransitionLocked = false;
-   }
-}
+  void _startImageTransition() {
+    if (_isAnimating) return;
+    
+    try {
+      final nextIndex = (_currentImgIndex + 1) % _bingImgUrls.length;
+      
+      precacheImage(
+        NetworkImage(_bingImgUrls[nextIndex]),
+        context,
+        onError: (e, stackTrace) {
+          LogUtil.logError('预加载图片失败', e);
+          _isTransitionLocked = false;
+        },
+      ).then((_) {
+        if (!mounted) return;
+        
+        setState(() {
+          _isAnimating = true;
+          _nextImgIndex = nextIndex;
+          _isTransitionLocked = false;  // 在动画开始时就重置锁
+          _currentAnimationType = _getRandomAnimationType();
+        });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _animationController.reset();
+            _animationController.forward();
+          }
+        });
+      });
+    } catch (e) {
+      LogUtil.logError('开始图片切换时发生错误', e);
+      _isTransitionLocked = false;
+    }
+  }
 
-@override
-void dispose() {
-   _isTransitionLocked = true;
-   _isAnimating = false;
-   
-   _timer?.cancel();
-   _timer = null;
-   
-   _animationController.stop();
-   _animationController.dispose();
-   
-   _textAnimationController.stop();
-   _textAnimationController.dispose();
-   
-   super.dispose();
-}
+  @override
+  void dispose() {
+    _isTransitionLocked = true;
+    _isAnimating = false;
+    
+    _timer?.cancel();
+    _timer = null;
+    
+    _animationController.stop();
+    _animationController.dispose();
+    
+    _textAnimationController.stop();
+    _textAnimationController.dispose();
+    
+    super.dispose();
+  }
+  
+  Widget _buildAnimatedTransition() {
+    if (_nextImgIndex >= _bingImgUrls.length || !mounted) {
+      return const SizedBox.shrink();
+    }
 
-// 修改: 优化动画构建方法
-Widget _buildAnimatedTransition() {
-   if (_nextImgIndex >= _bingImgUrls.length || !mounted) {  // 简化条件检查，移除_isTransitionLocked
-     return const SizedBox.shrink();
-   }
+    try {
+      precacheImage(NetworkImage(_bingImgUrls[_nextImgIndex]), context);
+      
+      final nextImage = Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            fit: BoxFit.cover,
+            image: NetworkImage(_bingImgUrls[_nextImgIndex]),
+          ),
+        ),
+      );
 
-   try {
-     precacheImage(NetworkImage(_bingImgUrls[_nextImgIndex]), context);
-     
-     final nextImage = Container(
-       decoration: BoxDecoration(
-         image: DecorationImage(
-           fit: BoxFit.cover,
-           image: NetworkImage(_bingImgUrls[_nextImgIndex]),
-         ),
-       ),
-     );
+      switch (_currentAnimationType) {
+        case 0: // 淡入淡出效果
+          return FadeTransition(
+            opacity: _fadeAnimation,
+            child: nextImage,
+          );
+          
+        case 1: // 3D旋转效果
+          return AnimatedBuilder(
+            animation: _rotationAnimation,
+            builder: (context, child) {
+              if (_rotationAnimation.value.isNaN) return const SizedBox.shrink();
+              
+              return Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.003)
+                  ..rotateY(_rotationAnimation.value * pi)
+                  ..scale(_rotationAnimation.value < 0.5 ? 
+                          1.0 + (_rotationAnimation.value * 0.4) :
+                          1.4 - (_rotationAnimation.value * 0.4)),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: nextImage,
+                ),
+              );
+            },
+          );
+          
+        case 2: // 缩放效果
+          return AnimatedBuilder(
+            animation: _scaleAnimation,
+            builder: (context, child) {
+              final progress = _scaleAnimation.value;
+              if (progress.isNaN) return const SizedBox.shrink();
+              
+              final scale = Tween<double>(begin: 1.4, end: 1.0)
+                  .transform(progress)
+                  .clamp(0.8, 1.6);
+              final opacity = Tween<double>(begin: 0.0, end: 1.0)
+                  .transform(progress)
+                  .clamp(0.0, 1.0);
+              
+              return Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..scale(scale)
+                  ..translate(
+                    0.0,
+                    30.0 * (1.0 - progress).clamp(0.0, 1.0),
+                  ),
+                child: Opacity(
+                  opacity: opacity,
+                  child: nextImage,
+                ),
+              );
+            },
+          );
+          
+        case 3: // 径向扩散效果
+          return AnimatedBuilder(
+            animation: _radialAnimation,
+            builder: (context, child) {
+              if (_radialAnimation.value.isNaN) return const SizedBox.shrink();
+              
+              return Stack(
+                children: [
+                  ClipPath(
+                    clipper: CircleRevealClipper(
+                      fraction: _radialAnimation.value.clamp(0.0, 3.2),
+                      centerAlignment: Alignment.center,
+                    ),
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: nextImage,
+                    ),
+                  ),
+                  if (_radialAnimation.value > 0.2 && _radialAnimation.value < 2.8)
+                    Opacity(
+                      opacity: (1.0 - _radialAnimation.value).clamp(0.0, 0.4),
+                      child: ClipPath(
+                        clipper: CircleRevealClipper(
+                          fraction: (_radialAnimation.value - 0.1).clamp(0.0, 3.0),
+                          centerAlignment: Alignment.center,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.4),
+                              width: 2.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          );
+          
+        case 4: // 百叶窗效果
+          final screenSize = MediaQuery.of(context).size;
+          if (screenSize.isEmpty) return const SizedBox.shrink();
+          
+          final height = 1.0 / _blindCount.clamp(1, 20);
+          if (height.isNaN || height <= 0) return const SizedBox.shrink();
+          
+          return Stack(
+            children: [
+              // 添加一个渐变过渡层
+              AnimatedBuilder(
+                animation: _fadeAnimation,
+                builder: (context, child) {
+                  final fadeProgress = _fadeAnimation.value;
+                  // 只在动画后半段显示渐变层
+                  final opacity = fadeProgress > 0.5 ? 
+                    ((fadeProgress - 0.5) * 2).clamp(0.0, 1.0) : 0.0;
+                  
+                  return Opacity(
+                    opacity: opacity,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          fit: BoxFit.cover,
+                          image: NetworkImage(_bingImgUrls[_nextImgIndex]),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              
+              // 百叶窗动画层
+              ...List.generate(_blindCount, (index) {
+                final topPosition = index * height * screenSize.height;
+                final blindHeight = height * screenSize.height;
+                
+                if (topPosition.isNaN || blindHeight.isNaN || 
+                    topPosition < 0 || blindHeight <= 0) {
+                  return const SizedBox.shrink();
+                }
 
-     switch (_currentAnimationType) {
-       case 0: // 淡入淡出效果
-         return FadeTransition(
-           opacity: _fadeAnimation,
-           child: nextImage,
-         );
-         
-       case 1: // 3D旋转效果
-         return AnimatedBuilder(
-           animation: _rotationAnimation,
-           builder: (context, child) {
-             if (_rotationAnimation.value.isNaN) return const SizedBox.shrink();
-             
-             return Transform(
-               alignment: Alignment.center,
-               transform: Matrix4.identity()
-                 ..setEntry(3, 2, 0.003)
-                 ..rotateY(_rotationAnimation.value * pi)
-                 ..scale(_rotationAnimation.value < 0.5 ? 
-                         1.0 + (_rotationAnimation.value * 0.4) :
-                         1.4 - (_rotationAnimation.value * 0.4)),
-               child: FadeTransition(
-                 opacity: _fadeAnimation,
-                 child: nextImage,
-               ),
-             );
-           },
-         );
-         
-         case 2: // 缩放效果
-         return AnimatedBuilder(
-           animation: _scaleAnimation,
-           builder: (context, child) {
-             final progress = _scaleAnimation.value;
-             if (progress.isNaN) return const SizedBox.shrink();
-             
-             final scale = Tween<double>(begin: 1.4, end: 1.0)
-                 .transform(progress)
-                 .clamp(0.8, 1.6);
-             final opacity = Tween<double>(begin: 0.0, end: 1.0)
-                 .transform(progress)
-                 .clamp(0.0, 1.0);
-             
-             return Transform(
-               alignment: Alignment.center,
-               transform: Matrix4.identity()
-                 ..scale(scale)
-                 ..translate(
-                   0.0,
-                   30.0 * (1.0 - progress).clamp(0.0, 1.0),
-                 ),
-               child: Opacity(
-                 opacity: opacity,
-                 child: nextImage,
-               ),
-             );
-           },
-         );
-         
-       case 3: // 径向扩散效果
-         return AnimatedBuilder(
-           animation: _radialAnimation,
-           builder: (context, child) {
-             if (_radialAnimation.value.isNaN) return const SizedBox.shrink();
-             
-             return Stack(
-               children: [
-                 ClipPath(
-                   clipper: CircleRevealClipper(
-                     fraction: _radialAnimation.value.clamp(0.0, 3.2),
-                     centerAlignment: Alignment.center,
-                   ),
-                   child: FadeTransition(
-                     opacity: _fadeAnimation,
-                     child: nextImage,
-                   ),
-                 ),
-                 if (_radialAnimation.value > 0.2 && _radialAnimation.value < 2.8)
-                   Opacity(
-                     opacity: (1.0 - _radialAnimation.value).clamp(0.0, 0.4),
-                     child: ClipPath(
-                       clipper: CircleRevealClipper(
-                         fraction: (_radialAnimation.value - 0.1).clamp(0.0, 3.0),
-                         centerAlignment: Alignment.center,
-                       ),
-                       child: Container(
-                         decoration: BoxDecoration(
-                           border: Border.all(
-                             color: Colors.white.withOpacity(0.4),
-                             width: 2.5,
-                           ),
-                         ),
-                       ),
-                     ),
-                   ),
-               ],
-             );
-           },
-         );
-         
-       case 4: // 百叶窗效果
-         final screenSize = MediaQuery.of(context).size;
-         if (screenSize.isEmpty) return const SizedBox.shrink();
-         
-         final height = 1.0 / _blindCount.clamp(1, 20);
-         if (height.isNaN || height <= 0) return const SizedBox.shrink();
-         
-         return Stack(
-           children: [
-             // 添加一个渐变过渡层
-             AnimatedBuilder(
-               animation: _fadeAnimation,
-               builder: (context, child) {
-                 final fadeProgress = _fadeAnimation.value;
-                 // 只在动画后半段显示渐变层
-                 final opacity = fadeProgress > 0.5 ? 
-                   ((fadeProgress - 0.5) * 2).clamp(0.0, 1.0) : 0.0;
-                 
-                 return Opacity(
-                   opacity: opacity,
-                   child: Container(
-                     decoration: BoxDecoration(
-                       image: DecorationImage(
-                         fit: BoxFit.cover,
-                         image: NetworkImage(_bingImgUrls[_nextImgIndex]),
-                       ),
-                     ),
-                   ),
-                 );
-               },
-             ),
-             
-             // 百叶窗动画层
-             ...List.generate(_blindCount, (index) {
-               final topPosition = index * height * screenSize.height;
-               final blindHeight = height * screenSize.height;
-               
-               if (topPosition.isNaN || blindHeight.isNaN || 
-                   topPosition < 0 || blindHeight <= 0) {
-                 return const SizedBox.shrink();
-               }
-
-               return Positioned(
-                 top: topPosition,
-                 left: 0,
-                 right: 0,
-                 height: blindHeight,
-                 child: AnimatedBuilder(
-                   animation: _blindAnimations[index],
-                   builder: (context, child) {
-                     final progress = _blindAnimations[index].value;
-                     if (progress.isNaN) return const SizedBox.shrink();
-                     
-                     // 调整百叶窗动画进度，使其在动画后期逐渐消失
-                     final adjustedOpacity = progress < 0.7 ? 
-                       1.0 : (1.0 - ((progress - 0.7) / 0.3)).clamp(0.0, 1.0);
-                     
-                     return Transform(
-                       transform: Matrix4.identity()
-                         ..translate(
-                           -screenSize.width * (1 - progress).clamp(0.0, 1.0),
-                           (1 - progress).clamp(0.0, 1.0) * 8.0,
-                         )
-                         ..scale(
-                           1.0,
-                           (0.92 + (progress * 0.08)).clamp(0.9, 1.0),
-                         ),
-                       child: Opacity(
-                         opacity: adjustedOpacity,
-                         child: child,
-                       ),
-                     );
-                   },
-                   child: nextImage,
-                 ),
-               );
-             }),
-           ],
-         );
-         
-       default:
-         return FadeTransition(
-           opacity: _fadeAnimation,
-           child: nextImage,
-         );
-     }
-   } catch (e) {
-     LogUtil.logError('构建动画过渡效果时发生错误', e);
-     return const SizedBox.shrink();
-   }
-}
-
-// 修改: 优化背景构建方法
+                return Positioned(
+                  top: topPosition,
+                  left: 0,
+                  right: 0,
+                  height: blindHeight,
+                  child: AnimatedBuilder(
+                    animation: _blindAnimations[index],
+                    builder: (context, child) {
+                      final progress = _blindAnimations[index].value;
+                      if (progress.isNaN) return const SizedBox.shrink();
+                      
+                      // 调整百叶窗动画进度，使其在动画后期逐渐消失
+                      final adjustedOpacity = progress < 0.7 ? 
+                        1.0 : (1.0 - ((progress - 0.7) / 0.3)).clamp(0.0, 1.0);
+                      
+                      return Transform(
+                        transform: Matrix4.identity()
+                          ..translate(
+                            -screenSize.width * (1 - progress).clamp(0.0, 1.0),
+                            (1 - progress).clamp(0.0, 1.0) * 8.0,
+                          )
+                          ..scale(
+                            1.0,
+                            (0.92 + (progress * 0.08)).clamp(0.9, 1.0),
+                          ),
+                        child: Opacity(
+                          opacity: adjustedOpacity,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: nextImage,
+                  ),
+                );
+              }),
+            ],
+          );
+          
+        default:
+          return FadeTransition(
+            opacity: _fadeAnimation,
+            child: nextImage,
+          );
+      }
+    } catch (e) {
+      LogUtil.logError('构建动画过渡效果时发生错误', e);
+      return const SizedBox.shrink();
+    }
+  }
+  
 Widget _buildBingBg() {
-   if (_bingImgUrls.isEmpty) {
-     return _buildLocalBg();
-   }
+    if (_bingImgUrls.isEmpty) {
+      return _buildLocalBg();
+    }
 
-   return Stack(
-     fit: StackFit.expand,
-     children: [
-       // 基础层 - 当前图片
-       Container(
-         decoration: BoxDecoration(
-           image: DecorationImage(
-             fit: BoxFit.cover,
-             image: NetworkImage(_bingImgUrls[_currentImgIndex]),
-           ),
-         ),
-       ),
-       
-       // 动画过渡层 - 简化条件判断
-       if (_isAnimating)  // 只判断是否在动画中
-         _buildAnimatedTransition(),
-     ],
-   );
-}
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 基础层 - 当前图片
+        Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              fit: BoxFit.cover,
+              image: NetworkImage(_bingImgUrls[_currentImgIndex]),
+            ),
+          ),
+        ),
+        
+        // 动画过渡层 - 简化条件判断
+        if (_isAnimating)  // 只判断是否在动画中
+          _buildAnimatedTransition(),
+      ],
+    );
+  }
 
-Widget _buildLocalBg() {
-   return Container(
-     decoration: const BoxDecoration(
-       image: DecorationImage(
-         fit: BoxFit.cover,
-         image: AssetImage('assets/images/video_bg.png'),
-       ),
-     ),
-   );
-}
+  Widget _buildLocalBg() {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          fit: BoxFit.cover,
+          image: AssetImage('assets/images/video_bg.png'),
+        ),
+      ),
+    );
+  }
 
-Widget _buildToast(TextStyle textStyle) {
-   final text = widget.toastString ?? S.of(context).loading;
-   final textSpan = TextSpan(text: text, style: textStyle);
-   final textPainter = TextPainter(
-     text: textSpan,
-     textDirection: TextDirection.ltr,
-   );
-   textPainter.layout(minWidth: 0, maxWidth: double.infinity);
-   _textWidth = textPainter.width;
+  Widget _buildToast(TextStyle textStyle) {
+    final text = widget.toastString ?? S.of(context).loading;
+    final textSpan = TextSpan(text: text, style: textStyle);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(minWidth: 0, maxWidth: double.infinity);
+    _textWidth = textPainter.width;
 
-   if (_textWidth > _containerWidth) {
-     return SlideTransition(
-       position: _textAnimation,
-       child: SingleChildScrollView(
-         scrollDirection: Axis.horizontal,
-         child: Text(
-           text,
-           style: textStyle,
-         ),
-       ),
-     );
-   } else {
-     return Text(
-       text,
-       style: textStyle,
-     );
-   }
-}
+    if (_textWidth > _containerWidth) {
+      return SlideTransition(
+        position: _textAnimation,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Text(
+            text,
+            style: textStyle,
+          ),
+        ),
+      );
+    } else {
+      return Text(
+        text,
+        style: textStyle,
+      );
+    }
+  }
 
-@override
-Widget build(BuildContext context) {
-   final mediaQuery = MediaQuery.of(context);
-   final bool isPortrait = mediaQuery.orientation == Orientation.portrait;
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final bool isPortrait = mediaQuery.orientation == Orientation.portrait;
 
-   double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
+    double progressBarWidth = isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
 
-   final EdgeInsets padding = EdgeInsets.only(bottom: isPortrait ? 8.0 : 12.0);
-   final TextStyle textStyle = TextStyle(
-     color: Colors.white,
-     fontSize: isPortrait ? 15 : 17,
-   );
+    final EdgeInsets padding = EdgeInsets.only(bottom: isPortrait ? 8.0 : 12.0);
+    final TextStyle textStyle = TextStyle(
+      color: Colors.white,
+      fontSize: isPortrait ? 15 : 17,
+    );
 
-   return Selector<ThemeProvider, bool>(
-     selector: (_, provider) => provider.isBingBg,
-     builder: (BuildContext context, bool isBingBg, Widget? child) {
-       final bool shouldShowBingBg = widget.showBingBackground && 
-                                   isBingBg && 
-                                   _isBingLoaded && 
-                                   _bingImgUrls.isNotEmpty;
+    return Selector<ThemeProvider, bool>(
+      selector: (_, provider) => provider.isBingBg,
+      builder: (BuildContext context, bool isBingBg, Widget? child) {
+        final bool shouldShowBingBg = widget.showBingBackground && 
+                                    isBingBg && 
+                                    _isBingLoaded && 
+                                    _bingImgUrls.isNotEmpty;
 
-       if (widget.showBingBackground && 
-           isBingBg && 
-           !_isBingLoaded && 
-           !_isTransitionLocked) {
-         _loadBingBackgrounds();
-       }
+        if (widget.showBingBackground && 
+            isBingBg && 
+            !_isBingLoaded && 
+            !_isTransitionLocked) {
+          _loadBingBackgrounds();
+        }
 
-       return Stack(
-         children: [
-           shouldShowBingBg ? _buildBingBg() : _buildLocalBg(),
-           
-           // 添加 logo
-           if (widget.showBingBackground)
-             _buildLogo(context),
+        return Stack(
+          children: [
+            shouldShowBingBg ? _buildBingBg() : _buildLocalBg(),
+            
+            // 使用新的 ChannelLogoWidget 替换原来的 _buildLogo
+            if (widget.showBingBackground)
+              RepaintBoundary(
+                child: ChannelLogoWidget(
+                  logoUrl: widget.currentChannelLogo,
+                  isPortrait: isPortrait,
+                ),
+              ),
 
-           // 只在showBingBackground=true时显示音柱
-           if (widget.showBingBackground)
-             Positioned(
-               left: 0,
-               right: 0,
-               bottom: 0,
-               height: MediaQuery.of(context).size.height * 0.3,
-               child: DynamicAudioBars(
-                 key: _audioBarKey,
-               ),
-             ),
+            if (widget.showBingBackground)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: MediaQuery.of(context).size.height * 0.3,
+                child: DynamicAudioBars(
+                  key: _audioBarKey,
+                ),
+              ),
 
-           // 只在 toastString 不等于 "HIDE_CONTAINER" 时显示底部容器
-           if (widget.toastString != "HIDE_CONTAINER")
-           Align(
-             alignment: Alignment.bottomCenter,
-             child: Padding(
-               padding: padding,
-               child: Column(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   GradientProgressBar(
-                     width: progressBarWidth,
-                     height: 5,
-                   ),
-                   const SizedBox(height: 5),
-                   LayoutBuilder(
-                     builder: (context, constraints) {
-                       _containerWidth = constraints.maxWidth;
-                       return _buildToast(textStyle);
-                     },
-                   ),
-                 ],
-               ),
-             ),
-           ),
-         ],
-       );
-     },
-   );
-}
+            if (widget.toastString != "HIDE_CONTAINER")
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: padding,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GradientProgressBar(
+                        width: progressBarWidth,
+                        height: 5,
+                      ),
+                      const SizedBox(height: 5),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          _containerWidth = constraints.maxWidth;
+                          return _buildToast(textStyle);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class CircleRevealClipper extends CustomClipper<Path> {
- final double fraction;
- final Alignment centerAlignment;
- 
- const CircleRevealClipper({
-   required this.fraction,
-   required this.centerAlignment,
- });
+  final double fraction;
+  final Alignment centerAlignment;
+  
+  const CircleRevealClipper({
+    required this.fraction,
+    required this.centerAlignment,
+  });
 
- @override
- Path getClip(Size size) {
-   if (size.isEmpty || fraction.isNaN) {
-     return Path();
-   }
-   
-   try {
-     final center = centerAlignment.alongSize(size);
-     final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
-     final radius = (maxRadius * fraction.clamp(0.0, 3.2)).clamp(0.0, maxRadius * 2.2);
-     
-     return Path()
-       ..addOval(Rect.fromCircle(
-         center: center,
-         radius: radius,
-       ));
-   } catch (e) {
-     LogUtil.logError('创建径向裁剪路径时发生错误', e);
-     return Path();
-   }
- }
+  @override
+  Path getClip(Size size) {
+    if (size.isEmpty || fraction.isNaN) {
+      return Path();
+    }
+    
+    try {
+      final center = centerAlignment.alongSize(size);
+      final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
+      final radius = (maxRadius * fraction.clamp(0.0, 3.2)).clamp(0.0, maxRadius * 2.2);
+      
+      return Path()
+        ..addOval(Rect.fromCircle(
+          center: center,
+          radius: radius,
+        ));
+    } catch (e) {
+      LogUtil.logError('创建径向裁剪路径时发生错误', e);
+      return Path();
+    }
+  }
 
- @override
- bool shouldReclip(CircleRevealClipper oldClipper) =>
-   oldClipper.fraction != fraction || oldClipper.centerAlignment != centerAlignment;
+  @override
+  bool shouldReclip(CircleRevealClipper oldClipper) =>
+    oldClipper.fraction != fraction || oldClipper.centerAlignment != centerAlignment;
 }
