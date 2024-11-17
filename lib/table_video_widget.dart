@@ -11,7 +11,7 @@ import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
-// 新增: 视频播放器状态管理类
+// 视频播放器状态管理类
 class VideoPlayerState {
   bool isShowMenuBar;
   bool isShowPauseIcon;
@@ -47,7 +47,7 @@ class TableVideoWidget extends StatefulWidget {
   final String currentChannelLogo;
   final String currentChannelTitle;
   final VoidCallback? onToggleDrawer;
-  final bool isAudio; // 新增音频模式参数
+  final bool isAudio; // 音频模式参数
 
   const TableVideoWidget({
     super.key,
@@ -73,15 +73,15 @@ class TableVideoWidget extends StatefulWidget {
 }
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
-  // 新增: 状态管理实例
+  // 状态管理实例
   late final VideoPlayerState _playerState;
 
-  // 保持原有的样式常量
+  // 样式常量
   final Color _iconColor = Colors.white;
   final Color _backgroundColor = Colors.black45;
   final BorderSide _iconBorderSide = const BorderSide(color: Colors.white);
 
-  // 新增: 动画相关常量
+  // 动画相关常量
   static const Duration _animationDuration = Duration(milliseconds: 200);
   static const Curve _animationCurve = Curves.easeInOut;
 
@@ -93,8 +93,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       isShowMenuBar: true,
       drawerIsOpen: widget.drawerIsOpen,
     );
-    
-    // 保持原有的窗口监听器注册逻辑
+
+    // 窗口监听器注册逻辑
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
     }, '注册窗口监听器发生错误');
@@ -103,7 +103,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   @override
   void didUpdateWidget(covariant TableVideoWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // 同步drawer状态
     if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       setState(() {
@@ -115,14 +115,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   @override
   void dispose() {
     _playerState.dispose();
-    // 保持原有的窗口监听器移除逻辑
+    // 窗口监听器移除逻辑
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
     super.dispose();
   }
 
-  // 保持原有的窗口监听器回调方法
+  // 窗口监听器回调方法
   @override
   void onWindowEnterFullScreen() {
     LogUtil.safeExecute(() {
@@ -148,7 +148,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '调整窗口大小时发生错误');
   }
 
-  // 新增: 封装关闭抽屉逻辑
+  // 封装关闭抽屉逻辑
   void _closeDrawerIfOpen() {
     if (_playerState.drawerIsOpen) {
       setState(() {
@@ -160,13 +160,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 视频播放控制核心方法
   Future<void> _handleSelectPress() async {
+    // 如果视频正在播放
     if (widget.controller?.isPlaying() ?? false) {
+      // 如果暂停图标的计时器未激活
       if (!(_playerState.pauseIconTimer?.isActive ?? false)) {
         setState(() {
           _playerState.isShowPauseIcon = true;
           _playerState.isShowPlayIcon = false;
         });
-        
+
+        // 启动暂停图标的计时器
         _playerState.pauseIconTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) {
             setState(() {
@@ -175,6 +178,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           }
         });
       } else {
+        // 暂停视频播放
         await widget.controller?.pause();
         _playerState.pauseIconTimer?.cancel();
         setState(() {
@@ -183,19 +187,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         });
       }
     } else {
+      // 播放视频
       await widget.controller?.play();
       setState(() {
         _playerState.isShowPlayIcon = false;
       });
     }
 
+    // 如果是横屏模式，切换菜单栏显示状态
     if (widget.isLandscape) {
       setState(() {
         _playerState.isShowMenuBar = !_playerState.isShowMenuBar;
       });
     }
   }
-  
+
   // 统一的控制图标样式方法
   Widget _buildControlIcon({
     required IconData icon,
@@ -330,7 +336,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 视频播放器核心组件构建方法
   Widget _buildVideoPlayer() {
     final containerHeight = MediaQuery.of(context).size.width / (16 / 9);
-    
+
     if (widget.controller == null ||
         widget.controller!.isVideoInitialized() != true ||
         widget.isAudio) {
@@ -359,8 +365,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         onTap: _playerState.drawerIsOpen ? null : () => _handleSelectPress(),
         onDoubleTap: _playerState.drawerIsOpen ? null : () {
           LogUtil.safeExecute(() {
-            widget.isPlaying 
-                ? widget.controller?.pause() 
+            widget.isPlaying
+                ? widget.controller?.pause()
                 : widget.controller?.play();
           }, '双击播放/暂停发生错误');
         },
@@ -368,7 +374,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           alignment: Alignment.center,
           children: [
             _buildVideoPlayer(),
-            
+
             // 播放/暂停控制图标
             if ((widget.controller != null &&
                  widget.controller!.isVideoInitialized() == true &&
@@ -388,11 +394,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
-    
+
     return Stack(
       children: [
         // 视频播放区域
