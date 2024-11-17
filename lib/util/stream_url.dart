@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 
 class StreamUrl {
   final String url;
@@ -37,9 +38,19 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
     try {
-      if (isLZUrl(url)){
-        return 'https://lz.qaiu.top/parser?url=$url'; 
-      } 
+      if (isLZUrl(url)) {
+        // 判断是否是 ilanzou.com 域名
+        if (isILanzouUrl(url)) {
+          return 'https://lz.qaiu.top/parser?url=$url';
+        } else {
+          // 使用本地解析器处理其他蓝奏云链接
+          final result = await LanzouParser.getLanzouUrl(url);
+          if (result != 'ERROR') {
+            return result;
+          }
+          return 'ERROR';
+        }
+      }
       
       if (!isYTUrl(url)) {
         return url;
@@ -119,10 +130,14 @@ void dispose() {
     return url.contains('lanzou');
   }
   
+  bool isILanzouUrl(String url) {
+    return url.toLowerCase().contains('ilanzou.com');
+  }
+  
   bool isYTUrl(String url) {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
-
+  
   bool _isValidUrl(String url) {
     try {
       return Uri.parse(url).isAbsolute;
