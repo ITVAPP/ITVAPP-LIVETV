@@ -366,240 +366,88 @@ class BackgroundTransition extends StatelessWidget {
     this.onTransitionComplete,
   }) : super(key: key);
 
-  // 构建高级淡入淡出效果
-  Widget _buildFadeTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).fadeIn(
-      duration: const Duration(milliseconds: 1200),
-      curve: Curves.easeOutCubic,
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.1, 1.1),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeOutQuart,
-    ).blurXY(
-      begin: 8,
-      end: 0,
-      duration: const Duration(milliseconds: 1000),
-    ).moveY(
-      begin: -10,
-      end: 0,
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeOutQuart,
-    );
-  }
-
-  // 构建3D旋转效果
-  Widget _build3DRotationTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).custom(
-      duration: const Duration(milliseconds: 1500),
-      builder: (context, value, child) {
-        final angle = sin(value * pi) * pi;
-        return Transform(
-          transform: Matrix4.identity()
-            ..setEntry(3, 2, 0.001)
-            ..rotateY(angle),
-          alignment: Alignment.center,
-          child: child,
-        );
-      },
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.2, 1.2),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeOutExpo,
-    ).fadeIn(
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOut,
-    );
-  }
-
-  // 构建缩放效果
-  Widget _buildScaleTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.3, 1.3),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1200),
-      curve: Curves.easeOutQuart,
-    ).fadeIn(
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOutCubic,
-    ).blurXY(
-      begin: 10,
-      end: 0,
-      duration: const Duration(milliseconds: 800),
-    ).moveY(
-      begin: 20,
-      end: 0,
-      duration: const Duration(milliseconds: 1200),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  // 构建径向扩散效果
-  Widget _buildRadialTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).custom(
-      duration: const Duration(milliseconds: 1500),
-      builder: (context, value, child) {
-        return ShaderMask(
-          shaderCallback: (bounds) {
-            return RadialGradient(
-              center: Alignment.center,
-              radius: value * 2,
-              colors: [
-                Colors.white,
-                Colors.white.withOpacity(0.8),
-                Colors.transparent,
-              ],
-              stops: const [0.0, 0.7, 1.0],
-            ).createShader(bounds);
-          },
-          child: child,
-        );
-      },
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.1, 1.1),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1800),
-      curve: Curves.easeOutQuart,
-    );
-  }
-
-  // 构建百叶窗效果
-  Widget _buildBlindsTransition(Widget child, Size size) {
-    const int blindCount = 8;
-    final double blindHeight = size.height / blindCount;
-    
-    List<Widget> blinds = List.generate(blindCount, (index) {
-      final isEven = index % 2 == 0;
-      final delayDuration = Duration(milliseconds: (index * 80).toInt());
-      
-      return Positioned(
-        top: index * blindHeight,
-        left: 0,
-        right: 0,
-        height: blindHeight,
-        child: ClipRect(
-          child: Align(
-            alignment: Alignment(0, -1 + (2 * index / (blindCount - 1))),
-            child: child,
-          ),
-        ).animate(
-          delay: delayDuration,
-        ).moveX(
-          begin: isEven ? -size.width : size.width,
-          end: 0,
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOutQuint,
-        ).fadeIn(
-          duration: const Duration(milliseconds: 800),
-        ).scale(
-          alignment: Alignment.center,
-          begin: const Offset(0.95, 0.95),
-          end: const Offset(1.0, 1.0),
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOutBack,
-        ).rotate(
-          begin: isEven ? 0.05 : -0.05,
-          end: 0,
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOutCubic,
-        ),
+  // 平滑渐变过渡效果
+  Widget _buildSmoothFadeTransition(Widget child) {
+    return child
+      .animate(
+        onComplete: () => onTransitionComplete?.call(),
+      )
+      .fade(
+        begin: 0.0,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .scale(
+        begin: 1.05,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .blur(
+        begin: 8,
+        end: 0,
+        duration: const Duration(milliseconds: 3500),
+        curve: Curves.easeOutCubic,
       );
-    });
-
-    return Stack(
-      children: [
-        // 基础渐变过渡
-        child.animate(
-          delay: const Duration(milliseconds: 800),
-          onPlay: (controller) {
-            controller.addStatusListener((status) {
-              if (status == AnimationStatus.completed) {
-                onTransitionComplete?.call();
-              }
-            });
-          },
-        ).fadeIn(
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOut,
-        ),
-        // 百叶窗层
-        ...blinds,
-      ],
-    );
   }
 
-  // 构建新的交叉溶解效果
-  Widget _buildCrossFadeTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).custom(
-      duration: const Duration(milliseconds: 1500),
-      builder: (context, value, child) {
-        return ShaderMask(
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.white.withOpacity(value),
-                Colors.white.withOpacity(value * 0.8),
-              ],
-              stops: const [0.0, 1.0],
-            ).createShader(bounds);
-          },
-          child: child,
-        );
-      },
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.05, 1.05),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeOutQuart,
-    );
+  // 放大渐变效果
+  Widget _buildZoomFadeTransition(Widget child) {
+    return child
+      .animate(
+        onComplete: () => onTransitionComplete?.call(),
+      )
+      .fade(
+        begin: 0.0,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .scale(
+        begin: 1.2,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4500),
+        curve: Curves.easeOutExpo,
+      )
+      .blur(
+        begin: 12,
+        end: 0,
+        duration: const Duration(milliseconds: 3500),
+        curve: Curves.easeOutCubic,
+      );
+  }
+
+  // 平移渐变效果
+  Widget _buildSlideFadeTransition(Widget child) {
+    return child
+      .animate(
+        onComplete: () => onTransitionComplete?.call(),
+      )
+      .fade(
+        begin: 0.0,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .slideY(
+        begin: 0.05,
+        end: 0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .scale(
+        begin: 1.1,
+        end: 1.0,
+        duration: const Duration(milliseconds: 4000),
+        curve: Curves.easeOutCubic,
+      )
+      .blur(
+        begin: 10,
+        end: 0,
+        duration: const Duration(milliseconds: 3500),
+        curve: Curves.easeOutCubic,
+      );
   }
 
   @override
@@ -613,45 +461,21 @@ class BackgroundTransition extends StatelessWidget {
       ),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        switch (animationType) {
-          case 0:
-            return _buildFadeTransition(nextImage);
-          case 1:
-            return _build3DRotationTransition(nextImage);
-          case 2:
-            return _buildScaleTransition(nextImage);
-          case 3:
-            return _buildRadialTransition(nextImage);
-          case 4:
-            return _buildBlindsTransition(
-              nextImage,
-              Size(constraints.maxWidth, constraints.maxHeight),
-            );
-          case 5:
-            return _buildCrossFadeTransition(nextImage);
-          default:
-            return nextImage.animate(
-              onPlay: (controller) {
-                controller.addStatusListener((status) {
-                  if (status == AnimationStatus.completed) {
-                    onTransitionComplete?.call();
-                  }
-                });
-              },
-            ).fadeIn(
-              duration: const Duration(milliseconds: 800),
-            );
-        }
-      },
-    );
+    switch (animationType) {
+      case 0:
+        return _buildSmoothFadeTransition(nextImage);
+      case 1:
+        return _buildZoomFadeTransition(nextImage);
+      case 2:
+        return _buildSlideFadeTransition(nextImage);
+      default:
+        return _buildSmoothFadeTransition(nextImage);
+    }
   }
 }
 
 /// VideoHoldBg的State实现
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
-  // 样式常量和其他变量保持不变
   Timer? _timer;
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
 
@@ -682,13 +506,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 获取随机动画类型 - 修改为支持新增的动画类型
+  // 获取随机动画类型
   int _getRandomAnimationType() {
     if (!mounted) return 0;
 
     final random = Random();
-    // 调整各个动画类型的权重
-    final weights = [0.15, 0.15, 0.15, 0.15, 0.2, 0.2]; // 6种动画类型的权重
+    // 现在有3种动画效果，调整权重
+    final weights = [0.4, 0.3, 0.3]; // 平滑渐变效果权重较大
     final value = random.nextDouble();
 
     try {
@@ -699,14 +523,14 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
           return i;
         }
       }
-      return 0;
+      return 0; // 默认返回平滑渐变效果
     } catch (e) {
       LogUtil.logError('动画类型选择错误', e);
       return 0;
     }
   }
 
-  // 加载Bing背景图片 - 保持不变
+  // 加载Bing背景图片
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
@@ -731,7 +555,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         // 预加载第一张图片
         precacheImage(NetworkImage(urls[0]), context);
 
-        // 设置定时切换
+        // 设置定时切换 - 每45秒切换一次图片
         _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
           final state = _backgroundState.value;
           if (!state.isAnimating &&
@@ -760,7 +584,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 开始图片切换 - 修改以使用新的动画系统
+  // 开始图片切换
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -795,8 +619,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       );
     }
   }
-
-  // 构建本地背景 - 保持不变
+  
+  // 构建本地背景
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
@@ -808,7 +632,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     );
   }
 
-  // 构建Bing背景 - 修改为使用新的动画系统
+  // 构建Bing背景
   Widget _buildBingBg() {
     final state = _backgroundState.value;
     if (state.imageUrls.isEmpty || !state.isEnabled) {
@@ -846,7 +670,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
               // 预加载下一张图片
               if (currentState.imageUrls.length > 1) {
-                final nextNextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
+                final nextNextIndex = (currentState.nextIndex + 1) % currentState.imageUrls.length;
                 precacheImage(
                   NetworkImage(currentState.imageUrls[nextNextIndex]),
                   context,
