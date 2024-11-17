@@ -201,7 +201,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
   }
-
+  
   // 统一的控制图标样式方法
   Widget _buildControlIcon({
     required IconData icon,
@@ -394,7 +394,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
   }
-
+  
   @override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
@@ -402,20 +402,22 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return Stack(
       children: [
         // 视频播放区域
-        _buildVideoSection(),
+        Positioned.fill(
+          child: _buildVideoSection(),
+        ),
 
         // 使用RepaintBoundary包装各个独立更新的UI组件
         if (!_playerState.drawerIsOpen) ...[
           // 音量和亮度控制组件
           RepaintBoundary(
-            child: const VolumeBrightnessWidget(),
-          ),
+              child: const VolumeBrightnessWidget(),
+            ),
 
           // 时间显示（仅在横屏模式且菜单栏显示时）
           if (_playerState.isShowMenuBar && widget.isLandscape)
             RepaintBoundary(
-              child: const DatePositionWidget(),
-            ),
+                child: const DatePositionWidget(),
+              ),
 
           // 横屏模式下的底部菜单栏
           if (widget.isLandscape && _playerState.isShowMenuBar)
@@ -425,84 +427,87 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               left: 0,
               right: 0,
               bottom: _playerState.isShowMenuBar ? 15 : -50,
-                child: Container(
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: RepaintBoundary(
-                  child: Row(
-                    children: [
-                      const Spacer(),
-                      // 频道列表按钮
-                      _buildControlButton(
-                        icon: Icons.list_alt,
-                        tooltip: S.of(context).tipChannelList,
-                        showBackground: true,
-                        onPressed: () {
-                          LogUtil.safeExecute(() {
-                            setState(() {
-                              _playerState.isShowMenuBar = false;
-                              widget.onToggleDrawer?.call();
-                            });
-                          }, '切换频道发生错误');
-                        },
-                      ),
-                      const SizedBox(width: 5),
-                      // 收藏按钮
-                      _buildFavoriteButton(currentChannelId, true),
-                      const SizedBox(width: 5),
-                      // 切换源按钮
-                      _buildChangeSourceButton(true),
-                      const SizedBox(width: 5),
-                      // 设置按钮
-                      _buildControlButton(
-                        icon: Icons.settings,
-                        tooltip: S.of(context).settings,
-                        showBackground: true,
-                        onPressed: () {
-                          _closeDrawerIfOpen();
-                          LogUtil.safeExecute(() {
-                            setState(() => _playerState.isShowMenuBar = false);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => SettingPage()),
-                            );
-                          }, '进入设置页面发生错误');
-                        },
-                      ),
-                      const SizedBox(width: 5),
-                      // 横竖屏切换按钮
-                      _buildControlButton(
-                        icon: Icons.screen_rotation,
-                        tooltip: S.of(context).portrait,
-                        showBackground: true,
-                        onPressed: () async {
-                          LogUtil.safeExecute(() async {
-                            if (EnvUtil.isMobile) {
-                              SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-                            } else {
-                              await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-                              await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                              Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                            }
-                          }, '切换为竖屏时发生错误');
-                        },
-                      ),
-                      // 全屏按钮（非移动设备）
-                      if (!EnvUtil.isMobile) ...[
-                        const SizedBox(width: 5),
+              child: RepaintBoundary(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: Row(
+                      children: [
+                        const Spacer(),
+                        // 频道列表按钮
                         _buildControlButton(
-                          icon: Icons.fit_screen_outlined,
-                          tooltip: S.of(context).fullScreen,
+                          icon: Icons.list_alt,
+                          tooltip: S.of(context).tipChannelList,
+                          showBackground: true,
+                          onPressed: () {
+                            LogUtil.safeExecute(() {
+                              setState(() {
+                                _playerState.isShowMenuBar = false;
+                                widget.onToggleDrawer?.call();
+                              });
+                            }, '切换频道发生错误');
+                          },
+                        ),
+                        const SizedBox(width: 5),
+                        // 收藏按钮
+                        _buildFavoriteButton(currentChannelId, true),
+                        const SizedBox(width: 5),
+                        // 切换源按钮
+                        _buildChangeSourceButton(true),
+                        const SizedBox(width: 5),
+                        // 设置按钮
+                        _buildControlButton(
+                          icon: Icons.settings,
+                          tooltip: S.of(context).settings,
+                          showBackground: true,
+                          onPressed: () {
+                            _closeDrawerIfOpen();
+                            LogUtil.safeExecute(() {
+                              setState(() => _playerState.isShowMenuBar = false);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => SettingPage()),
+                              );
+                            }, '进入设置页面发生错误');
+                          },
+                        ),
+                        const SizedBox(width: 5),
+                        // 横竖屏切换按钮
+                        _buildControlButton(
+                          icon: Icons.screen_rotation,
+                          tooltip: S.of(context).portrait,
                           showBackground: true,
                           onPressed: () async {
                             LogUtil.safeExecute(() async {
-                              final isFullScreen = await windowManager.isFullScreen();
-                              windowManager.setFullScreen(!isFullScreen);
-                            }, '切换为全屏时发生错误');
+                              if (EnvUtil.isMobile) {
+                                SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+                              } else {
+                                await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
+                                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+                                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                              }
+                            }, '切换为竖屏时发生错误');
                           },
                         ),
+                        // 全屏按钮（非移动设备）
+                        if (!EnvUtil.isMobile) ...[
+                          const SizedBox(width: 5),
+                          _buildControlButton(
+                            icon: Icons.fit_screen_outlined,
+                            tooltip: S.of(context).fullScreen,
+                            showBackground: true,
+                            onPressed: () async {
+                              LogUtil.safeExecute(() async {
+                                final isFullScreen = await windowManager.isFullScreen();
+                                windowManager.setFullScreen(!isFullScreen);
+                              }, '切换为全屏时发生错误');
+                            },
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
