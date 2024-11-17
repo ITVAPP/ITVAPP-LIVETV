@@ -78,7 +78,7 @@ void addFocusListeners(int startIndex, int length, State state) {
       final currentFocus = _focusNodes[index].hasFocus;
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
-        state.setState(() {}); // 在state中调用setState
+        state.setState(() {});
       }
     });
   }
@@ -88,7 +88,7 @@ void addFocusListeners(int startIndex, int length, State state) {
 void removeFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
     _focusNodes[startIndex + i].removeListener(() {});
-    _focusStates.remove(startIndex + i); // 清理对应的状态
+    _focusStates.remove(startIndex + i); 
   }
 }
 
@@ -290,19 +290,23 @@ class _GroupListState extends State<GroupList> {
 return Container(
     color: defaultBackgroundColor,
     child: widget.keys.isEmpty && widget.isFavoriteCategory
-      ? Container(
-          width: double.infinity,
-          constraints: BoxConstraints(minHeight: defaultMinHeight),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Text(
-              S.of(context).nofavorite,
-              textAlign: TextAlign.center,
-              style: defaultTextStyle.merge(
-                const TextStyle(fontWeight: FontWeight.bold),
+      ? ListView(
+          controller: widget.scrollController,
+          children: [
+            Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: defaultMinHeight),
+              child: Center( 
+                child: Text(
+                  S.of(context).nofavorite,
+                  textAlign: TextAlign.center,
+                  style: defaultTextStyle.merge(
+                    const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         )
       : ListView( 
           controller: widget.scrollController,
@@ -532,13 +536,14 @@ class ChannelDrawerPage extends StatefulWidget {
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
-  final Map<String, Map<String, dynamic>> epgCache = {};  // 添加了 epg 缓存字段
+  final Map<String, Map<String, dynamic>> epgCache = {};
   final ScrollController _scrollController = ScrollController();
   final ScrollController _scrollChannelController = ScrollController();
   final ItemScrollController _epgItemScrollController = ItemScrollController();
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
+  bool isPortrait = true;
 
   final GlobalKey _viewPortKey = GlobalKey();
   double? _viewPortHeight;
@@ -557,7 +562,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeData(); // 调用统一的初始化方法
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+      });
+    });
+    _initializeData(); // 统一的初始化方法
   }
 
   @override
@@ -569,7 +579,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _initializeData();
       // 重置焦点管理
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // 重置焦点组件
         if (_tvKeyNavigationState != null) {
           _tvKeyNavigationState!.releaseResources();
           _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
@@ -636,6 +645,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void didChangeMetrics() {
+    final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
+    if (newOrientation != isPortrait) {
+      setState(() {
+        isPortrait = newOrientation;
+      });
+    }
     final newHeight = MediaQuery.of(context).size.height * 0.5;
     if (newHeight != _viewPortHeight) {
       setState(() {
@@ -651,7 +666,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 保存 TvKeyNavigationState
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
-    // 如果父组件提供了回调，也调用它
     widget.onTvKeyNavigationStateCreated?.call(state);
   }
   
@@ -773,7 +787,7 @@ void _reInitializeFocusListeners() {
 
 // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
-  if (_categoryIndex == index) return; // 避免重复执行
+  if (_categoryIndex == index) return; 
 
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
@@ -784,12 +798,10 @@ void _onCategoryTap(int index) {
     // 检查选中的分类是否有分组
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
-
-    // 如果分组为空，清空 _keys 并返回
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
       _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
-      _updateStartIndexes(includeGroupsAndChannels: false); // 只计算分类的索引
+      _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
       // 分组不为空时，初始化频道数据
       _initializeChannelData();
@@ -808,7 +820,7 @@ void _onCategoryTap(int index) {
     }
   });
   
-  // 确保在状态更新后重新初始化焦点系统
+  // 重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tvKeyNavigationState != null) { 
         _tvKeyNavigationState!.releaseResources();
@@ -862,12 +874,11 @@ void _onChannelTap(PlayModel? newModel) {
   
   setState(() {
     _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
-    _epgData = null; // 清空当前节目单数据
-    _selEPGIndex = 0; // 重置选中的节目单索引
+    _epgData = null; // 清空节目单数据
+    _selEPGIndex = 0; // 重置节目单索引
   });
   
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    // 加载 EPG 数据
     _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
   });
   
@@ -914,7 +925,7 @@ void _onChannelTap(PlayModel? newModel) {
 
 // 加载EPG
 Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
- if (playModel == null) return;
+ if (isPortrait || playModel == null) return;
  try {
    final currentTime = DateTime.now();  
    // 如果提供了 channelKey，则检查缓存是否存在且未过期
@@ -1061,7 +1072,6 @@ Widget build(BuildContext context) {
 
 // 构建抽屉视图
 Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
-  bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
   
   double categoryWidth = isPortrait ? 110 : 120; // 分类列表宽度
   double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;  // 设置分组列表宽度
