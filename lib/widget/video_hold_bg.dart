@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data'; 
-import 'dart:convert'; 
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +22,7 @@ class BingBackgroundState {
   final bool isTransitionLocked;
   final int currentAnimationType;
   final bool isBingLoaded;
+  final bool isEnabled; // 是否启用Bing背景(对应ThemeProvider中的isBingBg)
 
   const BingBackgroundState({
     required this.imageUrls,
@@ -31,6 +32,7 @@ class BingBackgroundState {
     required this.isTransitionLocked,
     required this.currentAnimationType,
     required this.isBingLoaded,
+    required this.isEnabled,
   });
 
   BingBackgroundState copyWith({
@@ -41,6 +43,7 @@ class BingBackgroundState {
     bool? isTransitionLocked,
     int? currentAnimationType,
     bool? isBingLoaded,
+    bool? isEnabled,
   }) {
     return BingBackgroundState(
       imageUrls: imageUrls ?? this.imageUrls,
@@ -50,6 +53,7 @@ class BingBackgroundState {
       isTransitionLocked: isTransitionLocked ?? this.isTransitionLocked,
       currentAnimationType: currentAnimationType ?? this.currentAnimationType,
       isBingLoaded: isBingLoaded ?? this.isBingLoaded,
+      isEnabled: isEnabled ?? this.isEnabled,
     );
   }
 }
@@ -66,10 +70,10 @@ class VideoHoldBg extends StatefulWidget {
   final bool showBingBackground;
 
   const VideoHoldBg({
-    Key? key, 
-    required this.toastString, 
-    required this.currentChannelLogo, 
-    required this.currentChannelTitle, 
+    Key? key,
+    required this.toastString,
+    required this.currentChannelLogo,
+    required this.currentChannelTitle,
     this.showBingBackground = false,
   }) : super(key: key);
 
@@ -77,7 +81,7 @@ class VideoHoldBg extends StatefulWidget {
   _VideoHoldBgState createState() => _VideoHoldBgState();
 }
 
-/// 频道Logo组件 
+/// 频道Logo组件
 class ChannelLogo extends StatefulWidget {
   final String? logoUrl;
   final bool isPortrait;
@@ -94,12 +98,12 @@ class ChannelLogo extends StatefulWidget {
 
 class _ChannelLogoState extends State<ChannelLogo> {
   static const double maxLogoSize = 58.0;
-  
+
   // 获取缓存key
   String _getCacheKey(String url) {
     return 'logo_${Uri.parse(url).pathSegments.last}';
   }
-  
+
   // 加载logo
   Future<Uint8List?> _loadLogo() async {
     if (widget.logoUrl == null || widget.logoUrl!.isEmpty) {
@@ -111,9 +115,9 @@ class _ChannelLogoState extends State<ChannelLogo> {
 
       // 1. 检查SP缓存
       final String? base64Data = SpUtil.getString(cacheKey);
-      if (base64Data != null && base64Data.isNotEmpty) {	
+      if (base64Data != null && base64Data.isNotEmpty) {
         try {
-          return base64.decode(base64Data);  
+          return base64.decode(base64Data);
         } catch (e) {
           await SpUtil.remove(cacheKey);
           LogUtil.logError('缓存的logo数据已损坏,已删除', e);
@@ -127,7 +131,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
         await SpUtil.putString(cacheKey, base64.encode(imageData));
         return imageData;
       }
-      
+
       return null;
     } catch (e) {
       LogUtil.logError('加载频道 logo 失败', e);
@@ -215,6 +219,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
     _setupTextAnimation();
   }
 
+  // 设置文本动画
   void _setupTextAnimation() {
     _textAnimationController = AnimationController(
       duration: const Duration(seconds: 10),
@@ -242,6 +247,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
     super.dispose();
   }
 
+  // 构建Toast消息
   Widget _buildToast(TextStyle textStyle) {
     final textSpan = TextSpan(text: widget.message, style: textStyle);
     final textPainter = TextPainter(
@@ -277,15 +283,15 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
     final EdgeInsets padding = EdgeInsets.only(
       bottom: widget.isPortrait ? 8.0 : 12.0
     );
-    
+
     final TextStyle textStyle = TextStyle(
       color: Colors.white,
       fontSize: widget.isPortrait ? 15 : 17,
     );
 
     final mediaQuery = MediaQuery.of(context);
-    final progressBarWidth = widget.isPortrait ? 
-      mediaQuery.size.width * 0.5 : 
+    final progressBarWidth = widget.isPortrait ?
+      mediaQuery.size.width * 0.5 :
       mediaQuery.size.width * 0.3;
 
     return Align(
@@ -321,7 +327,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
 class AudioBarsWrapper extends StatelessWidget {
   final GlobalKey<DynamicAudioBarsState> audioBarKey;
   final bool isActive;
-  
+
   const AudioBarsWrapper({
     Key? key,
     required this.audioBarKey,
@@ -331,7 +337,7 @@ class AudioBarsWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!isActive) return const SizedBox.shrink();
-    
+
     return Positioned(
       left: 0,
       right: 0,
@@ -350,7 +356,7 @@ class AudioBarsWrapper extends StatelessWidget {
 class CircleRevealClipper extends CustomClipper<Path> {
   final double fraction;
   final Alignment centerAlignment;
- 
+
   const CircleRevealClipper({
     required this.fraction,
     required this.centerAlignment,
@@ -361,12 +367,12 @@ class CircleRevealClipper extends CustomClipper<Path> {
     if (size.isEmpty || fraction.isNaN) {
       return Path();
     }
-    
+
     try {
       final center = centerAlignment.alongSize(size);
       final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
       final radius = (maxRadius * fraction.clamp(0.0, 3.2)).clamp(0.0, maxRadius * 2.2);
-      
+
       return Path()
         ..addOval(Rect.fromCircle(
           center: center,
@@ -380,7 +386,7 @@ class CircleRevealClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CircleRevealClipper oldClipper) =>
-    oldClipper.fraction != fraction || 
+    oldClipper.fraction != fraction ||
     oldClipper.centerAlignment != centerAlignment;
 }
 
@@ -390,7 +396,7 @@ class BackgroundTransition extends StatelessWidget {
   final String imageUrl;
   final int animationType;
   final List<Animation<double>> blindAnimations;
-  
+
   const BackgroundTransition({
     Key? key,
     required this.animation,
@@ -399,6 +405,7 @@ class BackgroundTransition extends StatelessWidget {
     required this.blindAnimations,
   }) : super(key: key);
 
+  // 构建动画图像
   Widget _buildAnimatedImage() {
     final nextImage = Container(
       decoration: BoxDecoration(
@@ -410,228 +417,228 @@ class BackgroundTransition extends StatelessWidget {
     );
 
     switch (animationType) {
-case 0: // 淡入淡出效果
-  return Stack(
-    children: [
-      // 主图层带位移效果
-      SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0.0, -0.02),  // 添加轻微上移
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        )),
-        child: FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: const Interval(0.1, 0.9, curve: Curves.easeInOut),
-          ),
-          child: nextImage,
-        ),
-      ),
-      // 添加渐变遮罩增强过渡效果
-      if (animation.value < 0.7)
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.3 * (1 - animation.value)),
-                Colors.transparent,
-              ],
-            ),
-          ),
-        ),
-    ],
-  );
-        
-case 1: // 3D旋转效果
-  return AnimatedBuilder(
-    animation: animation,
-    builder: (context, child) {
-      // 使用自定义曲线调整旋转过程
-      final rotationProgress = Curves.easeInOutQuart.transform(animation.value);
-      
-      // 分段控制缩放
-      final double scale;
-      if (animation.value < 0.3) {
-        scale = 1.0 + (animation.value * 0.15); // 开始轻微放大
-      } else if (animation.value < 0.7) {
-        scale = 1.15; // 保持放大状态
-      } else {
-        scale = 1.15 - ((animation.value - 0.7) * 0.5); // 平滑恢复
-      }
-      
-      return Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.002 + (0.001 * sin(pi * animation.value))) // 动态透视
-          ..rotateY(rotationProgress * pi * 0.6) // 减小旋转角度
-          ..scale(scale),
-        child: FadeTransition(
-          opacity: CurveTween(
-            curve: const Interval(0.2, 0.8, curve: Curves.easeInOut)
-          ).animate(animation),
-          child: nextImage,
-        ),
-      );
-    },
-  );
-        
-case 2: // 缩放效果
-  return AnimatedBuilder(
-    animation: animation,
-    builder: (context, child) {
-      final scaleProgress = CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
-      ).value;
-      
-      // 调整缩放范围和过程
-      final scale = 1.15 + (0.1 * (1 - scaleProgress));
-      final rotation = (1 - scaleProgress) * 0.03; // 添加轻微旋转
-      
-      return Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..scale(scale)
-          ..rotateZ(rotation)
-          ..translate(
-            0.0,
-            15.0 * (1.0 - scaleProgress), // 减小位移量
-          ),
-        child: FadeTransition(
-          opacity: animation,
-          child: nextImage,
-        ),
-      );
-    },
-  );
-        
-case 3: // 径向扩散效果
-  return AnimatedBuilder(
-    animation: animation,
-    builder: (context, child) {
-      final revealProgress = CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.0, 0.85, curve: Curves.easeOutQuart),
-      ).value;
-      
-      // 动态中心点
-      final centerX = 0.5 + 0.08 * sin(revealProgress * pi);
-      final centerY = 0.5 + 0.08 * cos(revealProgress * pi);
-      final center = Alignment(centerX, centerY);
-      
-      return Stack(
-        children: [
-          // 主径向扩散
-          ClipPath(
-            clipper: CircleRevealClipper(
-              fraction: revealProgress * 2.2, // 调整扩散范围
-              centerAlignment: center,
-            ),
-            child: FadeTransition(
-              opacity: CurvedAnimation(
+      case 0: // 淡入淡出效果
+        return Stack(
+          children: [
+            // 主图层带位移效果
+            SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, -0.02),  // 添加轻微上移
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
                 parent: animation,
-                curve: const Interval(0.2, 0.9),
+                curve: Curves.easeOutCubic,
+              )),
+              child: FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: const Interval(0.1, 0.9, curve: Curves.easeInOut),
+                ),
+                child: nextImage,
               ),
-              child: nextImage,
             ),
-          ),
-          // 发光边框效果
-          if (revealProgress > 0.1 && revealProgress < 0.9)
-            ClipPath(
-              clipper: CircleRevealClipper(
-                fraction: (revealProgress - 0.1) * 2.0,
-                centerAlignment: center,
-              ),
-              child: Container(
+            // 添加渐变遮罩增强过渡效果
+            if (animation.value < 0.7)
+              Container(
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.6 * (1 - revealProgress)),
-                    width: 3.0,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.3 * (1 - animation.value)),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
-            ),
-        ],
-      );
-    },
-  );
-        
- case 4: // 百叶窗效果
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      final screenSize = constraints.biggest;
-      final blindHeight = screenSize.height / blindAnimations.length;
-      
-      return Stack(
-        children: [
-          // 基础渐变过渡
-          AnimatedBuilder(
-            animation: animation,
-            builder: (context, child) {
-              final baseProgress = CurvedAnimation(
-                parent: animation,
-                curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
-              ).value;
-              return Opacity(
-                opacity: baseProgress,
+          ],
+        );
+
+      case 1: // 3D旋转效果
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            // 使用自定义曲线调整旋转过程
+            final rotationProgress = Curves.easeInOutQuart.transform(animation.value);
+
+            // 分段控制缩放
+            final double scale;
+            if (animation.value < 0.3) {
+              scale = 1.0 + (animation.value * 0.15); // 开始轻微放大
+            } else if (animation.value < 0.7) {
+              scale = 1.15; // 保持放大状态
+            } else {
+              scale = 1.15 - ((animation.value - 0.7) * 0.5); // 平滑恢复
+            }
+
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.002 + (0.001 * sin(pi * animation.value))) // 动态透视
+                ..rotateY(rotationProgress * pi * 0.6) // 减小旋转角度
+                ..scale(scale),
+              child: FadeTransition(
+                opacity: CurveTween(
+                  curve: const Interval(0.2, 0.8, curve: Curves.easeInOut)
+                ).animate(animation),
                 child: nextImage,
-              );
-            },
-          ),
-          // 百叶窗层
-          ...List.generate(blindAnimations.length, (index) {
-            final isEven = index % 2 == 0;
-            return Positioned(
-              top: index * blindHeight,
-              left: 0,
-              right: 0,
-              height: blindHeight,
-              child: AnimatedBuilder(
-                animation: blindAnimations[index],
-                builder: (context, child) {
-                  final progress = CurvedAnimation(
-                    parent: blindAnimations[index],
-                    curve: Curves.easeOutBack,
-                  ).value;
-                  
-                  // 计算动画参数
-                  final slideOffset = (1 - progress) * screenSize.width;
-                  final scale = 0.95 + (0.05 * progress);
-                  final rotation = (1 - progress) * (isEven ? 0.05 : -0.05);
-                  
-                  return Transform(
-                    alignment: isEven ? Alignment.centerRight : Alignment.centerLeft,
-                    transform: Matrix4.identity()
-                      ..translate(
-                        isEven ? -slideOffset : slideOffset,
-                        (1 - progress) * 3.0,
-                      )
-                      ..scale(scale)
-                      ..rotateZ(rotation),
-                    child: Opacity(
-                      opacity: progress,
-                      child: ClipRect(
-                        child: Align(
-                          alignment: Alignment(0, -1 + (2 * index / (blindAnimations.length - 1))),
-                          child: nextImage,
+              ),
+            );
+          },
+        );
+
+      case 2: // 缩放效果
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final scaleProgress = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+            ).value;
+
+            // 调整缩放范围和过程
+            final scale = 1.15 + (0.1 * (1 - scaleProgress));
+            final rotation = (1 - scaleProgress) * 0.03; // 添加轻微旋转
+
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..scale(scale)
+                ..rotateZ(rotation)
+                ..translate(
+                  0.0,
+                  15.0 * (1.0 - scaleProgress), // 减小位移量
+                ),
+              child: FadeTransition(
+                opacity: animation,
+                child: nextImage,
+              ),
+            );
+          },
+        );
+
+      case 3: // 径向扩散效果
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final revealProgress = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.85, curve: Curves.easeOutQuart),
+            ).value;
+
+            // 动态中心点
+            final centerX = 0.5 + 0.08 * sin(revealProgress * pi);
+            final centerY = 0.5 + 0.08 * cos(revealProgress * pi);
+            final center = Alignment(centerX, centerY);
+
+            return Stack(
+              children: [
+                // 主径向扩散
+                ClipPath(
+                  clipper: CircleRevealClipper(
+                    fraction: revealProgress * 2.2,
+                    centerAlignment: center,
+                  ),
+                  child: FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: const Interval(0.2, 0.9),
+                    ),
+                    child: nextImage,
+                  ),
+                ),
+                // 发光边框效果
+                if (revealProgress > 0.1 && revealProgress < 0.9)
+                  ClipPath(
+                    clipper: CircleRevealClipper(
+                      fraction: (revealProgress - 0.1) * 2.0,
+                      centerAlignment: center,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.6 * (1 - revealProgress)),
+                          width: 3.0,
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+              ],
             );
-          }),
-        ],
-      );
-    },
-  );
-        
+          },
+        );
+
+      case 4: // 百叶窗效果
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = constraints.biggest;
+            final blindHeight = screenSize.height / blindAnimations.length;
+
+            return Stack(
+              children: [
+                // 基础渐变过渡
+                AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, child) {
+                    final baseProgress = CurvedAnimation(
+                      parent: animation,
+                      curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
+                    ).value;
+                    return Opacity(
+                      opacity: baseProgress,
+                      child: nextImage,
+                    );
+                  },
+                ),
+                // 百叶窗层
+                ...List.generate(blindAnimations.length, (index) {
+                  final isEven = index % 2 == 0;
+                  return Positioned(
+                    top: index * blindHeight,
+                    left: 0,
+                    right: 0,
+                    height: blindHeight,
+                    child: AnimatedBuilder(
+                      animation: blindAnimations[index],
+                      builder: (context, child) {
+                        final progress = CurvedAnimation(
+                          parent: blindAnimations[index],
+                          curve: Curves.easeOutBack,
+                        ).value;
+
+                        // 计算动画参数
+                        final slideOffset = (1 - progress) * screenSize.width;
+                        final scale = 0.95 + (0.05 * progress);
+                        final rotation = (1 - progress) * (isEven ? 0.05 : -0.05);
+
+                        return Transform(
+                          alignment: isEven ? Alignment.centerRight : Alignment.centerLeft,
+                          transform: Matrix4.identity()
+                            ..translate(
+                              isEven ? -slideOffset : slideOffset,
+                              (1 - progress) * 3.0,
+                            )
+                            ..scale(scale)
+                            ..rotateZ(rotation),
+                          child: Opacity(
+                            opacity: progress,
+                            child: ClipRect(
+                              child: Align(
+                                alignment: Alignment(0, -1 + (2 * index / (blindAnimations.length - 1))),
+                                child: nextImage,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
+        );
+
       default:
         return FadeTransition(
           opacity: animation,
@@ -651,7 +658,7 @@ case 3: // 径向扩散效果
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   // 样式常量
   static const int _blindCount = 12; // 百叶窗数量
-  
+
   // 动画控制器
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -659,7 +666,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   late Animation<double> _scaleAnimation;
   late Animation<double> _radialAnimation;
   late List<Animation<double>> _blindAnimations;
-  
+
   // 背景状态
   final _backgroundState = ValueNotifier<BingBackgroundState>(
     BingBackgroundState(
@@ -670,29 +677,31 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       isTransitionLocked: false,
       currentAnimationType: 0,
       isBingLoaded: false,
+      isEnabled: false, // 初始值设为 false
     ),
   );
-  
+
   // 定时器
   Timer? _timer;
-  
+
   // 音柱动画控制
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
-  
-@override
-void initState() {
-  super.initState();
-  _setupAnimations();
-  
-  if (widget.showBingBackground) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _loadBingBackgrounds();
-      }
-    });
-  }
-}
 
+  @override
+  void initState() {
+    super.initState();
+    _setupAnimations();
+
+    if (widget.showBingBackground) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadBingBackgrounds();
+        }
+      });
+    }
+  }
+
+  // 设置动画
   void _setupAnimations() {
     // 主动画控制器
     _animationController = AnimationController(
@@ -733,12 +742,12 @@ void initState() {
       parent: _animationController,
       curve: const Interval(0.0, 1.0, curve: Curves.easeOutQuart),
     ));
-    
+
     // 百叶窗动画
     _blindAnimations = List.generate(_blindCount, (index) {
       final startInterval = (index * 0.04).clamp(0.0, 0.6);
       final endInterval = ((index + 1) * 0.04 + 0.4).clamp(startInterval + 0.1, 1.0);
-      
+
       return Tween<double>(
         begin: 0.0,
         end: 1.0,
@@ -756,12 +765,13 @@ void initState() {
     _animationController.addStatusListener(_handleAnimationStatus);
   }
 
+  // 处理动画状态
   void _handleAnimationStatus(AnimationStatus status) {
     if (!mounted) return;
-    
+
     if (status == AnimationStatus.completed) {
       _animationController.reset();
-      
+
       final currentState = _backgroundState.value;
       _backgroundState.value = currentState.copyWith(
         isAnimating: false,
@@ -769,7 +779,7 @@ void initState() {
         currentAnimationType: _getRandomAnimationType(),
         isTransitionLocked: false,
       );
-      
+
       // 预加载下一张图片
       if (currentState.imageUrls.length > 1) {
         final nextNextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
@@ -781,13 +791,14 @@ void initState() {
     }
   }
 
+  // 获取随机动画类型
   int _getRandomAnimationType() {
     if (!mounted) return 0;
-    
+
     final random = Random();
     final weights = [0.15, 0.25, 0.2, 0.2, 0.2];
     final value = random.nextDouble();
-    
+
     try {
       double accumulator = 0;
       for (int i = 0; i < weights.length; i++) {
@@ -803,20 +814,21 @@ void initState() {
     }
   }
 
+  // 加载Bing背景图片
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
-    
+
     try {
       _backgroundState.value = currentState.copyWith(
         isTransitionLocked: true,
       );
-      
+
       final String? channelId = widget.currentChannelTitle;
       final List<String> urls = await BingUtil.getBingImgUrls(channelId: channelId);
-      
+
       if (!mounted) return;
-      
+
       if (urls.isNotEmpty) {
         _backgroundState.value = currentState.copyWith(
           imageUrls: urls,
@@ -830,10 +842,11 @@ void initState() {
         // 设置定时切换
         _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
           final state = _backgroundState.value;
-          if (!state.isAnimating && 
-              mounted && 
-              state.imageUrls.length > 1 && 
-              !state.isTransitionLocked) {
+          if (!state.isAnimating &&
+              mounted &&
+              state.imageUrls.length > 1 &&
+              !state.isTransitionLocked &&
+              state.isEnabled) {  // 检查是否启用
             _startImageTransition();
           }
         });
@@ -855,13 +868,14 @@ void initState() {
     }
   }
 
+  // 开始图片切换
   void _startImageTransition() {
     final currentState = _backgroundState.value;
-    if (currentState.isAnimating) return;
-    
+    if (currentState.isAnimating || !currentState.isEnabled) return;  // 检查是否启用
+
     try {
       final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
-      
+
       // 预加载下一张图片
       precacheImage(
         NetworkImage(currentState.imageUrls[nextIndex]),
@@ -874,14 +888,14 @@ void initState() {
         },
       ).then((_) {
         if (!mounted) return;
-        
+
         _backgroundState.value = currentState.copyWith(
           isAnimating: true,
           nextIndex: nextIndex,
           isTransitionLocked: false,
           currentAnimationType: _getRandomAnimationType(),
         );
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             _animationController.reset();
@@ -897,6 +911,7 @@ void initState() {
     }
   }
 
+  // 构建本地背景
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
@@ -908,9 +923,10 @@ void initState() {
     );
   }
 
+  // 构建Bing背景
   Widget _buildBingBg() {
     final state = _backgroundState.value;
-    if (state.imageUrls.isEmpty) {
+    if (state.imageUrls.isEmpty || !state.isEnabled) {  // 检查是否启用
       return _buildLocalBg();
     }
 
@@ -926,7 +942,7 @@ void initState() {
             ),
           ),
         ),
-        
+
         // 动画过渡层
         if (state.isAnimating)
           BackgroundTransition(
@@ -939,62 +955,77 @@ void initState() {
     );
   }
 
-@override
-Widget build(BuildContext context) {
-  final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+  @override
+  Widget build(BuildContext context) {
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
-  return Container(
-    color: Colors.black,
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        // 使用 ValueListenableBuilder 监听背景状态变化
-        widget.showBingBackground 
-          ? ValueListenableBuilder<BingBackgroundState>(
-              valueListenable: _backgroundState,
-              builder: (context, state, child) {
-                return _buildBingBg();
-              },
-            )
-          : _buildLocalBg(),
-        
-        // 音频可视化层
-        AudioBarsWrapper(
-          audioBarKey: _audioBarKey,
-          isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER",
-        ),
-        
-        // Logo层
-        if (widget.showBingBackground && widget.currentChannelLogo != null)
-          ChannelLogo(
-            logoUrl: widget.currentChannelLogo,
-            isPortrait: isPortrait,
+    return Selector<ThemeProvider, bool>(
+      selector: (_, provider) => provider.isBingBg,
+      builder: (context, isBingBg, child) {
+        // 当 isBingBg 改变时更新状态
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final currentState = _backgroundState.value;
+          if (currentState.isEnabled != isBingBg) {
+            _backgroundState.value = currentState.copyWith(
+              isEnabled: isBingBg,
+            );
+          }
+        });
+
+        return Container(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 同时检查 showBingBackground 和 isBingBg
+              (widget.showBingBackground && isBingBg)
+                ? ValueListenableBuilder<BingBackgroundState>(
+                    valueListenable: _backgroundState,
+                    builder: (context, state, child) {
+                      return _buildBingBg();
+                    },
+                  )
+                : _buildLocalBg(),
+
+              // 音频可视化层
+              AudioBarsWrapper(
+                audioBarKey: _audioBarKey,
+                isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER",
+              ),
+
+              // Logo层
+              if (widget.showBingBackground && isBingBg && widget.currentChannelLogo != null)
+                ChannelLogo(
+                  logoUrl: widget.currentChannelLogo,
+                  isPortrait: isPortrait,
+                ),
+
+              // Toast层
+              if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER")
+                ToastDisplay(
+                  message: widget.toastString!,
+                  isPortrait: isPortrait,
+                ),
+            ],
           ),
-        
-        // Toast层
-        if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER")
-          ToastDisplay(
-            message: widget.toastString!,
-            isPortrait: isPortrait,
-          ),
-      ],
-    ),
-  );
-}
+        );
+      },
+    );
+  }
 
   @override
   void didUpdateWidget(VideoHoldBg oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-  // 处理背景显示状态变化
-  if (!oldWidget.showBingBackground && widget.showBingBackground) {
-    _loadBingBackgrounds();
-  }
-  
+    // 处理背景显示状态变化
+    if (!oldWidget.showBingBackground && widget.showBingBackground) {
+      _loadBingBackgrounds();
+    }
+
     // 处理音柱动画的暂停/恢复
     if (widget.showBingBackground) {
       if (oldWidget.toastString != widget.toastString) {
-        if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {  
+        if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {
           _audioBarKey.currentState?.pauseAnimation();
         } else {
           _audioBarKey.currentState?.resumeAnimation();
@@ -1010,13 +1041,13 @@ Widget build(BuildContext context) {
       isTransitionLocked: true,
       isAnimating: false,
     );
-    
+
     _timer?.cancel();
     _timer = null;
-    
+
     _animationController.removeStatusListener(_handleAnimationStatus);
     _animationController.dispose();
-    
+
     super.dispose();
   }
 }
