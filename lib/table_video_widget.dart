@@ -360,7 +360,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 视频区域构建方法，包括播放器和控制图标
   Widget _buildVideoSection() {
-    GestureDetector(
+    return GestureDetector(
         onTap: _playerState.drawerIsOpen ? null : () => _handleSelectPress(),
         onDoubleTap: _playerState.drawerIsOpen ? null : () {
           LogUtil.safeExecute(() {
