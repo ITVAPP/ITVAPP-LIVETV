@@ -11,43 +11,51 @@ import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'generated/l10n.dart';
 
-// 视频播放器状态管理类
-class VideoPlayerState {
-  bool isShowMenuBar;
-  bool isShowPauseIcon;
-  bool isShowPlayIcon;
-  bool drawerIsOpen;
-  Timer? pauseIconTimer;
+// 新增: UI状态管理类
+class VideoUIState {
+  final bool showMenuBar;
+  final bool showPauseIcon;
+  final bool showPlayIcon;
+  final bool drawerIsOpen;
 
-  VideoPlayerState({
-    this.isShowMenuBar = true,
-    this.isShowPauseIcon = false,
-    this.isShowPlayIcon = false,
+  const VideoUIState({
+    this.showMenuBar = true,
+    this.showPauseIcon = false,
+    this.showPlayIcon = false,
     this.drawerIsOpen = false,
-    this.pauseIconTimer,
   });
 
-  void dispose() {
-    pauseIconTimer?.cancel();
+  VideoUIState copyWith({
+    bool? showMenuBar,
+    bool? showPauseIcon,
+    bool? showPlayIcon,
+    bool? drawerIsOpen,
+  }) {
+    return VideoUIState(
+      showMenuBar: showMenuBar ?? this.showMenuBar,
+      showPauseIcon: showPauseIcon ?? this.showPauseIcon,
+      showPlayIcon: showPlayIcon ?? this.showPlayIcon,
+      drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
+    );
   }
 }
 
 class TableVideoWidget extends StatefulWidget {
-  final BetterPlayerController? controller; // 视频控制器，用于控制视频播放
-  final GestureTapCallback? changeChannelSources; // 切换频道源的回调函数
-  final String? toastString; // 显示提示信息的字符串
-  final bool isLandscape; // 标识是否为横屏模式
-  final bool isBuffering; // 标识是否正在缓冲视频
-  final bool isPlaying; // 标识视频是否正在播放
-  final double aspectRatio; // 视频的宽高比
-  final bool drawerIsOpen; // 标识抽屉菜单是否已打开
-  final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
-  final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
+  final BetterPlayerController? controller;
+  final GestureTapCallback? changeChannelSources;
+  final String? toastString;
+  final bool isLandscape;
+  final bool isBuffering;
+  final bool isPlaying;
+  final double aspectRatio;
+  final bool drawerIsOpen;
+  final Function(String) toggleFavorite;
+  final bool Function(String) isChannelFavorite;
   final String currentChannelId;
   final String currentChannelLogo;
   final String currentChannelTitle;
   final VoidCallback? onToggleDrawer;
-  final bool isAudio; // 音频模式参数
+  final bool isAudio;
 
   const TableVideoWidget({
     super.key,
@@ -73,56 +81,73 @@ class TableVideoWidget extends StatefulWidget {
 }
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
-  // 状态管理实例
-  late final VideoPlayerState _playerState;
-
-  // 样式常量
+  // 样式常量保持不变
   final Color _iconColor = Colors.white;
   final Color _backgroundColor = Colors.black45;
   final BorderSide _iconBorderSide = const BorderSide(color: Colors.white);
 
-  // 动画相关常量
-  static const Duration _animationDuration = Duration(milliseconds: 200);
-  static const Curve _animationCurve = Curves.easeInOut;
+  // 修改: 使用 ValueNotifier 替代原有状态变量
+  late final ValueNotifier<VideoUIState> _uiStateNotifier;
+  Timer? _pauseIconTimer;
 
+  // 新增: 获取当前UI状态的getter
+  VideoUIState get _currentState => _uiStateNotifier.value;
+
+  // 新增: 统一的状态更新方法
+  void _updateUIState({
+    bool? showMenuBar,
+    bool? showPauseIcon,
+    bool? showPlayIcon,
+    bool? drawerIsOpen,
+  }) {
+    _uiStateNotifier.value = _currentState.copyWith(
+      showMenuBar: showMenuBar,
+      showPauseIcon: showPauseIcon,
+      showPlayIcon: showPlayIcon,
+      drawerIsOpen: drawerIsOpen,
+    );
+  }
+  
+  // 修改: initState 方法
   @override
   void initState() {
     super.initState();
-    // 初始化播放器状态
-    _playerState = VideoPlayerState(
-      isShowMenuBar: true,
+    // 初始化 UI 状态
+    _uiStateNotifier = ValueNotifier(VideoUIState(
+      showMenuBar: true,
+      showPauseIcon: false,
+      showPlayIcon: false,
       drawerIsOpen: widget.drawerIsOpen,
-    );
+    ));
 
-    // 窗口监听器注册逻辑
+    // 保持原有的窗口监听器注册逻辑
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
     }, '注册窗口监听器发生错误');
   }
 
+  // 修改: didUpdateWidget 方法
   @override
   void didUpdateWidget(covariant TableVideoWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // 同步drawer状态
+    // 同步 drawerIsOpen 状态
     if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
-      setState(() {
-        _playerState.drawerIsOpen = widget.drawerIsOpen;
-      });
+      _updateUIState(drawerIsOpen: widget.drawerIsOpen);
     }
   }
 
+  // 修改: dispose 方法
   @override
   void dispose() {
-    _playerState.dispose();
-    // 窗口监听器移除逻辑
+    _uiStateNotifier.dispose();
+    _pauseIconTimer?.cancel();
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
     super.dispose();
   }
 
-  // 窗口监听器回调方法
+  // 窗口相关方法保持不变
   @override
   void onWindowEnterFullScreen() {
     LogUtil.safeExecute(() {
@@ -148,61 +173,69 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '调整窗口大小时发生错误');
   }
 
-  // 封装关闭抽屉逻辑
-  void _closeDrawerIfOpen() {
-    if (_playerState.drawerIsOpen) {
-      setState(() {
-        _playerState.drawerIsOpen = false;
-        widget.onToggleDrawer?.call();
-      });
+  // 修改: 构建视频播放器组件方法
+  Widget _buildVideoPlayer(double containerHeight) {
+    if (widget.controller == null || 
+        widget.controller!.isVideoInitialized() != true || 
+        widget.isAudio == true) {
+      return VideoHoldBg(
+        currentChannelLogo: widget.currentChannelLogo,
+        currentChannelTitle: widget.currentChannelTitle,
+        toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: widget.isAudio,
+      );
     }
+
+    return Container(
+      width: double.infinity,
+      height: containerHeight,
+      color: Colors.black,
+      child: Center(
+        child: BetterPlayer(controller: widget.controller!),
+      ),
+    );
   }
 
-  // 视频播放控制核心方法
+  // 修改: 选择键和确认键的点击事件处理
   Future<void> _handleSelectPress() async {
-    // 如果视频正在播放
     if (widget.controller?.isPlaying() ?? false) {
-      // 如果暂停图标的计时器未激活
-      if (!(_playerState.pauseIconTimer?.isActive ?? false)) {
-        setState(() {
-          _playerState.isShowPauseIcon = true;
-          _playerState.isShowPlayIcon = false;
-        });
-
-        // 启动暂停图标的计时器
-        _playerState.pauseIconTimer = Timer(const Duration(seconds: 3), () {
+      if (!(_pauseIconTimer?.isActive ?? false)) {
+        _updateUIState(
+          showPauseIcon: true,
+          showPlayIcon: false,
+        );
+        _pauseIconTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) {
-            setState(() {
-              _playerState.isShowPauseIcon = false;
-            });
+            _updateUIState(showPauseIcon: false);
           }
         });
       } else {
-        // 暂停视频播放
         await widget.controller?.pause();
-        _playerState.pauseIconTimer?.cancel();
-        setState(() {
-          _playerState.isShowPauseIcon = false;
-          _playerState.isShowPlayIcon = true;
-        });
+        _pauseIconTimer?.cancel();
+        _updateUIState(
+          showPauseIcon: false,
+          showPlayIcon: true,
+        );
       }
     } else {
-      // 播放视频
       await widget.controller?.play();
-      setState(() {
-        _playerState.isShowPlayIcon = false;
-      });
+      _updateUIState(showPlayIcon: false);
     }
 
-    // 如果是横屏模式，切换菜单栏显示状态
     if (widget.isLandscape) {
-      setState(() {
-        _playerState.isShowMenuBar = !_playerState.isShowMenuBar;
-      });
+      _updateUIState(showMenuBar: !_currentState.showMenuBar);
     }
   }
 
-  // 统一的控制图标样式方法
+  // 修改: 关闭抽屉方法
+  void _closeDrawerIfOpen() {
+    if (_currentState.drawerIsOpen) {
+      _updateUIState(drawerIsOpen: false);
+      widget.onToggleDrawer?.call();
+    }
+  }
+  
+  // 保持原有的控制图标构建方法不变
   Widget _buildControlIcon({
     required IconData icon,
     Color backgroundColor = Colors.black,
@@ -232,12 +265,81 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
 
-    return onTap != null
-        ? GestureDetector(onTap: onTap, child: iconWidget)
-        : iconWidget;
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: iconWidget,
+      );
+    }
+    return iconWidget;
+  }
+  
+  // 保持原有的收藏按钮构建方法不变
+  Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
+    return Container(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        tooltip: widget.isChannelFavorite(currentChannelId) 
+            ? S.current.removeFromFavorites 
+            : S.current.addToFavorites,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          widget.isChannelFavorite(currentChannelId) 
+              ? Icons.favorite 
+              : Icons.favorite_border,
+          color: widget.isChannelFavorite(currentChannelId) 
+              ? Colors.red 
+              : _iconColor,
+          size: 24,
+        ),
+        onPressed: () {
+          widget.toggleFavorite(currentChannelId);
+          setState(() {});
+        },
+      ),
+    );
   }
 
-  // 统一的控制按钮构建方法
+  // 保持原有的频道源切换按钮构建方法不变
+  Widget buildChangeChannelSourceButton(bool showBackground) {
+    return Container(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        tooltip: S.of(context).tipChangeLine,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          Icons.legend_toggle,
+          color: _iconColor,
+          size: 24,
+        ),
+        onPressed: () {
+          if (widget.isLandscape) {
+            _closeDrawerIfOpen();
+            _updateUIState(showMenuBar: false);  // 只修改这一行，使用新的状态更新方法
+          }
+          widget.changeChannelSources?.call();
+        },
+      ),
+    );
+  }
+
+  // 保持原有的控制按钮构建方法不变
   Widget _buildControlButton({
     required IconData icon,
     required String tooltip,
@@ -268,162 +370,63 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 收藏按钮构建方法
-  Widget _buildFavoriteButton(String currentChannelId, bool showBackground) {
-    return Container(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        tooltip: widget.isChannelFavorite(currentChannelId)
-            ? S.current.removeFromFavorites
-            : S.current.addToFavorites,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        style: showBackground
-            ? IconButton.styleFrom(
-                backgroundColor: _backgroundColor,
-                side: _iconBorderSide,
-              )
-            : null,
-        icon: Icon(
-          widget.isChannelFavorite(currentChannelId)
-              ? Icons.favorite
-              : Icons.favorite_border,
-          color: widget.isChannelFavorite(currentChannelId)
-              ? Colors.red
-              : _iconColor,
-          size: 24,
-        ),
-        onPressed: () {
-          widget.toggleFavorite(currentChannelId);
-          setState(() {});
-        },
-      ),
-    );
-  }
-
-  // 切换频道源按钮构建方法
-  Widget _buildChangeSourceButton(bool showBackground) {
-    return Container(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        tooltip: S.of(context).tipChangeLine,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        style: showBackground
-            ? IconButton.styleFrom(
-                backgroundColor: _backgroundColor,
-                side: _iconBorderSide,
-              )
-            : null,
-        icon: Icon(
-          Icons.legend_toggle,
-          color: _iconColor,
-          size: 24,
-        ),
-        onPressed: () {
-          if (widget.isLandscape) {
-            _closeDrawerIfOpen();
-            setState(() => _playerState.isShowMenuBar = false);
-          }
-          widget.changeChannelSources?.call();
-        },
-      ),
-    );
-  }
-
-  // 视频播放器核心组件构建方法
-  Widget _buildVideoPlayer() {
-    final containerHeight = MediaQuery.of(context).size.width / (16 / 9);
-
-    if (widget.controller == null ||
-        widget.controller!.isVideoInitialized() != true ||
-        widget.isAudio) {
-      return VideoHoldBg(
-        currentChannelLogo: widget.currentChannelLogo,
-        currentChannelTitle: widget.currentChannelTitle,
-        toastString: _playerState.drawerIsOpen ? '' : widget.toastString,
-        showBingBackground: widget.isAudio,
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      height: containerHeight,
-      color: Colors.black,
-      child: Center(
-        child: BetterPlayer(controller: widget.controller!),
-      ),
-    );
-  }
-
-  // 视频区域构建方法，包括播放器和控制图标
-  Widget _buildVideoSection() {
-    return GestureDetector(
-        onTap: _playerState.drawerIsOpen ? null : () => _handleSelectPress(),
-        onDoubleTap: _playerState.drawerIsOpen ? null : () {
-          LogUtil.safeExecute(() {
-            widget.isPlaying
-                ? widget.controller?.pause()
-                : widget.controller?.play();
-          }, '双击播放/暂停发生错误');
-        },
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            _buildVideoPlayer(),
-
-            // 播放/暂停控制图标
-            if ((widget.controller != null &&
-                 widget.controller!.isVideoInitialized() == true &&
-                 !(widget.controller!.isPlaying() ?? false) &&
-                 !_playerState.drawerIsOpen) ||
-                _playerState.isShowPlayIcon)
-              _buildControlIcon(
-                icon: Icons.play_arrow,
-                onTap: () => _handleSelectPress(),
-              ),
-            if (_playerState.isShowPauseIcon)
-              _buildControlIcon(
-                icon: Icons.pause,
-              ),
-          ],
-        ),
-      );
-  }
-
+  // 修改: build 方法使用 ValueListenableBuilder
   @override
   Widget build(BuildContext context) {
-    String currentChannelId = widget.currentChannelId;
+    final playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
-    return Stack(
-      children: [
-        // 视频播放区域
-        _buildVideoSection(),
-
-        // 使用RepaintBoundary包装各个独立更新的UI组件
-        if (!_playerState.drawerIsOpen && widget.isLandscape) ...[
-          // 音量和亮度控制组件
-          RepaintBoundary(
-            child: const VolumeBrightnessWidget(),
-          ),
-
-          // 时间显示（仅在横屏模式且菜单栏显示时）
-          if (_playerState.isShowMenuBar && !_playerState.drawerIsOpen && widget.isLandscape)
-            RepaintBoundary(
-              child: const DatePositionWidget(),
+    return ValueListenableBuilder<VideoUIState>(
+      valueListenable: _uiStateNotifier,
+      builder: (context, uiState, child) {
+        return Stack(
+          children: [
+            // 视频播放区域
+            GestureDetector(
+              onTap: uiState.drawerIsOpen ? null : () => _handleSelectPress(),
+              onDoubleTap: uiState.drawerIsOpen ? null : () {
+                LogUtil.safeExecute(() {
+                  widget.isPlaying 
+                      ? widget.controller?.pause() 
+                      : widget.controller?.play();
+                }, '双击播放/暂停发生错误');
+              },
+              child: Container(
+                alignment: Alignment.center,
+                color: Colors.black,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _buildVideoPlayer(playerHeight),
+                    if ((widget.controller != null && 
+                         widget.controller!.isVideoInitialized() == true && 
+                         !(widget.controller!.isPlaying() ?? false) && 
+                         !uiState.drawerIsOpen) || uiState.showPlayIcon)
+                      _buildControlIcon(
+                        icon: Icons.play_arrow,
+                        onTap: () => _handleSelectPress(),
+                      ),
+                    if (uiState.showPauseIcon)
+                      _buildControlIcon(icon: Icons.pause),
+                  ],
+                ),
+              ),
             ),
 
-          // 横屏模式下的底部菜单栏
-          if (widget.isLandscape && !_playerState.drawerIsOpen && _playerState.isShowMenuBar)
-            AnimatedPositioned(
-              duration: _animationDuration,
-              curve: _animationCurve,
-              left: 0,
-              right: 0,
-              bottom: _playerState.isShowMenuBar ? 15 : -50,
-              child: RepaintBoundary(
+            // 音量和亮度控制组件
+            if (!uiState.drawerIsOpen)
+              const VolumeBrightnessWidget(),
+
+            // 时间显示
+            if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar)
+              const DatePositionWidget(),
+
+            // 横屏模式下的底部菜单栏
+            if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar)
+              AnimatedPositioned(
+                left: 0,
+                right: 0,
+                bottom: uiState.showMenuBar ? 15 : -50,
+                duration: const Duration(milliseconds: 200),
                 child: Container(
                   height: 32,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -437,19 +440,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         showBackground: true,
                         onPressed: () {
                           LogUtil.safeExecute(() {
-                            setState(() {
-                              _playerState.isShowMenuBar = false;
-                              widget.onToggleDrawer?.call();
-                            });
+                            _updateUIState(showMenuBar: false);
+                            widget.onToggleDrawer?.call();
                           }, '切换频道发生错误');
                         },
                       ),
                       const SizedBox(width: 5),
                       // 收藏按钮
-                      _buildFavoriteButton(currentChannelId, true),
+                      buildFavoriteButton(widget.currentChannelId, true),
                       const SizedBox(width: 5),
                       // 切换源按钮
-                      _buildChangeSourceButton(true),
+                      buildChangeChannelSourceButton(true),
                       const SizedBox(width: 5),
                       // 设置按钮
                       _buildControlButton(
@@ -459,7 +460,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                         onPressed: () {
                           _closeDrawerIfOpen();
                           LogUtil.safeExecute(() {
-                            setState(() => _playerState.isShowMenuBar = false);
+                            _updateUIState(showMenuBar: false);
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (context) => SettingPage()),
@@ -504,22 +505,20 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   ),
                 ),
               ),
-            ),
 
-          // 竖屏模式下的右下角控制按钮
-          if (!widget.isLandscape)
-            Positioned(
-              right: 8,
-              bottom: 8,
-              child: RepaintBoundary(
+            // 竖屏模式下的右下角控制按钮
+            if (!widget.isLandscape)
+              Positioned(
+                right: 8,
+                bottom: 8,
                 child: Container(
                   width: 32,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildFavoriteButton(currentChannelId, false),
+                      buildFavoriteButton(widget.currentChannelId, false),
                       const SizedBox(height: 2),
-                      _buildChangeSourceButton(false),
+                      buildChangeChannelSourceButton(false),
                       const SizedBox(height: 2),
                       _buildControlButton(
                         icon: Icons.screen_rotation,
@@ -541,9 +540,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   ),
                 ),
               ),
-            ),
-        ],
-      ],
+          ],
+        );
+      },
     );
   }
 }
