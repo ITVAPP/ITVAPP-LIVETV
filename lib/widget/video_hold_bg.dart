@@ -391,7 +391,7 @@ class CircleRevealClipper extends CustomClipper<Path> {
     oldClipper.centerAlignment != centerAlignment;
 }
 
-/// 背景动画组件 - 使用flutter_animate重写
+/// 背景动画组件
 class BackgroundTransition extends StatelessWidget {
   final String imageUrl;
   final int animationType;
@@ -407,13 +407,20 @@ class BackgroundTransition extends StatelessWidget {
   // 构建高级淡入淡出效果
   Widget _buildFadeTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
     ).fadeIn(
       duration: const Duration(milliseconds: 1200),
       curve: Curves.easeOutCubic,
     ).scale(
-      begin: 1.1,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.1, 1.1),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1500),
       curve: Curves.easeOutQuart,
     ).blurXY(
@@ -431,22 +438,29 @@ class BackgroundTransition extends StatelessWidget {
   // 构建3D旋转效果
   Widget _build3DRotationTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
     ).custom(
       duration: const Duration(milliseconds: 1500),
       builder: (context, value, child) {
-        final angle = sin(value * pi) * pi; // 创建更平滑的旋转
+        final angle = sin(value * pi) * pi;
         return Transform(
           transform: Matrix4.identity()
-            ..setEntry(3, 2, 0.001) // 添加透视效果
+            ..setEntry(3, 2, 0.001)
             ..rotateY(angle),
           alignment: Alignment.center,
           child: child,
         );
       },
     ).scale(
-      begin: 1.2,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.2, 1.2),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1500),
       curve: Curves.easeOutExpo,
     ).fadeIn(
@@ -458,10 +472,17 @@ class BackgroundTransition extends StatelessWidget {
   // 构建缩放效果
   Widget _buildScaleTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
     ).scale(
-      begin: 1.3,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.3, 1.3),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1200),
       curve: Curves.easeOutQuart,
     ).fadeIn(
@@ -482,7 +503,13 @@ class BackgroundTransition extends StatelessWidget {
   // 构建径向扩散效果
   Widget _buildRadialTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
     ).custom(
       duration: const Duration(milliseconds: 1500),
       builder: (context, value, child) {
@@ -503,8 +530,9 @@ class BackgroundTransition extends StatelessWidget {
         );
       },
     ).scale(
-      begin: 1.1,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.1, 1.1),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1800),
       curve: Curves.easeOutQuart,
     );
@@ -513,7 +541,6 @@ class BackgroundTransition extends StatelessWidget {
   // 构建百叶窗效果
   Widget _buildBlindsTransition(Widget child, Size size) {
     const int blindCount = 8;
-    const double staggerDelay = 0.08;
     final double blindHeight = size.height / blindCount;
     
     List<Widget> blinds = List.generate(blindCount, (index) {
@@ -532,16 +559,17 @@ class BackgroundTransition extends StatelessWidget {
           ),
         ).animate(
           delay: delayDuration,
-        ).slideX(
-          begin: isEven ? -1 : 1,
+        ).moveX(
+          begin: isEven ? -size.width : size.width,
           end: 0,
           duration: const Duration(milliseconds: 800),
           curve: Curves.easeOutQuint,
         ).fadeIn(
           duration: const Duration(milliseconds: 600),
         ).scale(
-          begin: 0.95,
-          end: 1.0,
+          alignment: Alignment.center,
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1.0, 1.0),
           duration: const Duration(milliseconds: 800),
           curve: Curves.easeOutBack,
         ).rotate(
@@ -558,6 +586,13 @@ class BackgroundTransition extends StatelessWidget {
         // 基础渐变过渡
         child.animate(
           delay: const Duration(milliseconds: 600),
+          onPlay: (controller) {
+            controller.addStatusListener((status) {
+              if (status == AnimationStatus.completed) {
+                onTransitionComplete?.call();
+              }
+            });
+          },
         ).fadeIn(
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeOut,
@@ -565,16 +600,19 @@ class BackgroundTransition extends StatelessWidget {
         // 百叶窗层
         ...blinds,
       ],
-    ).animate(
-      delay: const Duration(milliseconds: 1200),
-      onComplete: onTransitionComplete,
     );
   }
 
   // 构建新的交叉溶解效果
   Widget _buildCrossFadeTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
     ).custom(
       duration: const Duration(milliseconds: 1500),
       builder: (context, value, child) {
@@ -594,8 +632,9 @@ class BackgroundTransition extends StatelessWidget {
         );
       },
     ).scale(
-      begin: 1.05,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.05, 1.05),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1500),
       curve: Curves.easeOutQuart,
     );
@@ -604,16 +643,24 @@ class BackgroundTransition extends StatelessWidget {
   // 构建幻灯片效果
   Widget _buildSlideTransition(Widget child) {
     return child.animate(
-      onComplete: onTransitionComplete,
-    ).slideIn(
+      onPlay: (controller) {
+        controller.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            onTransitionComplete?.call();
+          }
+        });
+      },
+    ).moveX(
+      begin: MediaQuery.of(context).size.width * 0.3,
+      end: 0,
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeOutCubic,
-      begin: const Offset(0.3, 0),
     ).fadeIn(
       duration: const Duration(milliseconds: 600),
     ).scale(
-      begin: 1.1,
-      end: 1.0,
+      alignment: Alignment.center,
+      begin: const Offset(1.1, 1.1),
+      end: const Offset(1.0, 1.0),
       duration: const Duration(milliseconds: 1000),
       curve: Curves.easeOutQuart,
     );
@@ -633,26 +680,32 @@ class BackgroundTransition extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         switch (animationType) {
-          case 0: // 高级淡入淡出效果
+          case 0:
             return _buildFadeTransition(nextImage);
-          case 1: // 3D旋转效果
+          case 1:
             return _build3DRotationTransition(nextImage);
-          case 2: // 缩放效果
+          case 2:
             return _buildScaleTransition(nextImage);
-          case 3: // 径向扩散效果
+          case 3:
             return _buildRadialTransition(nextImage);
-          case 4: // 百叶窗效果
+          case 4:
             return _buildBlindsTransition(
               nextImage,
               Size(constraints.maxWidth, constraints.maxHeight),
             );
-          case 5: // 交叉溶解效果
+          case 5:
             return _buildCrossFadeTransition(nextImage);
-          case 6: // 幻灯片效果
+          case 6:
             return _buildSlideTransition(nextImage);
-          default: // 默认淡入淡出
+          default:
             return nextImage.animate(
-              onComplete: onTransitionComplete,
+              onPlay: (controller) {
+                controller.addStatusListener((status) {
+                  if (status == AnimationStatus.completed) {
+                    onTransitionComplete?.call();
+                  }
+                });
+              },
             ).fadeIn(
               duration: const Duration(milliseconds: 800),
             );
