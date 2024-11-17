@@ -11,7 +11,8 @@ class LanzouParser {
   static final RegExp _pwdRegex = RegExp(r'[?&]pwd=([^&]+)');
   static final RegExp _lanzouUrlRegex = RegExp(r'https?://(?:[a-zA-Z\d-]+\.)?lanzou[a-z]\.com/(?:[^/]+/)?([a-zA-Z\d]+)');
   static final RegExp _iframeRegex = RegExp(r'src="(\/fn\?[a-zA-Z\d_+/=]{16,})"');
-  static final RegExp _signRegexes = [
+  // 这里是修复的地方：将 RegExp 改为 List<RegExp>
+  static final List<RegExp> _signRegexes = [
     RegExp(r"'sign':'([^']+)'"),
     RegExp(r'"sign":"([^"]+)"'),
     RegExp(r"var\s+sg\s*=\s*'([^']+)'"),
@@ -39,7 +40,7 @@ class LanzouParser {
     LogUtil.i('URL标准化失败，使用原始URL');
     return urlWithoutPwd;
   }
-
+  
   /// 提取JavaScript参数
   static String? _extractJsContent(String html) {
     final jsStart = '<script type="text/javascript">';
@@ -123,7 +124,7 @@ class LanzouParser {
       return errorResult;
     }
   }
-
+  
   /// 发送HTTP请求
   static Future<String?> _makeRequest(
     String method,
@@ -268,7 +269,7 @@ class LanzouParser {
       return _extractDownloadUrl(ajaxResult);
 
     } catch (e, stack) {
-      LogUtil.e('解析过程发生异常', e, stack);
+      LogUtil.logError('解析过程发生异常', e, stack);
       return errorResult;
     }
   }
