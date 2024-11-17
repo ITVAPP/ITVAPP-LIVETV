@@ -524,20 +524,20 @@ class BackgroundTransition extends StatelessWidget {
         ).moveX(
           begin: isEven ? -size.width : size.width,
           end: 0,
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 1000),
           curve: Curves.easeOutQuint,
         ).fadeIn(
-          duration: const Duration(milliseconds: 600),
+          duration: const Duration(milliseconds: 800),
         ).scale(
           alignment: Alignment.center,
           begin: const Offset(0.95, 0.95),
           end: const Offset(1.0, 1.0),
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 1000),
           curve: Curves.easeOutBack,
         ).rotate(
           begin: isEven ? 0.05 : -0.05,
           end: 0,
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 1000),
           curve: Curves.easeOutCubic,
         ),
       );
@@ -547,7 +547,7 @@ class BackgroundTransition extends StatelessWidget {
       children: [
         // 基础渐变过渡
         child.animate(
-          delay: const Duration(milliseconds: 600),
+          delay: const Duration(milliseconds: 800),
           onPlay: (controller) {
             controller.addStatusListener((status) {
               if (status == AnimationStatus.completed) {
@@ -556,7 +556,7 @@ class BackgroundTransition extends StatelessWidget {
             });
           },
         ).fadeIn(
-          duration: const Duration(milliseconds: 400),
+          duration: const Duration(milliseconds: 1000),
           curve: Curves.easeOut,
         ),
         // 百叶窗层
