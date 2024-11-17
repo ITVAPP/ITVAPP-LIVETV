@@ -33,21 +33,21 @@ class VideoPlayerState {
 }
 
 class TableVideoWidget extends StatefulWidget {
-  final BetterPlayerController? controller; // 视频控制器，用于控制视频播放
-  final GestureTapCallback? changeChannelSources; // 切换频道源的回调函数
-  final String? toastString; // 显示提示信息的字符串
-  final bool isLandscape; // 标识是否为横屏模式
-  final bool isBuffering; // 标识是否正在缓冲视频
-  final bool isPlaying; // 标识视频是否正在播放
-  final double aspectRatio; // 视频的宽高比
-  final bool drawerIsOpen; // 标识抽屉菜单是否已打开
-  final Function(String) toggleFavorite; // 添加/取消收藏的回调函数
-  final bool Function(String) isChannelFavorite; // 判断当前频道是否已收藏
+  final BetterPlayerController? controller;
+  final GestureTapCallback? changeChannelSources;
+  final String? toastString;
+  final bool isLandscape;
+  final bool isBuffering;
+  final bool isPlaying;
+  final double aspectRatio;
+  final bool drawerIsOpen;
+  final Function(String) toggleFavorite;
+  final bool Function(String) isChannelFavorite;
   final String currentChannelId;
   final String currentChannelLogo;
   final String currentChannelTitle;
   final VoidCallback? onToggleDrawer;
-  final bool isAudio; // 音频模式参数
+  final bool isAudio;
 
   const TableVideoWidget({
     super.key,
@@ -108,6 +108,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       setState(() {
         _playerState.drawerIsOpen = widget.drawerIsOpen;
+        // 修改：drawer打开时重置菜单栏状态
+        if (widget.drawerIsOpen) {
+          _playerState.isShowMenuBar = false;
+        }
       });
     }
   }
@@ -147,12 +151,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       _closeDrawerIfOpen();
     }, '调整窗口大小时发生错误');
   }
-
+  
   // 封装关闭抽屉逻辑
   void _closeDrawerIfOpen() {
     if (_playerState.drawerIsOpen) {
       setState(() {
         _playerState.drawerIsOpen = false;
+        _playerState.isShowMenuBar = false; // 修改：关闭抽屉时重置菜单栏状态
         widget.onToggleDrawer?.call();
       });
     }
@@ -160,6 +165,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 视频播放控制核心方法
   Future<void> _handleSelectPress() async {
+    // 修改：如果抽屉打开，先关闭抽屉
+    if (_playerState.drawerIsOpen) {
+      setState(() {
+        _playerState.drawerIsOpen = false;
+        _playerState.isShowMenuBar = false;
+      });
+      widget.onToggleDrawer?.call();
+      return;
+    }
+
     // 如果视频正在播放
     if (widget.controller?.isPlaying() ?? false) {
       // 如果暂停图标的计时器未激活
@@ -201,7 +216,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
   }
-  
+
   // 统一的控制图标样式方法
   Widget _buildControlIcon({
     required IconData icon,
@@ -236,7 +251,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         ? GestureDetector(onTap: onTap, child: iconWidget)
         : iconWidget;
   }
-
+  
   // 统一的控制按钮构建方法
   Widget _buildControlButton({
     required IconData icon,
@@ -357,7 +372,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
   }
-
+  
   // 视频区域构建方法，包括播放器和控制图标
   Widget _buildVideoSection() {
     return RepaintBoundary(
@@ -394,7 +409,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     String currentChannelId = widget.currentChannelId;
@@ -402,7 +417,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return Stack(
       children: [
         // 视频播放区域
-        Positioned.fill(
+        Positioned.fill(  // 修改：添加 Positioned.fill
           child: _buildVideoSection(),
         ),
 
@@ -410,17 +425,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         if (!_playerState.drawerIsOpen) ...[
           // 音量和亮度控制组件
           RepaintBoundary(
-              child: const VolumeBrightnessWidget(),
-            ),
+            child: const VolumeBrightnessWidget(),
+          ),
 
           // 时间显示（仅在横屏模式且菜单栏显示时）
           if (_playerState.isShowMenuBar && widget.isLandscape)
             RepaintBoundary(
-                child: const DatePositionWidget(),
-              ),
+              child: const DatePositionWidget(),
+            ),
 
           // 横屏模式下的底部菜单栏
-          if (widget.isLandscape && _playerState.isShowMenuBar)
+          if (widget.isLandscape && !_playerState.drawerIsOpen && _playerState.isShowMenuBar) 
             AnimatedPositioned(
               duration: _animationDuration,
               curve: _animationCurve,
@@ -428,85 +443,85 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               right: 0,
               bottom: _playerState.isShowMenuBar ? 15 : -50,
               child: RepaintBoundary(
-                  child: Container(
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        // 频道列表按钮
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  child: Row(
+                    children: [
+                      const Spacer(),
+                      // 频道列表按钮
+                      _buildControlButton(
+                        icon: Icons.list_alt,
+                        tooltip: S.of(context).tipChannelList,
+                        showBackground: true,
+                        onPressed: () {
+                          LogUtil.safeExecute(() {
+                            setState(() {
+                              _playerState.isShowMenuBar = false;
+                              widget.onToggleDrawer?.call();
+                            });
+                          }, '切换频道发生错误');
+                        },
+                      ),
+                      const SizedBox(width: 5),
+                      // 收藏按钮
+                      _buildFavoriteButton(currentChannelId, true),
+                      const SizedBox(width: 5),
+                      // 切换源按钮
+                      _buildChangeSourceButton(true),
+                      const SizedBox(width: 5),
+                      // 设置按钮
+                      _buildControlButton(
+                        icon: Icons.settings,
+                        tooltip: S.of(context).settings,
+                        showBackground: true,
+                        onPressed: () {
+                          _closeDrawerIfOpen();
+                          LogUtil.safeExecute(() {
+                            setState(() => _playerState.isShowMenuBar = false);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => SettingPage()),
+                            );
+                          }, '进入设置页面发生错误');
+                        },
+                      ),
+                      const SizedBox(width: 5),
+                      // 横竖屏切换按钮
+                      _buildControlButton(
+                        icon: Icons.screen_rotation,
+                        tooltip: S.of(context).portrait,
+                        showBackground: true,
+                        onPressed: () async {
+                          LogUtil.safeExecute(() async {
+                            if (EnvUtil.isMobile) {
+                              SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+                            } else {
+                              await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
+                              await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+                              Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                            }
+                          }, '切换为竖屏时发生错误');
+                        },
+                      ),
+                      // 全屏按钮（非移动设备）
+                      if (!EnvUtil.isMobile) ...[
+                        const SizedBox(width: 5),
                         _buildControlButton(
-                          icon: Icons.list_alt,
-                          tooltip: S.of(context).tipChannelList,
-                          showBackground: true,
-                          onPressed: () {
-                            LogUtil.safeExecute(() {
-                              setState(() {
-                                _playerState.isShowMenuBar = false;
-                                widget.onToggleDrawer?.call();
-                              });
-                            }, '切换频道发生错误');
-                          },
-                        ),
-                        const SizedBox(width: 5),
-                        // 收藏按钮
-                        _buildFavoriteButton(currentChannelId, true),
-                        const SizedBox(width: 5),
-                        // 切换源按钮
-                        _buildChangeSourceButton(true),
-                        const SizedBox(width: 5),
-                        // 设置按钮
-                        _buildControlButton(
-                          icon: Icons.settings,
-                          tooltip: S.of(context).settings,
-                          showBackground: true,
-                          onPressed: () {
-                            _closeDrawerIfOpen();
-                            LogUtil.safeExecute(() {
-                              setState(() => _playerState.isShowMenuBar = false);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => SettingPage()),
-                              );
-                            }, '进入设置页面发生错误');
-                          },
-                        ),
-                        const SizedBox(width: 5),
-                        // 横竖屏切换按钮
-                        _buildControlButton(
-                          icon: Icons.screen_rotation,
-                          tooltip: S.of(context).portrait,
+                          icon: Icons.fit_screen_outlined,
+                          tooltip: S.of(context).fullScreen,
                           showBackground: true,
                           onPressed: () async {
                             LogUtil.safeExecute(() async {
-                              if (EnvUtil.isMobile) {
-                                SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-                              } else {
-                                await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-                                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                              }
-                            }, '切换为竖屏时发生错误');
+                              final isFullScreen = await windowManager.isFullScreen();
+                              windowManager.setFullScreen(!isFullScreen);
+                            }, '切换为全屏时发生错误');
                           },
                         ),
-                        // 全屏按钮（非移动设备）
-                        if (!EnvUtil.isMobile) ...[
-                          const SizedBox(width: 5),
-                          _buildControlButton(
-                            icon: Icons.fit_screen_outlined,
-                            tooltip: S.of(context).fullScreen,
-                            showBackground: true,
-                            onPressed: () async {
-                              LogUtil.safeExecute(() async {
-                                final isFullScreen = await windowManager.isFullScreen();
-                                windowManager.setFullScreen(!isFullScreen);
-                              }, '切换为全屏时发生错误');
-                            },
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
+                ),
               ),
             ),
 
