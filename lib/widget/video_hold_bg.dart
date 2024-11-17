@@ -379,14 +379,14 @@ class BackgroundTransition extends StatelessWidget {
         curve: Curves.easeOutCubic,
       )
       .scale(
-        begin: const Size(1.05, 1.05),
-        end: const Size(1.0, 1.0),
+        begin: const Offset(1.05, 1.05),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
       .blur(
-        begin: const Size(8, 8),
-        end: const Size(0, 0),
+        begin: const Offset(8, 8),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -405,14 +405,14 @@ class BackgroundTransition extends StatelessWidget {
         curve: Curves.easeOutCubic,
       )
       .scale(
-        begin: const Size(1.2, 1.2),
-        end: const Size(1.0, 1.0),
+        begin: const Offset(1.2, 1.2),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4500),
         curve: Curves.easeOutExpo,
       )
       .blur(
-        begin: const Size(12, 12),
-        end: const Size(0, 0),
+        begin: const Offset(12, 12),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -437,14 +437,14 @@ class BackgroundTransition extends StatelessWidget {
         curve: Curves.easeOutCubic,
       )
       .scale(
-        begin: const Size(1.1, 1.1),
-        end: const Size(1.0, 1.0),
+        begin: const Offset(1.1, 1.1),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
       .blur(
-        begin: const Size(10, 10),
-        end: const Size(0, 0),
+        begin: const Offset(10, 10),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
