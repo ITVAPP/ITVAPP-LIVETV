@@ -7,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import 'package:sp_util/sp_util.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
@@ -354,7 +354,6 @@ class AudioBarsWrapper extends StatelessWidget {
 }
 
 /// 背景动画组件
-/// 背景动画组件
 class BackgroundTransition extends StatelessWidget {
   final String imageUrl;
   final int animationType;
@@ -379,15 +378,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scaleXY(
-        begin: const Offset(1.05, 1.05),
-        end: const Offset(1.0, 1.0),
+      .scale(
+        begin: const Size(1.05, 1.05),
+        end: const Size(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .blurXY(
-        begin: const Offset(8, 8),
-        end: const Offset(0, 0),
+      .blur(
+        begin: const Size(8, 8),
+        end: const Size(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -405,15 +404,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scaleXY(
-        begin: const Offset(1.2, 1.2),
-        end: const Offset(1.0, 1.0),
+      .scale(
+        begin: const Size(1.2, 1.2),
+        end: const Size(1.0, 1.0),
         duration: const Duration(milliseconds: 4500),
         curve: Curves.easeOutExpo,
       )
-      .blurXY(
-        begin: const Offset(12, 12),
-        end: const Offset(0, 0),
+      .blur(
+        begin: const Size(12, 12),
+        end: const Size(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -437,15 +436,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scaleXY(
-        begin: const Offset(1.1, 1.1),
-        end: const Offset(1.0, 1.0),
+      .scale(
+        begin: const Size(1.1, 1.1),
+        end: const Size(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .blurXY(
-        begin: const Offset(10, 10),
-        end: const Offset(0, 0),
+      .blur(
+        begin: const Size(10, 10),
+        end: const Size(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
