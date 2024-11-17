@@ -78,8 +78,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
     super.initState();
     _timer = Timer.periodic(widget.animationSpeed, _updateBars);
     
-    // 新增：3秒后启动动画
-    _startupTimer = Timer(const Duration(seconds: 3), () {
+    // 5秒后启动动画
+    _startupTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
           _isAnimating = true;
@@ -161,8 +161,8 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           effectiveBarWidth = widget.barWidth!;
         } else {
           effectiveBarWidth = widget.respectDeviceOrientation && orientation == Orientation.landscape
-              ? 15.0 * devicePixelRatio
-              : 11.0 * devicePixelRatio;
+              ? 18.0 * devicePixelRatio
+              : 12.0 * devicePixelRatio;
         }
 
         double effectiveMaxHeight;
@@ -261,7 +261,7 @@ class AudioBarsPainter extends CustomPainter {
       final color = googleColors[colorIndices[i]];
       
       final paint = Paint()
-        ..color = color.withOpacity(0.6)
+        ..color = color.withOpacity(0.8)
         ..style = PaintingStyle.fill;
 
       final barHeight = barHeights[i] * maxHeight;
