@@ -988,13 +988,14 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
                 : _buildLocalBg(),
 
               // 音频可视化层
+              if (widget.showBingBackground)
               AudioBarsWrapper(
                 audioBarKey: _audioBarKey,
                 isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER",
               ),
 
               // Logo层
-              if (widget.showBingBackground && isBingBg && widget.currentChannelLogo != null)
+              if (widget.showBingBackground && widget.currentChannelLogo != null)
                 ChannelLogo(
                   logoUrl: widget.currentChannelLogo,
                   isPortrait: isPortrait,
