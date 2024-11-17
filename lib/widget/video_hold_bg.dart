@@ -354,6 +354,7 @@ class AudioBarsWrapper extends StatelessWidget {
 }
 
 /// 背景动画组件
+/// 背景动画组件
 class BackgroundTransition extends StatelessWidget {
   final String imageUrl;
   final int animationType;
@@ -370,7 +371,7 @@ class BackgroundTransition extends StatelessWidget {
   Widget _buildSmoothFadeTransition(Widget child) {
     return child
       .animate(
-        onComplete: () => onTransitionComplete?.call(),
+        onComplete: (controller) => onTransitionComplete?.call(),
       )
       .fade(
         begin: 0.0,
@@ -378,15 +379,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scale(
-        begin: 1.05,
-        end: 1.0,
+      .scaleXY(
+        begin: const Offset(1.05, 1.05),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .blur(
-        begin: 8,
-        end: 0,
+      .blurXY(
+        begin: const Offset(8, 8),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -396,7 +397,7 @@ class BackgroundTransition extends StatelessWidget {
   Widget _buildZoomFadeTransition(Widget child) {
     return child
       .animate(
-        onComplete: () => onTransitionComplete?.call(),
+        onComplete: (controller) => onTransitionComplete?.call(),
       )
       .fade(
         begin: 0.0,
@@ -404,15 +405,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scale(
-        begin: 1.2,
-        end: 1.0,
+      .scaleXY(
+        begin: const Offset(1.2, 1.2),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4500),
         curve: Curves.easeOutExpo,
       )
-      .blur(
-        begin: 12,
-        end: 0,
+      .blurXY(
+        begin: const Offset(12, 12),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
@@ -422,7 +423,7 @@ class BackgroundTransition extends StatelessWidget {
   Widget _buildSlideFadeTransition(Widget child) {
     return child
       .animate(
-        onComplete: () => onTransitionComplete?.call(),
+        onComplete: (controller) => onTransitionComplete?.call(),
       )
       .fade(
         begin: 0.0,
@@ -436,15 +437,15 @@ class BackgroundTransition extends StatelessWidget {
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .scale(
-        begin: 1.1,
-        end: 1.0,
+      .scaleXY(
+        begin: const Offset(1.1, 1.1),
+        end: const Offset(1.0, 1.0),
         duration: const Duration(milliseconds: 4000),
         curve: Curves.easeOutCubic,
       )
-      .blur(
-        begin: 10,
-        end: 0,
+      .blurXY(
+        begin: const Offset(10, 10),
+        end: const Offset(0, 0),
         duration: const Duration(milliseconds: 3500),
         curve: Curves.easeOutCubic,
       );
