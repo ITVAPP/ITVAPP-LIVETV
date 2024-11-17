@@ -695,8 +695,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       return 0;
     }
   }
-  
-  /// 加载必应背景图片
+
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
@@ -749,7 +748,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  /// 开始图片切换动画
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating) return;
@@ -792,7 +790,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  /// 构建本地背景
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
@@ -804,7 +801,6 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     );
   }
 
-  /// 构建必应背景
   Widget _buildBingBg() {
     final state = _backgroundState.value;
     if (state.imageUrls.isEmpty) {
@@ -833,6 +829,42 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             blindAnimations: _blindAnimations,
           ),
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 背景层
+          widget.showBingBackground ? _buildBingBg() : _buildLocalBg(),
+          
+          // 音频可视化层
+          AudioBarsWrapper(
+            audioBarKey: _audioBarKey,
+            isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER",
+          ),
+          
+          // Logo层
+          if (widget.currentChannelLogo != null)
+            ChannelLogo(
+              logoUrl: widget.currentChannelLogo,
+              isPortrait: isPortrait,
+            ),
+          
+          // Toast层
+          if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER")
+            ToastDisplay(
+              message: widget.toastString!,
+              isPortrait: isPortrait,
+            ),
+        ],
+      ),
     );
   }
 
@@ -868,176 +900,4 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     
     super.dispose();
   }
-  
-  /// 加载必应背景图片
-  Future<void> _loadBingBackgrounds() async {
-    final currentState = _backgroundState.value;
-    if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
-    
-    try {
-      _backgroundState.value = currentState.copyWith(
-        isTransitionLocked: true,
-      );
-      
-      final String? channelId = widget.currentChannelTitle;
-      final List<String> urls = await BingUtil.getBingImgUrls(channelId: channelId);
-      
-      if (!mounted) return;
-      
-      if (urls.isNotEmpty) {
-        _backgroundState.value = currentState.copyWith(
-          imageUrls: urls,
-          isBingLoaded: true,
-          isTransitionLocked: false,
-        );
-
-        // 预加载第一张图片
-        precacheImage(NetworkImage(urls[0]), context);
-
-        // 设置定时切换
-        _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
-          final state = _backgroundState.value;
-          if (!state.isAnimating && 
-              mounted && 
-              state.imageUrls.length > 1 && 
-              !state.isTransitionLocked) {
-            _startImageTransition();
-          }
-        });
-      } else {
-        LogUtil.e('未获取到任何 Bing 图片 URL');
-        _backgroundState.value = currentState.copyWith(
-          isBingLoaded: true,
-          isTransitionLocked: false,
-        );
-      }
-    } catch (e) {
-      LogUtil.logError('加载 Bing 图片时发生错误', e);
-      if (mounted) {
-        _backgroundState.value = currentState.copyWith(
-          isBingLoaded: true,
-          isTransitionLocked: false,
-        );
-      }
-    }
-  }
-
-  /// 开始图片切换动画
-  void _startImageTransition() {
-    final currentState = _backgroundState.value;
-    if (currentState.isAnimating) return;
-    
-    try {
-      final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
-      
-      // 预加载下一张图片
-      precacheImage(
-        NetworkImage(currentState.imageUrls[nextIndex]),
-        context,
-        onError: (e, stackTrace) {
-          LogUtil.logError('预加载图片失败', e);
-          _backgroundState.value = currentState.copyWith(
-            isTransitionLocked: false,
-          );
-        },
-      ).then((_) {
-        if (!mounted) return;
-        
-        _backgroundState.value = currentState.copyWith(
-          isAnimating: true,
-          nextIndex: nextIndex,
-          isTransitionLocked: false,
-          currentAnimationType: _getRandomAnimationType(),
-        );
-        
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _animationController.reset();
-            _animationController.forward();
-          }
-        });
-      });
-    } catch (e) {
-      LogUtil.logError('开始图片切换时发生错误', e);
-      _backgroundState.value = currentState.copyWith(
-        isTransitionLocked: false,
-      );
-    }
-  }
-
-  /// 构建本地背景
-  Widget _buildLocalBg() {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          fit: BoxFit.cover,
-          image: AssetImage('assets/images/video_bg.png'),
-        ),
-      ),
-    );
-  }
-
-  /// 构建必应背景
-  Widget _buildBingBg() {
-    final state = _backgroundState.value;
-    if (state.imageUrls.isEmpty) {
-      return _buildLocalBg();
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // 基础层 - 当前图片
-        Container(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              fit: BoxFit.cover,
-              image: NetworkImage(state.imageUrls[state.currentIndex]),
-            ),
-          ),
-        ),
-        
-        // 动画过渡层
-        if (state.isAnimating)
-          BackgroundTransition(
-            animation: _fadeAnimation,
-            imageUrl: state.imageUrls[state.nextIndex],
-            animationType: state.currentAnimationType,
-            blindAnimations: _blindAnimations,
-          ),
-      ],
-    );
-  }
-
-  @override
-  void didUpdateWidget(VideoHoldBg oldWidget) {
-    super.didUpdateWidget(oldWidget);
-  
-    // 处理音柱动画的暂停/恢复
-    if (widget.showBingBackground) {
-      if (oldWidget.toastString != widget.toastString) {
-        if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {  
-          _audioBarKey.currentState?.pauseAnimation();
-        } else {
-          _audioBarKey.currentState?.resumeAnimation();
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    final currentState = _backgroundState.value;
-    _backgroundState.value = currentState.copyWith(
-      isTransitionLocked: true,
-      isAnimating: false,
-    );
-    
-    _timer?.cancel();
-    _timer = null;
-    
-    _animationController.removeStatusListener(_handleAnimationStatus);
-    _animationController.dispose();
-    
-    super.dispose();
-  }
+}
