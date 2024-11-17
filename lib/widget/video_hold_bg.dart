@@ -147,7 +147,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
 
   @override
   Widget build(BuildContext context) {
-    final double logoSize = widget.isPortrait ? 38.0 : maxLogoSize;
+    final double logoSize = widget.isPortrait ? 48.0 : maxLogoSize;
     final double margin = widget.isPortrait ? 16.0 : 26.0;
 
     return Positioned(
@@ -323,7 +323,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
   }
 }
 
-/// 音频可视化组件
+/// 音频可视化组件 
 class AudioBarsWrapper extends StatelessWidget {
   final GlobalKey<DynamicAudioBarsState> audioBarKey;
   final bool isActive;
@@ -454,28 +454,41 @@ class BackgroundTransition extends StatelessWidget {
           ],
         );
 
-      case 1: // 3D旋转效果
+      case 1: // 3D旋转效果 - 完全重写
         return AnimatedBuilder(
           animation: animation,
           builder: (context, child) {
-            // 使用自定义曲线调整旋转过程
-            final rotationProgress = Curves.easeInOutQuart.transform(animation.value);
-
-            // 分段控制缩放
+            // 使用分段动画控制旋转和缩放
+            final double rotationProgress;
             final double scale;
-            if (animation.value < 0.3) {
-              scale = 1.0 + (animation.value * 0.15); // 开始轻微放大
-            } else if (animation.value < 0.7) {
-              scale = 1.15; // 保持放大状态
+            final double perspective;
+            
+            if (animation.value < 0.4) {
+              // 开始阶段 - 加速旋转和缩放
+              rotationProgress = Curves.easeIn.transform(animation.value / 0.4);
+              scale = 1.0 + (animation.value / 0.4) * 0.2;
+              perspective = 0.002;
+            } else if (animation.value < 0.6) {
+              // 中间阶段 - 维持旋转速度和缩放
+              rotationProgress = 1.0 + (animation.value - 0.4) / 0.2;
+              scale = 1.2;
+              perspective = 0.001;
             } else {
-              scale = 1.15 - ((animation.value - 0.7) * 0.5); // 平滑恢复
+              // 结束阶段 - 减速旋转并恢复缩放
+              final endProgress = (animation.value - 0.6) / 0.4;
+              rotationProgress = 2.0 + Curves.easeOut.transform(endProgress);
+              scale = 1.2 - (endProgress * 0.2);
+              perspective = 0.002 * (1 - endProgress);
             }
+
+            // 计算最终旋转角度 (完整的360度)
+            final rotationAngle = rotationProgress * pi * 2;
 
             return Transform(
               alignment: Alignment.center,
               transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.002 + (0.001 * sin(pi * animation.value))) // 动态透视
-                ..rotateY(rotationProgress * pi * 0.6) // 减小旋转角度
+                ..setEntry(3, 2, perspective) // 动态透视
+                ..rotateY(rotationAngle) // 360度旋转
                 ..scale(scale),
               child: FadeTransition(
                 opacity: CurveTween(
@@ -517,7 +530,7 @@ class BackgroundTransition extends StatelessWidget {
           },
         );
 
-      case 3: // 径向扩散效果
+      case 3: // 径向扩散效果 - 完全重写
         return AnimatedBuilder(
           animation: animation,
           builder: (context, child) {
@@ -526,49 +539,51 @@ class BackgroundTransition extends StatelessWidget {
               curve: const Interval(0.0, 0.85, curve: Curves.easeOutQuart),
             ).value;
 
-            // 动态中心点
-            final centerX = 0.5 + 0.08 * sin(revealProgress * pi);
-            final centerY = 0.5 + 0.08 * cos(revealProgress * pi);
-            final center = Alignment(centerX, centerY);
-
             return Stack(
               children: [
-                // 主径向扩散
-                ClipPath(
-                  clipper: CircleRevealClipper(
-                    fraction: revealProgress * 2.2,
-                    centerAlignment: center,
-                  ),
-                  child: FadeTransition(
-                    opacity: CurvedAnimation(
-                      parent: animation,
-                      curve: const Interval(0.2, 0.9),
-                    ),
-                    child: nextImage,
-                  ),
+                // 主径向扩散层
+                ShaderMask(
+                  shaderCallback: (Rect bounds) {
+                    return RadialGradient(
+                      center: const Alignment(0.0, 0.0),
+                      radius: revealProgress * 1.5,
+                      colors: [
+                        Colors.white,
+                        Colors.white.withOpacity(0.8),
+                        Colors.white.withOpacity(0.3),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.4, 0.75, 1.0],
+                    ).createShader(bounds);
+                  },
+                  child: nextImage,
                 ),
+                
                 // 发光边框效果
                 if (revealProgress > 0.1 && revealProgress < 0.9)
-                  ClipPath(
-                    clipper: CircleRevealClipper(
-                      fraction: (revealProgress - 0.1) * 2.0,
-                      centerAlignment: center,
+                  CustomPaint(
+                    painter: RadialBorderPainter(
+                      progress: revealProgress,
+                      color: Colors.white.withOpacity(0.6 * (1 - revealProgress)),
                     ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.6 * (1 - revealProgress)),
-                          width: 3.0,
-                        ),
-                      ),
+                    size: Size.infinite,
+                  ),
+                  
+                // 额外的高光效果
+                if (revealProgress > 0.05 && revealProgress < 0.95)
+                  CustomPaint(
+                    painter: RadialHighlightPainter(
+                      progress: revealProgress,
+                      color: Colors.white.withOpacity(0.3 * (1 - revealProgress)),
                     ),
+                    size: Size.infinite,
                   ),
               ],
             );
           },
         );
 
-      case 4: // 百叶窗效果
+      case 4: // 百叶窗效果 - 修改后的实现
         return LayoutBuilder(
           builder: (context, constraints) {
             final screenSize = constraints.biggest;
@@ -576,10 +591,11 @@ class BackgroundTransition extends StatelessWidget {
 
             return Stack(
               children: [
-                // 基础渐变过渡
+                // 基础渐变过渡 - 修改为在百叶窗动画完成后显示
                 AnimatedBuilder(
                   animation: animation,
                   builder: (context, child) {
+                    // 仅在百叶窗动画接近完成时开始显示
                     final baseProgress = CurvedAnimation(
                       parent: animation,
                       curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
@@ -590,21 +606,25 @@ class BackgroundTransition extends StatelessWidget {
                     );
                   },
                 ),
+                
                 // 百叶窗层
                 ...List.generate(blindAnimations.length, (index) {
                   final isEven = index % 2 == 0;
+                  final delayedAnimation = CurvedAnimation(
+                    parent: blindAnimations[index],
+                    // 确保在0.7之前完成百叶窗动画
+                    curve: const Interval(0.0, 0.7, curve: Curves.easeOutBack),
+                  );
+
                   return Positioned(
                     top: index * blindHeight,
                     left: 0,
                     right: 0,
                     height: blindHeight,
                     child: AnimatedBuilder(
-                      animation: blindAnimations[index],
+                      animation: delayedAnimation,
                       builder: (context, child) {
-                        final progress = CurvedAnimation(
-                          parent: blindAnimations[index],
-                          curve: Curves.easeOutBack,
-                        ).value;
+                        final progress = delayedAnimation.value;
 
                         // 计算动画参数
                         final slideOffset = (1 - progress) * screenSize.width;
@@ -655,9 +675,69 @@ class BackgroundTransition extends StatelessWidget {
   }
 }
 
+/// 径向边框绘制器
+class RadialBorderPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  RadialBorderPainter({
+    required this.progress,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) * progress;
+    
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 3);
+
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(RadialBorderPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
+}
+
+/// 径向高光绘制器
+class RadialHighlightPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  RadialHighlightPainter({
+    required this.progress,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) * progress * 0.8; // 略小于主扩散半径
+    
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [color, color.withOpacity(0.0)],
+        stops: const [0.85, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(RadialHighlightPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
+}
+
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   // 样式常量
-  static const int _blindCount = 12; // 百叶窗数量
+  static const int _blindCount = 8; // 百叶窗数量
 
   // 动画控制器
   late AnimationController _animationController;
@@ -796,7 +876,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     if (!mounted) return 0;
 
     final random = Random();
-    final weights = [0.15, 0.25, 0.2, 0.2, 0.2];
+    // 调整各个动画类型的权重
+    final weights = [0.15, 0.25, 0.2, 0.2, 0.2]; // 分别对应5种动画类型
     final value = random.nextDouble();
 
     try {
