@@ -425,10 +425,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               left: 0,
               right: 0,
               bottom: _playerState.isShowMenuBar ? 15 : -50,
-              child: RepaintBoundary(
                 child: Container(
                   height: 32,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
+                  child: RepaintBoundary(
                   child: Row(
                     children: [
                       const Spacer(),
