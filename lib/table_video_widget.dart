@@ -428,8 +428,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               right: 0,
               bottom: _playerState.isShowMenuBar ? 15 : -50,
               child: RepaintBoundary(
-                child: Material(
-                  type: MaterialType.transparency,
                   child: Container(
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -509,7 +507,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       ],
                     ),
                   ),
-                ),
               ),
             ),
 
