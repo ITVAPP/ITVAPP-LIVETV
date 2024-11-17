@@ -353,44 +353,6 @@ class AudioBarsWrapper extends StatelessWidget {
   }
 }
 
-/// 径向显示裁剪器
-class CircleRevealClipper extends CustomClipper<Path> {
-  final double fraction;
-  final Alignment centerAlignment;
-
-  const CircleRevealClipper({
-    required this.fraction,
-    required this.centerAlignment,
-  });
-
-  @override
-  Path getClip(Size size) {
-    if (size.isEmpty || fraction.isNaN) {
-      return Path();
-    }
-
-    try {
-      final center = centerAlignment.alongSize(size);
-      final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
-      final radius = maxRadius * fraction.clamp(0.0, 3.2);
-
-      return Path()
-        ..addOval(Rect.fromCircle(
-          center: center,
-          radius: radius,
-        ));
-    } catch (e) {
-      LogUtil.logError('创建径向裁剪路径时发生错误', e);
-      return Path();
-    }
-  }
-
-  @override
-  bool shouldReclip(CircleRevealClipper oldClipper) =>
-    oldClipper.fraction != fraction ||
-    oldClipper.centerAlignment != centerAlignment;
-}
-
 /// 背景动画组件
 class BackgroundTransition extends StatelessWidget {
   final String imageUrl;
@@ -640,32 +602,6 @@ class BackgroundTransition extends StatelessWidget {
     );
   }
 
-  // 构建幻灯片效果
-  Widget _buildSlideTransition(Widget child) {
-    return child.animate(
-      onPlay: (controller) {
-        controller.addStatusListener((status) {
-          if (status == AnimationStatus.completed) {
-            onTransitionComplete?.call();
-          }
-        });
-      },
-    ).moveX(
-      begin: MediaQuery.of(context).size.width * 0.3,
-      end: 0,
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOutCubic,
-    ).fadeIn(
-      duration: const Duration(milliseconds: 600),
-    ).scale(
-      alignment: Alignment.center,
-      begin: const Offset(1.1, 1.1),
-      end: const Offset(1.0, 1.0),
-      duration: const Duration(milliseconds: 1000),
-      curve: Curves.easeOutQuart,
-    );
-  }
-  
   @override
   Widget build(BuildContext context) {
     final nextImage = Container(
@@ -695,8 +631,6 @@ class BackgroundTransition extends StatelessWidget {
             );
           case 5:
             return _buildCrossFadeTransition(nextImage);
-          case 6:
-            return _buildSlideTransition(nextImage);
           default:
             return nextImage.animate(
               onPlay: (controller) {
@@ -754,7 +688,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
     final random = Random();
     // 调整各个动画类型的权重
-    final weights = [0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.1]; // 7种动画类型的权重
+    final weights = [0.15, 0.15, 0.15, 0.15, 0.2, 0.2]; // 6种动画类型的权重
     final value = random.nextDouble();
 
     try {
