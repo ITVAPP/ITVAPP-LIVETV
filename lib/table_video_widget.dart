@@ -93,11 +93,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       isShowMenuBar: true,
       drawerIsOpen: widget.drawerIsOpen,
     );
+
+    // 窗口监听器注册逻辑
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
     }, '注册窗口监听器发生错误');
   }
-  
+
   @override
   void didUpdateWidget(covariant TableVideoWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -106,9 +108,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       setState(() {
         _playerState.drawerIsOpen = widget.drawerIsOpen;
-        if (widget.drawerIsOpen) {
-          _playerState.isShowMenuBar = false;  // 抽屉打开时隐藏菜单栏
-        }
       });
     }
   }
@@ -195,8 +194,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       });
     }
 
-    // 如果是横屏模式且抽屉未打开，切换菜单栏显示状态
-    if (widget.isLandscape && !_playerState.drawerIsOpen) {
+    // 如果是横屏模式，切换菜单栏显示状态
+    if (widget.isLandscape) {
       setState(() {
         _playerState.isShowMenuBar = !_playerState.isShowMenuBar;
       });
@@ -361,8 +360,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 视频区域构建方法，包括播放器和控制图标
   Widget _buildVideoSection() {
-    return RepaintBoundary(
-      child: GestureDetector(
+    return GestureDetector(
         onTap: _playerState.drawerIsOpen ? null : () => _handleSelectPress(),
         onDoubleTap: _playerState.drawerIsOpen ? null : () {
           LogUtil.safeExecute(() {
@@ -392,8 +390,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   @override
@@ -406,14 +403,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         _buildVideoSection(),
 
         // 使用RepaintBoundary包装各个独立更新的UI组件
-        if (!_playerState.drawerIsOpen) ...[
+        if (!_playerState.drawerIsOpen && widget.isLandscape) ...[
           // 音量和亮度控制组件
           RepaintBoundary(
             child: const VolumeBrightnessWidget(),
           ),
 
           // 时间显示（仅在横屏模式且菜单栏显示时）
-          if (_playerState.isShowMenuBar && widget.isLandscape)
+          if (_playerState.isShowMenuBar && !_playerState.drawerIsOpen && widget.isLandscape)
             RepaintBoundary(
               child: const DatePositionWidget(),
             ),
