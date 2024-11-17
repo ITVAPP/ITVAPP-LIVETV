@@ -111,9 +111,9 @@ class _ChannelLogoState extends State<ChannelLogo> {
 
       // 1. 检查SP缓存
       final String? base64Data = SpUtil.getString(cacheKey);
-      if (base64Data != null && base64Data.isNotEmpty) {
+      if (base64Data != null && base64Data.isNotEmpty) {	
         try {
-          return base64Decode(base64Data);
+          return base64.decode(base64Data);  
         } catch (e) {
           await SpUtil.remove(cacheKey);
           LogUtil.logError('缓存的logo数据已损坏,已删除', e);
@@ -124,7 +124,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
       final response = await http.get(Uri.parse(widget.logoUrl!));
       if (response.statusCode == 200) {
         final Uint8List imageData = response.bodyBytes;
-        await SpUtil.putString(cacheKey, base64Encode(imageData));
+        await SpUtil.putString(cacheKey, base64.encode(imageData));
         return imageData;
       }
       
