@@ -79,7 +79,7 @@ class VideoHoldBg extends StatefulWidget {
  }) : super(key: key);
 
  @override
- _VideoHoldBgState createState() => _VideoHoldBgState();
+ VideoHoldBgState createState() => VideoHoldBgState();
 }
 
 /// 频道Logo组件 - 用于显示频道Logo 
@@ -498,7 +498,7 @@ class BackgroundTransition extends StatelessWidget {
 }
 
 /// VideoHoldBg的State实现 - 主逻辑类
-class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
+class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
  Timer? _timer;
  final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
 
