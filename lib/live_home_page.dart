@@ -209,7 +209,7 @@ Future<void> _playVideo() async {
           autoPlay: false,              // 自动播放
           looping: true,        // 开启循环播放
           allowedScreenSleep: false,   // 禁止屏幕休眠
-          autoDispose: true,         // 自动释放资源
+          autoDispose: false,         // 自动释放资源
           expandToFill: true,         //  自动填充剩余空间
           handleLifecycle: true,     // 自动处理生命周期事件
           // 禁用错误处理UI
