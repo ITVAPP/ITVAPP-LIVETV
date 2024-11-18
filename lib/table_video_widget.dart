@@ -83,6 +83,9 @@ class TableVideoWidget extends StatefulWidget {
 }
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
+  // 添加 VideoHoldBg 的 key
+  final GlobalKey<_VideoHoldBgState> _videoHoldBgKey = GlobalKey();
+  
   // 样式常量
   final Color _iconColor = Colors.white;
   final Color _backgroundColor = Colors.black45;
@@ -179,27 +182,35 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 构建视频播放器组件
   Widget _buildVideoPlayer(double containerHeight) {
-    if (widget.controller == null || 
-        widget.controller!.isVideoInitialized() != true || 
-        widget.isAudio == true) {
-      return VideoHoldBg(
-        currentChannelLogo: widget.currentChannelLogo,
-        currentChannelTitle: widget.currentChannelTitle,
-        toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
-        showBingBackground: widget.isAudio,
+    final controller = widget.controller;
+    // 检查是否正在播放视频
+    final isPlayingVideo = controller != null && 
+                          controller.isVideoInitialized() == true && 
+                          (controller.isPlaying() ?? false) && 
+                          !widget.isAudio;
+
+    if (isPlayingVideo) {
+      // 正在播放视频时，使用现有播放器控制器
+      return Container(
+        width: double.infinity,
+        height: containerHeight,
+        color: Colors.black,
+        child: Center(
+          child: BetterPlayer(controller: controller),
+        ),
       );
     }
 
-    return Container(
-      width: double.infinity,
-      height: containerHeight,
-      color: Colors.black,
-      child: Center(
-        child: BetterPlayer(controller: widget.controller!),
-      ),
+    // 其他情况(未初始化、音频、未播放)显示背景
+    return VideoHoldBg(
+      key: _videoHoldBgKey,  // 添加 key 保持状态
+      currentChannelLogo: widget.currentChannelLogo,
+      currentChannelTitle: widget.currentChannelTitle,
+      toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
+      showBingBackground: widget.isAudio,
     );
   }
-
+  
   // 处理选择键和确认键点击事件
   Future<void> _handleSelectPress() async {
     if (widget.controller?.isPlaying() ?? false) {
