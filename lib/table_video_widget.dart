@@ -84,7 +84,7 @@ class TableVideoWidget extends StatefulWidget {
 
 class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener {
   // 添加 VideoHoldBg 的 key
-  final GlobalKey<_VideoHoldBgState> _videoHoldBgKey = GlobalKey();
+  final GlobalKey<VideoHoldBgState> _videoHoldBgKey = GlobalKey();
   
   // 样式常量
   final Color _iconColor = Colors.white;
