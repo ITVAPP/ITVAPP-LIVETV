@@ -131,13 +131,10 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     _playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
     // 初始化logo
-    _appBarLogo = Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: Image.asset(
-        'assets/images/logo.png',
-        height: 32,
-        fit: BoxFit.contain,
-      ),
+    _appBarLogo = Image.asset(
+      'assets/images/logo.png',
+      height: 32,
+      fit: BoxFit.contain,
     );
     
     // 初始化操作按钮列表
@@ -165,8 +162,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        toolbarHeight: 52.0,
-        centerTitle: false,
+        toolbarHeight: 48.0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
         title: _appBarLogo,
         bottom: _appBarDivider,
         actions: _appBarIcons,
