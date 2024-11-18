@@ -140,7 +140,10 @@ Future<void> _playVideo() async {
     });
 
     // 先释放旧播放器，再设置新播放器
-    newController.dispose(); 
+    if (_playerController != null) {
+        await _playerController!.dispose();
+        _playerController = null;
+    }
     
     try {
         // 解析URL
@@ -318,7 +321,7 @@ void _videoListener(BetterPlayerEvent event) {
         
         // 当事件类型为播放结束时，切换到下一个源
         case BetterPlayerEventType.finished:
-            _handleSourceSwitch()
+            _handleSourceSwitch();
             break;
         
         // 默认情况，忽略所有其他未处理的事件类型
