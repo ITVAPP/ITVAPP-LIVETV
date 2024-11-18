@@ -14,15 +14,15 @@ import 'music_bars.dart';
 import '../generated/l10n.dart';
 import '../gradient_progress_bar.dart';
 
-/// 背景图片状态管理类
+/// 背景图片状态管理类 - 定义了各类状态属性
 class BingBackgroundState {
-  final List<String> imageUrls;
-  final int currentIndex;
-  final int nextIndex;
-  final bool isAnimating;
-  final bool isTransitionLocked;
-  final int currentAnimationType;
-  final bool isBingLoaded;
+  final List<String> imageUrls; // 图片URL列表
+  final int currentIndex; // 当前图片索引
+  final int nextIndex; // 下一张图片索引
+  final bool isAnimating; // 是否正在动画切换中
+  final bool isTransitionLocked; // 是否锁定背景切换
+  final int currentAnimationType; // 当前使用的动画类型
+  final bool isBingLoaded; // 是否已加载Bing图片
   final bool isEnabled; // 是否启用Bing背景(对应ThemeProvider中的isBingBg)
 
   const BingBackgroundState({
@@ -82,7 +82,7 @@ class VideoHoldBg extends StatefulWidget {
   _VideoHoldBgState createState() => _VideoHoldBgState();
 }
 
-/// 频道Logo组件
+/// 频道Logo组件 - 用于显示频道Logo
 class ChannelLogo extends StatefulWidget {
   final String? logoUrl;
   final bool isPortrait;
@@ -100,12 +100,12 @@ class ChannelLogo extends StatefulWidget {
 class _ChannelLogoState extends State<ChannelLogo> {
   static const double maxLogoSize = 58.0;
 
-  // 获取缓存key
+  /// 获取缓存key
   String _getCacheKey(String url) {
     return 'logo_${Uri.parse(url).pathSegments.last}';
   }
 
-  // 加载logo
+  /// 加载logo，支持缓存
   Future<Uint8List?> _loadLogo() async {
     if (widget.logoUrl == null || widget.logoUrl!.isEmpty) {
       return null;
@@ -140,11 +140,11 @@ class _ChannelLogoState extends State<ChannelLogo> {
     }
   }
 
-  // 默认logo widget
+  /// 默认logo widget
   Widget get _defaultLogo => Image.asset(
-    'assets/images/logo.png',
-    fit: BoxFit.cover,
-  );
+        'assets/images/logo.png',
+        fit: BoxFit.cover,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +191,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
   }
 }
 
-/// Toast显示组件
+/// Toast显示组件 - 用于显示提示信息
 class ToastDisplay extends StatefulWidget {
   final String message;
   final bool isPortrait;
@@ -220,7 +220,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
     _setupTextAnimation();
   }
 
-  // 设置文本动画
+  /// 设置文本动画
   void _setupTextAnimation() {
     _textAnimationController = AnimationController(
       duration: const Duration(seconds: 10),
@@ -248,7 +248,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
     super.dispose();
   }
 
-  // 构建Toast消息
+  /// 构建Toast消息
   Widget _buildToast(TextStyle textStyle) {
     final textSpan = TextSpan(text: widget.message, style: textStyle);
     final textPainter = TextPainter(
@@ -281,19 +281,15 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final EdgeInsets padding = EdgeInsets.only(
-      bottom: widget.isPortrait ? 8.0 : 12.0
-    );
+    final EdgeInsets padding = EdgeInsets.only(bottom: widget.isPortrait ? 10.0 : 15.0);
 
     final TextStyle textStyle = TextStyle(
       color: Colors.white,
-      fontSize: widget.isPortrait ? 15 : 17,
+      fontSize: widget.isPortrait ? 16 : 18,
     );
 
     final mediaQuery = MediaQuery.of(context);
-    final progressBarWidth = widget.isPortrait ?
-      mediaQuery.size.width * 0.5 :
-      mediaQuery.size.width * 0.3;
+    final progressBarWidth = widget.isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -308,7 +304,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
                   width: progressBarWidth,
                   height: 5,
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
               ],
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -324,7 +320,7 @@ class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderSt
   }
 }
 
-/// 音频可视化组件 
+/// 音频可视化组件 - 自动显示或隐藏音频频谱条
 class AudioBarsWrapper extends StatelessWidget {
   final GlobalKey<DynamicAudioBarsState> audioBarKey;
   final bool isActive;
@@ -353,10 +349,10 @@ class AudioBarsWrapper extends StatelessWidget {
   }
 }
 
-/// 背景动画组件
+/// 背景动画组件 - 根据不同的动画类型实现背景切换动画
 class BackgroundTransition extends StatelessWidget {
-  final String imageUrl;
-  final int animationType;
+  final String imageUrl; // 图片URL
+  final int animationType; // 动画类型
   final VoidCallback? onTransitionComplete;
 
   const BackgroundTransition({
@@ -366,88 +362,88 @@ class BackgroundTransition extends StatelessWidget {
     this.onTransitionComplete,
   }) : super(key: key);
 
-  // 平滑渐变过渡效果
+  /// 平滑渐变过渡效果
   Widget _buildSmoothFadeTransition(Widget child) {
     return child
-      .animate(
-        onComplete: (controller) => onTransitionComplete?.call(),
-      )
-      .fade(
-        begin: 0.0,
-        end: 1.0,
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .scale(
-        begin: const Offset(1.05, 1.05),
-        end: const Offset(1.0, 1.0),
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .blur(
-        begin: const Offset(8, 8),
-        end: const Offset(0, 0),
-        duration: const Duration(milliseconds: 3500),
-        curve: Curves.easeOutCubic,
-      );
+        .animate(
+          onComplete: (controller) => onTransitionComplete?.call(),
+        )
+        .fade(
+          begin: 0.0,
+          end: 1.0,
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(1.05, 1.05),
+          end: const Offset(1.0, 1.0),
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .blur(
+          begin: const Offset(8, 8),
+          end: const Offset(0, 0),
+          duration: const Duration(milliseconds: 3500),
+          curve: Curves.easeOutCubic,
+        );
   }
 
-  // 放大渐变效果
+  /// 放大渐变效果
   Widget _buildZoomFadeTransition(Widget child) {
     return child
-      .animate(
-        onComplete: (controller) => onTransitionComplete?.call(),
-      )
-      .fade(
-        begin: 0.0,
-        end: 1.0,
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .scale(
-        begin: const Offset(1.2, 1.2),
-        end: const Offset(1.0, 1.0),
-        duration: const Duration(milliseconds: 4500),
-        curve: Curves.easeOutExpo,
-      )
-      .blur(
-        begin: const Offset(12, 12),
-        end: const Offset(0, 0),
-        duration: const Duration(milliseconds: 3500),
-        curve: Curves.easeOutCubic,
-      );
+        .animate(
+          onComplete: (controller) => onTransitionComplete?.call(),
+        )
+        .fade(
+          begin: 0.0,
+          end: 1.0,
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(1.2, 1.2),
+          end: const Offset(1.0, 1.0),
+          duration: const Duration(milliseconds: 4500),
+          curve: Curves.easeOutExpo,
+        )
+        .blur(
+          begin: const Offset(12, 12),
+          end: const Offset(0, 0),
+          duration: const Duration(milliseconds: 3500),
+          curve: Curves.easeOutCubic,
+        );
   }
 
-  // 平移渐变效果
+  /// 平移渐变效果
   Widget _buildSlideFadeTransition(Widget child) {
     return child
-      .animate(
-        onComplete: (controller) => onTransitionComplete?.call(),
-      )
-      .fade(
-        begin: 0.0,
-        end: 1.0,
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .slideY(
-        begin: 0.05,
-        end: 0,
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .scale(
-        begin: const Offset(1.1, 1.1),
-        end: const Offset(1.0, 1.0),
-        duration: const Duration(milliseconds: 4000),
-        curve: Curves.easeOutCubic,
-      )
-      .blur(
-        begin: const Offset(10, 10),
-        end: const Offset(0, 0),
-        duration: const Duration(milliseconds: 3500),
-        curve: Curves.easeOutCubic,
-      );
+        .animate(
+          onComplete: (controller) => onTransitionComplete?.call(),
+        )
+        .fade(
+          begin: 0.0,
+          end: 1.0,
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .slideY(
+          begin: 0.05,
+          end: 0,
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(1.1, 1.1),
+          end: const Offset(1.0, 1.0),
+          duration: const Duration(milliseconds: 4000),
+          curve: Curves.easeOutCubic,
+        )
+        .blur(
+          begin: const Offset(10, 10),
+          end: const Offset(0, 0),
+          duration: const Duration(milliseconds: 3500),
+          curve: Curves.easeOutCubic,
+        );
   }
 
   @override
@@ -461,6 +457,7 @@ class BackgroundTransition extends StatelessWidget {
       ),
     );
 
+    // 根据选择的动画类型返回相应的动画
     switch (animationType) {
       case 0:
         return _buildSmoothFadeTransition(nextImage);
@@ -474,7 +471,7 @@ class BackgroundTransition extends StatelessWidget {
   }
 }
 
-/// VideoHoldBg的State实现
+/// VideoHoldBg的State实现 - 主逻辑类
 class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   Timer? _timer;
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
@@ -496,7 +493,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    
+
+    // 如果需要显示Bing背景，在widget初始化后加载背景图片
     if (widget.showBingBackground) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -506,7 +504,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 获取随机动画类型
+  /// 获取随机动画类型
   int _getRandomAnimationType() {
     if (!mounted) return 0;
 
@@ -530,9 +528,10 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 加载Bing背景图片
+  /// 加载Bing背景图片
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
+    // 如果Bing图片已经加载或正在锁定动画，则无需重复加载
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
 
     try {
@@ -540,12 +539,14 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
         isTransitionLocked: true,
       );
 
+      // 获取当前频道背景图片URL
       final String? channelId = widget.currentChannelTitle;
       final List<String> urls = await BingUtil.getBingImgUrls(channelId: channelId);
 
       if (!mounted) return;
 
       if (urls.isNotEmpty) {
+        // 如果获取到Bing图片URL，更新状态
         _backgroundState.value = currentState.copyWith(
           imageUrls: urls,
           isBingLoaded: true,
@@ -584,9 +585,10 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     }
   }
 
-  // 开始图片切换
+  /// 开始图片切换
   void _startImageTransition() {
     final currentState = _backgroundState.value;
+    // 如果当前正在动画或Bing背景未启用，则返回
     if (currentState.isAnimating || !currentState.isEnabled) return;
 
     try {
@@ -619,8 +621,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       );
     }
   }
-  
-  // 构建本地背景
+
+  /// 构建本地背景
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
@@ -632,9 +634,10 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
     );
   }
 
-  // 构建Bing背景
+  /// 构建Bing背景
   Widget _buildBingBg() {
     final state = _backgroundState.value;
+    // 如果没有Bing图片或背景未启用，则显示本地默认背景
     if (state.imageUrls.isEmpty || !state.isEnabled) {
       return _buildLocalBg();
     }
@@ -659,7 +662,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             animationType: state.currentAnimationType,
             onTransitionComplete: () {
               if (!mounted) return;
-              
+
               final currentState = _backgroundState.value;
               _backgroundState.value = currentState.copyWith(
                 isAnimating: false,
@@ -670,7 +673,8 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
 
               // 预加载下一张图片
               if (currentState.imageUrls.length > 1) {
-                final nextNextIndex = (currentState.nextIndex + 1) % currentState.imageUrls.length;
+                final nextNextIndex =
+                    (currentState.nextIndex + 1) % currentState.imageUrls.length;
                 precacheImage(
                   NetworkImage(currentState.imageUrls[nextNextIndex]),
                   context,
@@ -681,7 +685,7 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
       ],
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
@@ -706,13 +710,13 @@ class _VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin
             children: [
               // 同时检查 showBingBackground 和 isBingBg
               (widget.showBingBackground && isBingBg)
-                ? ValueListenableBuilder<BingBackgroundState>(
-                    valueListenable: _backgroundState,
-                    builder: (context, state, child) {
-                      return _buildBingBg();
-                    },
-                  )
-                : _buildLocalBg(),
+                  ? ValueListenableBuilder<BingBackgroundState>(
+                      valueListenable: _backgroundState,
+                      builder: (context, state, child) {
+                        return _buildBingBg();
+                      },
+                    )
+                  : _buildLocalBg(),
 
               // 音频可视化层
               if (widget.showBingBackground)
