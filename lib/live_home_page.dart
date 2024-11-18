@@ -422,7 +422,7 @@ Future<void> _disposePlayer() async {
                    // 暂停当前播放
                    await currentController.pause();
                    // 确保视频控制器完全停止和释放
-                   await currentController.videoPlayerController!.dispose();
+                   currentController.videoPlayerController!.dispose();  // dispose() 返回 void
                } catch (e) {
                    LogUtil.logError('释放视频控制器时出错', e);
                }
@@ -430,7 +430,7 @@ Future<void> _disposePlayer() async {
            
            // 3. 清理缓存
            try {
-               await currentController.clearCache();
+               currentController.clearCache();  // clearCache() 返回 void
            } catch (e) {
                LogUtil.logError('清理缓存时出错', e);
            }
@@ -440,7 +440,7 @@ Future<void> _disposePlayer() async {
            
            // 5. 强制释放播放器控制器
            try {
-               await currentController.dispose(forceDispose: true);  // 添加 await 和 forceDispose: true
+               currentController.dispose();  // dispose() 返回 void, 不需要 await
            } catch (e) {
                LogUtil.logError('释放播放器时出错', e);
            }
