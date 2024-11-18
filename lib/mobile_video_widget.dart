@@ -52,16 +52,6 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  // 常量定义
-  static const _appBarLogo = Padding(
-    padding: EdgeInsets.only(left: 4),
-    child: Image.asset(
-      'assets/images/logo.png',
-      height: 28,
-      fit: BoxFit.contain,
-    ),
-  );
-
   static const _appBarDivider = PreferredSize(
     preferredSize: Size.fromHeight(1),
     child: DecoratedBox(
@@ -71,6 +61,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       child: SizedBox(height: 0.5),
     ),
   );
+
+  // 抽离logo组件到非静态变量
+  late final Widget _appBarLogo;
 
   // 抽离回调方法，减少在build函数中重复生成不必要的新闭包
   Future<void> _handleAddPressed() async {
@@ -134,9 +127,18 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   @override
   void initState() {
     super.initState();
-    // 在initState中设置需要引用context的值
     _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
     _playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+
+    // 初始化logo
+    _appBarLogo = Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Image.asset(
+        'assets/images/logo.png',
+        height: 28,
+        fit: BoxFit.contain,
+      ),
+    );
     
     // 初始化操作按钮列表
     _appBarIcons = [
