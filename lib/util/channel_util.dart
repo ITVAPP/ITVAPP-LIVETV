@@ -11,7 +11,7 @@ final Map<String, ButtonStyle> _styleCache = {};
 
 // 定义常量边距和圆角
 const EdgeInsets _padding = EdgeInsets.all(10);
-const BorderRadius _borderRadius = BorderRadius.circular(16);
+const BorderRadius _borderRadius = BorderRadius.all(Radius.circular(16));
 const EdgeInsets _buttonPadding = EdgeInsets.symmetric(vertical: 2, horizontal: 6);
 
 /// 显示底部弹出框以选择不同的视频源
