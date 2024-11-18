@@ -16,7 +16,7 @@ import 'config.dart';
 final verticalDivider = VerticalDivider(
   width: 1,  
   thickness: 0.5, 
-  color: Colors.white.withOpacity(0.08), 
+  color: Colors.white.withOpacity(0.1),
 );
 
 // 文字样式
@@ -57,7 +57,6 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
             ? unselectedColor.withOpacity(0.8)  
             : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
         : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
-    borderRadius: BorderRadius.circular(3.0),
     border: Border.all(
       color: isSelected || (isTV && hasFocus) 
           ? Colors.white.withOpacity(0.1)
