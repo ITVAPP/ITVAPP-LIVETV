@@ -37,7 +37,7 @@ Future<int?> changeChannelSources(
     // 获取屏幕的方向和相关尺寸信息
     var orientation = MediaQuery.of(context).orientation;
     final widthFactor = orientation == Orientation.landscape ? 0.78 : 0.88; // 根据横竖屏动态调整宽度
-    final bottomOffset = orientation == Orientation.landscape ? 58.0 : 68.0; // 动态调整底部间距
+    final bottomOffset = orientation == Orientation.landscape ? 48.0 : 58.0; // 动态调整底部间距
 
     // 提前计算尺寸约束，用于设置弹窗的最大宽高
     final double maxWidth = MediaQuery.of(context).size.width * widthFactor;
