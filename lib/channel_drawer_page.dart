@@ -14,8 +14,7 @@ import 'config.dart';
 
 // 分割线样式
 final verticalDivider = VerticalDivider(
-  width: 1,  
-  thickness: 0.5, 
+  width: 0.1,
   color: Colors.white.withOpacity(0.1),
 );
 
