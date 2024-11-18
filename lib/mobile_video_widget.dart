@@ -132,10 +132,10 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
     // 初始化logo
     _appBarLogo = Padding(
-      padding: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.only(left: 6),
       child: Image.asset(
         'assets/images/logo.png',
-        height: 28,
+        height: 32,
         fit: BoxFit.contain,
       ),
     );
@@ -165,7 +165,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        toolbarHeight: 58.0,
+        toolbarHeight: 52.0,
         centerTitle: false,
         title: _appBarLogo,
         bottom: _appBarDivider,
