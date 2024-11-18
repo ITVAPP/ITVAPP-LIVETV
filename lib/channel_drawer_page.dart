@@ -48,11 +48,13 @@ const defaultPadding = EdgeInsets.all(6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false}) {
+BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false}) {
   return BoxDecoration(
-    color: hasFocus
-        ? unselectedColor // 焦点优先
-        : (isSelected ? selectedColor : Colors.transparent), // 没有焦点时使用选中颜色
+    color: isTV
+        ? (hasFocus 
+            ? unselectedColor  // TV模式下保持焦点样式
+            : (isSelected ? selectedColor : Colors.transparent))
+        : (isSelected ? selectedColor : Colors.transparent), // 非TV模式下只看选中状态
   );
 }
 
@@ -146,6 +148,7 @@ Widget listItemContent = GestureDetector(
     decoration: buildItemDecoration(
       isSelected: isSelected,
       hasFocus: focusNode?.hasFocus ?? false,
+      isTV: isTV,
     ),
     child: Text(
       title,
@@ -224,7 +227,7 @@ class _CategoryListState extends State<CategoryList> {
               title: displayTitle,
               isSelected: widget.selectedCategoryIndex == index,
               onTap: () => widget.onCategoryTap(index),
-              isCentered: true,
+              isCentered: false,
               isTV: widget.isTV,
               context: context,
               index: widget.startIndex + index,
@@ -318,7 +321,7 @@ return Container(
                   title: widget.keys[index],
                   isSelected: widget.selectedGroupIndex == index,
                   onTap: () => widget.onGroupTap(index),
-                  isCentered: true,
+                  isCentered: false,
                   isTV: widget.isTV,
                   minHeight: defaultMinHeight,
                   context: context,
@@ -408,7 +411,7 @@ class _ChannelListState extends State<ChannelList> {
                 title: channelName,
                 isSelected: isSelect,
                 onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                isCentered: true,
+                isCentered: false,
                 minHeight: defaultMinHeight,
                 isTV: widget.isTV,
                 context: context,
@@ -928,7 +931,7 @@ Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
  if (isPortrait || playModel == null) return;
  try {
    final currentTime = DateTime.now();  
-   // 如果提供了 channelKey，则检查缓存是否存在且未过期
+   // 检查缓存是否存在且未过期
    if (channelKey != null &&
        epgCache.containsKey(channelKey) &&
        epgCache[channelKey]!['timestamp'].day == currentTime.day) {
@@ -946,7 +949,7 @@ Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
      return;
    }
    // 缓存不存在或过期，重新获取数据
-   final res = await EpgUtil.getEpg(playModel); // 获取EPG数据
+   final res = await EpgUtil.getEpg(playModel); 
    if (res?.epgData == null || res!.epgData!.isEmpty) return;
    
    // 获取当前节目索引
@@ -956,7 +959,6 @@ Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
      _epgData = res.epgData!; // 更新节目单数据
      _selEPGIndex = selectedIndex;
    });
-   // 如果提供了 channelKey，则将数据缓存
    if (channelKey != null) {
      epgCache[channelKey] = {
        'data': res.epgData!,
@@ -995,11 +997,10 @@ int _getInitialSelectedIndex(List<EpgData>? epgData) {
   // 检查焦点列表是否正确，如果不正确则重建
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-    // 如果焦点节点的数量不符合预期，则重新生成焦点列表
     if (_focusNodes.length != totalNodesExpected) {
-      _initializeFocusNodes(totalNodesExpected); // 根据需要重新初始化焦点节点
+      _initializeFocusNodes(totalNodesExpected); 
     }
-    return _focusNodes; // 返回更新后的焦点列表
+    return _focusNodes;
   }
   
 @override
@@ -1061,7 +1062,7 @@ Widget build(BuildContext context) {
   }
 
   return TvKeyNavigation(  // 处理焦点和导航
-    focusNodes: _ensureCorrectFocusNodes(), // 检查并确保焦点列表正确
+    focusNodes: _ensureCorrectFocusNodes(),
     cacheName: 'ChannelDrawerPage',  // 指定缓存名称
     isVerticalGroup: true, // 启用竖向分组
     initialIndex: 0,
