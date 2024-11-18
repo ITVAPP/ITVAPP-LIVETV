@@ -110,21 +110,4 @@ class EnvUtil {
     return 'https://api.github.com/repos/aiyakuaile/easy_tv_live/releases/latest';
   }
 
-  // 获取字体资源的基础地址
-  static String fontLink() {
-    if (isChinese()) {
-      return 'https://gitee.com/AMuMuSir/easy_tv_font/raw/main';  // 中文环境返回 Gitee 字体地址
-    } else {
-      return 'https://raw.githubusercontent.com/aiyakuaile/easy_tv_font/main';  // 其他环境返回 GitHub 字体地址
-    }
-  }
-
-  // 获取字体下载地址
-  static String fontDownloadLink() {
-    if (isChinese()) {
-      return 'https://gitee.com/AMuMuSir/easy_tv_font/releases/download/fonts';  // 中文环境返回 Gitee 字体下载地址
-    } else {
-      return 'https://raw.githubusercontent.com/aiyakuaile/easy_tv_font/main';  // 其他环境返回 GitHub 字体下载地址
-    }
-  }
 }
