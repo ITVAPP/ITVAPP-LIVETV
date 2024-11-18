@@ -954,7 +954,7 @@ String get gethttperror {
 
 String get exittip {
   return Intl.message(
-    '期待你下一次的访问！',
+    '期待你下一次的访问',
     name: 'exittip',
     desc: '',
     args: [],
