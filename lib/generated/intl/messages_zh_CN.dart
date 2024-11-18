@@ -134,6 +134,6 @@ class MessageLookup extends MessageLookupByLibrary {
         "copyok": MessageLookupByLibrary.simpleMessage("内容已复制到剪贴板"),
         "startsurlerror": MessageLookupByLibrary.simpleMessage("解析 URL 失败"),
         "gethttperror": MessageLookupByLibrary.simpleMessage("本地网络配置失败"),
-        "exittip": MessageLookupByLibrary.simpleMessage("期待你下一次的访问！")
+        "exittip": MessageLookupByLibrary.simpleMessage("期待你下一次的访问")
       };
 }
