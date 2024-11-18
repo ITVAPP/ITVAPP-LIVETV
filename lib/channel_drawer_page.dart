@@ -14,18 +14,20 @@ import 'config.dart';
 
 // 分割线样式
 final verticalDivider = VerticalDivider(
-  width: 0.1,
-  color: Colors.white.withOpacity(0.1),
+  width: 1,  
+  thickness: 0.5, 
+  color: Colors.white.withOpacity(0.08), 
 );
 
 // 文字样式
 const defaultTextStyle = TextStyle(
   fontSize: 17, // 字体大小
+  height: 1.3,  // 调整行高
 );
 
 const selectedTextStyle = TextStyle(
-  fontWeight: FontWeight.bold, // 选中的字体加粗
-  color: Colors.white, // 选中项的字体颜色
+  fontWeight: FontWeight.bold,
+  color: Colors.white, 
   shadows: [
     Shadow(
       offset: Offset(1.0, 1.0),
@@ -36,7 +38,7 @@ const selectedTextStyle = TextStyle(
 );
 
 // 最小高度
-const defaultMinHeight = 40.0;
+const defaultMinHeight = 38.0;
 
 // 背景色
 const defaultBackgroundColor = Colors.black38;
@@ -52,9 +54,16 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
-            ? unselectedColor  // TV模式下保持焦点样式
-            : (isSelected ? selectedColor : Colors.transparent))
-        : (isSelected ? selectedColor : Colors.transparent), // 非TV模式下只看选中状态
+            ? unselectedColor.withOpacity(0.8)  
+            : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
+        : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
+    borderRadius: BorderRadius.circular(3.0),
+    border: Border.all(
+      color: isSelected || (isTV && hasFocus) 
+          ? Colors.white.withOpacity(0.1)
+          : Colors.transparent,
+      width: 0.5,
+    ),
   );
 }
 
@@ -73,9 +82,7 @@ void addFocusListeners(int startIndex, int length, State state) {
   }
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
-    // 移除旧的监听器
     _focusNodes[index].removeListener(() {});
-    // 添加新的监听器，调用通用的焦点变化处理函数
     _focusNodes[index].addListener(() {
       final currentFocus = _focusNodes[index].hasFocus;
       if (_focusStates[index] != currentFocus) {
@@ -96,7 +103,6 @@ void removeFocusListeners(int startIndex, int length) {
 
 // 初始化 FocusNode 列表
 void _initializeFocusNodes(int totalCount) {
-  // 如果缓存的不一致，销毁并重建
   if (_focusNodes.length != totalCount) {
     for (final node in _focusNodes) {
       node.dispose();
@@ -519,7 +525,6 @@ class ChannelDrawerPage extends StatefulWidget {
   final bool isLandscape;
   final Function(PlayModel? newModel)? onTapChannel;
   final VoidCallback onCloseDrawer;
-  // 添加 TvKeyNavigation 状态回调属性
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
   final ValueKey<int>? refreshKey; // 刷新键
 
