@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/cupertino.dart';
@@ -35,7 +36,7 @@ class HttpUtil {
         responseHeader: false, // 不打印响应头
       ));
 
-    // 配置连接池管理，限制每个主机的最大连接数以优化资源利用
+    // 配置连接池管理，限制每个主机的最大连接数
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient();
       client.maxConnectionsPerHost = 5; // 每个主机的最大连接数
