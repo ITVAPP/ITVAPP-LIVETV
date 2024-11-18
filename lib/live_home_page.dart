@@ -140,10 +140,7 @@ Future<void> _playVideo() async {
     });
 
     // 先释放旧播放器，再设置新播放器
-    if (_playerController != null) {
-        await _playerController!.dispose();
-        _playerController = null;
-    }
+    await _disposePlayer();
     
     try {
         // 解析URL
@@ -249,12 +246,6 @@ Future<void> _playVideo() async {
             return; 
         }
 
-        // 确保状态正确后再设置控制器
-        if (!mounted || _isDisposing) {
-            newController.dispose(); 
-            return;
-        }
-
         // 设置新的控制器
         setState(() {
             _playerController = newController;
@@ -282,7 +273,6 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted) {
                 setState(() {
                     if (_shouldUpdateAspectRatio) {
-                        // 如果未提供则使用默认值1.78
                         aspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
                         _shouldUpdateAspectRatio = false;  
                     }
@@ -409,65 +399,56 @@ void _handleSourceSwitch() {
 
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
-    if (_isDisposing) return;
-    
-    _isDisposing = true;
-    final currentController = _playerController;
-    try {
-        if (currentController != null) {
-            // 重置状态
-            setState(() {
-                _timeoutActive = false;
-                _isAudio = false;
-                _retryTimer?.cancel();
-                _isRetrying = false;
-                _retryCount = 0;
-                _isSwitchingChannel = false;
-            });
-            
-            // 取消数据源设置过程
-            try {
-                await currentController.videoPlayerController?.cancelVideoSourceLoad();
-            } catch (e) {
-                LogUtil.logError('取消视频加载时出错', e);
-            }
-            
-            // 停止播放
-            if (currentController.isPlaying() ?? false) {
-                try {
-                    await currentController.pause(); 
-                } catch (e) {
-                    LogUtil.logError('暂停播放时出错', e);
-                }
-            }
-            
-            // 清理数据源
-            try {
-                currentController.clearCache();  
-            } catch (e) {
-                LogUtil.logError('清理缓存时出错', e);
-            }
-            
-            // 释放流资源
-            _disposeStreamUrl();
-            
-            // 释放控制器
-            try {
-                await currentController.dispose(forceDispose: true); 
-            } catch (e) {
-                LogUtil.logError('释放播放器时出错', e);
-            }
-            
-            // 清空控制器引用
-            if (_playerController == currentController) {
-                _playerController = null;
-            }
-        }
-    } catch (e, stackTrace) {
-        LogUtil.logError('释放播放器资源时出错', e, stackTrace);
-    } finally {
-        _isDisposing = false;
-    }
+   if (_isDisposing) return;
+   
+   _isDisposing = true;
+   final currentController = _playerController;
+   try {
+       if (currentController != null) {
+           // 重置状态
+           setState(() {
+               _timeoutActive = false;
+               _isAudio = false;
+               _retryTimer?.cancel();
+               _isRetrying = false;
+               _retryCount = 0;
+               _isSwitchingChannel = false;
+           });
+           
+           // 停止播放
+           try {
+               await currentController.pause(); 
+           } catch (e) {
+               LogUtil.logError('暂停播放时出错', e);
+           }
+           
+           // 清理缓存
+           try {
+               currentController.clearCache();  
+           } catch (e) {
+               LogUtil.logError('清理缓存时出错', e);
+           }
+           
+           // 释放流资源
+           _disposeStreamUrl();
+           
+           // 释放控制器
+           try {
+               currentController.dispose(); // 移除 await 和 forceDispose 参数
+           } catch (e) {
+               LogUtil.logError('释放播放器时出错', e);
+           }
+           
+           // 清空控制器引用
+           if (_playerController == currentController) {
+               _playerController = null;
+           }
+       }
+   } catch (e, stackTrace) {
+       LogUtil.logError('释放播放器资源时出错', e, stackTrace);  
+   } finally {
+       _isDisposing = false;
+   }
 }
 
 /// 释放 StreamUrl 实例
