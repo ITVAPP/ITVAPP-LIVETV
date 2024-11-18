@@ -203,7 +203,9 @@ class _SplashScreenState extends State<SplashScreen> {
     return Align(
       alignment: Alignment.bottomCenter, // UI 内容在屏幕底部对齐
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 58.0), // 底部的内边距
+        padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).orientation == Orientation.portrait ? 88.0 : 58.0
+      ), // 底部的内边距
         child: Column(
           mainAxisSize: MainAxisSize.min, // 列表仅占用其子组件的最小空间
           children: [
