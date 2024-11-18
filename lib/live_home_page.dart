@@ -313,7 +313,6 @@ void _videoListener(BetterPlayerEvent event) {
         
         // 当事件类型为播放结束时，切换到下一个源
         case BetterPlayerEventType.finished:
-            _handleSourceSwitch();
             break;
         
         // 默认情况，忽略所有其他未处理的事件类型
@@ -407,7 +406,7 @@ Future<void> _disposePlayer() async {
    final currentController = _playerController;
    try {
        if (currentController != null) {
-           // 重置状态
+           // 1. 重置所有状态
            setState(() {
                _timeoutActive = false;
                _isAudio = false;
@@ -417,31 +416,36 @@ Future<void> _disposePlayer() async {
                _isSwitchingChannel = false;
            });
            
-           // 停止播放
-           try {
-               await currentController.pause(); 
-           } catch (e) {
-               LogUtil.logError('暂停播放时出错', e);
+           // 2. 先释放视频播放器控制器
+           if (currentController.videoPlayerController != null) {
+               try {
+                   // 暂停当前播放
+                   await currentController.pause();
+                   // 确保视频控制器完全停止和释放
+                   await currentController.videoPlayerController!.dispose();
+               } catch (e) {
+                   LogUtil.logError('释放视频控制器时出错', e);
+               }
            }
            
-           // 清理缓存
+           // 3. 清理缓存
            try {
-               currentController.clearCache();  
+               await currentController.clearCache();
            } catch (e) {
                LogUtil.logError('清理缓存时出错', e);
            }
            
-           // 释放流资源
+           // 4. 释放流资源
            _disposeStreamUrl();
            
-           // 释放控制器
+           // 5. 强制释放播放器控制器
            try {
-               currentController.dispose(); // 移除 await 和 forceDispose 参数
+               await currentController.dispose(forceDispose: true);  // 添加 await 和 forceDispose: true
            } catch (e) {
                LogUtil.logError('释放播放器时出错', e);
            }
            
-           // 清空控制器引用
+           // 6. 清空控制器引用
            if (_playerController == currentController) {
                _playerController = null;
            }
@@ -450,6 +454,9 @@ Future<void> _disposePlayer() async {
        LogUtil.logError('释放播放器资源时出错', e, stackTrace);  
    } finally {
        _isDisposing = false;
+       if (mounted) {
+           setState(() {});  // 确保UI更新
+       }
    }
 }
 
