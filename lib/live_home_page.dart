@@ -140,7 +140,7 @@ Future<void> _playVideo() async {
     });
 
     // 先释放旧播放器，再设置新播放器
-    await _disposePlayer();
+    newController.dispose(); 
     
     try {
         // 解析URL
@@ -150,7 +150,6 @@ Future<void> _playVideo() async {
         _currentPlayUrl = parsedUrl;  // 保存解析后的地址
         
         if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
-            await _disposePlayer();  // 资源释放
             setState(() {
                 toastString = S.current.vpnplayError;
             });
@@ -195,7 +194,7 @@ Future<void> _playVideo() async {
           cacheConfiguration: BetterPlayerCacheConfiguration(
             useCache: !isYoutubeHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
             preCacheSize: 10 * 1024 * 1024, // 预缓存大小
-            maxCacheSize: 100 * 1024 * 1024, // 最大缓存大小
+            maxCacheSize: 300 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
           ),
           headers: {
@@ -242,7 +241,6 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            newController.dispose(); 
             _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
@@ -266,10 +264,7 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        setState(() {
-            _isRetrying = false;
-        });
-        _handleSourceSwitch();
+        _handleError(); 
     }
 }
 
@@ -295,7 +290,6 @@ void _videoListener(BetterPlayerEvent event) {
         // 当事件类型为异常时，调用错误处理函数
         case BetterPlayerEventType.exception:
                 LogUtil.logError('监听到播放器错误', event.parameters?["error"]?.toString());
-                _handleError(); 
             break;
         
         // 当事件类型为缓冲开始、缓冲更新或缓冲结束时，更新缓冲状态
@@ -305,8 +299,7 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted) {
                 setState(() {
                     // 如果事件类型为缓冲开始或缓冲更新，将 isBuffering 设为 true；缓冲结束时设为 false
-                    isBuffering = event.betterPlayerEventType == BetterPlayerEventType.bufferingStart ||
-                                  event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate;
+                    isBuffering = event.betterPlayerEventType == BetterPlayerEventType.bufferingStart || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate;
                 });
             }
             break;
@@ -323,9 +316,9 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
         
-        // 当事件类型为播放结束时，调用播放结束的处理函数
+        // 当事件类型为播放结束时，切换到下一个源
         case BetterPlayerEventType.finished:
-            _handlePlaybackFinished();
+            _handleSourceSwitch()
             break;
         
         // 默认情况，忽略所有其他未处理的事件类型
@@ -340,14 +333,6 @@ void _handleError() {
         _retryPlayback();  // 如果重试次数未超限，则进行重试播放
     } else {
         _handleSourceSwitch();  // 重试次数超限时切换到其他视频源
-    }
-}
-
-/// 处理播放结束事件的方法
-void _handlePlaybackFinished() {
-    if (mounted && _playerController != null) {
-        _playerController!.seekTo(Duration.zero);  // 将播放位置重置为起点
-        _playerController!.play();  // 开始播放
     }
 }
 
@@ -369,24 +354,20 @@ void _startTimeoutCheck() {
 /// 重试播放方法，用于重新尝试播放失败的视频
 void _retryPlayback() {
     if (_isRetrying) return;
-
-    _isRetrying = true;  // 标记进入重试状态
+    
     _timeoutActive = false;  // 重试期间取消超时检测
-    _retryCount += 1;  // 增加重试计数
 
     // 检查是否在重试次数范围内
     if (_retryCount <= defaultMaxRetries) {
         setState(() {
+            _isRetrying = true;  // 标记进入重试状态
+            _retryCount += 1;  // 增加重试计数
             toastString = S.current.retryplay; 
         });
         
         // 取消当前的重试计时器
         _retryTimer?.cancel();
-        // 2秒延迟后重新调用播放方法
         _retryTimer = Timer(const Duration(seconds: 2), () {
-            setState(() {
-               _isRetrying = false;  // 重试前重置重试状态
-            });
             _playVideo();  // 再次尝试播放
         });
     } else {
@@ -394,16 +375,16 @@ void _retryPlayback() {
     }
 }
 
-/// 处理视频源切换的方法
+/// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
+    // 先停止当前播放和清理状态
+    _disposePlayer();
+    
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
-    	_disposePlayer();
         setState(() {
             toastString = S.current.playError;
-            _isRetrying = false;
-            _retryCount = 0;
         });
         return;
     }
@@ -411,20 +392,14 @@ void _handleSourceSwitch() {
     // 切换到下一个源
     _sourceIndex += 1;
     if (_sourceIndex >= urls.length) {
-    	_disposePlayer();
         setState(() {
             toastString = S.current.playError;
-            _isRetrying = false;  
         });
         return;
     }
 
     // 延迟后尝试新源
-    _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 2), () {
-        setState(() {
-            _retryCount = 0;  // 新源从0开始计数重试
-        });
         _playVideo();
     });
 }
@@ -435,12 +410,16 @@ Future<void> _disposePlayer() async {
     
     _isDisposing = true;
     final currentController = _playerController;
-    
     try {
         if (currentController != null) {
             // 重置状态
-            _timeoutActive = false;
-            _retryTimer?.cancel();
+            setState(() {
+                _timeoutActive = false;
+                _isAudio = false;
+                _retryTimer?.cancel();
+                _isRetrying = false;
+                _retryCount = 0;
+            });
             
             // 停止播放
             if (currentController.isPlaying() ?? false) {
@@ -492,38 +471,29 @@ void _disposeStreamUrl() {
 Future<void> _onTapChannel(PlayModel? model) async {
     if (_isSwitchingChannel || model == null) return;
     
-    setState(() {
-        _isSwitchingChannel = true;
-        toastString = S.current.loading; // 更新加载状态
-    });
+    // 先停止当前播放和清理状态
+    await _disposePlayer(); 
     
     try {
-        // 先停止当前播放和清理状态
-        await _disposePlayer(); 
-        _retryTimer?.cancel();
-        setState(() { 
-            _isRetrying = false;
-            _timeoutActive = false;
+        // 更新频道信息
+        setState(() {
+            _isSwitchingChannel = true;
+            _currentChannel = model;
+            _sourceIndex = 0;
+            _shouldUpdateAspectRatio = true;
+            toastString = S.current.loading; // 更新加载状态
         });
         
-        // 更新频道信息
-        _currentChannel = model;
-        _sourceIndex = 0;
-        _retryCount = 0;
-        _shouldUpdateAspectRatio = true;
-
-        // 发送统计数据
-        if (Config.Analytics) {
-            await _sendTrafficAnalytics(context, _currentChannel!.title);
-        }
-
         // 确保状态正确后开始新的播放
         if (!_isSwitchingChannel) return; // 如果状态已改变则退出
         await _playVideo();
         
+        // 发送统计数据
+        if (Config.Analytics) {
+            await _sendTrafficAnalytics(context, _currentChannel!.title);
+        }
     } catch (e, stackTrace) {
         LogUtil.logError('切换频道失败', e, stackTrace);
-        await _disposePlayer();
         setState(() {
             toastString = S.current.playError;
         });
@@ -536,27 +506,20 @@ Future<void> _onTapChannel(PlayModel? model) async {
     }
 }
 
-/// 切换视频源方法
+/// 切换视频源方法（手动按钮切换）
 Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources == null || sources.isEmpty) {
       LogUtil.e('未找到有效的视频源');
       return;
     }
-
-    _retryTimer?.cancel();
-    _isRetrying = false;
-    _timeoutActive = false;
+    
+    // 先停止当前播放和清理状态
+    await _disposePlayer(); 
 
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
-
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
-      bool isDirectAudio = _checkIsAudioStream(sources[selectedIndex]);
-      setState(() {
-        _isAudio = isDirectAudio;
-      });
-      _retryCount = 0;
       _playVideo();
     }
 }
@@ -608,6 +571,7 @@ void dispose() {
     _retryTimer?.cancel();
     _timeoutActive = false;
     _isRetrying = false;
+    _isAudio = false;
     WakelockPlus.disable();
     _isDisposing = true;
     _disposePlayer();
@@ -665,10 +629,6 @@ Future<void> _handlePlaylist() async {
 
       if (_currentChannel != null) {
         final String? url = _currentChannel?.urls?.isNotEmpty == true ? _currentChannel?.urls![0] : null;
-        bool isDirectAudio = _checkIsAudioStream(url);
-        setState(() {
-          _isAudio = isDirectAudio;
-        });
 
         if (Config.Analytics) {
           await _sendTrafficAnalytics(context, _currentChannel!.title);
