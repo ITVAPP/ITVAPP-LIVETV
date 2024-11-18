@@ -12,22 +12,22 @@ import 'generated/l10n.dart';
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
   final BetterPlayerController? controller; // 视频播放器控制器
-  final GestureTapCallback? changeChannelSources; // 切换频道源的回调
+  final GestureTapCallback? changeChannelSources; // 切换频道源的回调方法
   final String? toastString; // 提示信息字符串
   final bool? isLandscape; // 是否为横屏模式
-  final Widget drawChild; // 传入的自定义子组件，通常为频道列表或相关界面
+  final Widget drawChild; // 自定义子组件，通常为频道列表或相关界面
   final bool isBuffering; // 是否正在缓冲
   final bool isPlaying; // 是否正在播放
   final double aspectRatio; // 视频宽高比
-  final GestureTapCallback onChangeSubSource; // 数据源更改回调
-  final Function(String) toggleFavorite; 
-  final bool Function(String) isChannelFavorite;
+  final GestureTapCallback onChangeSubSource; // 数据源变更回调方法
+  final Function(String) toggleFavorite; // 收藏操作函数
+  final bool Function(String) isChannelFavorite; // 判断频道是否被收藏
   final String currentChannelId; // 当前频道ID
-  final String currentChannelLogo;  // 当前频道LOGO
-  final String currentChannelTitle; // 当前频道名字
-  final bool isAudio; // 新增音频模式参数
+  final String currentChannelLogo; // 当前频道LOGO
+  final String currentChannelTitle; // 当前频道名称
+  final bool isAudio; // 是否为音频模式
 
-  // MobileVideoWidget 构造函数
+  // 构造函数
   const MobileVideoWidget({
     Key? key,
     required this.controller,
@@ -36,7 +36,7 @@ class MobileVideoWidget extends StatefulWidget {
     required this.isPlaying,
     required this.aspectRatio,
     required this.onChangeSubSource,
-    required this.toggleFavorite, 
+    required this.toggleFavorite,
     required this.isChannelFavorite,
     required this.currentChannelId,
     required this.currentChannelLogo,
@@ -52,130 +52,159 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
+  // 常量定义
+  static const _appBarLogo = Padding(
+    padding: EdgeInsets.only(left: 4),
+    child: Image.asset(
+      'assets/images/logo.png',
+      height: 28,
+      fit: BoxFit.contain,
+    ),
+  );
+
+  static const _appBarDivider = PreferredSize(
+    preferredSize: Size.fromHeight(1),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: Color(0xFF424242),
+      ),
+      child: SizedBox(height: 0.5),
+    ),
+  );
+
+  // 抽离回调方法，减少在build函数中重复生成不必要的新闭包
+  Future<void> _handleAddPressed() async {
+    LogUtil.safeExecute(() async {
+      if (!EnvUtil.isMobile) {
+        // 隐藏标题栏（如果不是移动设备）
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+      }
+
+      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
+      if (wasPlaying) {
+        widget.controller?.pause(); // 当前播放中，则暂停播放以节省资源
+      }
+
+      await Navigator.of(context).pushNamed(RouterKeys.subScribe); // 推送至订阅页面
+
+      if (wasPlaying) {
+        widget.controller?.play(); // 返回时恢复播放
+      }
+
+      final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 获取缓存中的 m3u 数据
+      if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
+        widget.onChangeSubSource(); // 数据无效则触发数据源变更回调
+      }
+
+      if (!EnvUtil.isMobile) {
+        // 恢复标题栏显示（如果不是移动设备）
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+      }
+    }, '执行操作按钮发生错误'); // 错误记录日志
+  }
+
+  Future<void> _handleSettingsPressed() async {
+    LogUtil.safeExecute(() async {
+      if (!EnvUtil.isMobile) {
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+      }
+
+      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
+      if (wasPlaying) {
+        widget.controller?.pause(); // 暂停播放
+      }
+
+      await Navigator.of(context).pushNamed(RouterKeys.setting); // 推送至设置页面
+
+      if (wasPlaying) {
+        widget.controller?.play(); // 恢复播放
+      }
+
+      if (!EnvUtil.isMobile) {
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true); // 恢复标题栏
+      }
+    }, '执行操作设置按钮发生错误'); // 错误记录日志
+  }
+
+  // 延迟初始化变量，减少不必要的计算
+  late final List<Widget> _appBarIcons;
+  late final bool _isLandscape;
+  late final double _playerHeight;
+
+  @override
+  void initState() {
+    super.initState();
+    // 在initState中设置需要引用context的值
+    _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
+    _playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+    
+    // 初始化操作按钮列表
+    _appBarIcons = [
+      IconButton(
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.add, size: 24),
+        onPressed: _handleAddPressed,
+      ),
+      const SizedBox(width: 8),
+      IconButton(
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.settings_outlined, size: 24),
+        onPressed: _handleSettingsPressed,
+      ),
+      const SizedBox(width: 8),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 优先使用传入的 isLandscape 参数，如果为空，则动态判断当前设备的方向
-    bool isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
-
-    // 计算播放器固定高度
-    final playerHeight = MediaQuery.of(context).size.width / (16 / 9);
-
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,  // 顶部 AppBar 背景为黑色
-        centerTitle: true,  // 标题居中显示
-        title: Text(S.of(context).appName),  // 动态获取应用名称
-        actions: [
-          // 添加按钮
-          IconButton(
-            onPressed: () async {
-              LogUtil.safeExecute(() async {
-                // 如果不是移动设备，隐藏窗口标题栏
-                if (!EnvUtil.isMobile) {
-                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                }
-
-                // 暂停视频播放，如果当前视频正在播放
-                final wasPlaying = widget.controller?.isPlaying() ?? false;
-                if (wasPlaying) {
-                  widget.controller?.pause();
-                }
-
-                // 跳转到订阅页面
-                await Navigator.of(context).pushNamed(RouterKeys.subScribe);
-
-                // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying) {
-                  widget.controller?.play();
-                }
-
-                // 检查缓存的 m3u 数据源是否存在且有效
-                final m3uData = SpUtil.getString('m3u_cache', defValue: '');
-                if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
-                  widget.onChangeSubSource();
-                }
-
-                // 恢复窗口标题栏显示
-                if (!EnvUtil.isMobile) {
-                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                }
-              }, '执行操作按钮发生错误');
-            },
-            icon: const Icon(Icons.add),  // 添加频道的图标
-          ),
-          // 以控制图标间距
-          const SizedBox(width: 5),
-          // 设置按钮
-          IconButton(
-            onPressed: () async {
-              LogUtil.safeExecute(() async {
-                // 如果不是移动设备，隐藏窗口标题栏
-                if (!EnvUtil.isMobile) {
-                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                }
-
-                // 暂停视频播放
-                final wasPlaying = widget.controller?.isPlaying() ?? false;
-                if (wasPlaying) {
-                  widget.controller?.pause();
-                }
-
-                // 跳转到设置页面
-                await Navigator.of(context).pushNamed(RouterKeys.setting);
-
-                // 返回后如果视频之前是播放状态，继续播放视频
-                if (wasPlaying) {
-                  widget.controller?.play();
-                }
-
-                // 恢复窗口标题栏显示
-                if (!EnvUtil.isMobile) {
-                  windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                }
-              }, '执行操作设置按钮发生错误');
-            },
-            icon: const Icon(Icons.settings_outlined),  // 设置图标
-          ),
-        ],
+        backgroundColor: Colors.black,
+        elevation: 0,
+        toolbarHeight: 58.0,
+        centerTitle: false,
+        title: _appBarLogo,
+        bottom: _appBarDivider,
+        actions: _appBarIcons,
       ),
       body: Column(
         children: [
-          // 设置固定高度以保持一致的视频显示区域
           Container(
-            color: Colors.black, // 保持背景黑色，避免显示视频以外的区域
+            color: Colors.black,
             width: double.infinity,
-            height: playerHeight, // 固定播放器高度为16:9比例宽高比
+            height: _playerHeight,
             child: TableVideoWidget(
-              controller: widget.controller,  // 传入视频控制器
-              toastString: widget.toastString,  // 提示信息
-              isLandscape: isLandscape,  // 动态判断是否为横屏
-              aspectRatio: widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio,  // 动态获取视频的宽高比
-              isBuffering: widget.isBuffering,  // 是否缓冲
-              isPlaying: widget.isPlaying,  // 是否正在播放
-              drawerIsOpen: false,  // 抽屉菜单关闭状态
-              toggleFavorite: widget.toggleFavorite,  // 传递收藏回调
-              isChannelFavorite: widget.isChannelFavorite,  // 传递判断收藏状态回调
-              currentChannelId: widget.currentChannelId,  // 传递当前频道ID
-              currentChannelLogo: widget.currentChannelLogo,  // 传递当前频道LOGO
-              currentChannelTitle: widget.currentChannelTitle,  // 传递当前频道名字
-              changeChannelSources: widget.changeChannelSources,  // 传递切换频道源的回调
-              isAudio: widget.isAudio, // 传递音频状态
+              controller: widget.controller,
+              toastString: widget.toastString,
+              isLandscape: _isLandscape,
+              aspectRatio: widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio,
+              isBuffering: widget.isBuffering,
+              isPlaying: widget.isPlaying,
+              drawerIsOpen: false,
+              toggleFavorite: widget.toggleFavorite,
+              isChannelFavorite: widget.isChannelFavorite,
+              currentChannelId: widget.currentChannelId,
+              currentChannelLogo: widget.currentChannelLogo,
+              currentChannelTitle: widget.currentChannelTitle,
+              changeChannelSources: widget.changeChannelSources,
+              isAudio: widget.isAudio,
             ),
           ),
-          // 如果 toastString 为错误状态，显示空页面，否则显示传入的子组件
           Flexible(
+            // 如果提示信息为 'UNKNOWN', 显示空页面，并提供刷新回调
             child: widget.toastString == 'UNKNOWN'
-                ? EmptyPage(onRefresh: widget.onChangeSubSource)  // 空页面，点击刷新调用 onChangeSubSource 回调
-                : widget.drawChild,  // 显示自定义的子组件
+                ? EmptyPage(onRefresh: widget.onChangeSubSource)
+                : widget.drawChild, // 否则显示传入的自定义子组件
           ),
         ],
       ),
     );
   }
 
-  // 判断 m3u 数据是否有效的简单方法
+  // 判断 m3u 数据是否有效，检查其是否包含 M3U 文件必要的标识符
   bool isValidM3U(String data) {
-    return data.contains('#EXTM3U');  // 检查是否包含 M3U 文件的必要标识
+    return data.contains('#EXTM3U');
   }
 }
