@@ -422,7 +422,15 @@ Future<void> _disposePlayer() async {
                 _retryTimer?.cancel();
                 _isRetrying = false;
                 _retryCount = 0;
+                _isSwitchingChannel = false;
             });
+            
+            // 取消数据源设置过程
+            try {
+                await currentController.videoPlayerController?.cancelVideoSourceLoad();
+            } catch (e) {
+                LogUtil.logError('取消视频加载时出错', e);
+            }
             
             // 停止播放
             if (currentController.isPlaying() ?? false) {
@@ -445,7 +453,7 @@ Future<void> _disposePlayer() async {
             
             // 释放控制器
             try {
-                currentController.dispose(forceDispose: true); 
+                await currentController.dispose(forceDispose: true); 
             } catch (e) {
                 LogUtil.logError('释放播放器时出错', e);
             }
@@ -545,8 +553,6 @@ Future<bool> _handleBackPress(BuildContext context) async {
 
   // 显示退出确认对话框
   bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
-  
-  // 如果用户选择不退出，恢复播放
   if (!shouldExit && wasPlaying && mounted) {
     await _playerController?.play(); 
   }
