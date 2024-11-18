@@ -30,6 +30,44 @@ class LanzouParser {
     };
   }
 
+  /// 新增：获取重定向后的最终URL
+  static Future<String?> _getFinalUrl(String url, Map<String, String> headers) async {
+    try {
+      final client = http.Client();
+      try {
+        // 发送 HEAD 请求以获取重定向信息
+        final request = http.Request('HEAD', Uri.parse(url))
+          ..followRedirects = false;  // 不自动跟随重定向
+        
+        // 添加请求头
+        request.headers.addAll(headers);
+        
+        // 发送请求
+        final response = await client.send(request);
+        
+        // 如果是重定向状态码
+        if (response.statusCode == 302 || response.statusCode == 301) {
+          final redirectUrl = response.headers['location'];
+          if (redirectUrl != null) {
+            LogUtil.i('获取到重定向URL: $redirectUrl');
+            return redirectUrl;
+          }
+        } else if (response.statusCode == 200) {
+          // 如果直接返回200，说明这个就是最终URL
+          return url;
+        }
+        
+        LogUtil.i('未获取到重定向URL，状态码: ${response.statusCode}');
+        return null;
+      } finally {
+        client.close();
+      }
+    } catch (e, stack) {
+      LogUtil.logError('获取最终URL时发生错误', e, stack);
+      return null;
+    }
+  }
+  
   /// 标准化蓝奏云链接
   /// 移除链接中的密码和文件类型参数，返回一个标准化的蓝奏云链接
   static String _standardizeLanzouUrl(String url) {
@@ -105,12 +143,11 @@ class LanzouParser {
     return null;
   }
 
-  /// 从JSON响应中提取下载URL
-  /// 解析JSON响应结构，从中获取下载链接
-  static String _extractDownloadUrl(String response) {
+  /// 修改：从JSON响应中提取下载URL并获取最终直链
+  static Future<String> _extractDownloadUrl(String response) async {
     try {
       final json = jsonDecode(response);
-      if (json['zt'] != 1) { // 检查响应状态码是否为预期值
+      if (json['zt'] != 1) {
         LogUtil.i('响应状态码不正确: ${json['zt']}');
         return errorResult;
       }
@@ -124,10 +161,29 @@ class LanzouParser {
         return errorResult;
       }
       
+      // 先获取中转下载链接
       final downloadUrl = '$dom/file/$url';
-      return downloadUrl;
-    } catch (e) {
-      LogUtil.e('解析下载URL时发生错误: $e');
+      
+      // 获取最终直链
+      final headers = _getHeaders(baseUrl);
+      // 添加一些蓝奏云可能需要的额外headers
+      headers.addAll({
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Upgrade-Insecure-Requests': '1',
+      });
+      
+      final finalUrl = await _getFinalUrl(downloadUrl, headers);
+      if (finalUrl != null) {
+        LogUtil.i('成功获取最终下载链接');
+        return finalUrl;
+      } else {
+        LogUtil.i('未能获取最终链接，返回中转链接');
+        return downloadUrl;  // 如果获取失败，返回中转链接作为后备方案
+      }
+    } catch (e, stack) {
+      LogUtil.logError('解析下载URL时发生错误', e, stack);
       return errorResult;
     }
   }
@@ -247,7 +303,8 @@ class LanzouParser {
           return errorResult;
         }
 
-        final downloadUrl = _extractDownloadUrl(pwdResult);
+        // 解析最终下载链接
+        final downloadUrl = await _extractDownloadUrl(pwdResult);
         // 如果提取到文件名，将其附加到下载链接
         if (filename != null) {
           return '$downloadUrl?$filename';
@@ -296,7 +353,8 @@ class LanzouParser {
         return errorResult;
       }
 
-      final downloadUrl = _extractDownloadUrl(ajaxResult);
+      // 解析最终下载链接
+      final downloadUrl = await _extractDownloadUrl(ajaxResult);
       // 如果提取到文件名，将其附加到下载链接
       if (filename != null) {
         return '$downloadUrl?$filename';
@@ -304,7 +362,7 @@ class LanzouParser {
       return downloadUrl;
 
     } catch (e, stack) {
-      LogUtil.logError('解析过程发生异常', e, stack); // 捕获异常并记录
+      LogUtil.logError('解析过程发生异常', e, stack);
       return errorResult;
     }
   }
