@@ -410,6 +410,7 @@ Future<void> _disposePlayer() async {
   
   try {
     if (currentController != null) {
+      // 1. 重置状态,防止新的播放请求
       setState(() {
         _timeoutActive = false;
         _retryTimer?.cancel();
@@ -418,25 +419,31 @@ Future<void> _disposePlayer() async {
         _playerController = null;
       });
       
-      // 1. 先移除事件监听
+      // 2. 移除事件监听并终止当前播放
       currentController.removeEventsListener(_videoListener);
       
-      // 2. 暂停播放并等待
+      // 3. 先强制停止播放并等待
       if (currentController.isPlaying() ?? false) {
-        currentController.pause();
+        await currentController.pause();
+        // 强制停止播放,不等待缓冲完成
+        currentController.videoPlayerController?.setVolume(0);
         await Future.delayed(const Duration(milliseconds: 300));
       }
       
-      // 3. 中断网络请求
+      // 4. 中断所有网络请求
       _disposeStreamUrl();
       
-      // 4. 释放播放器资源
+      // 5. 释放播放器资源 
       try {
         if (currentController.videoPlayerController != null) {
-          await currentController.videoPlayerController!.dispose();
+          // 强制释放视频控制器
+          currentController.videoPlayerController!.dispose();
           await Future.delayed(const Duration(milliseconds: 300));
         }
+        
+        // 最后释放主控制器
         currentController.dispose();
+        
       } catch (e) {
         LogUtil.logError('释放播放器资源时出错', e);
       }
@@ -444,7 +451,7 @@ Future<void> _disposePlayer() async {
   } catch (e, stackTrace) {
     LogUtil.logError('释放播放器资源时出错', e, stackTrace);
   } finally {
-    _isDisposing = false;
+    _isDisposing = false; 
     _isAudio = false;
     if (mounted) {
       setState(() {});
