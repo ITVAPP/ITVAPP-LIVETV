@@ -10,7 +10,6 @@ import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import '../channel_drawer_page.dart';
-import '../gradient_progress_bar.dart';
 import '../entity/playlist_model.dart';
 import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
@@ -42,31 +41,7 @@ class VideoPlayerWidget extends StatelessWidget {
     this.isError = false,
     this.isAudio = false,
   }) : super(key: key);
-
-  // 构建缓冲加载指示器
-  Widget _buildBufferingIndicator(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GradientProgressBar(
-              width: MediaQuery.of(context).size.width * 0.3,
-              height: 5,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              S.of(context).loading,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -89,13 +64,6 @@ class VideoPlayerWidget extends StatelessWidget {
             toastString: drawerIsOpen ? '' : toastString,
             showBingBackground: isAudio,
           ),
-        
-        // 如果正在缓冲或出错且抽屉未打开，则显示缓冲指示器
-        if (controller != null &&
-            (controller!.isVideoInitialized() ?? false) && // Fixed nullable bool
-            (isBuffering || isError) &&
-            !drawerIsOpen)
-          _buildBufferingIndicator(context),
       ],
     );
   }
@@ -112,7 +80,7 @@ class IconState {
     required this.showPlay,
     required this.showDatePosition,
   });
-
+  
   IconState copyWith({
     bool? showPause,
     bool? showPlay,
@@ -163,7 +131,7 @@ class TvPage extends StatefulWidget {
     this.isChannelFavorite,
     this.currentChannelId,
     this.currentChannelLogo,
-    this. currentChannelTitle,
+    this.currentChannelTitle,
     this.isAudio = false,
   });
 
@@ -244,7 +212,7 @@ Future<bool?> _opensetting() async {
         },
       ),
     );
-
+    
     // 从设置页面返回时，如果之前在播放，则恢复播放
     if (mounted && wasPlaying) {
       await widget.controller?.play();
@@ -316,7 +284,7 @@ Future<bool?> _opensetting() async {
       ),
     );
   }
-
+  
   // 构建暂停图标
   Widget _buildPauseIcon() {
     return _buildControlIcon(icon: Icons.pause);
@@ -376,7 +344,7 @@ Future<bool?> _opensetting() async {
                           e.logicalKey == LogicalKeyboardKey.enter)) {
       return KeyEventResult.handled;
     }
-
+    
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
         // 左箭头用于添加或删除收藏
@@ -511,7 +479,7 @@ Future<bool?> _opensetting() async {
                     playModel: widget.playModel, 
                     toastString: widget.toastString,
                     currentChannelLogo: widget.currentChannelLogo,
-                    currentChannelTitle: widget. currentChannelTitle,
+                    currentChannelTitle: widget.currentChannelTitle,
                     drawerIsOpen: _drawerIsOpen,
                     isBuffering: widget.isBuffering,
                     isError: _isError,
