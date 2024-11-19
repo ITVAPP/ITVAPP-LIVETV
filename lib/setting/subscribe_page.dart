@@ -1,19 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:sp_util/sp_util.dart';
+import 'package:provider/provider.dart';
+import '../provider/theme_provider.dart';
+import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:itvapp_live_tv/tv/html_string.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:pretty_qr_code/pretty_qr_code.dart';
-import 'package:sp_util/sp_util.dart';
-import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart';
 import '../entity/subScribe_model.dart';
 import '../generated/l10n.dart';
 
@@ -242,8 +241,8 @@ class _SubScribePageState extends State<SubScribePage> {
                           final model = _m3uList[index];  // 获取每一项的M3U数据
                           return Card(
                             color: model.selected == true
-                                ? Colors.redAccent.withOpacity(0.5)  // 已选中的源
-                                : const Color(0xFF2B2D30),
+                                ? Color(0xFFEB144C)  // 已选中的源
+                                : const Color(0xFFDFA02A),
                             child: Padding(
                               padding: const EdgeInsets.only(
                                   top: 20, left: 20, right: 10),
