@@ -218,7 +218,7 @@ Future<void> _playVideo() async {
           // 只开启缓冲进度控件
           controlsConfiguration: const BetterPlayerControlsConfiguration(
              showControls: true,                   // 是否显示所有控件
-             showBufferingWidget: true,            // 是否显示缓冲进度指示器
+             loadingWidget: const CircularProgressIndicator(),            // 是否显示缓冲进度指示器
              showControlsOnInitialize: false,      // 初始化时是否显示控件
              showControlsOnFinish: false,          // 播放结束时是否显示控件
              showPlayButton: false,                // 是否显示播放/暂停按钮
