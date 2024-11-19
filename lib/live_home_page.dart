@@ -434,7 +434,6 @@ Future<void> _disposePlayer() async {
         _retryTimer?.cancel();
         _isRetrying = false;
         _retryCount = 0;
-        _isSwitchingChannel = false;
         _playerController = null;
       });
       
