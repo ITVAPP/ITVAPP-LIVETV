@@ -515,12 +515,11 @@ Future<void> _changeChannelSources() async {
       return;
     }
     
-    // 先停止当前播放和清理状态
-    await _disposePlayer(); 
-
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
+    // 先停止当前播放和清理状态
+    await _disposePlayer(); 
       _playVideo();
     }
 }
