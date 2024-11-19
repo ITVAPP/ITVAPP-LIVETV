@@ -133,7 +133,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     // 初始化logo
     _appBarLogo = Image.asset(
       'assets/images/logo.png',
-      height: 32,
+      height: 36,
       fit: BoxFit.contain,
     );
     
