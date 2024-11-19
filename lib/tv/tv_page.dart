@@ -218,35 +218,45 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   }
   
 // 打开设置页面，并更新播放图标状态
-  Future<bool?> _opensetting() async {
-    try {
-      _updateIconState(showPlay: true); // 显示播放图标
+Future<bool?> _opensetting() async {
+  try {
+    bool wasPlaying = widget.controller?.isPlaying() ?? false;  // 记录进入设置前的播放状态
+    await widget.controller?.pause();  // 暂停播放
+    _updateIconState(showPlay: true);  // 显示播放图标
       
-      return Navigator.push<bool>(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) {
-            return const TvSettingPage();
-          },
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            var begin = const Offset(0.0, -1.0);
-            var end = Offset.zero;
-            var curve = Curves.ease;
-            var tween = Tween(begin: begin, end: end).chain(
-              CurveTween(curve: curve),
-            );
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
-        ),
-      );
-    } catch (e, stackTrace) {
-      LogUtil.logError('打开添加源设置页面时发生错误', e, stackTrace);
-      return null;
+    final result = await Navigator.push<bool>(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return const TvSettingPage();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          var begin = const Offset(0.0, -1.0);
+          var end = Offset.zero;
+          var curve = Curves.ease;
+          var tween = Tween(begin: begin, end: end).chain(
+            CurveTween(curve: curve),
+          );
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+
+    // 从设置页面返回时，如果之前在播放，则恢复播放
+    if (mounted && wasPlaying) {
+      await widget.controller?.play();
+      _updateIconState(showPlay: false);  // 隐藏播放图标
     }
+
+    return result;
+  } catch (e, stackTrace) {
+    LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
+    return null;
   }
+}
   
   // 处理返回按键，当抽屉打开时关闭抽屉；否则检测是否退出应用
   Future<bool> _handleBackPress(BuildContext context) async {
@@ -269,7 +279,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
       
       if (!shouldExit && wasPlaying) {
-        // 如果用户选择不退出且之前在播放，则恢复播放
         await widget.controller?.play();
         _updateIconState(showPlay: false); // 继续播放时隐藏播放图标
       }
@@ -518,7 +527,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                           if (iconState.showPause) 
                             _buildPauseIcon(),
                               
-                          // Fixed: 正确处理视频初始化和播放状态的检查
+                          // 处理视频初始化和播放状态的检查
                           if ((widget.controller != null && 
                               (widget.controller!.isVideoInitialized() ?? false) && 
                               !(widget.controller!.isPlaying() ?? false) && 
