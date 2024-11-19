@@ -26,21 +26,22 @@ class StreamUrl {
   // 预定义容器类型集合，提高查找效率
   static final Set<String> validContainers = {'mp4', 'webm'};
   
-  // 预编译的正则表达式
+  // 预编译的正则表达式，用于匹配特定 URL 和清单格式
   static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+\.m3u8)"');
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
   StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 18)});
   
-  // 获取媒体流 URL：根据不同类型的 URL 进行相应处理并返回可用的流地址
+  // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
     try {
+      // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
       if (isLZUrl(url)) {
-        // 判断是否是 ilanzou.com 域名
         if (isILanzouUrl(url)) {
+          // 使用 API 处理 ilanzou.com 域名链接
           return 'https://lz.qaiu.top/parser?url=$url';
         } else {
           // 使用本地解析器处理其他蓝奏云链接
@@ -52,12 +53,15 @@ class StreamUrl {
         }
       }
       
+      // 检查 URL 是否为 YouTube 链接
       if (!isYTUrl(url)) {
         return url;
       } 
       
+      // 选择处理 YouTube 直播或普通视频的任务
       final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
       
+      // 尝试获取视频流，超时则重试
       try {
         final result = await task().timeout(timeoutDuration);
         if (result != 'ERROR') {
@@ -73,6 +77,7 @@ class StreamUrl {
         }
       }
       
+      // 等待一秒后再次尝试获取视频流
       await Future.delayed(const Duration(seconds: 1));
       
       try {
@@ -111,6 +116,7 @@ void dispose() {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
+    // 安全释放资源
     LogUtil.safeExecute(() {
       try {
         yt.close();
@@ -126,18 +132,22 @@ void dispose() {
     }, '关闭资源时发生错误');
   }
 
+  // 判断是否为蓝奏云链接
   bool isLZUrl(String url) {
     return url.contains('lanzou');
   }
   
+  // 判断是否为 ilanzou.com 域名的链接
   bool isILanzouUrl(String url) {
     return url.toLowerCase().contains('ilanzou.com');
   }
   
+  // 判断是否为 YouTube 相关的链接
   bool isYTUrl(String url) {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
   
+  // 验证给定 URL 是否为绝对 URL
   bool _isValidUrl(String url) {
     try {
       return Uri.parse(url).isAbsolute;
@@ -165,7 +175,7 @@ Future<String> _getYouTubeVideoUrl() async {
     
     // 优先尝试获取 HLS 流
     if (manifest.hls.isNotEmpty) {
-      // 先获取所有HLS视频流并记录详细信息
+      // 获取所有HLS视频流并记录详细信息
       final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
       LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
       
@@ -176,9 +186,9 @@ Future<String> _getYouTubeVideoUrl() async {
               s.container.name.toLowerCase() == 'm3u8')
           .toList();
       
-      // 按照预定义的分辨率顺序查找
+      // 按照预定义的分辨率顺序查找视频流
       for (final res in resolutionMap.keys) {
-        // 找出所有符合当前分辨率的流
+        // 找出符合当前分辨率的流
         final matchingStreams = validStreams.where(
           (s) => s.qualityLabel.contains('${res}p')
         ).toList();
