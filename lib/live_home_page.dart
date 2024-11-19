@@ -29,6 +29,21 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
+/// 防止多个操作同时访问共享资源
+class ResourceLock {
+  bool _isLocked = false;
+  
+  Future<void> withLock(Future<void> Function() action) async {
+    if (_isLocked) return;
+    _isLocked = true;
+    try {
+      await action();
+    } finally {
+      _isLocked = false;
+    }
+  }
+}
+
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
@@ -109,6 +124,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
+  
+  // 互斥锁(Mutex)是并发控制机制
+  final _resourceLock = ResourceLock();
 
   // 音频检测状态
   bool _isAudio = false;
@@ -134,7 +152,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 /// 播放前解析频道的视频源 
 Future<void> _playVideo() async {
     if (_currentChannel == null) return;
-    
+
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
         _isRetrying = false;  // 播放开始时重置重试状态
@@ -164,9 +182,6 @@ Future<void> _playVideo() async {
         setState(() {
           _isAudio = isDirectAudio;
         });
-        
-        // 启动超时检测
-        _startTimeoutCheck();
         
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
@@ -234,6 +249,12 @@ Future<void> _playVideo() async {
           },
         );
 
+        if (_isSwitchingChannel) return; // 如果正在切换频道不要继续
+        
+
+        // 启动超时检测
+        _startTimeoutCheck();
+        
         // 创建播放器控制器
         BetterPlayerController newController = BetterPlayerController(
           betterPlayerConfiguration,
@@ -257,7 +278,9 @@ Future<void> _playVideo() async {
             _retryCount = 0;
             _timeoutActive = false;
         });
-      
+
+        if (_isSwitchingChannel) return; // 如果正在切换频道不要继续
+        
         await _playerController?.play();
    
     } catch (e, stackTrace) {
@@ -402,14 +425,14 @@ void _handleSourceSwitch() {
 
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
-  if (_isDisposing) return;
-  
+  // 避免重复释放或释放过程被中断
+  await _resourceLock.withLock(() async {
   _isDisposing = true;
   final currentController = _playerController;
   
   try {
     if (currentController != null) {
-      // 1. 重置所有状态标志
+      // 1. 重置状态标志
       setState(() {
         _timeoutActive = false;
         _isAudio = false;
@@ -417,36 +440,35 @@ Future<void> _disposePlayer() async {
         _isRetrying = false;
         _retryCount = 0;
         _isSwitchingChannel = false;
-        _playerController = null;  // 立即清空引用，防止其他地方继续使用
+        _playerController = null;
       });
       
-      // 2. 停止当前播放并等待
+      // 2. 移除事件监听
+      currentController.removeEventsListener(_videoListener);
+      
+      // 3. 暂停播放
       if (currentController.isPlaying() ?? false) {
         currentController.pause();
-        // 添加短暂延迟确保播放完全停止
-        await Future.delayed(const Duration(milliseconds: 300));
+        await Future.delayed(const Duration(milliseconds: 500));
       }
       
-      // 3. 销毁视频控制器（重要：必须在停止播放后）
+      // 4. 中断网络请求
+      if (_streamUrl != null) {
+        _streamUrl!.cancelParsing();
+        _disposeStreamUrl();
+      }
+      
+      // 5. 释放播放器资源
       if (currentController.videoPlayerController != null) {
         try {
           currentController.videoPlayerController!.dispose();
-          // 添加短暂延迟确保资源完全释放
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 500));
         } catch (e) {
           LogUtil.logError('释放视频控制器时出错', e);
         }
       }
       
-      // 4. 清理缓存和其他资源
-      try {
-        currentController.clearCache();
-        _disposeStreamUrl();
-      } catch (e) {
-        LogUtil.logError('清理缓存时出错', e);
-      }
-      
-      // 5. 最后释放播放器控制器
+      // 6. 释放播放器控制器
       try {
         currentController.dispose();
       } catch (e) {
@@ -458,9 +480,10 @@ Future<void> _disposePlayer() async {
   } finally {
     _isDisposing = false;
     if (mounted) {
-      setState(() {});  // 确保UI更新
+      setState(() {});
     }
   }
+  });
 }
 
 /// 释放 StreamUrl 实例
@@ -474,10 +497,7 @@ void _disposeStreamUrl() {
 /// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
     if (_isSwitchingChannel || model == null) return;
-    
-    // 先停止当前播放和清理状态
-    await _disposePlayer(); 
-    
+      
     try {
         // 更新频道信息
         setState(() {
@@ -488,6 +508,9 @@ Future<void> _onTapChannel(PlayModel? model) async {
             toastString = S.current.loading; // 更新加载状态
         });
         
+        // 先停止当前播放和清理状态
+        await _disposePlayer(); 
+         
         // 确保状态正确后开始新的播放
         if (!_isSwitchingChannel) return; // 如果状态已改变则退出
         await _playVideo();
