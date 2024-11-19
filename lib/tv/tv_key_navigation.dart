@@ -97,7 +97,9 @@ mixin DebugOverlayManager {
   }
 
   void _cancelTimer() {
-    _timer?.cancel();
+    if (_timer?.isActive ?? false) {
+      _timer?.cancel();
+    }
     _timer = null;
   }
 }
@@ -249,15 +251,87 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     });
   }
 
-  /// 释放资源
-  void releaseResources() {
+/// 释放组件使用的资源
+void releaseResources() {
+  try {
+    // 1. 首先检查 context 是否有效
+    if (!mounted) {
+      return;
+    }
+
+    // 2. 清理定时器资源（优先级最高，避免后续可能的回调）
     _cancelTimer();
-    manageDebugOverlay(context);
-    _isFocusManagementActive = !(widget.isFrame);  // 如果是Frame组件，禁用焦点管理
-    _currentFocus = null; // 清除当前焦点
-    _lastParentFocusIndex = null; // 清除父页面焦点记录
+
+    // 3. 清理焦点相关资源（在清理UI之前处理状态）
+    if (_currentFocus != null && _currentFocus!.canRequestFocus) {
+      if (widget.frameType == "parent") {
+        // 保存父页面最后的焦点位置
+        _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
+      }
+      // 安全地取消焦点
+      if (_currentFocus!.hasFocus) {
+        _currentFocus!.unfocus();
+      }
+      _currentFocus = null;
+    }
+
+    // 4. 清理调试相关资源（从内到外清理UI）
+    _debugMessages.clear();
+    // 安全地移除所有调试覆盖层
+    if (_debugOverlays.isNotEmpty) {
+      for (var entry in List<OverlayEntry>.from(_debugOverlays)) {
+        if (entry.mounted) {
+          entry.remove();
+        }
+      }
+      _debugOverlays.clear();
+    }
+    
+    // 最后清除调试覆盖层状态
+    if (mounted) {
+      manageDebugOverlay(context);
+    }
+
+    // 5. 清理缓存资源
+    if (widget.frameType == "child" || !widget.isFrame) {
+      // 清理分组焦点缓存
+      _groupFocusCache.clear();
+    }
+
+    // 6. 重置组件状态（在最后阶段重置状态变量）
+    _isFocusManagementActive = !widget.isFrame;
+
+    // 7. 移除生命周期观察者（最后执行，因为可能还需要生命周期回调）
     WidgetsBinding.instance.removeObserver(this);
+
+  } catch (e, _) {
+    // 确保关键资源释放
+    _ensureCriticalResourceRelease();
   }
+}
+
+/// 确保关键资源释放的辅助方法
+void _ensureCriticalResourceRelease() {
+  try {
+    // 1. 确保定时器被取消
+    _cancelTimer();
+    
+    // 2. 确保移除生命周期观察者
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // 3. 确保清理所有覆盖层
+    if (_debugOverlays.isNotEmpty) {
+      for (var entry in List<OverlayEntry>.from(_debugOverlays)) {
+        if (entry.mounted) {
+          entry.remove();
+        }
+      }
+      _debugOverlays.clear();
+    }
+  } catch (_) {
+    // 忽略最终清理时的错误
+  }
+}
 
   /// 封装错误处理逻辑
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
@@ -283,7 +357,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     // 开始从当前 context 访问子元素
     context.visitChildElements(visitChild);
-    // 如果找不到合适的子组件，添加调试信息
     if (childNavigation == null) {
       manageDebugOverlay(context, message: '未找到可用的子页面导航组件');
     }
@@ -302,7 +375,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           final navigationWidget = element.widget as TvKeyNavigation;
           // 确保只查找 frameType 为 "parent" 且可见的父页面
           if (navigationWidget.frameType == "parent") {
-            // 找到目标父页面并进行初始化
             parentNavigation = (element as StatefulElement).state as TvKeyNavigationState;
             manageDebugOverlay(context, message: '找到可用的父页面导航组件');
             return; // 找到后停止遍历
