@@ -422,7 +422,7 @@ Future<void> _disposePlayer() async {
       
       // 2. 停止当前播放并等待
       if (currentController.isPlaying() ?? false) {
-        await currentController.pause();
+        currentController.pause();
         // 添加短暂延迟确保播放完全停止
         await Future.delayed(const Duration(milliseconds: 300));
       }
@@ -430,7 +430,7 @@ Future<void> _disposePlayer() async {
       // 3. 销毁视频控制器（重要：必须在停止播放后）
       if (currentController.videoPlayerController != null) {
         try {
-          await currentController.videoPlayerController!.dispose();
+          currentController.videoPlayerController!.dispose();
           // 添加短暂延迟确保资源完全释放
           await Future.delayed(const Duration(milliseconds: 300));
         } catch (e) {
@@ -440,7 +440,7 @@ Future<void> _disposePlayer() async {
       
       // 4. 清理缓存和其他资源
       try {
-        await currentController.clearCache();
+        currentController.clearCache();
         _disposeStreamUrl();
       } catch (e) {
         LogUtil.logError('清理缓存时出错', e);
@@ -448,7 +448,7 @@ Future<void> _disposePlayer() async {
       
       // 5. 最后释放播放器控制器
       try {
-        await currentController.dispose();
+        currentController.dispose();
       } catch (e) {
         LogUtil.logError('释放播放器时出错', e);
       }
