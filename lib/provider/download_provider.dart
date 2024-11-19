@@ -1,8 +1,8 @@
-import 'package:apk_installer/apk_installer.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/material.dart';
+import 'package:apk_installer/apk_installer.dart';
 import 'package:path_provider/path_provider.dart';
-import '../util/http_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
 
 class DownloadProvider extends ChangeNotifier {
   static final DownloadProvider _instance = DownloadProvider._internal();
