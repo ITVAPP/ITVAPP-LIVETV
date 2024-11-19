@@ -20,9 +20,9 @@ final verticalDivider = Container(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        Colors.white.withOpacity(0.05),
-        Colors.white.withOpacity(0.15),
-        Colors.white.withOpacity(0.05),
+        Colors.white.withOpacity(0.1),
+        Colors.white.withOpacity(0.2),
+        Colors.white.withOpacity(0.1),
       ],
     ),
   ),
@@ -34,9 +34,9 @@ final horizontalDivider = Container(
   decoration: BoxDecoration(
     gradient: LinearGradient(
       colors: [
-        Colors.transparent,
         Colors.white.withOpacity(0.1),
-        Colors.transparent,
+        Colors.white.withOpacity(0.2),
+        Colors.white.withOpacity(0.1),
       ],
     ),
   ),
@@ -90,15 +90,12 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
   );
 }
 
-
-
 // 用于管理所有 FocusNode 的列表和全局焦点状态
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
 // 添加焦点监听逻辑的通用函数
 void addFocusListeners(int startIndex, int length, State state) {
-  // 确保索引范围有效
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     return;
   }
@@ -274,6 +271,7 @@ class _CategoryListState extends State<CategoryList> {
               isTV: widget.isTV,
               context: context,
               index: widget.startIndex + index,
+              isLastItem: index == widget.categories.length - 1,
             );
           }),
         ),
@@ -369,6 +367,7 @@ return Container(
                   minHeight: defaultMinHeight,
                   context: context,
                   index: widget.startIndex + index,
+                  isLastItem: index == widget.keys.length - 1,
                 );
               }),
             ),
@@ -459,6 +458,7 @@ class _ChannelListState extends State<ChannelList> {
                 isTV: widget.isTV,
                 context: context,
                 index: widget.startIndex + index,
+                isLastItem: index == channelList.length - 1,
               );
             }),
           ),
@@ -545,6 +545,7 @@ class _EPGListState extends State<EPGList> {
                   isTV: widget.isTV,
                   context: context,
                   useFocusableItem: false,
+                  isLastItem: index == (widget.epgData!.length - 1),
                 );
               },
             ),
