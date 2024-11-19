@@ -47,7 +47,8 @@ Future<int?> changeChannelSources(
     final selectedIndex = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true, // 支持滚动内容
-      backgroundColor: Colors.transparent, // 设置透明背景以使用自定义样式
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
       builder: (BuildContext context) {
         return TvKeyNavigation(
           focusNodes: focusNodes, // 键盘导航支持
@@ -154,7 +155,6 @@ ButtonStyle getButtonStyle({
   required Color selectedColor, // 选中时的颜色
   required Color unselectedColor, // 未选中时的颜色
 }) {
-  // 根据按钮状态生成缓存 key
   final String key = '${isSelected}_${isFocused}';
 
   return _styleCache.putIfAbsent(key, () {
