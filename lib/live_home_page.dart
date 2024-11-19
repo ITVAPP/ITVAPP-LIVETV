@@ -454,7 +454,6 @@ Future<void> _disposePlayer() async {
       
       // 4. 中断网络请求
       if (_streamUrl != null) {
-        _streamUrl!.cancelParsing();
         _disposeStreamUrl();
       }
       
