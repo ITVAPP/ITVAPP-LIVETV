@@ -13,6 +13,11 @@ class SettingFontPage extends StatefulWidget {
 }
 
 class _SettingFontPageState extends State<SettingFontPage> {
+  // 提取常用样式为静态常量
+  static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
+  static const _sectionTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
+  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 5, vertical: 6);
+
   final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 字体缩放比例
   final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 语言代码
@@ -52,7 +57,7 @@ Widget _buildFontSizeSection() {
       children: [
         Text(
           S.of(context).fontSizeTitle, // 字体大小标题
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: _sectionTitleStyle,
         ),
         const SizedBox(height: 10), // 间距
         Group(
@@ -80,7 +85,6 @@ Widget _buildFontSizeSection() {
                     onSelected: (bool selected) {
                       context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 更新字体大小
                     },
-                    // 当选中时使用selectedColor
                     selectedColor: _focusNodes[index].hasFocus 
                         ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
                         : _selectedColor,  // 选中但未聚焦时保持原色
@@ -88,7 +92,7 @@ Widget _buildFontSizeSection() {
                         ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
                         : _unselectedColor,  // 未选中且未聚焦时保持原色
                     shape: _buttonShape,
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                    padding: _buttonPadding,
                   ),
                 ),
               ),
@@ -105,7 +109,7 @@ Widget _buildLanguageSection() {
       children: [
         Text(
           S.of(context).languageSelection, // 语言选择标题
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: _sectionTitleStyle,
         ),
         const SizedBox(height: 6), // 间距
         Column(
@@ -140,7 +144,6 @@ Widget _buildLanguageSection() {
                         onSelected: (bool selected) {
                           context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
                         },
-                        // 当选中时使用selectedColor
                         selectedColor: _focusNodes[index + 5].hasFocus 
                             ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
                             : _selectedColor,  // 选中但未聚焦时保持原色
@@ -148,7 +151,7 @@ Widget _buildLanguageSection() {
                             ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
                             : _unselectedColor,  // 未选中且未聚焦时保持原色
                         shape: _buttonShape,
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                        padding: _buttonPadding,
                       ),
                     ),
                   ],
@@ -173,7 +176,7 @@ Widget _buildLanguageSection() {
         leading: isTV ? const SizedBox.shrink() : null, // TV模式下隐藏返回按钮
         title: Text(
           S.of(context).fontTitle, // 标题
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          style: _titleStyle,
         ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       ),
