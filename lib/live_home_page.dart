@@ -220,7 +220,6 @@ Future<void> _playVideo() async {
              showControls: true,                   // 是否显示所有控件
              loadingWidget: const CircularProgressIndicator(),            // 是否显示缓冲进度指示器
              showControlsOnInitialize: false,      // 初始化时是否显示控件
-             showControlsOnFinish: false,          // 播放结束时是否显示控件
              showPlayButton: false,                // 是否显示播放/暂停按钮
              showFullScreenButton: false,          // 是否显示全屏切换按钮
              showProgressBar: false,               // 是否显示进度条
