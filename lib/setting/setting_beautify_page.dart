@@ -14,6 +14,12 @@ class SettingBeautifyPage extends StatefulWidget {
 }
 
 class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
+  // 提取标题样式为静态常量
+  static const _titleStyle = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.bold,
+  );
+
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
@@ -54,10 +60,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
         appBar: AppBar(
           title: Text(
             S.of(context).backgroundImageTitle, // AppBar 标题
-            style: const TextStyle(
-              fontSize: 22, // 设置字号
-              fontWeight: FontWeight.bold, // 设置加粗
-            ),
+            style: _titleStyle,
           ),
           backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
           leading: isTV ? const SizedBox.shrink() : null, // 如果是 TV 模式，隐藏返回按钮
@@ -90,14 +93,14 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                               child: SwitchListTile(
                                 title: Text(
                                   S.of(context).dailyBing, 
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 18, // 设置字体大小为 18
                                     fontWeight: FontWeight.bold, // 设置加粗
                                   ),
                                 ),
                                 subtitle: Text(
                                   S.of(context).backgroundImageDescription, // 提示信息
-                                  style: TextStyle(fontSize: 18), // 设置字体大小
+                                  style: const TextStyle(fontSize: 18), // 设置字体大小
                                 ),
                                 value: context.watch<ThemeProvider>().isBingBg, // 读取 Bing 背景状态
                                 onChanged: (value) {
