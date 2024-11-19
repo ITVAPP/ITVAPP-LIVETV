@@ -29,21 +29,6 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-/// 防止多个操作同时访问共享资源
-class ResourceLock {
-  bool _isLocked = false;
-  
-  Future<void> withLock(Future<void> Function() action) async {
-    if (_isLocked) return;
-    _isLocked = true;
-    try {
-      await action();
-    } finally {
-      _isLocked = false;
-    }
-  }
-}
-
 /// 主页面类，展示直播流
 class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
@@ -420,63 +405,54 @@ void _handleSourceSwitch() {
 
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
-  // 避免重复释放或释放过程被中断
-  await _resourceLock.withLock(() async {
+  while (_isDisposing) {
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
   _isDisposing = true;
   final currentController = _playerController;
   
   try {
     if (currentController != null) {
-      // 1. 重置状态标志
       setState(() {
         _timeoutActive = false;
-        _isAudio = false;
         _retryTimer?.cancel();
         _isRetrying = false;
         _retryCount = 0;
         _playerController = null;
       });
       
-      // 2. 移除事件监听
+      // 1. 先移除事件监听
       currentController.removeEventsListener(_videoListener);
       
-      // 3. 暂停播放
+      // 2. 暂停播放并等待
       if (currentController.isPlaying() ?? false) {
         currentController.pause();
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 300));
       }
       
-      // 4. 中断网络请求
-      if (_streamUrl != null) {
-        _disposeStreamUrl();
-      }
+      // 3. 中断网络请求
+      _disposeStreamUrl();
       
-      // 5. 释放播放器资源
-      if (currentController.videoPlayerController != null) {
-        try {
-          currentController.videoPlayerController!.dispose();
-          await Future.delayed(const Duration(milliseconds: 500));
-        } catch (e) {
-          LogUtil.logError('释放视频控制器时出错', e);
-        }
-      }
-      
-      // 6. 释放播放器控制器
+      // 4. 释放播放器资源
       try {
+        if (currentController.videoPlayerController != null) {
+          await currentController.videoPlayerController!.dispose();
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
         currentController.dispose();
       } catch (e) {
-        LogUtil.logError('释放播放器时出错', e);
+        LogUtil.logError('释放播放器资源时出错', e);
       }
     }
   } catch (e, stackTrace) {
     LogUtil.logError('释放播放器资源时出错', e, stackTrace);
   } finally {
     _isDisposing = false;
+    _isAudio = false;
     if (mounted) {
       setState(() {});
     }
   }
-  });
 }
 
 /// 释放 StreamUrl 实例
