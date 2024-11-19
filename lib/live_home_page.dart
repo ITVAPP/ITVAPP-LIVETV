@@ -249,9 +249,6 @@ Future<void> _playVideo() async {
           },
         );
 
-        if (_isSwitchingChannel) return; // 如果正在切换频道不要继续
-        
-
         // 启动超时检测
         _startTimeoutCheck();
         
@@ -278,8 +275,6 @@ Future<void> _playVideo() async {
             _retryCount = 0;
             _timeoutActive = false;
         });
-
-        if (_isSwitchingChannel) return; // 如果正在切换频道不要继续
         
         await _playerController?.play();
    
