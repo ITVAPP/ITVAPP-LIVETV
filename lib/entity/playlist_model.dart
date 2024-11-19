@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import '../config.dart';
 
-/// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
-class PlaylistModel {
   /// 构造函数，用于创建一个 [PlaylistModel] 实例。
   /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
   /// [playList] 是一个三层嵌套的Map，其中：
@@ -35,6 +33,9 @@ class PlaylistModel {
   /// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
   /// http://example.com/cctv5.m3u8
   /// ```
+
+/// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
+class PlaylistModel {
 
   PlaylistModel({
     this.epgUrl,
@@ -136,6 +137,45 @@ class PlaylistModel {
     }
   }
 
+  /// 自动判断使用两层还是三层结构的 getChannel 方法
+  /// [categoryOrGroup] 可以是分类（String）或组（String）。
+  /// [groupOrChannel] 如果 [categoryOrGroup] 是分类，则表示组名；如果是组，则表示频道名。
+  /// [channel] 仅在使用三层结构时提供，用于指定频道名称。
+  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
+    if (channel == null && categoryOrGroup is String) {
+      // 两个参数，处理两层结构
+      String group = categoryOrGroup;
+      String channelName = groupOrChannel;
+
+      // 优化：先检查默认分类，减少不必要的遍历
+      if (playList.containsKey(Config.allChannelsKey)) {
+        var defaultCategory = playList[Config.allChannelsKey];
+        if (defaultCategory is Map<String, Map<String, PlayModel>>) {
+          var result = defaultCategory[group]?[channelName];
+          if (result != null) return result;
+        }
+      }
+
+      // 如果默认分类未找到，遍历其他分类
+      for (var categoryMap in playList.values) {
+        if (categoryMap is Map<String, Map<String, PlayModel>> &&
+            categoryMap.containsKey(group)) {
+          return categoryMap[group]?[channelName];
+        }
+      }
+    } else if (channel != null && categoryOrGroup is String) {
+      // 三个参数，处理三层结构
+      String category = categoryOrGroup;
+      String group = groupOrChannel;
+
+      // 从三层结构查找
+      if (playList[category] is Map<String, Map<String, PlayModel>>) {
+        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
+      }
+    }
+    return null;
+  }
+
   /// 解析三层结构的播放列表
   /// - 第一层为分类
   /// - 第二层为组
@@ -199,42 +239,6 @@ class PlaylistModel {
       LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
     }
     return result;
-  }
-
-  /// 自动判断使用两层还是三层结构的 getChannel 方法
-  /// [categoryOrGroup] 可以是分类（String）或组（String）。
-  /// [groupOrChannel] 如果 [categoryOrGroup] 是分类，则表示组名；如果是组，则表示频道名。
-  /// [channel] 仅在使用三层结构时提供，用于指定频道名称。
-  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel,
-      [String? channel]) {
-    if (channel == null && categoryOrGroup is String) {
-      // 两个参数，处理两层结构
-      String group = categoryOrGroup;
-      String channelName = groupOrChannel;
-
-      // 尝试从默认分类中查找
-      if (playList.containsKey(Config.allChannelsKey)) {
-        return (playList[Config.allChannelsKey] as Map<String, Map<String, PlayModel>>)[group]?[channelName];
-      }
-
-      // 如果分类不存在，直接查找组和频道
-      for (var categoryMap in playList.values) {
-        if (categoryMap is Map<String, Map<String, PlayModel>> &&
-            categoryMap.containsKey(group)) {
-          return categoryMap[group]?[channelName];
-        }
-      }
-    } else if (channel != null && categoryOrGroup is String) {
-      // 三个参数，处理三层结构
-      String category = categoryOrGroup;
-      String group = groupOrChannel;
-
-      // 从三层结构查找
-      if (playList[category] is Map<String, Map<String, PlayModel>>) {
-        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
-      }
-    }
-    return null;
   }
 
   /// 按标题或组名搜索频道
