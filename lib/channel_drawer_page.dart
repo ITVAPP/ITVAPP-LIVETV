@@ -64,7 +64,7 @@ const selectedTextStyle = TextStyle(
 const defaultMinHeight = 40.0;
 
 // 背景色
-const defaultBackgroundColor = Color(0xAA1A1A1A);
+const defaultBackgroundColor = Colors.black54;
 
 // padding设置
 const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
