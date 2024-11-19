@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+
 class CustomSnackBar {
   static void showSnackBar(BuildContext context, String message, {Duration? duration}) {
-    // final double maxWidth = MediaQuery.of(context).size.width * 0.8; // 计算屏幕宽度的80%
     OverlayEntry overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,  // 避免与底部重叠
@@ -65,7 +65,6 @@ class CustomSnackBar {
       ),
     );
     Overlay.of(context)?.insert(overlayEntry);
-    // 设置自动关闭，模拟 SnackBar 的行为
     Future.delayed(duration ?? const Duration(seconds: 4), () {
       overlayEntry.remove();  // 移除 OverlayEntry
     });
