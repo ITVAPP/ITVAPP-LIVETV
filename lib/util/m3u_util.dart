@@ -15,44 +15,21 @@ import '../config.dart';
 class M3uResult {
   final PlaylistModel? data;
   final String? errorMessage;
-  const M3uResult({this.data, this.errorMessage}); // 添加const构造函数以优化内存
+
+  M3uResult({this.data, this.errorMessage});
 }
 
 class M3uUtil {
   M3uUtil._();
-  
-  // 缓存常用的正则表达式以提高性能
-  static final RegExp _newlineRegex = RegExp(r'\r?\n');
-  static final RegExp _protocolRegex = RegExp(r'^(http|https|rtmp|rtsp|mms|ftp)', caseSensitive: false);
-  
-  // 常用字符串常量化以减少字符串创建
-  static const String _extinfPrefix = '#EXTINF:';
-  static const String _categoryPrefix = '#CATEGORY:';
-  static const String _extm3uPrefix = '#EXTM3U';
 
-  // 添加内存缓存以减少磁盘IO
-  static PlaylistModel? _cachedPlaylist;
-  static DateTime? _lastCacheTime;
-  static const Duration _cacheValidDuration = Duration(minutes: 30);
-  
   /// 获取本地播放列表，如数据为空，则尝试获取远程播放列表
   static Future<M3uResult> getLocalM3uData() async {
     try {
-      // 检查内存缓存是否有效
-      if (_cachedPlaylist != null && 
-          _lastCacheTime != null &&
-          DateTime.now().difference(_lastCacheTime!) < _cacheValidDuration) {
-        return M3uResult(data: _cachedPlaylist);
-      }
-
       final m3uDataString = await _getCachedM3uData();
       if (m3uDataString.isEmpty) {
         return await getDefaultM3uData();
       }
-      
-      _cachedPlaylist = PlaylistModel.fromString(m3uDataString);
-      _lastCacheTime = DateTime.now();
-      return M3uResult(data: _cachedPlaylist);
+      return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
       return M3uResult(errorMessage: S.current.getm3udataerror);
     }
@@ -127,7 +104,7 @@ class M3uUtil {
       return M3uResult(errorMessage: S.current.getm3udataerror);
     }
   }
-  
+
   /// 获取或创建本地的收藏列表
   static Future<PlaylistModel> getOrCreateFavoriteList() async {
     final favoriteData = await _getCachedFavoriteM3uData();
@@ -189,184 +166,110 @@ class M3uUtil {
     }
   }
 
+  /// 更新本地收藏列表中的频道播放地址
+  static Future<void> updateFavoriteChannelsWithRemoteData(
+      PlaylistModel remotePlaylist, PlaylistModel favoritePlaylist) async {
+    // 更新收藏列表中的频道播放地址
+    _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
+    // 保存更新后的收藏列表
+    await saveFavoriteList(favoritePlaylist);
+  }
+
+  /// 更新收藏列表中的频道播放地址（仅当远程列表有更新）
+  static void _updateFavoriteChannels(
+      PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
+    // 获取收藏分类中的频道
+    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
+    if (favoriteCategory == null) return;
+
+    // 使用 Set 来记录已更新的 id，避免重复更新
+    final Set<String> updatedTvgIds = {};
+
+    // 遍历远程播放列表中的每个频道，基于 id 进行对比和更新
+    remotePlaylist.playList?.forEach((category, groups) {
+      groups.forEach((groupTitle, channels) {
+        channels.forEach((channelName, remoteChannel) {
+          if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
+            // 如果这个 id 已经被更新过，则跳过
+            if (updatedTvgIds.contains(remoteChannel.id!)) return;
+            _updateFavoriteChannel(
+                favoriteCategory, remoteChannel.id!, remoteChannel);
+            updatedTvgIds.add(remoteChannel.id!);
+          }
+        });
+      });
+    });
+  }
+
+  /// 更新“我的收藏”中单个频道的播放地址
+  static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteCategory,
+      String tvgId, PlayModel remoteChannel) {
+    // 遍历“我的收藏”中的所有组和频道，找到对应的 id 进行更新
+    favoriteCategory.forEach((groupTitle, channels) {
+      channels.forEach((channelName, favoriteChannel) {
+        if (favoriteChannel.id == tvgId) {
+          if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
+            final validUrls =
+                remoteChannel.urls!.where((url) => isLiveLink(url)).toList();
+            if (validUrls.isNotEmpty) {
+              favoriteChannel.urls = validUrls;
+            }
+          }
+        }
+      });
+    });
+  }
+
+  /// 重试机制，最多重试 `retries` 次
+  static Future<T?> _retryRequest<T>(Future<T?> Function() request,
+      {int retries = 3,
+      Duration retryDelay = const Duration(seconds: 2),
+      Function(int attempt)? onRetry}) async {
+    for (int attempt = 0; attempt < retries; attempt++) {
+      try {
+        return await request();
+      } catch (e, stackTrace) {
+        LogUtil.logError('请求失败，重试第 $attempt 次...', e, stackTrace);
+        if (onRetry != null) {
+          onRetry(attempt + 1); // 回调传递重试次数
+        }
+        if (attempt >= retries - 1) {
+          return null; // 超过最大重试次数，返回 null
+        }
+        await Future.delayed(retryDelay); // 延时重试
+      }
+    }
+    return null;
+  }
+
+  /// 从本地缓存中获取订阅数据列表
+  static Future<List<SubScribeModel>> getLocalData() async {
+    try {
+      return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v),
+          defValue: <SubScribeModel>[])!;
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取订阅数据列表失败', e, stackTrace);
+      return [];
+    }
+  }
+
   /// 获取远程播放列表
   static Future<String> _fetchData() async {
     try {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
-      final timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
       
-      // 使用 Uri 类构建 URL，避免字符串拼接
-      final uri = Uri.parse(defaultM3u).replace(
-        queryParameters: {'time': timeParam}
-      );
+      // 添加时间参数，格式为 "yyyyMMddHH"
+      final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
+      final urlWithTimeParam = '$defaultM3u?time=$timeParam'; // 将时间参数附加到 URL 中
 
-      return await HttpUtil().getRequest(uri.toString()) ?? '';
+      final res = await HttpUtil().getRequest(urlWithTimeParam);
+      return res ?? ''; // 返回空字符串表示获取失败
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
       return '';
     }
   }
 
-  /// 处理 EXTM3U 标签
-  static void _processExtM3U(String line, PlaylistModel model) {
-    List<String> params = line.replaceAll('"', '').split(' ');
-    final tvgUrl = params
-        .firstWhere((element) => element.startsWith('x-tvg-url'),
-            orElse: () => '')
-        .split('=')
-        .last;
-    if (tvgUrl.isNotEmpty) {
-      model.epgUrl = tvgUrl;
-    }
-  }
-
-  /// 处理 CATEGORY 标签
-  static String _processCategory(String line) {
-    final category = line.substring(_categoryPrefix.length).trim();
-    return category.isEmpty ? Config.allChannelsKey : category;
-  }
-  
-  /// 解析 M3U 文件并转换为 PlaylistModel 格式
-  static Future<PlaylistModel> _parseM3u(String m3u) async {
-    try {
-      final lines = m3u.split(_newlineRegex);
-      final playListModel = PlaylistModel();
-      playListModel.playList = {};
-
-      String currentCategory = Config.allChannelsKey;
-      bool hasCategory = false;
-      String tempGroupTitle = '';
-      String tempChannelName = '';
-
-      if (m3u.startsWith(_extm3uPrefix) || m3u.startsWith(_extinfPrefix)) {
-        for (int i = 0; i < lines.length; i++) {
-          String line = lines[i];
-
-          if (line.startsWith(_extm3uPrefix)) {
-            _processExtM3U(line, playListModel);
-          } else if (line.startsWith(_categoryPrefix)) {
-            currentCategory = _processCategory(line);
-            hasCategory = true;
-          } else if (line.startsWith(_extinfPrefix)) {
-            if (line.startsWith('#EXTINF:-1,')) {
-              line = line.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
-            }
-            final lineList = line.split(',');
-            List<String> params = lineList.first.replaceAll('"', '').split(' ');
-
-            final groupStr = params.firstWhere(
-                (element) => element.startsWith('group-title='),
-                orElse: () => 'group-title=${S.current.defaultText}');
-                
-            String tvgLogo = params.firstWhere(
-                (element) => element.startsWith('tvg-logo='),
-                orElse: () => '');
-            if (tvgLogo.isNotEmpty && tvgLogo.contains('=')) {
-              tvgLogo = tvgLogo.split('=').last;
-            }
-
-            String tvgId = params.firstWhere(
-                (element) => element.startsWith('tvg-id='),
-                orElse: () => '');
-            String tvgName = params.firstWhere(
-                (element) => element.startsWith('tvg-name='),
-                orElse: () => '');
-
-            if (tvgId.isEmpty && tvgName.isNotEmpty) {
-              tvgId = tvgName.split('=').last;
-            } else if (tvgId.isNotEmpty) {
-              tvgId = tvgId.split('=').last;
-            }
-
-            if (tvgId.isEmpty) continue;
-
-            if (groupStr.isNotEmpty && groupStr.contains('=')) {
-              tempGroupTitle = groupStr.split('=').last;
-              tempChannelName = lineList.last;
-
-              Map<String, Map<String, PlayModel>> categoryMap =
-                  playListModel.playList?[currentCategory] ?? {};
-              Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? {};
-              PlayModel channel = groupMap[tempChannelName] ??
-                  PlayModel(
-                      id: tvgId,
-                      group: tempGroupTitle,
-                      logo: tvgLogo,
-                      title: tempChannelName,
-                      urls: []);
-
-              // 检查索引越界问题，避免 lines[i + 1] 或 lines[i + 2] 越界
-              if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
-                channel.urls ??= [];
-                if (lines[i + 1].isNotEmpty) {
-                  channel.urls!.add(lines[i + 1]);
-                }
-                groupMap[tempChannelName] = channel;
-                categoryMap[tempGroupTitle] = groupMap;
-                playListModel.playList![currentCategory] = categoryMap;
-                i += 1;
-              } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
-                channel.urls ??= [];
-                if (lines[i + 2].isNotEmpty) {
-                  channel.urls!.add(lines[i + 2].toString());
-                }
-                groupMap[tempChannelName] = channel;
-                categoryMap[tempGroupTitle] = groupMap;
-                playListModel.playList![currentCategory] = categoryMap;
-                i += 2;
-              }
-              hasCategory = false;
-            }
-          } else if (isLiveLink(line)) {
-            playListModel.playList?[currentCategory]?[tempGroupTitle]
-                    ?[tempChannelName]
-                ?.urls ??= [];
-            if (line.isNotEmpty) {
-              playListModel.playList![currentCategory]![tempGroupTitle]!
-                  [tempChannelName]!.urls!.add(line);
-            }
-          }
-        }
-      } else {
-        // 处理非标准M3U文件
-        String tempGroup = S.current.defaultText;
-        for (int i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final lineList = line.split(',');
-          if (lineList.length >= 2) {
-            final groupTitle = lineList[0];
-            final channelLink = lineList[1];
-            if (isLiveLink(channelLink)) {
-              Map<String, Map<String, PlayModel>> categoryMap =
-                  playListModel.playList?[tempGroup] ?? {};
-              Map<String, PlayModel> groupMap = categoryMap[groupTitle] ?? {};
-              final channel = groupMap[groupTitle] ??
-                  PlayModel(
-                      group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
-              channel.urls ??= [];
-              if (channelLink.isNotEmpty) {
-                channel.urls!.add(channelLink);
-              }
-              groupMap[groupTitle] = channel;
-              categoryMap[groupTitle] = groupMap;
-              playListModel.playList![tempGroup] = categoryMap;
-            } else {
-              tempGroup =
-                  groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
-              if (playListModel.playList![tempGroup] == null) {
-                playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
-              }
-            }
-          }
-        }
-      }
-      return playListModel;
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析M3U文件失败', e, stackTrace);
-      return PlaylistModel();
-    }
-  }
-  
   /// 获取并处理多个M3U列表的合并，解析每个URL返回的数据
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
     try {
@@ -402,28 +305,6 @@ class M3uUtil {
       LogUtil.logError('获取远程播放列表', e, stackTrace);
       return null;
     }
-  }
-
-  /// 重试机制，最多重试 `retries` 次
-  static Future<T?> _retryRequest<T>(Future<T?> Function() request,
-      {int retries = 3,
-      Duration retryDelay = const Duration(seconds: 2),
-      Function(int attempt)? onRetry}) async {
-    for (int attempt = 0; attempt < retries; attempt++) {
-      try {
-        return await request();
-      } catch (e, stackTrace) {
-        LogUtil.logError('请求失败，重试第 $attempt 次...', e, stackTrace);
-        if (onRetry != null) {
-          onRetry(attempt + 1);
-        }
-        if (attempt >= retries - 1) {
-          return null;
-        }
-        await Future.delayed(retryDelay);
-      }
-    }
-    return null;
   }
 
   /// 合并多个 PlaylistModel，避免重复的播放地址
@@ -485,18 +366,8 @@ class M3uUtil {
       return PlaylistModel();
     }
   }
-  
-  /// 获取本地缓存中的订阅数据列表、播放列表
-  static Future<List<SubScribeModel>> getLocalData() async {
-    try {
-      return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v),
-          defValue: <SubScribeModel>[])!;
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取订阅数据列表失败', e, stackTrace);
-      return [];
-    }
-  }
 
+  /// 获取本地缓存播放列表
   static Future<String> _getCachedM3uData() async {
     try {
       return SpUtil.getString(Config.m3uCacheKey, defValue: '') ?? '';
@@ -506,6 +377,7 @@ class M3uUtil {
     }
   }
 
+  /// 保存播放列表到本地缓存
   static Future<void> saveCachedM3uData(String data) async {
     try {
       await SpUtil.putString(Config.m3uCacheKey, data);
@@ -526,60 +398,180 @@ class M3uUtil {
     }
   }
 
-  /// 判断链接是否为有效的直播链接
-  static bool isLiveLink(String link) => _protocolRegex.hasMatch(link);
+  /// 解析 M3U 文件并转换为 PlaylistModel 格式
+  static Future<PlaylistModel> _parseM3u(String m3u) async {
+    try {
+      // 处理不同的换行符，支持 \r\n 和 \n
+      final lines = m3u.split(RegExp(r'\r?\n'));
+      final playListModel = PlaylistModel();
+      playListModel.playList = <String, Map<String, Map<String, PlayModel>>>{};
 
-  /// 更新本地收藏列表中的频道播放地址
-  static Future<void> updateFavoriteChannelsWithRemoteData(
-      PlaylistModel remotePlaylist, PlaylistModel favoritePlaylist) async {
-    // 更新收藏列表中的频道播放地址
-    _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
-    // 保存更新后的收藏列表
-    await saveFavoriteList(favoritePlaylist);
-  }
+      String currentCategory = Config.allChannelsKey; // 初始化分类为默认 "所有频道"
+      bool hasCategory = false; // 标记是否有 #CATEGORY 行
 
-  /// 更新收藏列表中的频道播放地址（仅当远程列表有更新）
-  static void _updateFavoriteChannels(
-      PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
-    // 获取收藏分类中的频道
-    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
-    if (favoriteCategory == null) return;
+      if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
+        String tempGroupTitle = '';
+        String tempChannelName = '';
 
-    // 使用 Set 来记录已更新的 id，避免重复更新
-    final Set<String> updatedTvgIds = {};
+        for (int i = 0; i < lines.length; i++) {
+          String line = lines[i];
 
-    // 遍历远程播放列表中的每个频道，基于 id 进行对比和更新
-    remotePlaylist.playList?.forEach((category, groups) {
-      groups.forEach((groupTitle, channels) {
-        channels.forEach((channelName, remoteChannel) {
-          if (remoteChannel.id != null && remoteChannel.id!.isNotEmpty) {
-            // 如果这个 id 已经被更新过，则跳过
-            if (updatedTvgIds.contains(remoteChannel.id!)) return;
-            _updateFavoriteChannel(
-                favoriteCategory, remoteChannel.id!, remoteChannel);
-            updatedTvgIds.add(remoteChannel.id!);
-          }
-        });
-      });
-    });
-  }
+          if (line.startsWith('#EXTM3U')) {
+            List<String> params = line.replaceAll('"', '').split(' ');
+            final tvgUrl = params
+                .firstWhere((element) => element.startsWith('x-tvg-url'),
+                    orElse: () => '')
+                .split('=')
+                .last;
+            if (tvgUrl.isNotEmpty) {
+              playListModel.epgUrl = tvgUrl; // 获取EPG URL
+            }
+          } else if (line.startsWith('#CATEGORY:')) {
+            // 识别 #CATEGORY: 标签并提取分类，标记 hasCategory 为 true
+            currentCategory = line.replaceFirst('#CATEGORY:', '').trim();
+            hasCategory = true;
+            if (currentCategory.isEmpty) {
+              currentCategory = Config.allChannelsKey; // 如果为空则回归默认分类
+            }
+          } else if (line.startsWith('#EXTINF:')) {
+            if (line.startsWith('#EXTINF:-1,')) {
+              line = line.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
+            }
+            final lineList = line.split(',');
+            List<String> params = lineList.first.replaceAll('"', '').split(' ');
 
-  /// 更新"我的收藏"中单个频道的播放地址
-  static void _updateFavoriteChannel(Map<String, Map<String, PlayModel>> favoriteCategory,
-      String tvgId, PlayModel remoteChannel) {
-    // 遍历"我的收藏"中的所有组和频道，找到对应的 id 进行更新
-    favoriteCategory.forEach((groupTitle, channels) {
-      channels.forEach((channelName, favoriteChannel) {
-        if (favoriteChannel.id == tvgId) {
-          if (remoteChannel.urls != null && remoteChannel.urls!.isNotEmpty) {
-            final validUrls =
-                remoteChannel.urls!.where((url) => isLiveLink(url)).toList();
-            if (validUrls.isNotEmpty) {
-              favoriteChannel.urls = validUrls;
+            final groupStr = params.firstWhere(
+                (element) => element.startsWith('group-title='),
+                orElse: () =>
+                    'group-title=${S.current.defaultText}'); // 组名称
+            if (groupStr.isNotEmpty && groupStr.contains('=')) {
+              tempGroupTitle = groupStr.split('=').last;
+            }
+
+            String tvgLogo = params.firstWhere(
+                (element) => element.startsWith('tvg-logo='),
+                orElse: () => '');
+            if (tvgLogo.isNotEmpty && tvgLogo.contains('=')) {
+              tvgLogo = tvgLogo.split('=').last;
+            }
+
+            // 确保 tvg-id 或 tvg-name 必须存在
+            String tvgId = params.firstWhere(
+                (element) => element.startsWith('tvg-id='),
+                orElse: () => '');
+            String tvgName = params.firstWhere(
+                (element) => element.startsWith('tvg-name='),
+                orElse: () => '');
+
+            if (tvgId.isEmpty && tvgName.isNotEmpty) {
+              // 如果 tvg-id 为空且有 tvg-name，用 tvg-name 代替 tvg-id
+              tvgId = tvgName.split('=').last;
+            } else if (tvgId.isNotEmpty) {
+              // 否则使用 tvg-id
+              tvgId = tvgId.split('=').last;
+            }
+
+            // 如果 tvg-id 和 tvg-name 都为空，跳过此频道
+            if (tvgId.isEmpty) {
+              continue;
+            }
+
+            // 确保在没有 #CATEGORY 时，currentCategory 始终是 '所有频道'
+            if (!hasCategory) {
+              currentCategory = Config.allChannelsKey;
+            }
+
+            if (groupStr.isNotEmpty) {
+              tempGroupTitle = groupStr.split('=').last;
+              tempChannelName = lineList.last;
+
+              Map<String, Map<String, PlayModel>> categoryMap =
+                  playListModel.playList?[currentCategory] ?? {};
+              Map<String, PlayModel> groupMap =
+                  categoryMap[tempGroupTitle] ?? {};
+              PlayModel channel = groupMap[tempChannelName] ??
+                  PlayModel(
+                      id: tvgId,
+                      group: tempGroupTitle,
+                      logo: tvgLogo,
+                      title: tempChannelName,
+                      urls: []);
+
+              // 检查索引越界问题，避免 lines[i + 1] 或 lines[i + 2] 越界
+              if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
+                channel.urls ??= [];
+                if (lines[i + 1].isNotEmpty) {
+                  channel.urls!.add(lines[i + 1]);
+                }
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![currentCategory] = categoryMap;
+                i += 1;
+              } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
+                channel.urls ??= [];
+                if (lines[i + 2].isNotEmpty) {
+                  channel.urls!.add(lines[i + 2].toString());
+                }
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![currentCategory] = categoryMap;
+                i += 2;
+              }
+              hasCategory = false;
+            }
+          } else if (isLiveLink(line)) {
+            playListModel.playList?[currentCategory]?[tempGroupTitle]
+                    ?[tempChannelName]
+                ?.urls ??= [];
+            if (line.isNotEmpty) {
+              playListModel.playList![currentCategory]![tempGroupTitle]!
+                  [tempChannelName]!.urls!.add(line);
             }
           }
         }
-      });
-    });
+      } else {
+        // 处理非标准M3U文件
+        String tempGroup = S.current.defaultText;
+                for (int i = 0; i < lines.length; i++) {
+          final line = lines[i];
+          final lineList = line.split(',');
+          if (lineList.length >= 2) {
+            final groupTitle = lineList[0];
+            final channelLink = lineList[1];
+            if (isLiveLink(channelLink)) {
+              Map<String, Map<String, PlayModel>> categoryMap =
+                  playListModel.playList?[tempGroup] ?? {};
+              Map<String, PlayModel> groupMap = categoryMap[groupTitle] ?? {};
+              final channel = groupMap[groupTitle] ??
+                  PlayModel(
+                      group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
+              channel.urls ??= [];
+              if (channelLink.isNotEmpty) {
+                channel.urls!.add(channelLink);
+              }
+              groupMap[groupTitle] = channel;
+              categoryMap[groupTitle] = groupMap;
+              playListModel.playList![tempGroup] = categoryMap;
+            } else {
+              tempGroup =
+                  groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
+              if (playListModel.playList![tempGroup] == null) {
+                playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
+              }
+            }
+          }
+        }
+      }
+      return playListModel;
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析M3U文件失败', e, stackTrace);
+      return PlaylistModel();
+    }
+  }
+
+  /// 判断链接是否为有效的直播链接
+  static bool isLiveLink(String link) {
+    const protocols = ['http', 'https', 'rtmp', 'rtsp', 'mms', 'ftp'];
+    return protocols.any((protocol) => link.toLowerCase().startsWith(protocol));
   }
 }
