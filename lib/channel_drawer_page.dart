@@ -231,7 +231,7 @@ class _CategoryListState extends State<CategoryList> {
               title: displayTitle,
               isSelected: widget.selectedCategoryIndex == index,
               onTap: () => widget.onCategoryTap(index),
-              isCentered: false,
+              isCentered: true,
               isTV: widget.isTV,
               context: context,
               index: widget.startIndex + index,
