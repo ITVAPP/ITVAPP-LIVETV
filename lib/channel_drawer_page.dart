@@ -12,10 +12,34 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-// 分割线样式
-final verticalDivider = VerticalDivider(
-  width: 0.1,
-  color: Colors.white.withOpacity(0.1),
+// 分割线样式 - 垂直分割线加粗且增加渐变效果
+final verticalDivider = Container(
+  width: 1,
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Colors.white.withOpacity(0.05),
+        Colors.white.withOpacity(0.15),
+        Colors.white.withOpacity(0.05),
+      ],
+    ),
+  ),
+);
+
+// 水平分割线样式
+final horizontalDivider = Container(
+  height: 1,
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        Colors.transparent,
+        Colors.white.withOpacity(0.1),
+        Colors.transparent,
+      ],
+    ),
+  ),
 );
 
 // 文字样式
@@ -37,13 +61,13 @@ const selectedTextStyle = TextStyle(
 );
 
 // 最小高度
-const defaultMinHeight = 38.0;
+const defaultMinHeight = 40.0;
 
 // 背景色
-const defaultBackgroundColor = Colors.black38;
+const defaultBackgroundColor = Color(0xFF1A1A1A);
 
 // padding设置
-const defaultPadding = EdgeInsets.all(6.0);
+const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 
 // 装饰设置
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
@@ -58,12 +82,15 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
         : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
     border: Border.all(
       color: isSelected || (isTV && hasFocus) 
-          ? Colors.white.withOpacity(0.1)
+          ? Colors.white.withOpacity(0.15)
           : Colors.transparent,
-      width: 0.5,
+      width: 1,
     ),
+    borderRadius: BorderRadius.circular(3), 
   );
 }
+
+
 
 // 用于管理所有 FocusNode 的列表和全局焦点状态
 List<FocusNode> _focusNodes = [];
@@ -139,32 +166,44 @@ Widget buildListItem({
   bool isTV = false,
   int? index,
   bool useFocusableItem = true,
+  bool isLastItem = false, // 新增参数，用于判断是否为最后一项
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
       ? _focusNodes[index]
       : null;
-Widget listItemContent = GestureDetector(
-  onTap: onTap,
-  child: Container(
-    constraints: BoxConstraints(minHeight: minHeight),
-    padding: padding,
-    alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-    decoration: buildItemDecoration(
-      isSelected: isSelected,
-      hasFocus: focusNode?.hasFocus ?? false,
-      isTV: isTV,
-    ),
-    child: Text(
-      title,
-      style: (focusNode?.hasFocus ?? false)
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
-      softWrap: true,
-      maxLines: null,
-      overflow: TextOverflow.visible,
-    ),
-  ),
-);
+
+  Widget listItemContent = Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      MouseRegion(
+        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
+        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            constraints: BoxConstraints(minHeight: minHeight),
+            padding: padding,
+            alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+            decoration: buildItemDecoration(
+              isSelected: isSelected,
+              hasFocus: focusNode?.hasFocus ?? false,
+              isTV: isTV,
+            ),
+            child: Text(
+              title,
+              style: (focusNode?.hasFocus ?? false)
+                  ? defaultTextStyle.merge(selectedTextStyle)
+                  : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+              softWrap: true,
+              maxLines: null,
+              overflow: TextOverflow.visible,
+            ),
+          ),
+        ),
+      ),
+      if (!isLastItem) horizontalDivider, // 不是最后一项时添加分割线
+    ],
+  );
 
   return useFocusableItem && focusNode != null
       ? FocusableItem(focusNode: focusNode, child: listItemContent)
@@ -483,6 +522,7 @@ class _EPGListState extends State<EPGList> {
                 const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold),
+                  color: Colors.white.withOpacity(0.9),
               ),
             ),
           ),
