@@ -109,9 +109,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
-  
-  // 互斥锁(Mutex)是并发控制机制
-  final _resourceLock = ResourceLock();
 
   // 音频检测状态
   bool _isAudio = false;
