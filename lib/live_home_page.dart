@@ -142,6 +142,8 @@ Future<void> _playVideo() async {
 
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
+    // 添加短暂延迟确保资源完全释放
+    await Future.delayed(const Duration(milliseconds: 500));
     
     try {
         // 解析URL
@@ -400,64 +402,65 @@ void _handleSourceSwitch() {
 
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
-   if (_isDisposing) return;
-   
-   _isDisposing = true;
-   final currentController = _playerController;
-   try {
-       if (currentController != null) {
-           // 1. 重置所有状态
-           setState(() {
-               _timeoutActive = false;
-               _isAudio = false;
-               _retryTimer?.cancel();
-               _isRetrying = false;
-               _retryCount = 0;
-               _isSwitchingChannel = false;
-           });
-           
-           // 2. 先释放视频播放器控制器
-           if (currentController.videoPlayerController != null) {
-               try {
-                   // 暂停当前播放
-                   await currentController.pause();
-                   // 确保视频控制器完全停止和释放
-                   currentController.videoPlayerController!.dispose();  // dispose() 返回 void
-               } catch (e) {
-                   LogUtil.logError('释放视频控制器时出错', e);
-               }
-           }
-           
-           // 3. 清理缓存
-           try {
-               currentController.clearCache();  // clearCache() 返回 void
-           } catch (e) {
-               LogUtil.logError('清理缓存时出错', e);
-           }
-           
-           // 4. 释放流资源
-           _disposeStreamUrl();
-           
-           // 5. 强制释放播放器控制器
-           try {
-               currentController.dispose();  // dispose() 返回 void, 不需要 await
-           } catch (e) {
-               LogUtil.logError('释放播放器时出错', e);
-           }
-           
-           // 6. 清空控制器引用
-           if (_playerController == currentController) {
-               _playerController = null;
-           }
-       }
-   } catch (e, stackTrace) {
-       LogUtil.logError('释放播放器资源时出错', e, stackTrace);  
-   } finally {
-       _isDisposing = false;
-       if (mounted) {
-           setState(() {});  // 确保UI更新
-       }
-   }
+  if (_isDisposing) return;
+  
+  _isDisposing = true;
+  final currentController = _playerController;
+  
+  try {
+    if (currentController != null) {
+      // 1. 重置所有状态标志
+      setState(() {
+        _timeoutActive = false;
+        _isAudio = false;
+        _retryTimer?.cancel();
+        _isRetrying = false;
+        _retryCount = 0;
+        _isSwitchingChannel = false;
+        _playerController = null;  // 立即清空引用，防止其他地方继续使用
+      });
+      
+      // 2. 停止当前播放并等待
+      if (currentController.isPlaying() ?? false) {
+        await currentController.pause();
+        // 添加短暂延迟确保播放完全停止
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+      
+      // 3. 销毁视频控制器（重要：必须在停止播放后）
+      if (currentController.videoPlayerController != null) {
+        try {
+          await currentController.videoPlayerController!.dispose();
+          // 添加短暂延迟确保资源完全释放
+          await Future.delayed(const Duration(milliseconds: 300));
+        } catch (e) {
+          LogUtil.logError('释放视频控制器时出错', e);
+        }
+      }
+      
+      // 4. 清理缓存和其他资源
+      try {
+        await currentController.clearCache();
+        _disposeStreamUrl();
+      } catch (e) {
+        LogUtil.logError('清理缓存时出错', e);
+      }
+      
+      // 5. 最后释放播放器控制器
+      try {
+        await currentController.dispose();
+      } catch (e) {
+        LogUtil.logError('释放播放器时出错', e);
+      }
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('释放播放器资源时出错', e, stackTrace);
+  } finally {
+    _isDisposing = false;
+    if (mounted) {
+      setState(() {});  // 确保UI更新
+    }
+  }
 }
 
 /// 释放 StreamUrl 实例
