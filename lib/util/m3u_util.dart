@@ -206,6 +206,25 @@ class M3uUtil {
       return '';
     }
   }
+
+  /// 处理 EXTM3U 标签
+  static void _processExtM3U(String line, PlaylistModel model) {
+    List<String> params = line.replaceAll('"', '').split(' ');
+    final tvgUrl = params
+        .firstWhere((element) => element.startsWith('x-tvg-url'),
+            orElse: () => '')
+        .split('=')
+        .last;
+    if (tvgUrl.isNotEmpty) {
+      model.epgUrl = tvgUrl;
+    }
+  }
+
+  /// 处理 CATEGORY 标签
+  static String _processCategory(String line) {
+    final category = line.substring(_categoryPrefix.length).trim();
+    return category.isEmpty ? Config.allChannelsKey : category;
+  }
   
   /// 解析 M3U 文件并转换为 PlaylistModel 格式
   static Future<PlaylistModel> _parseM3u(String m3u) async {
