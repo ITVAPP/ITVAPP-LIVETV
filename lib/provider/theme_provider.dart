@@ -6,12 +6,16 @@ import '../util/log_util.dart';
 import '../config.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  String _fontFamily = Config.defaultFontFamily; // 默认字体
-  double _textScaleFactor = Config.defaultTextScaleFactor; // 默认文本缩放比例
-  bool _isLogOn = Config.defaultLogOn; // 默认日志开关状态
-  bool _isBingBg = Config.defaultBingBg; // 默认Bing背景设置
-  String _fontUrl = ''; // 默认字体 URL 为空
-  bool _isTV = false; // 默认不是 TV 设备
+  // 使用单例模式
+  static final ThemeProvider _instance = ThemeProvider._internal();
+  factory ThemeProvider() => _instance;
+
+  late String _fontFamily; // 默认字体
+  late double _textScaleFactor; // 默认文本缩放比例
+  late bool _isLogOn; // 默认日志开关状态
+  late bool _isBingBg; // 默认Bing背景设置
+  late String _fontUrl; // 默认字体 URL 为空
+  late bool _isTV; // 默认不是 TV 设备
 
   // 标记是否需要通知 UI 更新，避免不必要的重绘
   bool _shouldNotify = false;
@@ -19,56 +23,18 @@ class ThemeProvider extends ChangeNotifier {
   // 标记初始化是否完成
   bool _isInitialized = false;
 
-  bool get isInitialized => _isInitialized; // 获取初始化状态
+  // 私有构造函数
+  ThemeProvider._internal() {
+    initialize();
+  }
 
+  bool get isInitialized => _isInitialized; // 获取初始化状态
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
   String get fontUrl => _fontUrl;
   bool get isBingBg => _isBingBg;
   bool get isTV => _isTV;
   bool get isLogOn => _isLogOn; // 获取日志开关状态
-
-  // 构造函数，在初始化时从缓存中加载数据
-  ThemeProvider() {
-    initialize(); // 使用 _initialize 进行同步初始化
-  }
-
-  // 初始化方法，捕获并记录初始化中的异常
-  Future<void> initialize() async {
-    try {
-      LogUtil.safeExecute(() async {
-        _fontFamily = SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily) ?? Config.defaultFontFamily;
-        _fontUrl = SpUtil.getString('appFontUrl') ?? '';
-        _textScaleFactor = SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor) ?? Config.defaultTextScaleFactor;
-        _isBingBg = SpUtil.getBool('bingBg', defValue: Config.defaultBingBg) ?? Config.defaultBingBg;
-        _isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
-        _isLogOn = SpUtil.getBool('LogOn', defValue: Config.defaultLogOn) ?? Config.defaultLogOn;
-
-        // 记录初始化的各个值到日志
-        LogUtil.d(
-          '字体: $_fontFamily\n'
-          '字体 URL: $_fontUrl\n'
-          '文本缩放比例: $_textScaleFactor\n'
-          'Bing 背景启用: ${_isBingBg ? "启用" : "未启用"}\n'
-          '是否为 TV: ${_isTV ? "是 TV 设备" : "不是 TV 设备"}\n'
-          '日志开关状态: ${_isLogOn ? "已开启" : "已关闭"}'
-        );
-
-        // 设置日志记录开关
-        LogUtil.setDebugMode(_isLogOn);
-
-        // 如果字体不是系统默认字体，则加载自定义字体
-        if (_fontFamily != Config.defaultFontFamily) {
-          FontUtil().loadFont(_fontUrl, _fontFamily);
-        }
-
-        _isInitialized = true; // 标记初始化完成
-        notifyListeners(); // 通知 UI 更新
-      }, '初始化 ThemeProvider 时出错');
-    } catch (e, stackTrace) {
-      LogUtil.logError('初始化 ThemeProvider 时出错', e, stackTrace);
-    }
-  }
 
   // 通知 UI 更新，仅在必要时调用
   void _notifyIfNeeded() {
@@ -78,14 +44,69 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
+  // 初始化方法，捕获并记录初始化中的异常
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    try {
+      await LogUtil.safeExecute(() async {
+        final Map<String, dynamic> settings = await _loadAllSettings();
+        _applySettings(settings);
+        
+        if (_fontFamily != Config.defaultFontFamily) {
+          await FontUtil().loadFont(_fontUrl, _fontFamily);
+        }
+
+        _isInitialized = true;
+        notifyListeners();
+      }, '初始化 ThemeProvider 时出错');
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始化 ThemeProvider 时出错', e, stackTrace);
+    }
+  }
+
+  // 批量加载所有设置
+  Future<Map<String, dynamic>> _loadAllSettings() async {
+    return {
+      'fontFamily': SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily),
+      'fontUrl': SpUtil.getString('appFontUrl', defValue: ''),
+      'textScaleFactor': SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor),
+      'isBingBg': SpUtil.getBool('bingBg', defValue: Config.defaultBingBg),
+      'isTV': SpUtil.getBool('isTV', defValue: false),
+      'isLogOn': SpUtil.getBool('LogOn', defValue: Config.defaultLogOn),
+    };
+  }
+
+  // 批量应用所有设置
+  void _applySettings(Map<String, dynamic> settings) {
+    _fontFamily = settings['fontFamily'] ?? Config.defaultFontFamily;
+    _fontUrl = settings['fontUrl'] ?? '';
+    _textScaleFactor = settings['textScaleFactor'] ?? Config.defaultTextScaleFactor;
+    _isBingBg = settings['isBingBg'] ?? Config.defaultBingBg;
+    _isTV = settings['isTV'] ?? false;
+    _isLogOn = settings['isLogOn'] ?? Config.defaultLogOn;
+    
+    LogUtil.setDebugMode(_isLogOn);
+    LogUtil.d(
+      '配置信息:\n'
+      '字体: $_fontFamily\n'
+      '字体 URL: $_fontUrl\n'
+      '文本缩放比例: $_textScaleFactor\n'
+      'Bing 背景启用: ${_isBingBg ? "启用" : "未启用"}\n'
+      '是否为 TV: ${_isTV ? "是 TV 设备" : "不是 TV 设备"}\n'
+      '日志开关状态: ${_isLogOn ? "已开启" : "已关闭"}'
+    );
+  }
+
   // 设置日志开关状态，捕获并记录异步操作中的异常
   Future<void> setLogOn(bool isOpen) async {
     try {
       if (_isLogOn != isOpen) {
         _isLogOn = isOpen;
-        SpUtil.putBool('LogOn', isOpen); // 使用 SpUtil 存储日志开关状态
-        LogUtil.setDebugMode(_isLogOn); // 在修改日志开关状态后再次设置日志开关
-        notifyListeners(); // 通知 UI 更新
+        await SpUtil.putBool('LogOn', isOpen);
+        LogUtil.setDebugMode(_isLogOn);
+        _shouldNotify = true;
+        _notifyIfNeeded();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置日志开关状态时出错', e, stackTrace);
@@ -98,9 +119,12 @@ class ThemeProvider extends ChangeNotifier {
       if (_fontFamily != fontFamilyName || _fontUrl != fontFullUrl) {
         _fontFamily = fontFamilyName;
         _fontUrl = fontFullUrl;
-        SpUtil.putString('appFontFamily', fontFamilyName); // 使用 SpUtil 存储字体
-        SpUtil.putString('appFontUrl', fontFullUrl);
-        notifyListeners(); // 通知 UI 更新
+        await Future.wait([
+          SpUtil.putString('appFontFamily', fontFamilyName),
+          SpUtil.putString('appFontUrl', fontFullUrl),
+        ]);
+        _shouldNotify = true;
+        _notifyIfNeeded();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置字体时出错', e, stackTrace);
@@ -112,8 +136,9 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_textScaleFactor != textScaleFactor) {
         _textScaleFactor = textScaleFactor;
-        SpUtil.putDouble('fontScale', textScaleFactor); // 使用 SpUtil 存储文本缩放比例
-        notifyListeners(); // 通知 UI 更新
+        await SpUtil.putDouble('fontScale', textScaleFactor);
+        _shouldNotify = true;
+        _notifyIfNeeded();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置文本缩放时出错', e, stackTrace);
@@ -125,8 +150,9 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isBingBg != isOpen) {
         _isBingBg = isOpen;
-        SpUtil.putBool('bingBg', isOpen); // 使用 SpUtil 存储 Bing 背景开关状态
-        notifyListeners(); // 通知 UI 更新
+        await SpUtil.putBool('bingBg', isOpen);
+        _shouldNotify = true;
+        _notifyIfNeeded();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置每日 Bing 背景时出错', e, stackTrace);
@@ -138,9 +164,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       bool deviceIsTV = await EnvUtil.isTV();
       if (_isTV != deviceIsTV) {
-        _isTV = deviceIsTV;
-        SpUtil.putBool('isTV', _isTV); // 使用 SpUtil 存储是否为 TV 的状态
-        notifyListeners(); // 通知 UI 更新
+        await setIsTV(deviceIsTV);
       }
       LogUtil.i('设备检测结果: 该设备${deviceIsTV ? "是" : "不是"}TV');
     } catch (error, stackTrace) {
@@ -153,8 +177,9 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isTV != isTV) {
         _isTV = isTV;
-        SpUtil.putBool('isTV', _isTV); // 使用 SpUtil 存储 TV 状态
-        notifyListeners(); // 通知 UI 更新
+        await SpUtil.putBool('isTV', _isTV);
+        _shouldNotify = true;
+        _notifyIfNeeded();
       }
     } catch (error, stackTrace) {
       LogUtil.logError('手动设置 TV 状态时出错', error, stackTrace);
