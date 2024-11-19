@@ -20,8 +20,8 @@ class DialogUtil {
   // 初始化焦点节点的方法
   static void _initFocusNodes(int count) {
     _focusNodes.clear();
+    _focusNodes.addAll(List.generate(count, (index) => FocusNode()));
     focusIndex = 1;
-    _focusNodes = List.generate(count, (index) => FocusNode());
   }
 
   // 优化日志处理逻辑
