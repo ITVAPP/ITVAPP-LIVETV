@@ -146,9 +146,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
-   if (widget.isAudio && widget.controller != null) {
-     widget.controller!.removeEventsListener(_videoListener);
-   }
     super.dispose();
   }
 
