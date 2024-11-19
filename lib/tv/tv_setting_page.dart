@@ -21,6 +21,12 @@ class TvSettingPage extends StatefulWidget {
 }
 
 class TvSettingPageState extends State<TvSettingPage> {
+  // 提取标题样式为静态常量
+  static const _titleStyle = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.bold,
+  );
+
   int selectedIndex = 0; // 当前选中的菜单索引
   int _confirmedIndex = 0; // 用户确认选择后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
@@ -156,10 +162,6 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 获取当前语言
-    final languageProvider = Provider.of<LanguageProvider>(context);
-
-    // 使用 FocusScope 包裹父页面的 TvKeyNavigation
     return FocusScope(
       child: TvKeyNavigation(
         focusNodes: focusNodes, 
@@ -198,10 +200,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                       builder: (context, languageProvider, child) {
                         return Text(
                           S.of(context).settings, // 页面标题
-                          style: const TextStyle(
-                            fontSize: 22, // 设置字号
-                            fontWeight: FontWeight.bold, // 设置加粗
-                          ),
+                          style: _titleStyle,
                         );
                       },
                     ),
