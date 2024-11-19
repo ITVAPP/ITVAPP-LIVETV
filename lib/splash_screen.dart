@@ -134,9 +134,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 ? _portraitImage // 选择竖屏或横屏的启动图片
                 : _landscapeImage,
             fit: BoxFit.cover, // 图片覆盖整个屏幕
-            // 图片缓存策略
-            cacheWidth: MediaQuery.of(context).size.width.toInt(),
-            cacheHeight: MediaQuery.of(context).size.height.toInt(),
           ),
           FutureBuilder<M3uResult>(
             future: _m3uDataFuture, // 传入异步 Future
