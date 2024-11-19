@@ -219,13 +219,6 @@ Future<void> _playVideo() async {
           controlsConfiguration: const BetterPlayerControlsConfiguration(
              showControls: true,                   // 是否显示所有控件
              loadingWidget: const CircularProgressIndicator(),            // 是否显示缓冲进度指示器
-             showControlsOnInitialize: false,      // 初始化时是否显示控件
-             showPlayButton: false,                // 是否显示播放/暂停按钮
-             showFullScreenButton: false,          // 是否显示全屏切换按钮
-             showProgressBar: false,               // 是否显示进度条
-             showElapsedVideoTime: false,          // 是否显示已播放时间
-             showRemainingVideoTime: false,        // 是否显示剩余时间
-             showMuteButton: false,                // 是否显示静音按钮
              enableProgressBarDrag: false,         // 是否允许拖动进度条
              enableFullscreen: false,              // 是否启用全屏功能
              enablePip: false,                     // 是否启用画中画模式
