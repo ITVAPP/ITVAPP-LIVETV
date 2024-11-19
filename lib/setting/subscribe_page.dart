@@ -254,7 +254,7 @@ class _SubScribePageState extends State<SubScribePage> {
                                   // 显示M3U链接
                                   Text(
                                     model.link == 'default'
-                                        ? model.link!
+                                        ? S.current.appName
                                         : model.link!
                                             .split('?')
                                             .first
@@ -268,8 +268,8 @@ class _SubScribePageState extends State<SubScribePage> {
                                   Text(
                                     '${S.of(context).createTime}：${model.time}',
                                     style: TextStyle(
-                                        color: Colors.white.withOpacity(0.5),
-                                        fontSize: 14),  // 调整后的字号为 14
+                                        color: Colors.white,
+                                        fontSize: 15), 
                                   ),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
