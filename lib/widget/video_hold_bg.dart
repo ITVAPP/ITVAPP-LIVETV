@@ -142,7 +142,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
 
  /// 默认logo widget
  Widget get _defaultLogo => Image.asset(
-       'assets/images/logo.png',
+       'assets/images/logo-2.png',
        fit: BoxFit.cover,
      );
 
