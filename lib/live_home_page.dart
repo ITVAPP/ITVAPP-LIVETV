@@ -215,9 +215,10 @@ Future<void> _playVideo() async {
           errorBuilder: (BuildContext context, String? errorMessage) {
              return const SizedBox.shrink();
           },
-          // 禁用控制UI
+          // 只开启缓冲进度控件
           controlsConfiguration: const BetterPlayerControlsConfiguration(
-             showControls: false,
+             // showControls: false,
+             showBufferingWidget: true,
           ),
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
@@ -240,7 +241,7 @@ Future<void> _playVideo() async {
         );
         
         // 禁用所有控件
-        newController.setControlsEnabled(false);
+        // newController.setControlsEnabled(false);
 
         try {
             await newController.setupDataSource(dataSource);
