@@ -746,7 +746,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
              if (widget.showBingBackground)
                AudioBarsWrapper(
                  audioBarKey: _audioBarKey,
-                 isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER",
+                 isActive: widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString == "",
                ),
 
              // Logo层
@@ -757,7 +757,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
                ),
 
              // Toast层
-             if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER")
+             if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                ToastDisplay(
                  message: widget.toastString!,
                  isPortrait: isPortrait,
@@ -781,7 +781,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
    // 处理音柱动画的暂停/恢复
    if (widget.showBingBackground) {
      if (oldWidget.toastString != widget.toastString) {
-       if (widget.toastString != null && widget.toastString != "HIDE_CONTAINER") {
+       if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) {
          _audioBarKey.currentState?.pauseAnimation();
        } else {
          _audioBarKey.currentState?.resumeAnimation();
