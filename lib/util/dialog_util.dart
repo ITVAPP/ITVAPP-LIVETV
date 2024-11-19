@@ -84,7 +84,7 @@ class DialogUtil {
                constraints: BoxConstraints(maxHeight: maxDialogHeight),
                decoration: const BoxDecoration(
                  color: Color(0xFF2B2D30),
-                 borderRadius: BorderRadius.all(Radius.circular(8)),
+                 borderRadius: BorderRadius.all(Radius.circular(16)),
                  gradient: LinearGradient(
                    colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)],
                    begin: Alignment.topCenter,
