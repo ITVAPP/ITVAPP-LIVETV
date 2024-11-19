@@ -31,6 +31,7 @@ class LanzouParser {
   }
 
   /// 新增：获取重定向后的最终URL
+  /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
   static Future<String?> _getFinalUrl(String url, Map<String, String> headers) async {
     try {
       final client = http.Client();
@@ -144,6 +145,7 @@ class LanzouParser {
   }
 
   /// 修改：从JSON响应中提取下载URL并获取最终直链
+  /// 在解析成功的JSON响应中提取下载链接并解析最终的直链URL
   static Future<String> _extractDownloadUrl(String response) async {
     try {
       final json = jsonDecode(response);
