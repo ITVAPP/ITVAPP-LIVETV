@@ -111,7 +111,7 @@ class TvSettingPageState extends State<TvSettingPage> {
             color: Colors.white,
           ), // 设置文字大小
         ), // 标题
-        selected: _isSelected, // 判断是否选中
+        selected: isSelected, // 判断是否选中
         selectedTileColor: selectedColor, // 设置选中时的背景色
         tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 聚焦时显示黄色，选中时显示红色，否则透明
         onTap: () {
