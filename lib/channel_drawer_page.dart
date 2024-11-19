@@ -34,9 +34,9 @@ final horizontalDivider = Container(
   decoration: BoxDecoration(
     gradient: LinearGradient(
       colors: [
-        Colors.white.withOpacity(0.1),
+        Colors.white.withOpacity(0.08),
         Colors.white.withOpacity(0.2),
-        Colors.white.withOpacity(0.1),
+        Colors.white.withOpacity(0.08),
       ],
     ),
   ),
