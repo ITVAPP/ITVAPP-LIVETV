@@ -436,16 +436,14 @@ Future<void> _disposePlayer() async {
       
       // 5. 释放播放器资源 
       try {
-        if (currentController.videoPlayerController != null && !currentController.videoPlayerController!.isDisposed())  {
+        if (currentController.videoPlayerController != null)  {
           // 强制释放视频控制器
           currentController.videoPlayerController!.dispose();
           await Future.delayed(const Duration(milliseconds: 300));
         }
         
-        // 6. 最后释放主控制器
-        if (!currentController.isDisposed()) {
+          // 最后释放主控制器
           currentController.dispose(); 
-        }
       } catch (e) {
         LogUtil.logError('释放播放器资源时出错', e);
       }
