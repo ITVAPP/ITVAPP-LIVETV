@@ -243,6 +243,7 @@ void _videoListener(BetterPlayerEvent event) {
         case BetterPlayerEventType.exception:
             final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
             LogUtil.e('监听到播放器错误：$errorMessage');
+            _handleError();
             break;
         
         // 当事件类型为缓冲开始、缓冲更新时，更新缓冲状态
