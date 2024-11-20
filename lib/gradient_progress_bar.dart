@@ -73,7 +73,7 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
     _controller = AnimationController(
       duration: widget.duration, // 动画持续时间
       vsync: this, // 使用单一动画提供者
-    )..repeat(reverse: true); // 修改：添加 reverse 参数，使动画来回播放
+    )..repeat(); // 修改：移除 reverse 参数，实现单向动画
   }
 
   @override
