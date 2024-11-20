@@ -135,8 +135,8 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
         // 使用动画值动态调整颜色停靠点，实现滚动效果
         (value - 0.1).clamp(0.0, 1.0), // 左侧透明到白色的渐变点
         value.clamp(0.0, 1.0), // 左侧白色位置
-        (value + 0.1).clamp(0.0, 1.0), // 右侧白色位置
-        (value + 0.2).clamp(0.0, 1.0), // 白色到透明的渐变点
+        (value + 0.08).clamp(0.0, 1.0), // 右侧白色位置
+        (value + 0.12).clamp(0.0, 1.0), // 白色到透明的渐变点
       ],
       begin: Alignment.centerLeft, // 渐变开始位置
       end: Alignment.centerRight, // 渐变结束位置
