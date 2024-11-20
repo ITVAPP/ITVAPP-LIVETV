@@ -76,35 +76,9 @@ class BetterPlayerConfig {
         placeholderAsset, // 图片资源路径
         fit: BoxFit.cover, // 图片填充方式
       ),
-      loadingStyle: LoadingStyle.hidden,  // 隐藏默认loading样式
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
-        controlBarColor: Colors.transparent, // 控制栏背景颜色
-        backgroundColor: Colors.transparent, // 控制栏整体背景色
-        textColor: Colors.white, // 文本颜色
-        iconsColor: Colors.white, // 图标颜色
-        showControls: true, // 禁用默认控制
-        enableFullscreen: false, // 是否启用全屏按钮
-        enableMute: false, // 是否启用静音按钮
-        enableProgressText: false, // 是否显示进度时间文本
-        enableProgressBar: false, // 是否显示进度条
-        enableProgressBarDrag: false, // 是否允许拖动进度条
-        enablePlayPause: false, // 是否启用播放/暂停按钮
-        enableSkips: false, // 是否启用快进/快退按钮
-        enableOverflowMenu: false, // 是否显示溢出菜单
-        enablePlaybackSpeed: false, // 是否允许调整播放速度
-        enableSubtitles: false, // 是否启用字幕
-        enableQualities: false, // 是否启用视频质量选择
-        enablePip: false, // 是否启用画中画
-        enableRetry: false, // 是否启用重试按钮
-        enableAudioTracks: false, // 是否启用音轨选择
-        enableLive: false, // 禁用直播文字显示
-        handleTap: false,      // 禁用点击事件
-        enableGestures: false, // 禁用手势操作
-        loadingWidget: const SizedBox.shrink(), // 禁用默认loading组件
-        controlsHideTime: Duration.zero, // 立即隐藏控制栏
-        showControlsOnInitialize: false, // 是否在初始化时显示控制栏
-        overflowMenuCustomItems: const [], // 自定义溢出菜单项
+        showControls: false, // 禁用默认控制
         // 自定义控制栏构建器
         customControlsBuilder: (BetterPlayerController controller, Function(bool) onControlsVisibilityChanged) {
           return CustomVideoControls(
