@@ -60,12 +60,12 @@ class BetterPlayerConfig {
   }) {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
-      autoPlay: false, // 是否自动播放
-      looping: true, // 是否循环播放
-      allowedScreenSleep: false, // 禁止屏幕休眠
-      autoDispose: false, // 禁止自动释放资源
-      expandToFill: true, // 是否填充剩余空间
-      handleLifecycle: false, // 禁用生命周期管理
+      autoPlay: false, // 自动播放
+      looping: true, // 循环播放
+      allowedScreenSleep: false, // 屏幕休眠
+      autoDispose: false, // 自动释放资源
+      expandToFill: true, // 填充剩余空间
+      handleLifecycle: true, // 生命周期管理
       // 错误界面构建器（此处使用背景图片）
       errorBuilder: (_, __) => _backgroundImage,
       // 设置播放器占位图片
