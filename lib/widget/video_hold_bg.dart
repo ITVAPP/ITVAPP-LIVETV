@@ -797,7 +797,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     );
   }
 
-  @Override
+  @override
   void didUpdateWidget(VideoHoldBg oldWidget) {
     super.didUpdateWidget(oldWidget);
 
@@ -820,7 +820,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  @Override
+  @override
   void dispose() {
     // 更新状态，锁定动画并确保没有正在进行的背景切换
     final currentState = _backgroundState.value;
