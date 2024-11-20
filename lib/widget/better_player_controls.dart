@@ -155,14 +155,13 @@ class CustomVideoControls extends StatelessWidget {
             // 缓冲状态显示
             Positioned.fill(
               child: Center(
-                child: StreamBuilder<bool>(
-                  // 使用流替代 ValueListenable，以检测缓冲状态
-                  stream: controller.isBuffering(),
-                  initialData: false,
-                  builder: (context, snapshot) {
-                    // 安全地处理可能为 null 的数据
-                    final isBuffering = snapshot.data ?? false;
-                    if ((isBuffering || !controller.isVideoInitialized()) &&
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: controller.bufferingNotifier ??
+                      ValueNotifier<bool>(false),
+                  builder: (context, isBuffering, child) {
+                    final isInitialized = controller.isVideoInitialized() ?? false;
+                    
+                    if ((isBuffering || !isInitialized) &&
                         toastString != "HIDE_CONTAINER") {
                       return _BufferingContainer(
                         isPortrait: isPortrait,
@@ -171,7 +170,7 @@ class CustomVideoControls extends StatelessWidget {
                         toastString: toastString,
                       );
                     }
-                    return const SizedBox.shrink(); // 不显示内容
+                    return const SizedBox.shrink();
                   },
                 ),
               ),
