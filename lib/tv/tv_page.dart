@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:better_player/better_player.dart';
+import '../entity/playlist_model.dart';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
-import '../channel_drawer_page.dart';
-import '../entity/playlist_model.dart';
+import 'package:itvapp_live_tv/widget/scrolling_toast_message.dart';
 import '../util/log_util.dart';
 import '../util/custom_snackbar.dart';
+import '../channel_drawer_page.dart';
+import '../gradient_progress_bar.dart';
 import '../generated/l10n.dart';
 
 // 播放器组件，用于视频播放的核心组件
@@ -156,7 +158,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-
+  
   // 更新图标状态的方法，控制播放、暂停、显示日期等图标的显隐
   void _updateIconState({
     bool? showPause,
@@ -331,7 +333,7 @@ Future<bool?> _opensetting() async {
     );
   }
   
-// 处理键盘事件，包括方向键和选择键的逻辑处理
+  // 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
@@ -459,8 +461,13 @@ Future<bool?> _opensetting() async {
     );
   }
   
-@override
+  @override
   Widget build(BuildContext context) {
+    // 新增：计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
+    final progressBarWidth = widget.isLandscape
+        ? MediaQuery.of(context).size.width * 0.3
+        : MediaQuery.of(context).size.width * 0.5;
+
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
@@ -485,6 +492,31 @@ Future<bool?> _opensetting() async {
                     isError: _isError,
                     isAudio: widget.isAudio,
                   ),
+                  
+                  // 新增：进度条和消息提示组件
+                  if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 12,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GradientProgressBar(
+                              width: progressBarWidth,
+                              height: 5,
+                            ),
+                            const SizedBox(height: 5),
+                            ScrollingToastMessage(
+                              message: widget.toastString!,
+                              containerWidth: constraints.maxWidth,
+                              isLandscape: widget.isLandscape,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   
                   // 使用 ValueListenableBuilder 监听图标状态
                   ValueListenableBuilder<IconState>(
