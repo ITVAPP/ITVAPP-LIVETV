@@ -215,6 +215,11 @@ Future<void> _playVideo() async {
           errorBuilder: (BuildContext context, String? errorMessage) {
              return const SizedBox.shrink();
           },
+          // 添加背景图片
+          placeholder: Image.asset(
+          'assets/images/video_bg.png',  // 图片资源路径
+          fit: BoxFit.cover,              // 图片填充方式
+          ),
           // 只开启缓冲进度控件
           controlsConfiguration: const BetterPlayerControlsConfiguration(
                   // 控制栏颜色和样式
