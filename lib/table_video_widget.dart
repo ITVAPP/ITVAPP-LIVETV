@@ -428,13 +428,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       _buildControlIcon(icon: Icons.pause), // 显示暂停图标
                       
                    // 显示进度条和提示信息
-                   if (widget.toastString != null &&
-                       !["HIDE_CONTAINER", ""].contains(widget.toastString) &&
-                       (widget.isBuffering || !widget.isPlaying))
+                   if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                      Positioned(
                        left: 0,
                        right: 0,
-                       bottom: 15,
+                       bottom: 12,
                        child: Column(
                          mainAxisSize: MainAxisSize.min,
                          children: [
@@ -443,7 +441,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                              width: progressBarWidth, // 竖屏宽度50%
                              height: 5,
                            ),
-                           const SizedBox(height: 6),
+                           const SizedBox(height: 5),
                            // Toast消息
                            Text(
                              widget.toastString!,
