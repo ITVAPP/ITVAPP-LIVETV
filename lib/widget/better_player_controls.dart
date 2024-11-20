@@ -6,6 +6,11 @@ import '../gradient_progress_bar.dart';
 /// 播放器配置工具类
 class BetterPlayerConfig {
   /// 创建播放器数据源配置
+  ///
+  /// 参数说明：
+  /// - [url]: 视频播放地址
+  /// - [isHls]: 是否为 HLS 格式（直播流）
+  /// - [headers]: 自定义请求头（可选）
   static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
@@ -14,26 +19,29 @@ class BetterPlayerConfig {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      liveStream: isHls,          // 根据URL判断是否为直播流
-      useAsmsTracks: isHls,       // 不是 HLS 时关闭 
-      useAsmsAudioTracks: isHls,    // 不是 HLS 时关闭
-      useAsmsSubtitles: false,    // 禁用字幕减少开销
-      // 禁用系统通知栏的播放控制
+      liveStream: isHls, // 根据 URL 判断是否为直播流
+      useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
+      useAsmsAudioTracks: isHls, // 同上
+      useAsmsSubtitles: false, // 禁用字幕以降低播放开销
+      // 配置系统通知栏行为（此处关闭通知栏播放控制）
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
         showNotification: false,
       ),
+      // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 10000,            // 最小缓冲时间(10秒)
-        maxBufferMs: 60000,           // 最大缓冲时间(60秒)
-        bufferForPlaybackMs: 5000,     // 开始播放所需的最小缓冲(5秒)
-        bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
+        minBufferMs: 10000, // 最小缓冲时间，单位毫秒（10秒）
+        maxBufferMs: 60000, // 最大缓冲时间，单位毫秒（60秒）
+        bufferForPlaybackMs: 5000, // 播放前的最小缓冲时间，单位毫秒（5秒）
+        bufferForPlaybackAfterRebufferMs: 5000, // 重缓冲后的最小播放缓冲时间
       ),
+      // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: !isHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
-        preCacheSize: 10 * 1024 * 1024, // 预缓存大小
-        maxCacheSize: 300 * 1024 * 1024, // 最大缓存大小
-        maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
+        useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
+        preCacheSize: 10 * 1024 * 1024, // 预缓存大小（10MB）
+        maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
+        maxCacheFileSize: 30 * 1024 * 1024, // 单个缓存文件大小限制（30MB）
       ),
+      // 请求头设置，提供默认 User-Agent
       headers: headers ?? {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
       },
@@ -41,70 +49,72 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器基本配置
+  ///
+  /// 参数说明：
+  /// - [toastString]: 显示提示信息的字符串
+  /// - [eventListener]: 事件监听器
+  /// - [placeholderAsset]: 占位图片资源路径（默认使用本地图片）
   static BetterPlayerConfiguration createPlayerConfig({
     required String toastString,
     required Function(BetterPlayerEvent) eventListener,
     String placeholderAsset = 'assets/images/video_bg.png',
   }) {
     return BetterPlayerConfiguration(
-      fit: BoxFit.contain,        // 自动缩放
-      autoPlay: false,              // 自动播放
-      looping: true,        // 开启循环播放
-      allowedScreenSleep: false,   // 禁止屏幕休眠
-      autoDispose: false,         // 自动释放资源
-      expandToFill: true,         //  自动填充剩余空间
-      handleLifecycle: true,     // 自动处理生命周期事件
-      // 禁用错误处理UI
+      fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
+      autoPlay: false, // 是否自动播放
+      looping: true, // 是否循环播放
+      allowedScreenSleep: false, // 禁止屏幕休眠
+      autoDispose: false, // 禁止自动释放资源
+      expandToFill: true, // 是否填充剩余空间
+      handleLifecycle: true, // 是否处理生命周期事件（例如暂停/恢复）
+      // 错误界面构建器（此处使用空白组件）
       errorBuilder: (BuildContext context, String? errorMessage) {
-         return const SizedBox.shrink();
+        return const SizedBox.shrink();
       },
-      // 添加背景图片
+      // 设置播放器占位图片
       placeholder: Image.asset(
-        placeholderAsset,  // 图片资源路径
-        fit: BoxFit.cover,              // 图片填充方式
+        placeholderAsset, // 图片资源路径
+        fit: BoxFit.cover, // 图片填充方式
       ),
-      // 只开启缓冲进度控件
+      // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
-        // 控制栏颜色和样式
-        controlBarColor: Colors.transparent,  
-        backgroundColor: Colors.transparent,
-        textColor: Colors.white,             
-        iconsColor: Colors.white,            
-        // 功能开关
-        showControls: true,                  
-        enableFullscreen: false,             
-        enableMute: false,                   
-        enableProgressText: false,           
-        enableProgressBar: false,            
-        enableProgressBarDrag: false,        
-        enablePlayPause: false,              
-        enableSkips: false,                  
-        enableOverflowMenu: false,           
-        enablePlaybackSpeed: false,          
-        enableSubtitles: false,              
-        enableQualities: false,              
-        enablePip: false,                    
-        enableRetry: false,                  
-        enableAudioTracks: false, 
-        // 其他设置
-        controlsHideTime: const Duration(seconds: 3),       
-        showControlsOnInitialize: false,                
-        overflowMenuCustomItems: const [],            
-        // 自定义控件构建器
-        customControlsBuilder: (controller) {
+        controlBarColor: Colors.transparent, // 控制栏背景颜色
+        backgroundColor: Colors.transparent, // 控制栏整体背景色
+        textColor: Colors.white, // 文本颜色
+        iconsColor: Colors.white, // 图标颜色
+        showControls: true, // 是否显示控制栏
+        enableFullscreen: false, // 是否启用全屏按钮
+        enableMute: false, // 是否启用静音按钮
+        enableProgressText: false, // 是否显示进度时间文本
+        enableProgressBar: false, // 是否显示进度条
+        enableProgressBarDrag: false, // 是否允许拖动进度条
+        enablePlayPause: false, // 是否启用播放/暂停按钮
+        enableSkips: false, // 是否启用快进/快退按钮
+        enableOverflowMenu: false, // 是否显示溢出菜单
+        enablePlaybackSpeed: false, // 是否允许调整播放速度
+        enableSubtitles: false, // 是否启用字幕
+        enableQualities: false, // 是否启用视频质量选择
+        enablePip: false, // 是否启用画中画
+        enableRetry: false, // 是否启用重试按钮
+        enableAudioTracks: false, // 是否启用音轨选择
+        controlsHideTime: const Duration(seconds: 3), // 控制栏隐藏时间
+        showControlsOnInitialize: false, // 是否在初始化时显示控制栏
+        overflowMenuCustomItems: const [], // 自定义溢出菜单项
+        // 自定义控制栏构建器
+        customControlsBuilder: (BetterPlayerController controller, Function(bool) onControlsVisibilityChanged) {
           return CustomVideoControls(
             controller: controller,
             toastString: toastString,
           );
         },
       ),
-      // 全屏后支持的设备方向
+      // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
         DeviceOrientation.portraitUp,
       ],
-      // 设置事件监听器
+      // 事件监听器
       eventListener: eventListener,
     );
   }
@@ -125,15 +135,16 @@ class CustomVideoControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // 检测当前设备方向
         final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
         final mediaQuery = MediaQuery.of(context);
-        
-        // 计算进度条宽度
-        final progressBarWidth = isPortrait 
-            ? mediaQuery.size.width * 0.5 
+
+        // 根据方向调整进度条宽度
+        final progressBarWidth = isPortrait
+            ? mediaQuery.size.width * 0.5
             : mediaQuery.size.width * 0.3;
-            
-        // 文本样式
+
+        // 设置文本样式
         final textStyle = TextStyle(
           color: Colors.white,
           fontSize: isPortrait ? 16 : 18,
@@ -141,12 +152,17 @@ class CustomVideoControls extends StatelessWidget {
 
         return Stack(
           children: [
+            // 缓冲状态显示
             Positioned.fill(
               child: Center(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: controller.bufferingNotifier,
-                  builder: (context, isBuffering, child) {
-                    if ((isBuffering || !controller.isVideoInitialized()) && 
+                child: StreamBuilder<bool>(
+                  // 使用流替代 ValueListenable，以检测缓冲状态
+                  stream: controller.isBuffering(),
+                  initialData: false,
+                  builder: (context, snapshot) {
+                    // 安全地处理可能为 null 的数据
+                    final isBuffering = snapshot.data ?? false;
+                    if ((isBuffering || !controller.isVideoInitialized()) &&
                         toastString != "HIDE_CONTAINER") {
                       return _BufferingContainer(
                         isPortrait: isPortrait,
@@ -155,14 +171,14 @@ class CustomVideoControls extends StatelessWidget {
                         toastString: toastString,
                       );
                     }
-                    return const SizedBox.shrink();
+                    return const SizedBox.shrink(); // 不显示内容
                   },
                 ),
               ),
             ),
           ],
         );
-      }
+      },
     );
   }
 }
@@ -186,25 +202,26 @@ class _BufferingContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black26,
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        color: Colors.black26, // 半透明背景
+        borderRadius: const BorderRadius.all(Radius.circular(8)), // 圆角边框
       ),
       padding: EdgeInsets.symmetric(
-        vertical: isPortrait ? 12 : 15,
-        horizontal: isPortrait ? 16 : 20,
+        vertical: isPortrait ? 12 : 15, // 竖屏和横屏的垂直内边距
+        horizontal: isPortrait ? 16 : 20, // 竖屏和横屏的水平内边距
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.min, // 组件大小适配内容
         children: [
+          // 渐变进度条
           GradientProgressBar(
-            width: progressBarWidth,
-            height: 5,
+            width: progressBarWidth, // 进度条宽度
+            height: 5, // 进度条高度
           ),
-          SizedBox(height: isPortrait ? 8 : 10),
+          SizedBox(height: isPortrait ? 8 : 10), // 添加间距
           Text(
-            toastString,
-            style: textStyle,
-            textAlign: TextAlign.center,
+            toastString, // 提示信息
+            style: textStyle, // 应用样式
+            textAlign: TextAlign.center, // 居中对齐
           ),
         ],
       ),
