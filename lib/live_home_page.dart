@@ -246,9 +246,11 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为异常时，调用错误处理函数
         case BetterPlayerEventType.exception:
-            final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-            LogUtil.e('监听到播放器错误：$errorMessage');
-            _handleError();
+            if (!_isSwitchingChannel){ 
+               final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+               LogUtil.e('监听到播放器错误：$errorMessage');
+               _handleError();
+            }
             break;
 
         // 当事件类型为缓冲开始时，重置进度
@@ -347,7 +349,7 @@ void _startTimeoutCheck() {
 
 /// 重试播放方法，用于重新尝试播放失败的视频
 void _retryPlayback() {
-    if (_isRetrying) return;
+    if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
     
     _timeoutActive = false;  // 重试期间取消超时检测
 
@@ -371,6 +373,8 @@ void _retryPlayback() {
 
 /// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
+    if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
+    	
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
