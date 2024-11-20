@@ -9,6 +9,7 @@ import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
+import 'gradient_progress_bar.dart';
 import 'generated/l10n.dart';
 
 // 视频 UI 状态管理类，用于管理播放器界面不同组件的显示状态
@@ -386,7 +387,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   @override
   Widget build(BuildContext context) {
     final playerHeight = MediaQuery.of(context).size.width / (16 / 9); // 视频播放器高度，根据 16:9 比例计算
-
+    // 在每次重建时动态计算宽度和字体大小
+   final progressBarWidth = widget.isLandscape
+       ? MediaQuery.of(context).size.width * 0.3
+       : MediaQuery.of(context).size.width * 0.5;
+   final messageFontSize = widget.isLandscape ? 18.0 : 16.0;
+  
     return ValueListenableBuilder<VideoUIState>(
       valueListenable: _uiStateNotifier, // 绑定状态监听器
       builder: (context, uiState, child) {
@@ -420,6 +426,35 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       ),
                     if (uiState.showPauseIcon)
                       _buildControlIcon(icon: Icons.pause), // 显示暂停图标
+                      
+                   // 显示进度条和提示信息
+                   if (widget.toastString != null &&
+                       !["HIDE_CONTAINER", ""].contains(widget.toastString) &&
+                       (widget.isBuffering || !widget.isPlaying))
+                     Positioned(
+                       left: 0,
+                       right: 0,
+                       bottom: 15,
+                       child: Column(
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                           // 进度条
+                           GradientProgressBar(
+                             width: progressBarWidth, // 竖屏宽度50%
+                             height: 5,
+                           ),
+                           const SizedBox(height: 6),
+                           // Toast消息
+                           Text(
+                             widget.toastString!,
+                             style: TextStyle(
+                               color: Colors.white,
+                               fontSize: messageFontSize, 
+                             ),
+                           ),
+                         ],
+                       ),
+                     ),
                   ],
                 ),
               ),
