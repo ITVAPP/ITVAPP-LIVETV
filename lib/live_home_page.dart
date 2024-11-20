@@ -270,17 +270,25 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
         
-        // 当事件类型为播放或暂停时，更新播放状态
+        // 当事件类型为播放时
         case BetterPlayerEventType.play:
+            if (mounted) {
+                setState(() {
+                    isPlaying = true;
+                    // 只有在非缓冲状态下才隐藏提示
+                    if (!isBuffering) {
+                        toastString = 'HIDE_CONTAINER';
+                    }
+                });
+            }
+            break;
+    
+        // 当事件类型为暂停时
         case BetterPlayerEventType.pause:
             if (mounted) {
                 setState(() {
-                    // 如果事件类型为 play，将 isPlaying 设为 true；pause 时设为 false
-                    isPlaying = event.betterPlayerEventType == BetterPlayerEventType.play;
-                    // 只有在非缓冲状态下才隐藏提示
-                    if (!isBuffering) {
-                        toastString = 'HIDE_CONTAINER';  // 不渲染VideoHoldBg底部容器
-                    }
+                    isPlaying = false;
+                    toastString = S.current.playpause;
                 });
             }
             break;
