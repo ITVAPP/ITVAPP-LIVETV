@@ -23,6 +23,7 @@ import 'util/dialog_util.dart';
 import 'util/custom_snackbar.dart';
 import 'util/channel_util.dart';
 import 'util/traffic_analytics.dart';
+import 'widget/Better_Player_controls.dar';
 import 'widget/empty_page.dart';
 import 'widget/show_exit_confirm.dart';
 import 'entity/playlist_model.dart';
@@ -173,151 +174,16 @@ Future<void> _playVideo() async {
 
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
 
-        // 播放器的数据源配置
-        BetterPlayerDataSource dataSource = BetterPlayerDataSource(
-          BetterPlayerDataSourceType.network,
-          parsedUrl, 
-          liveStream: isHls,          // 根据URL判断是否为直播流
-          useAsmsTracks: isHls,       // 不是 HLS 时关闭 
-          useAsmsAudioTracks: isHls,    // 不是 HLS 时关闭
-          useAsmsSubtitles: false,    // 禁用字幕减少开销
-          // 禁用系统通知栏的播放控制
-          notificationConfiguration: const BetterPlayerNotificationConfiguration(
-            showNotification: false,
-          ),
-          bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-            minBufferMs: 10000,            // 最小缓冲时间(10秒)
-            maxBufferMs: 60000,           // 最大缓冲时间(60秒)
-            bufferForPlaybackMs: 5000,     // 开始播放所需的最小缓冲(5秒)
-            bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
-          ),
-          cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: !isHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
-            preCacheSize: 10 * 1024 * 1024, // 预缓存大小
-            maxCacheSize: 300 * 1024 * 1024, // 最大缓存大小
-            maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
-          ),
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-          },
+        // 使用配置工具类创建数据源
+        final dataSource = VideoPlayerConfig.createDataSource(
+          url: parsedUrl,
+          isHls: isHls,
         );
 
-        // 播放器基本配置
-        BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
-          fit: BoxFit.contain,        // 自动缩放
-          autoPlay: false,              // 自动播放
-          looping: true,        // 开启循环播放
-          allowedScreenSleep: false,   // 禁止屏幕休眠
-          autoDispose: false,         // 自动释放资源
-          expandToFill: true,         //  自动填充剩余空间
-          handleLifecycle: true,     // 自动处理生命周期事件
-          // 禁用错误处理UI
-          errorBuilder: (BuildContext context, String? errorMessage) {
-             return const SizedBox.shrink();
-          },
-          // 添加背景图片
-          placeholder: Image.asset(
-          'assets/images/video_bg.png',  // 图片资源路径
-          fit: BoxFit.cover,              // 图片填充方式
-          ),
-          // 只开启缓冲进度控件
-          controlsConfiguration: const BetterPlayerControlsConfiguration(
-                  // 控制栏颜色和样式
-                  controlBarColor: Colors.transparent,  
-                  backgroundColor: Colors.transparent,
-                  textColor: Colors.white,             
-                  iconsColor: Colors.white,            
-                  // 功能开关
-                  showControls: true,                  
-                  enableFullscreen: false,             
-                  enableMute: false,                   
-                  enableProgressText: false,           
-                  enableProgressBar: false,            
-                  enableProgressBarDrag: false,        
-                  enablePlayPause: false,              
-                  enableSkips: false,                  
-                  enableOverflowMenu: false,           
-                  enablePlaybackSpeed: false,          
-                  enableSubtitles: false,              
-                  enableQualities: false,              
-                  enablePip: false,                    
-                  enableRetry: false,                  
-                  enableAudioTracks: false, 
-                  // 其他设置
-                  controlsHideTime: const Duration(seconds: 3),       
-                  showControlsOnInitialize: false,                
-                  overflowMenuCustomItems: const [],            
-                  // 自定义控件构建器
-                  customControlsBuilder: (BetterPlayerController controller) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-                      final mediaQuery = MediaQuery.of(context);
-                      // 根据屏幕方向计算进度条宽度
-                      final progressBarWidth = isPortrait 
-                          ? mediaQuery.size.width * 0.5 
-                          : mediaQuery.size.width * 0.3;
-                      // 根据屏幕方向设置文本样式    
-                      final textStyle = TextStyle(
-                        color: Colors.white,
-                        fontSize: isPortrait ? 16 : 18,
-                      );
-                      return Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Center(
-                              child: ValueListenableBuilder<bool>(
-                                valueListenable: controller.bufferingNotifier,
-                                builder: (context, isBuffering, child) {
-                                  if ((isBuffering || !controller.isVideoInitialized()) && 
-                                      toastString != "HIDE_CONTAINER") {
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.black26,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: isPortrait ? 12 : 15,  // 根据方向调整内边距
-                                        horizontal: isPortrait ? 16 : 20,
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          GradientProgressBar(
-                                            width: progressBarWidth
-                                            height: 5,  // 根据方向调整高度
-                                          ),
-                                          SizedBox(height: isPortrait ? 8 : 10),
-                                          Text(
-                                            toastString,
-                                            style: textStyle,  // 使用动态计算的文本样式
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }
-                                  return const SizedBox.shrink();
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                  );
-              },
-          ),
-          // 全屏后支持的设备方向
-          deviceOrientationsAfterFullScreen: [
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-            DeviceOrientation.portraitUp,
-          ],
-          // 设置事件监听器
-          eventListener: (BetterPlayerEvent event) {
-            _videoListener(event);
-          },
+        // 创建播放器配置
+        final betterPlayerConfiguration = VideoPlayerConfig.createPlayerConfig(
+          toastString: toastString,
+          eventListener: _videoListener,
         );
 
         // 启动超时检测
