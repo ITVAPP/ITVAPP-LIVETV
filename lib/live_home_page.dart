@@ -217,11 +217,91 @@ Future<void> _playVideo() async {
           },
           // 只开启缓冲进度控件
           controlsConfiguration: const BetterPlayerControlsConfiguration(
-             showControls: true,                   // 是否显示所有控件
-             loadingWidget: const CircularProgressIndicator(),            // 是否显示缓冲进度指示器
-             enableProgressBarDrag: false,         // 是否允许拖动进度条
-             enableFullscreen: false,              // 是否启用全屏功能
-             enablePip: false,                     // 是否启用画中画模式
+    // 控制栏颜色和样式
+    controlBarColor: Colors.black87,     
+    textColor: Colors.white,             
+    iconsColor: Colors.white,            
+    backgroundColor: Colors.black, 
+    // 功能开关
+    showControls: true,                  
+    enableFullscreen: false,             
+    enableMute: false,                   
+    enableProgressText: false,           
+    enableProgressBar: false,            
+    enableProgressBarDrag: false,        
+    enablePlayPause: false,              
+    enableSkips: false,                  
+    enableOverflowMenu: false,           
+    enablePlaybackSpeed: false,          
+    enableSubtitles: false,              
+    enableQualities: false,              
+    enablePip: false,                    
+    enableRetry: false,                  
+    enableAudioTracks: false, 
+    // 其他设置
+    controlsHideTime: const Duration(seconds: 3),       
+    showControlsOnInitialize: false,                
+    overflowMenuCustomItems: const [],            
+    // 自定义控件构建器
+    customControlsBuilder: (BetterPlayerController controller) {
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+                      final mediaQuery = MediaQuery.of(context);
+                      // 根据屏幕方向计算进度条宽度
+                      final progressBarWidth = isPortrait 
+                          ? mediaQuery.size.width * 0.5 
+                          : mediaQuery.size.width * 0.3;
+                      // 根据屏幕方向设置文本样式    
+                      final textStyle = TextStyle(
+                        color: Colors.white,
+                        fontSize: isPortrait ? 16 : 18,
+                      );
+                      return Stack(
+                        children: [
+                          Positioned.fill(
+                            child: Center(
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: controller.bufferingNotifier,
+                                builder: (context, isBuffering, child) {
+                                  if ((isBuffering || !controller.isVideoInitialized()) && 
+                                      toastString != "HIDE_CONTAINER") {
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black26,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: isPortrait ? 12 : 15,  // 根据方向调整内边距
+                                        horizontal: isPortrait ? 16 : 20,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          GradientProgressBar(
+                                            width: progressBarWidth
+                                            height: 5,  // 根据方向调整高度
+                                          ),
+                                          SizedBox(height: isPortrait ? 8 : 10),
+                                          Text(
+                                            toastString,
+                                            style: textStyle,  // 使用动态计算的文本样式
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                  );
+              },
           ),
           // 全屏后支持的设备方向
           deviceOrientationsAfterFullScreen: [
@@ -290,7 +370,8 @@ void _videoListener(BetterPlayerEvent event) {
         
         // 当事件类型为异常时，调用错误处理函数
         case BetterPlayerEventType.exception:
-                LogUtil.logError('监听到播放器错误', event.parameters?["error"]?.toString());
+        	final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+                LogUtil.e('监听到播放器错误：$errorMessage');
             break;
         
         // 当事件类型为缓冲开始、缓冲更新或缓冲结束时，更新缓冲状态
