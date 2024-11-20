@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:better_player/better_player.dart';
 import 'package:flutter/services.dart';
-import 'gradient_progress_bar.dart';
+import '../gradient_progress_bar.dart';
 
 /// 播放器配置工具类
 class VideoPlayerConfig {
