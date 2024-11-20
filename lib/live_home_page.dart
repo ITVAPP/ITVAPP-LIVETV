@@ -97,7 +97,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 声明变量，存储 StreamUrl 类的实例
   StreamUrl? _streamUrl;
 
-  // 添加当前播放URL变量
+  // 当前播放URL
   String? _currentPlayUrl;
 
   // 收藏列表相关
@@ -224,7 +224,11 @@ Future<void> _playVideo() async {
         LogUtil.logError('播放出错', e, stackTrace);
         _handleError(); 
     } finally {
-            _isSwitchingChannel = false;
+        if (mounted) {  // 添加 mounted 检查
+            setState(() {
+                _isSwitchingChannel = false;
+            });
+        }
     }
 }
 
@@ -397,8 +401,10 @@ void _handleSourceSwitch() {
 
     // 延迟后尝试新源
     _retryTimer = Timer(const Duration(seconds: 2), () {
-    	_isRetrying = false;
-        _retryCount = 0;
+            setState(() {
+               _isRetrying = false;
+               _retryCount = 0;
+            });
         _playVideo();
     });
 }
@@ -452,9 +458,10 @@ Future<void> _disposePlayer() async {
   } catch (e, stackTrace) {
     LogUtil.logError('释放播放器资源时出错', e, stackTrace);
   } finally {
-    _isDisposing = false; 
     if (mounted) {
-      setState(() {});
+      setState(() {
+         _isDisposing = false; 
+      });
     }
   }
 }
@@ -505,10 +512,12 @@ Future<void> _changeChannelSources() async {
     
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
-      _sourceIndex = selectedIndex;
-      _isSwitchingChannel = true;
-      _isRetrying = false;
-      _retryCount = 0;
+            setState(() {
+                  _sourceIndex = selectedIndex;
+                  _isSwitchingChannel = true;
+                  _isRetrying = false;
+                  _retryCount = 0;
+            });
       _playVideo();
     }
 }
