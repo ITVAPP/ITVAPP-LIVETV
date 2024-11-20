@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:better_player/better_player.dart';
 import 'package:flutter/services.dart';
+import 'package:better_player/better_player.dart';
 import '../gradient_progress_bar.dart';
 
 /// 播放器配置工具类
-class VideoPlayerConfig {
+class BetterPlayerConfig {
   /// 创建播放器数据源配置
   static BetterPlayerDataSource createDataSource({
     required String url,
