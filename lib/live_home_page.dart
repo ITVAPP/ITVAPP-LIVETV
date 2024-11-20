@@ -175,7 +175,7 @@ Future<void> _playVideo() async {
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
 
         // 使用配置工具类创建数据源
-        final dataSource = VideoPlayerConfig.createDataSource(
+        final dataSource = BetterPlayerConfig.createDataSource(
           url: parsedUrl,
           isHls: isHls,
         );
