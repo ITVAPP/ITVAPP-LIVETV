@@ -12,7 +12,6 @@ import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'music_bars.dart';
 import '../generated/l10n.dart';
-import '../gradient_progress_bar.dart';
 
 /// 背景图片状态管理类
 /// - 此类封装了背景图片的相关状态，比如当前图片索引、动画状态、是否启用Bing背景等
@@ -202,140 +201,6 @@ class _ChannelLogoState extends State<ChannelLogo> {
   }
 }
 
-/// Toast显示组件
-/// - 用于显示提示信息的Widget
-/// - 支持超长文本的横向滚动，以及显示进度条功能
-class ToastDisplay extends StatefulWidget {
-  final String message; // Toast显示的提示信息
-  final bool isPortrait; // 是否为竖屏模式
-  final bool showProgress; // 是否显示底部进度条
-
-  const ToastDisplay({
-    Key? key,
-    required this.message,
-    required this.isPortrait,
-    this.showProgress = true,
-  }) : super(key: key);
-
-  @override
-  State<ToastDisplay> createState() => _ToastDisplayState();
-}
-
-class _ToastDisplayState extends State<ToastDisplay> with SingleTickerProviderStateMixin {
-  late AnimationController _textAnimationController; // 文本滚动动画控制器
-  late Animation<Offset> _textAnimation; // 文本滚动的偏移动画
-  double _textWidth = 0; // 文本的实际宽度
-  double _containerWidth = 0; // 容器的宽度
-
-  @override
-  void initState() {
-    super.initState();
-    _setupTextAnimation(); // 初始化滚动动画
-  }
-
-  /// 初始化文本滚动动画
-  /// - 设置动画为10秒滚动完成，并在完成后自动重启
-  void _setupTextAnimation() {
-    _textAnimationController = AnimationController(
-      duration: const Duration(seconds: 10),
-      vsync: this,
-    );
-
-    _textAnimation = Tween<Offset>(
-      begin: const Offset(1.0, 0.0), // 起点为屏幕右侧
-      end: const Offset(-1.0, 0.0), // 终点为屏幕左侧
-    ).animate(_textAnimationController);
-
-    _textAnimationController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _textAnimationController.reset(); // 重置动画
-        _textAnimationController.forward(); // 重新启动动画
-      }
-    });
-
-    _textAnimationController.forward(); // 启动动画
-  }
-
-  @override
-  void dispose() {
-    _textAnimationController.dispose(); // 释放动画资源
-    super.dispose();
-  }
-
-  /// 构建Toast显示的内容
-  /// - 当文本长度超过容器宽度时，启用滚动动画
-  Widget _buildToast(TextStyle textStyle) {
-    final textSpan = TextSpan(text: widget.message, style: textStyle);
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout(minWidth: 0, maxWidth: double.infinity);
-    _textWidth = textPainter.width; // 计算文本实际宽度
-
-    if (_textWidth > _containerWidth) {
-      return RepaintBoundary(
-        child: SlideTransition(
-          position: _textAnimation,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Text(
-              widget.message,
-              style: textStyle,
-            ),
-          ),
-        ),
-      );
-    }
-
-    // 如果文本未超出容器宽度，直接居中显示
-    return Text(
-      widget.message,
-      style: textStyle,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final EdgeInsets padding = EdgeInsets.only(bottom: widget.isPortrait ? 10.0 : 15.0);
-
-    final TextStyle textStyle = TextStyle(
-      color: Colors.white,
-      fontSize: widget.isPortrait ? 16 : 18,
-    );
-
-    final mediaQuery = MediaQuery.of(context);
-    final progressBarWidth = widget.isPortrait ? mediaQuery.size.width * 0.5 : mediaQuery.size.width * 0.3;
-
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: padding,
-        child: RepaintBoundary(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.showProgress) ...[
-                GradientProgressBar(
-                  width: progressBarWidth, // 底部进度条的宽度
-                  height: 5, // 进度条高度
-                ),
-                const SizedBox(height: 6),
-              ],
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  _containerWidth = constraints.maxWidth; // 获取容器实际宽度
-                  return _buildToast(textStyle);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 音频可视化组件
 /// - 包裹音频可视化条，控制显示与隐藏
 class AudioBarsWrapper extends StatelessWidget {
@@ -516,7 +381,7 @@ class BackgroundTransition extends StatelessWidget {
 }
 
 /// VideoHoldBg的State实现
-/// - 负责管理背景显示、频道Logo、Toast提示及音频可视化等逻辑
+/// - 负责管理背景显示、频道Logo及音频可视化等逻辑
 /// - 实现必应背景图片的加载和定时切换
 class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   Timer? _timer; // 定时器，用于控制背景图片切换
@@ -777,14 +642,6 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
               if (widget.showBingBackground && widget.currentChannelLogo != null)
                 ChannelLogo(
                   logoUrl: widget.currentChannelLogo,
-                  isPortrait: isPortrait,
-                ),
-
-              // Toast提示层
-              if (widget.toastString != null &&
-                  !["HIDE_CONTAINER", ""].contains(widget.toastString))
-                ToastDisplay(
-                  message: widget.toastString!,
                   isPortrait: isPortrait,
                 ),
             ],
