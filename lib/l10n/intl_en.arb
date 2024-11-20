@@ -132,5 +132,6 @@
   "copyok": "Content copied to clipboard",
   "startsurlerror": "Failed to parse URL",
   "gethttperror": "Local network configuration failed",
-  "exittip": "We look forward to your next visit"
+  "exittip": "We look forward to your next visit",
+  "playpause": "Pausing playback..."
 }
