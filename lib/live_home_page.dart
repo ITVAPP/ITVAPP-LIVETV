@@ -192,7 +192,7 @@ Future<void> _playVideo() async {
             bufferForPlaybackAfterRebufferMs: 5000 // 重新缓冲后开始播放所需的最小缓冲(5秒)
           ),
           cacheConfiguration: BetterPlayerCacheConfiguration(
-            useCache: !isYoutubeHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
+            useCache: !isHls,                // 启用缓存，YouTube 和 HLS 时关闭 否则播放直播流有中断问题
             preCacheSize: 10 * 1024 * 1024, // 预缓存大小
             maxCacheSize: 300 * 1024 * 1024, // 最大缓存大小
             maxCacheFileSize: 30 * 1024 * 1024, // 单个文件最大缓存大小
@@ -217,33 +217,33 @@ Future<void> _playVideo() async {
           },
           // 只开启缓冲进度控件
           controlsConfiguration: const BetterPlayerControlsConfiguration(
-    // 控制栏颜色和样式
-    controlBarColor: Colors.black87,     
-    textColor: Colors.white,             
-    iconsColor: Colors.white,            
-    backgroundColor: Colors.black, 
-    // 功能开关
-    showControls: true,                  
-    enableFullscreen: false,             
-    enableMute: false,                   
-    enableProgressText: false,           
-    enableProgressBar: false,            
-    enableProgressBarDrag: false,        
-    enablePlayPause: false,              
-    enableSkips: false,                  
-    enableOverflowMenu: false,           
-    enablePlaybackSpeed: false,          
-    enableSubtitles: false,              
-    enableQualities: false,              
-    enablePip: false,                    
-    enableRetry: false,                  
-    enableAudioTracks: false, 
-    // 其他设置
-    controlsHideTime: const Duration(seconds: 3),       
-    showControlsOnInitialize: false,                
-    overflowMenuCustomItems: const [],            
-    // 自定义控件构建器
-    customControlsBuilder: (BetterPlayerController controller) {
+                  // 控制栏颜色和样式
+                  controlBarColor: Colors.transparent,  
+                  backgroundColor: Colors.transparent,
+                  textColor: Colors.white,             
+                  iconsColor: Colors.white,            
+                  // 功能开关
+                  showControls: true,                  
+                  enableFullscreen: false,             
+                  enableMute: false,                   
+                  enableProgressText: false,           
+                  enableProgressBar: false,            
+                  enableProgressBarDrag: false,        
+                  enablePlayPause: false,              
+                  enableSkips: false,                  
+                  enableOverflowMenu: false,           
+                  enablePlaybackSpeed: false,          
+                  enableSubtitles: false,              
+                  enableQualities: false,              
+                  enablePip: false,                    
+                  enableRetry: false,                  
+                  enableAudioTracks: false, 
+                  // 其他设置
+                  controlsHideTime: const Duration(seconds: 3),       
+                  showControlsOnInitialize: false,                
+                  overflowMenuCustomItems: const [],            
+                  // 自定义控件构建器
+                  customControlsBuilder: (BetterPlayerController controller) {
                   return LayoutBuilder(
                     builder: (context, constraints) {
                       final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
