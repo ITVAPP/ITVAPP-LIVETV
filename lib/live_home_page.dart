@@ -188,7 +188,6 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-          toastString: toastString,
           eventListener: _videoListener,
         );
 
