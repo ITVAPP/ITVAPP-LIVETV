@@ -107,6 +107,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   // 抽屉刷新键
   ValueKey<int>? _drawerRefreshKey;
+  
+  // 进度变量
+  double bufferingProgress = 0.0;
 
   // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
@@ -246,17 +249,18 @@ void _videoListener(BetterPlayerEvent event) {
             _handleError();
             break;
         
-        // 当事件类型为缓冲开始时，更新缓冲状态
+        // 当事件类型为缓冲开始时，重置进度
         case BetterPlayerEventType.bufferingStart:
             if (mounted) {
                 setState(() {
                     isBuffering = true;
+                    bufferingProgress = 0.0;
                     toastString = S.current.loading;  // 更新提示文本为缓冲状态
                 });
             }
             break;
 
-        // 当事件类型为缓冲更新时，更新缓冲进度
+        // 当事件类型为缓冲更新时，更新进度
         case BetterPlayerEventType.bufferingUpdate:
             final buffered = event.parameters?["buffered"] as List<DurationRange>?;
             if (buffered != null && buffered.isNotEmpty && mounted) {
@@ -264,14 +268,12 @@ void _videoListener(BetterPlayerEvent event) {
                 final Duration? total = _playerController?.videoPlayerController?.value.duration;
                 
                 if (total != null && total.inMilliseconds > 0) {
-                    final double progress = 
-                        range.end.inMilliseconds / total.inMilliseconds * 100;
-                    
-                    if (isBuffering) {
-                        setState(() {
-                            toastString = '${S.current.loading} (${progress.toStringAsFixed(0)}%)';
-                        });
-                    }
+                    setState(() {
+                        if (isBuffering) {
+                            bufferingProgress = range.end.inMilliseconds / total.inMilliseconds;
+                            toastString = '${S.current.loading} (${(bufferingProgress * 100).toStringAsFixed(0)}%)';
+                        }
+                    });
                 }
             }
             break;
@@ -281,6 +283,7 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted) {
                 setState(() {
                     isBuffering = false;
+                    bufferingProgress = 0.0;
                     // 如果正在播放，则隐藏提示
                     if (isPlaying) {
                         toastString = 'HIDE_CONTAINER';
