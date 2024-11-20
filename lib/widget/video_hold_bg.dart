@@ -771,9 +771,9 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
               if (widget.showBingBackground)
                 AudioBarsWrapper(
                   audioBarKey: _audioBarKey,
-                  isActive: widget.toastString == null ||
-                      widget.toastString == "HIDE_CONTAINER" ||
-                      widget.toastString == "",
+                  isActive: !(widget.toastString == null ||
+                          widget.toastString == "HIDE_CONTAINER" ||
+                          widget.toastString == ""),
                 ),
 
               // Logo层
