@@ -961,6 +961,15 @@ String get exittip {
   );
 }
 
+String get playpause {
+  return Intl.message(
+    '暂停播放中...',
+    name: 'playpause',
+    desc: '',
+    args: [],
+  );
+}
+
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<S> {
