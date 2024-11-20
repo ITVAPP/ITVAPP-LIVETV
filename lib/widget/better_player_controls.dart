@@ -76,13 +76,14 @@ class BetterPlayerConfig {
         placeholderAsset, // 图片资源路径
         fit: BoxFit.cover, // 图片填充方式
       ),
+      loadingStyle: LoadingStyle.hidden,  // 隐藏默认loading样式
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
         controlBarColor: Colors.transparent, // 控制栏背景颜色
         backgroundColor: Colors.transparent, // 控制栏整体背景色
         textColor: Colors.white, // 文本颜色
         iconsColor: Colors.white, // 图标颜色
-        showControls: false, // 禁用默认控制
+        showControls: true, // 禁用默认控制
         enableFullscreen: false, // 是否启用全屏按钮
         enableMute: false, // 是否启用静音按钮
         enableProgressText: false, // 是否显示进度时间文本
@@ -97,9 +98,10 @@ class BetterPlayerConfig {
         enablePip: false, // 是否启用画中画
         enableRetry: false, // 是否启用重试按钮
         enableAudioTracks: false, // 是否启用音轨选择
-        enableLiveChatButton: false, // 禁用直播文字显示
+        enableLive: false, // 禁用直播文字显示
+        handleTap: false,      // 禁用点击事件
+        enableGestures: false, // 禁用手势操作
         loadingWidget: const SizedBox.shrink(), // 禁用默认loading组件
-        loadingColor: Colors.transparent, // loading颜色设置为透明
         controlsHideTime: Duration.zero, // 立即隐藏控制栏
         showControlsOnInitialize: false, // 是否在初始化时显示控制栏
         overflowMenuCustomItems: const [], // 自定义溢出菜单项
