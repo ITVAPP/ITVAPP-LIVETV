@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/volume_brightness_widget.dart';
+import 'package:itvapp_live_tv/widget/scrolling_toast_message.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'gradient_progress_bar.dart';
 import 'generated/l10n.dart';
@@ -38,82 +39,6 @@ class VideoUIState {
       showPauseIcon: showPauseIcon ?? this.showPauseIcon,
       showPlayIcon: showPlayIcon ?? this.showPlayIcon,
       drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
-    );
-  }
-}
-
-/// 构建Toast显示的内容
-/// - 当文本长度超过容器宽度时，启用滚动动画
-class ScrollingToastMessage extends StatefulWidget {
-  final String message;
-  final double containerWidth;
-  final TextStyle textStyle;
-
-  const ScrollingToastMessage({
-    Key? key,
-    required this.message,
-    required this.containerWidth,
-    required this.textStyle,
-  }) : super(key: key);
-
-  @override
-  State<ScrollingToastMessage> createState() => _ScrollingToastMessageState();
-}
-
-class _ScrollingToastMessageState extends State<ScrollingToastMessage> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _textAnimation;
-  double _textWidth = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 10),
-      vsync: this,
-    )..repeat();
-
-    _textAnimation = Tween<Offset>(
-      begin: const Offset(1.0, 0.0),
-      end: const Offset(-1.0, 0.0),
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.linear,
-    ));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textSpan = TextSpan(text: widget.message, style: widget.textStyle);
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout(minWidth: 0, maxWidth: double.infinity);
-    _textWidth = textPainter.width;
-
-    if (_textWidth > widget.containerWidth) {
-      return RepaintBoundary(
-        child: SlideTransition(
-          position: _textAnimation,
-          child: Text(
-            widget.message,
-            style: widget.textStyle,
-          ),
-        ),
-      );
-    }
-
-    return Text(
-      widget.message,
-      style: widget.textStyle,
-      textAlign: TextAlign.center,
     );
   }
 }
@@ -463,11 +388,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   @override
   Widget build(BuildContext context) {
     final playerHeight = MediaQuery.of(context).size.width / (16 / 9); // 视频播放器高度，根据 16:9 比例计算
-    // 在每次重建时动态计算宽度和字体大小
+    // 在每次重建时动态计算进度条宽度
    final progressBarWidth = widget.isLandscape
        ? MediaQuery.of(context).size.width * 0.3
        : MediaQuery.of(context).size.width * 0.5;
-   final messageFontSize = widget.isLandscape ? 18.0 : 16.0;
   
     return ValueListenableBuilder<VideoUIState>(
       valueListenable: _uiStateNotifier, // 绑定状态监听器
@@ -520,11 +444,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                              const SizedBox(height: 5),
                              ScrollingToastMessage(
                                message: widget.toastString!,
-                               containerWidth: constraints.maxWidth,  // 使用容器实际宽度
-                               textStyle: TextStyle(
-                                 color: Colors.white,
-                                 fontSize: messageFontSize,
-                               ),
+                               containerWidth: constraints.maxWidth,
+                               isLandscape: widget.isLandscape,
                              ),
                            ],
                          ),
