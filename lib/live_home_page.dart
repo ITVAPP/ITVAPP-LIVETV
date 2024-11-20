@@ -228,13 +228,17 @@ Future<void> _playVideo() async {
 void _videoListener(BetterPlayerEvent event) {
     if (_playerController == null || _isDisposing || _isRetrying) return;
 
-    // 根据事件类型执行不同的处理逻辑
     switch (event.betterPlayerEventType) {
         // 当事件类型为播放器初始化完成时，更新视频的宽高比
         case BetterPlayerEventType.initialized:
             if (mounted && _shouldUpdateAspectRatio) {
-                aspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
-                _shouldUpdateAspectRatio = false;
+                final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
+                if (aspectRatio != newAspectRatio) { // 仅在宽高比实际变化时更新
+                    setState(() {
+                        aspectRatio = newAspectRatio;
+                        _shouldUpdateAspectRatio = false;
+                    });
+                }
             }
             break;
 
@@ -247,9 +251,11 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为缓冲开始时，重置进度
         case BetterPlayerEventType.bufferingStart:
-            if (mounted && !isBuffering) {
-                isBuffering = true;
-                toastString = S.current.loading;  // 更新提示文本为缓冲状态
+            if (mounted && !isBuffering) { // 避免重复设置
+                setState(() {
+                    isBuffering = true;
+                    toastString = S.current.loading; // 更新缓冲状态
+                });
             }
             break;
 
@@ -257,43 +263,57 @@ void _videoListener(BetterPlayerEvent event) {
         case BetterPlayerEventType.bufferingUpdate:
             if (mounted && isBuffering) {
                 final bufferProgress = event.parameters?["bufferProgress"] as double?;
-                if (bufferProgress != null) {
-                    toastString = '${S.current.loading} (${(bufferProgress * 100).toStringAsFixed(0)}%)';
+                final newToastString = bufferProgress != null
+                    ? '${S.current.loading} (${(bufferProgress * 100).toStringAsFixed(0)}%)'
+                    : toastString;
+
+                if (newToastString != toastString) { // 避免重复设置相同值
+                    setState(() {
+                        toastString = newToastString;
+                    });
                 }
             }
             break;
 
         // 当事件类型为缓冲结束时，更新缓冲状态
         case BetterPlayerEventType.bufferingEnd:
-            if (mounted && isBuffering) {
-                isBuffering = false;
+            if (mounted && isBuffering) { // 避免重复设置
+                setState(() {
+                    isBuffering = false;
+                });
             }
             break;
 
         // 当事件类型为播放时
         case BetterPlayerEventType.play:
-            if (mounted && !isPlaying) {
-                isPlaying = true;
-                if (!isBuffering) {
-                    toastString = 'HIDE_CONTAINER';  // 更新提示文本为隐藏状态
-                }
+            if (mounted && !isPlaying) { // 避免重复设置
+                setState(() {
+                    isPlaying = true;
+                    if (!isBuffering) {
+                        toastString = 'HIDE_CONTAINER'; // 更新提示状态
+                    }
+                });
             }
             break;
 
         // 当事件类型为暂停时
         case BetterPlayerEventType.pause:
-            if (mounted && isPlaying) {
-                isPlaying = false;
-                toastString = S.current.playpause;
+            if (mounted && isPlaying) { // 避免重复设置
+                setState(() {
+                    isPlaying = false;
+                    toastString = S.current.playpause; // 更新提示状态
+                });
             }
             break;
 
         // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
+            // 播放结束逻辑（无 UI 更新需求时无需调用 setState）
             break;
 
         // 默认情况，忽略所有其他未处理的事件类型
         default:
+            LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
             break;
     }
 }
