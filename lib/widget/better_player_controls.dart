@@ -155,24 +155,15 @@ class CustomVideoControls extends StatelessWidget {
             // 缓冲状态显示
             Positioned.fill(
               child: Center(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: controller.bufferingNotifier ??
-                      ValueNotifier<bool>(false),
-                  builder: (context, isBuffering, child) {
-                    final isInitialized = controller.isVideoInitialized() ?? false;
-                    
-                    if ((isBuffering || !isInitialized) &&
-                        toastString != "HIDE_CONTAINER") {
-                      return _BufferingContainer(
+                // 修改了这里,使用父组件传入的 toastString 来控制显示状态
+                child: toastString != "HIDE_CONTAINER"
+                    ? _BufferingContainer(
                         isPortrait: isPortrait,
                         progressBarWidth: progressBarWidth,
                         textStyle: textStyle,
                         toastString: toastString,
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ),
           ],
