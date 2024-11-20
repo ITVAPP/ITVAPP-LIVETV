@@ -290,6 +290,7 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted && isBuffering) { // 避免重复设置
                 setState(() {
                     isBuffering = false;
+                    toastString = 'HIDE_CONTAINER';
                 });
             }
             break;
@@ -300,7 +301,7 @@ void _videoListener(BetterPlayerEvent event) {
                 setState(() {
                     isPlaying = true;
                     if (!isBuffering) {
-                        toastString = 'HIDE_CONTAINER'; // 更新提示状态
+                        toastString = 'HIDE_CONTAINER';
                     }
                 });
             }
