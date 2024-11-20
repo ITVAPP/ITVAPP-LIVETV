@@ -23,7 +23,6 @@ class BetterPlayerConfig {
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
-      showPlaceholderUntilPlay: false,   // 禁用内置loading
       // 配置系统通知栏行为（此处关闭通知栏播放控制）
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
         showNotification: false,
@@ -83,7 +82,7 @@ class BetterPlayerConfig {
         backgroundColor: Colors.transparent, // 控制栏整体背景色
         textColor: Colors.white, // 文本颜色
         iconsColor: Colors.white, // 图标颜色
-        showControls: true, // 是否显示控制栏
+        showControls: false, // 禁用默认控制
         enableFullscreen: false, // 是否启用全屏按钮
         enableMute: false, // 是否启用静音按钮
         enableProgressText: false, // 是否显示进度时间文本
@@ -98,11 +97,10 @@ class BetterPlayerConfig {
         enablePip: false, // 是否启用画中画
         enableRetry: false, // 是否启用重试按钮
         enableAudioTracks: false, // 是否启用音轨选择
-        enableClickAndDrag: false, // 禁用点击响应
         enableLiveChatButton: false, // 禁用直播文字显示
         loadingWidget: const SizedBox.shrink(), // 禁用默认loading组件
         loadingColor: Colors.transparent, // loading颜色设置为透明
-        controlsHideTime: const Duration(seconds: 3), // 控制栏隐藏时间
+        controlsHideTime: Duration.zero, // 立即隐藏控制栏
         showControlsOnInitialize: false, // 是否在初始化时显示控制栏
         overflowMenuCustomItems: const [], // 自定义溢出菜单项
         // 自定义控制栏构建器
