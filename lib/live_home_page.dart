@@ -254,7 +254,6 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted) {
                 setState(() {
                     isBuffering = true;
-                    bufferingProgress = 0.0;
                     toastString = S.current.loading;  // 更新提示文本为缓冲状态
                 });
             }
@@ -262,17 +261,11 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为缓冲更新时，更新进度
         case BetterPlayerEventType.bufferingUpdate:
-            final buffered = event.parameters?["buffered"] as List<DurationRange>?;
-            if (buffered != null && buffered.isNotEmpty && mounted) {
-                final DurationRange range = buffered.last;
-                final Duration? total = _playerController?.videoPlayerController?.value.duration;
-                
-                if (total != null && total.inMilliseconds > 0) {
+            if (mounted && isBuffering) {
+                final bufferProgress = event.parameters?["bufferProgress"] as double?;
+                if (bufferProgress != null) {
                     setState(() {
-                        if (isBuffering) {
-                            bufferingProgress = range.end.inMilliseconds / total.inMilliseconds;
-                            toastString = '${S.current.loading} (${(bufferingProgress * 100).toStringAsFixed(0)}%)';
-                        }
+                        toastString = '${S.current.loading} (${(bufferProgress * 100).toStringAsFixed(0)}%)';
                     });
                 }
             }
@@ -283,7 +276,6 @@ void _videoListener(BetterPlayerEvent event) {
             if (mounted) {
                 setState(() {
                     isBuffering = false;
-                    bufferingProgress = 0.0;
                     // 如果正在播放，则隐藏提示
                     if (isPlaying) {
                         toastString = 'HIDE_CONTAINER';
