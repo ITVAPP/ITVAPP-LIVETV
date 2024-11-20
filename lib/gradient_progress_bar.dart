@@ -73,7 +73,7 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
     _controller = AnimationController(
       duration: widget.duration, // 动画持续时间
       vsync: this, // 使用单一动画提供者
-    )..repeat(); // 循环播放动画
+    )..repeat(reverse: true); // 修改：添加 reverse 参数，使动画来回播放
   }
 
   @override
@@ -123,19 +123,21 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
 
   /// 私有方法，用于动态构建线性渐变的着色器
   LinearGradient _buildGradientShader() {
-    final value = _controller.value; // 动画控制器的当前值（范围 0.0 - 1.0）
+    // 修改：使用 Curves.easeInOut 使动画更自然
+    final value = Curves.easeInOut.transform(_controller.value); 
+    
     return LinearGradient(
       colors: const [
         Colors.transparent, // 左侧透明区域
-        Colors.white, // 中间部分的白色渐变
-        Colors.white, // 中间部分的白色渐变
+        Colors.white70, // 修改：使用更柔和的白色 
+        Colors.white70, // 修改：使用更柔和的白色
         Colors.transparent, // 右侧透明区域
       ],
       stops: [
-        // 使用动画值动态调整颜色停靠点，实现滚动效果
-        (value - 0.08).clamp(0.0, 1.0), // 左侧透明到白色的渐变点
-        value.clamp(0.0, 1.0), // 左侧白色位置
-        (value + 0.08).clamp(0.0, 1.0), // 右侧白色位置
+        // 修改：更平滑的位置变化
+        (value - 0.1).clamp(0.0, 1.0), // 左侧透明到白色的渐变点
+        (value - 0.05).clamp(0.0, 1.0), // 左侧白色位置
+        (value + 0.05).clamp(0.0, 1.0), // 右侧白色位置
         (value + 0.1).clamp(0.0, 1.0), // 白色到透明的渐变点
       ],
       begin: Alignment.centerLeft, // 渐变开始位置
