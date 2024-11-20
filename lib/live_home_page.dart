@@ -224,7 +224,7 @@ Future<void> _playVideo() async {
 /// 播放器监听方法
 void _videoListener(BetterPlayerEvent event) {
     if (_playerController == null || _isDisposing || _isRetrying) return;
-
+    
     // 根据事件类型执行不同的处理逻辑
     switch (event.betterPlayerEventType) {
         // 当事件类型为播放器初始化完成时，更新视频的宽高比
@@ -241,18 +241,30 @@ void _videoListener(BetterPlayerEvent event) {
         
         // 当事件类型为异常时，调用错误处理函数
         case BetterPlayerEventType.exception:
-        	final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-                LogUtil.e('监听到播放器错误：$errorMessage');
+            final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+            LogUtil.e('监听到播放器错误：$errorMessage');
             break;
         
-        // 当事件类型为缓冲开始、缓冲更新或缓冲结束时，更新缓冲状态
+        // 当事件类型为缓冲开始、缓冲更新时，更新缓冲状态
         case BetterPlayerEventType.bufferingStart:
         case BetterPlayerEventType.bufferingUpdate:
+            if (mounted) {
+                setState(() {
+                    isBuffering = true;
+                    toastString = S.current.loading;  // 更新提示文本为缓冲状态
+                });
+            }
+            break;
+            
+        // 当事件类型为缓冲结束时，更新缓冲状态
         case BetterPlayerEventType.bufferingEnd:
             if (mounted) {
                 setState(() {
-                    // 如果事件类型为缓冲开始或缓冲更新，将 isBuffering 设为 true；缓冲结束时设为 false
-                    isBuffering = event.betterPlayerEventType == BetterPlayerEventType.bufferingStart || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate;
+                    isBuffering = false;
+                    // 如果正在播放，则隐藏提示
+                    if (isPlaying) {
+                        toastString = 'HIDE_CONTAINER';
+                    }
                 });
             }
             break;
@@ -264,12 +276,15 @@ void _videoListener(BetterPlayerEvent event) {
                 setState(() {
                     // 如果事件类型为 play，将 isPlaying 设为 true；pause 时设为 false
                     isPlaying = event.betterPlayerEventType == BetterPlayerEventType.play;
-                    toastString = 'HIDE_CONTAINER';  // 不渲染VideoHoldBg底部容器
+                    // 只有在非缓冲状态下才隐藏提示
+                    if (!isBuffering) {
+                        toastString = 'HIDE_CONTAINER';  // 不渲染VideoHoldBg底部容器
+                    }
                 });
             }
             break;
         
-        // 当事件类型为播放结束时，切换到下一个源
+        // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
             break;
         
