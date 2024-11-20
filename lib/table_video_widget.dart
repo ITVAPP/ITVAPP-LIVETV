@@ -42,6 +42,82 @@ class VideoUIState {
   }
 }
 
+/// 构建Toast显示的内容
+/// - 当文本长度超过容器宽度时，启用滚动动画
+class ScrollingToastMessage extends StatefulWidget {
+  final String message;
+  final double containerWidth;
+  final TextStyle textStyle;
+
+  const ScrollingToastMessage({
+    Key? key,
+    required this.message,
+    required this.containerWidth,
+    required this.textStyle,
+  }) : super(key: key);
+
+  @override
+  State<ScrollingToastMessage> createState() => _ScrollingToastMessageState();
+}
+
+class _ScrollingToastMessageState extends State<ScrollingToastMessage> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _textAnimation;
+  double _textWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat();
+
+    _textAnimation = Tween<Offset>(
+      begin: const Offset(1.0, 0.0),
+      end: const Offset(-1.0, 0.0),
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.linear,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textSpan = TextSpan(text: widget.message, style: widget.textStyle);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(minWidth: 0, maxWidth: double.infinity);
+    _textWidth = textPainter.width;
+
+    if (_textWidth > widget.containerWidth) {
+      return RepaintBoundary(
+        child: SlideTransition(
+          position: _textAnimation,
+          child: Text(
+            widget.message,
+            style: widget.textStyle,
+          ),
+        ),
+      );
+    }
+
+    return Text(
+      widget.message,
+      style: widget.textStyle,
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
 // 视频播放器 Widget，支持多种交互功能和 UI 状态管理
 class TableVideoWidget extends StatefulWidget {
   final BetterPlayerController? controller; // 视频播放器控制器
@@ -433,24 +509,25 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                        left: 0,
                        right: 0,
                        bottom: 12,
-                       child: Column(
-                         mainAxisSize: MainAxisSize.min,
-                         children: [
-                           // 进度条
-                           GradientProgressBar(
-                             width: progressBarWidth, // 竖屏宽度50%
-                             height: 5,
-                           ),
-                           const SizedBox(height: 5),
-                           // Toast消息
-                           Text(
-                             widget.toastString!,
-                             style: TextStyle(
-                               color: Colors.white,
-                               fontSize: messageFontSize, 
+                       child: LayoutBuilder(
+                         builder: (context, constraints) => Column(
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             GradientProgressBar(
+                               width: progressBarWidth,
+                               height: 5,
                              ),
-                           ),
-                         ],
+                             const SizedBox(height: 5),
+                             ScrollingToastMessage(
+                               message: widget.toastString!,
+                               containerWidth: constraints.maxWidth,  // 使用容器实际宽度
+                               textStyle: TextStyle(
+                                 color: Colors.white,
+                                 fontSize: messageFontSize,
+                               ),
+                             ),
+                           ],
+                         ),
                        ),
                      ),
                   ],
