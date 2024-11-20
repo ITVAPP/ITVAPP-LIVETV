@@ -23,7 +23,7 @@ import 'util/dialog_util.dart';
 import 'util/custom_snackbar.dart';
 import 'util/channel_util.dart';
 import 'util/traffic_analytics.dart';
-import 'widget/Better_Player_controls.dar';
+import 'widget/better_player_controls.dart';
 import 'widget/empty_page.dart';
 import 'widget/show_exit_confirm.dart';
 import 'entity/playlist_model.dart';
@@ -181,7 +181,7 @@ Future<void> _playVideo() async {
         );
 
         // 创建播放器配置
-        final betterPlayerConfiguration = VideoPlayerConfig.createPlayerConfig(
+        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
           toastString: toastString,
           eventListener: _videoListener,
         );
