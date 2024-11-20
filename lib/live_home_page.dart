@@ -141,7 +141,10 @@ Future<void> _playVideo() async {
 
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
-        _isRetrying = false;  // 播放开始时重置重试状态
+        isPlaying = false;     // 重置播放状态
+        isBuffering = false;   // 重置缓冲状态
+        _isRetrying = false;  // 重置重试状态
+        _isSwitchingChannel = false;  // 重置频道状态
     });
 
     // 先释放旧播放器，再设置新播放器
@@ -308,12 +311,13 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
-            // 播放结束逻辑（无 UI 更新需求时无需调用 setState）
             break;
 
         // 默认情况，忽略所有其他未处理的事件类型
         default:
-            LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
+            if (event.betterPlayerEventType != BetterPlayerEventType.progress) {
+                LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
+            }
             break;
     }
 }
@@ -368,9 +372,6 @@ void _retryPlayback() {
 
 /// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
-    // 先停止当前播放和清理状态
-    _disposePlayer();
-    
     // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
@@ -474,9 +475,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
             _shouldUpdateAspectRatio = true;
             toastString = S.current.loading; // 更新加载状态
         });
-        
-        // 先停止当前播放和清理状态
-        await _disposePlayer(); 
          
         // 确保状态正确后开始新的播放
         if (!_isSwitchingChannel) return; // 如果状态已改变则退出
@@ -491,13 +489,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
         setState(() {
             toastString = S.current.playError;
         });
-    } finally {
-        if (mounted) {
-            setState(() {
-                _isSwitchingChannel = false;
-            });
-        }
-    }
+    } 
 }
 
 /// 切换视频源方法（手动按钮切换）
@@ -511,8 +503,6 @@ Future<void> _changeChannelSources() async {
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
-    // 先停止当前播放和清理状态
-    await _disposePlayer(); 
       _playVideo();
     }
 }
