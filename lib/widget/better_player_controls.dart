@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
+import 'util/log_util.dart';
 import '../gradient_progress_bar.dart';
 
 /// 播放器配置工具类
@@ -54,12 +55,10 @@ class BetterPlayerConfig {
   /// - [toastString]: 显示提示信息的字符串
   /// - [eventListener]: 事件监听器
   /// - [placeholderAsset]: 占位图片资源路径（默认使用本地图片）
-  /// - [bufferProgress]: 缓冲进度值，范围 0.0 - 1.0
   static BetterPlayerConfiguration createPlayerConfig({
     required String toastString,
     required Function(BetterPlayerEvent) eventListener,
     String placeholderAsset = 'assets/images/video_bg.png',
-    double bufferProgress = 0.0,
   }) {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
@@ -83,10 +82,10 @@ class BetterPlayerConfig {
         showControls: false, // 禁用默认控制
         // 自定义控制栏构建器
         customControlsBuilder: (BetterPlayerController controller, Function(bool) onControlsVisibilityChanged) {
+          LogUtil.i("触发播放器自定义组件");
           return CustomVideoControls(
             controller: controller,
             toastString: toastString,
-            bufferProgress: bufferProgress,
           );
         },
       ),
@@ -106,13 +105,11 @@ class BetterPlayerConfig {
 class CustomVideoControls extends StatelessWidget {
   final BetterPlayerController controller;
   final String toastString;
-  final double bufferProgress;  // 缓冲进度值，范围 0.0 - 1.0
 
   const CustomVideoControls({
     Key? key,
     required this.controller,
     required this.toastString,
-    this.bufferProgress = 0.0,
   }) : super(key: key);
 
   @override
@@ -146,7 +143,6 @@ class CustomVideoControls extends StatelessWidget {
                         progressBarWidth: progressBarWidth,
                         textStyle: textStyle,
                         toastString: toastString,
-                        progress: bufferProgress,
                       )
                     : const SizedBox.shrink(),
               ),
@@ -164,7 +160,6 @@ class _BufferingContainer extends StatelessWidget {
   final double progressBarWidth;
   final TextStyle textStyle;
   final String toastString;
-  final double progress;  // 缓冲进度值，范围 0.0 - 1.0
 
   const _BufferingContainer({
     Key? key,
@@ -172,7 +167,6 @@ class _BufferingContainer extends StatelessWidget {
     required this.progressBarWidth,
     required this.textStyle,
     required this.toastString,
-    required this.progress,
   }) : super(key: key);
 
   @override
@@ -193,7 +187,6 @@ class _BufferingContainer extends StatelessWidget {
           GradientProgressBar(
             width: progressBarWidth, // 进度条宽度
             height: 5, // 进度条高度
-            progress: progress, // 传入缓冲进度值
           ),
           SizedBox(height: isPortrait ? 8 : 10), // 添加间距
           Text(
