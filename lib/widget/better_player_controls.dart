@@ -82,7 +82,7 @@ class BetterPlayerConfig {
         showControls: false, // 禁用默认控制
         // 自定义控制栏构建器
         customControlsBuilder: (BetterPlayerController controller, Function(bool) onControlsVisibilityChanged) {
-          LogUtil.i("触发播放器自定义组件");
+          LogUtil.i("触发播放器自定义组件, toastString: $toastString"); // 添加日志确认toastString的值
           return CustomVideoControls(
             controller: controller,
             toastString: toastString,
@@ -102,7 +102,7 @@ class BetterPlayerConfig {
 }
 
 /// 视频播放器自定义控件
-class CustomVideoControls extends StatelessWidget {
+class CustomVideoControls extends StatefulWidget {
   final BetterPlayerController controller;
   final String toastString;
 
@@ -113,7 +113,14 @@ class CustomVideoControls extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<CustomVideoControls> createState() => _CustomVideoControlsState();
+}
+
+class _CustomVideoControlsState extends State<CustomVideoControls> {
+  @override
   Widget build(BuildContext context) {
+    LogUtil.i("CustomVideoControls build - toastString: ${widget.toastString}"); // 添加日志
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // 检测当前设备方向
@@ -134,19 +141,17 @@ class CustomVideoControls extends StatelessWidget {
         return Stack(
           children: [
             // 缓冲状态显示
-            Positioned.fill(
-              child: Center(
-                // 使用父组件传入的 toastString 来控制显示状态
-                child: toastString != "HIDE_CONTAINER"
-                    ? _BufferingContainer(
-                        isPortrait: isPortrait,
-                        progressBarWidth: progressBarWidth,
-                        textStyle: textStyle,
-                        toastString: toastString,
-                      )
-                    : const SizedBox.shrink(),
+            if (widget.toastString.isNotEmpty && widget.toastString != "HIDE_CONTAINER") // 修改条件判断
+              Positioned.fill(
+                child: Center(
+                  child: _BufferingContainer(
+                    isPortrait: isPortrait,
+                    progressBarWidth: progressBarWidth,
+                    textStyle: textStyle,
+                    toastString: widget.toastString,
+                  ),
+                ),
               ),
-            ),
           ],
         );
       },
@@ -171,6 +176,8 @@ class _BufferingContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LogUtil.i("Building BufferingContainer with toastString: $toastString"); // 添加日志
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.black26, // 半透明背景
