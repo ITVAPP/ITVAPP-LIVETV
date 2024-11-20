@@ -143,7 +143,6 @@ Future<void> _playVideo() async {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
         isPlaying = false;     // 重置播放状态
         isBuffering = false;   // 重置缓冲状态
-        _isRetrying = false;  // 重置重试状态
         _isSwitchingChannel = false;  // 重置频道状态
     });
 
@@ -177,7 +176,8 @@ Future<void> _playVideo() async {
         
         // 判断是否是 YouTube HLS 直播流
         final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
-
+        
+        if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
 
         // 使用配置工具类创建数据源
@@ -210,11 +210,11 @@ Future<void> _playVideo() async {
             return; 
         }
 
+       if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         // 设置新的控制器
         setState(() {
             _playerController = newController;
             toastString = S.current.loading;
-            _retryCount = 0;
             _timeoutActive = false;
         });
         
@@ -223,6 +223,8 @@ Future<void> _playVideo() async {
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
         _handleError(); 
+    } finally {
+            _isSwitchingChannel = false;
     }
 }
 
@@ -395,6 +397,8 @@ void _handleSourceSwitch() {
 
     // 延迟后尝试新源
     _retryTimer = Timer(const Duration(seconds: 2), () {
+    	_isRetrying = false;
+        _retryCount = 0;
         _playVideo();
     });
 }
@@ -413,8 +417,6 @@ Future<void> _disposePlayer() async {
       setState(() {
         _timeoutActive = false;
         _retryTimer?.cancel();
-        _isRetrying = false;
-        _retryCount = 0;
         _isAudio = false;
         _playerController = null;
       });
@@ -467,22 +469,20 @@ void _disposeStreamUrl() {
 
 /// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
-    if (_isSwitchingChannel || model == null) return;
-      
+    if (model == null) return;
     try {
         // 更新频道信息
         setState(() {
             _isSwitchingChannel = true;
             _currentChannel = model;
             _sourceIndex = 0;
+    	    _isRetrying = false;
+            _retryCount = 0;
             _shouldUpdateAspectRatio = true;
             toastString = S.current.loading; // 更新加载状态
         });
          
-        // 确保状态正确后开始新的播放
-        if (!_isSwitchingChannel) return; // 如果状态已改变则退出
         await _playVideo();
-        
         // 发送统计数据
         if (Config.Analytics) {
             await _sendTrafficAnalytics(context, _currentChannel!.title);
@@ -506,6 +506,9 @@ Future<void> _changeChannelSources() async {
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       _sourceIndex = selectedIndex;
+      _isSwitchingChannel = true;
+      _isRetrying = false;
+      _retryCount = 0;
       _playVideo();
     }
 }
