@@ -70,6 +70,10 @@ class BetterPlayerConfig {
       errorBuilder: (_, __) => _backgroundImage,
       // 设置播放器占位图片
       placeholder: _backgroundImage,
+      // 配置控制栏行为
+      controlsConfiguration: BetterPlayerControlsConfiguration(
+        showControls: false, // 禁用默认控制
+      ),
       // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
