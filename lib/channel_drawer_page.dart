@@ -86,7 +86,6 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
           : Colors.transparent,
       width: 1,
     ),
-    borderRadius: BorderRadius.circular(3), 
   );
 }
 
