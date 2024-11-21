@@ -13,10 +13,18 @@ import '../config.dart';
 
 // 预编译正则表达式
 final RegExp _m3uLinePattern = RegExp(r'^#EXTINF:-1\s*(.*)$');
-final RegExp _groupTitlePattern = RegExp(r'group-title="([^"]*?)"|group-title=\'([^\']*?)\'');
-final RegExp _tvgIdPattern = RegExp(r'tvg-id="([^"]*?)"|tvg-id=\'([^\']*?)\'');
-final RegExp _tvgNamePattern = RegExp(r'tvg-name="([^"]*?)"|tvg-name=\'([^\']*?)\'');
-final RegExp _tvgLogoPattern = RegExp(r'tvg-logo="([^"]*?)"|tvg-logo=\'([^\']*?)\'');
+final RegExp _groupTitlePattern = RegExp('group-title=["\']([^"\']*)["\']');
+final RegExp _tvgIdPattern = RegExp('tvg-id=["\']([^"\']*)["\']');
+final RegExp _tvgNamePattern = RegExp('tvg-name=["\']([^"\']*)["\']');
+final RegExp _tvgLogoPattern = RegExp('tvg-logo=["\']([^"\']*)["\']');
+
+// 处理行内容
+String processLine(String originalLine) {
+  if (originalLine.startsWith('#EXTINF:-1,')) {
+    return originalLine.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
+  }
+  return originalLine;
+}
 
 // 处理行内容而不是直接修改 final 变量
 String processLine(String originalLine) {
