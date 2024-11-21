@@ -13,10 +13,10 @@ import '../config.dart';
 
 // 预编译正则表达式
 final RegExp _m3uLinePattern = RegExp(r'^#EXTINF:-1\s*(.*)$');
-final RegExp _groupTitlePattern = RegExp(r'group-title=[\'"]([^\'"]*)[\'"](?:,|\s|$)');
-final RegExp _tvgIdPattern = RegExp(r'tvg-id=[\'"]([^\'"]*)[\'"](?:,|\s|$)');
-final RegExp _tvgNamePattern = RegExp(r'tvg-name=[\'"]([^\'"]*)[\'"](?:,|\s|$)');
-final RegExp _tvgLogoPattern = RegExp(r'tvg-logo=[\'"]([^\'"]*)[\'"](?:,|\s|$)');
+final RegExp _groupTitlePattern = RegExp(r'group-title=[\'"]([^\'"]*)[\'"](?:,|\s|\$)');
+final RegExp _tvgIdPattern = RegExp(r'tvg-id=[\'"]([^\'"]*)[\'"](?:,|\s|\$)');
+final RegExp _tvgNamePattern = RegExp(r'tvg-name=[\'"]([^\'"]*)[\'"](?:,|\s|\$)');
+final RegExp _tvgLogoPattern = RegExp(r'tvg-logo=[\'"]([^\'"]*)[\'"](?:,|\s|\$)');
 
 // 预定义常量
 const Map<String, String> _protocolMap = {
@@ -121,12 +121,7 @@ class M3uUtil {
 
      return M3uResult(data: parsedData);
    } catch (e, stackTrace) {
-     final buffer = StringBuffer()
-       ..write('获取远程播放列表失败: ')
-       ..write(e)
-       ..write('\n堆栈: ')
-       ..write(stackTrace);
-     LogUtil.logError(buffer.toString(), e, stackTrace);
+     LogUtil.logError('获取远程播放列表失败', e, stackTrace);
      return M3uResult(errorMessage: S.current.getm3udataerror);
    }
  }
@@ -311,13 +306,7 @@ class M3uUtil {
 
      return _mergePlaylists(playlists);
    } catch (e, stackTrace) {
-     final buffer = StringBuffer()
-       ..write('合并播放列表失败: ')
-       ..write(e)
-       ..writeln()
-       ..write('堆栈: ')
-       ..write(stackTrace);
-     LogUtil.logError(buffer.toString(), e, stackTrace);
+     LogUtil.logError('合并播放列表失败', e, stackTrace);
      return null;
    }
  }
@@ -395,13 +384,7 @@ class M3uUtil {
 
      return mergedPlaylist;
    } catch (e, stackTrace) {
-     final buffer = StringBuffer()
-       ..write('合并播放列表失败: ')
-       ..write(e)
-       ..writeln()
-       ..write('堆栈: ')
-       ..write(stackTrace);
-     LogUtil.logError(buffer.toString(), e, stackTrace);
+     LogUtil.logError('合并播放列表失败', e, stackTrace);
      return PlaylistModel();
    }
  }
@@ -587,13 +570,7 @@ class M3uUtil {
      }
      return playListModel;
    } catch (e, stackTrace) {
-     final buffer = StringBuffer()
-       ..write('解析M3U文件失败: ')
-       ..write(e)
-       ..writeln()
-       ..write('堆栈: ')
-       ..write(stackTrace);
-     LogUtil.logError(buffer.toString(), e, stackTrace);
+     LogUtil.logError('解析M3U文件失败 ', e, stackTrace);
      return PlaylistModel();
    }
  }
