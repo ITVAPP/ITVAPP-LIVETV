@@ -26,14 +26,6 @@ String processLine(String originalLine) {
   return originalLine;
 }
 
-// 处理行内容而不是直接修改 final 变量
-String processLine(String originalLine) {
-  if (originalLine.startsWith('#EXTINF:-1,')) {
-    return originalLine.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
-  }
-  return originalLine;
-}
-
 // 预定义常量
 const Map<String, String> _protocolMap = {
   'http': 'http',
@@ -478,10 +470,11 @@ class M3uUtil {
              currentCategory = Config.allChannelsKey;
            }
          } else if (_m3uLinePattern.hasMatch(line)) {
-           if (line.startsWith('#EXTINF:-1,')) {
-             line = processLine(line);
+           var processedLine = line;
+           if (processedLine.startsWith('#EXTINF:-1,')) {
+              processedLine = processedLine.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
            }
-           final lineList = line.split(',');
+           final lineList = processedLine.split(',');
            final params = lineList.first.replaceAll('"', '').split(' ');
 
            final groupMatch = _groupTitlePattern.firstMatch(line);
