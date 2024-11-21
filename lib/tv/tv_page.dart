@@ -190,10 +190,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 // 打开设置页面，并更新播放图标状态
 Future<bool?> _opensetting() async {
   try {
-    bool wasPlaying = widget.controller?.isPlaying() ?? false;  // 记录进入设置前的播放状态
-    await widget.controller?.pause();  // 暂停播放
-    _updateIconState(showPlay: true);  // 显示播放图标
-      
     final result = await Navigator.push<bool>(
       context,
       PageRouteBuilder(
@@ -214,13 +210,6 @@ Future<bool?> _opensetting() async {
         },
       ),
     );
-    
-    // 从设置页面返回时，如果之前在播放，则恢复播放
-    if (mounted && wasPlaying) {
-      await widget.controller?.play();
-      _updateIconState(showPlay: false);  // 隐藏播放图标
-    }
-
     return result;
   } catch (e, stackTrace) {
     LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
@@ -380,9 +369,7 @@ Future<bool?> _opensetting() async {
         await widget.changeChannelSources?.call();
         break;
       case LogicalKeyboardKey.arrowDown:
-        // 下箭头用于暂停播放并打开设置页面
-        await widget.controller?.pause();
-        _updateIconState(showPlay: true);
+        // 下箭头用于打开设置页面
         _opensetting();
         break;
       case LogicalKeyboardKey.select:
