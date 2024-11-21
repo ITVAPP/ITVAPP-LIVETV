@@ -13,12 +13,12 @@ import '../config.dart';
 
 // 预编译正则表达式
 final RegExp _m3uLinePattern = RegExp(r'^#EXTINF:-1\s*(.*)$');
-final RegExp _groupTitlePattern = RegExp(r'group-title=(["\'])(.*?)\1');
-final RegExp _tvgIdPattern = RegExp(r'tvg-id=(["\'])(.*?)\1');
-final RegExp _tvgNamePattern = RegExp(r'tvg-name=(["\'])(.*?)\1');
-final RegExp _tvgLogoPattern = RegExp(r'tvg-logo=(["\'])(.*?)\1');
+final RegExp _groupTitlePattern = RegExp(r'group-title="([^"]*?)"|group-title=\'([^\']*?)\'');
+final RegExp _tvgIdPattern = RegExp(r'tvg-id="([^"]*?)"|tvg-id=\'([^\']*?)\'');
+final RegExp _tvgNamePattern = RegExp(r'tvg-name="([^"]*?)"|tvg-name=\'([^\']*?)\'');
+final RegExp _tvgLogoPattern = RegExp(r'tvg-logo="([^"]*?)"|tvg-logo=\'([^\']*?)\'');
 
-// 对于不能修改 final 变量的问题，使用 processLine 方法
+// 处理行内容而不是直接修改 final 变量
 String processLine(String originalLine) {
   if (originalLine.startsWith('#EXTINF:-1,')) {
     return originalLine.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
