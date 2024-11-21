@@ -61,7 +61,7 @@ const selectedTextStyle = TextStyle(
 );
 
 // 最小高度
-const defaultMinHeight = 40.0;
+const defaultMinHeight = 42.0;
 
 // 背景色
 const defaultBackgroundColor = Colors.black54;
