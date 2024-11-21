@@ -13,10 +13,10 @@ import '../config.dart';
 
 // 预编译正则表达式
 final RegExp _m3uLinePattern = RegExp(r'^#EXTINF:-1\s*(.*)$');
-final RegExp _groupTitlePattern = RegExp(r'group-title=([^,\s]+)');
-final RegExp _tvgIdPattern = RegExp(r'tvg-id=([^,\s]+)');
-final RegExp _tvgNamePattern = RegExp(r'tvg-name=([^,\s]+)');
-final RegExp _tvgLogoPattern = RegExp(r'tvg-logo=([^,\s]+)');
+final RegExp _groupTitlePattern = RegExp(r'group-title=[\'"](.*?)[\'"](,|\s|$)');
+final RegExp _tvgIdPattern = RegExp(r'tvg-id=[\'"](.*?)[\'"](,|\s|$)');
+final RegExp _tvgNamePattern = RegExp(r'tvg-name=[\'"](.*?)[\'"](,|\s|$)');
+final RegExp _tvgLogoPattern = RegExp(r'tvg-logo=[\'"](.*?)[\'"](,|\s|$)');
 
 /// 封装 M3U 数据
 class M3uResult {
