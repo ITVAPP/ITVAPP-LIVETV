@@ -657,7 +657,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
 
     // 处理Bing背景显示状态的变化
     // - 如果新组件启用了Bing背景，而旧组件未启用，则加载背景图片
-    if (!oldWidget.showBingBackground && widget.showBingBackground) {
+    if (widget.showBingBackground) {
       _loadBingBackgrounds(); // 调用加载Bing背景的方法
     }
 
