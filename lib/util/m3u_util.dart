@@ -45,37 +45,57 @@ class M3uResult {
 }
 
 class M3uUtil {
- // 使用 late 延迟初始化
- static late final String _defaultM3u;
- static late final PlaylistModel _favoritePlaylist;
+  static String _defaultM3u = '';
+  static PlaylistModel _favoritePlaylist = PlaylistModel(
+    playList: {
+      Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
+    },
+  );
  
  M3uUtil._();
 
  /// 初始化
- static Future<void> init() async {
-   _defaultM3u = EnvUtil.videoDefaultChannelHost();
-   _favoritePlaylist = await getOrCreateFavoriteList();
- }
+  static Future<void> init() async {
+    try {
+      _defaultM3u = EnvUtil.videoDefaultChannelHost();
+      _favoritePlaylist = await getOrCreateFavoriteList();
+    } catch (e, stackTrace) {
+      LogUtil.logError('M3uUtil初始化失败', e, stackTrace);
+      // 确保即使初始化失败也有默认值
+      _defaultM3u = '';
+      _favoritePlaylist = PlaylistModel(
+        playList: {
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
+        },
+      );
+    }
+  }
 
  /// 获取本地播放列表，如数据为空，则尝试获取远程播放列表
- static Future<M3uResult> getLocalM3uData() async {
-   final buffer = StringBuffer();
-   try {
-     final m3uDataString = await _getCachedM3uData();
-     if (m3uDataString.isEmpty) {
-       return await getDefaultM3uData();
-     }
-     return M3uResult(data: PlaylistModel.fromString(m3uDataString));
-   } catch (e, stackTrace) {
-     buffer
-       ..write('获取本地播放列表失败: ')
-       ..write(e)
-       ..write('\n堆栈: ')
-       ..write(stackTrace);
-     LogUtil.logError(buffer.toString(), e, stackTrace);
-     return M3uResult(errorMessage: S.current.getm3udataerror);
-   }
- }
+   static Future<M3uResult> getLocalM3uData() async {
+    final buffer = StringBuffer();
+    try {
+      // 确保已经初始化
+      if (_defaultM3u.isEmpty) {
+        await init();
+      }
+      
+      final m3uDataString = await _getCachedM3uData();
+      if (m3uDataString.isEmpty) {
+        return await getDefaultM3uData();
+      }
+      
+      final playlist = PlaylistModel.fromString(m3uDataString);
+      if (playlist == null || playlist.playList == null) {
+        return M3uResult(errorMessage: S.current.getm3udataerror);
+      }
+      
+      return M3uResult(data: playlist);
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取本地播放列表失败', e, stackTrace);
+      return M3uResult(errorMessage: S.current.getm3udataerror);
+    }
+  }
 
  /// 获取远程播放列表
  static Future<M3uResult> getDefaultM3uData({Function(int attempt)? onRetry}) async {
@@ -135,20 +155,25 @@ class M3uUtil {
  }
 
  /// 获取远程播放列表
- static Future<String> _fetchData() async {
-   try {
-     final buffer = StringBuffer()
-       ..write(_defaultM3u)
-       ..write('?time=')
-       ..write(DateFormat('yyyyMMddHH').format(DateTime.now()));
+  static Future<String> _fetchData() async {
+    try {
+      // 确保已经初始化
+      if (_defaultM3u.isEmpty) {
+        await init();
+      }
+
+      final buffer = StringBuffer()
+        ..write(_defaultM3u)
+        ..write('?time=')
+        ..write(DateFormat('yyyyMMddHH').format(DateTime.now()));
      
-     final res = await HttpUtil().getRequest(buffer.toString());
-     return res ?? '';
-   } catch (e, stackTrace) {
-     LogUtil.logError('获取远程播放列表失败', e, stackTrace);
-     return '';
-   }
- }
+      final res = await HttpUtil().getRequest(buffer.toString());
+      return res ?? '';
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取远程播放列表失败', e, stackTrace);
+      return '';
+    }
+  }
  
  /// 获取或创建本地的收藏列表
  static Future<PlaylistModel> getOrCreateFavoriteList() async {
