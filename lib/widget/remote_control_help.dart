@@ -291,110 +291,177 @@ class RemoteControlPainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
     
-    // 遥控器背景渐变
-    final Paint gradientPaint = Paint()
+    final Paint backgroundPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          const Color(0xFF666666),
-          const Color(0xFF333333),
+          Color(0xFF444444).withOpacity(0.5),
+          Color(0xFF444444).withOpacity(0.3),
+          Color(0xFF444444).withOpacity(0.1),
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
 
-    // 遥控器外框路径
-    final path = Path()
-      ..moveTo(width * 0.1, 0)
-      ..lineTo(width * 0.9, 0)
-      ..quadraticBezierTo(width, 0, width, height * 0.05)
-      ..lineTo(width, height * 0.95)
-      ..quadraticBezierTo(width, height, width * 0.9, height)
-      ..lineTo(width * 0.1, height)
-      ..quadraticBezierTo(0, height, 0, height * 0.95)
-      ..lineTo(0, height * 0.05)
-      ..quadraticBezierTo(0, 0, width * 0.1, 0);
+    final Paint borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.5)
+      ..strokeWidth = width * 0.01
+      ..style = PaintingStyle.stroke;
 
-    // 绘制遥控器背景
-    canvas.drawPath(path, gradientPaint);
+    // Draw remote body background
+    final Path remotePath = Path()
+      ..moveTo(width * 0.05, height * 0.06)
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
+      ..lineTo(width * 0.85, 0)
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06)
+      ..lineTo(width * 0.95, height)
+      ..lineTo(width * 0.05, height)
+      ..close();
 
-    // 遥控器边框
-    final borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawPath(path, borderPaint);
+    canvas.drawPath(remotePath, backgroundPaint);
+    canvas.drawPath(remotePath, borderPaint);
 
-    // 方向键背景
-    final directionPadPaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
-      ..style = PaintingStyle.fill;
-
-    // 方向键圆形背景
+    // Draw circular pad
+    final circleCenter = Offset(width * 0.5, height * 0.33);
+    final circleRadius = width * 0.35;
+    
     canvas.drawCircle(
-      Offset(width * 0.5, height * 0.25),
-      width * 0.2,
-      directionPadPaint,
+      circleCenter,
+      circleRadius,
+      Paint()
+        ..color = Color(0xFF444444).withOpacity(0.5)
+        ..style = PaintingStyle.fill,
     );
+    canvas.drawCircle(circleCenter, circleRadius, borderPaint);
 
-    // 方向键按钮
-    final buttonPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
+    // Draw directional arrows
+    _drawDirectionalArrows(canvas, circleCenter, width);
 
-    // 上键
-    _drawDirectionButton(
-      canvas,
-      Offset(width * 0.5, height * 0.15),
-      buttonPaint,
-      width * 0.08,
-    );
-
-    // 右键
-    _drawDirectionButton(
-      canvas,
-      Offset(width * 0.65, height * 0.25),
-      buttonPaint,
-      width * 0.08,
-    );
-
-    // 下键
-    _drawDirectionButton(
-      canvas,
-      Offset(width * 0.5, height * 0.35),
-      buttonPaint,
-      width * 0.08,
-    );
-
-    // 左键
-    _drawDirectionButton(
-      canvas,
-      Offset(width * 0.35, height * 0.25),
-      buttonPaint,
-      width * 0.08,
-    );
-
-    // 确认键
-    _drawDirectionButton(
-      canvas,
-      Offset(width * 0.5, height * 0.25),
-      buttonPaint,
-      width * 0.06,
-    );
-
-    // 返回键
-    final backButtonPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
+    // Draw center circle and OK text
+    final centerRadius = width * 0.15;
     canvas.drawCircle(
-      Offset(width * 0.5, height * 0.7),
-      width * 0.1,
-      backButtonPaint,
+      circleCenter,
+      centerRadius,
+      Paint()
+        ..color = Color(0xFF333333).withOpacity(0.7)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(circleCenter, centerRadius, borderPaint);
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'OK',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: width * 0.12,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    textPainter.paint(
+      canvas,
+      circleCenter.translate(-textPainter.width / 2, -textPainter.height / 2),
+    );
+
+    // Draw back button
+    _drawBackButton(canvas, Offset(width * 0.75, height * 0.7), width);
+  }
+
+  void _drawDirectionalArrows(Canvas canvas, Offset center, double width) {
+    final Paint arrowPaint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.fill;
+
+    final arrowSize = width * 0.15;
+    final arrowDistance = width * 0.22;
+
+    // Up arrow
+    _drawTriangle(
+      canvas,
+      center.translate(0, -arrowDistance),
+      arrowSize,
+      arrowSize * 0.5,
+      0,
+      arrowPaint,
+    );
+
+    // Right arrow
+    _drawTriangle(
+      canvas,
+      center.translate(arrowDistance, 0),
+      arrowSize,
+      arrowSize * 0.5,
+      90,
+      arrowPaint,
+    );
+
+    // Down arrow
+    _drawTriangle(
+      canvas,
+      center.translate(0, arrowDistance),
+      arrowSize,
+      arrowSize * 0.5,
+      180,
+      arrowPaint,
+    );
+
+    // Left arrow
+    _drawTriangle(
+      canvas,
+      center.translate(-arrowDistance, 0),
+      arrowSize,
+      arrowSize * 0.5,
+      270,
+      arrowPaint,
     );
   }
 
-  void _drawDirectionButton(Canvas canvas, Offset center, Paint paint, double radius) {
+  void _drawTriangle(
+    Canvas canvas,
+    Offset center,
+    double width,
+    double height,
+    double rotation,
+    Paint paint,
+  ) {
+    final path = Path();
+    path.moveTo(0, -height / 2);
+    path.lineTo(width / 2, height / 2);
+    path.lineTo(-width / 2, height / 2);
+    path.close();
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation * 3.14159 / 180);
+    canvas.drawPath(path, paint);
+    canvas.restore();
+  }
+
+  void _drawBackButton(Canvas canvas, Offset center, double width) {
+    final Paint paint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width * 0.01;
+
+    final radius = width * 0.08;
     canvas.drawCircle(center, radius, paint);
+
+    paint.strokeWidth = width * 0.02;
+    final arrowSize = radius * 0.8;
+    final path = Path()
+      ..moveTo(center.dx - arrowSize, center.dy - arrowSize)
+      ..lineTo(center.dx - arrowSize, center.dy + arrowSize)
+      ..lineTo(center.dx + arrowSize, center.dy + arrowSize);
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(45 * 3.14159 / 180);
+    canvas.translate(-center.dx, -center.dy);
+    canvas.translate(width * 0.01, -width * 0.01);
+    canvas.drawPath(path, paint);
+    canvas.restore();
   }
 
   @override
