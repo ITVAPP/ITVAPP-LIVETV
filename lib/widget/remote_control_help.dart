@@ -25,6 +25,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final scale = (screenSize.width / 1920).clamp(0.5, 2.0);
+    final screenCenter = screenSize.width / 2;  // 添加屏幕中心点计算
 
     return Material(
       type: MaterialType.transparency,
@@ -45,93 +46,93 @@ class RemoteControlHelpDialog extends StatelessWidget {
                         alignment: Alignment.center,
                         clipBehavior: Clip.none,
                         children: [
-                          // 遥控器SVG
-                          SizedBox(
-                            width: 400 * scale,
-                            height: 600 * scale,
-                            child: CustomPaint(
-                              painter: RemoteControlPainter(),
+                          // 遥控器SVG - 使用Center确保居中
+                          Center(
+                            child: SizedBox(
+                              width: 400 * scale,
+                              height: 600 * scale,
+                              child: CustomPaint(
+                                painter: RemoteControlPainter(),
+                              ),
                             ),
                           ),
-                          
-                          // Left Connection Lines
+                                                    // Left Connection Lines - 使用屏幕中心点定位
                           _buildConnectionLine(
-                            left: -270 * scale, 
+                            left: screenCenter - 270 * scale, 
                             top: 90 * scale, 
                             width: 250 * scale,
                             height: 3 * scale,
                           ),
                           _buildConnectionLine(
-                            left: -270 * scale, 
+                            left: screenCenter - 270 * scale, 
                             top: 190 * scale, 
                             width: 150 * scale,
                             height: 3 * scale,
                           ),
                           _buildConnectionLine(
-                            left: -270 * scale, 
+                            left: screenCenter - 270 * scale, 
                             top: 310 * scale, 
                             width: 245 * scale,
                             height: 3 * scale,
                           ),
                           
-                          // Right Connection Lines
+                          // Right Connection Lines - 使用屏幕中心点定位
                           _buildConnectionLine(
-                            left: 170 * scale, 
+                            left: screenCenter + 170 * scale, 
                             top: 150 * scale, 
                             width: 225 * scale,
                             height: 3 * scale,
                           ),
                           _buildConnectionLine(
-                            left: 110 * scale, 
+                            left: screenCenter + 110 * scale, 
                             top: 215 * scale, 
                             width: 180 * scale,
                             height: 3 * scale,
                           ),
                           _buildConnectionLine(
-                            left: 110 * scale, 
+                            left: screenCenter + 110 * scale, 
                             top: 378 * scale, 
                             width: 175 * scale,
                             height: 3 * scale,
                           ),
                           
-                          // Left Dots
+                          // Left Dots - 使用屏幕中心点定位
                           _buildDot(
-                            left: -275 * scale, 
+                            left: screenCenter - 275 * scale, 
                             top: 88 * scale,
                             size: 8 * scale,
                           ),
                           _buildDot(
-                            left: -275 * scale, 
+                            left: screenCenter - 275 * scale, 
                             top: 188 * scale,
                             size: 8 * scale,
                           ),
                           _buildDot(
-                            left: -275 * scale, 
+                            left: screenCenter - 275 * scale, 
                             top: 308 * scale,
                             size: 8 * scale,
                           ),
                           
-                          // Right Dots
+                          // Right Dots - 使用屏幕中心点定位
                           _buildDot(
-                            left: 282 * scale, 
+                            left: screenCenter + 282 * scale, 
                             top: 148 * scale,
                             size: 8 * scale,
                           ),
                           _buildDot(
-                            left: 282 * scale, 
+                            left: screenCenter + 282 * scale, 
                             top: 213 * scale,
                             size: 8 * scale,
                           ),
                           _buildDot(
-                            left: 282 * scale, 
+                            left: screenCenter + 282 * scale, 
                             top: 375 * scale,
                             size: 8 * scale,
                           ),
-                          
-                          // Left Labels
+                                                    // Left Labels - 使用屏幕中心点定位
                           _buildLabel(
                             context: context,
-                            left: -695 * scale,
+                            left: screenCenter - 695 * scale,
                             top: 65 * scale,
                             text: "「点击上键」打开 线路切换菜单",
                             alignment: Alignment.centerRight,
@@ -139,7 +140,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                           ),
                           _buildLabel(
                             context: context,
-                            left: -695 * scale,
+                            left: screenCenter - 695 * scale,
                             top: 165 * scale,
                             text: "「点击左键」添加/取消 频道收藏",
                             alignment: Alignment.centerRight,
@@ -147,17 +148,17 @@ class RemoteControlHelpDialog extends StatelessWidget {
                           ),
                           _buildLabel(
                             context: context,
-                            left: -695 * scale,
+                            left: screenCenter - 695 * scale,
                             top: 288 * scale,
                             text: "「点击下键」打开 应用设置界面",
                             alignment: Alignment.centerRight,
                             scale: scale,
                           ),
                           
-                          // Right Labels
+                          // Right Labels - 使用屏幕中心点定位
                           _buildLabel(
                             context: context,
-                            left: 285 * scale,
+                            left: screenCenter + 285 * scale,
                             top: 95 * scale,
                             text: "「点击确认键」确认选择操作\n显示时间/暂停/播放",
                             alignment: Alignment.centerLeft,
@@ -165,7 +166,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                           ),
                           _buildLabel(
                             context: context,
-                            left: 285 * scale,
+                            left: screenCenter + 285 * scale,
                             top: 195 * scale,
                             text: "「点击右键」打开 频道选择抽屉",
                             alignment: Alignment.centerLeft,
@@ -173,7 +174,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                           ),
                           _buildLabel(
                             context: context,
-                            left: 285 * scale,
+                            left: screenCenter + 285 * scale,
                             top: 355 * scale,
                             text: "「点击返回键」退出/取消操作",
                             alignment: Alignment.centerLeft,
@@ -209,8 +210,8 @@ class RemoteControlHelpDialog extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildConnectionLine({
+  
+    Widget _buildConnectionLine({
     required double left,
     required double top,
     required double width,
@@ -222,7 +223,16 @@ class RemoteControlHelpDialog extends StatelessWidget {
       child: Container(
         width: width,
         height: height,
-        color: Colors.white.withOpacity(0.8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.8),
+              Colors.white.withOpacity(0),
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+        ),
       ),
     );
   }
@@ -235,12 +245,12 @@ class RemoteControlHelpDialog extends StatelessWidget {
     return Positioned(
       left: left,
       top: top,
-      child: Transform.rotate(
-        angle: 45 * 3.14159 / 180,
-        child: Container(
-          width: size,
-          height: size,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.8),
+          shape: BoxShape.circle,
         ),
       ),
     );
@@ -258,16 +268,17 @@ class RemoteControlHelpDialog extends StatelessWidget {
       left: left,
       top: top,
       child: Container(
-        constraints: BoxConstraints(maxWidth: 400 * scale),
+        alignment: alignment,
         child: Text(
           text,
-          textAlign: alignment == Alignment.centerRight ? TextAlign.right : TextAlign.left,
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 28 * scale,
-            height: 1.6,
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 24 * scale,
             fontFamily: _getFontFamily(context),
           ),
+          textAlign: alignment == Alignment.centerLeft 
+              ? TextAlign.left 
+              : TextAlign.right,
         ),
       ),
     );
@@ -280,184 +291,110 @@ class RemoteControlPainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
     
-    final Paint backgroundPaint = Paint()
+    // 遥控器背景渐变
+    final Paint gradientPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Color(0xFF444444).withOpacity(0.5),
-          Color(0xFF444444).withOpacity(0.3),
-          Color(0xFF444444).withOpacity(0.1),
+          const Color(0xFF666666),
+          const Color(0xFF333333),
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
 
-    final Paint borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
-      ..strokeWidth = width * 0.0075
-      ..style = PaintingStyle.stroke;
-
-    // 遥控器主体
-    final Path remotePath = Path()
-      ..moveTo(width * 0.025, height * 0.05)
-      ..quadraticBezierTo(
-        width * 0.025, 0,
-        width * 0.1, 0
-      )
+    // 遥控器外框路径
+    final path = Path()
+      ..moveTo(width * 0.1, 0)
       ..lineTo(width * 0.9, 0)
-      ..quadraticBezierTo(
-        width * 0.975, 0,
-        width * 0.975, height * 0.05
-      )
-      ..lineTo(width * 0.975, height * 0.867)
-      ..lineTo(width * 0.025, height * 0.867)
-      ..close();
+      ..quadraticBezierTo(width, 0, width, height * 0.05)
+      ..lineTo(width, height * 0.95)
+      ..quadraticBezierTo(width, height, width * 0.9, height)
+      ..lineTo(width * 0.1, height)
+      ..quadraticBezierTo(0, height, 0, height * 0.95)
+      ..lineTo(0, height * 0.05)
+      ..quadraticBezierTo(0, 0, width * 0.1, 0);
 
-    canvas.drawPath(remotePath, backgroundPaint);
+    // 绘制遥控器背景
+    canvas.drawPath(path, gradientPaint);
 
-    // 圆形按键区域
-    final circleCenter = Offset(width * 0.475, height * 0.333);
-    final circleRadius = width * 0.35;
-    
-    canvas.drawCircle(
-      circleCenter,
-      circleRadius,
-      Paint()
-        ..color = Color(0xFF444444).withOpacity(0.5)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawCircle(circleCenter, circleRadius, borderPaint);
+    // 遥控器边框
+    final borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawPath(path, borderPaint);
 
-    // 方向箭头
-    _drawDirectionalArrows(canvas, circleCenter, width);
-
-    // OK按钮
-    final centerRadius = width * 0.15;
-    canvas.drawCircle(
-      circleCenter,
-      centerRadius,
-      Paint()
-        ..color = Color(0xFF333333).withOpacity(0.7)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawCircle(circleCenter, centerRadius, borderPaint);
-
-    // OK文字
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'OK',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: width * 0.115,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Roboto',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    textPainter.paint(
-      canvas,
-      circleCenter.translate(-textPainter.width / 2, -textPainter.height / 2),
-    );
-
-    // 返回按钮
-    _drawBackButton(canvas, Offset(width * 0.765, height * 0.633), width);
-  }
-
-  void _drawDirectionalArrows(Canvas canvas, Offset center, double width) {
-    final Paint arrowPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+    // 方向键背景
+    final directionPadPaint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
       ..style = PaintingStyle.fill;
 
-    final arrowSize = width * 0.154;
-    final arrowHeight = width * 0.077;
-    final arrowDistance = width * 0.2125;
-
-    // 上箭头
-    _drawTriangle(
-      canvas,
-      center.translate(0, -arrowDistance),
-      arrowSize,
-      arrowHeight,
-      0,
-      arrowPaint,
+    // 方向键圆形背景
+    canvas.drawCircle(
+      Offset(width * 0.5, height * 0.25),
+      width * 0.2,
+      directionPadPaint,
     );
 
-    // 右箭头
-    _drawTriangle(
+    // 方向键按钮
+    final buttonPaint = Paint()
+      ..color = Colors.white.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+
+    // 上键
+    _drawDirectionButton(
       canvas,
-      center.translate(arrowDistance, 0),
-      arrowSize,
-      arrowHeight,
-      90,
-      arrowPaint,
+      Offset(width * 0.5, height * 0.15),
+      buttonPaint,
+      width * 0.08,
     );
 
-    // 下箭头
-    _drawTriangle(
+    // 右键
+    _drawDirectionButton(
       canvas,
-      center.translate(0, arrowDistance),
-      arrowSize,
-      arrowHeight,
-      180,
-      arrowPaint,
+      Offset(width * 0.65, height * 0.25),
+      buttonPaint,
+      width * 0.08,
     );
 
-    // 左箭头
-    _drawTriangle(
+    // 下键
+    _drawDirectionButton(
       canvas,
-      center.translate(-arrowDistance, 0),
-      arrowSize,
-      arrowHeight,
-      270,
-      arrowPaint,
+      Offset(width * 0.5, height * 0.35),
+      buttonPaint,
+      width * 0.08,
+    );
+
+    // 左键
+    _drawDirectionButton(
+      canvas,
+      Offset(width * 0.35, height * 0.25),
+      buttonPaint,
+      width * 0.08,
+    );
+
+    // 确认键
+    _drawDirectionButton(
+      canvas,
+      Offset(width * 0.5, height * 0.25),
+      buttonPaint,
+      width * 0.06,
+    );
+
+    // 返回键
+    final backButtonPaint = Paint()
+      ..color = Colors.white.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+      Offset(width * 0.5, height * 0.7),
+      width * 0.1,
+      backButtonPaint,
     );
   }
 
-  void _drawTriangle(
-    Canvas canvas,
-    Offset center,
-    double width,
-    double height,
-    double rotation,
-    Paint paint,
-  ) {
-    final path = Path();
-    path.moveTo(0, -height / 2);
-    path.lineTo(width / 2, height / 2);
-    path.lineTo(-width / 2, height / 2);
-    path.close();
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(rotation * 3.14159 / 180);
-    canvas.drawPath(path, paint);
-    canvas.restore();
-  }
-
-  void _drawBackButton(Canvas canvas, Offset center, double width) {
-    final Paint paint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width * 0.0075;
-
-    final radius = width * 0.075;
+  void _drawDirectionButton(Canvas canvas, Offset center, Paint paint, double radius) {
     canvas.drawCircle(center, radius, paint);
-
-    paint.strokeWidth = width * 0.02;
-    final arrowSize = radius * 0.8;
-    final path = Path()
-      ..moveTo(center.dx - arrowSize, center.dy - arrowSize)
-      ..lineTo(center.dx - arrowSize, center.dy + arrowSize)
-      ..lineTo(center.dx + arrowSize, center.dy + arrowSize);
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(45 * 3.14159 / 180);
-    canvas.translate(-center.dx, -center.dy);
-    canvas.translate(width * 0.0125, -width * 0.0125);
-    canvas.drawPath(path, paint);
-    canvas.restore();
   }
 
   @override
