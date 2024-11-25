@@ -34,7 +34,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
       child: GestureDetector(
         onTap: () => Navigator.of(context).pop(), // 点击时关闭对话框
         child: Container(
-          color: Colors.black, // 设置黑色背景
+          color: Color(0xDD000000), // 设置黑色微透明背景
           width: screenSize.width,
           height: screenSize.height,
           child: Stack(
@@ -64,7 +64,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                             top: 90 * scale,
                             width: 250 * scale, // 连线宽度
                             height: 3 * scale, // 连线高度
-                            isLeftSide: true,
+                            isLeftSide: false,
                           ),
                           _buildConnectionLine(
                             left: screenCenter - 270 * scale, 
@@ -78,6 +78,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                             top: 310 * scale, 
                             width: 245 * scale,
                             height: 3 * scale,
+                            isLeftSide: false,
                           ),
                           // 右侧连线
                           _buildConnectionLine(
@@ -197,7 +198,7 @@ class RemoteControlHelpDialog extends StatelessWidget {
                     "点击任意按键关闭使用帮助 (18)", // 提示文本
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.6),
-                      fontSize: 16 * scale, // 字体大小
+                      fontSize: 22 * scale, // 字体大小
                       fontFamily: _getFontFamily(context),
                     ),
                   ),
@@ -277,7 +278,7 @@ Widget _buildConnectionLine({
           text, // 标签文本
           style: TextStyle(
             color: Colors.white.withOpacity(0.8),
-            fontSize: 24 * scale, // 字体大小动态缩放
+            fontSize: 28 * scale, // 字体大小动态缩放
             fontFamily: _getFontFamily(context), // 字体
           ),
           textAlign: alignment == Alignment.centerLeft 
@@ -289,14 +290,14 @@ Widget _buildConnectionLine({
   }
 }
 
-  /// 遥控器SVG绘制
+/// 遥控器SVG绘制
 class RemoteControlPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width; // 绘制区域宽度
-    final height = size.height; // 绘制区域高度
+    final width = size.width;
+    final height = size.height;
 
-    // 绘制遥控器主体背景
+    // 背景涂层的画笔配置，使用线性渐变模拟遥控器的视觉效果
     final Paint backgroundPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
@@ -308,186 +309,165 @@ class RemoteControlPainter extends CustomPainter {
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
 
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, width, height), 
-      backgroundPaint
-    );
+    // 绘制遥控器主体背景
+    final Path remotePath = Path()
+      ..moveTo(width * 0.05, height * 0.06) // 左上角的起始点
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0) // 左上角的圆角
+      ..lineTo(width * 0.85, 0) // 顶部直线
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06) // 右上角的圆角
+      ..lineTo(width * 0.95, height) // 右侧直线
+      ..lineTo(width * 0.05, height) // 底部直线
+      ..close(); // 闭合路径
 
-    // 左边框渐变
-    final Paint leftBorderPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.5),
-          Colors.white.withOpacity(0.3),
-          Colors.white.withOpacity(0.1),
-        ],
-      ).createShader(Rect.fromLTWH(
-        width * 0.05,
-        0,
-        0,
-        height
-      ))
-      ..strokeWidth = width * 0.01
-      ..style = PaintingStyle.stroke;
+    canvas.drawPath(remotePath, backgroundPaint); // 绘制背景
 
-    // 右边框渐变
-    final Paint rightBorderPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.5),
-          Colors.white.withOpacity(0.3),
-          Colors.white.withOpacity(0.1),
-        ],
-      ).createShader(Rect.fromLTWH(
-        width * 0.95,
-        0,
-        0,
-        height
-      ))
-      ..strokeWidth = width * 0.01
-      ..style = PaintingStyle.stroke;
-
-    // 上边框（不带渐变）
+    // 自定义顶部边框画笔
     final Paint topBorderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withOpacity(0.5) // 半透明白色
       ..strokeWidth = width * 0.01
       ..style = PaintingStyle.stroke;
 
-    // 左边框（带渐变）
-    canvas.drawLine(
-      Offset(width * 0.05, 0), 
-      Offset(width * 0.05, height), 
-      leftBorderPaint
-    );
+    // 顶部边框路径
+    final Path topBorderPath = Path()
+      ..moveTo(width * 0.05, height * 0.06) // 左上角起点
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0) // 左上角圆角
+      ..lineTo(width * 0.85, 0) // 顶部直线
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06); // 右上角圆角
 
-    // 右边框（带渐变）
-    canvas.drawLine(
-      Offset(width * 0.95, 0), 
-      Offset(width * 0.95, height), 
-      rightBorderPaint
-    );
+    canvas.drawPath(topBorderPath, topBorderPaint); // 绘制顶部边框
 
-    // 上边框
-    canvas.drawLine(
-      Offset(width * 0.05, 0), 
-      Offset(width * 0.95, 0), 
-      topBorderPaint
-    );
+    // 自定义左右渐变边框画笔
+    final Paint gradientBorderPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(0.8), // 顶部边框颜色
+          Colors.white.withOpacity(0.0), // 底部渐变为透明
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, width, height))
+      ..strokeWidth = width * 0.01
+      ..style = PaintingStyle.stroke;
 
-    // 中心圆区域
-    final circleCenter = Offset(width * 0.5, height * 0.33); // 中心圆的位置
-    final circleRadius = width * 0.35; // 中心圆的半径
+    // 左侧边框路径
+    final Path leftBorderPath = Path()
+      ..moveTo(width * 0.05, height * 0.06) // 左上角起点
+      ..lineTo(width * 0.05, height); // 左侧直线到底部
+
+    canvas.drawPath(leftBorderPath, gradientBorderPaint); // 绘制左侧边框
+
+    // 右侧边框路径
+    final Path rightBorderPath = Path()
+      ..moveTo(width * 0.95, height * 0.06) // 右上角起点
+      ..lineTo(width * 0.95, height); // 右侧直线到底部
+
+    canvas.drawPath(rightBorderPath, gradientBorderPaint); // 绘制右侧边框
+
+    // 底部不绘制边框，因此无需处理
+    // 剩余代码保持不变
+
+    // 绘制圆形控制区域
+    final circleCenter = Offset(width * 0.5, height * 0.33); // 圆心
+    final circleRadius = width * 0.35; // 圆半径
 
     canvas.drawCircle(
       circleCenter,
       circleRadius,
       Paint()
-        ..color = Color(0xFF444444).withOpacity(0.5)
+        ..color = Color(0xFF444444).withOpacity(0.5) // 半透明深灰色填充
         ..style = PaintingStyle.fill,
     );
-    
+    canvas.drawCircle(circleCenter, circleRadius, topBorderPaint); // 边框
+
     // 绘制方向箭头
     _drawDirectionalArrows(canvas, circleCenter, width);
 
-    // 绘制中心圆和"OK"文本
+    // 绘制中心圆和“OK”文本
     final centerRadius = width * 0.15;
     canvas.drawCircle(
       circleCenter,
       centerRadius,
       Paint()
-        ..color = Color(0xFF333333).withOpacity(0.7)
+        ..color = Color(0xFF333333).withOpacity(0.7) // 半透明深灰色填充
         ..style = PaintingStyle.fill,
     );
+    canvas.drawCircle(circleCenter, centerRadius, topBorderPaint); // 边框
 
+    // “OK”文字绘制
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'OK',
         style: TextStyle(
-          color: Colors.white,
-          fontSize: width * 0.12,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Roboto',
+          color: Colors.white, // 白色字体
+          fontSize: width * 0.12, // 字体大小
+          fontWeight: FontWeight.bold, // 加粗
+          fontFamily: 'Roboto', // 字体
         ),
       ),
       textDirection: TextDirection.ltr,
-    )..layout();
+    )..layout(); // 计算文本布局
 
+    // 文本居中绘制
     textPainter.paint(
       canvas,
       circleCenter.translate(-textPainter.width / 2, -textPainter.height / 2),
     );
 
     // 绘制返回按钮
-    // 调整返回按钮位置：修改 width * 0.75 和 height * 0.7 这两个值可以改变返回按钮的位置
-    // width * 0.75：越大越靠右，越小越靠左
-    // height * 0.7：越大越靠下，越小越靠上
-    _drawBackButton(canvas, Offset(width * 0.75, height * 0.5), width);
+    _drawBackButton(canvas, Offset(width * 0.75, height * 0.65), width);
   }
 
-  /// 绘制方向箭头
+  // 绘制方向箭头
   void _drawDirectionalArrows(Canvas canvas, Offset center, double width) {
     final Paint arrowPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = Colors.white.withOpacity(0.8) // 半透明白色填充
       ..style = PaintingStyle.fill;
 
-    // 调整方向箭头大小：修改 width * 0.18 这个值可以改变箭头大小
-    // 值越大箭头越大，值越小箭头越小
-    final arrowSize = width * 0.18;
+    final arrowSize = width * 0.18; // 箭头宽度
+    final arrowDistance = width * 0.25; // 箭头与中心圆的距离
 
-    // 调整箭头与中心的距离：修改 width * 0.25 这个值可以改变箭头离中心的距离
-    // 值越大箭头离中心越远，值越小箭头离中心越近
-    final arrowDistance = width * 0.25;
-
-    // 上箭头位置：通过修改 -arrowDistance 可以调整上箭头的上下位置
-    // 数值越小，箭头位置越向上
+    // 上箭头
     _drawTriangle(
       canvas,
-      center.translate(0, -arrowDistance),
+      center.translate(0, -arrowDistance), // 上移
       arrowSize,
-      arrowSize * 0.5,
-      0,
+      arrowSize * 0.5, // 高度为宽度的一半
+      0, // 不旋转
       arrowPaint,
     );
 
-    // 右箭头位置：通过修改 arrowDistance 可以调整右箭头的左右位置
-    // 数值越大，箭头位置越向右
+    // 右箭头
     _drawTriangle(
       canvas,
-      center.translate(arrowDistance, 0),
+      center.translate(arrowDistance, 0), // 右移
       arrowSize,
       arrowSize * 0.5,
-      90,
+      90, // 顺时针旋转90度
       arrowPaint,
     );
 
-    // 下箭头位置：通过修改 arrowDistance 可以调整下箭头的上下位置
-    // 数值越大，箭头位置越向下
+    // 下箭头
     _drawTriangle(
       canvas,
-      center.translate(0, arrowDistance),
+      center.translate(0, arrowDistance), // 下移
       arrowSize,
       arrowSize * 0.5,
-      180,
+      180, // 顺时针旋转180度
       arrowPaint,
     );
 
-    // 左箭头位置：通过修改 -arrowDistance 可以调整左箭头的左右位置
-    // 数值越小，箭头位置越向左
+    // 左箭头
     _drawTriangle(
       canvas,
-      center.translate(-arrowDistance, 0),
+      center.translate(-arrowDistance, 0), // 左移
       arrowSize,
       arrowSize * 0.5,
-      270,
+      270, // 顺时针旋转270度
       arrowPaint,
     );
   }
 
-  /// 绘制三角形
+  // 绘制三角形，用于表示箭头
   void _drawTriangle(
     Canvas canvas,
     Offset center,
@@ -497,56 +477,45 @@ class RemoteControlPainter extends CustomPainter {
     Paint paint,
   ) {
     final path = Path();
-    path.moveTo(0, -height / 2);
-    path.lineTo(width / 2, height / 2);
-    path.lineTo(-width / 2, height / 2);
-    path.close();
+    path.moveTo(0, -height / 2); // 顶点
+    path.lineTo(width / 2, height / 2); // 右下角
+    path.lineTo(-width / 2, height / 2); // 左下角
+    path.close(); // 闭合路径
 
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(rotation * 3.14159 / 180);
-    canvas.drawPath(path, paint);
-    canvas.restore();
+    canvas.save(); // 保存当前画布状态
+    canvas.translate(center.dx, center.dy); // 移动到目标位置
+    canvas.rotate(rotation * 3.14159 / 180); // 按角度旋转
+    canvas.drawPath(path, paint); // 绘制三角形
+    canvas.restore(); // 恢复画布状态
   }
 
-  /// 绘制返回按钮
+  // 绘制返回按钮
   void _drawBackButton(Canvas canvas, Offset center, double width) {
     final Paint paint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
-      ..style = PaintingStyle.stroke
-      // 调整返回按钮圆圈的线条粗细：修改 width * 0.01 这个值
-      // 值越大线条越粗，值越小线条越细
-      ..strokeWidth = width * 0.01;
+      ..color = Colors.white.withOpacity(0.8) // 半透明白色
+      ..style = PaintingStyle.stroke // 描边
+      ..strokeWidth = width * 0.02; // 描边宽度
 
-    // 调整返回按钮圆圈的大小：修改 width * 0.08 这个值
-    // 值越大圆圈越大，值越小圆圈越小
-    final radius = width * 0.08;
-    canvas.drawCircle(center, radius, paint);
+    final radius = width * 0.08; // 圆的半径
+    canvas.drawCircle(center, radius, paint); // 绘制圆
 
-    // 调整返回箭头的线条粗细：修改 width * 0.02 这个值
-    // 值越大线条越粗，值越小线条越细
-    paint.strokeWidth = width * 0.02;
-
-    // 调整返回箭头的大小：修改 radius * 0.6 这个值
-    // 值越大箭头越大，值越小箭头越小
-    final arrowSize = radius * 0.6;
+    // 绘制箭头
+    paint.strokeWidth = width * 0.02; // 重新设置描边宽度
+    final arrowSize = radius * 0.5; // 箭头尺寸
     final path = Path()
-      ..moveTo(center.dx - arrowSize, center.dy - arrowSize)
-      ..lineTo(center.dx - arrowSize, center.dy + arrowSize)
-      ..lineTo(center.dx + arrowSize, center.dy + arrowSize);
+      ..moveTo(center.dx - arrowSize, center.dy - arrowSize) // 箭头左上角
+      ..lineTo(center.dx - arrowSize, center.dy + arrowSize) // 向下
+      ..lineTo(center.dx + arrowSize, center.dy + arrowSize); // 向右
 
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    // 调整返回箭头的旋转角度：修改 45 这个值
-    // 值越大旋转角度越大
-    canvas.rotate(45 * 3.14159 / 180);
-    canvas.translate(-center.dx, -center.dy);
-    // 微调返回箭头的位置：修改 width * 0.05 和 -width * 0.05 这两个值
-    canvas.translate(width * 0.05, -width * 0.05);
-    canvas.drawPath(path, paint);
-    canvas.restore();
+    canvas.save(); // 保存当前画布状态
+    canvas.translate(center.dx, center.dy); // 移动到箭头位置
+    canvas.rotate(45 * 3.14159 / 180); // 顺时针旋转45度
+    canvas.translate(-center.dx, -center.dy); // 还原中心点位置
+    canvas.translate(width * 0.03, -width * 0.03); // 微调箭头位置
+    canvas.drawPath(path, paint); // 绘制箭头
+    canvas.restore(); // 恢复画布状态
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
+  bool shouldRepaint(CustomPainter oldDelegate) => false; // 无需重绘
 }
