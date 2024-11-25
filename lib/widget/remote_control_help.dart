@@ -15,6 +15,7 @@ class RemoteControlHelp {
   }
 }
 
+// 修改: 将StatelessWidget改为StatefulWidget
 class RemoteControlHelpDialog extends StatefulWidget {
   const RemoteControlHelpDialog({Key? key}) : super(key: key);
 
@@ -22,7 +23,7 @@ class RemoteControlHelpDialog extends StatefulWidget {
   State<RemoteControlHelpDialog> createState() => _RemoteControlHelpDialogState();
 }
 
-// RemoteControlHelpDialog的State类
+// 新增: RemoteControlHelpDialog的State类
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer;
   int _countdown = 18;
@@ -65,14 +66,14 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       ? '.SF UI Display' 
       : 'Roboto';
   }
-
+  
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final scale = (screenSize.width / 1920).clamp(0.5, 2.0);
-    final screenCenter = screenSize.width / 2;
+    final screenSize = MediaQuery.of(context).size; // 获取屏幕尺寸
+    final scale = (screenSize.width / 1920).clamp(0.5, 2.0); // 缩放比例，限制在0.5到2之间
+    final screenCenter = screenSize.width / 2; // 计算屏幕中心点，用于定位元素
 
-    // 使用RawKeyboardListener包装整个界面以捕获按键事件
+    // 新增: 使用RawKeyboardListener包装整个界面以捕获按键事件
     return RawKeyboardListener(
       focusNode: _focusNode,
       onKey: (RawKeyEvent event) {
@@ -82,16 +83,16 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         return KeyEventResult.handled;
       },
       child: Material(
-        type: MaterialType.transparency,
+        type: MaterialType.transparency, // 设置透明背景
         child: GestureDetector(
           onTap: _closeDialog, // 修改: 使用_closeDialog方法
           child: Container(
-            color: const Color(0xDD000000),
+            color: const Color(0xDD000000), // 设置黑色微透明背景
             width: screenSize.width,
             height: screenSize.height,
             child: Stack(
               children: [
-              	Positioned.fill(
+                Positioned.fill(
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
@@ -240,17 +241,17 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                     ),
                   ),
                 ),
-                //  底部提示文本
+                // 修改: 底部提示文本，添加倒计时显示
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 50 * scale,
+                  bottom: 50 * scale, // 距离底部的距离
                   child: Center(
                     child: Text(
-                      "点击任意按键关闭使用帮助 ($_countdown)", // 倒计时显示
+                      "点击任意按键关闭使用帮助 ($_countdown)", // 修改：添加倒计时显示
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
-                        fontSize: 23 * scale,
+                        fontSize: 23 * scale, // 字体大小
                         fontFamily: _getFontFamily(context),
                       ),
                     ),
@@ -263,7 +264,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       ),
     );
   }
-
+  
   /// 构建连接线组件
   Widget _buildConnectionLine({
     required double left,
