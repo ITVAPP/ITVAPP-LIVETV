@@ -562,7 +562,10 @@ void initState() {
     // 加载收藏列表
     _extractFavoriteList();
 
-	await RemoteControlHelp.show(context);
+    // 使用 Future.microtask 来显示帮助界面
+    Future.microtask(() async {
+        await RemoteControlHelp.show(context);
+    });
 }
 
 /// 清理所有资源
