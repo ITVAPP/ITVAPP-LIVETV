@@ -560,6 +560,8 @@ void initState() {
 
     // 加载收藏列表
     _extractFavoriteList();
+
+	await RemoteControlHelp.show(context);
 }
 
 /// 清理所有资源
