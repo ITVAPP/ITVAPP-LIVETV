@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 新增: 用于按键事件处理
+import 'dart:async'; // 新增: 用于定时器
 
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框
@@ -13,8 +15,49 @@ class RemoteControlHelp {
   }
 }
 
-class RemoteControlHelpDialog extends StatelessWidget {
+class RemoteControlHelpDialog extends StatefulWidget {
   const RemoteControlHelpDialog({Key? key}) : super(key: key);
+
+  @override
+  State<RemoteControlHelpDialog> createState() => _RemoteControlHelpDialogState();
+}
+
+// RemoteControlHelpDialog的State类
+class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
+  Timer? _timer;
+  int _countdown = 18;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+    _focusNode.requestFocus();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_countdown > 0) {
+          _countdown--;
+        } else {
+          _closeDialog();
+        }
+      });
+    });
+  }
+
+  void _closeDialog() {
+    _timer?.cancel();
+    Navigator.of(context).pop();
+  }
 
   /// 根据平台获取字体族
   String _getFontFamily(BuildContext context) {
@@ -25,220 +68,230 @@ class RemoteControlHelpDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size; // 获取屏幕尺寸
-    final scale = (screenSize.width / 1920).clamp(0.5, 2.0); // 缩放比例，限制在0.5到2之间
-    final screenCenter = screenSize.width / 2; // 计算屏幕中心点，用于定位元素
+    final screenSize = MediaQuery.of(context).size;
+    final scale = (screenSize.width / 1920).clamp(0.5, 2.0);
+    final screenCenter = screenSize.width / 2;
 
-    return Material(
-      type: MaterialType.transparency, // 设置透明背景
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).pop(), // 点击时关闭对话框
-        child: Container(
-          color: Color(0xDD000000), // 设置黑色微透明背景
-          width: screenSize.width,
-          height: screenSize.height,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      SizedBox(height: 120 * scale), // 顶部空白
-                      Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          // 遥控器SVG图形，确保居中显示
-                          Center(
-                            child: SizedBox(
-                              width: 400 * scale, // 遥控器宽度
-                              height: 600 * scale, // 遥控器高度
-                              child: CustomPaint(
-                                painter: RemoteControlPainter(), // 自定义绘制遥控器
+    // 使用RawKeyboardListener包装整个界面以捕获按键事件
+    return RawKeyboardListener(
+      focusNode: _focusNode,
+      onKey: (RawKeyEvent event) {
+        if (event is RawKeyDownEvent) {
+          _closeDialog();
+        }
+        return KeyEventResult.handled;
+      },
+      child: Material(
+        type: MaterialType.transparency,
+        child: GestureDetector(
+          onTap: _closeDialog, // 修改: 使用_closeDialog方法
+          child: Container(
+            color: const Color(0xDD000000),
+            width: screenSize.width,
+            height: screenSize.height,
+            child: Stack(
+              children: [
+              	Positioned.fill(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        SizedBox(height: 135 * scale), // 顶部空白
+                        Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            // 遥控器SVG图形，确保居中显示
+                            Center(
+                              child: SizedBox(
+                                width: 400 * scale, // 遥控器宽度
+                                height: 600 * scale, // 遥控器高度
+                                child: CustomPaint(
+                                  painter: RemoteControlPainter(), // 自定义绘制遥控器
+                                ),
                               ),
                             ),
-                          ),
-                          // 左侧连线
-                          _buildConnectionLine(
-                            left: screenCenter - 270 * scale, 
-                            top: 90 * scale,
-                            width: 250 * scale, // 连线宽度
-                            height: 3 * scale, // 连线高度
-                            isLeftSide: false,
-                          ),
-                          _buildConnectionLine(
-                            left: screenCenter - 270 * scale, 
-                            top: 190 * scale, 
-                            width: 150 * scale,
-                            height: 3 * scale,
-                            isLeftSide: false,
-                          ),
-                          _buildConnectionLine(
-                            left: screenCenter - 270 * scale, 
-                            top: 310 * scale, 
-                            width: 245 * scale,
-                            height: 3 * scale,
-                            isLeftSide: false,
-                          ),
-                          // 右侧连线
-                          _buildConnectionLine(
-                            left: screenCenter + 70 * scale, 
-                            top: 150 * scale, 
-                            width: 225 * scale,
-                            height: 3 * scale,
-                          ),
-                          _buildConnectionLine(
-                            left: screenCenter + 110 * scale, 
-                            top: 215 * scale, 
-                            width: 180 * scale,
-                            height: 3 * scale,
-                          ),
-                          _buildConnectionLine(
-                            left: screenCenter + 110 * scale, 
-                            top: 378 * scale, 
-                            width: 175 * scale,
-                            height: 3 * scale,
-                          ),
-                          // 左侧小圆点
-                          _buildDot(
-                            left: screenCenter - 275 * scale, 
-                            top: 88 * scale,
-                            size: 8 * scale, // 圆点大小
-                          ),
-                          _buildDot(
-                            left: screenCenter - 275 * scale, 
-                            top: 188 * scale,
-                            size: 8 * scale,
-                          ),
-                          _buildDot(
-                            left: screenCenter - 275 * scale, 
-                            top: 308 * scale,
-                            size: 8 * scale,
-                          ),
-                          // 右侧小圆点
-                          _buildDot(
-                            left: screenCenter + 282 * scale, 
-                            top: 148 * scale,
-                            size: 8 * scale,
-                          ),
-                          _buildDot(
-                            left: screenCenter + 282 * scale, 
-                            top: 213 * scale,
-                            size: 8 * scale,
-                          ),
-                          _buildDot(
-                            left: screenCenter + 282 * scale, 
-                            top: 375 * scale,
-                            size: 8 * scale,
-                          ),
-                          // 左侧标签
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter - 675 * scale,
-                            top: 75 * scale,
-                            text: "「点击上键」打开 线路切换菜单",
-                            alignment: Alignment.centerRight,
-                            scale: scale,
-                          ),
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter - 675 * scale,
-                            top: 170 * scale,
-                            text: "「点击左键」添加/取消 频道收藏",
-                            alignment: Alignment.centerRight,
-                            scale: scale,
-                          ),
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter - 675 * scale,
-                            top: 292 * scale,
-                            text: "「点击下键」打开 应用设置界面",
-                            alignment: Alignment.centerRight,
-                            scale: scale,
-                          ),
-                          // 右侧标签
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter + 285 * scale,
-                            top: 95 * scale,
-                            text: "「点击确认键」确认选择操作\n显示时间/暂停/播放",
-                            alignment: Alignment.centerRight,
-                            scale: scale,
-                          ),
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter + 285 * scale,
-                            top: 195 * scale,
-                            text: "「点击右键」打开 频道选择抽屉",
-                            alignment: Alignment.centerLeft,
-                            scale: scale,
-                          ),
-                          _buildLabel(
-                            context: context,
-                            left: screenCenter + 285 * scale,
-                            top: 355 * scale,
-                            text: "「点击返回键」退出/取消操作",
-                            alignment: Alignment.centerLeft,
-                            scale: scale,
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 100 * scale), // 底部空白
-                    ],
-                  ),
-                ),
-              ),
-              // 底部提示文本
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 50 * scale, // 距离底部的距离
-                child: Center(
-                  child: Text(
-                    "点击任意按键关闭使用帮助 (18)", // 提示文本
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 22 * scale, // 字体大小
-                      fontFamily: _getFontFamily(context),
+                            // 左侧连线
+                            _buildConnectionLine(
+                              left: screenCenter - 270 * scale, 
+                              top: 90 * scale,
+                              width: 250 * scale, // 连线宽度
+                              height: 3 * scale, // 连线高度
+                              isLeftSide: false,
+                            ),
+                            _buildConnectionLine(
+                              left: screenCenter - 270 * scale, 
+                              top: 190 * scale, 
+                              width: 150 * scale,
+                              height: 3 * scale,
+                              isLeftSide: false,
+                            ),
+                            _buildConnectionLine(
+                              left: screenCenter - 270 * scale, 
+                              top: 310 * scale, 
+                              width: 245 * scale,
+                              height: 3 * scale,
+                              isLeftSide: false,
+                            ),
+                            // 右侧连线
+                            _buildConnectionLine(
+                              left: screenCenter + 60 * scale, 
+                              top: 150 * scale, 
+                              width: 235 * scale,
+                              height: 3 * scale,
+                            ),
+                            _buildConnectionLine(
+                              left: screenCenter + 110 * scale, 
+                              top: 215 * scale, 
+                              width: 180 * scale,
+                              height: 3 * scale,
+                            ),
+                            _buildConnectionLine(
+                              left: screenCenter + 110 * scale, 
+                              top: 378 * scale, 
+                              width: 175 * scale,
+                              height: 3 * scale,
+                            ),
+                            // 左侧小圆点
+                            _buildDot(
+                              left: screenCenter - 275 * scale, 
+                              top: 88 * scale,
+                              size: 8 * scale, // 圆点大小
+                            ),
+                            _buildDot(
+                              left: screenCenter - 275 * scale, 
+                              top: 188 * scale,
+                              size: 8 * scale,
+                            ),
+                            _buildDot(
+                              left: screenCenter - 275 * scale, 
+                              top: 308 * scale,
+                              size: 8 * scale,
+                            ),
+                            // 右侧小圆点
+                            _buildDot(
+                              left: screenCenter + 282 * scale, 
+                              top: 148 * scale,
+                              size: 8 * scale,
+                            ),
+                            _buildDot(
+                              left: screenCenter + 282 * scale, 
+                              top: 213 * scale,
+                              size: 8 * scale,
+                            ),
+                            _buildDot(
+                              left: screenCenter + 282 * scale, 
+                              top: 375 * scale,
+                              size: 8 * scale,
+                            ),
+                            // 左侧标签
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter - 680 * scale,
+                              top: 75 * scale,
+                              text: "「点击上键」打开 线路切换菜单",
+                              alignment: Alignment.centerRight,
+                              scale: scale,
+                            ),
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter - 685 * scale,
+                              top: 170 * scale,
+                              text: "「点击左键」添加/取消 频道收藏",
+                              alignment: Alignment.centerRight,
+                              scale: scale,
+                            ),
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter - 680 * scale,
+                              top: 292 * scale,
+                              text: "「点击下键」打开 应用设置界面",
+                              alignment: Alignment.centerRight,
+                              scale: scale,
+                            ),
+                            // 右侧标签
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter + 285 * scale,
+                              top: 95 * scale,
+                              text: "「点击确认键」确认选择操作\n显示时间/暂停/播放",
+                              alignment: Alignment.centerRight,
+                              scale: scale,
+                            ),
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter + 285 * scale,
+                              top: 195 * scale,
+                              text: "「点击右键」打开 频道选择抽屉",
+                              alignment: Alignment.centerLeft,
+                              scale: scale,
+                            ),
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter + 285 * scale,
+                              top: 355 * scale,
+                              text: "「点击返回键」退出/取消操作",
+                              alignment: Alignment.centerLeft,
+                              scale: scale,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 100 * scale), // 底部空白
+                      ],
                     ),
                   ),
                 ),
-              ),
-            ],
+                //  底部提示文本
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 50 * scale,
+                  child: Center(
+                    child: Text(
+                      "点击任意按键关闭使用帮助 ($_countdown)", // 倒计时显示
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 23 * scale,
+                        fontFamily: _getFontFamily(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-/// 构建连接线组件
-Widget _buildConnectionLine({
-  required double left,
-  required double top,
-  required double width,
-  required double height,
-  bool isLeftSide = true,
-}) {
-  return Positioned(
-    left: left,
-    top: top,
-    child: Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.8),
-            Colors.white.withOpacity(0),
-          ],
-          // 根据是左侧还是右侧来决定渐变方向
-          begin: isLeftSide ? Alignment.centerRight : Alignment.centerLeft,
-          end: isLeftSide ? Alignment.centerLeft : Alignment.centerRight,
+  /// 构建连接线组件
+  Widget _buildConnectionLine({
+    required double left,
+    required double top,
+    required double width,
+    required double height,
+    bool isLeftSide = true,
+  }) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.8),
+              Colors.white.withOpacity(0),
+            ],
+            // 根据是左侧还是右侧来决定渐变方向
+            begin: isLeftSide ? Alignment.centerRight : Alignment.centerLeft,
+            end: isLeftSide ? Alignment.centerLeft : Alignment.centerRight,
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// 构建小圆点组件
   Widget _buildDot({
@@ -303,7 +356,7 @@ class RemoteControlPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Color(0xFF444444).withOpacity(0.5),
+          Color(0xFF444444).withOpacity(0.6),
           Color(0xFF444444).withOpacity(0.3),
           Color(0xFF444444).withOpacity(0.1),
         ],
@@ -323,7 +376,7 @@ class RemoteControlPainter extends CustomPainter {
 
     // 自定义顶部边框画笔
     final Paint topBorderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5) // 半透明白色
+      ..color = Colors.white.withOpacity(0.8) // 半透明白色
       ..strokeWidth = width * 0.01
       ..style = PaintingStyle.stroke;
 
@@ -363,9 +416,6 @@ class RemoteControlPainter extends CustomPainter {
 
     canvas.drawPath(rightBorderPath, gradientBorderPaint); // 绘制右侧边框
 
-    // 底部不绘制边框，因此无需处理
-    // 剩余代码保持不变
-
     // 绘制圆形控制区域
     final circleCenter = Offset(width * 0.5, height * 0.33); // 圆心
     final circleRadius = width * 0.35; // 圆半径
@@ -374,7 +424,7 @@ class RemoteControlPainter extends CustomPainter {
       circleCenter,
       circleRadius,
       Paint()
-        ..color = Color(0xFF444444).withOpacity(0.5) // 半透明深灰色填充
+        ..color = Color(0xFF444444).withOpacity(0.6) // 半透明深灰色填充
         ..style = PaintingStyle.fill,
     );
     canvas.drawCircle(circleCenter, circleRadius, topBorderPaint); // 边框
@@ -382,18 +432,18 @@ class RemoteControlPainter extends CustomPainter {
     // 绘制方向箭头
     _drawDirectionalArrows(canvas, circleCenter, width);
 
-    // 绘制中心圆和“OK”文本
+    // 绘制中心圆和"OK"文本
     final centerRadius = width * 0.15;
     canvas.drawCircle(
       circleCenter,
       centerRadius,
       Paint()
-        ..color = Color(0xFF333333).withOpacity(0.7) // 半透明深灰色填充
+        ..color = Color(0xFF333333).withOpacity(0.9) // 半透明深灰色填充
         ..style = PaintingStyle.fill,
     );
     canvas.drawCircle(circleCenter, centerRadius, topBorderPaint); // 边框
 
-    // “OK”文字绘制
+    // "OK"文字绘制
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'OK',
@@ -494,7 +544,7 @@ class RemoteControlPainter extends CustomPainter {
     final Paint paint = Paint()
       ..color = Colors.white.withOpacity(0.8) // 半透明白色
       ..style = PaintingStyle.stroke // 描边
-      ..strokeWidth = width * 0.02; // 描边宽度
+      ..strokeWidth = width * 0.01; // 描边宽度
 
     final radius = width * 0.08; // 圆的半径
     canvas.drawCircle(center, radius, paint); // 绘制圆
@@ -511,7 +561,7 @@ class RemoteControlPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy); // 移动到箭头位置
     canvas.rotate(45 * 3.14159 / 180); // 顺时针旋转45度
     canvas.translate(-center.dx, -center.dy); // 还原中心点位置
-    canvas.translate(width * 0.03, -width * 0.03); // 微调箭头位置
+    canvas.translate(width * 0.02, -width * 0.02); // 微调箭头位置
     canvas.drawPath(path, paint); // 绘制箭头
     canvas.restore(); // 恢复画布状态
   }
