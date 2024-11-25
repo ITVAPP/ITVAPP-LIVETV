@@ -302,7 +302,7 @@ class ContentContainer extends StatelessWidget {
    return dots;
  }
  
- List<Widget> _buildLabels() {
+List<Widget> _buildLabels() {
    final leftLabels = [
      {'text': '「点击上键」打开 线路切换菜单', 'top': -75.0},
      {'text': '「点击左键」添加/取消 频道收藏', 'top': 25.0},
@@ -311,7 +311,7 @@ class ContentContainer extends StatelessWidget {
 
    final rightLabels = [
      {'text': '「点击确认键」确认选择操作\n显示时间/暂停/播放', 'top': -50.0},
-     {'text': '「点击右键」打开 频道选择抽屉', 'top': 65.0}, 
+     {'text': '「点击右键」打开 频道选择抽屉', 'top': 65.0},
      {'text': '「点击返回键」退出/取消操作', 'top': 215.0},
    ];
 
@@ -323,9 +323,9 @@ class ContentContainer extends StatelessWidget {
        Positioned(
          top: label['top'] as double,
          left: 960 - 695,
-         child: SizedBox(
-           width: double.infinity,
-           constraints: const BoxConstraints(maxWidth: 400),
+         child: Container(
+           width: 400,
+           alignment: Alignment.centerRight,
            child: Text(
              label['text'] as String,
              style: const TextStyle(
@@ -340,15 +340,15 @@ class ContentContainer extends StatelessWidget {
      );
    });
 
-   // Add right labels
+   // Add right labels 
    rightLabels.forEach((label) {
      labels.add(
        Positioned(
          top: label['top'] as double,
          left: 960 + 285,
-         child: SizedBox(
-           width: double.infinity,
-           constraints: const BoxConstraints(maxWidth: 400),
+         child: Container(
+           width: 400,
+           alignment: Alignment.centerLeft,
            child: Text(
              label['text'] as String,
              style: const TextStyle(
