@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:better_player/better_player.dart';
-import '../entity/playlist_model.dart';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
@@ -11,10 +10,12 @@ import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/scrolling_toast_message.dart';
-import '../util/log_util.dart';
-import '../util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/widget/remote_control_help.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import '../channel_drawer_page.dart';
 import '../gradient_progress_bar.dart';
+import '../entity/playlist_model.dart';
 import '../generated/l10n.dart';
 
 // 播放器组件，用于视频播放的核心组件
@@ -143,6 +144,8 @@ class TvPage extends StatefulWidget {
 
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
+  // 存储是否显示过帮助的键
+  static const String _hasShownHelpKey = 'has_shown_remote_control_help';
   
   final _iconStateNotifier = ValueNotifier<IconState>(
     const IconState(
@@ -159,6 +162,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
   
+  @override
+  void initState() {
+    super.initState();
+    // 检查并显示帮助
+    _checkAndShowHelp();
+  }
+
+  // 检查并显示帮助的方法
+  Future<void> _checkAndShowHelp() async {
+    // 获取是否显示过帮助的状态，默认为 false
+    final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false);
+    
+    // 如果没有显示过帮助
+    if (!hasShownHelp && mounted) {
+          // 显示帮助界面
+          await RemoteControlHelp.show(context);
+          // 存储已经显示过帮助的状态
+          await SpUtil.putBool(_hasShownHelpKey, true);
+    }
+  }
+
   // 更新图标状态的方法，控制播放、暂停、显示日期等图标的显隐
   void _updateIconState({
     bool? showPause,
@@ -187,35 +211,35 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
   
-// 打开设置页面，并更新播放图标状态
-Future<bool?> _opensetting() async {
-  try {
-    final result = await Navigator.push<bool>(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return const TvSettingPage();
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          var begin = const Offset(0.0, -1.0);
-          var end = Offset.zero;
-          var curve = Curves.ease;
-          var tween = Tween(begin: begin, end: end).chain(
-            CurveTween(curve: curve),
-          );
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
-      ),
-    );
-    return result;
-  } catch (e, stackTrace) {
-    LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
-    return null;
+  // 打开设置页面，并更新播放图标状态
+  Future<bool?> _opensetting() async {
+    try {
+      final result = await Navigator.push<bool>(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return const TvSettingPage();
+          },
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            var begin = const Offset(0.0, -1.0);
+            var end = Offset.zero;
+            var curve = Curves.ease;
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+      return result;
+    } catch (e, stackTrace) {
+      LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
+      return null;
+    }
   }
-}
   
   // 处理返回按键，当抽屉打开时关闭抽屉；否则检测是否退出应用
   Future<bool> _handleBackPress(BuildContext context) async {
@@ -380,9 +404,10 @@ Future<bool?> _opensetting() async {
         }
         break;  
       case LogicalKeyboardKey.audioVolumeUp:
-        // 音量控制可以通过 BetterPlayer 的方法实现，但这里保持原样
+        // 音量控制 + 键
         break;
       case LogicalKeyboardKey.audioVolumeDown:
+        // 音量控制 - 键
         break;
       case LogicalKeyboardKey.f5:
         break;
@@ -450,7 +475,7 @@ Future<bool?> _opensetting() async {
   
   @override
   Widget build(BuildContext context) {
-    // 新增：计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
+    // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
     final progressBarWidth = widget.isLandscape
         ? MediaQuery.of(context).size.width * 0.3
         : MediaQuery.of(context).size.width * 0.5;
@@ -480,7 +505,7 @@ Future<bool?> _opensetting() async {
                     isAudio: widget.isAudio,
                   ),
                   
-                  // 新增：进度条和消息提示组件
+                  // 进度条和消息提示组件
                   if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                     Positioned(
                       left: 0,
