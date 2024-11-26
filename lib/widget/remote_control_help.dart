@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
-import 'dart:async';
+import '../generated/l10n.dart';
 
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框
@@ -187,7 +188,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter - 690 * scale,
                               top: 75 * scale,
-                              text: "「点击上键」打开 线路切换菜单",
+                              text: S.current.remotehelpup,
                               alignment: Alignment.centerRight,
                               scale: scale,
                             ),
@@ -195,7 +196,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter - 700 * scale,
                               top: 170 * scale,
-                              text: "「点击左键」添加/取消 频道收藏",
+                              text: S.current.remotehelpleft,
                               alignment: Alignment.centerRight,
                               scale: scale,
                             ),
@@ -203,7 +204,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter - 690 * scale,
                               top: 292 * scale,
-                              text: "「点击下键」打开 应用设置界面",
+                              text: S.current.remotehelpdown,
                               alignment: Alignment.centerRight,
                               scale: scale,
                             ),
@@ -212,7 +213,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter + 285 * scale,
                               top: 95 * scale,
-                              text: "「点击确认键」确认选择操作\n显示时间/暂停/播放",
+                              text: S.current.remotehelpok,
                               alignment: Alignment.centerRight,
                               scale: scale,
                             ),
@@ -220,7 +221,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter + 285 * scale,
                               top: 195 * scale,
-                              text: "「点击右键」打开 频道选择抽屉",
+                              text: S.current.remotehelpright,
                               alignment: Alignment.centerLeft,
                               scale: scale,
                             ),
@@ -228,7 +229,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                               context: context,
                               left: screenCenter + 285 * scale,
                               top: 355 * scale,
-                              text: "「点击返回键」退出/取消操作",
+                              text: S.current.remotehelpback,
                               alignment: Alignment.centerLeft,
                               scale: scale,
                             ),
@@ -246,10 +247,10 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                   bottom: 50 * scale, // 距离底部的距离
                   child: Center(
                     child: Text(
-                      "点击任意按键关闭使用帮助 ($_countdown)", // 修改：添加倒计时显示
+                      "$S.current.remotehelpclose ($_countdown)", // 修改：添加倒计时显示
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
-                        fontSize: 23 * scale, // 字体大小
+                        fontSize: 25 * scale, // 字体大小
                         fontFamily: _getFontFamily(context),
                       ),
                     ),
