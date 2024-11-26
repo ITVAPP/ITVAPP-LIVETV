@@ -153,6 +153,14 @@ class MessageLookup extends MessageLookupByLibrary {
         "startsurlerror": MessageLookupByLibrary.simpleMessage("Failed to parse URL"),
         "gethttperror": MessageLookupByLibrary.simpleMessage("Local network configuration failed"),
         "exittip": MessageLookupByLibrary.simpleMessage("We look forward to your next visit"),
-        "playpause": MessageLookupByLibrary.simpleMessage("Pausing playback...")
+        "playpause": MessageLookupByLibrary.simpleMessage("Pausing playback..."),
+        "remotehelp": MessageLookupByLibrary.simpleMessage("Help"),
+        "remotehelpup": MessageLookupByLibrary.simpleMessage("Press 'Up' to open the line switch menu"),
+        "remotehelpleft": MessageLookupByLibrary.simpleMessage("Press 'Left' to add/remove channel from favorites"),
+        "remotehelpdown": MessageLookupByLibrary.simpleMessage("Press 'Down' to open the application settings"),
+        "remotehelpok": MessageLookupByLibrary.simpleMessage("Press 'OK' to confirm the selection\nShow time/Pause/Play"),
+        "remotehelpright": MessageLookupByLibrary.simpleMessage("Press 'Right' to open the channel selection drawer"),
+        "remotehelpback": MessageLookupByLibrary.simpleMessage("Press 'Back' to exit/cancel the operation"),
+        "remotehelpclose": MessageLookupByLibrary.simpleMessage("Press any key to close the help")
       };
 }
