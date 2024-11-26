@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 新增: 用于按键事件处理
-import 'dart:async'; // 新增: 用于定时器
+import 'package:flutter/services.dart'; 
+import 'dart:async';
 
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框
@@ -15,7 +15,6 @@ class RemoteControlHelp {
   }
 }
 
-// 修改: 将StatelessWidget改为StatefulWidget
 class RemoteControlHelpDialog extends StatefulWidget {
   const RemoteControlHelpDialog({Key? key}) : super(key: key);
 
@@ -23,10 +22,9 @@ class RemoteControlHelpDialog extends StatefulWidget {
   State<RemoteControlHelpDialog> createState() => _RemoteControlHelpDialogState();
 }
 
-// 新增: RemoteControlHelpDialog的State类
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer;
-  int _countdown = 18;
+  int _countdown = 28;
   final FocusNode _focusNode = FocusNode();
 
   @override
