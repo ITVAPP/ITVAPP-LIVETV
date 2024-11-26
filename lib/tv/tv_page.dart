@@ -172,7 +172,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 检查并显示帮助的方法
   Future<void> _checkAndShowHelp() async {
     // 获取是否显示过帮助的状态，默认为 false
-    final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false);
+    final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     
     // 如果没有显示过帮助
     if (!hasShownHelp && mounted) {
