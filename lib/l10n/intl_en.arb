@@ -133,5 +133,13 @@
   "startsurlerror": "Failed to parse URL",
   "gethttperror": "Local network configuration failed",
   "exittip": "We look forward to your next visit",
-  "playpause": "Pausing playback..."
+  "playpause": "Pausing playback...",
+  "remotehelp": "Help",
+  "remotehelpup": "Press 'Up' to open the line switch menu",
+  "remotehelpleft": "Press 'Left' to add/remove channel from favorites",
+  "remotehelpdown": "Press 'Down' to open the application settings",
+  "remotehelpok": "Press 'OK' to confirm the selection\nShow time/Pause/Play",
+  "remotehelpright": "Press 'Right' to open the channel selection drawer",
+  "remotehelpback": "Press 'Back' to exit/cancel the operation",
+  "remotehelpclose": "Press any key to close the help"
 }
