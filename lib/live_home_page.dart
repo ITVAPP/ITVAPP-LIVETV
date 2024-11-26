@@ -26,7 +26,6 @@ import 'util/traffic_analytics.dart';
 import 'widget/better_player_controls.dart';
 import 'widget/empty_page.dart';
 import 'widget/show_exit_confirm.dart';
-import 'widget/remote_control_help.dart';
 import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
@@ -561,11 +560,6 @@ void initState() {
 
     // 加载收藏列表
     _extractFavoriteList();
-
-    // 使用 Future.microtask 来显示帮助界面
-    Future.microtask(() async {
-        await RemoteControlHelp.show(context);
-    });
 }
 
 /// 清理所有资源
