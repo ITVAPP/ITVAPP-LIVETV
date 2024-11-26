@@ -135,6 +135,14 @@ class MessageLookup extends MessageLookupByLibrary {
         "startsurlerror": MessageLookupByLibrary.simpleMessage("解析 URL 失败"),
         "gethttperror": MessageLookupByLibrary.simpleMessage("本地网络配置失败"),
         "exittip": MessageLookupByLibrary.simpleMessage("期待你下一次的访问"),
-        "playpause": MessageLookupByLibrary.simpleMessage("暂停播放中...")
+        "playpause": MessageLookupByLibrary.simpleMessage("暂停播放中..."),
+        "remotehelp": MessageLookupByLibrary.simpleMessage("帮助"),
+        "remotehelpup": MessageLookupByLibrary.simpleMessage("「点击上键」打开 线路切换菜单"),
+        "remotehelpleft": MessageLookupByLibrary.simpleMessage("「点击左键」添加/取消 频道收藏"),
+        "remotehelpdown": MessageLookupByLibrary.simpleMessage("「点击下键」打开 应用设置界面"),
+        "remotehelpok": MessageLookupByLibrary.simpleMessage("「点击确认键」确认选择操作\n显示时间/暂停/播放"),
+        "remotehelpright": MessageLookupByLibrary.simpleMessage("「点击右键」打开 频道选择抽屉"),
+        "remotehelpback": MessageLookupByLibrary.simpleMessage("「点击返回键」退出/取消操作"),
+        "remotehelpclose": MessageLookupByLibrary.simpleMessage("点击任意按键关闭帮助")
       };
 }
