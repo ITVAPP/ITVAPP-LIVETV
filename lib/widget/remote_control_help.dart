@@ -96,7 +96,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(height: 135 * scale), // 顶部空白
+                        SizedBox(height: 130 * scale), // 顶部空白
                         Stack(
                           alignment: Alignment.center,
                           clipBehavior: Clip.none,
@@ -135,7 +135,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             ),
                             // 右侧连线
                             _buildConnectionLine(
-                              left: screenCenter + 60 * scale, 
+                              left: screenCenter + 50 * scale, 
                               top: 150 * scale, 
                               width: 235 * scale,
                               height: 3 * scale,
@@ -187,7 +187,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             // 左侧标签
                             _buildLabel(
                               context: context,
-                              left: screenCenter - 680 * scale,
+                              left: screenCenter - 690 * scale,
                               top: 75 * scale,
                               text: "「点击上键」打开 线路切换菜单",
                               alignment: Alignment.centerRight,
@@ -195,7 +195,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             ),
                             _buildLabel(
                               context: context,
-                              left: screenCenter - 685 * scale,
+                              left: screenCenter - 700 * scale,
                               top: 170 * scale,
                               text: "「点击左键」添加/取消 频道收藏",
                               alignment: Alignment.centerRight,
@@ -203,7 +203,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             ),
                             _buildLabel(
                               context: context,
-                              left: screenCenter - 680 * scale,
+                              left: screenCenter - 690 * scale,
                               top: 292 * scale,
                               text: "「点击下键」打开 应用设置界面",
                               alignment: Alignment.centerRight,
