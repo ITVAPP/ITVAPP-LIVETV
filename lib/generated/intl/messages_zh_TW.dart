@@ -135,6 +135,14 @@ class MessageLookup extends MessageLookupByLibrary {
         "startsurlerror": MessageLookupByLibrary.simpleMessage("解析 URL 失敗"),
         "gethttperror": MessageLookupByLibrary.simpleMessage("本地網路配置失敗"),
         "exittip": MessageLookupByLibrary.simpleMessage("期待你下一次的訪問"),
-        "playpause": MessageLookupByLibrary.simpleMessage("暫停播放中...")
+        "playpause": MessageLookupByLibrary.simpleMessage("暫停播放中..."),
+        "remotehelp": MessageLookupByLibrary.simpleMessage("幫助"),
+        "remotehelpup": MessageLookupByLibrary.simpleMessage("「點選上鍵」開啟 線路切換選單"),
+        "remotehelpleft": MessageLookupByLibrary.simpleMessage("「點選左鍵」新增/取消 頻道收藏"),
+        "remotehelpdown": MessageLookupByLibrary.simpleMessage("「點選下鍵」開啟 應用設定界面"),
+        "remotehelpok": MessageLookupByLibrary.simpleMessage("「點選確認鍵」確認選擇操作\n顯示時間/暫停/播放"),
+        "remotehelpright": MessageLookupByLibrary.simpleMessage("「點選右鍵」開啟 頻道選擇抽屜"),
+        "remotehelpback": MessageLookupByLibrary.simpleMessage("「點選返回鍵」退出/取消操作"),
+        "remotehelpclose": MessageLookupByLibrary.simpleMessage("點選任意按鍵關閉幫助")
       };
 }
