@@ -10,6 +10,7 @@ import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
+import 'package:itvapp_live_tv/widget/remote_control_help.dart';
 import '../generated/l10n.dart';
 
 // 电视设置主页面
@@ -138,6 +139,7 @@ class TvSettingPageState extends State<TvSettingPage> {
       case 3:
         return SettinglogPage(); // 日志页面
       case 4:
+      case 5:	
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -215,7 +217,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             selectedIndex = 0;
-                            _confirmedIndex = 0; // 用户按下确认键后更新页面
+                            _confirmedIndex = 0;
                           });
                         },
                       ),
@@ -226,7 +228,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             selectedIndex = 1;
-                            _confirmedIndex = 1; // 用户按下确认键后更新页面
+                            _confirmedIndex = 1;
                           });
                         },
                       ),
@@ -237,7 +239,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             selectedIndex = 2;
-                            _confirmedIndex = 2; // 用户按下确认键后更新页面
+                            _confirmedIndex = 2;
                           });
                         },
                       ),
@@ -248,7 +250,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             selectedIndex = 3;
-                            _confirmedIndex = 3; // 用户按下确认键后更新页面
+                            _confirmedIndex = 3;
                           });
                         },
                       ),
@@ -259,9 +261,24 @@ class TvSettingPageState extends State<TvSettingPage> {
                         onTap: () {
                           setState(() {
                             selectedIndex = 4;
-                            _confirmedIndex = 4; // 用户按下确认键后更新页面
+                            _confirmedIndex = 4;
                           });
                           _checkForUpdates(); // 调用检查更新逻辑
+                        },
+                      ),
+                      buildListTile(
+                        icon: Icons.system_update,
+                        title: S.of(context).remotehelp, // 帮助
+                        index: 5,
+                        onTap: () {
+                          setState(() {
+                            selectedIndex = 5;
+                            _confirmedIndex = 5;
+                          });
+                          // 使用 Future.microtask 来显示帮助界面
+                          Future.microtask(() async {
+                              await RemoteControlHelp.show(context);
+                          });
                         },
                       ),
                     ],
