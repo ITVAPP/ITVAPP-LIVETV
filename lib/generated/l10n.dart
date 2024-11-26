@@ -970,6 +970,78 @@ String get playpause {
   );
 }
 
+String get remotehelp {
+  return Intl.message(
+    '帮助',
+    name: 'remotehelp',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpup {
+  return Intl.message(
+    '「点击上键」打开 线路切换菜单',
+    name: 'remotehelpup',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpleft {
+  return Intl.message(
+    '「点击左键」添加/取消 频道收藏',
+    name: 'remotehelpleft',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpdown {
+  return Intl.message(
+    '「点击下键」打开 应用设置界面',
+    name: 'remotehelpdown',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpok {
+  return Intl.message(
+    '「点击确认键」确认选择操作\n显示时间/暂停/播放',
+    name: 'remotehelpok',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpright {
+  return Intl.message(
+    '「点击右键」打开 频道选择抽屉',
+    name: 'remotehelpright',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpback {
+  return Intl.message(
+    '「点击返回键」退出/取消操作',
+    name: 'remotehelpback',
+    desc: '',
+    args: [],
+  );
+}
+
+String get remotehelpclose {
+  return Intl.message(
+    '点击任意按键关闭帮助',
+    name: 'remotehelpclose',
+    desc: '',
+    args: [],
+  );
+}
+
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<S> {
