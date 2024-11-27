@@ -579,7 +579,28 @@ void dispose() {
 Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
     if (channelName != null && channelName.isNotEmpty) {
       try {
-        await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: channelName);
+        // 检查是否是首次安装
+        bool? isFirstInstall = SpUtil.getBool('is_first_install');
+        
+        String deviceType;
+        if (EnvUtil.isMobile) {
+          deviceType = "Mobile";
+        } else if (EnvUtil.isTV) {
+          deviceType = "TV";
+        } else {
+          deviceType = "Other";
+        }
+        
+        // 如果是首次安装（值不存在）
+        if (isFirstInstall == null) {
+          // 发送首次安装的统计数据，使用设备类型作为channelName
+          await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: deviceType);
+          // 标记已不是首次安装
+          await SpUtil.putBool('is_first_install', true);
+        } else {
+          // 不是首次安装，使用正常的channelName
+          await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: channelName);
+        }
       } catch (e, stackTrace) {
         LogUtil.logError('发送流量统计时发生错误', e, stackTrace);
       }
