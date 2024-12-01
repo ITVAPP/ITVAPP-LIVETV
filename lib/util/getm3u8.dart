@@ -24,7 +24,7 @@ class GetM3U8 {
   bool _isDisposed = false;
   
   // 从源码中提取 m3u8 地址的正则表达式
-  static final RegExp m3u8Regex = RegExp(r'https?://[^\s<>"\']+?\.m3u8[^\s<>"\']*');
+  static final RegExp m3u8Regex = RegExp(r'https?:\/\/[^\s<>"\']+?\.m3u8[^\s<>"\']*');
   
   GetM3U8({this.timeoutDuration = GetM3U8Config.defaultTimeout}) : _client = http.Client();
 
