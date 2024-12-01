@@ -581,11 +581,10 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
       try {
         // 检查是否是首次安装
         bool? isFirstInstall = SpUtil.getBool('is_first_install');
+        bool isTV = context.watch<ThemeProvider>().isTV;
         
         String deviceType;
-        if (EnvUtil.isMobile) {
-          deviceType = "Mobile";
-        } else if (EnvUtil.isTV) {
+        if (isTV) {
           deviceType = "TV";
         } else {
           deviceType = "Other";
