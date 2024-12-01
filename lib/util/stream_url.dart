@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
-mport 'package:itvapp_live_tv/util/getm3u8.dart';
+import 'package:itvapp_live_tv/util/getm3u8.dart';
 
 class StreamUrl {
   final String url;
