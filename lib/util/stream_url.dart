@@ -51,7 +51,7 @@ class StreamUrl {
         if (isTs) {
           // 返回 getm3u8.dart 的路径，并带上原始 URL 参数
           final directory = await getApplicationDocumentsDirectory();
-          return 'util/getm3u8.dart?url=$originalUrl?play.m3u8';
+          return '${directory.path}/getm3u8_playlist.m3u8?url=$originalUrl';
         } else {
           // 使用 GetM3U8 解析源码获取 m3u8 URL
           return await _m3u8Handler.extractM3U8Url(originalUrl);
@@ -291,7 +291,8 @@ Future<String> _getYouTubeVideoUrl() async {
               '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
               'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
                
-          LogUtil.i('''生成新的m3u8文件：$combinedM3u8''');
+          LogUtil.i('''生成新的m3u8文件：
+$combinedM3u8''');
           
           await file.writeAsString(combinedM3u8);
           LogUtil.i('成功保存m3u8文件到: $filePath');
