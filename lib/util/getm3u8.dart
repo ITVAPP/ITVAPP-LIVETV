@@ -62,7 +62,7 @@ class GetM3U8 {
   }
 
   // 获取并生成播放列表文件
-  Future<bool> getPlaylist(String sourceUrl) async {
+Future<bool> getPlaylist(String sourceUrl) async {
     _checkDisposed();
     
     final directory = await getApplicationDocumentsDirectory();
@@ -80,7 +80,7 @@ class GetM3U8 {
             continue;
           }
           await File(playlistPath).writeAsString(GetM3U8Config.emptyPlaylist);
-          return false;
+          return false;  // 失败返回
         }
 
         // 获取 m3u8 内容
@@ -95,7 +95,7 @@ class GetM3U8 {
           if (content.contains('#EXTM3U')) {
             LogUtil.i('成功获取播放列表内容，写入文件: $playlistPath');
             await File(playlistPath).writeAsString(content);
-            return true;
+            return true;  // 成功返回
           }
         }
         
@@ -116,8 +116,8 @@ class GetM3U8 {
     
     LogUtil.e('所有重试都失败，写入空播放列表');
     await File(playlistPath).writeAsString(GetM3U8Config.emptyPlaylist);
-    return false;
-  }
+    return false;  // 失败返回
+}
 
   // 获取请求头
   Map<String, String> _getRequestHeaders() {
