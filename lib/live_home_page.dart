@@ -178,11 +178,15 @@ Future<void> _playVideo() async {
             final uri = Uri.parse(parsedUrl);
             _originalUrl = uri.queryParameters['url'];
             parsedUrl = parsedUrl.split('?').first; // 获取问号前的路径部分
-    
             // 使用 GetM3U8 生成初始播放列表
             if (_originalUrl != null) {
                 final getM3u8 = GetM3U8();
-                await getM3u8.getPlaylist(_originalUrl!);
+                if (!await getM3u8.getPlaylist(_originalUrl!)) {
+                    setState(() {
+                        toastString = S.current.playError;
+                    });
+                    return;
+                }
             }
         }
 
@@ -343,12 +347,19 @@ void _videoListener(BetterPlayerEvent event) {
             if (_currentPlayUrl?.contains('getm3u8') == true && _originalUrl != null) {
                 final position = event.parameters?["progress"] as Duration?;
                 final duration = event.parameters?["duration"] as Duration?;
-        
+
                 if (position != null && duration != null) {
                     final remainingTime = duration - position;
                     // 如果距离片段结束还有10秒，更新播放列表
                     if (remainingTime.inSeconds <= 10) {
-                        await getM3u8.getPlaylist(_originalUrl!);
+                        final getM3u8 = GetM3U8();
+                        getM3u8.getPlaylist(_originalUrl!).then((success) {
+                            if (!success && mounted) {
+                                setState(() {
+                                    toastString = S.current.playError;
+                                });
+                            }
+                        });
                     }
                 }
             }
@@ -490,7 +501,7 @@ Future<void> _disposePlayer() async {
           // 释放 GetM3U8 实例
           _getM3u8Instance?.dispose();
           _getM3u8Instance = null;
-          _originalUrl?.dispose();
+          _originalUrl = null;
     
           // 最后释放主控制器
           currentController.dispose(); 
