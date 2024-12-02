@@ -51,7 +51,7 @@ class StreamUrl {
         if (isTs) {
           // 返回 getm3u8.dart 的路径，并带上原始 URL 参数
           final directory = await getApplicationDocumentsDirectory();
-          return '${directory.path}/getm3u8.dart?url=$originalUrl';
+          return '${directory.path}/getm3u8.dart?url=$originalUrl.m3u8';
         } else {
           // 使用 GetM3U8 解析源码获取 m3u8 URL
           return await _m3u8Handler.extractM3U8Url(originalUrl);
