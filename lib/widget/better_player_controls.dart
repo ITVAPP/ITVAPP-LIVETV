@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import '../util/log_util.dart';
+import '../util/getm3u8.dart';
 import '../gradient_progress_bar.dart';
 
 /// 播放器配置工具类
@@ -22,8 +23,16 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
+    var sourceType = BetterPlayerDataSourceType.network;
+    
+    // 检查是否包含 getm3u8
+    if (url.contains('getm3u8')) {
+      sourceType = BetterPlayerDataSourceType.file;
+      isHls = true;
+    }
+
     return BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network,
+      sourceType,
       url,
       liveStream: isHls, // 根据 URL 判断是否为直播流
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
@@ -81,7 +90,24 @@ class BetterPlayerConfig {
         DeviceOrientation.portraitUp,
       ],
       // 事件监听器
-      eventListener: eventListener,
+      eventListener: (event) {
+        // 添加播放进度监听，用于更新播放列表
+        if (event.betterPlayerEventType == BetterPlayerEventType.progress && 
+            event.parameters?["url"]?.toString().contains('getm3u8') == true) {
+          final position = event.parameters?["progress"] as Duration?;
+          final duration = event.parameters?["duration"] as Duration?;
+          
+          if (position != null && duration != null) {
+            final remainingTime = duration - position;
+            // 如果距离片段结束还有10秒，触发 getm3u8.dart 更新播放列表
+            if (remainingTime.inSeconds <= 10) {
+              GetM3U8().updatePlaylist();
+            }
+          }
+        }
+        // 调用原有的事件监听器
+        eventListener(event);
+      },
     );
   }
 }
