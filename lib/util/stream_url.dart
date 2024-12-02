@@ -291,8 +291,7 @@ Future<String> _getYouTubeVideoUrl() async {
               '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
               'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
                
-          LogUtil.i('''生成新的m3u8文件：
-$combinedM3u8''');
+          LogUtil.i('''生成新的m3u8文件：$combinedM3u8''');
           
           await file.writeAsString(combinedM3u8);
           LogUtil.i('成功保存m3u8文件到: $filePath');
