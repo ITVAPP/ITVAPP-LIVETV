@@ -19,6 +19,7 @@ import 'util/env_util.dart';
 import 'util/log_util.dart';
 import 'util/m3u_util.dart';
 import 'util/stream_url.dart';
+import 'util/getm3u8.dart';
 import 'util/dialog_util.dart';
 import 'util/custom_snackbar.dart';
 import 'util/channel_util.dart';
@@ -30,7 +31,7 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-/// 主页面类，展示直播流
+/// 主页面类
 class LiveHomePage extends StatefulWidget {
   final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
 
@@ -99,6 +100,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 当前播放URL
   String? _currentPlayUrl;
+  
+  // GetM3U8 实例
+  GetM3U8? _getM3u8Instance;
+  
+   // 保存原始URL
+  String? _originalUrl; 
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -163,6 +170,20 @@ Future<void> _playVideo() async {
                 toastString = S.current.vpnplayError;
             });
             return;
+        }
+        
+        // 检查是否包含 getm3u8
+        if (parsedUrl.contains('getm3u8')) {
+            // 提取原始URL和播放列表路径
+            final uri = Uri.parse(parsedUrl);
+            _originalUrl = uri.queryParameters['url'];
+            parsedUrl = parsedUrl.split('?').first; // 获取问号前的路径部分
+    
+            // 使用 GetM3U8 生成初始播放列表
+            if (_originalUrl != null) {
+                final getM3u8 = GetM3U8();
+                await getM3u8.getPlaylist(_originalUrl!);
+            }
         }
 
         // 检查是否为音频URL
@@ -317,6 +338,22 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
 
+        // 监听播放时间      
+        case BetterPlayerEventType.progress:
+            if (_currentPlayUrl?.contains('getm3u8') == true && _originalUrl != null) {
+                final position = event.parameters?["progress"] as Duration?;
+                final duration = event.parameters?["duration"] as Duration?;
+        
+                if (position != null && duration != null) {
+                    final remainingTime = duration - position;
+                    // 如果距离片段结束还有10秒，更新播放列表
+                    if (remainingTime.inSeconds <= 10) {
+                        await getM3u8.getPlaylist(_originalUrl!);
+                    }
+                }
+            }
+            break;
+
         // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
             break;
@@ -450,6 +487,11 @@ Future<void> _disposePlayer() async {
           await Future.delayed(const Duration(milliseconds: 300));
         }
         
+          // 释放 GetM3U8 实例
+          _getM3u8Instance?.dispose();
+          _getM3u8Instance = null;
+          _originalUrl?.dispose();
+    
           // 最后释放主控制器
           currentController.dispose(); 
       } catch (e) {
