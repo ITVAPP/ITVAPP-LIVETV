@@ -6,14 +6,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
-import 'package:itvapp_live_tv/util/getm3u8.dart';
 
 class StreamUrl {
   final String url;
   final YoutubeExplode yt = YoutubeExplode(); 
   final http.Client _client = http.Client(); 
-  // GetM3U8 实例
-  final GetM3U8 _m3u8Handler = GetM3U8();
   bool _isDisposed = false; 
   Completer<void>? _completer; 
   final Duration timeoutDuration;
@@ -41,23 +38,6 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
     try {
-      // 检查是否包含 getm3u8
-      if (isGetm3u8Url(url)) {
-        // 检查是否包含 ts
-        final isTs = url.toLowerCase().contains('getm3u8=ts');
-        // 移除 getm3u8 参数获取原始 URL
-        final originalUrl = url.replaceAll(RegExp(r'[?&]getm3u8=[^&]*'), '');
-        
-        if (isTs) {
-          // 返回 getm3u8.dart 的路径，并带上原始 URL 参数
-          final directory = await getApplicationDocumentsDirectory();
-          return '${directory.path}/getm3u8_playlist.m3u8?url=$originalUrl';
-        } else {
-          // 使用 GetM3U8 解析源码获取 m3u8 URL
-          return await _m3u8Handler.extractM3U8Url(originalUrl);
-        }
-      }
-    	
       // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
       if (isLZUrl(url)) {
         if (isILanzouUrl(url)) {
@@ -152,11 +132,6 @@ void dispose() {
     }, '关闭资源时发生错误');
   }
 
-  // 判断是否有 getm3u8
-  bool isGetm3u8Url(String url) {
-    return url.toLowerCase().contains('getm3u8');
-  }
-  
   // 判断是否为蓝奏云链接
   bool isLZUrl(String url) {
     return url.contains('lanzou');
