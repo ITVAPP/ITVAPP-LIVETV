@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
-import 'package:path_provider/path_provider.dart';
 import '../util/log_util.dart';
-import '../util/getm3u8.dart';
 import '../gradient_progress_bar.dart';
 
 /// 播放器配置工具类
@@ -19,38 +17,14 @@ class BetterPlayerConfig {
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
   /// - [isHls]: 是否为 HLS 格式（直播流）
-  static Future<BetterPlayerDataSource> createDataSource({
+  static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
     Map<String, String>? headers,
-  }) async {
-    var sourceType = BetterPlayerDataSourceType.network;
-    String finalUrl = url;
-    
-    // 检查是否包含 getm3u8
-    if (url.contains('getm3u8')) {
-      // 获取源URL
-      final sourceUrl = GetM3U8.getUrlParameter(url);
-      if (sourceUrl != null) {
-        // 生成播放列表
-        final handler = GetM3U8();
-        try {
-          await handler.getPlaylist(sourceUrl);
-        } finally {
-          handler.dispose();
-        }
-      }
-      
-      // 获取应用文档目录
-      final directory = await getApplicationDocumentsDirectory();
-      finalUrl = '${directory.path}/getm3u8_playlist.m3u8';
-      sourceType = BetterPlayerDataSourceType.file;
-      isHls = true;
-    }
-
+  }) {
     return BetterPlayerDataSource(
-      sourceType,
-      finalUrl,
+      BetterPlayerDataSourceType.network,
+      url,
       liveStream: isHls, // 根据 URL 判断是否为直播流
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
@@ -107,29 +81,7 @@ class BetterPlayerConfig {
         DeviceOrientation.portraitUp,
       ],
       // 事件监听器
-      eventListener: (event) {
-        // 添加播放进度监听，用于更新播放列表
-        if (event.betterPlayerEventType == BetterPlayerEventType.progress && 
-            event.parameters?["url"]?.toString().contains('getm3u8') == true) {
-          final position = event.parameters?["progress"] as Duration?;
-          final duration = event.parameters?["duration"] as Duration?;
-          final url = event.parameters?["url"] as String?;
-          
-          if (position != null && duration != null && url != null) {
-            final remainingTime = duration - position;
-            // 如果距离片段结束还有10秒，更新播放列表
-            if (remainingTime.inSeconds <= 10) {
-              final sourceUrl = GetM3U8.getUrlParameter(url);
-              if (sourceUrl != null) {
-                final handler = GetM3U8();
-                handler.getPlaylist(sourceUrl).then((_) => handler.dispose());
-              }
-            }
-          }
-        }
-        // 调用原有的事件监听器
-        eventListener(event);
-      },
+      eventListener: eventListener,
     );
   }
 }
