@@ -131,9 +131,14 @@ void dispose() {
       }
     }, '关闭资源时发生错误');
   }
-
-  // 判断是否为蓝奏云链接
+  
+  /// 否则判断是否包含"lanzou"
   bool isLZUrl(String url) {
+    // 如果包含分隔符，直接返回false
+    if (url.contains('|')) {
+      return false;
+    }
+    // 否则判断是否为蓝奏云链接
     return url.contains('lanzou');
   }
   
