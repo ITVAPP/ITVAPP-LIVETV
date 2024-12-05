@@ -59,7 +59,7 @@ class BetterPlayerConfig {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
       autoPlay: false, // 自动播放
-      looping: true, // 循环播放
+      looping: isHls, // 是HLS时循环播放
       allowedScreenSleep: false, // 屏幕休眠
       autoDispose: false, // 自动释放资源
       expandToFill: true, // 填充剩余空间
