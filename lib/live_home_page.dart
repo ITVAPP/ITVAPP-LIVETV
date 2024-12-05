@@ -145,8 +145,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   
 /// 播放前解析频道的视频源 
-Future<void> _playVideo() async {
+Future<void> _playVideo([String? cachedUrl]) async {
     if (_currentChannel == null) return;
+
+    // 如果有缓存的URL，使用无缝切换模式
+    if (cachedUrl != null) {
+        await _smoothSourceSwitch(cachedUrl);
+        return;
+    }
 
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -157,6 +163,7 @@ Future<void> _playVideo() async {
 
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
+    
     // 添加短暂延迟确保资源完全释放
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -184,7 +191,7 @@ Future<void> _playVideo() async {
         final bool isHls = _isHlsStream(parsedUrl);
         
         // 判断是否是 YouTube HLS 直播流
-        final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
+        final bool isYoutubeHls = _streamUrl?.isYTUrl(parsedUrl) ?? false && isHls;
         
         if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
@@ -215,7 +222,7 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            _handleSourceSwitch();
+            _handleSourceSwitch(_nextVideoUrl);
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
         }
@@ -239,6 +246,94 @@ Future<void> _playVideo() async {
                 _isSwitchingChannel = false;
             });
         }
+    }
+}
+
+/// 平滑切换视频源
+Future<void> _smoothSourceSwitch(String cachedUrl) async {
+    if (_isSwitchingChannel) return;
+
+    try {
+        final bool isHls = _isHlsStream(cachedUrl);
+        final bool isDirectAudio = _checkIsAudioStream(cachedUrl);
+        
+        // 创建新的数据源
+        final dataSource = BetterPlayerConfig.createDataSource(
+            url: cachedUrl,
+            isHls: isHls,
+        );
+
+        // 创建新的播放器配置
+        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+            isHls: isHls,
+            eventListener: _videoListener,
+        );
+
+        // 创建新的控制器
+        BetterPlayerController newController = BetterPlayerController(
+            betterPlayerConfiguration,
+        );
+
+        // 准备新的播放器但不显示
+        await newController.setupDataSource(dataSource);
+        
+        // 预加载并静音
+        await newController.setVolume(0);
+        await newController.play();
+
+        // 等待新播放器缓冲
+        bool isBuffered = false;
+        newController.addEventsListener((event) {
+            // 当新播放器准备好时
+            if (event.betterPlayerEventType == BetterPlayerEventType.bufferingEnd && !isBuffered) {
+                isBuffered = true;
+            }
+        });
+
+        // 等待新播放器缓冲完成或超时
+        int attempts = 0;
+        while (!isBuffered && attempts < 50) { // 最多等待5秒
+            await Future.delayed(const Duration(milliseconds: 100));
+            attempts++;
+        }
+
+        if (!isBuffered) {
+            // 如果缓冲失败，回退到普通切换
+            await newController.dispose();
+            _handleSourceSwitch();
+            return;
+        }
+
+        // 保存当前播放器的播放状态
+        final wasPlaying = _playerController?.isPlaying() ?? false;
+        
+        // 切换到新播放器
+        final oldController = _playerController;
+        setState(() {
+            _retryCount = 0;
+            _playerController = newController;
+            _currentPlayUrl = cachedUrl;
+            _isAudio = isDirectAudio;
+            toastString = S.current.loading;
+            _timeoutActive = false;
+        });
+
+        // 恢复音量并播放
+        await _playerController?.setVolume(1.0);
+        if (wasPlaying) {
+            await _playerController?.play();
+        }
+
+        // 延迟释放旧播放器
+        if (oldController != null) {
+            await Future.delayed(const Duration(milliseconds: 300));
+            oldController.dispose();
+        }
+
+    } catch (e, stackTrace) {
+        LogUtil.logError('平滑切换失败', e, stackTrace);
+        // 如果平滑切换失败，回退到普通切换
+        _handleSourceSwitch();
     }
 }
 
@@ -394,6 +489,9 @@ void _prepareNextVideo() async {
             // 如果是HLS流，不进行预缓存
             if (_isHlsStream(parsedUrl)) return;
             
+            // 存储解析后的URL
+            _nextVideoUrl = parsedUrl;
+            
             // 创建数据源
             final dataSource = BetterPlayerConfig.createDataSource(
                 url: parsedUrl,
@@ -481,10 +579,20 @@ void _retryPlayback() {
 }
 
 /// 处理视频源切换的方法（自动）
-void _handleSourceSwitch() {
+void _handleSourceSwitch([String? cachedUrl]) {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
+    
+    // 如果有缓存的URL，直接使用
+    if (cachedUrl != null) {
+        setState(() {
+           _isRetrying = false;
+           _retryCount = 0;
+        });
+        _playVideo(cachedUrl);
+        return;
+    }
     	
-    // 获取当前频道的视频源列表
+    // 没有缓存URL时，获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
         setState(() {
@@ -502,13 +610,14 @@ void _handleSourceSwitch() {
         return;
     }
 
-    // 延迟后尝试新源
+    // 对于未缓存的URL，延迟切换以防止频繁切换
+    _retryTimer?.cancel();  // 取消之前的计时器
     _retryTimer = Timer(const Duration(seconds: 2), () {
-            setState(() {
-               _isRetrying = false;
-               _retryCount = 0;
-            });
-        _playVideo();
+        setState(() {
+           _isRetrying = false;
+           _retryCount = 0;
+        });
+        _playVideo(_nextVideoUrl);
     });
 }
 
