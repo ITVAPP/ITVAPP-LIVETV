@@ -105,6 +105,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 存储下一个视频的URL
   String? _nextVideoUrl;     
+  
+  // 缓存控制器变量
+  BetterPlayerController? _preCacheController;
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -381,8 +384,8 @@ void _prepareNextVideo() async {
         
         try {
             // 使用 StreamUrl 解析真实URL
-            final streamUrl = StreamUrl(nextUrl);
-            final parsedUrl = await streamUrl.getStreamUrl();
+            final StreamUrl streamUrlInstance = StreamUrl(nextUrl);  // 修改这里
+            final parsedUrl = await streamUrlInstance.getStreamUrl();
             
             // 如果解析失败，直接返回
             if (parsedUrl == 'ERROR') {
@@ -421,7 +424,7 @@ void _prepareNextVideo() async {
             await _disposePrecacheController();
         } finally {
             // 释放 StreamUrl 实例
-            streamUrl.dispose();
+            streamUrlInstance.dispose(); 
         }
         
     } catch (e) {
