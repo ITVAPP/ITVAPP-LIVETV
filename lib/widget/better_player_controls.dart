@@ -54,6 +54,7 @@ class BetterPlayerConfig {
 
   /// 创建播放器基本配置
   static BetterPlayerConfiguration createPlayerConfig({
+    required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
   }) {
     return BetterPlayerConfiguration(
