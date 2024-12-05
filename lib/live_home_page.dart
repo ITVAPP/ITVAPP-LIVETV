@@ -433,8 +433,8 @@ void _videoListener(BetterPlayerEvent event) {
                 // 计算剩余时间
                 final remainingTime = duration - position;
         
-                // 如果距离结束还有10秒且没有开始预缓存
-                if (remainingTime.inSeconds <= 10 && !_isPreCaching) {
+                // 如果距离结束还有15秒且没有开始预缓存
+                if (remainingTime.inSeconds <= 15 && !_isPreCaching) {
                     _prepareNextVideo();
                 }
             }
