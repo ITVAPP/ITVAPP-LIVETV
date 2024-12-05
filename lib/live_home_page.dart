@@ -197,6 +197,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+          isHls: isHls,
           eventListener: _videoListener,
         );
 
@@ -376,16 +377,13 @@ void _prepareNextVideo() async {
         
         // 获取下一个视频的原始URL
         String nextUrl = urls[nextSourceIndex];
-        
-        // 如果是HLS流，不进行预缓存
-        if (_isHlsStream(nextUrl)) return;
-        
+
         _isPreCaching = true;
-        
+        StreamUrl? streamUrl;
         try {
             // 使用 StreamUrl 解析真实URL
-            final StreamUrl streamUrlInstance = StreamUrl(nextUrl);  // 修改这里
-            final parsedUrl = await streamUrlInstance.getStreamUrl();
+            streamUrl = StreamUrl(nextUrl);
+            final parsedUrl = await streamUrl.getStreamUrl();
             
             // 如果解析失败，直接返回
             if (parsedUrl == 'ERROR') {
@@ -393,7 +391,7 @@ void _prepareNextVideo() async {
                 return;
             }
             
-            // 检查解析后的URL是否为HLS
+            // 如果是HLS流，不进行预缓存
             if (_isHlsStream(parsedUrl)) return;
             
             // 创建数据源
@@ -424,7 +422,7 @@ void _prepareNextVideo() async {
             await _disposePrecacheController();
         } finally {
             // 释放 StreamUrl 实例
-            streamUrlInstance.dispose(); 
+            streamUrl?.dispose();
         }
         
     } catch (e) {
@@ -521,7 +519,7 @@ Future<void> _disposePrecacheController() async {
             if (_preCacheController!.videoPlayerController != null) {
                 await _preCacheController!.videoPlayerController!.dispose();
             }
-            await _preCacheController!.dispose();
+            _preCacheController!.dispose();  
             _preCacheController = null;
         } catch (e) {
             LogUtil.logError('释放预缓存控制器失败', e);
