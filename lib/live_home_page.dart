@@ -299,7 +299,7 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
 
         if (!isBuffered) {
             // 如果缓冲失败，回退到普通切换
-            await newController.dispose();
+            newController.dispose();  // 移除 await
             _handleSourceSwitch();
             return;
         }
@@ -327,7 +327,7 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         // 延迟释放旧播放器
         if (oldController != null) {
             await Future.delayed(const Duration(milliseconds: 300));
-            oldController.dispose();
+            oldController.dispose();  // 移除 await
         }
 
     } catch (e, stackTrace) {
