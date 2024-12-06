@@ -367,8 +367,22 @@ case BetterPlayerEventType.bufferingEnd:
             }
             break;
             
-// 当事件类型为播放结束时
-case BetterPlayerEventType.finished:
+        // 当事件类型为播放结束时
+        case BetterPlayerEventType.finished:
+            handleFinishedEvent();
+        break;
+            
+        // 默认情况，忽略所有其他未处理的事件类型
+        default:
+            if (event.betterPlayerEventType != BetterPlayerEventType.progress) {
+                LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
+            }
+            break;
+    }
+}
+
+/// 切换视频源方法
+Future<void> handleFinishedEvent() async {
     if (!_isHlsStream(_currentPlayUrl) && _nextVideoUrl != null && _nextPlayerController != null) {
         final oldController = _playerController;
         
@@ -415,15 +429,6 @@ case BetterPlayerEventType.finished:
             toastString = S.current.playError;
             _sourceIndex = 0;
         });
-    }
-    break;
-            
-        // 默认情况，忽略所有其他未处理的事件类型
-        default:
-            if (event.betterPlayerEventType != BetterPlayerEventType.progress) {
-                LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
-            }
-            break;
     }
 }
 
