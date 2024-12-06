@@ -477,19 +477,17 @@ Future<void> _preloadNextVideo(String url) async {
 
 /// 预加载控制器的事件监听
 void _setupNextPlayerListener(BetterPlayerController controller) {
-    controller.addEventsListener((event) {  // 移除 async
+    controller.addEventsListener((event) {
         switch (event.betterPlayerEventType) {
             case BetterPlayerEventType.setupDataSource:
                 LogUtil.i('预加载数据源设置完成');
-                try {
-                    controller.setVolume(0);  // 移除 await
-                    controller.play();        // 移除 await
-                    Future.delayed(const Duration(milliseconds: 100)).then((_) {
-                        controller.setVolume(1.0);  // 在 Future 完成后设置音量
+                controller.setVolume(0).then((_) {
+                    controller.play().then((_) {
+                        Future.delayed(const Duration(milliseconds: 100)).then((_) {
+                            controller.setVolume(1.0);
+                        });
                     });
-                } catch (e, stackTrace) {
-                    LogUtil.logError('预加载控制器操作失败', e, stackTrace);
-                }
+                });
                 break;
             case BetterPlayerEventType.exception:
                 final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
