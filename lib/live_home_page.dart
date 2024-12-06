@@ -104,10 +104,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isPreCaching = false;
 
   // 存储下一个视频的URL
-  String? _nextVideoUrl;     
-  
-  // 缓存控制器变量
-  BetterPlayerController? _preCacheController;
+  String? _nextVideoUrl;
   
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -360,35 +357,19 @@ void _prepareNextVideo() async {
             
             _nextVideoUrl = parsedUrl;
             
-            // 创建数据源
+            // 创建数据源，启用预缓存
             final dataSource = BetterPlayerConfig.createDataSource(
                 url: parsedUrl,
                 isHls: false,
+                precacheSource: true,  // 启用预缓存
             );
             
-            // 释放之前的预缓存控制器
-            await _disposePrecacheController();
-            
-            // 使用与 _playVideo 相同的配置方式创建控制器
-            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-                isHls: false,
-                eventListener: _videoListener,
-            );
-            
-            _preCacheController = BetterPlayerController(
-                betterPlayerConfiguration,
-            );
-            
-            // 设置数据源
-            await _preCacheController?.setupDataSource(dataSource);
-            
-            // 开始预缓存
-            await _preCacheController?.preCache(dataSource);
+            // 使用当前播放器进行预缓存
+            await _playerController?.preCache(dataSource);
             LogUtil.i('预缓存下一个视频成功: $parsedUrl');
             
         } catch (e) {
             LogUtil.logError('预缓存初始化失败', e);
-            await _disposePrecacheController();
         } finally {
             streamUrl?.dispose();
         }
@@ -490,25 +471,31 @@ void _videoListener(BetterPlayerEvent event) {
             // 获取当前播放进度和总时长
             final position = event.parameters?["progress"] as Duration?;
             final duration = event.parameters?["duration"] as Duration?;
-            
-            // 处理普通视频的预缓存和自动切换
+    
+            // 处理普通视频的预缓存和平滑切换
             if (position != null && duration != null && !_isHlsStream(_currentPlayUrl)) {
                 // 计算剩余时间
                 final remainingTime = duration - position;
-        
-                // 如果距离结束还有15秒且没有开始预缓存
-                if (remainingTime.inSeconds <= 15 && !_isPreCaching) {
-                    _prepareNextVideo();
+
+                // 在视频剩余5-10秒时开始准备
+                if (remainingTime.inSeconds <= 10 && remainingTime.inSeconds > 5) {
+                    // 开始预缓存
+                    if (!_isPreCaching) {
+                        _prepareNextVideo();
+                    }
+                } 
+                // 在视频剩余3-5秒时开始平滑切换
+                else if (remainingTime.inSeconds <= 5 && remainingTime.inSeconds > 3) {
+                    // 如果已经预缓存好了，开始准备平滑切换
+                    if (_nextVideoUrl != null) {
+                        _smoothSourceSwitch(_nextVideoUrl!);
+                    }
                 }
             }
             break;
 
         // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
-            // 如果视频播放结束、不是HLS流且有预缓存的URL,则进行平滑切换
-            if (!_isHlsStream(_currentPlayUrl) && _nextVideoUrl != null) {
-                _smoothSourceSwitch(_nextVideoUrl!);
-            }
             break;
 
         // 默认情况，忽略所有其他未处理的事件类型
@@ -598,21 +585,6 @@ void _handleSourceSwitch() {
             });
         _playVideo();
     });
-}
-
-/// 释放预缓存控制器
-Future<void> _disposePrecacheController() async {
-    if (_preCacheController != null) {
-        try {
-            if (_preCacheController!.videoPlayerController != null) {
-                await _preCacheController!.videoPlayerController!.dispose();
-            }
-            _preCacheController!.dispose();  
-            _preCacheController = null;
-        } catch (e) {
-            LogUtil.logError('释放预缓存控制器失败', e);
-        }
-    }
 }
 
 /// 播放器资源释放方法
