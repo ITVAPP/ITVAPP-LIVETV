@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sp_util/sp_util.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
@@ -803,45 +804,48 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
 // 位置排序逻辑
 void _sortByLocation() {
-  if (!SpUtil.containsKey('user_location_info')) return;
+  const String locationKey = 'user_location_info';
   
-  final locationInfo = SpUtil.getString('user_location_info');
-  if (locationInfo == null || locationInfo.isEmpty) return;
+  String? savedLocation = SpUtil.getString(locationKey);
+  if (savedLocation == null || savedLocation.isEmpty) return;
 
   try {
-    final locationData = json.decode(locationInfo);
-    final region = locationData['region']?.toString().toLowerCase() ?? '';
-    final city = locationData['city']?.toString().toLowerCase() ?? '';
-    
+    Map<String, dynamic> locationData = json.decode(savedLocation);
+    String region = locationData['region']?.toString().toLowerCase() ?? '';
+    String city = locationData['city']?.toString().toLowerCase() ?? '';
+
     if (city.isEmpty && region.isEmpty) return;
 
-    // 使用 Map 存储优先级，避免重复计算
-    final priorities = <String, int>{};
-    
-    for (final key in _keys) {
-      final lowKey = key.toLowerCase();
-      if (city.isNotEmpty && (lowKey.contains(city) || city.contains(lowKey))) {
-        priorities[key] = 2; // 城市匹配优先级最高
-      } else if (region.isNotEmpty && (lowKey.contains(region) || region.contains(lowKey))) {
-        priorities[key] = 1; // 地区匹配优先级次之
+    List<String> exactMatches = [];    // 城市匹配
+    List<String> partialMatches = [];  // 地区匹配
+    List<String> otherGroups = [];     // 其他分组
+
+    for (String key in _keys) {
+      String lowercaseKey = key.toLowerCase();
+      if (city.isNotEmpty && (lowercaseKey.contains(city) || city.contains(lowercaseKey))) {
+        exactMatches.add(key);
+      } else if (region.isNotEmpty && (lowercaseKey.contains(region) || region.contains(lowercaseKey))) {
+        partialMatches.add(key);
       } else {
-        priorities[key] = 0; // 不匹配优先级最低
+        otherGroups.add(key);
       }
     }
 
-    // 一次性排序，减少排序操作
-    final sortedEntries = _keys.asMap().entries.toList()
-      ..sort((a, b) {
-        final priorityCompare = (priorities[b.value] ?? 0).compareTo(priorities[a.value] ?? 0);
-        return priorityCompare != 0 ? priorityCompare : a.key.compareTo(b.key);
-      });
+    // 更新分组顺序
+    _keys = [...exactMatches, ...partialMatches, ...otherGroups];
 
-    // 更新键值对顺序
-    _keys = sortedEntries.map((e) => e.value).toList();
-    _values = sortedEntries.map((e) => _values[e.key]).toList();
-    
+    // 更新对应的值列表
+    List<Map<String, PlayModel>> newValues = [];
+    for (String key in _keys) {
+      int oldIndex = widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList().indexOf(key) ?? -1;
+      if (oldIndex != -1) {
+        newValues.add(_values[oldIndex]);
+      }
+    }
+    _values = newValues;
+
   } catch (e) {
-    LogUtil.e('位置排序失败: $e');
+    LogUtil.e('解析位置信息失败: $e');
   }
 }
 
