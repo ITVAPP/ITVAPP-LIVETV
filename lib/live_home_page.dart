@@ -219,7 +219,7 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            _handleError();
+            _handleSourceSwitch();
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
         }
@@ -236,7 +236,7 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _handleError(); 
+        _handleSourceSwitch();
     } finally {
         if (mounted) {  // 添加 mounted 检查
             setState(() {
@@ -251,28 +251,38 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
     if (_isSwitchingChannel) return;
 
     try {
+        setState(() {
+            _isSwitchingChannel = true;
+        });
+        
         final bool isHls = _isHlsStream(cachedUrl);
         final bool isDirectAudio = _checkIsAudioStream(cachedUrl);
         
-        // 创建数据源
-        final dataSource = BetterPlayerConfig.createDataSource(
-            url: cachedUrl,
-            isHls: isHls,
-        );
+        BetterPlayerController? newController;
+        
+        // 使用预缓存的控制器（如果可用）
+        if (cachedUrl == _nextVideoUrl && _preCacheController != null) {
+            newController = _preCacheController;
+            _preCacheController = null;
+            _nextVideoUrl = null;
+        } else {
+            // 如果没有预缓存，创建新控制器
+            final dataSource = BetterPlayerConfig.createDataSource(
+                url: cachedUrl,
+                isHls: isHls,
+            );
 
-        // 使用与 _playVideo 相同的配置方式创建控制器
-        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            isHls: isHls,
-            eventListener: _videoListener,
-        );
+            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+                isHls: isHls,
+                eventListener: _videoListener,
+            );
 
-        // 创建新的控制器
-        BetterPlayerController newController = BetterPlayerController(
-            betterPlayerConfiguration,
-        );
+            newController = BetterPlayerController(
+                betterPlayerConfiguration,
+            );
 
-        // 设置数据源
-        await newController.setupDataSource(dataSource);
+            await newController.setupDataSource(dataSource);
+        }
         
         // 预加载并静音
         await newController.setVolume(0);
@@ -327,7 +337,13 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
 
     } catch (e, stackTrace) {
         LogUtil.logError('平滑切换失败', e, stackTrace);
-        _handleError();
+        _handleSourceSwitch();
+    } finally {
+        if (mounted) {
+            setState(() {
+                _isSwitchingChannel = false;
+            });
+        }
     }
 }
 
@@ -365,7 +381,7 @@ void _prepareNextVideo() async {
             
             _nextVideoUrl = parsedUrl;
             
-            // 创建数据源
+            // 使用你原有的配置创建数据源
             final dataSource = BetterPlayerConfig.createDataSource(
                 url: parsedUrl,
                 isHls: false,
@@ -374,7 +390,7 @@ void _prepareNextVideo() async {
             // 释放之前的预缓存控制器
             await _disposePrecacheController();
             
-            // 创建新的预缓存控制器
+            // 使用你原有的配置创建控制器
             final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
                 isHls: false,
                 eventListener: _videoListener,
@@ -384,9 +400,36 @@ void _prepareNextVideo() async {
                 betterPlayerConfiguration,
             );
             
+            // 只添加缓存状态监听
+            bool cachingCompleted = false;
+            bool cachingFailed = false;
+            
+            _preCacheController!.addEventsListener((event) {
+                switch (event.betterPlayerEventType) {
+                    case BetterPlayerEventType.cachingCompleted:
+                        cachingCompleted = true;
+                        LogUtil.i('预缓存完成: $parsedUrl');
+                        break;
+                    case BetterPlayerEventType.cachingFailed:
+                        cachingFailed = true;
+                        LogUtil.e('预缓存失败: $parsedUrl');
+                        break;
+                }
+            });
+            
             // 开始预缓存
             await _preCacheController?.preCache(dataSource);
-            LogUtil.i('预缓存下一个视频成功: $parsedUrl');
+            
+            // 等待缓存完成或失败
+            int attempts = 0;
+            while (!cachingCompleted && !cachingFailed && attempts < 100) {
+                await Future.delayed(const Duration(milliseconds: 100));
+                attempts++;
+            }
+            
+            if (cachingCompleted || !cachingFailed) {  // 如果完成或者没有明确失败
+                LogUtil.i('预缓存下一个视频成功: $parsedUrl');
+            }
             
         } catch (e) {
             LogUtil.logError('预缓存初始化失败', e);
