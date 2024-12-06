@@ -43,7 +43,7 @@ class BetterPlayerConfig {
         useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
         preCacheSize: 20 * 1024 * 1024, // 预缓存大小（20MB）
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
-        maxCacheFileSize: 30 * 1024 * 1024, // 单个缓存文件大小限制（30MB）
+        maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
       // 请求头设置，提供默认 User-Agent
       headers: headers ?? {
