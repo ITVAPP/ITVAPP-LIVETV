@@ -267,41 +267,56 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
 
-        // 当事件类型为缓冲开始时，重置进度
-        case BetterPlayerEventType.bufferingStart:
-            if (mounted && !isBuffering) { // 避免重复设置
-                setState(() {
-                    isBuffering = true;
-                    toastString = S.current.loading; // 更新缓冲状态
-                });
-            }
-            break;
+// 当事件类型为缓冲开始时，重置进度
+case BetterPlayerEventType.bufferingStart:
+    if (mounted && !isBuffering) { // 避免重复设置
+        LogUtil.i('开始缓冲');
+        setState(() {
+            isBuffering = true;
+            bufferingProgress = 0.0;  // 重置缓冲进度
+            toastString = S.current.loading; // 更新缓冲状态
+        });
+    }
+    break;
 
-        // 当事件类型为缓冲更新时，更新进度
-        case BetterPlayerEventType.bufferingUpdate:
-            if (mounted && isBuffering) {
-                final bufferProgress = event.parameters?["bufferProgress"] as double?;
-                final newToastString = bufferProgress != null
-                    ? '${S.current.loading} (${(bufferProgress * 100).toStringAsFixed(0)}%)'
-                    : toastString;
-
-                if (newToastString != toastString) { // 避免重复设置相同值
+// 当事件类型为缓冲更新时，更新进度
+case BetterPlayerEventType.bufferingUpdate:
+    if (mounted && isBuffering) {
+        // BetterPlayer 的缓冲事件实际上是通过 buffered 参数传递的
+        final buffered = event.parameters?["buffered"] as List<DurationRange>?;
+        if (buffered != null && buffered.isNotEmpty) {
+            // 计算缓冲进度
+            final Duration? totalDuration = _playerController?.videoPlayerController?.value.duration;
+            if (totalDuration != null && totalDuration.inMilliseconds > 0) {
+                // 获取最后一个缓冲范围
+                final DurationRange lastRange = buffered.last;
+                final double progress = lastRange.end.inMilliseconds / totalDuration.inMilliseconds;
+                
+                LogUtil.i('缓冲进度: ${(progress * 100).toStringAsFixed(0)}%');
+                
+                final newToastString = '${S.current.loading} (${(progress * 100).toStringAsFixed(0)}%)';
+                if (newToastString != toastString) {
                     setState(() {
                         toastString = newToastString;
+                        bufferingProgress = progress;
                     });
                 }
             }
-            break;
+        }
+    }
+    break;
 
-        // 当事件类型为缓冲结束时，更新缓冲状态
-        case BetterPlayerEventType.bufferingEnd:
-            if (mounted && isBuffering) { // 避免重复设置
-                setState(() {
-                    isBuffering = false;
-                    toastString = 'HIDE_CONTAINER';
-                });
-            }
-            break;
+// 当事件类型为缓冲结束时，更新缓冲状态
+case BetterPlayerEventType.bufferingEnd:
+    if (mounted && isBuffering) { // 避免重复设置
+        LogUtil.i('缓冲结束');
+        setState(() {
+            isBuffering = false;
+            bufferingProgress = 1.0;  // 设置缓冲进度为100%
+            toastString = 'HIDE_CONTAINER';
+        });
+    }
+    break;
 
         // 当事件类型为播放时
         case BetterPlayerEventType.play:
@@ -346,7 +361,7 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
             
-        // 当事件类型为播放结束时
+// 当事件类型为播放结束时
 case BetterPlayerEventType.finished:
     if (_nextVideoUrl != null && _nextPlayerController != null) {
         final oldController = _playerController;
@@ -358,6 +373,12 @@ case BetterPlayerEventType.finished:
             _currentPlayUrl = _nextVideoUrl;
             _nextVideoUrl = null;
             _sourceIndex++;
+            isBuffering = false;
+            bufferingProgress = 0.0;
+            _shouldUpdateAspectRatio = true;
+            _isRetrying = false;
+            _retryCount = 0;
+            _isSwitchingChannel = false; 
         });
         
         try {
@@ -376,6 +397,13 @@ case BetterPlayerEventType.finished:
         // 清理旧资源
         oldController?.dispose();
         oldStreamUrl?.dispose();
+    } else {
+        // 没有下一个视频源时
+        LogUtil.i('播放完成，没有更多视频源');
+        setState(() {
+            toastString = S.current.playError;  // 显示播放错误提示
+            _sourceIndex = 0;  // 重置源索引
+        });
     }
     break;
             
@@ -490,22 +518,45 @@ void _startTimeoutCheck() {
 
 /// 重试播放方法，用于重新尝试播放失败的视频
 void _retryPlayback() {
+    // 防止重复重试或在不适当的状态下重试
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
     
-    _timeoutActive = false;  // 重试期间取消超时检测
+    // 取消当前的超时检测和重试计时器
+    _timeoutActive = false;
+    _retryTimer?.cancel();
+    _retryTimer = null;
 
     // 检查是否在重试次数范围内
-    if (_retryCount <= defaultMaxRetries) {
+    if (_retryCount < defaultMaxRetries) {  // 改用 < 而不是 <=，因为从0开始计数
         setState(() {
-            _isRetrying = true;  // 标记进入重试状态
-            _retryCount += 1;  // 增加重试计数
-            toastString = S.current.retryplay; 
+            _isRetrying = true;
+            _retryCount++;
+            isBuffering = false;  // 重置缓冲状态
+            bufferingProgress = 0.0;
+            toastString = '${S.current.retryplay} (${_retryCount}/${defaultMaxRetries})';  // 显示重试次数
         });
+
+        // 保存旧的控制器
+        final oldController = _playerController;
+        final oldStreamUrl = _streamUrl;
         
-        // 取消当前的重试计时器
-        _retryTimer?.cancel();
-        _retryTimer = Timer(const Duration(seconds: 2), () {
-            _playVideo();  // 再次尝试播放
+        setState(() {
+            _playerController = null;  // 重置播放器控制器
+            _streamUrl = null;
+        });
+
+        // 清理旧资源
+        oldController?.removeEventsListener(_videoListener);
+        oldController?.dispose();
+        oldStreamUrl?.dispose();
+        
+        // 延迟后重试
+        _retryTimer = Timer(const Duration(seconds: 2), () async {
+            if (!mounted || _isSwitchingChannel) return;
+            setState(() {
+                _isRetrying = false;  // 重置重试状态
+            });
+            await _playVideo();  // 重新尝试播放
         });
     } else {
         _handleSourceSwitch();  // 重试次数用尽，切换视频源
@@ -532,24 +583,55 @@ String? _getNextVideoUrl() {
 
 /// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
+    // 防止在不适当的状态下切换源
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
+    
+    // 取消当前的计时器和检测
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _timeoutActive = false;
+
     // 获取下一个视频源
     final nextUrl = _getNextVideoUrl();
     if (nextUrl == null) {
+        // 没有更多源可用
         setState(() {
             toastString = S.current.playError;
+            _sourceIndex = 0;  // 重置源索引
+            isBuffering = false;
+            bufferingProgress = 0.0;
+            isPlaying = false;
+            _isRetrying = false;
+            _retryCount = 0;
         });
         return;
     }
-    // 更新源索引
-    _sourceIndex++;
+
+    // 保存旧的控制器
+    final oldController = _playerController;
+    final oldStreamUrl = _streamUrl;
+    
+    // 更新状态
+    setState(() {
+        _sourceIndex++;  // 增加源索引
+        _playerController = null;
+        _streamUrl = null;
+        _isRetrying = false;
+        _retryCount = 0;  // 切换源时重置重试次数
+        isBuffering = false;
+        bufferingProgress = 0.0;
+        toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
+    });
+
+    // 清理旧资源
+    oldController?.removeEventsListener(_videoListener);
+    oldController?.dispose();
+    oldStreamUrl?.dispose();
+
     // 延迟后尝试新源
-    _retryTimer = Timer(const Duration(seconds: 2), () {
-        setState(() {
-           _isRetrying = false;
-           _retryCount = 0;
-        });
-        _playVideo();
+    _retryTimer = Timer(const Duration(seconds: 2), () async {
+        if (!mounted || _isSwitchingChannel) return;
+        await _playVideo();
     });
 }
 
@@ -623,20 +705,50 @@ void _disposeStreamUrl() {
 
 /// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
-    if (model == null) return;
+    if (model == null || _isSwitchingChannel) return;
+    
     try {
-        // 更新频道信息
         setState(() {
             _isSwitchingChannel = true;
+            isBuffering = false;
+            bufferingProgress = 0.0;
+            toastString = S.current.loading;
+        });
+
+        // 清理所有监听器和计时器
+        _retryTimer?.cancel();
+        _retryTimer = null;
+        _timeoutActive = false;
+        
+        // 保存旧的控制器以便后续清理
+        final oldController = _playerController;
+        final oldNextController = _nextPlayerController;
+        final oldStreamUrl = _streamUrl;
+        
+        // 重置所有状态
+        setState(() {
             _currentChannel = model;
             _sourceIndex = 0;
-    	    _isRetrying = false;
+            _isRetrying = false;
             _retryCount = 0;
             _shouldUpdateAspectRatio = true;
-            toastString = S.current.loading; // 更新加载状态
+            _playerController = null;
+            _nextPlayerController = null;
+            _nextVideoUrl = null;
+            _currentPlayUrl = null;
+            isPlaying = false;
+            _isAudio = false;
         });
-         
+
+        // 清理旧资源
+        oldController?.removeEventsListener(_videoListener);
+        oldController?.dispose();
+        oldNextController?.dispose();
+        oldStreamUrl?.dispose();
+        
+        // 开始播放新频道
         await _playVideo();
+        
         // 发送统计数据
         if (Config.Analytics) {
             await _sendTrafficAnalytics(context, _currentChannel!.title);
@@ -646,7 +758,13 @@ Future<void> _onTapChannel(PlayModel? model) async {
         setState(() {
             toastString = S.current.playError;
         });
-    } 
+    } finally {
+        if (mounted) {
+            setState(() {
+                _isSwitchingChannel = false;
+            });
+        }
+    }
 }
 
 /// 切换视频源方法（手动按钮切换）
