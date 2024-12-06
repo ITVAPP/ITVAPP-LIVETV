@@ -207,6 +207,7 @@ Future<void> _playVideo() async {
         
         // 创建播放器控制器
         BetterPlayerController newController = BetterPlayerController(
+          isHls: isHls,	
           betterPlayerConfiguration,
         );
         
@@ -270,7 +271,7 @@ Future<void> _preloadNextVideo() async {
 
     // 创建预加载控制器配置
     final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-      isHls: isHls,
+      isHls: isHls,  // 添加必需的 isHls 参数
       eventListener: (BetterPlayerEvent event) {
         // 预加载视频的事件监听
         if (event.betterPlayerEventType == BetterPlayerEventType.exception) {
@@ -287,7 +288,11 @@ Future<void> _preloadNextVideo() async {
     );
 
     // 释放旧的预加载控制器
-    await _disposePreloadController();
+    if (_preloadController != null) {
+      final controller = _preloadController;
+      _preloadController = null;
+      await controller?.dispose();  // 修复异步dispose调用
+    }
 
     // 创建新的预加载控制器
     _preloadController = BetterPlayerController(betterPlayerConfiguration);
@@ -337,9 +342,14 @@ Future<void> _switchToPreloadedVideo() async {
     // 保存当前播放状态
     final wasPlaying = _playerController?.isPlaying() ?? false;
 
+    // 释放当前控制器
+    if (_playerController != null) {
+      final oldController = _playerController;
+      _playerController = null;
+      await oldController?.dispose();  // 修复异步dispose调用
+    }
+
     setState(() {
-      // 释放当前控制器
-      _playerController?.dispose();
       // 切换到预加载的控制器
       _playerController = _preloadController;
       _preloadController = null;
@@ -597,11 +607,10 @@ void _handleSourceSwitch() {
 
 /// 释放预加载控制器
 Future<void> _disposePreloadController() async {
-  try {
-    await _preloadController?.dispose();
+  if (_preloadController != null) {
+    final controller = _preloadController;
     _preloadController = null;
-  } catch (e) {
-    LogUtil.e('释放预加载控制器出错: $e');
+    await controller?.dispose(); 
   }
 }
 
