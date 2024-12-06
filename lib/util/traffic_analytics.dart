@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart'; 
 import 'package:provider/provider.dart'; 
 import 'package:itvapp_live_tv/provider/language_provider.dart';
+import 'package:sp_util/sp_util.dart';
 import 'log_util.dart';
 import '../config.dart';
 
@@ -22,10 +23,24 @@ class TrafficAnalytics {
   // 用于缓存IP地址和地理位置信息，避免重复请求
   Map<String, dynamic>? _cachedIpData;
 
+  // 新增: SP存储的key
+  static const String SP_KEY_LOCATION = 'user_location_info';
+
   /// 获取用户的IP地址和地理位置信息，逐个尝试多个API
   Future<Map<String, dynamic>> getUserIpAndLocation() async {
     if (_cachedIpData != null) {
       return _cachedIpData!;  // 如果缓存存在，直接返回缓存的数据
+    }
+
+    // 新增: 尝试从SP中读取保存的数据
+    String? savedLocation = SpUtil.getString(SP_KEY_LOCATION);
+    if (savedLocation != null && savedLocation.isNotEmpty) {
+      try {
+        _cachedIpData = json.decode(savedLocation);
+        return _cachedIpData!;
+      } catch (e) {
+        LogUtil.e('解析保存的位置信息失败: $e');
+      }
     }
 
     final apiList = [
@@ -80,11 +95,18 @@ class TrafficAnalytics {
     for (var api in apiList) {
       try {
         // 设置超时限制，防止请求卡住
-        final response = await http.get(Uri.parse(api['url'] as String)).timeout(Duration(seconds: 5)); // 将 'url' 转换为 String
+        final response = await http.get(Uri.parse(api['url'] as String)).timeout(Duration(seconds: 5));
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          // 缓存获取到的IP数据
-          _cachedIpData = (api['parseData'] as dynamic Function(dynamic))(data);  // 将 'parseData' 转换为函数
+          _cachedIpData = (api['parseData'] as dynamic Function(dynamic))(data);
+          
+          // 新增: 保存到SP中
+          try {
+            await SpUtil.putString(SP_KEY_LOCATION, json.encode(_cachedIpData));
+          } catch (e) {
+            LogUtil.e('保存位置信息失败: $e');
+          }
+          
           return _cachedIpData!;
         } else {
           LogUtil.e('API请求失败: ${api['url']} 状态码: ${response.statusCode}');
@@ -94,8 +116,24 @@ class TrafficAnalytics {
       }
     }
 
-    // 如果所有API都失败，抛出异常
     throw Exception('所有API请求失败，无法获取IP和地理位置信息');
+  }
+
+  /// 新增: 获取保存的位置信息的字符串形式
+  String getLocationString() {
+    String? savedLocation = SpUtil.getString(SP_KEY_LOCATION);
+    if (savedLocation != null && savedLocation.isNotEmpty) {
+      try {
+        Map<String, dynamic> locationData = json.decode(savedLocation);
+        return 'IP: ${locationData['ip']}\n'
+               '国家: ${locationData['country']}\n'
+               '地区: ${locationData['region']}\n'
+               '城市: ${locationData['city']}';
+      } catch (e) {
+        LogUtil.e('解析位置信息失败: $e');
+      }
+    }
+    return '暂无位置信息';
   }
 
   /// 获取屏幕尺寸
