@@ -253,10 +253,12 @@ Future<void> _preloadNextVideo() async {
     // 解析URL
     StreamUrl streamUrl = StreamUrl(_nextVideoUrl!);
     String parsedUrl = await streamUrl.getStreamUrl();
-    
+    _currentPlayUrl = parsedUrl;  // 保存解析后的地址
     // 如果解析失败，尝试下一个源
     if (parsedUrl == 'ERROR') {
-      LogUtil.e('预加载视频地址解析失败');
+            setState(() {
+                toastString = S.current.vpnplayError;
+            });
       return;
     }
 
@@ -346,7 +348,7 @@ Future<void> _switchToPreloadedVideo() async {
     if (_playerController != null) {
       final oldController = _playerController;
       _playerController = null;
-      oldController?.dispose();  // dispose() 不是异步的，移除 await
+      oldController?.dispose();
     }
 
     setState(() {
@@ -367,13 +369,6 @@ Future<void> _switchToPreloadedVideo() async {
     await _playerController?.setVolume(1.0);
     if (wasPlaying) {
       await _playerController?.play();
-    }
-
-    // 开始预加载下一个视频
-    final nextUrl = _getNextVideoUrl();
-    if (nextUrl != null) {
-      _nextVideoUrl = nextUrl;
-      _preloadNextVideo();
     }
 
   } catch (e, stackTrace) {
