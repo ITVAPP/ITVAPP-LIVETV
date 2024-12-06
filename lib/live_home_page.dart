@@ -476,22 +476,22 @@ Future<void> _preloadNextVideo(String url) async {
 }
 
 /// 预加载控制器的事件监听
-        void _setupNextPlayerListener(BetterPlayerController controller) {
-            controller.addEventsListener((event) {
-                switch (event.betterPlayerEventType) {
-                    case BetterPlayerEventType.setupDataSource:
-                        LogUtil.i('预加载数据源设置完成');
-                        break;
-                    case BetterPlayerEventType.exception:
-                        final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-                        LogUtil.e('预加载发生错误：$errorMessage');
-                        _cleanupPreload();
-                        break;
-                    default:
+void _setupNextPlayerListener(BetterPlayerController controller) async {
+    controller.addEventsListener((event) async { 
+        switch (event.betterPlayerEventType) {
+            case BetterPlayerEventType.setupDataSource:
+                LogUtil.i('预加载数据源设置完成');
                 break;
-                }
-            });
+            case BetterPlayerEventType.exception:
+                final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+                LogUtil.e('预加载发生错误：$errorMessage');
+                _cleanupPreload();
+                break;
+            default:
+                break;
         }
+    });
+}
         
 /// 清理预加载资源
 void _cleanupPreload() {
@@ -750,21 +750,26 @@ Future<void> _changeChannelSources() async {
 
 /// 处理返回按键逻辑，返回值为 true 表示退出应用，false`表示不退出
 Future<bool> _handleBackPress(BuildContext context) async {
-    if (_drawerIsOpen) {
-        _safeSetState(() => _drawerIsOpen = false);
-        return false;
-    }
-    
-    final wasPlaying = isPlayerPlaying;
-    if (wasPlaying) {
-        await _playerController?.pause();
-    }
-    
-    final shouldExit = await ShowExitConfirm.ExitConfirm(context);
-    if (!shouldExit && wasPlaying && mounted) {
-        await _playerController?.play();
-    }
-    return shouldExit;
+  if (_drawerIsOpen) {
+    // 如果抽屉打开，则关闭抽屉
+    setState(() {
+      _drawerIsOpen = false;
+    });
+    return false; 
+  }
+
+  // 如果正在播放则暂停
+  bool wasPlaying = _playerController?.isPlaying() ?? false;
+  if (wasPlaying) {
+    await _playerController?.pause();  // 暂停视频播放
+  }
+
+  // 显示退出确认对话框
+  bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+  if (!shouldExit && wasPlaying && mounted) {
+    await _playerController?.play(); 
+  }
+  return shouldExit;
 }
 
 /// 初始化方法
