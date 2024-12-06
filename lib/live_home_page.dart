@@ -411,8 +411,8 @@ Future<void> _preloadNextVideo(String url) async {
 
         // 创建新的播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            eventListener: null,
-            isHls: _isHlsStream(parsedUrl),  // 添加 isHls 参数
+            eventListener: (BetterPlayerEvent event) {},  // 提供一个空的事件监听器而不是null
+            isHls: _isHlsStream(parsedUrl),  // 添加必需的isHls参数
         );
 
         // 创建新的控制器用于预加载
@@ -434,9 +434,7 @@ Future<void> _preloadNextVideo(String url) async {
         LogUtil.logError('预加载异常', e, stackTrace);
         _cleanupPreload();
     } finally {
-        if (_streamUrl != null) {
-            _streamUrl!.dispose();
-        }
+        streamUrl?.dispose();
     }
 }
 
