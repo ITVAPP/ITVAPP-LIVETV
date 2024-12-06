@@ -15,12 +15,10 @@ class BetterPlayerConfig {
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
   /// - [isHls]: 是否为 HLS 格式（直播流）
-  /// - [precacheSource]: 是否启用预缓存
   static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
     Map<String, String>? headers,
-    bool precacheSource = false,  // 添加预缓存参数
   }) {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
@@ -29,7 +27,6 @@ class BetterPlayerConfig {
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
-      precacheSource: precacheSource && !isHls,  // 只在非HLS且需要预缓存时启用
       // 配置系统通知栏行为（此处关闭通知栏播放控制）
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
         showNotification: false,
@@ -46,7 +43,7 @@ class BetterPlayerConfig {
         useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
         preCacheSize: 20 * 1024 * 1024, // 预缓存大小（20MB）
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
-        maxCacheFileSize: 30 * 1024 * 1024, // 单个缓存文件大小限制（100MB）
+        maxCacheFileSize: 30 * 1024 * 1024, // 单个缓存文件大小限制（30MB）
       ),
       // 请求头设置，提供默认 User-Agent
       headers: headers ?? {
