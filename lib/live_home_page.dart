@@ -207,7 +207,6 @@ Future<void> _playVideo() async {
         
         // 创建播放器控制器
         BetterPlayerController newController = BetterPlayerController(
-          isHls: isHls,	
           betterPlayerConfiguration,
         );
         
@@ -271,6 +270,7 @@ Future<void> _preloadNextVideo() async {
 
     // 创建预加载控制器配置
     final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+      isHls: isHls, 
       eventListener: (BetterPlayerEvent event) {
         // 预加载视频的事件监听
         if (event.betterPlayerEventType == BetterPlayerEventType.exception) {
