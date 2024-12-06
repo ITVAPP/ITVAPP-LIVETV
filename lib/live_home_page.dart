@@ -66,16 +66,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
-  
-   // 添加预加载控制器
-  BetterPlayerController? _preloadController;
-  
-   // 添加下一个视频地址
-  String? _nextVideoUrl;
-  
-   // 添加预加载状态标记
-  bool _isPreloading = false;
-  
+
   // 是否处于缓冲状态
   bool isBuffering = false;
 
@@ -108,6 +99,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 当前播放URL
   String? _currentPlayUrl;
+
+   // 下一个视频地址
+  String? _nextVideoUrl
+  
+  // 预加载控制器
+ BetterPlayerController? _nextPlayerController;
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -155,8 +152,6 @@ Future<void> _playVideo() async {
         _isSwitchingChannel = false;  // 重置频道状态
     });
 
-    // 释放旧的预加载控制器
-    _disposePreloadController();
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
     // 添加短暂延迟确保资源完全释放
@@ -189,6 +184,7 @@ Future<void> _playVideo() async {
         final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
         
         if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
+        
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
 
         // 使用配置工具类创建数据源
@@ -199,7 +195,6 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-          isHls: isHls, 	
           eventListener: _videoListener,
         );
 
@@ -242,157 +237,6 @@ Future<void> _playVideo() async {
             });
         }
     }
-}
-
-/// 预加载下一个视频源
-Future<void> _preloadNextVideo() async {
-  if (_isPreloading || _nextVideoUrl == null) return;
-  _isPreloading = true;
-
-  try {
-    // 解析URL
-    StreamUrl streamUrl = StreamUrl(_nextVideoUrl!);
-    String parsedUrl = await streamUrl.getStreamUrl();
-    _currentPlayUrl = parsedUrl;  // 保存解析后的地址
-    // 如果解析失败，尝试下一个源
-    if (parsedUrl == 'ERROR') {
-            setState(() {
-                toastString = S.current.vpnplayError;
-            });
-      return;
-    }
-
-    // 检查是否为音频URL和HLS流
-    bool isDirectAudio = _checkIsAudioStream(parsedUrl);
-    bool isHls = _isHlsStream(parsedUrl);
-    
-    // 判断是否是 YouTube HLS 直播流
-    final bool isYoutubeHls = streamUrl.isYTUrl(parsedUrl) && isHls;
-    
-    LogUtil.i('准备预加载：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
-
-    // 创建预加载控制器配置
-    final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-      isHls: isHls, 
-      eventListener: (BetterPlayerEvent event) {
-        // 预加载视频的事件监听
-        if (event.betterPlayerEventType == BetterPlayerEventType.exception) {
-          LogUtil.e('预加载视频出错: ${event.parameters?["error"]}');
-          _disposePreloadController();
-        }
-      },
-    );
-
-    // 创建数据源
-    final dataSource = BetterPlayerConfig.createDataSource(
-      url: parsedUrl,
-      isHls: isHls,
-    );
-
-    // 释放旧的预加载控制器
-    if (_preloadController != null) {
-      final controller = _preloadController;
-      _preloadController = null;
-      controller?.dispose();  // 移除 await，因为 dispose() 不是异步的
-    }
-
-    // 创建新的预加载控制器
-    _preloadController = BetterPlayerController(betterPlayerConfiguration);
-
-    // 等待初始化
-    bool isInitialized = false;
-    _preloadController?.addEventsListener((event) {
-      if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
-        isInitialized = true;
-      }
-    });
-
-    // 设置数据源
-    await _preloadController?.setupDataSource(dataSource);
-
-    // 等待初始化完成或超时
-    await Future.any([
-      Future.doWhile(() async {
-        await Future.delayed(const Duration(milliseconds: 100));
-        return !isInitialized;
-      }),
-      Future.delayed(const Duration(seconds: 5)),
-    ]);
-
-    if (!isInitialized) {
-      throw Exception('预加载初始化超时');
-    }
-
-    // 静音预加载并开始缓冲
-    await _preloadController?.setVolume(0);
-    await _preloadController?.play();
-    await _preloadController?.pause();
-
-  } catch (e, stackTrace) {
-    LogUtil.logError('预加载失败', e, stackTrace);
-    _disposePreloadController();
-  } finally {
-    _isPreloading = false;
-  }
-}
-
-/// 切换到预加载的视频
-Future<void> _switchToPreloadedVideo() async {
-  if (_preloadController == null) return;
-
-  try {
-    // 保存当前播放状态
-    final wasPlaying = _playerController?.isPlaying() ?? false;
-
-    // 释放当前控制器
-    if (_playerController != null) {
-      final oldController = _playerController;
-      _playerController = null;
-      oldController?.dispose();
-    }
-
-    setState(() {
-      // 切换到预加载的控制器
-      _playerController = _preloadController;
-      _preloadController = null;
-      
-      // 更新当前播放地址和源索引
-      _sourceIndex = (_sourceIndex + 1) % (_currentChannel?.urls?.length ?? 1);
-      
-      // 重置状态
-      _retryCount = 0;
-      toastString = S.current.loading;
-      _timeoutActive = false;
-    });
-
-    // 恢复音量和播放状态
-    await _playerController?.setVolume(1.0);
-    if (wasPlaying) {
-      await _playerController?.play();
-    }
-
-  } catch (e, stackTrace) {
-    LogUtil.logError('切换预加载视频失败', e, stackTrace);
-    _handleError();
-  }
-}
-
-/// 获取下一个视频地址，返回 null 表示没有更多源
-String? _getNextVideoUrl() {
-  // 获取当前频道的视频源列表
-  final List<String>? urls = _currentChannel?.urls;
-  if (urls == null || urls.isEmpty) {
-    return null;
-  }
-
-  // 计算下一个源的索引
-  final nextSourceIndex = _sourceIndex + 1;
-  // 如果超出源列表范围，返回 null
-  if (nextSourceIndex >= urls.length) {
-    return null;
-  }
-
-  return urls[nextSourceIndex];
 }
 
 /// 播放器监听方法
@@ -479,44 +323,58 @@ void _videoListener(BetterPlayerEvent event) {
                 });
             }
             break;
-            
+
         // 监听播放时间
         case BetterPlayerEventType.progress:
             final position = event.parameters?["progress"] as Duration?;
             final duration = event.parameters?["duration"] as Duration?;
-
+    
             // 处理普通视频的预缓存和平滑切换
-            if (position != null && 
-                duration != null && 
-                !_isHlsStream(_currentPlayUrl)) {
-        
+            if (position != null && duration != null && !_isHlsStream(_currentPlayUrl)) {
                 // 计算剩余时间
                 final remainingTime = duration - position;
-
                 // 在视频剩余15秒时预加载下一个视频
-                if (remainingTime.inSeconds <= 15 && 
-                    !_isPreloading && 
-                    _preloadController == null) {
-                    // 使用统一的方法获取下一个视频地址
+                if (remainingTime.inSeconds <= 15) {
+                    // 获取下一个视频地址
                     final nextUrl = _getNextVideoUrl();
-                    if (nextUrl != null) {
+                    if (nextUrl != null && nextUrl != _nextVideoUrl) {
                         _nextVideoUrl = nextUrl;
-                        _preloadNextVideo();
+                        _preloadNextVideo(nextUrl);
                     }
-                }
-
-                // 在视频剩余3秒时切换到预加载的视频
-                if (remainingTime.inSeconds <= 3 && 
-                    _preloadController != null) {
-                    _switchToPreloadedVideo();
                 }
             }
             break;
-
+            
         // 当事件类型为播放结束时
-        case BetterPlayerEventType.finished:
-            break;
-
+case BetterPlayerEventType.finished:
+    if (_nextVideoUrl != null && _nextPlayerController != null) {
+        final oldController = _playerController;
+        final oldStreamUrl = _streamUrl;
+        
+        setState(() {
+            _playerController = _nextPlayerController;
+            _nextPlayerController = null;
+            _currentPlayUrl = _nextVideoUrl;
+            _nextVideoUrl = null;
+            _sourceIndex++;
+        });
+        
+        try {
+            // 重新设置主播放器的事件监听
+            _playerController?.addEventsListener(_videoListener);
+            
+            // 开始播放
+            await _playerController?.play();
+        } catch (e, stackTrace) {
+            LogUtil.logError('切换到预加载视频时出错', e, stackTrace);
+        }
+        
+        // 清理旧资源
+        oldController?.dispose();
+        oldStreamUrl?.dispose();
+    }
+    break;
+            
         // 默认情况，忽略所有其他未处理的事件类型
         default:
             if (event.betterPlayerEventType != BetterPlayerEventType.progress) {
@@ -524,6 +382,81 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
     }
+}
+
+/// 预加载方法
+Future<void> _preloadNextVideo(String url) async {
+if (_isDisposing || _isSwitchingChannel) return;  // 状态检查	
+    // 如果已经有预加载的控制器，先清理掉
+    _cleanupPreload();
+    
+    try {
+        // 创建新的 StreamUrl 实例来解析URL
+        StreamUrl streamUrl = StreamUrl(url);
+        String parsedUrl = await streamUrl.getStreamUrl();
+        
+        if (parsedUrl == 'ERROR') {
+            LogUtil.e('预加载解析URL失败');
+            return;
+        }
+
+        // 创建数据源
+        final nextSource = BetterPlayerDataSource(
+            BetterPlayerDataSourceType.network,
+            parsedUrl,
+        );
+
+        // 创建新的播放器配置
+        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+            eventListener: null,  // 不使用主播放器的事件监听
+        );
+
+        // 创建新的控制器用于预加载
+        final preloadController = BetterPlayerController(
+            betterPlayerConfiguration,
+        );
+        
+        // 设置预加载专用的事件监听
+        _setupNextPlayerListener(preloadController);
+
+        // 设置数据源
+        await preloadController.setupDataSource(nextSource);
+        
+        // 只有设置成功才保存控制器和URL
+        _nextPlayerController = preloadController;
+        _nextVideoUrl = parsedUrl;
+        
+    } catch (e, stackTrace) {
+        LogUtil.logError('预加载异常', e, stackTrace);
+        _cleanupPreload();
+    } finally {
+        streamUrl?.dispose();
+    }
+}
+
+/// 预加载控制器的事件监听
+        void _setupNextPlayerListener(BetterPlayerController controller) {
+            controller.addEventsListener((event) {
+                switch (event.betterPlayerEventType) {
+                    case BetterPlayerEventType.setupDataSource:
+                        LogUtil.i('预加载数据源设置完成');
+                        break;
+                    case BetterPlayerEventType.exception:
+                        final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+                        LogUtil.e('预加载发生错误：$errorMessage');
+                        _cleanupPreload();
+                        break;
+                    default:
+                break;
+                }
+            });
+        }
+        
+/// 清理预加载资源
+void _cleanupPreload() {
+    _nextPlayerController?.dispose();
+    _nextPlayerController = null;
+    _nextVideoUrl = null;
 }
 
 /// 处理播放器发生错误的方法
@@ -574,10 +507,27 @@ void _retryPlayback() {
     }
 }
 
+/// 获取下一个视频地址，返回 null 表示没有更多源
+String? _getNextVideoUrl() {
+  // 获取当前频道的视频源列表
+  final List<String>? urls = _currentChannel?.urls;
+  if (urls == null || urls.isEmpty) {
+    return null;
+  }
+
+  // 计算下一个源的索引
+  final nextSourceIndex = _sourceIndex + 1;
+  // 如果超出源列表范围，返回 null
+  if (nextSourceIndex >= urls.length) {
+    return null;
+  }
+
+  return urls[nextSourceIndex];
+}
+
 /// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
-    
     // 获取下一个视频源
     final nextUrl = _getNextVideoUrl();
     if (nextUrl == null) {
@@ -586,10 +536,8 @@ void _handleSourceSwitch() {
         });
         return;
     }
-
     // 更新源索引
     _sourceIndex++;
-
     // 延迟后尝试新源
     _retryTimer = Timer(const Duration(seconds: 2), () {
         setState(() {
@@ -598,15 +546,6 @@ void _handleSourceSwitch() {
         });
         _playVideo();
     });
-}
-
-/// 释放预加载控制器
-void _disposePreloadController() {
-  if (_preloadController != null) {
-    final controller = _preloadController;
-    _preloadController = null;
-    controller?.dispose(); 
-  }
 }
 
 /// 播放器资源释放方法
@@ -651,6 +590,9 @@ Future<void> _disposePlayer() async {
         
           // 最后释放主控制器
           currentController.dispose(); 
+          
+          // 清理预加载资源
+          _cleanupPreload(); 
       } catch (e) {
         LogUtil.logError('释放播放器资源时出错', e);
       }
@@ -771,6 +713,7 @@ void dispose() {
     WakelockPlus.disable();
     _isDisposing = true;
     _disposePlayer();
+    _cleanupPreload(); 
     super.dispose();
 }
 
