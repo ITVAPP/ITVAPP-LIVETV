@@ -103,6 +103,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 标记是否正在预缓存
   bool _isPreCaching = false;
 
+  // 预缓存控制器
+  BetterPlayerController? _preCacheController;
+
   // 存储下一个视频的URL
   String? _nextVideoUrl;
   
@@ -152,8 +155,12 @@ Future<void> _playVideo() async {
         _isSwitchingChannel = false;  // 重置频道状态
     });
 
+     // 释放预缓存控制器
+     await _disposePrecacheController();
+     
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
+    
     // 添加短暂延迟确保资源完全释放
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -194,6 +201,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+          isHls: isHls,	
           eventListener: _videoListener,
         );
 
@@ -357,19 +365,32 @@ void _prepareNextVideo() async {
             
             _nextVideoUrl = parsedUrl;
             
-            // 创建数据源，启用预缓存
+            // 创建数据源
             final dataSource = BetterPlayerConfig.createDataSource(
                 url: parsedUrl,
                 isHls: false,
-                precacheSource: true,  // 启用预缓存
             );
             
-            // 使用当前播放器进行预缓存
-            await _playerController?.preCache(dataSource);
+            // 释放之前的预缓存控制器
+            await _disposePrecacheController();
+            
+            // 创建新的预缓存控制器
+            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+                isHls: false,
+                eventListener: _videoListener,
+            );
+            
+            _preCacheController = BetterPlayerController(
+                betterPlayerConfiguration,
+            );
+            
+            // 开始预缓存
+            await _preCacheController?.preCache(dataSource);
             LogUtil.i('预缓存下一个视频成功: $parsedUrl');
             
         } catch (e) {
             LogUtil.logError('预缓存初始化失败', e);
+            await _disposePrecacheController();
         } finally {
             streamUrl?.dispose();
         }
@@ -585,6 +606,21 @@ void _handleSourceSwitch() {
             });
         _playVideo();
     });
+}
+
+/// 释放预缓存控制器
+Future<void> _disposePrecacheController() async {
+    if (_preCacheController != null) {
+        try {
+            if (_preCacheController!.videoPlayerController != null) {
+                await _preCacheController!.videoPlayerController!.dispose();
+            }
+            _preCacheController!.dispose();  
+            _preCacheController = null;
+        } catch (e) {
+            LogUtil.logError('释放预缓存控制器失败', e);
+        }
+    }
 }
 
 /// 播放器资源释放方法
