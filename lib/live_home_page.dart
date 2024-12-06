@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-import 'package:better_player/better_player.dart'
+import 'package:better_player/better_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'channel_drawer_page.dart';
