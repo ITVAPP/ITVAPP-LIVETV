@@ -806,15 +806,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 void _sortByLocation() {
   const String locationKey = 'user_location_info';
   
-  String? savedLocation = SpUtil.getString(locationKey);
-  if (savedLocation == null || savedLocation.isEmpty) return;
+  String? locationStr = SpUtil.getString(locationKey);
+  if (locationStr == null || locationStr.isEmpty) return;
 
   try {
-    Map<String, dynamic> locationData = json.decode(savedLocation);
-    String region = locationData['region']?.toString().toLowerCase() ?? '';
-    String city = locationData['city']?.toString().toLowerCase() ?? '';
+    // 解析格式化的字符串
+    List<String> lines = locationStr.split('\n');
+    String? region;
+    String? city;
+    
+    for (String line in lines) {
+      if (line.startsWith('地区:')) {
+        region = line.substring(3).trim().toLowerCase();
+      } else if (line.startsWith('城市:')) {
+        city = line.substring(3).trim().toLowerCase();
+      }
+    }
 
-    if (city.isEmpty && region.isEmpty) return;
+    if ((region?.isEmpty ?? true) && (city?.isEmpty ?? true)) return;
 
     List<String> exactMatches = [];    // 城市匹配
     List<String> partialMatches = [];  // 地区匹配
@@ -822,19 +831,19 @@ void _sortByLocation() {
 
     for (String key in _keys) {
       String lowercaseKey = key.toLowerCase();
-      if (city.isNotEmpty && (lowercaseKey.contains(city) || city.contains(lowercaseKey))) {
+      if (city != null && city.isNotEmpty && 
+          (lowercaseKey.contains(city) || city.contains(lowercaseKey))) {
         exactMatches.add(key);
-      } else if (region.isNotEmpty && (lowercaseKey.contains(region) || region.contains(lowercaseKey))) {
+      } else if (region != null && region.isNotEmpty && 
+                 (lowercaseKey.contains(region) || region.contains(lowercaseKey))) {
         partialMatches.add(key);
       } else {
         otherGroups.add(key);
       }
     }
 
-    // 更新分组顺序
     _keys = [...exactMatches, ...partialMatches, ...otherGroups];
 
-    // 更新对应的值列表
     List<Map<String, PlayModel>> newValues = [];
     for (String key in _keys) {
       int oldIndex = widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList().indexOf(key) ?? -1;
