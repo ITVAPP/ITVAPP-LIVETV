@@ -99,7 +99,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 当前播放URL
   String? _currentPlayUrl;
-  
+
   // 标记是否正在预缓存
   bool _isPreCaching = false;
 
@@ -108,7 +108,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   // 缓存控制器变量
   BetterPlayerController? _preCacheController;
-
+  
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
@@ -145,14 +145,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   
 /// 播放前解析频道的视频源 
-Future<void> _playVideo([String? cachedUrl]) async {
+Future<void> _playVideo() async {
     if (_currentChannel == null) return;
-
-    // 如果有缓存的URL，使用无缝切换模式
-    if (cachedUrl != null) {
-        await _smoothSourceSwitch(cachedUrl);
-        return;
-    }
 
     setState(() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
@@ -163,7 +157,6 @@ Future<void> _playVideo([String? cachedUrl]) async {
 
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
-    
     // 添加短暂延迟确保资源完全释放
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -191,7 +184,7 @@ Future<void> _playVideo([String? cachedUrl]) async {
         final bool isHls = _isHlsStream(parsedUrl);
         
         // 判断是否是 YouTube HLS 直播流
-        final bool isYoutubeHls = _streamUrl?.isYTUrl(parsedUrl) ?? false && isHls;
+        final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
         
         if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
@@ -204,7 +197,6 @@ Future<void> _playVideo([String? cachedUrl]) async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-          isHls: isHls,
           eventListener: _videoListener,
         );
 
@@ -222,7 +214,7 @@ Future<void> _playVideo([String? cachedUrl]) async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            _handleSourceSwitch(_nextVideoUrl);
+            _handleError();
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
         }
@@ -257,13 +249,13 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         final bool isHls = _isHlsStream(cachedUrl);
         final bool isDirectAudio = _checkIsAudioStream(cachedUrl);
         
-        // 创建新的数据源
+        // 创建数据源
         final dataSource = BetterPlayerConfig.createDataSource(
             url: cachedUrl,
             isHls: isHls,
         );
 
-        // 创建新的播放器配置
+        // 使用与 _playVideo 相同的配置方式创建控制器
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
             isHls: isHls,
             eventListener: _videoListener,
@@ -274,7 +266,7 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
             betterPlayerConfiguration,
         );
 
-        // 准备新的播放器但不显示
+        // 设置数据源
         await newController.setupDataSource(dataSource);
         
         // 预加载并静音
@@ -284,7 +276,6 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         // 等待新播放器缓冲
         bool isBuffered = false;
         newController.addEventsListener((event) {
-            // 当新播放器准备好时
             if (event.betterPlayerEventType == BetterPlayerEventType.bufferingEnd && !isBuffered) {
                 isBuffered = true;
             }
@@ -292,14 +283,13 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
 
         // 等待新播放器缓冲完成或超时
         int attempts = 0;
-        while (!isBuffered && attempts < 50) { // 最多等待5秒
+        while (!isBuffered && attempts < 50) {
             await Future.delayed(const Duration(milliseconds: 100));
             attempts++;
         }
 
         if (!isBuffered) {
-            // 如果缓冲失败，回退到普通切换
-            newController.dispose();  // 移除 await
+            newController.dispose();
             _handleSourceSwitch();
             return;
         }
@@ -327,13 +317,86 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         // 延迟释放旧播放器
         if (oldController != null) {
             await Future.delayed(const Duration(milliseconds: 300));
-            oldController.dispose();  // 移除 await
+            oldController.dispose();
         }
 
     } catch (e, stackTrace) {
         LogUtil.logError('平滑切换失败', e, stackTrace);
-        // 如果平滑切换失败，回退到普通切换
-        _handleSourceSwitch();
+        _handleError();
+    }
+}
+
+/// 准备预缓存下一个视频
+void _prepareNextVideo() async {
+    if (_isPreCaching || _currentChannel == null) return;
+    
+    try {
+        // 获取当前频道的所有URL
+        final urls = _currentChannel!.urls;
+        if (urls == null || urls.isEmpty) return;
+        
+        // 计算下一个视频源的索引
+        int nextSourceIndex = _sourceIndex + 1;
+        if (nextSourceIndex >= urls.length) return;
+        
+        // 获取下一个视频的原始URL
+        String nextUrl = urls[nextSourceIndex];
+
+        _isPreCaching = true;
+        StreamUrl? streamUrl;
+        try {
+            // 使用 StreamUrl 解析真实URL
+            streamUrl = StreamUrl(nextUrl);
+            final parsedUrl = await streamUrl.getStreamUrl();
+            
+            if (parsedUrl == 'ERROR') {
+                LogUtil.e('预缓存：解析下一个视频URL失败');
+                return;
+            }
+            
+            // 检测是否为hls流
+            final bool isHls = _isHlsStream(parsedUrl);
+            if (isHls) return;  // 如果是HLS流，不进行预缓存
+            
+            _nextVideoUrl = parsedUrl;
+            
+            // 创建数据源
+            final dataSource = BetterPlayerConfig.createDataSource(
+                url: parsedUrl,
+                isHls: false,
+            );
+            
+            // 释放之前的预缓存控制器
+            await _disposePrecacheController();
+            
+            // 使用与 _playVideo 相同的配置方式创建控制器
+            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+                isHls: false,
+                eventListener: _videoListener,
+            );
+            
+            _preCacheController = BetterPlayerController(
+                betterPlayerConfiguration,
+            );
+            
+            // 设置数据源
+            await _preCacheController?.setupDataSource(dataSource);
+            
+            // 开始预缓存
+            await _preCacheController?.preCache(dataSource);
+            LogUtil.i('预缓存下一个视频成功: $parsedUrl');
+            
+        } catch (e) {
+            LogUtil.logError('预缓存初始化失败', e);
+            await _disposePrecacheController();
+        } finally {
+            streamUrl?.dispose();
+        }
+        
+    } catch (e) {
+        LogUtil.logError('预缓存视频失败', e);
+    } finally {
+        _isPreCaching = false;
     }
 }
 
@@ -442,10 +505,10 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为播放结束时
         case BetterPlayerEventType.finished:
-        	// 如果视频播放结束，不是hls则自动切换到下一个视频
-        	if (!_isHlsStream(_currentPlayUrl)) {
-        	     _handleSourceSwitch();
-        	}
+            // 如果视频播放结束、不是HLS流且有预缓存的URL,则进行平滑切换
+            if (!_isHlsStream(_currentPlayUrl) && _nextVideoUrl != null) {
+                _smoothSourceSwitch(_nextVideoUrl!);
+            }
             break;
 
         // 默认情况，忽略所有其他未处理的事件类型
@@ -454,79 +517,6 @@ void _videoListener(BetterPlayerEvent event) {
                 LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
             }
             break;
-    }
-}
-
-/// 准备预缓存下一个视频
-void _prepareNextVideo() async {
-    if (_isPreCaching || _currentChannel == null) return;
-    
-    try {
-        // 获取当前频道的所有URL
-        final urls = _currentChannel!.urls;
-        if (urls == null || urls.isEmpty) return;
-        
-        // 计算下一个视频源的索引
-        int nextSourceIndex = _sourceIndex + 1;
-        if (nextSourceIndex >= urls.length) return;  // 如果没有下一个源就不预缓存
-        
-        // 获取下一个视频的原始URL
-        String nextUrl = urls[nextSourceIndex];
-
-        _isPreCaching = true;
-        StreamUrl? streamUrl;
-        try {
-            // 使用 StreamUrl 解析真实URL
-            streamUrl = StreamUrl(nextUrl);
-            final parsedUrl = await streamUrl.getStreamUrl();
-            
-            // 如果解析失败，直接返回
-            if (parsedUrl == 'ERROR') {
-                LogUtil.e('预缓存：解析下一个视频URL失败');
-                return;
-            }
-            
-            // 如果是HLS流，不进行预缓存
-            if (_isHlsStream(parsedUrl)) return;
-            
-            // 存储解析后的URL
-            _nextVideoUrl = parsedUrl;
-            
-            // 创建数据源
-            final dataSource = BetterPlayerConfig.createDataSource(
-                url: parsedUrl,
-                isHls: false,
-            );
-            
-            // 释放之前的预缓存控制器
-            await _disposePrecacheController();
-            
-            // 创建新的预缓存控制器
-            _preCacheController = BetterPlayerController(
-                BetterPlayerConfiguration(
-                    autoPlay: false,
-                    handleLifecycle: false,
-                    autoDispose: true,
-                ),
-                betterPlayerDataSource: dataSource,
-            );
-            
-            // 开始预缓存
-            await _preCacheController?.preCache(dataSource);
-            LogUtil.i('预缓存下一个视频成功: $parsedUrl');
-            
-        } catch (e) {
-            LogUtil.logError('预缓存初始化失败', e);
-            await _disposePrecacheController();
-        } finally {
-            // 释放 StreamUrl 实例
-            streamUrl?.dispose();
-        }
-        
-    } catch (e) {
-        LogUtil.logError('预缓存视频失败', e);
-    } finally {
-        _isPreCaching = false;
     }
 }
 
@@ -579,20 +569,10 @@ void _retryPlayback() {
 }
 
 /// 处理视频源切换的方法（自动）
-void _handleSourceSwitch([String? cachedUrl]) {
+void _handleSourceSwitch() {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
-    
-    // 如果有缓存的URL，直接使用
-    if (cachedUrl != null) {
-        setState(() {
-           _isRetrying = false;
-           _retryCount = 0;
-        });
-        _playVideo(cachedUrl);
-        return;
-    }
     	
-    // 没有缓存URL时，获取当前频道的视频源列表
+    // 获取当前频道的视频源列表
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) {
         setState(() {
@@ -610,14 +590,13 @@ void _handleSourceSwitch([String? cachedUrl]) {
         return;
     }
 
-    // 对于未缓存的URL，延迟切换以防止频繁切换
-    _retryTimer?.cancel();  // 取消之前的计时器
+    // 延迟后尝试新源
     _retryTimer = Timer(const Duration(seconds: 2), () {
-        setState(() {
-           _isRetrying = false;
-           _retryCount = 0;
-        });
-        _playVideo(_nextVideoUrl);
+            setState(() {
+               _isRetrying = false;
+               _retryCount = 0;
+            });
+        _playVideo();
     });
 }
 
@@ -795,10 +774,9 @@ void dispose() {
     _timeoutActive = false;
     _isRetrying = false;
     _isAudio = false;
-    _isDisposing = true;
-    _disposePrecacheController(); 
-    _disposePlayer();
     WakelockPlus.disable();
+    _isDisposing = true;
+    _disposePlayer();
     super.dispose();
 }
 
