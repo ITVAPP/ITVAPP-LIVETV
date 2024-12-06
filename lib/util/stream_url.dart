@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 
 class StreamUrl {
-  final String url;
+  late final String url;
   final YoutubeExplode yt = YoutubeExplode(); 
   final http.Client _client = http.Client(); 
   bool _isDisposed = false; 
@@ -31,7 +31,10 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  StreamUrl(this.url, {this.timeoutDuration = const Duration(seconds: 18)});
+ StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 18)}) {
+    // 在构造函数中处理 URL
+    url = inputUrl.contains('||') ? inputUrl.split('||')[0].trim() : inputUrl;
+  }
   
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
