@@ -101,7 +101,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _currentPlayUrl;
 
    // 下一个视频地址
-  String? _nextVideoUrl
+  String? _nextVideoUrl;
   
   // 预加载控制器
  BetterPlayerController? _nextPlayerController;
@@ -360,11 +360,14 @@ case BetterPlayerEventType.finished:
         });
         
         try {
-            // 重新设置主播放器的事件监听
             _playerController?.addEventsListener(_videoListener);
+            _playerController?.play();
             
-            // 开始播放
-            await _playerController?.play();
+            // 预加载下一个视频
+            final nextUrl = _getNextVideoUrl();
+            if (nextUrl != null) {
+                _preloadNextVideo(nextUrl);
+            }
         } catch (e, stackTrace) {
             LogUtil.logError('切换到预加载视频时出错', e, stackTrace);
         }
@@ -386,7 +389,7 @@ case BetterPlayerEventType.finished:
 
 /// 预加载方法
 Future<void> _preloadNextVideo(String url) async {
-if (_isDisposing || _isSwitchingChannel) return;  // 状态检查	
+    if (_isDisposing || _isSwitchingChannel) return;
     // 如果已经有预加载的控制器，先清理掉
     _cleanupPreload();
     
@@ -408,7 +411,8 @@ if (_isDisposing || _isSwitchingChannel) return;  // 状态检查
 
         // 创建新的播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            eventListener: null,  // 不使用主播放器的事件监听
+            eventListener: null,
+            isHls: _isHlsStream(parsedUrl),  // 添加 isHls 参数
         );
 
         // 创建新的控制器用于预加载
@@ -424,13 +428,15 @@ if (_isDisposing || _isSwitchingChannel) return;  // 状态检查
         
         // 只有设置成功才保存控制器和URL
         _nextPlayerController = preloadController;
-        _nextVideoUrl = parsedUrl;
+        _nextVideoUrl = url;
         
     } catch (e, stackTrace) {
         LogUtil.logError('预加载异常', e, stackTrace);
         _cleanupPreload();
     } finally {
-        streamUrl?.dispose();
+        if (_streamUrl != null) {
+            _streamUrl!.dispose();
+        }
     }
 }
 
