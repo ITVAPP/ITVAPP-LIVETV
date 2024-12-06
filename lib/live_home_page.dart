@@ -66,7 +66,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器控制器
   BetterPlayerController? _playerController;
-
+  
+   // 添加预加载控制器
+  BetterPlayerController? _preloadController;
+  
+   // 添加下一个视频地址
+  String? _nextVideoUrl;
+  
+   // 添加预加载状态标记
+  bool _isPreloading = false;
+  
   // 是否处于缓冲状态
   bool isBuffering = false;
 
@@ -100,15 +109,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 当前播放URL
   String? _currentPlayUrl;
 
-  // 标记是否正在预缓存
-  bool _isPreCaching = false;
-
-  // 预缓存控制器
-  BetterPlayerController? _preCacheController;
-
-  // 存储下一个视频的URL
-  String? _nextVideoUrl;
-  
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
@@ -155,12 +155,10 @@ Future<void> _playVideo() async {
         _isSwitchingChannel = false;  // 重置频道状态
     });
 
-     // 释放预缓存控制器
-     await _disposePrecacheController();
-     
+    // 释放旧的预加载控制器
+    await _disposePreloadController();
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
-    
     // 添加短暂延迟确保资源完全释放
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -201,7 +199,6 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-          isHls: isHls,	
           eventListener: _videoListener,
         );
 
@@ -236,7 +233,7 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _handleSourceSwitch();
+        _handleError(); 
     } finally {
         if (mounted) {  // 添加 mounted 检查
             setState(() {
@@ -246,204 +243,151 @@ Future<void> _playVideo() async {
     }
 }
 
-/// 平滑切换视频源
-Future<void> _smoothSourceSwitch(String cachedUrl) async {
-    if (_isSwitchingChannel) return;
+/// 预加载下一个视频源
+Future<void> _preloadNextVideo() async {
+  if (_isPreloading || _nextVideoUrl == null) return;
+  _isPreloading = true;
 
-    try {
-        setState(() {
-            _isSwitchingChannel = true;
-        });
-        
-        final bool isHls = _isHlsStream(cachedUrl);
-        final bool isDirectAudio = _checkIsAudioStream(cachedUrl);
-        
-        BetterPlayerController? newController;
-        
-        // 使用预缓存的控制器（如果可用）
-        if (cachedUrl == _nextVideoUrl && _preCacheController != null) {
-            newController = _preCacheController;
-            _preCacheController = null;
-            _nextVideoUrl = null;
-        } else {
-            // 如果没有预缓存，创建新控制器
-            final dataSource = BetterPlayerConfig.createDataSource(
-                url: cachedUrl,
-                isHls: isHls,
-            );
-
-            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-                isHls: isHls,
-                eventListener: _videoListener,
-            );
-
-            newController = BetterPlayerController(
-                betterPlayerConfiguration,
-            );
-
-            await newController.setupDataSource(dataSource);
-        }
-        
-        // 预加载并静音
-        await newController?.setVolume(0);
-        await newController?.play();
-
-        // 等待新播放器缓冲
-        bool isBuffered = false;
-        newController?.addEventsListener((event) {
-            if (event.betterPlayerEventType == BetterPlayerEventType.bufferingEnd && !isBuffered) {
-                isBuffered = true;
-            }
-        });
-
-        // 等待新播放器缓冲完成或超时
-        int attempts = 0;
-        while (!isBuffered && attempts < 50) {
-            await Future.delayed(const Duration(milliseconds: 100));
-            attempts++;
-        }
-
-        if (!isBuffered) {
-            newController?.dispose();
-            _handleSourceSwitch();
-            return;
-        }
-
-        // 保存当前播放器的播放状态
-        final wasPlaying = _playerController?.isPlaying() ?? false;
-        
-        // 切换到新播放器
-        final oldController = _playerController;
-        setState(() {
-            _retryCount = 0;
-            _playerController = newController;
-            _currentPlayUrl = cachedUrl;
-            _isAudio = isDirectAudio;
-            toastString = S.current.loading;
-            _timeoutActive = false;
-        });
-
-        // 恢复音量并播放
-        await _playerController?.setVolume(1.0);
-        if (wasPlaying) {
-            await _playerController?.play();
-        }
-
-        // 延迟释放旧播放器
-        if (oldController != null) {
-            await Future.delayed(const Duration(milliseconds: 300));
-            oldController.dispose();
-        }
-
-    } catch (e, stackTrace) {
-        LogUtil.logError('平滑切换失败', e, stackTrace);
-        _handleSourceSwitch();
-    } finally {
-        if (mounted) {
-            setState(() {
-                _isSwitchingChannel = false;
-            });
-        }
+  try {
+    // 解析URL
+    StreamUrl streamUrl = StreamUrl(_nextVideoUrl!);
+    String parsedUrl = await streamUrl.getStreamUrl();
+    
+    // 如果解析失败，尝试下一个源
+    if (parsedUrl == 'ERROR') {
+      LogUtil.e('预加载视频地址解析失败');
+      return;
     }
+
+    // 检查是否为音频URL和HLS流
+    bool isDirectAudio = _checkIsAudioStream(parsedUrl);
+    bool isHls = _isHlsStream(parsedUrl);
+    
+    // 判断是否是 YouTube HLS 直播流
+    final bool isYoutubeHls = streamUrl.isYTUrl(parsedUrl) && isHls;
+    
+    LogUtil.i('准备预加载：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
+
+    // 创建预加载控制器配置
+    final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+      isHls: isHls,
+      eventListener: (BetterPlayerEvent event) {
+        // 预加载视频的事件监听
+        if (event.betterPlayerEventType == BetterPlayerEventType.exception) {
+          LogUtil.e('预加载视频出错: ${event.parameters?["error"]}');
+          _disposePreloadController();
+        }
+      },
+    );
+
+    // 创建数据源
+    final dataSource = BetterPlayerConfig.createDataSource(
+      url: parsedUrl,
+      isHls: isHls,
+    );
+
+    // 释放旧的预加载控制器
+    await _disposePreloadController();
+
+    // 创建新的预加载控制器
+    _preloadController = BetterPlayerController(betterPlayerConfiguration);
+
+    // 等待初始化
+    bool isInitialized = false;
+    _preloadController?.addEventsListener((event) {
+      if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
+        isInitialized = true;
+      }
+    });
+
+    // 设置数据源
+    await _preloadController?.setupDataSource(dataSource);
+
+    // 等待初始化完成或超时
+    await Future.any([
+      Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        return !isInitialized;
+      }),
+      Future.delayed(const Duration(seconds: 5)),
+    ]);
+
+    if (!isInitialized) {
+      throw Exception('预加载初始化超时');
+    }
+
+    // 静音预加载并开始缓冲
+    await _preloadController?.setVolume(0);
+    await _preloadController?.play();
+    await _preloadController?.pause();
+
+  } catch (e, stackTrace) {
+    LogUtil.logError('预加载失败', e, stackTrace);
+    await _disposePreloadController();
+  } finally {
+    _isPreloading = false;
+  }
 }
 
-/// 准备预缓存下一个视频
-void _prepareNextVideo() async {
-    if (_isPreCaching || _currentChannel == null) return;
-    
-    try {
-        // 获取当前频道的所有URL
-        final urls = _currentChannel!.urls;
-        if (urls == null || urls.isEmpty) return;
-        
-        // 计算下一个视频源的索引
-        int nextSourceIndex = _sourceIndex + 1;
-        if (nextSourceIndex >= urls.length) return;
-        
-        // 获取下一个视频的原始URL
-        String nextUrl = urls[nextSourceIndex];
+/// 切换到预加载的视频
+Future<void> _switchToPreloadedVideo() async {
+  if (_preloadController == null) return;
 
-        _isPreCaching = true;
-        StreamUrl? streamUrl;
-        try {
-            // 使用 StreamUrl 解析真实URL
-            streamUrl = StreamUrl(nextUrl);
-            final parsedUrl = await streamUrl.getStreamUrl();
-            
-            if (parsedUrl == 'ERROR') {
-                LogUtil.e('预缓存：解析下一个视频URL失败');
-                return;
-            }
-            
-            // 检测是否为hls流
-            final bool isHls = _isHlsStream(parsedUrl);
-            if (isHls) return;  // 如果是HLS流，不进行预缓存
-            
-            _nextVideoUrl = parsedUrl;
-            
-            // 使用你原有的配置创建数据源
-            final dataSource = BetterPlayerConfig.createDataSource(
-                url: parsedUrl,
-                isHls: false,
-            );
-            
-            // 释放之前的预缓存控制器
-            await _disposePrecacheController();
-            
-            // 使用你原有的配置创建控制器
-            final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-                isHls: false,
-                eventListener: _videoListener,
-            );
-            
-            _preCacheController = BetterPlayerController(
-                betterPlayerConfiguration,
-            );
-            
-            // 只添加缓存状态监听
-            bool isPreCacheFinished = false;
-            
-            _preCacheController!.addEventsListener((event) {
-                switch (event.betterPlayerEventType) {
-                    case BetterPlayerEventType.initialized:
-                    case BetterPlayerEventType.bufferingEnd:
-                        isPreCacheFinished = true;
-                        LogUtil.i('预缓存完成: $parsedUrl');
-                        break;
-                    case BetterPlayerEventType.bufferingStart:
-                        LogUtil.e('预缓存失败: $parsedUrl');
-                        break;
-                    default:
-                        break;
-                }
-            });
-            
-            // 开始预缓存
-            await _preCacheController?.preCache(dataSource);
-            
-            // 等待缓存完成或失败
-            int attempts = 0;
-            while (!isPreCacheFinished && attempts < 100) {
-                await Future.delayed(const Duration(milliseconds: 100));
-                attempts++;
-            }
-            
-            if (isPreCacheFinished) {  // 如果完成
-                LogUtil.i('预缓存下一个视频成功: $parsedUrl');
-            }
-            
-        } catch (e) {
-            LogUtil.logError('预缓存初始化失败', e);
-            await _disposePrecacheController();
-        } finally {
-            streamUrl?.dispose();
-        }
-        
-    } catch (e) {
-        LogUtil.logError('预缓存视频失败', e);
-    } finally {
-        _isPreCaching = false;
+  try {
+    // 保存当前播放状态
+    final wasPlaying = _playerController?.isPlaying() ?? false;
+
+    setState(() {
+      // 释放当前控制器
+      _playerController?.dispose();
+      // 切换到预加载的控制器
+      _playerController = _preloadController;
+      _preloadController = null;
+      
+      // 更新当前播放地址和源索引
+      _sourceIndex = (_sourceIndex + 1) % (_currentChannel?.urls?.length ?? 1);
+      
+      // 重置状态
+      _retryCount = 0;
+      toastString = S.current.loading;
+      _timeoutActive = false;
+    });
+
+    // 恢复音量和播放状态
+    await _playerController?.setVolume(1.0);
+    if (wasPlaying) {
+      await _playerController?.play();
     }
+
+    // 开始预加载下一个视频
+    final nextUrl = _getNextVideoUrl();
+    if (nextUrl != null) {
+      _nextVideoUrl = nextUrl;
+      _preloadNextVideo();
+    }
+
+  } catch (e, stackTrace) {
+    LogUtil.logError('切换预加载视频失败', e, stackTrace);
+    _handleError();
+  }
+}
+
+/// 获取下一个视频地址，返回 null 表示没有更多源
+String? _getNextVideoUrl() {
+  // 获取当前频道的视频源列表
+  final List<String>? urls = _currentChannel?.urls;
+  if (urls == null || urls.isEmpty) {
+    return null;
+  }
+
+  // 计算下一个源的索引
+  final nextSourceIndex = _sourceIndex + 1;
+  // 如果超出源列表范围，返回 null
+  if (nextSourceIndex >= urls.length) {
+    return null;
+  }
+
+  return urls[nextSourceIndex];
 }
 
 /// 播放器监听方法
@@ -530,31 +474,36 @@ void _videoListener(BetterPlayerEvent event) {
                 });
             }
             break;
-
+            
         // 监听播放时间
         case BetterPlayerEventType.progress:
-            // 获取当前播放进度和总时长
             final position = event.parameters?["progress"] as Duration?;
             final duration = event.parameters?["duration"] as Duration?;
-    
+
             // 处理普通视频的预缓存和平滑切换
-            if (position != null && duration != null && !_isHlsStream(_currentPlayUrl)) {
+            if (position != null && 
+                duration != null && 
+                !_isHlsStream(_currentPlayUrl)) {
+        
                 // 计算剩余时间
                 final remainingTime = duration - position;
 
-                // 在视频剩余5-10秒时开始准备
-                if (remainingTime.inSeconds <= 10 && remainingTime.inSeconds > 5) {
-                    // 开始预缓存
-                    if (!_isPreCaching) {
-                        _prepareNextVideo();
+                // 在视频剩余15秒时预加载下一个视频
+                if (remainingTime.inSeconds <= 15 && 
+                    !_isPreloading && 
+                    _preloadController == null) {
+                    // 使用统一的方法获取下一个视频地址
+                    final nextUrl = _getNextVideoUrl();
+                    if (nextUrl != null) {
+                        _nextVideoUrl = nextUrl;
+                        _preloadNextVideo();
                     }
-                } 
-                // 在视频剩余3-5秒时开始平滑切换
-                else if (remainingTime.inSeconds <= 5 && remainingTime.inSeconds > 3) {
-                    // 如果已经预缓存好了，开始准备平滑切换
-                    if (_nextVideoUrl != null) {
-                        _smoothSourceSwitch(_nextVideoUrl!);
-                    }
+                }
+
+                // 在视频剩余3秒时切换到预加载的视频
+                if (remainingTime.inSeconds <= 3 && 
+                    _preloadController != null) {
+                    _switchToPreloadedVideo();
                 }
             }
             break;
@@ -623,48 +572,37 @@ void _retryPlayback() {
 /// 处理视频源切换的方法（自动）
 void _handleSourceSwitch() {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
-    	
-    // 获取当前频道的视频源列表
-    final List<String>? urls = _currentChannel?.urls;
-    if (urls == null || urls.isEmpty) {
+    
+    // 获取下一个视频源
+    final nextUrl = _getNextVideoUrl();
+    if (nextUrl == null) {
         setState(() {
             toastString = S.current.playError;
         });
         return;
     }
 
-    // 切换到下一个源
-    _sourceIndex += 1;
-    if (_sourceIndex >= urls.length) {
-        setState(() {
-            toastString = S.current.playError;
-        });
-        return;
-    }
+    // 更新源索引
+    _sourceIndex++;
 
     // 延迟后尝试新源
     _retryTimer = Timer(const Duration(seconds: 2), () {
-            setState(() {
-               _isRetrying = false;
-               _retryCount = 0;
-            });
+        setState(() {
+           _isRetrying = false;
+           _retryCount = 0;
+        });
         _playVideo();
     });
 }
 
-/// 释放预缓存控制器
-Future<void> _disposePrecacheController() async {
-    if (_preCacheController != null) {
-        try {
-            if (_preCacheController!.videoPlayerController != null) {
-                await _preCacheController!.videoPlayerController!.dispose();
-            }
-            _preCacheController!.dispose();  
-            _preCacheController = null;
-        } catch (e) {
-            LogUtil.logError('释放预缓存控制器失败', e);
-        }
-    }
+/// 释放预加载控制器
+Future<void> _disposePreloadController() async {
+  try {
+    await _preloadController?.dispose();
+    _preloadController = null;
+  } catch (e) {
+    LogUtil.e('释放预加载控制器出错: $e');
+  }
 }
 
 /// 播放器资源释放方法
