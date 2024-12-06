@@ -88,6 +88,17 @@ Future<int?> changeChannelSources(
   }
 }
 
+/// 获取线路显示名称
+String _getLineDisplayName(String url, int index) {
+  // 检查是否包含 ||
+  if (url.contains('||')) {
+    // 分割字符串并返回后半部分作为显示名称
+    return url.split('||')[1].trim();
+  }
+  // 如果不包含 || 则返回默认的线路序号
+  return S.current.lineIndex(index + 1);
+}
+
 /// 构建视频源按钮组
 Widget buildSourceButtons(
   BuildContext context,
@@ -109,6 +120,9 @@ Widget buildSourceButtons(
         children: List.generate(sources.length, (index) {
           FocusNode focusNode = focusNodes[index]; // 获取当前按钮的焦点节点
           bool isSelected = currentSourceIndex == index; // 判断按钮是否为当前选中项
+
+          // 获取显示名称
+          String displayName = _getLineDisplayName(sources[index], index);
 
           // 监听焦点变化，当按钮获得焦点时更新 focusedIndex
           focusNode.addListener(() {
@@ -132,7 +146,7 @@ Widget buildSourceButtons(
                       Navigator.pop(context, index); // 返回选中的索引并关闭弹窗
                     },
               child: Text(
-                S.current.lineIndex(index + 1), // 显示视频源序号
+                displayName, // 使用解析后的显示名称
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
