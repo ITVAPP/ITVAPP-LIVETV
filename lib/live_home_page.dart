@@ -285,7 +285,7 @@ case BetterPlayerEventType.bufferingUpdate:
         if (buffered != null) {
             try {
                 // 获取视频总时长
-                final Duration? duration = _betterPlayerController?.videoPlayerController?.value.duration;
+                final Duration? duration = _playerController?.videoPlayerController?.value.duration;
                 if (duration != null && duration.inMilliseconds > 0) {
                     // 获取最后一个缓冲范围
                     final dynamic range = buffered.last;
