@@ -782,6 +782,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _keys = categoryMap.keys.toList();
     _values = categoryMap.values.toList();
 
+    // 如果有位置信息，进行排序
+    _sortByLocation();
+
     // 频道按名字进行 Unicode 排序
     for (int i = 0; i < _values.length; i++) {
       _values[i] = Map<String, PlayModel>.fromEntries(
@@ -797,6 +800,50 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
   }
+
+// 位置排序逻辑
+void _sortByLocation() {
+  if (!SpUtil.containsKey('user_location_info')) return;
+  
+  final locationInfo = SpUtil.getString('user_location_info');
+  if (locationInfo == null || locationInfo.isEmpty) return;
+
+  try {
+    final locationData = json.decode(locationInfo);
+    final region = locationData['region']?.toString().toLowerCase() ?? '';
+    final city = locationData['city']?.toString().toLowerCase() ?? '';
+    
+    if (city.isEmpty && region.isEmpty) return;
+
+    // 使用 Map 存储优先级，避免重复计算
+    final priorities = <String, int>{};
+    
+    for (final key in _keys) {
+      final lowKey = key.toLowerCase();
+      if (city.isNotEmpty && (lowKey.contains(city) || city.contains(lowKey))) {
+        priorities[key] = 2; // 城市匹配优先级最高
+      } else if (region.isNotEmpty && (lowKey.contains(region) || region.contains(lowKey))) {
+        priorities[key] = 1; // 地区匹配优先级次之
+      } else {
+        priorities[key] = 0; // 不匹配优先级最低
+      }
+    }
+
+    // 一次性排序，减少排序操作
+    final sortedEntries = _keys.asMap().entries.toList()
+      ..sort((a, b) {
+        final priorityCompare = (priorities[b.value] ?? 0).compareTo(priorities[a.value] ?? 0);
+        return priorityCompare != 0 ? priorityCompare : a.key.compareTo(b.key);
+      });
+
+    // 更新键值对顺序
+    _keys = sortedEntries.map((e) => e.value).toList();
+    _values = sortedEntries.map((e) => _values[e.key]).toList();
+    
+  } catch (e) {
+    LogUtil.e('位置排序失败: $e');
+  }
+}
 
   // 重置频道数据
   void _resetChannelData() {
