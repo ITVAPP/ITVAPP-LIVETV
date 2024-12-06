@@ -156,7 +156,7 @@ Future<void> _playVideo() async {
     });
 
     // 释放旧的预加载控制器
-    await _disposePreloadController();
+    _disposePreloadController();
     // 先释放旧播放器，再设置新播放器
     await _disposePlayer();
     // 添加短暂延迟确保资源完全释放
@@ -199,6 +199,7 @@ Future<void> _playVideo() async {
 
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+          isHls: isHls, 	
           eventListener: _videoListener,
         );
 
