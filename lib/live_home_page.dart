@@ -396,8 +396,8 @@ Future<void> _preloadNextVideo(String url) async {
     
     try {
         // 创建新的 StreamUrl 实例来解析URL
-        StreamUrl streamUrl = StreamUrl(url);
-        String parsedUrl = await streamUrl.getStreamUrl();
+        _streamUrl = StreamUrl(url);
+        String parsedUrl = await _streamUrl!.getStreamUrl();
         
         if (parsedUrl == 'ERROR') {
             LogUtil.e('预加载解析URL失败');
@@ -412,8 +412,8 @@ Future<void> _preloadNextVideo(String url) async {
 
         // 创建新的播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            eventListener: (BetterPlayerEvent event) {},  // 提供一个空的事件监听器而不是null
-            isHls: _isHlsStream(parsedUrl),  // 添加必需的isHls参数
+            eventListener: (BetterPlayerEvent event) {},
+            isHls: _isHlsStream(parsedUrl),
         );
 
         // 创建新的控制器用于预加载
@@ -435,7 +435,7 @@ Future<void> _preloadNextVideo(String url) async {
         LogUtil.logError('预加载异常', e, stackTrace);
         _cleanupPreload();
     } finally {
-        streamUrl?.dispose();
+        _disposeStreamUrl();
     }
 }
 
