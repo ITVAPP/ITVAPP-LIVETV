@@ -285,12 +285,12 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         }
         
         // 预加载并静音
-        await newController.setVolume(0);
-        await newController.play();
+        await newController?.setVolume(0);
+        await newController?.play();
 
         // 等待新播放器缓冲
         bool isBuffered = false;
-        newController.addEventsListener((event) {
+        newController?.addEventsListener((event) {
             if (event.betterPlayerEventType == BetterPlayerEventType.bufferingEnd && !isBuffered) {
                 isBuffered = true;
             }
@@ -304,7 +304,7 @@ Future<void> _smoothSourceSwitch(String cachedUrl) async {
         }
 
         if (!isBuffered) {
-            newController.dispose();
+            newController?.dispose();
             _handleSourceSwitch();
             return;
         }
@@ -401,18 +401,19 @@ void _prepareNextVideo() async {
             );
             
             // 只添加缓存状态监听
-            bool cachingCompleted = false;
-            bool cachingFailed = false;
+            bool isPreCacheFinished = false;
             
             _preCacheController!.addEventsListener((event) {
                 switch (event.betterPlayerEventType) {
-                    case BetterPlayerEventType.cachingCompleted:
-                        cachingCompleted = true;
+                    case BetterPlayerEventType.initialized:
+                    case BetterPlayerEventType.bufferingEnd:
+                        isPreCacheFinished = true;
                         LogUtil.i('预缓存完成: $parsedUrl');
                         break;
-                    case BetterPlayerEventType.cachingFailed:
-                        cachingFailed = true;
+                    case BetterPlayerEventType.bufferingStart:
                         LogUtil.e('预缓存失败: $parsedUrl');
+                        break;
+                    default:
                         break;
                 }
             });
@@ -422,12 +423,12 @@ void _prepareNextVideo() async {
             
             // 等待缓存完成或失败
             int attempts = 0;
-            while (!cachingCompleted && !cachingFailed && attempts < 100) {
+            while (!isPreCacheFinished && attempts < 100) {
                 await Future.delayed(const Duration(milliseconds: 100));
                 attempts++;
             }
             
-            if (cachingCompleted || !cachingFailed) {  // 如果完成或者没有明确失败
+            if (isPreCacheFinished) {  // 如果完成
                 LogUtil.i('预缓存下一个视频成功: $parsedUrl');
             }
             
