@@ -475,30 +475,23 @@ Future<void> _preloadNextVideo(String url) async {
     }
 }
 
-/// 预加载控制器的事件监听
-void _setupNextPlayerListener(BetterPlayerController controller) {
-    controller.addEventsListener((event) {
-        switch (event.betterPlayerEventType) {
-            case BetterPlayerEventType.setupDataSource:
-                LogUtil.i('预加载数据源设置完成');
-                controller.setVolume(0).then((_) {
-                    controller.play().then((_) {
-                        Future.delayed(const Duration(milliseconds: 100)).then((_) {
-                            controller.setVolume(1.0);
-                        });
-                    });
-                });
+        /// 预加载控制器的事件监听
+        void _setupNextPlayerListener(BetterPlayerController controller) {
+            controller.addEventsListener((event) {
+                switch (event.betterPlayerEventType) {
+                    case BetterPlayerEventType.setupDataSource:
+                        LogUtil.i('预加载数据源设置完成');
+                        break;
+                    case BetterPlayerEventType.exception:
+                        final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+                        LogUtil.e('预加载发生错误：$errorMessage');
+                        _cleanupPreload();
+                        break;
+                    default:
                 break;
-            case BetterPlayerEventType.exception:
-                final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-                LogUtil.e('预加载发生错误：$errorMessage');
-                _cleanupPreload();
-                break;
-            default:
-                break;
+                }
+            });
         }
-    });
-}
         
 /// 清理预加载资源
 void _cleanupPreload() {
