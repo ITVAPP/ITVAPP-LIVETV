@@ -196,6 +196,7 @@ Future<void> _playVideo() async {
         // 创建播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
           eventListener: _videoListener,
+          isHls: isHls, 
         );
 
         // 启动超时检测
