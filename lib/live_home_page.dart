@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-import 'package:better_player/better_player.dart' show DurationRange; 
+import 'package:better_player/better_player.dart'
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'channel_drawer_page.dart';
@@ -267,52 +267,49 @@ void _videoListener(BetterPlayerEvent event) {
             }
             break;
 
-// 当事件类型为缓冲开始时，重置进度
+// 当事件类型为缓冲开始时
 case BetterPlayerEventType.bufferingStart:
-    if (mounted && !isBuffering) { // 避免重复设置
+    if (mounted) {
         LogUtil.i('开始缓冲');
         setState(() {
             isBuffering = true;
-            bufferingProgress = 0.0;  // 重置缓冲进度
-            toastString = S.current.loading; // 更新缓冲状态
+            toastString = S.current.loading;
         });
     }
     break;
 
-// 当事件类型为缓冲更新时，更新进度
+// 当事件类型为缓冲更新时
 case BetterPlayerEventType.bufferingUpdate:
-    if (mounted && isBuffering) {
-        // BetterPlayer 的缓冲事件实际上是通过 buffered 参数传递的
-        final buffered = event.parameters?["buffered"] as List<DurationRange>?;
-        if (buffered != null && buffered.isNotEmpty) {
-            // 计算缓冲进度
-            final Duration? totalDuration = _playerController?.videoPlayerController?.value.duration;
-            if (totalDuration != null && totalDuration.inMilliseconds > 0) {
-                // 获取最后一个缓冲范围
-                final DurationRange lastRange = buffered.last;
-                final double progress = lastRange.end.inMilliseconds / totalDuration.inMilliseconds;
-                
-                LogUtil.i('缓冲进度: ${(progress * 100).toStringAsFixed(0)}%');
-                
-                final newToastString = '${S.current.loading} (${(progress * 100).toStringAsFixed(0)}%)';
-                if (newToastString != toastString) {
+    if (mounted) {
+        final dynamic buffered = event.parameters?["buffered"];
+        if (buffered != null) {
+            try {
+                // 获取视频总时长
+                final Duration? duration = _betterPlayerController?.videoPlayerController?.value.duration;
+                if (duration != null && duration.inMilliseconds > 0) {
+                    // 获取最后一个缓冲范围
+                    final dynamic range = buffered.last;
+                    final double progress = range.end.inMilliseconds / duration.inMilliseconds;
+                    
+                    LogUtil.i('缓冲进度: ${(progress * 100).toStringAsFixed(0)}%');
                     setState(() {
-                        toastString = newToastString;
                         bufferingProgress = progress;
+                        toastString = '${S.current.loading} (${(progress * 100).toStringAsFixed(0)}%)';
                     });
                 }
+            } catch (e) {
+                LogUtil.e('缓冲进度更新失败: $e');
             }
         }
     }
     break;
 
-// 当事件类型为缓冲结束时，更新缓冲状态
+// 当事件类型为缓冲结束时
 case BetterPlayerEventType.bufferingEnd:
-    if (mounted && isBuffering) { // 避免重复设置
+    if (mounted) {
         LogUtil.i('缓冲结束');
         setState(() {
             isBuffering = false;
-            bufferingProgress = 1.0;  // 设置缓冲进度为100%
             toastString = 'HIDE_CONTAINER';
         });
     }
