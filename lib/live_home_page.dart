@@ -427,14 +427,14 @@ Future<void> _preloadNextVideo(String url) async {
         }
 
         // 创建数据源
-        final nextSource = BetterPlayerDataSource(
-            BetterPlayerDataSourceType.network,
-            parsedUrl,
+        final nextSource = BetterPlayerConfig.createDataSource(
+            isHls: _isHlsStream(parsedUrl),
+            url: parsedUrl,
         );
 
         // 创建新的播放器配置
         final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            eventListener: (BetterPlayerEvent event) {},
+            eventListener: _setupNextPlayerListener,
             isHls: _isHlsStream(parsedUrl),
         );
 
@@ -442,9 +442,6 @@ Future<void> _preloadNextVideo(String url) async {
         final preloadController = BetterPlayerController(
             betterPlayerConfiguration,
         );
-        
-        // 设置预加载专用的事件监听
-        _setupNextPlayerListener(preloadController);
 
         // 设置数据源
         await preloadController.setupDataSource(nextSource);
