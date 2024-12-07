@@ -58,7 +58,7 @@ class PlayerControllerManager {
         }
         
         // 5. 最后释放主控制器
-        await controller.dispose();
+        controller.dispose();
       } catch (e) {
         LogUtil.logError('播放器控制器释放失败', e);
       }
@@ -79,7 +79,7 @@ class PreloadManager {
     try {
       if (_preloadController != null) {
         await _preloadController!.pause();
-        await _preloadController!.dispose();
+        _preloadController!.dispose();
         _preloadController = null;
         _preloadUrl = null;
       }
@@ -117,7 +117,7 @@ class NetworkResourceManager {
   
   Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
-      await _streamUrl!.dispose();
+      await _streamUrl?.dispose();
       _streamUrl = null;
     }
   }
