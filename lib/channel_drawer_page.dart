@@ -657,12 +657,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
     int totalFocusNodes = _categories.length;
-    totalFocusNodes += _keys.length;
-    if (_values.isNotEmpty &&
-        _groupIndex >= 0 &&
-        _groupIndex < _values.length &&
-        (_values[_groupIndex].length > 0)) {
-      totalFocusNodes += (_values[_groupIndex].length);
+    // 检查当前选中的分类是否有效
+    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
+      // 检查分组列表是否不为空
+      if (_keys.isNotEmpty) {
+        totalFocusNodes += _keys.length;
+        // 检查当前选中的分组是否有效且包含频道
+        if (_values.isNotEmpty && 
+            _groupIndex >= 0 && 
+            _groupIndex < _values.length && 
+            _values[_groupIndex].isNotEmpty) {
+          totalFocusNodes += _values[_groupIndex].length;
+        }
+      }
     }
     return totalFocusNodes;
   }
@@ -912,11 +919,18 @@ void _onCategoryTap(int index) {
       _initializeChannelData();
 
       // 计算新分类下的总节点数，并初始化 FocusNode
-      int totalFocusNodes = _categories.length
-          + _keys.length
-          + _values[_groupIndex].length;
-      _initializeFocusNodes(totalFocusNodes);
+      int totalFocusNodes = _categories.length;
       
+      // 确保 _keys 不为空且 _values 有效时才添加其长度
+      if (_keys.isNotEmpty) {
+        totalFocusNodes += _keys.length;
+        // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
+        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+          totalFocusNodes += _values[_groupIndex].length;
+        }
+      }
+      
+      _initializeFocusNodes(totalFocusNodes);
       _updateStartIndexes(includeGroupsAndChannels: true);
 
       // 重置滚动位置
