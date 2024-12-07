@@ -106,7 +106,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _nextVideoUrl;
   
   // 用于控制更新频率
-  int? _lastUpdateTime;
   double? _lastProgress;
 
   // 收藏列表相关
@@ -294,8 +293,7 @@ void _videoListener(BetterPlayerEvent event) {
                         if (_lastProgress != null && (progress - _lastProgress!).abs() < 0.05) {
                           return;  // 如果进度变化小于5%，不更新
                         }
-                        // 更新时间戳和进度值
-                        _lastUpdateTime = now;
+                        // 更新进度值
                         _lastProgress = progress;
                         setState(() {
                             bufferingProgress = progress;
@@ -406,7 +404,7 @@ Future<void> handleFinishedEvent() async {
       _handleSourceSwitch();
     }
   } else {
-    _handleNoMoreSources();
+    await _handleNoMoreSources();
   }
 }
 
@@ -455,23 +453,21 @@ Future<void> _preloadNextVideo(String url) async {
     }
 }
 
-        /// 预加载控制器的事件监听
-        void _setupNextPlayerListener(BetterPlayerController controller) {
-            controller.addEventsListener((event) {
-                switch (event.betterPlayerEventType) {
-                    case BetterPlayerEventType.setupDataSource:
-                        LogUtil.i('预加载数据源设置完成');
-                        break;
-                    case BetterPlayerEventType.exception:
-                        final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-                        LogUtil.e('预加载发生错误：$errorMessage');
-                        _cleanupPreload();
-                        break;
-                    default:
-                break;
-                }
-            });
-        }
+/// 预加载控制器的事件监听
+void _setupNextPlayerListener(BetterPlayerEvent event) {
+    switch (event.betterPlayerEventType) {
+        case BetterPlayerEventType.setupDataSource:
+            LogUtil.i('预加载数据源设置完成');
+            break;
+        case BetterPlayerEventType.exception:
+            final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+            LogUtil.e('预加载发生错误：$errorMessage');
+            _cleanupPreload();
+            break;
+        default:
+            break;
+    }
+}
         
 /// 清理预加载资源
 void _cleanupPreload() {
@@ -556,7 +552,7 @@ void _handleSourceSwitching({
   final nextUrl = _getNextVideoUrl();
   
   if (nextUrl == null) {
-    _handleNoMoreSources();
+    await _handleNoMoreSources();
     return;
   }
 
@@ -580,7 +576,7 @@ void _handleSourceSwitching({
 }
 
 /// 处理没有更多源的情况
-void _handleNoMoreSources() {
+Future<void> _handleNoMoreSources() async {
   setState(() {
     toastString = S.current.playError;
     _sourceIndex = 0;  // 重置源索引
