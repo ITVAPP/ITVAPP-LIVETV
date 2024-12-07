@@ -80,21 +80,34 @@ class PreloadManager {
 
   /// 清理预加载资源：释放预加载控制器及相关资源
   Future<void> cleanupPreload() async {
-    // 如果正在释放资源，则跳过
     if (_isDisposing) return;
     _isDisposing = true;
 
     try {
       if (_preloadController != null) {
-        await _preloadController!.pause();  // 暂停预加载播放器
-        _preloadController!.dispose();  // 释放控制器
-        _preloadController = null;  // 清空控制器引用
-        _preloadUrl = null;  // 清空URL引用
+        // 1. 先移除事件监听
+        _preloadController!.removeEventsListener((event) {});
+        
+        // 2. 确保暂停播放
+        if (_preloadController!.isPlaying() ?? false) {
+          await _preloadController!.pause();
+        }
+        
+        // 3. 先释放视频控制器
+        if (_preloadController!.videoPlayerController != null) {
+          await _preloadController!.videoPlayerController!.dispose();
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+        
+        // 4. 再释放主控制器
+        await _preloadController!.dispose();
+        _preloadController = null;
+        _preloadUrl = null;
       }
     } catch (e) {
-      LogUtil.logError('预加载资源释放失败', e);  // 捕获并记录释放失败的错误
+      LogUtil.logError('预加载资源释放失败', e);
     } finally {
-      _isDisposing = false;  // 标记释放过程结束
+      _isDisposing = false;
     }
   }
 
