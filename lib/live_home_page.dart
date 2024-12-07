@@ -870,7 +870,7 @@ Future<void> handleFinishedEvent() async {  // 添加 async 和返回类型
       
     } catch (e) {
       LogUtil.logError('切换到预加载视频时出错', e);
-      await _handleSourceSwitch();  // 假设 _handleSourceSwitch 也是异步的
+      _handleSourceSwitch();
     }
   } else {
     // 如果没有预加载的视频，使用原有逻辑
@@ -885,7 +885,6 @@ Future<void> handleFinishedEvent() async {  // 添加 async 和返回类型
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
       });
       
-      // 使用 async/await 替代 Timer
       if (!mounted || _isSwitchingChannel) return;
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted || _isSwitchingChannel) return;  // 再次检查状态
