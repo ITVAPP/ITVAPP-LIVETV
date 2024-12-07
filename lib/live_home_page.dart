@@ -222,7 +222,7 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
         );
 
         // 启动超时检测
-        _startTimeoutCheck();
+        startTimeoutCheck();
         
         // 创建播放器控制器
         BetterPlayerController newController = BetterPlayerController(
@@ -248,7 +248,7 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _handleError(); 
+        _handleSourceSwitch();
     } finally {
         if (mounted) {
             setState(() {
@@ -366,16 +366,6 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
            _isDisposing = false; 
         });
       }
-    }
-  }
-  
-    /// 处理播放器发生错误的方法
-  @override
-  void handleError() {
-    if (_retryCount < defaultMaxRetries) {
-        _retryPlayback();  // 如果重试次数未超限，则进行重试播放
-    } else {
-        _handleSourceSwitch();  // 重试次数超限时切换到其他视频源
     }
   }
 
@@ -850,7 +840,7 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
         isPlaying = false;
         _isRetrying = false;
         _retryCount = 0;
-        toastString = S.current.playFinished;
+        toastString = S.current.playError;
       });
     }
   }
