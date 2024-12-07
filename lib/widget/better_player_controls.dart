@@ -508,47 +508,24 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
         isPlaying = false;
       });
 
-      // 3. 强制更新控件配置
-      playerController?.updateControlsConfiguration(
-        const BetterPlayerControlsConfiguration(
-          showControls: false,
-          enablePlayPause: false,
-          enableProgressBar: false,
-          enableProgressText: false,
-          enableFullscreen: false,
-          showControlsOnInitialize: false,
-          controlBarHeight: 0,
-          loadingWidget: SizedBox.shrink(),
-          loadingColor: Colors.transparent,
-          enableSkips: false,
-          enableOverflowMenu: false,
-          enablePip: false,
-          enableRetry: false,
-          enableAudioTracks: false,
-          enableSubtitles: false,
-          enablePlaybackSpeed: false,
-          enableQualities: false,
-          controlBarColor: Colors.transparent,
-        ),
-      );
+      // 3. 使用 setupDataSource 重新设置数据源来刷新控件状态
+      final currentDataSource = playerController!.betterPlayerDataSource;
+      if (currentDataSource != null) {
+        playerController!.setupDataSource(currentDataSource.copyWith(
+          // 复制当前数据源但更新配置
+          notificationConfiguration: const BetterPlayerNotificationConfiguration(
+            showNotification: false,
+          ),
+        ));
+      }
 
       // 4. 重置播放器状态
       if (playerController?.videoPlayerController != null) {
-        playerController!.videoPlayerController!.seekTo(Duration.zero);
+        playerController!.seekTo(Duration.zero);
       }
       playerController?.pause();
 
-      // 5. 更新视频播放器选项
-      if (playerController?.videoPlayerController != null) {
-        playerController!.videoPlayerController!.updateWithDefaultOptions(
-          const VideoPlayerOptions(
-            mixWithOthers: false,
-            allowBackgroundPlayback: false,
-          ),
-        );
-      }
-
-      // 6. 再次检查状态后调用结束事件处理
+      // 5. 再次检查状态后调用结束事件处理
       if (!mounted || isDisposing) return;
       handleFinishedEvent();
 
@@ -556,7 +533,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
       LogUtil.e('处理视频结束时出错: $e');
     }
   }
-
+  
   /// 处理其他事件
   void _handleOtherEvents(BetterPlayerEvent event) {
     // 记录未处理的事件类型
@@ -666,11 +643,6 @@ class BetterPlayerConfig {
         maxCacheSize: 300 * 1024 * 1024,  // 最大缓存大小
         maxCacheFileSize: 50 * 1024 * 1024,  // 单个缓存文件最大大小
       ),
-      // 添加视频播放器选项
-      videoPlayerOptions: const VideoPlayerOptions(
-        mixWithOthers: false,
-        allowBackgroundPlayback: false,
-      ),
       headers: headers ?? {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
       },
@@ -701,8 +673,6 @@ class BetterPlayerConfig {
         enableFullscreen: false,  // 禁用全屏按钮
         showControlsOnInitialize: false,  // 初始化时不显示控制器
         controlBarHeight: 0,  // 控制栏高度为0
-        loadingWidget: SizedBox.shrink(),  // 使用空的加载组件
-        loadingColor: Colors.transparent,  // 透明的加载颜色
         enableSkips: false,  // 禁用跳过
         enableOverflowMenu: false,  // 禁用溢出菜单
         enablePip: false,  // 禁用画中画
@@ -711,7 +681,6 @@ class BetterPlayerConfig {
         enableSubtitles: false,  // 禁用字幕
         enablePlaybackSpeed: false,  // 禁用播放速度
         enableQualities: false,  // 禁用质量选择
-        controlBarColor: Colors.transparent,  // 控制栏透明
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,  // 全屏后允许的屏幕方向
