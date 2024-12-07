@@ -71,7 +71,6 @@ class BetterPlayerConfig {
       placeholder: _backgroundImage,
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
-        showControls: false, // 禁用默认控制
         showControls: false,  // 不显示控制器
         enablePlayPause: false,  // 禁用播放/暂停按钮
         enableProgressBar: false,  // 禁用进度条
