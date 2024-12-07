@@ -9,7 +9,6 @@ import '../generated/l10n.dart';
 
 /// 可释放资源的接口
 abstract class Disposable {
-  /// 释放资源的方法，返回一个 Future
   Future<void> dispose();
 }
 
@@ -143,8 +142,8 @@ class NetworkResourceManager {
   /// 释放StreamUrl资源
   Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
-      _streamUrl!.dispose();  // 移除 await，因为 dispose() 返回 void
-      _streamUrl = null;  // 清空流媒体URL引用
+      _streamUrl!.dispose();
+      _streamUrl = null;
     }
   }
 
@@ -163,7 +162,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   // 成员变量用于控制更新频率
   int? _lastUpdateTime;
   double? _lastProgress;
-  bool _isVideoEnded = false;  // 新增：标记视频是否已结束
+  bool _isVideoEnded = false;  标记视频是否已结束
   static const int UPDATE_INTERVAL = 2000; // 更新间隔设置为2000毫秒
 
   BetterPlayerController? get playerController;  // 播放器控制器
@@ -200,10 +199,10 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   /// 预加载下一个视频
   Future<void> preloadNextVideo(String url);
 
-  /// 获取视频是否结束 - 新增的 getter
+  /// 获取视频是否结束
   bool get isVideoEnded => _isVideoEnded;
 
-  /// 重置视频结束状态 - 新增方法
+  /// 重置视频结束状态
   void resetVideoEndState() {
     if (mounted) {
       setState(() {
@@ -285,37 +284,31 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
 
   /// 异常处理
   void _handleException(BetterPlayerEvent event) {
-    // 1. 检查控制器和组件状态
+    // 检查控制器和组件状态
     if (playerController == null) return;
     if (!mounted || isDisposing) return;
 
-    // 2. 只在非切换频道状态下处理错误
+    // 只在非切换频道状态下处理错误
     if (!isSwitchingChannel) {
-      // 3. 获取错误信息
       final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-      
-      // 4. 记录错误日志
       LogUtil.e('监听到播放器错误：$errorMessage');
       
-      // 5. 可以在这里添加错误状态更新
+      // 可以在这里添加错误状态更新
       if (!mounted || isDisposing) return;
       setState(() {
         isBuffering = false;
-        toastString = 'Error: $errorMessage';
+        toastString = S.current.playError;
       });
     }
   }
 
   /// 开始缓冲处理
   void _handleBufferingStart() {
-    // 1. 检查控制器和组件状态
+    // 检查控制器和组件状态
     if (playerController == null) return;
     if (!mounted || isDisposing) return;
 
-    // 2. 记录日志
-    LogUtil.i('播放卡住，开始缓冲');
-
-    // 3. 更新状态前再次检查
+    // 更新状态前再次检查
     if (!mounted || isDisposing) return;
     setState(() {
       isBuffering = true;
@@ -323,7 +316,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
       toastString = S.current.loading;
     });
 
-    // 4. 启动超时检测
+    // 启动超时检测
     startTimeoutCheck();
   }
 
@@ -497,35 +490,14 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   
   /// 播放结束处理
   void _handleFinished() {
-    // 1. 检查控制器和组件状态
+    // 检查控制器和组件状态
     if (playerController == null) return;
     if (!mounted || isDisposing) return;
-
     try {
-      // 2. 更新状态
       setState(() {
         _isVideoEnded = true;
-        isPlaying = false;
       });
-
-      // 3. 使用 setupDataSource 重新设置数据源来刷新控件状态
-      final currentDataSource = playerController!.betterPlayerDataSource;
-      if (currentDataSource != null) {
-        playerController!.setupDataSource(currentDataSource.copyWith(
-          // 复制当前数据源但更新配置
-          notificationConfiguration: const BetterPlayerNotificationConfiguration(
-            showNotification: false,
-          ),
-        ));
-      }
-
-      // 4. 重置播放器状态
-      if (playerController?.videoPlayerController != null) {
-        playerController!.seekTo(Duration.zero);
-      }
-      playerController?.pause();
-
-      // 5. 再次检查状态后调用结束事件处理
+      // 再次检查状态后调用结束事件处理
       if (!mounted || isDisposing) return;
       handleFinishedEvent();
 
