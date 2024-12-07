@@ -100,7 +100,9 @@ class PreloadManager {
         }
         
         // 4. 再释放主控制器
-        await _preloadController!.dispose();
+        if (_preloadController != null) {
+          await _preloadController!.dispose();
+        }
         _preloadController = null;
         _preloadUrl = null;
       }
@@ -156,6 +158,8 @@ class NetworkResourceManager {
 
 /// 视频播放器事件监听 Mixin：用于监听播放器事件并进行处理
 mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
+  String get _currentPlayUrl;  // 当前播放URL
+  PreloadManager get _preloadManager;  // 预加载管理器
   // 成员变量用于控制更新频率
   int? _lastUpdateTime;
   double? _lastProgress;
@@ -248,7 +252,6 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
     // 检查组件是否挂载以及是否需要更新宽高比
     if (mounted && shouldUpdateAspectRatio) {
       final newAspectRatio = playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
-      // 如果宽高比发生变化，更新状态
       if (aspectRatio != newAspectRatio) {
         setState(() {
           aspectRatio = newAspectRatio;  // 更新宽高比
@@ -339,7 +342,6 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   /// 缓冲结束处理
   void _handleBufferingEnd() {
     if (mounted) {
-      LogUtil.i('缓冲结束');
       setState(() {
         isBuffering = false;  // 设置为非缓冲状态
         toastString = 'HIDE_CONTAINER';  // 隐藏缓冲提示
@@ -370,20 +372,24 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 进度处理
-  void _handleProgress(BetterPlayerEvent event) {
-      final position = event.parameters?["progress"] as Duration?;
-      final duration = event.parameters?["duration"] as Duration?;
+  void _handleProgress(BetterPlayerEvent event) async {  // 添加 async
+    final position = event.parameters?["progress"] as Duration?;
+    final duration = event.parameters?["duration"] as Duration?;
 
-      if (position != null && duration != null && !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
-          final remainingTime = duration - position;
-          if (remainingTime.inSeconds <= 15) {
-              final nextUrl = getNextVideoUrl();
-              // 添加URL重复检查
-              if (nextUrl != null && nextUrl != _preloadManager.url) {
-                  preloadNextVideo(nextUrl);
-              }
-          }
+    if (position != null && 
+        duration != null && 
+        _currentPlayUrl != null &&  // 添加空值检查
+        !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
+      final remainingTime = duration - position;
+      if (remainingTime.inSeconds <= 15) {
+        final nextUrl = getNextVideoUrl();
+        if (nextUrl != null && 
+            _preloadManager != null &&  // 添加空值检查
+            nextUrl != _preloadManager.url) {
+          await preloadNextVideo(nextUrl);  // 添加 await
+        }
       }
+    }
   }
   
   /// 播放结束处理
