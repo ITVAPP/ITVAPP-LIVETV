@@ -157,12 +157,13 @@ class NetworkResourceManager {
 
 /// 视频播放器事件监听 Mixin：用于监听播放器事件并进行处理
 mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
-  String get _currentPlayUrl;  // 当前播放URL
-  PreloadManager get _preloadManager;  // 预加载管理器
+  String get currentPlayUrl;  // 当前播放URL
+  set currentPlayUrl(String value);
+  PreloadManager get preloadManager;  // 预加载管理器
   // 成员变量用于控制更新频率
   int? _lastUpdateTime;
   double? _lastProgress;
-  bool _isVideoEnded = false;  标记视频是否已结束
+  bool _isVideoEnded = false;  // 标记视频是否已结束
   static const int UPDATE_INTERVAL = 2000; // 更新间隔设置为2000毫秒
 
   BetterPlayerController? get playerController;  // 播放器控制器
@@ -455,7 +456,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
 
     try {
       // 3. 检查是否需要预加载下一个视频
-      if (_currentPlayUrl != null && !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
+      if (!VideoPlayerUtils.isHlsStream(currentPlayUrl)) {
         final remainingTime = duration - position;
         
         if (remainingTime.inSeconds <= 15) {
@@ -463,9 +464,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
           final nextUrl = getNextVideoUrl();
           
           // 5. 检查预加载条件
-          if (nextUrl != null && 
-              _preloadManager != null &&
-              nextUrl != _preloadManager.url) {
+          if (nextUrl != null && nextUrl != preloadManager.url) {
             
             // 6. 开始预加载前再次检查状态
             if (!mounted || isDisposing) return;
