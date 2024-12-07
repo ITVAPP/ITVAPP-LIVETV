@@ -278,6 +278,9 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
 
         // 检查流类型
         bool isHls = VideoPlayerUtils.isHlsStream(parsedUrl);
+        
+        // 检查是否为HLS流，如果是则不预加载
+        if (isHls) return;
 
         // 创建数据源
         final nextSource = BetterPlayerDataSource(
