@@ -158,9 +158,6 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   bool get isDisposing;
   bool get isSwitchingChannel;
   
-  // 处理错误的方法
-  void handleError();
-  
   // 启动超时检测
   void startTimeoutCheck();
   
@@ -232,7 +229,6 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
     if (!isSwitchingChannel) {
       final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
       LogUtil.e('监听到播放器错误：$errorMessage');
-      handleError();
     }
   }
 
