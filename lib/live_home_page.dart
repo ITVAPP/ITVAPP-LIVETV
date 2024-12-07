@@ -262,19 +262,19 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
     }
   }
 
-  /// 预加载方法
+/// 预加载方法
 @override
 Future<void> preloadNextVideo(String url) async {
-  if (_isDisposing || _isSwitchingChannel) return;
+  if (isDisposing || isSwitchingChannel) return; 
   
   // 检查是否已经在预加载这个URL
-  if (_preloadManager.url == url) {
+  if (preloadManager.url == url) {  
     LogUtil.i('该URL已在预加载中: $url');
     return;
   }
   
   // 清理现有预加载资源
-  await _preloadManager.cleanupPreload();
+  await preloadManager.cleanupPreload();
   
   try {
     // 创建新的 StreamUrl 实例来解析URL
@@ -294,9 +294,9 @@ Future<void> preloadNextVideo(String url) async {
     }
 
     // 创建数据源
-    final nextSource = BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network,
-      parsedUrl,
+    final nextSource = BetterPlayerConfig.createDataSource( 
+      url: parsedUrl,
+      isHls: isHls,
     );
 
     // 创建新的播放器配置
@@ -311,20 +311,20 @@ Future<void> preloadNextVideo(String url) async {
     );
     
     // 设置预加载专用的事件监听
-    _setupNextPlayerListener(preloadController);
+    setupNextPlayerListener(preloadController); 
 
     // 设置数据源
     await preloadController.setupDataSource(nextSource);
     
     // 保存预加载状态
-    _preloadManager.setPreloadData(preloadController, url);
+    preloadManager.setPreloadData(preloadController, url); 
     
     LogUtil.i('预加载成功: $url');
     
   } catch (e, stackTrace) {
     LogUtil.logError('预加载异常', e, stackTrace);
     // 确保清理任何可能的残留资源
-    await _preloadManager.cleanupPreload();
+    await preloadManager.cleanupPreload();
   }
 }
 
