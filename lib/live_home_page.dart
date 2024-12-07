@@ -820,9 +820,9 @@ Future<void> preloadNextVideo(String url) async {
     }
   }
 
-  /// 处理播放完成事件
+/// 处理播放完成事件
 @override
-void handleFinishedEvent() {
+Future<void> handleFinishedEvent() async {  // 添加 async 和返回类型
   // 如果是直播流，不需要特殊处理
   if (VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
     return;
@@ -831,10 +831,12 @@ void handleFinishedEvent() {
   // 检查是否有预加载的视频
   if (_preloadManager.controller != null && _preloadManager.url != null) {
     final oldController = _playerController;
+    final preloadController = _preloadManager.controller;  // 保存预加载控制器的引用
+    final preloadUrl = _preloadManager.url;  // 保存预加载URL的引用
     
     setState(() {
-      _playerController = _preloadManager.controller;
-      _currentPlayUrl = _preloadManager.url;
+      _playerController = preloadController;
+      _currentPlayUrl = preloadUrl!;  // 使用非空断言，因为已经检查过 url 不为 null
       _sourceIndex++;
       isBuffering = false;
       bufferingProgress = 0.0;
@@ -846,13 +848,15 @@ void handleFinishedEvent() {
     
     try {
       // 平滑切换
-      await _playerController?.setVolume(0);
-      _playerController?.addEventsListener(videoListener);
-      await _playerController?.play();
-      
-      // 短暂延迟后恢复音量
-      await Future.delayed(const Duration(milliseconds: 100));
-      await _playerController?.setVolume(1.0);
+      if (_playerController != null) {
+        await _playerController!.setVolume(0);
+        _playerController!.addEventsListener(videoListener);
+        await _playerController!.play();
+        
+        // 短暂延迟后恢复音量
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _playerController!.setVolume(1.0);
+      }
       
       // 清理旧控制器
       if (oldController != null) {
@@ -860,11 +864,13 @@ void handleFinishedEvent() {
       }
       
       // 清理预加载状态
-      _preloadManager.setPreloadData(null, null);
+      _preloadManager.setPreloadData(BetterPlayerController(
+        const BetterPlayerConfiguration()
+      ), '');
       
     } catch (e) {
       LogUtil.logError('切换到预加载视频时出错', e);
-      _handleSourceSwitch();
+      await _handleSourceSwitch();  // 假设 _handleSourceSwitch 也是异步的
     }
   } else {
     // 如果没有预加载的视频，使用原有逻辑
@@ -879,10 +885,11 @@ void handleFinishedEvent() {
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
       });
       
-      Timer(const Duration(seconds: 2), () async {
-        if (!mounted || _isSwitchingChannel) return;
-        await _playVideo();
-      });
+      // 使用 async/await 替代 Timer
+      if (!mounted || _isSwitchingChannel) return;
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted || _isSwitchingChannel) return;  // 再次检查状态
+      await _playVideo();
     } else {
       setState(() {
         _sourceIndex = 0;
@@ -896,7 +903,7 @@ void handleFinishedEvent() {
     }
   }
 }
-  
+
     @override
   Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
