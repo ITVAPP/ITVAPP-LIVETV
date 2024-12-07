@@ -55,7 +55,11 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
   BetterPlayerController? get playerController => _playerController;
   @override
   set playerController(BetterPlayerController? value) => _playerController = value;
-  
+
+  @override
+  String get _currentPlayUrl => _currentPlayUrl ?? '';
+  @override
+  PreloadManager get _preloadManager => _preloadManager;
   @override
   bool get isBuffering => _isBuffering;
   @override
@@ -836,7 +840,7 @@ Future<void> handleFinishedEvent() async {  // 添加 async 和返回类型
     
     setState(() {
       _playerController = preloadController;
-      _currentPlayUrl = preloadUrl!;  // 使用非空断言，因为已经检查过 url 不为 null
+      _currentPlayUrl = preloadUrl!; 
       _sourceIndex++;
       isBuffering = false;
       bufferingProgress = 0.0;
