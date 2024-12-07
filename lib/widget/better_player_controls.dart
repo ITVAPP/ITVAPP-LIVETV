@@ -1,6 +1,348 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
+import 'package:http/http.dart' as http;
+
+/// 可释放资源的接口
+abstract class Disposable {
+  Future<void> dispose();
+}
+
+/// 资源管理类
+class ResourceManager {
+  final List<Disposable> _resources = [];
+  
+  void register(Disposable resource) {
+    _resources.add(resource);
+  }
+  
+  Future<void> disposeResource(Disposable resource) async {
+    try {
+      await resource.dispose();
+      _resources.remove(resource);
+    } catch (e) {
+      LogUtil.logError('资源释放失败', e);
+    }
+  }
+  
+  Future<void> disposeAll() async {
+    for (var resource in _resources.toList()) {
+      await disposeResource(resource);
+    }
+    _resources.clear();
+  }
+}
+
+/// 播放器控制器管理类
+class PlayerControllerManager {
+  Future<void> disposeController(BetterPlayerController controller) async {
+    if (controller.isPlaying() ?? false) {
+      try {
+        // 1. 先静音避免释放时的声音问题
+        await controller.setVolume(0);
+        
+        // 2. 停止播放
+        await controller.pause();
+        
+        // 3. 等待短暂时间确保暂停完成
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        // 4. 释放视频控制器
+        if (controller.videoPlayerController != null) {
+          await controller.videoPlayerController!.dispose();
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+        
+        // 5. 最后释放主控制器
+        await controller.dispose();
+      } catch (e) {
+        LogUtil.logError('播放器控制器释放失败', e);
+      }
+    }
+  }
+}
+
+/// 预加载管理类
+class PreloadManager {
+  BetterPlayerController? _preloadController;
+  String? _preloadUrl;
+  bool _isDisposing = false;
+
+  Future<void> cleanupPreload() async {
+    if (_isDisposing) return;
+    _isDisposing = true;
+    
+    try {
+      if (_preloadController != null) {
+        await _preloadController!.pause();
+        await _preloadController!.dispose();
+        _preloadController = null;
+        _preloadUrl = null;
+      }
+    } catch (e) {
+      LogUtil.logError('预加载资源释放失败', e);
+    } finally {
+      _isDisposing = false;
+    }
+  }
+  
+  BetterPlayerController? get controller => _preloadController;
+  String? get url => _preloadUrl;
+  
+  void setPreloadData(BetterPlayerController controller, String url) {
+    _preloadController = controller;
+    _preloadUrl = url;
+  }
+}
+
+/// 网络资源管理类
+class NetworkResourceManager {
+  final Map<String, http.Client> _clients = {};
+  StreamUrl? _streamUrl;
+  
+  Future<void> releaseNetworkResources() async {
+    // 取消所有进行中的网络请求
+    _clients.forEach((key, client) {
+      client.close();
+    });
+    _clients.clear();
+    
+    // 释放StreamUrl相关资源
+    await _disposeStreamUrl();
+  }
+  
+  Future<void> _disposeStreamUrl() async {
+    if (_streamUrl != null) {
+      await _streamUrl!.dispose();
+      _streamUrl = null;
+    }
+  }
+  
+  void setStreamUrl(StreamUrl url) {
+    _streamUrl = url;
+  }
+  
+  StreamUrl? get streamUrl => _streamUrl;
+}
+
+/// 视频播放器事件监听 Mixin
+mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
+  // 播放器控制器
+  BetterPlayerController? get playerController;
+  set playerController(BetterPlayerController? value);
+  
+  // 状态变量
+  bool get isBuffering;
+  set isBuffering(bool value);
+  
+  bool get isPlaying; 
+  set isPlaying(bool value);
+  
+  double get bufferingProgress;
+  set bufferingProgress(double value);
+  
+  String get toastString;
+  set toastString(String value);
+  
+  double get aspectRatio;
+  set aspectRatio(double value);
+  
+  bool get shouldUpdateAspectRatio;
+  set shouldUpdateAspectRatio(bool value);
+  
+  bool get isRetrying;
+  bool get isDisposing;
+  bool get isSwitchingChannel;
+  
+  // 处理错误的方法
+  void handleError();
+  
+  // 启动超时检测
+  void startTimeoutCheck();
+  
+  // 预加载下一个视频
+  Future<void> preloadNextVideo(String url);
+  
+  /// 视频播放器事件监听方法
+  void videoListener(BetterPlayerEvent event) {
+    if (playerController == null || isDisposing || isRetrying) return;
+
+    switch (event.betterPlayerEventType) {
+      case BetterPlayerEventType.initialized:
+        _handleInitialized();
+        break;
+        
+      case BetterPlayerEventType.exception:
+        _handleException(event);
+        break;
+        
+      case BetterPlayerEventType.bufferingStart:
+        _handleBufferingStart();
+        break;
+        
+      case BetterPlayerEventType.bufferingUpdate:
+        _handleBufferingUpdate(event);
+        break;
+        
+      case BetterPlayerEventType.bufferingEnd:
+        _handleBufferingEnd();
+        break;
+        
+      case BetterPlayerEventType.play:
+        _handlePlay();
+        break;
+        
+      case BetterPlayerEventType.pause:
+        _handlePause();
+        break;
+        
+      case BetterPlayerEventType.progress:
+        _handleProgress(event);
+        break;
+        
+      case BetterPlayerEventType.finished:
+        _handleFinished();
+        break;
+        
+      default:
+        _handleOtherEvents(event);
+        break;
+    }
+  }
+
+  // 初始化完成时处理
+  void _handleInitialized() {
+    if (mounted && shouldUpdateAspectRatio) {
+      final newAspectRatio = playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
+      if (aspectRatio != newAspectRatio) {
+        setState(() {
+          aspectRatio = newAspectRatio;
+          shouldUpdateAspectRatio = false;
+        });
+      }
+    }
+  }
+
+  // 异常处理
+  void _handleException(BetterPlayerEvent event) {
+    if (!isSwitchingChannel) {
+      final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+      LogUtil.e('监听到播放器错误：$errorMessage');
+      handleError();
+    }
+  }
+
+  // 开始缓冲处理
+  void _handleBufferingStart() {
+    if (mounted) {
+      LogUtil.i('播放卡住，开始缓冲');
+      setState(() {
+        isBuffering = true;
+        bufferingProgress = 0.0;
+      });
+      startTimeoutCheck();
+    }
+  }
+
+  // 缓冲更新处理
+  void _handleBufferingUpdate(BetterPlayerEvent event) {
+    if (mounted) {
+      final dynamic buffered = event.parameters?["buffered"];
+      if (buffered != null) {
+        try {
+          final Duration? duration = playerController?.videoPlayerController?.value.duration;
+          if (duration != null && duration.inMilliseconds > 0) {
+            final dynamic range = buffered.last;
+            final double progress = range.end.inMilliseconds / duration.inMilliseconds;
+            
+            setState(() {
+              bufferingProgress = progress;
+              if (isBuffering) {
+                if (progress >= 0.99) {
+                  isBuffering = false;
+                  toastString = 'HIDE_CONTAINER';
+                } else {
+                  toastString = '${S.current.loading} (${(progress * 100).toStringAsFixed(0)}%)';
+                }
+              }
+            });
+          }
+        } catch (e) {
+          LogUtil.e('缓冲进度更新失败: $e');
+          setState(() {
+            isBuffering = false;
+            toastString = 'HIDE_CONTAINER';
+          });
+        }
+      }
+    }
+  }
+
+  // 缓冲结束处理
+  void _handleBufferingEnd() {
+    if (mounted) {
+      LogUtil.i('缓冲结束');
+      setState(() {
+        isBuffering = false;
+        toastString = 'HIDE_CONTAINER';
+      });
+    }
+  }
+
+  // 播放处理
+  void _handlePlay() {
+    if (mounted && !isPlaying) {
+      setState(() {
+        isPlaying = true;
+        if (!isBuffering) {
+          toastString = 'HIDE_CONTAINER';
+        }
+      });
+    }
+  }
+
+  // 暂停处理
+  void _handlePause() {
+    if (mounted && isPlaying) {
+      setState(() {
+        isPlaying = false;
+        toastString = S.current.playpause;
+      });
+    }
+  }
+
+  // 进度处理
+  void _handleProgress(BetterPlayerEvent event) {
+    final position = event.parameters?["progress"] as Duration?;
+    final duration = event.parameters?["duration"] as Duration?;
+
+    if (position != null && duration != null) {
+      final remainingTime = duration - position;
+      if (remainingTime.inSeconds <= 15) {
+        final nextUrl = getNextVideoUrl();
+        if (nextUrl != null) {
+          preloadNextVideo(nextUrl);
+        }
+      }
+    }
+  }
+
+  // 播放结束处理
+  void _handleFinished() {
+    // 实现播放结束的处理逻辑
+  }
+
+  // 处理其他事件
+  void _handleOtherEvents(BetterPlayerEvent event) {
+    if (event.betterPlayerEventType != BetterPlayerEventType.progress) {
+      LogUtil.i('未处理的事件类型: ${event.betterPlayerEventType}');
+    }
+  }
+
+  // 获取下一个视频URL的方法(需要在使用此mixin的类中实现)
+  String? getNextVideoUrl();
+}
 
 /// 播放器配置工具类
 class BetterPlayerConfig {
@@ -13,8 +355,6 @@ class BetterPlayerConfig {
   );
 
   /// 创建播放器数据源配置
-  /// - [url]: 视频播放地址
-  /// - [isHls]: 是否为 HLS 格式（直播流）
   static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
@@ -23,29 +363,25 @@ class BetterPlayerConfig {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      liveStream: isHls, // 根据 URL 判断是否为直播流
-      useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
-      useAsmsAudioTracks: isHls, // 同上
-      useAsmsSubtitles: false, // 禁用字幕以降低播放开销
-      // 配置系统通知栏行为（此处关闭通知栏播放控制）
+      liveStream: isHls,
+      useAsmsTracks: isHls,
+      useAsmsAudioTracks: isHls,
+      useAsmsSubtitles: false,
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
         showNotification: false,
       ),
-      // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 10000, // 最小缓冲时间，单位毫秒（10秒）
-        maxBufferMs: 60000, // 最大缓冲时间，单位毫秒（60秒）
-        bufferForPlaybackMs: 5000, // 播放前的最小缓冲时间，单位毫秒（5秒）
-        bufferForPlaybackAfterRebufferMs: 5000, // 重缓冲后的最小播放缓冲时间
+        minBufferMs: 10000,
+        maxBufferMs: 60000,
+        bufferForPlaybackMs: 5000,
+        bufferForPlaybackAfterRebufferMs: 5000,
       ),
-      // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
-        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（20MB）
-        maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
-        maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
+        useCache: !isHls,
+        preCacheSize: 20 * 1024 * 1024,
+        maxCacheSize: 300 * 1024 * 1024,
+        maxCacheFileSize: 50 * 1024 * 1024,
       ),
-      // 请求头设置，提供默认 User-Agent
       headers: headers ?? {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
       },
@@ -58,29 +394,45 @@ class BetterPlayerConfig {
     required Function(BetterPlayerEvent) eventListener,
   }) {
     return BetterPlayerConfiguration(
-      fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
-      autoPlay: false, // 自动播放
-      looping: isHls, // 是HLS时循环播放
-      allowedScreenSleep: false, // 屏幕休眠
-      autoDispose: false, // 自动释放资源
-      expandToFill: true, // 填充剩余空间
-      handleLifecycle: true, // 生命周期管理
-      // 错误界面构建器（此处使用背景图片）
+      fit: BoxFit.contain,
+      autoPlay: false,
+      looping: isHls,
+      allowedScreenSleep: false,
+      autoDispose: false,
+      expandToFill: true,
+      handleLifecycle: true,
       errorBuilder: (_, __) => _backgroundImage,
-      // 设置播放器占位图片
       placeholder: _backgroundImage,
-      // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
-        showControls: false, // 禁用默认控制
+        showControls: false,
       ),
-      // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
         DeviceOrientation.portraitUp,
       ],
-      // 事件监听器
       eventListener: eventListener,
     );
+  }
+}
+
+/// 视频播放器工具方法
+class VideoPlayerUtils {
+  /// 检查是否为音频流
+  static bool checkIsAudioStream(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.mp3') || 
+           lowercaseUrl.endsWith('.aac') || 
+           lowercaseUrl.endsWith('.m4a') ||
+           lowercaseUrl.endsWith('.ogg') ||
+           lowercaseUrl.endsWith('.wav');
+  }
+  
+  /// 判断是否是HLS流
+  static bool isHlsStream(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.m3u8') || lowercaseUrl.endsWith('.m3u');
   }
 }
