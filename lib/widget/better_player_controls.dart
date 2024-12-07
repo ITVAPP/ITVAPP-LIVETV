@@ -374,14 +374,12 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
       final position = event.parameters?["progress"] as Duration?;
       final duration = event.parameters?["duration"] as Duration?;
 
-      if (position != null && duration != null) {
+      if (position != null && duration != null && !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
           final remainingTime = duration - position;
-          // 如果剩余时间小于等于15秒，且不是HLS流，才预加载下一个视频
-          if (remainingTime.inSeconds <= 15 && 
-              playerController?.betterPlayerDataSource?.url != null &&
-              !VideoPlayerUtils.isHlsStream(playerController?.betterPlayerDataSource?.url)) {
+          if (remainingTime.inSeconds <= 15) {
               final nextUrl = getNextVideoUrl();
-              if (nextUrl != null) {
+              // 添加URL重复检查
+              if (nextUrl != null && nextUrl != _preloadManager.url) {
                   preloadNextVideo(nextUrl);
               }
           }
