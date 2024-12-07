@@ -163,6 +163,7 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   // 成员变量用于控制更新频率
   int? _lastUpdateTime;
   double? _lastProgress;
+  bool _isVideoEnded = false;  // 新增：标记视频是否已结束
   static const int UPDATE_INTERVAL = 2000; // 更新间隔设置为2000毫秒
 
   BetterPlayerController? get playerController;  // 播放器控制器
@@ -198,6 +199,18 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
 
   /// 预加载下一个视频
   Future<void> preloadNextVideo(String url);
+
+  /// 获取视频是否结束 - 新增的 getter
+  bool get isVideoEnded => _isVideoEnded;
+
+  /// 重置视频结束状态 - 新增方法
+  void resetVideoEndState() {
+    if (mounted) {
+      setState(() {
+        _isVideoEnded = false;
+      });
+    }
+  }
 
   /// 视频播放器事件监听方法：根据事件类型处理不同的逻辑
   void videoListener(BetterPlayerEvent event) {
@@ -247,14 +260,23 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
     }
   }
   
-    /// 初始化完成时处理
+  /// 初始化完成时处理
   void _handleInitialized() {
-    // 检查组件是否挂载以及是否需要更新宽高比
-    if (mounted && shouldUpdateAspectRatio) {
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 检查是否需要更新宽高比
+    if (shouldUpdateAspectRatio) {
+      // 3. 获取新的宽高比
       final newAspectRatio = playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
+      
+      // 4. 检查宽高比是否发生变化
       if (aspectRatio != newAspectRatio) {
+        // 5. 再次检查状态后更新
+        if (!mounted || isDisposing) return;
         setState(() {
-          aspectRatio = newAspectRatio;  // 更新宽高比
+          aspectRatio = newAspectRatio;
           shouldUpdateAspectRatio = false;
         });
       }
@@ -263,61 +285,95 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
 
   /// 异常处理
   void _handleException(BetterPlayerEvent event) {
-    // 如果没有在切换频道，记录错误信息
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 只在非切换频道状态下处理错误
     if (!isSwitchingChannel) {
+      // 3. 获取错误信息
       final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+      
+      // 4. 记录错误日志
       LogUtil.e('监听到播放器错误：$errorMessage');
+      
+      // 5. 可以在这里添加错误状态更新
+      if (!mounted || isDisposing) return;
+      setState(() {
+        isBuffering = false;
+        toastString = 'Error: $errorMessage';
+      });
     }
   }
 
   /// 开始缓冲处理
   void _handleBufferingStart() {
-    if (mounted) {
-      LogUtil.i('播放卡住，开始缓冲');
-      setState(() {
-        isBuffering = true;  // 设置为缓冲状态
-        bufferingProgress = 0.0;  // 重置缓冲进度
-      });
-      startTimeoutCheck();  // 启动超时检测
-    }
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 记录日志
+    LogUtil.i('播放卡住，开始缓冲');
+
+    // 3. 更新状态前再次检查
+    if (!mounted || isDisposing) return;
+    setState(() {
+      isBuffering = true;
+      bufferingProgress = 0.0;
+      toastString = S.current.loading;
+    });
+
+    // 4. 启动超时检测
+    startTimeoutCheck();
   }
 
   /// 缓冲更新处理
   void _handleBufferingUpdate(BetterPlayerEvent event) {
-    if (!mounted) return;
+    // 1. 首先检查控制器是否存在
+    if (playerController == null) return;
 
-    // 获取当前时间，检查更新间隔
+    // 2. 检查组件状态
+    if (!mounted || isDisposing) return;
+
+    // 3. 获取当前时间，检查更新间隔
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_lastUpdateTime != null && (now - _lastUpdateTime!) < UPDATE_INTERVAL) {
       return;  // 如果距离上次更新不到2000毫秒，直接返回
     }
 
+    // 4. 验证缓冲数据
     final dynamic buffered = event.parameters?["buffered"];
     if (buffered == null || !(buffered is List) || buffered.isEmpty) {
       return;
     }
 
     try {
+      // 5. 获取视频时长并验证
       final Duration? duration = playerController?.videoPlayerController?.value.duration;
       if (duration == null || duration.inMilliseconds <= 0) {
         return;
       }
 
+      // 6. 获取缓冲范围
       final dynamic range = buffered.last;
       if (range == null) return;
 
+      // 7. 计算进度
       final double progress = (range.end.inMilliseconds / duration.inMilliseconds)
           .clamp(0.0, 1.0);
 
-      // 检查进度值是否发生变化
+      // 8. 检查进度值是否发生显著变化
       if (_lastProgress != null && (progress - _lastProgress!).abs() < 0.01) {
         return;  // 如果进度变化小于1%，不更新
       }
 
-      // 更新时间戳和进度值
+      // 9. 更新时间戳和进度值
       _lastUpdateTime = now;
       _lastProgress = progress;
 
+      // 10. 安全地更新状态
+      if (!mounted || isDisposing) return;  // 再次检查状态，确保组件仍然有效
+      
       setState(() {
         bufferingProgress = progress;
         if (isBuffering) {
@@ -331,31 +387,47 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
       });
 
     } catch (e) {
+      // 11. 错误处理
       LogUtil.e('缓冲进度更新失败: $e');
+      
+      // 确保在更新状态前再次检查组件状态
+      if (!mounted || isDisposing) return;
+      
       setState(() {
         isBuffering = false;
         toastString = 'HIDE_CONTAINER';
       });
     }
   }
-
+  
   /// 缓冲结束处理
   void _handleBufferingEnd() {
-    if (mounted) {
-      setState(() {
-        isBuffering = false;  // 设置为非缓冲状态
-        toastString = 'HIDE_CONTAINER';  // 隐藏缓冲提示
-      });
-    }
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 更新状态
+    setState(() {
+      isBuffering = false;
+      toastString = 'HIDE_CONTAINER';
+    });
   }
-  
-    /// 播放处理
+
+  /// 播放处理
   void _handlePlay() {
-    if (mounted && !isPlaying) {
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 只在非播放状态下更新
+    if (!isPlaying) {
       setState(() {
-        isPlaying = true;  // 设置为播放状态
+        isPlaying = true;
+        _isVideoEnded = false;  // 重置视频结束状态
+        
+        // 只在非缓冲状态下隐藏提示
         if (!isBuffering) {
-          toastString = 'HIDE_CONTAINER';  // 隐藏缓冲提示
+          toastString = 'HIDE_CONTAINER';
         }
       });
     }
@@ -363,39 +435,125 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
 
   /// 暂停处理
   void _handlePause() {
-    if (mounted && isPlaying) {
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 只在播放状态下更新
+    if (isPlaying) {
       setState(() {
-        isPlaying = false;  // 设置为暂停状态
-        toastString = S.current.playpause;  // 显示"播放/暂停"提示
+        isPlaying = false;
+        toastString = S.current.playpause;
       });
     }
   }
-
+  
   /// 进度处理
-  void _handleProgress(BetterPlayerEvent event) async {  // 添加 async
+  void _handleProgress(BetterPlayerEvent event) async {
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    // 2. 获取并验证进度数据
     final position = event.parameters?["progress"] as Duration?;
     final duration = event.parameters?["duration"] as Duration?;
 
-    if (position != null && 
-        duration != null && 
-        _currentPlayUrl != null &&  // 添加空值检查
-        !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
-      final remainingTime = duration - position;
-      if (remainingTime.inSeconds <= 15) {
-        final nextUrl = getNextVideoUrl();
-        if (nextUrl != null && 
-            _preloadManager != null &&  // 添加空值检查
-            nextUrl != _preloadManager.url) {
-          await preloadNextVideo(nextUrl);  // 添加 await
+    if (position == null || duration == null) return;
+
+    try {
+      // 3. 检查是否需要预加载下一个视频
+      if (_currentPlayUrl != null && !VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
+        final remainingTime = duration - position;
+        
+        if (remainingTime.inSeconds <= 15) {
+          // 4. 获取下一个视频URL
+          final nextUrl = getNextVideoUrl();
+          
+          // 5. 检查预加载条件
+          if (nextUrl != null && 
+              _preloadManager != null &&
+              nextUrl != _preloadManager.url) {
+            
+            // 6. 开始预加载前再次检查状态
+            if (!mounted || isDisposing) return;
+            
+            try {
+              await preloadNextVideo(nextUrl);
+            } catch (e) {
+              LogUtil.e('预加载下一个视频失败: $e');
+            }
+          }
         }
       }
+
+      // 7. 可以在这里添加进度更新的UI逻辑
+      if (!mounted || isDisposing) return;
+      // 例如更新进度条或时间显示
+      
+    } catch (e) {
+      LogUtil.e('处理播放进度时出错: $e');
     }
   }
   
   /// 播放结束处理
   void _handleFinished() {
-    if (mounted) {
-      handleFinishedEvent();  // 调用抽象方法
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    try {
+      // 2. 更新状态
+      setState(() {
+        _isVideoEnded = true;
+        isPlaying = false;
+      });
+
+      // 3. 强制更新控件配置
+      playerController?.updateControlsConfiguration(
+        const BetterPlayerControlsConfiguration(
+          showControls: false,
+          enablePlayPause: false,
+          enableProgressBar: false,
+          enableProgressText: false,
+          enableFullscreen: false,
+          showControlsOnInitialize: false,
+          controlBarHeight: 0,
+          loadingWidget: SizedBox.shrink(),
+          loadingColor: Colors.transparent,
+          enableSkips: false,
+          enableOverflowMenu: false,
+          enablePip: false,
+          enableRetry: false,
+          enableAudioTracks: false,
+          enableSubtitles: false,
+          enablePlaybackSpeed: false,
+          enableQualities: false,
+          controlBarColor: Colors.transparent,
+        ),
+      );
+
+      // 4. 重置播放器状态
+      if (playerController?.videoPlayerController != null) {
+        playerController!.videoPlayerController!.seekTo(Duration.zero);
+      }
+      playerController?.pause();
+
+      // 5. 更新视频播放器选项
+      if (playerController?.videoPlayerController != null) {
+        playerController!.videoPlayerController!.updateWithDefaultOptions(
+          const VideoPlayerOptions(
+            mixWithOthers: false,
+            allowBackgroundPlayback: false,
+          ),
+        );
+      }
+
+      // 6. 再次检查状态后调用结束事件处理
+      if (!mounted || isDisposing) return;
+      handleFinishedEvent();
+
+    } catch (e) {
+      LogUtil.e('处理视频结束时出错: $e');
     }
   }
 
@@ -410,11 +568,62 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
   /// 获取下一个视频URL的方法(需要在使用此mixin的类中实现)
   String? getNextVideoUrl();
 
+  /// 重新播放视频
+  void replayVideo() {
+    // 1. 检查控制器和组件状态
+    if (playerController == null) return;
+    if (!mounted || isDisposing) return;
+
+    try {
+      // 2. 更新状态
+      setState(() {
+        _isVideoEnded = false;
+      });
+
+      // 3. 重置播放位置并开始播放
+      playerController!.seekTo(Duration.zero);
+      playerController!.play();
+
+    } catch (e) {
+      LogUtil.e('重新播放视频时出错: $e');
+    }
+  }
+
+  /// 构建视频播放器Widget
+  Widget buildVideoPlayer() {
+    // 1. 检查控制器状态
+    if (playerController == null) {
+      return const SizedBox.shrink(); // 返回空组件
+    }
+
+    // 2. 构建播放器堆栈
+    return Stack(
+      children: [
+        // 基础播放器
+        BetterPlayer(
+          controller: playerController!,
+          key: ValueKey(_currentPlayUrl), // 使用URL作为key以确保正确重建
+        ),
+        // 视频结束时的覆盖层
+        if (_isVideoEnded)
+          GestureDetector(
+            onTap: replayVideo,
+            child: Container(
+              color: Colors.transparent,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+      ],
+    );
+  }
+
   // 在 dispose 中清理变量
   @override
   void dispose() {
     _lastUpdateTime = null;
     _lastProgress = null;
+    _isVideoEnded = false;
     super.dispose();
   }
 }
@@ -457,6 +666,11 @@ class BetterPlayerConfig {
         maxCacheSize: 300 * 1024 * 1024,  // 最大缓存大小
         maxCacheFileSize: 50 * 1024 * 1024,  // 单个缓存文件最大大小
       ),
+      // 添加视频播放器选项
+      videoPlayerOptions: const VideoPlayerOptions(
+        mixWithOthers: false,
+        allowBackgroundPlayback: false,
+      ),
       headers: headers ?? {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
       },
@@ -478,13 +692,26 @@ class BetterPlayerConfig {
       handleLifecycle: true,  // 处理生命周期
       errorBuilder: (_, __) => _backgroundImage,  // 错误时显示的背景图片
       placeholder: _backgroundImage,  // 占位符图片
-      controlsConfiguration: BetterPlayerControlsConfiguration(
+      showPlaceholderUntilPlay: true,  // 播放前显示占位图
+      controlsConfiguration: const BetterPlayerControlsConfiguration(
         showControls: false,  // 不显示控制器
         enablePlayPause: false,  // 禁用播放/暂停按钮
         enableProgressBar: false,  // 禁用进度条
         enableProgressText: false,  // 禁用进度文本
         enableFullscreen: false,  // 禁用全屏按钮
         showControlsOnInitialize: false,  // 初始化时不显示控制器
+        controlBarHeight: 0,  // 控制栏高度为0
+        loadingWidget: SizedBox.shrink(),  // 使用空的加载组件
+        loadingColor: Colors.transparent,  // 透明的加载颜色
+        enableSkips: false,  // 禁用跳过
+        enableOverflowMenu: false,  // 禁用溢出菜单
+        enablePip: false,  // 禁用画中画
+        enableRetry: false,  // 禁用重试
+        enableAudioTracks: false,  // 禁用音轨
+        enableSubtitles: false,  // 禁用字幕
+        enablePlaybackSpeed: false,  // 禁用播放速度
+        enableQualities: false,  // 禁用质量选择
+        controlBarColor: Colors.transparent,  // 控制栏透明
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,  // 全屏后允许的屏幕方向
