@@ -101,10 +101,10 @@ class PreloadManager {
         
         // 4. 再释放主控制器
         if (_preloadController != null) {
-          await _preloadController!.dispose();
+          await Future(() => _preloadController!.dispose());
+          _preloadController = null;
+          _preloadUrl = null;
         }
-        _preloadController = null;
-        _preloadUrl = null;
       }
     } catch (e) {
       LogUtil.logError('预加载资源释放失败', e);
