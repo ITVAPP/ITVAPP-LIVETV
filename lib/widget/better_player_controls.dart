@@ -72,20 +72,6 @@ class BetterPlayerConfig {
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false,  // 不显示控制器
-        enablePlayPause: false,  // 禁用播放/暂停按钮
-        enableProgressBar: false,  // 禁用进度条
-        enableProgressText: false,  // 禁用进度文本
-        enableFullscreen: false,  // 禁用全屏按钮
-        showControlsOnInitialize: false,  // 初始化时不显示控制器
-        controlBarHeight: 0,  // 控制栏高度为0
-        enableSkips: false,  // 禁用跳过
-        enableOverflowMenu: false,  // 禁用溢出菜单
-        enablePip: false,  // 禁用画中画
-        enableRetry: false,  // 禁用重试
-        enableAudioTracks: false,  // 禁用音轨
-        enableSubtitles: false,  // 禁用字幕
-        enablePlaybackSpeed: false,  // 禁用播放速度
-        enableQualities: false,  // 禁用质量选择
       ),
       // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
