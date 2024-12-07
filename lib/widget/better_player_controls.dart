@@ -365,8 +365,8 @@ mixin VideoPlayerListenerMixin<T extends StatefulWidget> on State<T> {
           final remainingTime = duration - position;
           // 如果剩余时间小于等于15秒，且不是HLS流，才预加载下一个视频
           if (remainingTime.inSeconds <= 15 && 
-              playerController?.dataSource?.url != null &&
-              !VideoPlayerUtils.isHlsStream(playerController?.dataSource?.url)) {
+              playerController?.betterPlayerDataSource?.url != null &&
+              !VideoPlayerUtils.isHlsStream(playerController?.betterPlayerDataSource?.url)) {
               final nextUrl = getNextVideoUrl();
               if (nextUrl != null) {
                   preloadNextVideo(nextUrl);
