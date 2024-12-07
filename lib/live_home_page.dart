@@ -259,59 +259,70 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
   }
 
   /// 预加载方法
-  @override
-  Future<void> preloadNextVideo(String url) async {
-    if (_isDisposing || _isSwitchingChannel) return;
-    
-    // 使用PreloadManager清理现有预加载资源
-    await _preloadManager.cleanupPreload();
-    
-    try {
-        // 创建新的 StreamUrl 实例来解析URL
-        StreamUrl streamUrl = StreamUrl(url);
-        String parsedUrl = await streamUrl.getStreamUrl();
-        
-        if (parsedUrl == 'ERROR') {
-            LogUtil.e('预加载解析URL失败');
-            return;
-        }
-
-        // 检查流类型
-        bool isHls = VideoPlayerUtils.isHlsStream(parsedUrl);
-        
-        // 检查是否为HLS流，如果是则不预加载
-        if (isHls) return;
-
-        // 创建数据源
-        final nextSource = BetterPlayerDataSource(
-            BetterPlayerDataSourceType.network,
-            parsedUrl,
-        );
-
-        // 创建新的播放器配置
-        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-            eventListener: (BetterPlayerEvent event) {},
-            isHls: isHls,
-        );
-
-        // 创建新的控制器用于预加载
-        final preloadController = BetterPlayerController(
-            betterPlayerConfiguration,
-        );
-        
-        // 设置预加载专用的事件监听
-        _setupNextPlayerListener(preloadController);
-
-        // 设置数据源
-        await preloadController.setupDataSource(nextSource);
-        
-        // 使用PreloadManager保存预加载状态
-        _preloadManager.setPreloadData(preloadController, url);
-        
-    } catch (e, stackTrace) {
-        LogUtil.logError('预加载异常', e, stackTrace);
-    }
+@override
+Future<void> preloadNextVideo(String url) async {
+  if (_isDisposing || _isSwitchingChannel) return;
+  
+  // 检查是否已经在预加载这个URL
+  if (_preloadManager.url == url) {
+    LogUtil.i('该URL已在预加载中: $url');
+    return;
   }
+  
+  // 清理现有预加载资源
+  await _preloadManager.cleanupPreload();
+  
+  try {
+    // 创建新的 StreamUrl 实例来解析URL
+    StreamUrl streamUrl = StreamUrl(url);
+    String parsedUrl = await streamUrl.getStreamUrl();
+    
+    if (parsedUrl == 'ERROR') {
+      LogUtil.e('预加载解析URL失败');
+      return;
+    }
+
+    // 检查流类型
+    bool isHls = VideoPlayerUtils.isHlsStream(parsedUrl);
+    if (isHls) {
+      LogUtil.i('HLS流不进行预加载');
+      return;
+    }
+
+    // 创建数据源
+    final nextSource = BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      parsedUrl,
+    );
+
+    // 创建新的播放器配置
+    final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+      eventListener: (BetterPlayerEvent event) {},
+      isHls: isHls,
+    );
+
+    // 创建新的控制器用于预加载
+    final preloadController = BetterPlayerController(
+      betterPlayerConfiguration,
+    );
+    
+    // 设置预加载专用的事件监听
+    _setupNextPlayerListener(preloadController);
+
+    // 设置数据源
+    await preloadController.setupDataSource(nextSource);
+    
+    // 保存预加载状态
+    _preloadManager.setPreloadData(preloadController, url);
+    
+    LogUtil.i('预加载成功: $url');
+    
+  } catch (e, stackTrace) {
+    LogUtil.logError('预加载异常', e, stackTrace);
+    // 确保清理任何可能的残留资源
+    await _preloadManager.cleanupPreload();
+  }
+}
 
   /// 预加载控制器的事件监听
   void _setupNextPlayerListener(BetterPlayerController controller) {
@@ -810,14 +821,53 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
   }
 
   /// 处理播放完成事件
-  @override
-  void handleFinishedEvent() {
-    // 如果是直播流，不需要特殊处理
-    if (VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
-      return;
-    }
+@override
+void handleFinishedEvent() {
+  // 如果是直播流，不需要特殊处理
+  if (VideoPlayerUtils.isHlsStream(_currentPlayUrl)) {
+    return;
+  }
+  
+  // 检查是否有预加载的视频
+  if (_preloadManager.controller != null && _preloadManager.url != null) {
+    final oldController = _playerController;
     
-    // 对于点播内容，可以实现自动切换到下一个视频
+    setState(() {
+      _playerController = _preloadManager.controller;
+      _currentPlayUrl = _preloadManager.url;
+      _sourceIndex++;
+      isBuffering = false;
+      bufferingProgress = 0.0;
+      _shouldUpdateAspectRatio = true;
+      _isRetrying = false;
+      _retryCount = 0;
+      _isSwitchingChannel = false;
+    });
+    
+    try {
+      // 平滑切换
+      await _playerController?.setVolume(0);
+      _playerController?.addEventsListener(videoListener);
+      await _playerController?.play();
+      
+      // 短暂延迟后恢复音量
+      await Future.delayed(const Duration(milliseconds: 100));
+      await _playerController?.setVolume(1.0);
+      
+      // 清理旧控制器
+      if (oldController != null) {
+        await _playerManager.disposeController(oldController);
+      }
+      
+      // 清理预加载状态
+      _preloadManager.setPreloadData(null, null);
+      
+    } catch (e) {
+      LogUtil.logError('切换到预加载视频时出错', e);
+      _handleSourceSwitch();
+    }
+  } else {
+    // 如果没有预加载的视频，使用原有逻辑
     final nextUrl = getNextVideoUrl();
     if (nextUrl != null) {
       setState(() {
@@ -829,13 +879,11 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
         toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
       });
       
-      // 延迟一段时间后播放下一个视频
       Timer(const Duration(seconds: 2), () async {
         if (!mounted || _isSwitchingChannel) return;
         await _playVideo();
       });
     } else {
-      // 如果没有下一个视频，重置到第一个源
       setState(() {
         _sourceIndex = 0;
         isBuffering = false;
@@ -847,6 +895,7 @@ class _LiveHomePageState extends State<LiveHomePage> with VideoPlayerListenerMix
       });
     }
   }
+}
   
     @override
   Widget build(BuildContext context) {
