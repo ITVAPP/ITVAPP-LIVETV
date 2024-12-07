@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:http/http.dart' as http;
-import 'generated/l10n.dart';
+import '../util/log_util.dart';
+import '../generated/l10n.dart';
 
 /// 可释放资源的接口
 abstract class Disposable {
