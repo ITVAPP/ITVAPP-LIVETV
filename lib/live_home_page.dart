@@ -975,7 +975,7 @@ void toggleFavorite(String channelId) async {
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = getGroupName(actualChannelId);
     String channelName = getChannelName(actualChannelId);
-    int? newDrawerKey; 
+
     // 验证分组名字、频道名字和播放地址是否正确
     if (groupName.isEmpty || channelName.isEmpty) {
       CustomSnackBar.showSnackBar(
@@ -985,6 +985,7 @@ void toggleFavorite(String channelId) async {
       );
       return;
     }
+
     if (isChannelFavorite(actualChannelId)) {
       // 取消收藏
       favoriteList[Config.myFavoriteKey]![groupName]?.remove(channelName);
@@ -1018,6 +1019,7 @@ void toggleFavorite(String channelId) async {
       );
       isFavoriteChanged = true;
     }
+
     if (isFavoriteChanged) {
       try {
         // 保存收藏列表到缓存
@@ -1026,9 +1028,12 @@ void toggleFavorite(String channelId) async {
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
         
-        // 生成新的抽屉key
-        newDrawerKey = DateTime.now().millisecondsSinceEpoch;
-        
+        // 直接在这里更新状态，使用非空的时间戳
+        if (mounted) {
+          setState(() {
+            _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+          });
+        }
       } catch (error) {
         CustomSnackBar.showSnackBar(
           context,
@@ -1037,11 +1042,6 @@ void toggleFavorite(String channelId) async {
         );
         LogUtil.logError('收藏状态保存失败', error);
       }
-    }
-    if (mounted && newDrawerKey != null) {
-      setState(() {
-        _drawerRefreshKey = ValueKey(newDrawerKey);
-      });
     }
 }
 
