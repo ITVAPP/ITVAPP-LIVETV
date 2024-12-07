@@ -552,7 +552,7 @@ void _handleSourceSwitching({
   final nextUrl = _getNextVideoUrl();
   
   if (nextUrl == null) {
-    await _handleNoMoreSources();
+    _handleNoMoreSources();
     return;
   }
 
