@@ -104,6 +104,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
    // 下一个视频地址
   String? _nextVideoUrl;
+  
+  // 用于控制更新频率
+  int? _lastUpdateTime;
+  double? _lastProgress;
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -248,7 +252,7 @@ void _videoListener(BetterPlayerEvent event) {
         case BetterPlayerEventType.initialized:
             if (_shouldUpdateAspectRatio) {
                 final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? 1.78;
-                if (aspectRatio != newAspectRatio) { // 仅在宽高比实际变化时更新
+                if (aspectRatio != newAspectRatio) {
                     setState(() {
                         aspectRatio = newAspectRatio;
                         _shouldUpdateAspectRatio = false;
@@ -270,7 +274,7 @@ void _videoListener(BetterPlayerEvent event) {
         case BetterPlayerEventType.bufferingStart:
             LogUtil.i('播放卡住，开始缓冲');
             setState(() {
-                isBuffering = true;  // 这个标记很重要，用于区分是否处于卡住状态
+                isBuffering = true; 
                 bufferingProgress = 0.0;  // 重置缓冲进度
                 toastString = S.current.loading;
             });
@@ -285,8 +289,14 @@ void _videoListener(BetterPlayerEvent event) {
                     final Duration? duration = _playerController?.videoPlayerController?.value.duration;
                     if (duration != null && duration.inMilliseconds > 0) {
                         final dynamic range = buffered.last;
-                        final double progress = range.end.inMilliseconds / duration.inMilliseconds;
-                        
+                        final double progress = range.end.inMilliseconds / duration.inMilliseconds.clamp(0.0, 1.0);
+                        if (range == null) return;
+                        if (_lastProgress != null && (progress - _lastProgress!).abs() < 0.05) {
+                          return;  // 如果进度变化小于5%，不更新
+                        }
+                        // 更新时间戳和进度值
+                        _lastUpdateTime = now;
+                        _lastProgress = progress;
                         setState(() {
                             bufferingProgress = progress;
                             // 如果是卡住状态，显示加载进度
@@ -355,7 +365,6 @@ void _videoListener(BetterPlayerEvent event) {
                 final remainingTime = duration - position;
                 // 在视频剩余15秒时预加载下一个视频
                 if (remainingTime.inSeconds <= 15) {
-                    // 获取下一个视频地址
                     final nextUrl = _getNextVideoUrl();
                     if (nextUrl != null && nextUrl != _nextVideoUrl) {
                         _nextVideoUrl = nextUrl;
@@ -502,7 +511,7 @@ void _retryPlayback() {
         setState(() {
             _isRetrying = true;
             _retryCount++;
-            isBuffering = false;  // 重置缓冲状态
+            isBuffering = false; 
             bufferingProgress = 0.0;
             toastString = '${S.current.retryplay} (${_retryCount}/${defaultMaxRetries})';  // 显示重试次数
         });
@@ -565,10 +574,7 @@ void _handleSourceSwitching({
   });
 
   // 如果是从播放结束触发的切换，尝试使用预加载的播放器
-  if (isFromFinished && 
-      !_isHlsStream(_currentPlayUrl) && 
-      _nextPlayerController != null && 
-      oldController != null) {
+  if (isFromFinished && !_isHlsStream(_currentPlayUrl) && _nextPlayerController != null && oldController != null) {
     _switchToPreloadedPlayer(oldController);
   } else {
     // 延迟后尝试新源
@@ -587,6 +593,7 @@ void _handleNoMoreSources() {
     _isRetrying = false;
     _retryCount = 0;
   });
+  await _disposePlayer();
 }
 
 /// 切换到预加载的播放器
@@ -600,11 +607,8 @@ void _switchToPreloadedPlayer(BetterPlayerController oldController) async {
   });
 
   try {
-    await _playerController?.setVolume(0);
     _playerController?.addEventsListener(_videoListener);
     await _playerController?.play();
-    await Future.delayed(const Duration(milliseconds: 100));
-    await _playerController?.setVolume(1.0);
   } catch (e, stackTrace) {
     LogUtil.logError('切换到预加载视频时出错', e, stackTrace);
     _handleSourceSwitching();  // 如果切换失败，尝试普通切换
@@ -732,6 +736,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
         setState(() {
             toastString = S.current.playError;
         });
+        await _disposePlayer();
     } finally {
         if (mounted) {
             setState(() {
