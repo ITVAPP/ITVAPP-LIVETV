@@ -1036,7 +1036,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
-            child: const MobileVideoWidget(
+            child: MobileVideoWidget(
               toastString: toastString.value,
               controller: _playerController,
               changeChannelSources: _changeChannelSources,
@@ -1069,14 +1069,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
           SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
-            child: const Stack(
+            child: Stack(
               children: [
                 Scaffold(
                   body: ValueListenableBuilder<String>(
                     valueListenable: toastString,
                     builder: (context, value, child) {
                       return value == 'UNKNOWN'
-                          ? const EmptyPage(onRefresh: _parseData)
+                          ? EmptyPage(onRefresh: _parseData)
                           : TableVideoWidget(
                               toastString: value,
                               controller: _playerController,
@@ -1093,8 +1093,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                               isLandscape: true,
                               isAudio: _isAudio,
                               onToggleDrawer: () {
-                                _drawerIsOpen = !_drawerIsOpen;
-                              },
+                        _drawerIsOpen = !_drawerIsOpen;
+                      },
                             );
                     },
                   ),
