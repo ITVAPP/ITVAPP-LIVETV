@@ -33,7 +33,7 @@ class StreamUrl {
 
  StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 18)}) {
     // 在构造函数中处理 URL
-    url = inputUrl.contains('||') ? inputUrl.split('||')[0].trim() : inputUrl;
+    url = inputUrl.contains('$') ? inputUrl.split('$')[0].trim() : inputUrl;
   }
   
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
