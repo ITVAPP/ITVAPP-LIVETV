@@ -91,9 +91,9 @@ Future<int?> changeChannelSources(
 /// 获取线路显示名称
 String _getLineDisplayName(String url, int index) {
   // 检查是否包含 $
-  if (url.contains('$')) {
+  if (url.contains('\$')) {
     // 分割字符串并返回后半部分作为显示名称
-    return url.split('$')[1].trim();
+    return url.split('\$')[1].trim();
   }
   // 如果不包含 $ 则返回默认的线路序号
   return S.current.lineIndex(index + 1);
