@@ -359,7 +359,6 @@ void _videoListener(BetterPlayerEvent event) {
                 duration != null && 
                 !_isHlsStream(_currentPlayUrl) &&
                 duration.inSeconds > 0) {
-                // 计算剩余时间
                 final remainingTime = duration - position;
                 // 在视频剩余15秒时预加载下一个视频
                 if (remainingTime.inSeconds <= 15) {
@@ -388,9 +387,7 @@ void _videoListener(BetterPlayerEvent event) {
 
 /// 处理播放结束事件
 Future<void> handleFinishedEvent() async {
-  if (!_isHlsStream(_currentPlayUrl) && 
-      _nextPlayerController != null && 
-      _nextVideoUrl != null) {
+  if (!_isHlsStream(_currentPlayUrl) && _nextPlayerController != null && _nextVideoUrl != null) {
     _handleSourceSwitching(
       isFromFinished: true,
       oldController: _playerController,
@@ -548,28 +545,56 @@ void _handleSourceSwitching({
   // 清理所有计时器和状态
   _cleanupTimers();
   
-  // 获取下一个视频源
-  final nextUrl = _getNextVideoUrl();
-  
-  if (nextUrl == null) {
-    _handleNoMoreSources();
-    return;
-  }
+  // 如果是从播放结束触发的切换，且有预加载的播放器
+  if (isFromFinished && 
+      !_isHlsStream(_currentPlayUrl) && 
+      _nextPlayerController != null && 
+      oldController != null) {
+    
+    setState(() {
+      // 直接替换控制器，保持最少状态变化
+      _playerController = _nextPlayerController;
+      _nextPlayerController = null;
+      _currentPlayUrl = _nextVideoUrl;
+      _nextVideoUrl = null;
+      
+      // 仅更新必要的状态
+      _sourceIndex++;
+      _shouldUpdateAspectRatio = true;
+      
+      LogUtil.i('无缝切换第二段视频完成');
+    });
 
-  // 更新状态
-  setState(() {
-    _sourceIndex++;
-    _isRetrying = false;
-    _retryCount = 0;
-    isBuffering = false;
-    bufferingProgress = 0.0;
-    toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
-  });
-
-  // 如果是从播放结束触发的切换，尝试使用预加载的播放器
-  if (isFromFinished && !_isHlsStream(_currentPlayUrl) && _nextPlayerController != null && oldController != null) {
-    _switchToPreloadedPlayer(oldController);
+    try {
+      // 直接播放，不添加额外延迟
+      _playerController?.addEventsListener(_videoListener);
+      _playerController?.play();
+    } catch (e, stackTrace) {
+      LogUtil.logError('无缝切换失败', e, stackTrace);
+      _handleSourceSwitching();  
+    }
+    
+    // 异步释放旧控制器
+    oldController.dispose();
   } else {
+    // 获取下一个视频源
+    final nextUrl = _getNextVideoUrl();
+    
+    if (nextUrl == null) {
+      _handleNoMoreSources();
+      return;
+    }
+
+    // 常规切换逻辑
+    setState(() {
+      _sourceIndex++;
+      _isRetrying = false;
+      _retryCount = 0;
+      isBuffering = false;
+      bufferingProgress = 0.0;
+      toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
+    });
+
     // 延迟后尝试新源
     _startNewSourceTimer();
   }
@@ -1025,8 +1050,6 @@ void toggleFavorite(String channelId) async {
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('修改收藏列表后的播放列表: ${_videoMap}');
         await M3uUtil.saveCachedM3uData(_videoMap.toString());
-        
-        // 直接在这里更新状态，使用非空的时间戳
         if (mounted) {
           setState(() {
             _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
