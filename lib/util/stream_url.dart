@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/material.dart'; 
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
+import 'package:itvapp_live_tv/util/getm3u8.dart';
 
 class StreamUrl {
   late final String url;
@@ -41,6 +43,17 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
     try {
+    	
+    // 首先检查是否为GetM3U8 URL
+    if (isGetM3U8Url(url)) {
+      LogUtil.i('检测到GetM3U8 URL，开始处理');
+      final m3u8Url = await _handleGetM3U8Url(url);
+      if (m3u8Url != 'ERROR') {
+        return m3u8Url;
+      }
+      LogUtil.e('GetM3U8处理失败，尝试其他方法');
+    }
+    
       // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
       if (isLZUrl(url)) {
         if (isILanzouUrl(url)) {
@@ -135,7 +148,12 @@ void dispose() {
     }, '关闭资源时发生错误');
   }
   
-  /// 否则判断是否包含"lanzou"
+  /// 判断是否包含"getm3u8"
+  bool isGetM3U8Url(String url) {
+    return url.toLowerCase().contains('getm3u8');
+  }
+
+  /// 判断是否包含"lanzou"
   bool isLZUrl(String url) {
     // 如果包含分隔符，直接返回false
     if (url.contains('|')) {
@@ -163,6 +181,39 @@ void dispose() {
       return false;
     }
   }
+
+// 监听网页获取 m3u8 的 URL
+Future<String> _handleGetM3U8Url(String url) async {
+  if (_isDisposed) return 'ERROR';
+  try {
+    final completer = Completer<String>();
+    
+    final widget = GetM3U8(
+      url: url,
+      onM3U8Found: (String foundUrl) {
+        if (!completer.isCompleted) {
+          completer.complete(foundUrl);
+        }
+      },
+      timeoutSeconds: timeoutDuration.inSeconds,
+    );
+
+    final result = await completer.future.timeout(
+      timeoutDuration,
+      onTimeout: () => 'ERROR'
+    );
+
+    if (result.isEmpty) {
+      return 'ERROR';
+    }
+
+    return result;
+
+  } catch (e, stackTrace) {
+    LogUtil.logError('GetM3U8处理失败', e, stackTrace);
+    return 'ERROR';
+  }
+}
 
 // 获取普通 YouTube 视频的流媒体 URL  
 Future<String> _getYouTubeVideoUrl() async {
