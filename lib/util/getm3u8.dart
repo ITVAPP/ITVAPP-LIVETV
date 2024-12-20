@@ -27,14 +27,40 @@ class _GetM3U8State extends State<GetM3U8> {
   void initState() {
     super.initState();
     LogUtil.i('GetM3U8初始化，目标URL: ${widget.url}');
+    _initController();
     _startTimeout();
+  }
+
+  void _initController() {
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent('Mozilla/5.0 (Linux; Android 12; Pixel 6 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36')
+      ..addJavaScriptChannel(
+        'M3U8Detector',
+        onMessageReceived: (message) {
+          LogUtil.i('JS检测器发现新的URL: ${message.message}');
+          _handleM3U8Found(message.message);
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            LogUtil.i('页面加载完成，注入JS代码');
+            _injectM3U8Detector();
+          },
+          onWebResourceError: (error) {
+            LogUtil.e('WebView加载错误: ${error.description}，错误码: ${error.errorCode}');
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
   }
 
   void _startTimeout() {
     LogUtil.i('开始超时计时: ${widget.timeoutSeconds}秒');
     Future.delayed(Duration(seconds: widget.timeoutSeconds), () {
       if (mounted && !_m3u8Found) {
-        LogUtil.w('GetM3U8提取超时，未找到有效的m3u8地址');
+        LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
         widget.onM3U8Found(''); // 超时返回空字符串
         _disposeWebView();
       }
@@ -53,7 +79,7 @@ class _GetM3U8State extends State<GetM3U8> {
         widget.onM3U8Found(url);
         _disposeWebView();
       } else {
-        LogUtil.w('URL格式验证失败: $url');
+        LogUtil.i('URL格式验证失败: $url');
       }
     }
   }
@@ -62,19 +88,19 @@ class _GetM3U8State extends State<GetM3U8> {
     // 验证URL是否为有效的m3u8地址
     final validUrl = Uri.tryParse(url);
     if (validUrl == null) {
-      LogUtil.w('无效的URL格式');
+      LogUtil.i('无效的URL格式');
       return false;
     }
     
     // 检查文件扩展名
     if (!url.toLowerCase().contains('.m3u8')) {
-      LogUtil.w('URL不包含.m3u8扩展名');
+      LogUtil.i('URL不包含.m3u8扩展名');
       return false;
     }
     
     // 检查是否为完整URL
     if (!url.startsWith('http')) {
-      LogUtil.w('URL不是以http开头的完整地址');
+      LogUtil.i('URL不是以http开头的完整地址');
       return false;
     }
     
@@ -95,31 +121,7 @@ class _GetM3U8State extends State<GetM3U8> {
     }
 
     LogUtil.i('创建WebView实例');
-    return WebView(
-      javascriptMode: JavascriptMode.unrestricted,
-      onWebViewCreated: (controller) {
-        _controller = controller;
-        LogUtil.i('WebView控制器创建完成');
-      },
-      onPageFinished: (_) {
-        LogUtil.i('页面加载完成，注入JS代码');
-        _injectM3U8Detector();
-      },
-      javascriptChannels: {
-        JavascriptChannel(
-          name: 'm3u8Detector',
-          onMessageReceived: (message) {
-            LogUtil.i('JS检测器发现新的URL: ${message.message}');
-            _handleM3U8Found(message.message);
-          },
-        ),
-      },
-      userAgent: 'Mozilla/5.0 (Linux; Android 12; Pixel 6 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      initialUrl: widget.url,
-      onWebResourceError: (error) {
-        LogUtil.e('WebView加载错误: ${error.description}，错误码: ${error.errorCode}');
-      },
-    );
+    return WebViewWidget(controller: _controller);
   }
 
   void _injectM3U8Detector() {
@@ -167,7 +169,7 @@ class _GetM3U8State extends State<GetM3U8> {
           if (url.includes('.m3u8') && !processedUrls.has(url)) {
             processedUrls.add(url);
             console.log('发现m3u8 URL:', url);
-            window.m3u8Detector.postMessage(url);
+            window.M3U8Detector.postMessage(url);
           }
         }
         
@@ -285,7 +287,7 @@ class _GetM3U8State extends State<GetM3U8> {
     ''';
     
     try {
-      _controller.evaluateJavascript(jsCode).then((_) {
+      _controller.runJavaScript(jsCode).then((_) {
         LogUtil.i('JS代码注入成功');
       }).catchError((error) {
         LogUtil.e('JS代码注入失败: $error');
