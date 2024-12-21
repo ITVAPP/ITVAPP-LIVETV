@@ -29,10 +29,9 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-/// 主页面类，展示直播流
+/// 主页面
 class LiveHomePage extends StatefulWidget {
-  final PlaylistModel m3uData; // 接收上个页面传递的 PlaylistModel 数据
-
+  final PlaylistModel m3uData; // 接收上个页面的 PlaylistModel 数据
   const LiveHomePage({super.key, required this.m3uData});
 
   @override
@@ -47,7 +46,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 超时检测的时间
   static const int defaultTimeoutSeconds = 18;
   
-  // 新增重试相关的状态管理
+  // 重试相关的状态管理
   bool _isRetrying = false;
   Timer? _retryTimer;
   
@@ -140,7 +139,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isHlsStream(String? url) {
     if (url == null || url.isEmpty) return false;
     final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.endsWith('.m3u8') || lowercaseUrl.endsWith('.m3u');
+    return lowercaseUrl.endsWith('.m3u');
   }
   
 /// 播放前解析频道的视频源 
@@ -182,12 +181,9 @@ Future<void> _playVideo() async {
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
         
-        // 判断是否是 YouTube HLS 直播流
-        final bool isYoutubeHls = _streamUrl!.isYTUrl(parsedUrl) && isHls;
-        
         if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         
-        LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为YThls流：$isYoutubeHls');
+        LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为hls流：$isHls');
 
         // 使用配置工具类创建数据源
         final dataSource = BetterPlayerConfig.createDataSource(
@@ -220,7 +216,7 @@ Future<void> _playVideo() async {
             return; 
         }
 
-       if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
+       if (_isSwitchingChannel) return;
         // 设置新的控制器
         setState(() {
             _playerController = newController;
