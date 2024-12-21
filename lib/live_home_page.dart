@@ -128,18 +128,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
     final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.endsWith('.mp3') || 
-           lowercaseUrl.endsWith('.aac') || 
-           lowercaseUrl.endsWith('.m4a') ||
-           lowercaseUrl.endsWith('.ogg') ||
-           lowercaseUrl.endsWith('.wav');
+    return lowercaseUrl.contains('.mp3') || 
+           lowercaseUrl.contains('.aac') || 
+           lowercaseUrl.contains('.m4a') ||
+           lowercaseUrl.contains('.ogg') ||
+           lowercaseUrl.contains('.wav');
   }
   
   // 判断是否是HLS流
   bool _isHlsStream(String? url) {
     if (url == null || url.isEmpty) return false;
     final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.endsWith('.m3u');
+    return lowercaseUrl.contains('.m3u');
   }
   
 /// 播放前解析频道的视频源 
