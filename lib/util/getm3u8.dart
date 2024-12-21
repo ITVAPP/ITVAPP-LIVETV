@@ -126,7 +126,7 @@ class GetM3U8 {
       _startTimeout(completer);
     } catch (e, stackTrace) {
       LogUtil.logError('初始化过程发生错误', e, stackTrace);
-      completer.complete('');
+      completer.complete('ERROR');
     }
     
     return completer.future;
@@ -253,7 +253,7 @@ Future<void> _initController(Completer<String> completer) async {
       }
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数或已释放资源');
-      completer.complete('');
+      completer.complete('ERROR');
       _logPerformanceMetrics();
       disposeResources();
     }
@@ -325,7 +325,7 @@ Future<void> _initController(Completer<String> completer) async {
       if (!_isDisposed && !_m3u8Found) {
         LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
         if (!completer.isCompleted) {
-          completer.complete('');
+          completer.complete('ERROR');
         }
         _logPerformanceMetrics();
         disposeResources();
