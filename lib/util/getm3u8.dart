@@ -3,38 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
-class GetM3U8 extends StatefulWidget {
+class GetM3U8 {
   final String url;
-  final Function(String) onM3U8Found;
   final int timeoutSeconds;
-  
-  const GetM3U8({
-    Key? key,
-    required this.url,
-    required this.onM3U8Found,
-    this.timeoutSeconds = 30,
-  }) : super(key: key);
-
-  @override
-  State<GetM3U8> createState() => _GetM3U8State();
-}
-
-class _GetM3U8State extends State<GetM3U8> {
   late WebViewController _controller;
   bool _m3u8Found = false;
   Set<String> _foundUrls = {};
   Timer? _periodicInjectionTimer;
   Timer? _periodicCheckTimer;
+  bool _isDisposed = false;
   
-  @override
-  void initState() {
-    super.initState();
-    LogUtil.i('GetM3U8初始化开始，目标URL: ${widget.url}');
-    _initController();
-    _startTimeout();
+  GetM3U8({
+    required this.url,
+    this.timeoutSeconds = 30,
+  });
+
+  Future<String> getUrl() async {
+    final completer = Completer<String>();
+    
+    LogUtil.i('GetM3U8初始化开始，目标URL: $url');
+    await _initController(completer);
+    _startTimeout(completer);
+    
+    return completer.future;
   }
 
-  void _initController() {
+  Future<void> _initController(Completer<String> completer) async {
     LogUtil.i('开始初始化WebViewController');
     try {
       _controller = WebViewController()
@@ -44,7 +38,7 @@ class _GetM3U8State extends State<GetM3U8> {
           'M3U8Detector',
           onMessageReceived: (message) {
             LogUtil.i('JS检测器发现新的URL: ${message.message}');
-            _handleM3U8Found(message.message);
+            _handleM3U8Found(message.message, completer);
           },
         )
         ..setNavigationDelegate(
@@ -70,14 +64,17 @@ class _GetM3U8State extends State<GetM3U8> {
           ),
         );
 
-      _loadUrlWithHeaders();
+      await _loadUrlWithHeaders();
       LogUtil.i('WebViewController初始化完成');
     } catch (e, stackTrace) {
       LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      if (!completer.isCompleted) {
+        completer.complete('');
+      }
     }
   }
 
-  void _loadUrlWithHeaders() {
+  Future<void> _loadUrlWithHeaders() async {
     LogUtil.i('准备加载URL，添加自定义headers');
     try {
       final Map<String, String> headers = {
@@ -85,7 +82,7 @@ class _GetM3U8State extends State<GetM3U8> {
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Referer': Uri.parse(widget.url).origin,
+        'Referer': Uri.parse(url).origin,
         'Pragma': 'no-cache',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
@@ -93,13 +90,13 @@ class _GetM3U8State extends State<GetM3U8> {
       };
       
       LogUtil.i('设置的headers: $headers');
-      _controller.loadRequest(Uri.parse(widget.url), headers: headers);
+      await _controller.loadRequest(Uri.parse(url), headers: headers);
       LogUtil.i('URL加载请求已发送');
     } catch (e, stackTrace) {
       LogUtil.logError('加载URL时发生错误', e, stackTrace);
     }
   }
-
+  
   void _setupPeriodicTasks() {
     LogUtil.i('设置定期任务');
     // 取消现有的定时器
@@ -110,11 +107,11 @@ class _GetM3U8State extends State<GetM3U8> {
     _periodicInjectionTimer = Timer.periodic(
       const Duration(seconds: 2),
       (timer) {
-        if (!_m3u8Found && mounted) {
+        if (!_m3u8Found && !_isDisposed) {
           LogUtil.i('定期重新注入M3U8检测器');
           _injectM3U8Detector();
         } else {
-          LogUtil.i('停止定期注入，原因: ${_m3u8Found ? 'M3U8已找到' : '组件已卸载'}');
+          LogUtil.i('停止定期注入，原因: ${_m3u8Found ? 'M3U8已找到' : '已释放资源'}');
           timer.cancel();
         }
       },
@@ -124,7 +121,7 @@ class _GetM3U8State extends State<GetM3U8> {
     _periodicCheckTimer = Timer.periodic(
       const Duration(seconds: 1),
       (timer) {
-        if (!_m3u8Found && mounted) {
+        if (!_m3u8Found && !_isDisposed) {
           _checkPageStatus();
         } else {
           timer.cancel();
@@ -150,18 +147,20 @@ class _GetM3U8State extends State<GetM3U8> {
     }
   }
 
-  void _startTimeout() {
-    LogUtil.i('开始超时计时: ${widget.timeoutSeconds}秒');
-    Future.delayed(Duration(seconds: widget.timeoutSeconds), () {
-      if (mounted && !_m3u8Found) {
+  void _startTimeout(Completer<String> completer) {
+    LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
+    Future.delayed(Duration(seconds: timeoutSeconds), () {
+      if (!_isDisposed && !_m3u8Found) {
         LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
-        widget.onM3U8Found('');
+        if (!completer.isCompleted) {
+          completer.complete('');
+        }
         _disposeResources();
       }
     });
   }
 
-  void _handleM3U8Found(String url) {
+  void _handleM3U8Found(String url, Completer<String> completer) {
     LogUtil.i('处理发现的URL: $url');
     if (!_m3u8Found && url.isNotEmpty && !_foundUrls.contains(url)) {
       LogUtil.i('发现新的未处理URL');
@@ -170,7 +169,9 @@ class _GetM3U8State extends State<GetM3U8> {
       if (_isValidM3U8Url(url)) {
         LogUtil.i('URL验证通过，标记为有效的m3u8地址');
         _m3u8Found = true;
-        widget.onM3U8Found(url);
+        if (!completer.isCompleted) {
+          completer.complete(url);
+        }
         _disposeResources();
       } else {
         LogUtil.i('URL验证失败，不是有效的m3u8地址');
@@ -206,33 +207,12 @@ class _GetM3U8State extends State<GetM3U8> {
 
   void _disposeResources() {
     LogUtil.i('开始释放资源');
+    _isDisposed = true;
     _periodicInjectionTimer?.cancel();
     _periodicCheckTimer?.cancel();
-    if (mounted) {
-      setState(() {});
-    }
     LogUtil.i('资源释放完成');
   }
-
-  @override
-  void dispose() {
-    LogUtil.i('GetM3U8组件开始销毁');
-    _disposeResources();
-    super.dispose();
-    LogUtil.i('GetM3U8组件销毁完成');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_m3u8Found) {
-      LogUtil.i('已找到m3u8，返回空组件');
-      return const SizedBox.shrink();
-    }
-
-    LogUtil.i('构建WebView组件');
-    return WebViewWidget(controller: _controller);
-  }
-
+  
   void _injectM3U8Detector() {
     LogUtil.i('开始注入m3u8检测器JS代码');
     const jsCode = '''
