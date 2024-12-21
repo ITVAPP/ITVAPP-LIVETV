@@ -206,7 +206,7 @@ Future<String> _handleGetM3U8Url(String url) async {
     return 'ERROR';
   } finally {
     // 确保释放资源
-    detector?.dispose();
+    detector?.disposeResources();
   }
 }
 
