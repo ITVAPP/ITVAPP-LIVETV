@@ -74,7 +74,7 @@ class GetM3U8 {
   static const int MAX_RETRIES = 2;
   
   /// 重试延迟时间(秒)
-  static const List<int> RETRY_DELAYS = [1, 2, 4];
+  static const List<int> RETRY_DELAYS = [1, 2, 3];
   
   /// 无效URL关键词
   static const List<String> INVALID_URL_PATTERNS = [
@@ -83,7 +83,7 @@ class GetM3U8 {
   ];
   
   /// 已处理URL的最大缓存数量
-  static const int MAX_CACHE_SIZE = 1000;
+  static const int MAX_CACHE_SIZE = 88;
   
   /// 是否已释放资源
   bool _isDisposed = false;
@@ -383,13 +383,7 @@ class GetM3U8 {
   /// 记录性能指标
   void _logPerformanceMetrics() {
     final duration = DateTime.now().difference(_startTime);
-    LogUtil.i('=== 性能统计 ===');
-    LogUtil.i('总耗时: ${duration.inMilliseconds}毫秒');
-    LogUtil.i('检查次数: $_checkCount');
-    LogUtil.i('重试次数: $_retryCount');
-    LogUtil.i('发现URL数: ${_foundUrls.length}');
-    LogUtil.i('最终结果: ${_m3u8Found ? "成功" : "失败"}');
-    LogUtil.i('===============');
+    LogUtil.i('Performance: 耗时=${duration.inMilliseconds}ms, 检查=$_checkCount, 重试=$_retryCount, URL数=${_foundUrls.length}, 结果=${_m3u8Found ? "成功" : "失败"}');
   }
   
   /// 释放资源
@@ -426,7 +420,7 @@ class GetM3U8 {
         
         // 已处理的URL缓存
         const processedUrls = new Set();
-        const MAX_CACHE_SIZE = 1000;
+        const MAX_CACHE_SIZE = 88;
         
         // 全局变量
         let observer = null;
