@@ -37,145 +37,9 @@ class StreamUrl {
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
   StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 18)}) {
-    // 在构造函数中处理 URL
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
-  
-  // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
-  Future<String> getStreamUrl() async {
-    if (_isDisposed) return 'ERROR';
-    _completer = Completer<void>();
-    try {
-    	
-      // 首先检查是否为GetM3U8 URL
-      if (isGetM3U8Url(url)) {
-        LogUtil.i('检测到GetM3U8 URL，开始处理');
-        final m3u8Url = await _handleGetM3U8Url(url);
-        if (m3u8Url != 'ERROR') {
-          return m3u8Url;
-        }
-        LogUtil.e('GetM3U8处理失败，尝试其他方法');
-      }
-      
-      // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
-      if (isLZUrl(url)) {
-        if (isILanzouUrl(url)) {
-          // 使用 API 处理 ilanzou.com 域名链接
-          return 'https://lz.qaiu.top/parser?url=$url';
-        } else {
-          // 使用本地解析器处理其他蓝奏云链接
-          final result = await LanzouParser.getLanzouUrl(url);
-          if (result != 'ERROR') {
-            return result;
-          }
-          return 'ERROR';
-        }
-      }
-      
-      // 检查 URL 是否为 YouTube 链接
-      if (!isYTUrl(url)) {
-        return url;
-      } 
-      
-      // 选择处理 YouTube 直播或普通视频的任务
-      final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
-      
-      // 尝试获取视频流，超时则重试
-      try {
-        final result = await task().timeout(timeoutDuration);
-        if (result != 'ERROR') {
-          LogUtil.i('首次获取视频流成功');
-          return result;
-        }
-        LogUtil.e('首次获取视频流失败，准备重试');
-      } catch (e) {
-        if (e is TimeoutException) {
-          LogUtil.e('首次获取视频流超时，准备重试');
-        } else {
-          LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
-        }
-      }
-      
-      // 等待一秒后再次尝试获取视频流
-      await Future.delayed(const Duration(seconds: 1));
-      
-      try {
-        final result = await task().timeout(timeoutDuration);
-        if (result != 'ERROR') {
-          LogUtil.i('重试获取视频流成功');
-          return result;
-        }
-        LogUtil.e('重试获取视频流失败');
-        return 'ERROR';
-      } catch (retryError) {
-        if (retryError is TimeoutException) {
-          LogUtil.e('重试获取视频流超时');
-        } else {
-          LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
-        }
-        return 'ERROR';
-      }
-      
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
-      return 'ERROR';
-    } finally {
-      if (!_isDisposed) {
-        _completer?.complete();
-      }
-      _completer = null;
-    }
-  }
-  
-  void dispose() {
-    if (_isDisposed) return;
-    _isDisposed = true;
-    
-    if (_completer != null && !_completer!.isCompleted) {
-      _completer!.completeError('资源已释放，任务被取消');
-    }
 
-    // 安全释放资源
-    LogUtil.safeExecute(() {
-      try {
-        yt.close();
-      } catch (e, stackTrace) {
-        LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
-      }
-
-      try {
-        _client.close();
-      } catch (e, stackTrace) {
-        LogUtil.logError('释放 HTTP 客户端时发生错误', e, stackTrace);
-      }
-    }, '关闭资源时发生错误');
-  }
-  
-  /// 判断是否包含"getm3u8"
-  bool isGetM3U8Url(String url) {
-    return url.toLowerCase().contains('getm3u8');
-  }
-
-  /// 判断是否包含"lanzou"
-  bool isLZUrl(String url) {
-    // 如果包含分隔符，直接返回false
-    if (url.contains('|')) {
-      return false;
-    }
-    // 否则判断是否为蓝奏云链接
-    return url.contains('lanzou');
-  }
-  
-  // 判断是否为 ilanzou.com 域名的链接
-  bool isILanzouUrl(String url) {
-    return url.toLowerCase().contains('ilanzou.com');
-  }
-  
-  // 判断是否为 YouTube 相关的链接
-  bool isYTUrl(String url) {
-    return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
-  }
-  
   // 验证给定 URL 是否为绝对 URL
   bool _isValidUrl(String url) {
     try {
@@ -185,97 +49,128 @@ class StreamUrl {
     }
   }
 
-  // 监听网页获取 m3u8 的 URL
-  Future<String> _handleGetM3U8Url(String url) async {
-    if (_isDisposed) return 'ERROR';
+  // 获取 HTTP 请求需要的头信息
+  Map<String, String> _getRequestHeaders() {
+    return {
+      HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    };
+  }
+
+  // 从 m3u8 清单行提取视频质量信息
+  String? _extractQuality(String extInfLine) {
+    if (_isDisposed) return null;
+    final match = resolutionRegex.firstMatch(extInfLine);
+    return match?.group(1);
+  }
+
+  // 从 m3u8 清单中选择指定质量的流地址
+  Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
+    if (_isDisposed) return null;
     try {
-      final completer = Completer<String>();
-      OverlayEntry? overlay;
-      bool isRemoved = false;
-      
-      // 用于安全移除overlay的方法
-      void removeOverlay() {
-        if (overlay != null && !isRemoved) {
-          LogUtil.i('移除GetM3U8 overlay');
-          isRemoved = true;
-          overlay.remove();
-          overlay = null;
-        }
-      }
+      final response = await _client.get(Uri.parse(indexM3u8Url))
+          .timeout(timeoutDuration);
+      if (_isDisposed) return null;
 
-      // 创建一个overlay entry来承载GetM3U8
-      overlay = OverlayEntry(
-        builder: (context) => Positioned(
-          left: 0,
-          top: 0,
-          width: 1,
-          height: 1,
-          child: Material(
-            color: Colors.transparent,
-            child: GetM3U8(
-              url: url,
-              onM3U8Found: (String foundUrl) {
-                if (!completer.isCompleted) {
-                  LogUtil.i('GetM3U8找到URL: $foundUrl');
-                  completer.complete(foundUrl);
-                  removeOverlay();
-                }
-              },
-              timeoutSeconds: timeoutDuration.inSeconds,
-            ),
-          ),
-        ),
-      );
+      if (response.statusCode == 200) {
+        final lines = response.body.split('\n');
+        final length = lines.length;
+        final qualityUrls = <String, String>{};
 
-      // 确保有有效的context
-      if (navigatorKey.currentContext == null) {
-        LogUtil.e('无法获取有效的context，请确保已设置navigatorKey');
-        return 'ERROR';
-      }
-
-      // 在下一帧插入overlay
-      LogUtil.i('准备插入GetM3U8 overlay');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isDisposed) {
-          try {
-            final overlayState = Overlay.of(navigatorKey.currentContext!);
-            overlayState.insert(overlay!);
-            LogUtil.i('成功插入GetM3U8 overlay');
-          } catch (e, stackTrace) {
-            LogUtil.logError('插入GetM3U8 overlay失败', e, stackTrace);
-            if (!completer.isCompleted) {
-              completer.complete('ERROR');
+        for (var i = 0; i < length; i++) {
+          if (lines[i].contains('#EXT-X-STREAM-INF')) {
+            final quality = _extractQuality(lines[i]);
+            if (quality != null && i + 1 < length) {
+              qualityUrls[quality] = lines[i + 1].trim();
             }
           }
+          if (_isDisposed) return null;
         }
-      });
 
-      // 等待结果，设置超时
-      final result = await completer.future.timeout(
-        timeoutDuration,
-        onTimeout: () {
-          LogUtil.e('GetM3U8检测超时');
-          removeOverlay();
-          return 'ERROR';
+        for (var quality in preferredQualities) {
+          if (qualityUrls.containsKey(quality)) {
+            LogUtil.i('找到 ${quality}p 质量的直播流');
+            return qualityUrls[quality];
+          }
         }
-      );
 
-      // 检查结果
-      if (result.isEmpty) {
-        LogUtil.e('GetM3U8返回空结果');
-        return 'ERROR';
+        if (qualityUrls.isNotEmpty) {
+          final firstQuality = qualityUrls.keys.first;
+          LogUtil.i('未找到首选质量的直播流，使用 ${firstQuality}p');
+          return qualityUrls.values.first;
+        }
       }
+    } catch (e, stackTrace) {
+      if (!_isDisposed) {
+        LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
+      }
+      return null;
+    }
+    return null;
+  }
 
-      // 记录成功结果
-      LogUtil.i('GetM3U8成功获取到URL: $result');
-      return result;
+  // 获取 YouTube 直播的 m3u8 清单地址
+  Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
+    if (_isDisposed) return null;
+    try {
+      final response = await _client.get(
+        Uri.parse(youtubeUrl),
+        headers: _getRequestHeaders(),
+      ).timeout(timeoutDuration);
+      
+      if (_isDisposed) return null;
+
+      if (response.statusCode == 200) {
+        final match = hlsManifestRegex.firstMatch(response.body);
+        if (match != null) {
+          final indexM3u8Url = match.group(1);
+          if (indexM3u8Url != null) {
+            return await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      if (!_isDisposed) {
+        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
+      }
+      return null;
+    }
+    return null;
+  }
+
+  // 获取最佳的普通混合流
+  StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
+    if (manifest.muxed.isEmpty) {
+      LogUtil.i('没有可用的混合流');
+      return null;
+    }
+
+    try {
+      LogUtil.i('查找普通混合流');
+      
+      final validStreams = manifest.muxed
+          .where((s) => _isValidUrl(s.url.toString()))
+          .toList();
+      
+      if (validStreams.isEmpty) {
+        LogUtil.i('未找到有效URL的混合流');
+        return null;
+      }
+      
+      final streamInfo = validStreams.firstWhere(
+        (s) => s.container.name.toLowerCase() == 'mp4',
+        orElse: () => validStreams.first
+      );
+      
+      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
+      return streamInfo;
 
     } catch (e, stackTrace) {
-      LogUtil.logError('GetM3U8处理失败', e, stackTrace);
-      return 'ERROR';
+      LogUtil.logError('选择混合流时发生错误', e, stackTrace);
+      return null;
     }
-    
-    // 获取普通 YouTube 视频的流媒体 URL  
+  }
+
+  // 获取普通 YouTube 视频的流媒体 URL
   Future<String> _getYouTubeVideoUrl() async {
     if (_isDisposed) return 'ERROR';
     try {
@@ -379,7 +274,7 @@ class StreamUrl {
                 '#EXT-X-VERSION:3\n'
                 '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
                 'RESOLUTION=${width}x$height,'
-                'CODECS="$codecs",'  // 使用从视频流提取的编解码器信息（已含音频流编码），因为音频流没有提供编码信息
+                'CODECS="$codecs",'
                 'AUDIO="audio_group"\n'
                 '$videoUrl\n'
                 '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
@@ -420,41 +315,6 @@ $combinedM3u8''');
       return 'ERROR';
     }
   }
-  
-  // 获取最佳的普通混合流，优先选择 MP4 格式
-  StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
-    if (manifest.muxed.isEmpty) {
-      LogUtil.i('没有可用的混合流');
-      return null;
-    }
-
-    try {
-      LogUtil.i('查找普通混合流');
-      
-      // 直接从manifest.muxed中获取有效流
-      final validStreams = manifest.muxed
-          .where((s) => _isValidUrl(s.url.toString()))
-          .toList();
-      
-      if (validStreams.isEmpty) {
-        LogUtil.i('未找到有效URL的混合流');
-        return null;
-      }
-      
-      // 优先选择MP4格式
-      final streamInfo = validStreams.firstWhere(
-        (s) => s.container.name.toLowerCase() == 'mp4',
-        orElse: () => validStreams.first
-      );
-      
-      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
-      return streamInfo;
-
-    } catch (e, stackTrace) {
-      LogUtil.logError('选择混合流时发生错误', e, stackTrace);
-      return null;
-    }
-  }
 
   // 获取 YouTube 直播流的 URL
   Future<String> _getYouTubeLiveStreamUrl() async {
@@ -475,93 +335,220 @@ $combinedM3u8''');
     }
   }
 
-  // 获取 YouTube 直播的 m3u8 清单地址
-  Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isDisposed) return null;
+  // 监听网页获取 m3u8 的 URL
+  Future<String> _handleGetM3U8Url(String url) async {
+    if (_isDisposed) return 'ERROR';
     try {
-      final response = await _client.get(
-        Uri.parse(youtubeUrl),
-        headers: _getRequestHeaders(),
-      ).timeout(timeoutDuration);
-      if (_isDisposed) return null;
-
-      if (response.statusCode == 200) {
-        final match = hlsManifestRegex.firstMatch(response.body);
-        
-        if (match != null) {
-          final indexM3u8Url = match.group(1);
-          if (indexM3u8Url != null) {
-            return await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
-          }
+      final completer = Completer<String>();
+      OverlayEntry? overlay;
+      bool isRemoved = false;
+      
+      void removeOverlay() {
+        if (overlay != null && !isRemoved) {
+          LogUtil.i('移除GetM3U8 overlay');
+          isRemoved = true;
+          overlay?.remove();  // 修复：使用可空调用运算符
+          overlay = null;
         }
       }
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
+
+      overlay = OverlayEntry(
+        builder: (context) => Positioned(
+          left: 0,
+          top: 0,
+          width: 1,
+          height: 1,
+          child: Material(
+            color: Colors.transparent,
+            child: GetM3U8(
+              url: url,
+              onM3U8Found: (String foundUrl) {
+                if (!completer.isCompleted) {
+                  LogUtil.i('GetM3U8找到URL: $foundUrl');
+                  completer.complete(foundUrl);
+                  removeOverlay();
+                }
+              },
+              timeoutSeconds: timeoutDuration.inSeconds,
+            ),
+          ),
+        ),
+      );
+
+      if (navigatorKey.currentContext == null) {
+        LogUtil.e('无法获取有效的context，请确保已设置navigatorKey');
+        return 'ERROR';
       }
-      return null;
-    }
-    return null;
-  }
 
-  // 从 m3u8 清单中选择指定质量的流地址
-  Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_isDisposed) return null;
-    try {
-      final response = await _client.get(Uri.parse(indexM3u8Url))
-          .timeout(timeoutDuration);
-      if (_isDisposed) return null;
-
-      if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
-        final length = lines.length;  // 缓存长度避免重复访问
-        final qualityUrls = <String, String>{};
-
-        for (var i = 0; i < length; i++) {
-          if (lines[i].contains('#EXT-X-STREAM-INF')) {
-            final quality = _extractQuality(lines[i]);
-            if (quality != null && i + 1 < length) {
-              qualityUrls[quality] = lines[i + 1].trim();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_isDisposed) {
+          try {
+            final overlayState = Overlay.of(navigatorKey.currentContext!);
+            overlayState.insert(overlay!);
+            LogUtil.i('成功插入GetM3U8 overlay');
+          } catch (e, stackTrace) {
+            LogUtil.logError('插入GetM3U8 overlay失败', e, stackTrace);
+            if (!completer.isCompleted) {
+              completer.complete('ERROR');
             }
           }
-          if (_isDisposed) return null;
         }
+      });
 
-        // 按照预定义的分辨率顺序查找
-        for (var quality in preferredQualities) {
-          if (qualityUrls.containsKey(quality)) {
-            LogUtil.i('找到 ${quality}p 质量的直播流');
-            return qualityUrls[quality];
-          }
+      final result = await completer.future.timeout(
+        timeoutDuration,
+        onTimeout: () {
+          LogUtil.e('GetM3U8检测超时');
+          removeOverlay();
+          return 'ERROR';
         }
+      );
 
-        // 如果没有找到指定质量的流，返回第一个可用的流
-        if (qualityUrls.isNotEmpty) {
-          final firstQuality = qualityUrls.keys.first;
-          LogUtil.i('未找到首选质量的直播流，使用 ${firstQuality}p');
-          return qualityUrls.values.first;
-        }
+      if (result.isEmpty) {
+        LogUtil.e('GetM3U8返回空结果');
+        return 'ERROR';
       }
+
+      LogUtil.i('GetM3U8成功获取到URL: $result');
+      return result;
+
     } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
-      }
-      return null;
+      LogUtil.logError('GetM3U8处理失败', e, stackTrace);
+      return 'ERROR';
     }
-    return null;
   }
 
-  // 从 m3u8 清单行提取视频质量信息
-  String? _extractQuality(String extInfLine) {
-    if (_isDisposed) return null;
-    final match = resolutionRegex.firstMatch(extInfLine);
-    return match?.group(1);
+  // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
+  Future<String> getStreamUrl() async {
+    if (_isDisposed) return 'ERROR';
+    _completer = Completer<void>();
+    try {
+      // 首先检查是否为GetM3U8 URL
+      if (isGetM3U8Url(url)) {
+        LogUtil.i('检测到GetM3U8 URL，开始处理');
+        final m3u8Url = await _handleGetM3U8Url(url);
+        if (m3u8Url != 'ERROR') {
+          return m3u8Url;
+        }
+        LogUtil.e('GetM3U8处理失败，尝试其他方法');
+      }
+      
+      // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
+      if (isLZUrl(url)) {
+        if (isILanzouUrl(url)) {
+          // 使用 API 处理 ilanzou.com 域名链接
+          return 'https://lz.qaiu.top/parser?url=$url';
+        } else {
+          // 使用本地解析器处理其他蓝奏云链接
+          final result = await LanzouParser.getLanzouUrl(url);
+          if (result != 'ERROR') {
+            return result;
+          }
+          return 'ERROR';
+        }
+      }
+      
+      // 检查 URL 是否为 YouTube 链接
+      if (!isYTUrl(url)) {
+        return url;
+      } 
+      
+      // 选择处理 YouTube 直播或普通视频的任务
+      final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
+      
+      // 尝试获取视频流，超时则重试
+      try {
+        final result = await task().timeout(timeoutDuration);
+        if (result != 'ERROR') {
+          LogUtil.i('首次获取视频流成功');
+          return result;
+        }
+        LogUtil.e('首次获取视频流失败，准备重试');
+      } catch (e) {
+        if (e is TimeoutException) {
+          LogUtil.e('首次获取视频流超时，准备重试');
+        } else {
+          LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
+        }
+      }
+      
+      // 等待一秒后再次尝试获取视频流
+      await Future.delayed(const Duration(seconds: 1));
+      
+      try {
+        final result = await task().timeout(timeoutDuration);
+        if (result != 'ERROR') {
+          LogUtil.i('重试获取视频流成功');
+          return result;
+        }
+        LogUtil.e('重试获取视频流失败');
+        return 'ERROR';
+      } catch (retryError) {
+        if (retryError is TimeoutException) {
+          LogUtil.e('重试获取视频流超时');
+        } else {
+          LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
+        }
+        return 'ERROR';
+      }
+      
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
+      return 'ERROR';
+    } finally {
+      if (!_isDisposed) {
+        _completer?.complete();
+      }
+      _completer = null;
+    }
   }
 
-  // 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
-  Map<String, String> _getRequestHeaders() {
-    return {
-      HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
+  /// 判断是否包含"getm3u8"
+  bool isGetM3U8Url(String url) {
+    return url.toLowerCase().contains('getm3u8');
+  }
+
+  /// 判断是否包含"lanzou"
+  bool isLZUrl(String url) {
+    // 如果包含分隔符，直接返回false
+    if (url.contains('|')) {
+      return false;
+    }
+    // 否则判断是否为蓝奏云链接
+    return url.contains('lanzou');
+  }
+  
+  // 判断是否为 ilanzou.com 域名的链接
+  bool isILanzouUrl(String url) {
+    return url.toLowerCase().contains('ilanzou.com');
+  }
+  
+  // 判断是否为 YouTube 相关的链接
+  bool isYTUrl(String url) {
+    return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
+  }
+
+  void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+    
+    if (_completer != null && !_completer!.isCompleted) {
+      _completer!.completeError('资源已释放，任务被取消');
+    }
+
+    // 安全释放资源
+    LogUtil.safeExecute(() {
+      try {
+        yt.close();
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
+      }
+
+      try {
+        _client.close();
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放 HTTP 客户端时发生错误', e, stackTrace);
+      }
+    }, '关闭资源时发生错误');
   }
 }
