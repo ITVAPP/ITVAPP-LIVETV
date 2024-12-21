@@ -155,7 +155,7 @@ class GetM3U8 {
         if (!completer.isCompleted) {
           completer.complete('');
         }
-        _disposeResources();
+        disposeResources();
       }
     });
   }
@@ -172,7 +172,7 @@ class GetM3U8 {
         if (!completer.isCompleted) {
           completer.complete(url);
         }
-        _disposeResources();
+        disposeResources();
       } else {
         LogUtil.i('URL验证失败，不是有效的m3u8地址');
       }
