@@ -115,7 +115,6 @@ class GetM3U8 {
     }
   }
   
-  /// 获取M3U8地址
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
   Future<String> getUrl() async {
     final completer = Completer<String>();
@@ -188,12 +187,6 @@ class GetM3U8 {
               // 默认允许其他资源加载
               LogUtil.i('允许加载资源: ${request.url}');
               return NavigationDecision.navigate;
-            },
-            onPageStarted: (String url) {
-              LogUtil.i('页面开始加载: $url');
-            },
-            onProgress: (int progress) {
-              LogUtil.i('页面加载进度: $progress%');
             },
             onPageFinished: (String url) {
               LogUtil.i('页面加载完成: $url');
