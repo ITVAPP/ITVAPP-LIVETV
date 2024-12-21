@@ -83,7 +83,7 @@ class GetM3U8 {
   ];
   
   /// 已处理URL的最大缓存数量
-  static const int MAX_CACHE_SIZE = 1000;
+  static const int MAX_CACHE_SIZE = 88;
   
   /// 是否已释放资源
   bool _isDisposed = false;
@@ -133,50 +133,113 @@ class GetM3U8 {
   }
 
   /// 初始化WebViewController
-  Future<void> _initController(Completer<String> completer) async {
-    LogUtil.i('开始初始化WebViewController');
-    try {
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        ..addJavaScriptChannel(
-          'M3U8Detector',
-          onMessageReceived: (JavaScriptMessage message) {
-            LogUtil.i('JS检测器发现新的URL: ${message.message}');
-            _handleM3U8Found(message.message, completer);
-          },
-        )
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onNavigationRequest: (NavigationRequest request) {
-              LogUtil.i('页面导航请求: ${request.url}');
-              return NavigationDecision.navigate;
-            },
-            onPageStarted: (String url) {
-              LogUtil.i('页面开始加载: $url');
-            },
-            onProgress: (int progress) {
-              LogUtil.i('页面加载进度: $progress%');
-            },
-            onPageFinished: (String url) {
-              LogUtil.i('页面加载完成: $url');
-              _setupPeriodicCheck();
-              _injectM3U8Detector();
-            },
-            onWebResourceError: (WebResourceError error) {
-              LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-              _handleLoadError(completer);
-            },
-          ),
-        );
+/// 初始化WebViewController
+Future<void> _initController(Completer<String> completer) async {
+  LogUtil.i('开始初始化WebViewController');
+  try {
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+      ..addJavaScriptChannel(
+        'M3U8Detector',
+        onMessageReceived: (JavaScriptMessage message) {
+          LogUtil.i('JS检测器发现新的URL: ${message.message}');
+          _handleM3U8Found(message.message, completer);
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            LogUtil.i('页面导航请求: ${request.url}');
+            
+            // 解析URL
+            final uri = Uri.tryParse(request.url);
+            if (uri == null) {
+              LogUtil.i('无效的URL，阻止加载');
+              return NavigationDecision.prevent;
+            }
 
-      await _loadUrlWithHeaders();
-      LogUtil.i('WebViewController初始化完成');
-    } catch (e, stackTrace) {
-      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-      _handleLoadError(completer);
-    }
+            // 获取文件扩展名
+            final extension = uri.path.toLowerCase().split('.').last;
+            
+            // 需要阻止的资源类型
+            final blockedExtensions = [
+              'jpg', 'jpeg', 'png', 'gif', 'webp', // 图片
+              'css', // 样式表
+              'woff', 'woff2', 'ttf', 'eot', // 字体
+              'ico', 'svg', // 图标
+              'mp4', 'webm', 'ogg', // 视频
+              'mp3', 'wav', // 音频
+              'pdf', 'doc', 'docx', // 文档
+              'swf', // Flash
+            ];
+
+            // 如果是被阻止的扩展名，阻止加载
+            if (blockedExtensions.contains(extension)) {
+              LogUtil.i('阻止加载资源: ${request.url}');
+              return NavigationDecision.prevent;
+            }
+
+            // 检查Content-Type
+            final contentType = request.headers?['content-type']?.toLowerCase() ?? '';
+            
+            // 需要阻止的内容类型
+            final blockedContentTypes = [
+              'image/',
+              'font/',
+              'text/css',
+              'audio/',
+              'video/',
+              'application/pdf',
+            ];
+
+            // 如果是被阻止的内容类型，阻止加载
+            if (blockedContentTypes.any((type) => contentType.startsWith(type))) {
+              LogUtil.i('基于Content-Type阻止加载: ${request.url}');
+              return NavigationDecision.prevent;
+            }
+
+            // 特别允许m3u8相关的请求
+            if (request.url.contains('.m3u8') || contentType.contains('mpegurl')) {
+              LogUtil.i('允许加载m3u8资源: ${request.url}');
+              return NavigationDecision.navigate;
+            }
+
+            // 默认允许其他资源加载
+            LogUtil.i('允许加载资源: ${request.url}');
+            return NavigationDecision.navigate;
+          },
+          onPageStarted: (String url) {
+            LogUtil.i('页面开始加载: $url');
+          },
+          onProgress: (int progress) {
+            LogUtil.i('页面加载进度: $progress%');
+          },
+          onPageFinished: (String url) {
+            LogUtil.i('页面加载完成: $url');
+            _setupPeriodicCheck();
+            _injectM3U8Detector();
+          },
+          onWebResourceError: (WebResourceError error) {
+            // 忽略被阻止资源的错误
+            if (error.errorCode == -1) {
+              LogUtil.i('资源被阻止加载: ${error.description}');
+              return;
+            }
+            
+            LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+            _handleLoadError(completer);
+          },
+        ),
+      );
+
+    await _loadUrlWithHeaders();
+    LogUtil.i('WebViewController初始化完成');
+  } catch (e, stackTrace) {
+    LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+    _handleLoadError(completer);
   }
+}
   
   /// 处理加载错误
   Future<void> _handleLoadError(Completer<String> completer) async {
