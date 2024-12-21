@@ -205,7 +205,7 @@ class GetM3U8 {
     return true;
   }
 
-  void _disposeResources() {
+  void disposeResources() {
     LogUtil.i('开始释放资源');
     _isDisposed = true;
     _periodicInjectionTimer?.cancel();
