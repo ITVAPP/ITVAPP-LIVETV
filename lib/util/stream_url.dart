@@ -43,10 +43,18 @@ class StreamUrl {
     _completer = Completer<void>();
     try {
       // 检查是否为GetM3U8 URL
+      // if (isGetM3U8Url(url)) {
+      //   LogUtil.i('检测到GetM3U8 URL，开始处理');
+      //   final m3u8Url = await _handleGetM3U8Url(url);
+      //     return m3u8Url;
+      //   LogUtil.e('GetM3U8处理失败，尝试其他方法');
+     //  }
       if (isGetM3U8Url(url)) {
         LogUtil.i('检测到GetM3U8 URL，开始处理');
         final m3u8Url = await _handleGetM3U8Url(url);
-          return m3u8Url;
+        // 检查URL中是否已经包含问号
+        final separator = m3u8Url.contains('?') ? '&' : '?';
+        return '$m3u8Url${separator}play.m3u8';
         LogUtil.e('GetM3U8处理失败，尝试其他方法');
       }
       
