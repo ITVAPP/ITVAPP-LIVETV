@@ -46,9 +46,7 @@ class StreamUrl {
       if (isGetM3U8Url(url)) {
         LogUtil.i('检测到GetM3U8 URL，开始处理');
         final m3u8Url = await _handleGetM3U8Url(url);
-        if (m3u8Url != 'ERROR') {
           return m3u8Url;
-        }
         LogUtil.e('GetM3U8处理失败，尝试其他方法');
       }
       
