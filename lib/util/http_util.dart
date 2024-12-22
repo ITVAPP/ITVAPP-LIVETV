@@ -3,151 +3,146 @@ import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';  // 引入动态生成 headers 的工具类
 import '../generated/l10n.dart';
 
 class HttpUtil {
-  static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例
-  late final Dio _dio;
+  static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
+  late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
-  // 配置 Dio 的基本选项，包括超时时间和默认请求头
+  // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
   BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: 8), // 连接超时时间
-    receiveTimeout: const Duration(seconds: 8), // 接收超时时间
-    headers: {
-      HttpHeaders.acceptEncodingHeader: '*', // 支持所有的内容编码
-      HttpHeaders.connectionHeader: 'keep-alive', // 保持长连接
-    },
+    connectTimeout: const Duration(seconds: 8), // 设置连接超时时间
+    receiveTimeout: const Duration(seconds: 8), // 设置接收超时时间
   );
 
-  CancelToken cancelToken = CancelToken(); // 默认的取消令牌，用于取消请求
+  CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
 
-  // 工厂构造函数，确保 HttpUtil 是单例模式
   factory HttpUtil() {
     return _instance;
   }
 
-  // 私有构造函数，初始化 Dio 实例，并添加日志拦截器
   HttpUtil._() {
+    // 初始化 Dio 实例并配置日志拦截器
     _dio = Dio(options)
       ..interceptors.add(LogInterceptor(
-        requestBody: true, // 打印请求体
-        responseBody: true, // 打印响应体
+        requestBody: true, // 日志中打印请求体
+        responseBody: true, // 日志中打印响应体
         requestHeader: false, // 不打印请求头
         responseHeader: false, // 不打印响应头
       ));
 
-    // 配置连接池管理，限制每个主机的最大连接数
+    // 自定义 HttpClient 适配器，限制每个主机的最大连接数
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient();
-      client.maxConnectionsPerHost = 5; // 每个主机的最大连接数
+      client.maxConnectionsPerHost = 5; // 设置最大连接数为 5
       return client;
     };
   }
 
-  // 通用的 GET 请求方法，支持重试机制和重试延迟
+  // GET 请求方法，支持自动重试机制
   Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2, // 默认重试次数
+      {Map<String, dynamic>? queryParameters, // 查询参数
+      Options? options, // 可选的请求配置
+      CancelToken? cancelToken, // 请求取消令牌
+      ProgressCallback? onReceiveProgress, // 接收进度回调
+      int retryCount = 2, // 重试次数
       Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response; // 请求响应
+    Response? response;
     int currentAttempt = 0; // 当前重试次数
-    Duration currentDelay = retryDelay; // 当前延迟时间（初始值为默认重试延迟）
+    Duration currentDelay = retryDelay; // 当前重试延迟
 
-    // 尝试请求，并在失败时重试
     while (currentAttempt < retryCount) {
       try {
-        // 发起 GET 请求
+        // 动态生成请求头
+        final headers = HeadersConfig.generateHeaders(url: path);
+        
         response = await _dio.get<T>(
           path,
-          queryParameters: queryParameters, // 查询参数
-          options: options?.copyWith(extra: {'attempt': currentAttempt}) ??
-              Options(extra: {'attempt': currentAttempt}), // 添加当前重试次数到请求选项中
-          cancelToken: cancelToken, // 用于取消请求
-          onReceiveProgress: onReceiveProgress, // 接收进度回调
+          queryParameters: queryParameters,
+          options: (options?.copyWith(
+            extra: {'attempt': currentAttempt}, // 记录当前尝试次数
+            headers: headers, // 添加动态生成的 headers
+          ) ?? Options(
+            extra: {'attempt': currentAttempt}, // 记录当前尝试次数
+            headers: headers, // 添加动态生成的 headers
+          )),
+          cancelToken: cancelToken,
+          onReceiveProgress: onReceiveProgress,
         );
 
-        // 如果请求返回的数据不为空，直接返回
         if (response.data != null) {
-          return response.data;
+          return response.data; // 成功返回数据
         }
-        return null; // 返回空表示请求成功但无数据
+        return null;
       } on DioException catch (e, stackTrace) {
-        currentAttempt++; // 增加重试次数
-        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace); // 记录错误日志
+        currentAttempt++;
+        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace); // 记录失败日志
 
-        // 如果达到最大重试次数或请求被取消，则停止重试并处理错误
+        // 如果达到最大重试次数或请求被取消，则不再重试
         if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-          formatError(e); // 格式化并记录错误
-          return null; // 返回空，表示失败
+          formatError(e); // 处理错误信息
+          return null;
         }
 
-        // 使用指数退避策略，延迟后再重试
-        await Future.delayed(currentDelay); // 延迟当前的重试时间
-        currentDelay *= 2; // 下次重试延迟时间加倍
-        LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次'); // 记录重试延迟信息
+        // 等待一定时间后重试，并加倍延迟时间
+        await Future.delayed(currentDelay);
+        currentDelay *= 2;
+        LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
       }
     }
-    return null; // 返回空，表示所有重试失败
+    return null; // 重试后依然失败则返回 null
   }
 
-  // 文件下载方法，支持进度回调
+  // 文件下载方法，支持显示下载进度
   Future<int?> downloadFile(String url, String savePath,
       {ValueChanged<double>? progressCallback}) async {
     try {
-      // 使用 Dio 的 download 方法进行文件下载
+      // 动态生成请求头
+      final headers = HeadersConfig.generateHeaders(url: url);
+
       final response = await _dio.download(
         url,
         savePath,
         options: Options(
-          receiveTimeout: const Duration(seconds: 60), // 设置接收超时时间
-          headers: {
-            HttpHeaders.acceptEncodingHeader: '*', // 支持内容压缩
-            HttpHeaders.userAgentHeader:
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36', // 模拟浏览器 UA
-          },
+          receiveTimeout: const Duration(seconds: 60), // 下载超时时间设置为 60 秒
+          headers: headers, // 使用动态生成的 headers
         ),
-        // 下载进度回调，计算已下载的百分比
         onReceiveProgress: (received, total) {
-          if (total <= 0) return; // 如果总大小为 0，忽略回调
+          if (total <= 0) return; // 避免除以零的错误
           progressCallback?.call(received / total); // 回调下载进度
         },
       );
 
-      // 检查下载是否成功，状态码为 200 时成功
       if (response.statusCode != 200) {
         throw DioException(
             requestOptions: response.requestOptions,
-            error: '状态码: ${response.statusCode}'); // 抛出异常
+            error: '状态码: ${response.statusCode}');
       }
 
-      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
-      return response.statusCode; // 返回状态码表示成功
+      LogUtil.i('文件下载成功: $url, 保存路径: $savePath'); // 下载成功日志
+      return response.statusCode;
     } on DioException catch (e, stackTrace) {
-      // 记录下载失败的错误日志
-      LogUtil.logError('文件下载失败: $url', e, stackTrace);
-      return 500; // 返回错误码表示失败
+      LogUtil.logError('文件下载失败: $url', e, stackTrace); // 下载失败日志
+      return 500; // 返回错误状态码
     }
   }
 }
 
-// 格式化并处理 DioException 错误
+// 统一处理 Dio 请求的异常
 void formatError(DioException e) {
   LogUtil.safeExecute(() {
-    // 使用 switch 表达式，根据异常类型生成对应的错误信息
+    // 根据异常类型返回对应的本地化错误信息
     final message = switch (e.type) {
-      DioExceptionType.connectionTimeout => S.current.netTimeOut, // 连接超时
-      DioExceptionType.sendTimeout => S.current.netSendTimeout, // 发送超时
-      DioExceptionType.receiveTimeout => S.current.netReceiveTimeout, // 接收超时
+      DioExceptionType.connectionTimeout => S.current.netTimeOut,
+      DioExceptionType.sendTimeout => S.current.netSendTimeout,
+      DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
       DioExceptionType.badResponse => S.current.netBadResponse(
-          e.response?.statusCode ?? ''), // 错误响应（带状态码）
-      DioExceptionType.cancel => S.current.netCancel, // 请求被取消
-      _ => e.message.toString() // 其他未知错误
+          e.response?.statusCode ?? ''),
+      DioExceptionType.cancel => S.current.netCancel,
+      _ => e.message.toString()
     };
 
-    // 记录错误信息到日志
-    LogUtil.v(message);
-  }, '处理 DioException 错误时发生异常'); 
+    LogUtil.v(message); // 打印详细的错误信息
+  }, '处理 DioException 错误时发生异常'); // 捕获处理异常中的异常
 }
