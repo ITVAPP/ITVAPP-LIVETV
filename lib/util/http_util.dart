@@ -49,9 +49,10 @@ class HttpError {
   });
   
   static HttpError fromDioError(DioException error) {
+    String errorMessage = formatError(error);
     return HttpError(
       code: error.response?.statusCode ?? -1,
-      message: formatError(error),
+      message: errorMessage,
       data: error.response?.data
     );
   }
@@ -90,20 +91,21 @@ class HttpUtil {
   bool _isDisposed = false;  // 资源释放标记
   
   // 配置参数
-  final BaseOptions options = BaseOptions(
-    connectTimeout: _defaultTimeout,
-    receiveTimeout: _defaultTimeout,
-    sendTimeout: _defaultTimeout,
-    validateStatus: (status) => status != null && status < 500,
-  );
-
-  CancelToken cancelToken = CancelToken();
+  final BaseOptions options;
+  final CancelToken cancelToken;
 
   factory HttpUtil() {
     return _instance;
   }
   
-  const HttpUtil._internal();
+  HttpUtil._internal() : 
+    options = BaseOptions(
+      connectTimeout: _defaultTimeout,
+      receiveTimeout: _defaultTimeout,
+      sendTimeout: _defaultTimeout,
+      validateStatus: (int? status) => status != null && status < 500,
+    ),
+    cancelToken = CancelToken();
   
   // 初始化方法
   void initialize() {
@@ -256,17 +258,19 @@ class HttpUtil {
   }
 }
 
-void formatError(DioException e) {
+String formatError(DioException e) {
+  String message = '';
   LogUtil.safeExecute(() {
-    final message = switch (e.type) {
+    message = switch (e.type) {
       DioExceptionType.connectionTimeout => S.current.netTimeOut,
       DioExceptionType.sendTimeout => S.current.netSendTimeout,
       DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
       DioExceptionType.badResponse => S.current.netBadResponse(
-          e.response?.statusCode ?? ''),
+          e.response?.statusCode?.toString() ?? ''),
       DioExceptionType.cancel => S.current.netCancel,
       _ => e.message.toString()
     };
     LogUtil.v(message);
   }, '处理 DioException 错误时发生异常');
+  return message;
 }
