@@ -1,3 +1,5 @@
+import 'package:itvapp_live_tv/util/log_util.dart';
+
 /// HTTP请求Headers配置工具类
 class HeadersConfig {
   // 私有构造函数
@@ -13,9 +15,12 @@ class HeadersConfig {
   static Map<String, String> generateHeaders({
     required String url,
   }) {
-    final uri = Uri.parse(url);
+    LogUtil.i('开始生成Headers，URL: $url');
     
-    return {
+    final uri = Uri.parse(url);
+    LogUtil.i('解析URL: origin=${uri.origin}, host=${uri.host}');
+    
+    final headers = {
       // 核心浏览器标识
       'User-Agent': _userAgent,
       
@@ -44,5 +49,8 @@ class HeadersConfig {
       'Sec-Fetch-Mode': 'cors',
       'Sec-Fetch-Site': 'same-origin',
     };
+
+    LogUtil.i('生成的Headers: $headers');
+    return headers;
   }
 }
