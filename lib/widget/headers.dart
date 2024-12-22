@@ -11,6 +11,22 @@ class HeadersConfig {
   /// 格式: domain1|referer1@domain2|referer2
   /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
   static String rulesString = 'googlevideo|www.youtube.com';
+
+  /// 基础请求头
+  static const Map<String, String> _baseHeaders = {
+    'user-agent': userAgent,
+    'accept': '*/*',
+    'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'accept-encoding': '*',
+    'cache-control': 'no-cache',
+    'connection': 'keep-alive',
+    'Pragma': 'no-cache',
+    'sec-ch-ua-platform': 'Windows',
+    'sec-ch-ua-mobile': '?0',
+    'sec-fetch-site': 'none', 
+    'sec-fetch-user': '?1',
+    'dnt': '1',
+  };
   
   /// 解析规则字符串返回域名和对应的referer映射
   static Map<String, String> _parseRules() {
@@ -37,7 +53,7 @@ class HeadersConfig {
   }
   
   /// 根据规则获取referer
-  static String _getRefererByRules(String host) {
+  static String? _getRefererByRules(String host) {
     final rules = _parseRules();
     
     // 遍历规则检查host是否匹配
@@ -47,7 +63,6 @@ class HeadersConfig {
       }
     }
     
-    // 不匹配规则时返回默认referer
     return null;
   }
 
@@ -64,41 +79,19 @@ class HeadersConfig {
       final referer = customReferer ?? '${uri.scheme}://${uri.host}/';
       
       final headers = {
-        'user-agent': userAgent,
-        'accept': '*/*',
-        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'accept-encoding': '*',
-        'cache-control': 'no-cache',
-        'connection': 'keep-alive',
-        'host': '${uri.host}',
+        ..._baseHeaders,
+        'host': uri.host,
+        'origin': referer,
         'referer': referer,
-        'Pragma': 'no-cache',
-        'sec-ch-ua-platform': 'Windows',
-        'sec-ch-ua-mobile': '?0',
-        'sec-fetch-site': 'none',
-        'sec-fetch-user': '?1',
-        'dnt': '1',
+        'sec-fetch-dest': 'empty',
       };
       
       LogUtil.i('生成的Headers: $headers');
       return headers;
+      
     } catch (e, stackTrace) {
       LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
-      
-      return {
-        'user-agent': userAgent,
-        'accept': '*/*',
-        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'accept-encoding': '*',
-        'cache-control': 'no-cache',
-        'connection': 'keep-alive',
-        'Pragma': 'no-cache',
-        'sec-ch-ua-platform': 'Windows',
-        'sec-ch-ua-mobile': '?0',
-        'sec-fetch-site': 'none',
-        'sec-fetch-user': '?1',
-        'dnt': '1',
-      };
+      return _baseHeaders;
     }
   }
 }
