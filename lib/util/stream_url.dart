@@ -7,6 +7,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 import 'package:itvapp_live_tv/util/getm3u8.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 class StreamUrl {
   late final String url;
@@ -492,8 +493,6 @@ String? _extractQuality(String extInfLine) {
 
 // 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
 Map<String, String> _getRequestHeaders() {
-  return {
-    HttpHeaders.userAgentHeader: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  };
+  return HeadersConfig.generateHeaders(url: url);
 }
 }
