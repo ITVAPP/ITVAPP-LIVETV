@@ -3,7 +3,7 @@ import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:itvapp_live_tv/widget/headers.dart';  // 引入动态生成 headers 的工具类
+import 'package:itvapp_live_tv/widget/headers.dart';
 import '../generated/l10n.dart';
 
 class HttpUtil {
@@ -54,19 +54,13 @@ class HttpUtil {
 
     while (currentAttempt < retryCount) {
       try {
-        // 动态生成请求头
-        final headers = HeadersConfig.generateHeaders(url: path);
-        
         response = await _dio.get<T>(
           path,
           queryParameters: queryParameters,
-          options: (options?.copyWith(
-            extra: {'attempt': currentAttempt}, // 记录当前尝试次数
-            headers: headers, // 添加动态生成的 headers
-          ) ?? Options(
-            extra: {'attempt': currentAttempt}, // 记录当前尝试次数
-            headers: headers, // 添加动态生成的 headers
-          )),
+          options: (options ?? Options()).copyWith(
+            extra: {'attempt': currentAttempt},
+            headers: HeadersConfig.generateHeaders(url: path),
+          ),
           cancelToken: cancelToken,
           onReceiveProgress: onReceiveProgress,
         );
