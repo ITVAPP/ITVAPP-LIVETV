@@ -1,5 +1,5 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
@@ -171,7 +171,6 @@ class LanzouParser {
     }
   }
   
-  /// 发送HTTP请求
   /// 根据请求方法发送GET或POST请求，并处理响应
   static Future<String?> _makeRequest(
     String method,
