@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 播放器配置工具类
 class BetterPlayerConfig {
@@ -20,18 +21,8 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
-  // 获取原始页面URL作为referrer
-  final originUrl = Uri.parse(url);
-  final referrerUrl = headers?['Referer'] ?? url;
-
-  final defaultHeaders = {
-    'Accept': '*/*',
-    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Origin': originUrl.origin,
-    'Referer': referrerUrl,
-    'Connection': 'keep-alive',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  };
+     // 使用 HeadersConfig 生成默认 headers
+    final defaultHeaders = HeadersConfig.generateHeaders(url: url);
   
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
