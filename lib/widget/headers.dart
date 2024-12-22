@@ -9,7 +9,7 @@ class HeadersConfig {
   static const String _chromeVersion = '121.0.0.0';
   
   // User-Agent
-  static const String _userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36';
+  static const String userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36';
 
   /// 生成通用请求headers，模拟浏览器行为
   static Map<String, String> generateHeaders({
@@ -17,7 +17,7 @@ class HeadersConfig {
   }) {
     final uri = Uri.parse(url);
     final headers = {
-      'User-Agent': _userAgent,
+      'User-Agent': userAgent,
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       'Accept-Encoding': 'gzip, deflate, br',
