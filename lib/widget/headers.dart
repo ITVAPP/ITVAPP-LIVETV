@@ -13,22 +13,22 @@ class HeadersConfig {
     required String url,
   }) {
     try {
-      // 对 URL 进行编码处理
       final encodedUrl = Uri.encodeFull(url);
       final uri = Uri.parse(encodedUrl);
-      
-      // 构建 origin: 只包含 scheme 和 host
-      final origin = '${uri.scheme}://${uri.host}';
       
       final headers = {
         'User-Agent': userAgent,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Host': uri.host,
-        'Origin': origin,
-        'Referer': origin,
-        'Connection': 'keep-alive'
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Origin': '${uri.scheme}://${uri.host}',
+        'Referer': '${uri.scheme}://${uri.host}',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
       };
       
       LogUtil.i('生成的Headers: $headers');
@@ -36,12 +36,18 @@ class HeadersConfig {
     } catch (e, stackTrace) {
       LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
       
+      // 提供默认的 headers
       return {
         'User-Agent': userAgent,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive'
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
       };
     }
   }
