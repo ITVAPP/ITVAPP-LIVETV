@@ -15,41 +15,17 @@ class HeadersConfig {
   static Map<String, String> generateHeaders({
     required String url,
   }) {
-    LogUtil.i('开始生成Headers，URL: $url');
-    
     final uri = Uri.parse(url);
-    LogUtil.i('解析URL: origin=${uri.origin}, host=${uri.host}');
-    
     final headers = {
-      // 核心浏览器标识
       'User-Agent': _userAgent,
-      
-      // 内容协商
-      'Accept': '*/*',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       'Accept-Encoding': 'gzip, deflate, br',
-      
-      // 缓存控制
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      
-      // 来源信息
+      'Host': uri.host,
       'Origin': uri.origin,
       'Referer': uri.origin,
-      'Host': uri.host,
-      
-      // 连接控制
-      'Connection': 'keep-alive',
-      
-      // 安全相关
-      'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="$_chromeVersion", "Chromium";v="$_chromeVersion"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"',
-      'Sec-Fetch-Dest': 'empty',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-origin',
+      'Connection': 'keep-alive'
     };
-
     LogUtil.i('生成的Headers: $headers');
     return headers;
   }
