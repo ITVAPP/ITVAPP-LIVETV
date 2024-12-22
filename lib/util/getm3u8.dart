@@ -141,7 +141,7 @@ class GetM3U8 {
     try {
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        ..setUserAgent(HeadersConfig.userAgent)
         ..addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
@@ -254,22 +254,30 @@ class GetM3U8 {
   /// 设置定期检查
   void _setupPeriodicCheck() {
     LogUtil.i('设置定期检查任务');
-    // 取消现有定时器
+    
+    // 先取消已有的定时器
     _periodicCheckTimer?.cancel();
 
-    // 创建新的定期检查定时器，使用渐进式间隔
+    // 创建新的定期检查定时器,固定1秒间隔
     _periodicCheckTimer = Timer.periodic(
-      Duration(seconds: _currentInterval),
+      const Duration(seconds: 1),
       (timer) {
         if (!_m3u8Found && !_isDisposed) {
           _checkCount++;
-          LogUtil.i('执行第$_checkCount次定期检查，当前间隔: $_currentInterval秒');
-          _injectM3U8Detector();
+          LogUtil.i('执行第$_checkCount次定期检查');
           
-          // 增加检查间隔，但不超过最大值
-          _currentInterval = _currentInterval * 2;
-          if (_currentInterval > MAX_CHECK_INTERVAL) {
-            _currentInterval = MAX_CHECK_INTERVAL;
+          if (!_isDetectorInjected) {
+            _injectM3U8Detector();
+          } else {
+            // 如果已经注入过，执行扫描
+            _controller.runJavaScript('''
+              if (window._m3u8DetectorInitialized) {
+                checkMediaElements(document);
+                efficientDOMScan();
+              }
+            ''').catchError((error) {
+              LogUtil.e('执行扫描失败: $error');
+            });
           }
           
           // 如果URL缓存过大，清理它
