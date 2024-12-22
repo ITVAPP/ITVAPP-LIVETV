@@ -10,7 +10,7 @@ class HeadersConfig {
   
   /// 格式: domain1|referer1@domain2|referer2
   /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
-  static String rulesString = 'googlevideo|www.youtube.com';
+  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn';
 
   /// 基础请求头
   static const Map<String, String> _baseHeaders = {
@@ -78,7 +78,6 @@ class HeadersConfig {
       
       final headers = {
         ..._baseHeaders,
-        'host': uri.host,
         'origin': referer,
         'referer': referer,
         'sec-fetch-dest': 'empty',
