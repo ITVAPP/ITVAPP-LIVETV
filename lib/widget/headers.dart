@@ -20,10 +20,8 @@ class HeadersConfig {
     'accept-encoding': '*',
     'cache-control': 'no-cache',
     'connection': 'keep-alive',
-    'Pragma': 'no-cache',
     'sec-ch-ua-platform': 'Windows',
     'sec-ch-ua-mobile': '?0',
-    'sec-fetch-site': 'none', 
     'sec-fetch-user': '?1',
     'dnt': '1',
   };
