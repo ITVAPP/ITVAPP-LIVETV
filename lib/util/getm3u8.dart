@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// M3U8过滤规则配置
 class M3U8FilterRule {
@@ -239,18 +240,8 @@ class GetM3U8 {
   Future<void> _loadUrlWithHeaders() async {
     LogUtil.i('准备加载URL，添加自定义headers');
     try {
-      final Map<String, String> headers = {
-        'Accept': '*/*',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Referer': Uri.parse(url).origin,
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-      };
-      
+      // 使用 HeadersConfig 生成 headers
+      final headers = HeadersConfig.generateHeaders(url: url);
       LogUtil.i('设置的headers: $headers');
       await _controller.loadRequest(Uri.parse(url), headers: headers);
       LogUtil.i('URL加载请求已发送');
