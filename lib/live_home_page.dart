@@ -44,7 +44,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1;
   
   // 超时检测的时间
-  static const int defaultTimeoutSeconds = 18;
+  static const int defaultTimeoutSeconds = 28;
   
   // 重试相关的状态管理
   bool _isRetrying = false;
@@ -204,14 +204,11 @@ Future<void> _playVideo() async {
         BetterPlayerController newController = BetterPlayerController(
           betterPlayerConfiguration,
         );
-        
-        // 禁用所有控件
-        // newController.setControlsEnabled(false);
 
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            _handleSourceSwitch();
+            _handleSourceSwitching();
             LogUtil.logError('初始化出错', e, stackTrace);
             return; 
         }
@@ -227,7 +224,7 @@ Future<void> _playVideo() async {
    
     } catch (e, stackTrace) {
         LogUtil.logError('播放出错', e, stackTrace);
-        _handleSourceSwitch();
+        _handleSourceSwitching();
     } finally {
         if (mounted) {
             setState(() {
@@ -261,7 +258,7 @@ void _videoListener(BetterPlayerEvent event) {
             if (!_isSwitchingChannel) {
                 final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
                 LogUtil.e('监听到播放器错误：$errorMessage');
-                _handleSourceSwitch();
+                _retryPlayback();
             }
             break;
 
@@ -391,11 +388,7 @@ Future<void> handleFinishedEvent() async {
   } else if (_isHlsStream(_currentPlayUrl)) {
     // HLS 流意外结束，需要重试
     LogUtil.e('HLS流意外结束');
-    if (_retryCount < defaultMaxRetries) {
-      _retryPlayback();
-    } else {
-      _handleSourceSwitch();
-    }
+    _retryPlayback();
   } else {
     await _handleNoMoreSources();
   }
@@ -494,12 +487,13 @@ void _retryPlayback() {
 
     // 检查是否在重试次数范围内
     if (_retryCount < defaultMaxRetries) {  // 改用 < 而不是 <=，因为从0开始计数
+       LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}');
         setState(() {
             _isRetrying = true;
             _retryCount++;
             isBuffering = false; 
             bufferingProgress = 0.0;
-            toastString = '${S.current.retryplay} (${_retryCount}/${defaultMaxRetries})';  // 显示重试次数
+            toastString = S.current.retryplay;  // 显示重试次数
         });
         
         // 延迟后重试
@@ -511,7 +505,7 @@ void _retryPlayback() {
             await _playVideo();  // 重新尝试播放
         });
     } else {
-        _handleSourceSwitch();  // 重试次数用尽，切换视频源
+        _handleSourceSwitching();  // 重试次数用尽，切换视频源
     }
 }
 
@@ -639,11 +633,6 @@ void _startNewSourceTimer() {
     if (!mounted || _isSwitchingChannel) return;
     await _playVideo();
   });
-}
-
-/// 处理视频源切换的方法（自动）
-void _handleSourceSwitch() {
-  _handleSourceSwitching();
 }
 
 /// 播放器资源释放方法
