@@ -88,6 +88,9 @@ class GetM3U8 {
   /// 是否已释放资源
   bool _isDisposed = false;
 
+  /// 标记 JS 检测器是否已注入
+  bool _isDetectorInjected = false;
+
   /// 规则列表
   final List<M3U8FilterRule> _filterRules;
 
@@ -391,6 +394,7 @@ class GetM3U8 {
     LogUtil.i('开始释放资源');
     _isDisposed = true;
     _periodicCheckTimer?.cancel();
+    _isDetectorInjected = false;  // 重置注入标记
     
     // 清理JavaScript检测器
     try {
@@ -407,6 +411,12 @@ class GetM3U8 {
   
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
+    // 如果已经注入过，直接返回
+    if (_isDetectorInjected) {
+      LogUtil.i('M3U8检测器已注入，跳过重复注入');
+      return;
+    }
+
     LogUtil.i('开始注入m3u8检测器JS代码');
     final jsCode = '''
       (function() {
@@ -743,7 +753,7 @@ class GetM3U8 {
             XHR.open = originalOpen;
             XHR.setRequestHeader = originalSetRequestHeader;
             XHR.send = originalSend;
-          }
+            }
           
           // 清理DOM事件监听器
           window.removeEventListener('popstate', handleUrlChange);
@@ -766,6 +776,7 @@ class GetM3U8 {
       LogUtil.i('执行JS代码注入');
       _controller.runJavaScript(jsCode).then((_) {
         LogUtil.i('JS代码注入成功');
+        _isDetectorInjected = true;  // 标记为已注入
       }).catchError((error) {
         LogUtil.e('JS代码注入失败: $error');
       });
