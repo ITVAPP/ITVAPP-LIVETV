@@ -20,6 +20,19 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
+  // 获取原始页面URL作为referrer
+  final originUrl = Uri.parse(url);
+  final referrerUrl = headers?['Referer'] ?? url;
+
+  final defaultHeaders = {
+    'Accept': '*/*',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Origin': originUrl.origin,
+    'Referer': referrerUrl,
+    'Connection': 'keep-alive',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  };
+  
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
@@ -46,9 +59,7 @@ class BetterPlayerConfig {
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
       // 请求头设置，提供默认 User-Agent
-      headers: headers ?? {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-      },
+      headers: {...defaultHeaders, ...?headers},
     );
   }
 
