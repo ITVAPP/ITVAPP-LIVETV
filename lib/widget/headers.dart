@@ -82,8 +82,6 @@ class HeadersConfig {
         'referer': referer,
         'sec-fetch-dest': 'empty',
       };
-      
-      LogUtil.i('生成的Headers: $headers');
       return headers;
       
     } catch (e, stackTrace) {
