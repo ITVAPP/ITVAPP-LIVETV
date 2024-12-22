@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'log_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 蓝奏云解析工具，用于提取蓝奏云下载链接
 class LanzouParser {
@@ -20,19 +21,8 @@ class LanzouParser {
     RegExp(r"data\s*:\s*'([^']+)'")
   ];
 
-  /// 获取通用请求头，包括User-Agent和语言信息
-  /// [referer] 可选的Referer头信息
-  static Map<String, String> _getHeaders(String referer) {
-    return {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      if (referer.isNotEmpty) 'Referer': referer,
-    };
-  }
-
-  /// 新增：获取重定向后的最终URL
   /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
-  static Future<String?> _getFinalUrl(String url, Map<String, String> headers) async {
+  static Future<String?> _getFinalUrl(String url) async {
     try {
       final client = http.Client();
       try {
@@ -40,8 +30,8 @@ class LanzouParser {
         final request = http.Request('HEAD', Uri.parse(url))
           ..followRedirects = false;  // 不自动跟随重定向
         
-        // 添加请求头
-        request.headers.addAll(headers);
+        // 使用 HeadersConfig 替换原有的 headers
+        request.headers.addAll(HeadersConfig.generateHeaders(url: url));
         
         // 发送请求
         final response = await client.send(request);
@@ -167,16 +157,7 @@ class LanzouParser {
       final downloadUrl = '$dom/file/$url';
       
       // 获取最终直链
-      final headers = _getHeaders(baseUrl);
-      // 添加一些蓝奏云可能需要的额外headers
-      headers.addAll({
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Upgrade-Insecure-Requests': '1',
-      });
-      
-      final finalUrl = await _getFinalUrl(downloadUrl, headers);
+      final finalUrl = await _getFinalUrl(downloadUrl);
       if (finalUrl != null) {
         LogUtil.i('成功获取最终下载链接');
         return finalUrl;
@@ -195,7 +176,6 @@ class LanzouParser {
   static Future<String?> _makeRequest(
     String method,
     String url, {
-    Map<String, String>? headers,
     String? body,
   }) async {
     if (body != null) LogUtil.i('请求体: $body');
@@ -203,6 +183,14 @@ class LanzouParser {
     try {
       http.Response response;
       final uri = Uri.parse(url);
+
+      // 使用 HeadersConfig 生成基础 headers
+      final headers = HeadersConfig.generateHeaders(url: url);
+      
+      // 对于POST请求，添加额外的Content-Type header
+      if (method.toUpperCase() == 'POST') {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      }
 
       // 根据请求方法选择处理逻辑
       switch (method.toUpperCase()) {
@@ -212,7 +200,7 @@ class LanzouParser {
         case 'POST':
           response = await http.post(
             uri,
-            headers: {...headers ?? {}, 'Content-Type': 'application/x-www-form-urlencoded'},
+            headers: headers,
             body: body,
           );
           break;
@@ -258,7 +246,7 @@ class LanzouParser {
       final standardUrl = _standardizeLanzouUrl(url);
       
       // 4. 获取页面内容
-      final html = await _makeRequest('GET', standardUrl, headers: _getHeaders(''));
+      final html = await _makeRequest('GET', standardUrl);
       if (html == null) {
         LogUtil.e('获取页面内容失败');
         return errorResult;
@@ -296,7 +284,6 @@ class LanzouParser {
         final pwdResult = await _makeRequest(
           'POST', 
           '$baseUrl/ajaxm.php',
-          headers: _getHeaders(standardUrl),
           body: actionData
         );
         
@@ -326,11 +313,7 @@ class LanzouParser {
       LogUtil.i('获取到iframe URL: $iframeUrl');
       
       // 请求iframe的内容
-      final iframeContent = await _makeRequest(
-        'GET',
-        iframeUrl,
-        headers: _getHeaders(standardUrl)
-      );
+      final iframeContent = await _makeRequest('GET', iframeUrl);
       if (iframeContent == null) {
         LogUtil.e('获取iframe内容失败');
         return errorResult;
@@ -347,7 +330,6 @@ class LanzouParser {
       final ajaxResult = await _makeRequest(
         'POST',
         '$baseUrl/ajaxm.php',
-        headers: _getHeaders(iframeUrl),
         body: 'action=downprocess&sign=$sign&ves=1'
       );
       if (ajaxResult == null) {
