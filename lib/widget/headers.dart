@@ -20,15 +20,12 @@ class HeadersConfig {
         'User-Agent': userAgent,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': '*',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'Host': uri.host,
         'Referer': '${uri.scheme}://${uri.host}/',
         'Pragma': 'no-cache',
-        'Sec-Fetch-Site': 'same-site',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Dest': 'empty',
       };
       
       LogUtil.i('生成的Headers: $headers');
@@ -41,7 +38,7 @@ class HeadersConfig {
         'User-Agent': userAgent,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Encoding': '*',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'Pragma': 'no-cache',
