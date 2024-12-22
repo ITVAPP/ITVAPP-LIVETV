@@ -11,8 +11,8 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 class StreamUrl {
   late final String url;
-  late final YoutubeExplode yt;
-  late final http.Client _client;
+  final YoutubeExplode yt = YoutubeExplode(); 
+  final http.Client _client = http.Client(); 
   bool _isDisposed = false; 
   Completer<void>? _completer; 
   final Duration timeoutDuration;
@@ -366,11 +366,7 @@ StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     
     // 直接从manifest.muxed中获取有效流
     final validStreams = manifest.muxed
-        .where((s) {
-          final url = s.url.toString();
-          return _isValidUrl(url) && 
-                 validContainers.contains(s.container.name.toLowerCase());
-        })
+        .where((s) => _isValidUrl(s.url.toString()))
         .toList();
     
     if (validStreams.isEmpty) {
@@ -450,7 +446,7 @@ Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQu
     if (_isDisposed) return null;
 
     if (response.statusCode == 200) {
-      final lines = const LineSplitter().convert(response.body);
+      final lines = response.body.split('\n');
       final length = lines.length;  // 缓存长度避免重复访问
       final qualityUrls = <String, String>{};
 
@@ -495,7 +491,7 @@ String? _extractQuality(String extInfLine) {
   return match?.group(1);
 }
 
-// 获取 HTTP 请求需要的头信息
+// 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
 Map<String, String> _getRequestHeaders() {
   return HeadersConfig.generateHeaders(url: url);
 }
