@@ -7,8 +7,8 @@ class HeadersConfig {
   static const String _chromeVersion = '121.0.0.0';
   
   static const String userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36';
-
-  /// 生成通用请求headers，模拟浏览器行为
+  
+  /// 生成请求headers
   static Map<String, String> generateHeaders({
     required String url,
   }) {
@@ -23,12 +23,12 @@ class HeadersConfig {
         'Accept-Encoding': 'gzip, deflate, br',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Origin': '${uri.scheme}://${uri.host}',
-        'Referer': '${uri.scheme}://${uri.host}',
+        'Host': uri.host,
+        'Referer': '${uri.scheme}://${uri.host}/',
         'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Site': 'same-site',
         'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Dest': 'empty',
       };
       
       LogUtil.i('生成的Headers: $headers');
@@ -45,9 +45,6 @@ class HeadersConfig {
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
       };
     }
   }
