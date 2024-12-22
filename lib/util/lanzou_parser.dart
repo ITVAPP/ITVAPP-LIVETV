@@ -3,6 +3,19 @@ import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
+/// 缓存条目类
+class CacheEntry {
+  final String url;
+  final DateTime expireTime;
+  
+  CacheEntry({
+    required this.url,
+    required this.expireTime,
+  });
+  
+  bool get isExpired => DateTime.now().isAfter(expireTime);
+}
+
 /// 蓝奏云解析工具，用于提取蓝奏云下载链接
 class LanzouParser {
   static const String baseUrl = 'https://lanzoux.com';
@@ -11,20 +24,7 @@ class LanzouParser {
   static const Duration requestTimeout = Duration(seconds: 30);  // 请求超时时间
   
   // 缓存解析结果
-  static final Map<String, _CacheEntry> _urlCache = {};
-  
-  // 缓存条目类
-  static class _CacheEntry {
-    final String url;
-    final DateTime expireTime;
-    
-    _CacheEntry({
-      required this.url,
-      required this.expireTime,
-    });
-    
-    bool get isExpired => DateTime.now().isAfter(expireTime);
-  }
+  static final Map<String, CacheEntry> _urlCache = <String, CacheEntry>{};
 
   // 正则表达式定义，用于匹配不同信息
   static final RegExp _pwdRegex = RegExp(r'[?&]pwd=([^&]+)'); // 匹配密码参数
@@ -89,7 +89,6 @@ class LanzouParser {
   }
   
   /// 标准化蓝奏云链接
-  /// 使用 StringBuffer 优化字符串拼接
   static String _standardizeLanzouUrl(String url) {
     final buffer = StringBuffer();
     final urlWithoutPwd = url.replaceAll(_pwdRegex, '');
@@ -180,7 +179,6 @@ class LanzouParser {
       }
       
       final downloadUrl = '$dom/file/$url';
-      
       final finalUrl = await _getFinalUrl(downloadUrl);
       if (finalUrl != null) {
         LogUtil.i('成功获取最终下载链接');
@@ -287,7 +285,7 @@ class LanzouParser {
 
       // 缓存结果（24小时有效期）
       if (finalUrl != errorResult) {
-        _urlCache[url] = _CacheEntry(
+        _urlCache[url] = CacheEntry(
           url: finalUrl,
           expireTime: DateTime.now().add(const Duration(hours: 24)),
         );
