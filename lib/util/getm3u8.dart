@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -39,8 +38,8 @@ class GetM3U8 {
   /// 格式: domain1|keyword1@domain2|keyword2
   static String rulesString = 'setv.sh.cn|programme10_ud';
   
-  /// 使用弱引用缓存已处理的URL
-  static final _urlCache = WeakSet<String>();
+  /// 缓存已处理的URL
+  static final _urlCache = Set<String>();
   
   /// 目标URL
   final String url;
@@ -454,6 +453,14 @@ class GetM3U8 {
     LogUtil.i('Performance: 耗时=${duration.inMilliseconds}ms, 检查=$_checkCount, 重试=$_retryCount, URL数=${_foundUrls.length}, 结果=${_m3u8Found ? "成功" : "失败"}');
   }
   
+  /// 清理全局URL缓存
+  static void clearUrlCache() {
+    if (_urlCache.length > MAX_CACHE_SIZE) {
+      _urlCache.clear();
+      LogUtil.i('全局URL缓存已清理');
+    }
+  }
+  
   /// 释放资源
   void disposeResources() {
     // 防止重复释放
@@ -479,6 +486,9 @@ class GetM3U8 {
       } catch (e) {
         LogUtil.e('执行JavaScript清理代码时发生错误: $e');
       }
+
+      // 清理URL缓存
+      GetM3U8.clearUrlCache();
       
     } catch (e) {
       LogUtil.e('释放资源时发生错误: $e');
@@ -953,8 +963,6 @@ class GetM3U8 {
             console.error('清理M3U8检测器时发生错误:', e);
           }
         };
-        
-        console.log('M3U8检测器初始化完成');
       })();
     ''';
     
