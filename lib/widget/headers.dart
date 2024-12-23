@@ -10,7 +10,7 @@ class HeadersConfig {
   
   /// 格式: domain1|referer1@domain2|referer2
   /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
-  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com';
+  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com';
 
   /// 基础请求头
   static const Map<String, String> _baseHeaders = {
