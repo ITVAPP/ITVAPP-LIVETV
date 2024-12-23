@@ -25,7 +25,7 @@ class HeadersConfig {
     'sec-fetch-user': '?1',
     'dnt': '1',
   };
-  
+
   /// 解析规则字符串返回域名和对应的referer映射
   static Map<String, String> _parseRules() {
     final rules = <String, String>{};
@@ -49,14 +49,43 @@ class HeadersConfig {
     
     return rules;
   }
-  
+
+  /// 从URL中提取主机名（支持IPv6）
+  static String _extractHost(String url) {
+    try {
+      final match = RegExp(r'://([^\[\]/]+|\[[^\]]+\])').firstMatch(url);
+      if (match != null && match.groupCount >= 1) {
+        return match.group(1)!;
+      }
+      return '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// 从URL中提取协议（http/https）
+  static String _extractScheme(String url) {
+    try {
+      final match = RegExp(r'^(https?):').firstMatch(url);
+      if (match != null && match.groupCount >= 1) {
+        return match.group(1)!;
+      }
+      return 'http';
+    } catch (e) {
+      return 'http';
+    }
+  }
+
   /// 根据规则获取referer
   static String? _getRefererByRules(String host) {
     final rules = _parseRules();
     
+    // 移除IPv6地址的方括号进行匹配
+    final cleanHost = host.replaceAll(RegExp(r'[\[\]]'), '');
+    
     // 遍历规则检查host是否匹配
     for (final domain in rules.keys) {
-      if (host.contains(domain)) {
+      if (cleanHost.contains(domain)) {
         return rules[domain]!;
       }
     }
@@ -70,11 +99,16 @@ class HeadersConfig {
   }) {
     try {
       final encodedUrl = Uri.encodeFull(url);
-      final uri = Uri.parse(encodedUrl);
+      final host = _extractHost(encodedUrl);
+      final scheme = _extractScheme(encodedUrl);
       
+      if (host.isEmpty) {
+        throw FormatException('无法解析主机名');
+      }
+
       // 获取referer
-      final customReferer = _getRefererByRules(uri.host);
-      final referer = customReferer ?? '${uri.scheme}://${uri.host}/';
+      final customReferer = _getRefererByRules(host);
+      final referer = customReferer ?? '$scheme://$host/';
       
       final headers = {
         ..._baseHeaders,
