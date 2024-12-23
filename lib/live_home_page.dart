@@ -103,9 +103,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
    // 下一个视频地址
   String? _nextVideoUrl;
-  
-  // 用于控制更新频率
-  double? _lastProgress;
 
   // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -114,9 +111,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   // 抽屉刷新键
   ValueKey<int>? _drawerRefreshKey;
-  
-  // 进度变量
-  double bufferingProgress = 0.0;
 
   // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
@@ -125,15 +119,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isAudio = false;
   
   // 检查是否为音频流
-  bool _checkIsAudioStream(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.contains('.mp3') || 
-           lowercaseUrl.contains('.aac') || 
-           lowercaseUrl.contains('.m4a') ||
-           lowercaseUrl.contains('.ogg') ||
-           lowercaseUrl.contains('.wav');
+bool _checkIsAudioStream(String? url) {
+  if (url == null || url.isEmpty) return false;
+  final lowercaseUrl = url.toLowerCase();
+  // 先检查是否为视频格式
+  if (lowercaseUrl.contains('.mp4') || 
+      lowercaseUrl.contains('.mkv') ||
+      lowercaseUrl.contains('.avi') ||
+      lowercaseUrl.contains('.mov') ||
+      lowercaseUrl.contains('.wmv') ||
+      lowercaseUrl.contains('.flv')) {
+    return false;
   }
+  // 如果不是视频，则检查是否为音频格式
+  return lowercaseUrl.contains('.mp3') || 
+         lowercaseUrl.contains('.aac') || 
+         lowercaseUrl.contains('.m4a') ||
+         lowercaseUrl.contains('.ogg') ||
+         lowercaseUrl.contains('.wav');
+}
   
   // 判断是否是HLS流
   bool _isHlsStream(String? url) {
@@ -196,9 +200,6 @@ Future<void> _playVideo() async {
           eventListener: _videoListener,
           isHls: isHls, 
         );
-
-        // 启动超时检测
-        _startTimeoutCheck();
         
         // 创建播放器控制器
         BetterPlayerController newController = BetterPlayerController(
@@ -267,7 +268,6 @@ void _videoListener(BetterPlayerEvent event) {
             LogUtil.i('播放卡住，开始缓冲');
             setState(() {
                 isBuffering = true; 
-                bufferingProgress = 0.0;  // 重置缓冲进度
                 toastString = S.current.loading;
             });
             _startTimeoutCheck();  // 启动超时检测
@@ -275,40 +275,6 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为缓冲更新时
         case BetterPlayerEventType.bufferingUpdate:
-            final dynamic buffered = event.parameters?["buffered"];
-            if (buffered != null) {
-                try {
-                    final Duration? duration = _playerController?.videoPlayerController?.value.duration;
-                    if (duration != null && duration.inMilliseconds > 0) {
-                        final dynamic range = buffered.last;
-                        final double progress = range.end.inMilliseconds / duration.inMilliseconds.clamp(0.0, 1.0);
-                        if (range == null) return;
-                        if (_lastProgress != null && (progress - _lastProgress!).abs() < 0.05) {
-                          return;  // 如果进度变化小于5%，不更新
-                        }
-                        // 更新进度值
-                        _lastProgress = progress;
-                        setState(() {
-                            bufferingProgress = progress;
-                            // 如果是卡住状态，显示加载进度
-                            if (isBuffering) {
-                                if (progress >= 0.99) {  // 当进度接近或达到100%时
-                                    isBuffering = false;  // 重置缓冲状态
-                                    toastString = 'HIDE_CONTAINER';  // 隐藏提示
-                                } else {
-                                    toastString = '${S.current.loading} (${(progress * 100).toStringAsFixed(0)}%)';
-                                }
-                            }
-                        });
-                    }
-                } catch (e) {
-                    LogUtil.e('缓冲进度更新失败: $e');
-                    setState(() {
-                        isBuffering = false;
-                        toastString = 'HIDE_CONTAINER';
-                    });
-                }
-            }
             break;
 
         // 当事件类型为缓冲结束时
@@ -318,6 +284,7 @@ void _videoListener(BetterPlayerEvent event) {
                 isBuffering = false;
                 toastString = 'HIDE_CONTAINER';
             });
+            _cleanupTimers();  // 缓冲结束时清理超时检测
             break;
 
         // 当事件类型为播放时
@@ -462,18 +429,31 @@ void _cleanupPreload() {
     _nextVideoUrl = null;
 }
 
-/// 超时检测方法，用于检测播放启动超时
+/// 超时检测方法
 void _startTimeoutCheck() {
-    if (_timeoutActive || _isRetrying) return;
+    // 避免重复启动超时检测
+    if (_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
+        return;
+    }
     _timeoutActive = true;  // 标记超时检测已启动
     Timer(Duration(seconds: defaultTimeoutSeconds), () {
-      if (!_timeoutActive || _isRetrying) return;
-      
-      // 检查播放器是否存在且未播放
-      if (_playerController != null && !(_playerController!.isPlaying() ?? false) && !isBuffering) { 
-        LogUtil.logError('播放超时', '$defaultTimeoutSeconds seconds');
-        _retryPlayback(); 
-      }
+        // 状态检查
+        if (!mounted || !_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
+            return;
+        }
+        // 检查播放器状态
+        if (_playerController?.videoPlayerController == null) {
+            LogUtil.e('超时检查：播放器控制器无效');
+            _handleSourceSwitching();
+            _timeoutActive = false;
+            return;
+        }
+        // 只有在缓冲状态下才判断超时
+        if (isBuffering) {
+            LogUtil.e('缓冲超时，切换下一个源');
+            _handleSourceSwitching();
+        }
+        _timeoutActive = false;
     });
 }
 
@@ -492,7 +472,6 @@ void _retryPlayback() {
             _isRetrying = true;
             _retryCount++;
             isBuffering = false; 
-            bufferingProgress = 0.0;
             toastString = S.current.retryplay;  // 显示重试次数
         });
         
@@ -581,7 +560,6 @@ void _handleSourceSwitching({
       _isRetrying = false;
       _retryCount = 0;
       isBuffering = false;
-      bufferingProgress = 0.0;
       toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? '');
     });
 
@@ -596,7 +574,6 @@ Future<void> _handleNoMoreSources() async {
     toastString = S.current.playError;
     _sourceIndex = 0;  // 重置源索引
     isBuffering = false;
-    bufferingProgress = 0.0;
     isPlaying = false;
     _isRetrying = false;
     _retryCount = 0;
@@ -686,11 +663,9 @@ Future<void> _disposePlayer() async {
   } catch (e, stackTrace) {
     LogUtil.logError('释放播放器资源时出错', e, stackTrace);
   } finally {
-    if (mounted) {
       setState(() {
          _isDisposing = false; 
       });
-    }
   }
 }
 
@@ -717,7 +692,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
         setState(() {
             _isSwitchingChannel = true;
             isBuffering = false;
-            bufferingProgress = 0.0;
             toastString = S.current.loading;
             _cleanupTimers();
             _currentChannel = model;
