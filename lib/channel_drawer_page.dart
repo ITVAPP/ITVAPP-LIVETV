@@ -793,13 +793,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 如果有位置信息，进行排序
     _sortByLocation();
 
-    // 频道按名字进行 Unicode 排序
-    for (int i = 0; i < _values.length; i++) {
-      _values[i] = Map<String, PlayModel>.fromEntries(
-        _values[i].entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-      );
-    }
-
     _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
     _channelIndex = _groupIndex != -1
         ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
