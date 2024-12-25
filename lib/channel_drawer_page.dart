@@ -947,9 +947,10 @@ void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
     
-    // 查找当前播放的频道在新分组中的索引
-    if (widget.playModel?.title != null) {
-      _channelIndex = _values[index].keys.toList().indexOf(widget.playModel!.title);
+    // 更安全的方式处理可空类型
+    final currentTitle = widget.playModel?.title;
+    if (currentTitle != null) {
+      _channelIndex = _values[index].keys.toList().indexOf(currentTitle);
       if (_channelIndex == -1) {
         _channelIndex = -1; // 如果在新分组中找不到当前播放的频道
       }
