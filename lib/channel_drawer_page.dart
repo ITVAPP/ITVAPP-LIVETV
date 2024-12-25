@@ -946,8 +946,17 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
-    _channelIndex = 0; // 重置频道索引到第一个频道
-
+    
+    // 查找当前播放的频道在新分组中的索引
+    if (widget.playModel?.title != null) {
+      _channelIndex = _values[index].keys.toList().indexOf(widget.playModel!.title);
+      if (_channelIndex == -1) {
+        _channelIndex = -1; // 如果在新分组中找不到当前播放的频道
+      }
+    } else {
+      _channelIndex = -1; // 如果没有正在播放的频道
+    }
+    
     // 重置所有焦点状态
     _focusStates.clear();
 
@@ -967,10 +976,14 @@ void _onGroupTap(int index) {
 
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+      // 计算焦点索引，如果没有选中的频道则默认焦点在分组列表的末尾
+      int channelFocusIndex = _channelIndex != -1 
+          ? _categories.length + _keys.length + _channelIndex
+          : _categories.length + _keys.length;
+          
       if (_tvKeyNavigationState != null) {
         _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: channelFocusIndex);
       }
       // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
@@ -1152,11 +1165,13 @@ Widget build(BuildContext context) {
       currentFocusIndex += _keys.length; // 更新焦点索引
       channelListWidget = ChannelList(
         channels: _values[_groupIndex],
-        selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
+        selectedChannelName: _channelIndex != -1 && _channelIndex < _values[_groupIndex].keys.length 
+            ? _values[_groupIndex].keys.toList()[_channelIndex]
+            : null,
         onChannelTap: _onChannelTap,
         isTV: isTV,
         scrollController: _scrollChannelController,
-        startIndex: currentFocusIndex,  // 频道列表起始索引
+        startIndex: currentFocusIndex,
       );
 
       // EPG 列表
