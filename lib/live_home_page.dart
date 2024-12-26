@@ -118,33 +118,57 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 音频检测状态
   bool _isAudio = false;
   
-  // 检查是否为音频流
+// 定义视频格式常量
+const videoFormats = [
+  '.mp4',
+  '.mkv', 
+  '.avi',
+  '.wmv',
+  '.mov',
+  '.flv',
+  '.webm',
+  '.mpeg',
+  '.mpg',
+  '.rm',
+  '.rmvb'
+];
+
+// 定义音频格式常量
+const audioFormats = [
+  '.mp3',
+  '.wav',
+  '.aac',
+  '.wma',
+  '.ogg',
+  '.m4a',
+  '.flac'
+];
+
+// 所有直接播放格式
+final directPlayFormats = [...videoFormats, ...audioFormats];
+
+// 检查是否为音频流
 bool _checkIsAudioStream(String? url) {
   if (url == null || url.isEmpty) return false;
   final lowercaseUrl = url.toLowerCase();
+  
   // 先检查是否为视频格式
-  if (lowercaseUrl.contains('.mp4') || 
-      lowercaseUrl.contains('.mkv') ||
-      lowercaseUrl.contains('.avi') ||
-      lowercaseUrl.contains('.mov') ||
-      lowercaseUrl.contains('.wmv') ||
-      lowercaseUrl.contains('.flv')) {
+  if (videoFormats.any((format) => lowercaseUrl.contains(format))) {
     return false;
   }
-  // 如果不是视频，则检查是否为音频格式
-  return lowercaseUrl.contains('.mp3') || 
-         lowercaseUrl.contains('.aac') || 
-         lowercaseUrl.contains('.m4a') ||
-         lowercaseUrl.contains('.ogg') ||
-         lowercaseUrl.contains('.wav');
-}
   
-  // 判断是否是HLS流
-  bool _isHlsStream(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.contains('.m3u');
-  }
+  // 如果不是视频，则检查是否为音频格式
+  return audioFormats.any((format) => lowercaseUrl.contains(format));
+}
+
+// 判断是否是HLS流
+bool _isHlsStream(String? url) {
+  if (url == null || url.isEmpty) return false;
+  final lowercaseUrl = url.toLowerCase();
+  
+  // 如果包含任意一个直接播放格式，就不是HLS
+  return !directPlayFormats.any((format) => lowercaseUrl.contains(format));
+}
   
 /// 播放前解析频道的视频源 
 Future<void> _playVideo() async {
