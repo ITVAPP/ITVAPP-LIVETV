@@ -895,7 +895,7 @@ void _reInitializeFocusListeners() {
 
 // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
-  if (_categoryIndex == index) return; 
+  if (_categoryIndex == index) return;
 
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
@@ -910,60 +910,83 @@ void _onCategoryTap(int index) {
     // 检查选中的分类是否有分组
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
+    
     if (categoryMap == null || categoryMap.isEmpty) {
-      _resetChannelData(); 
+      _resetChannelData();
       _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
       _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
-      // 初始化新分类的数据
-      _keys = categoryMap.keys.toList();
-      _values = categoryMap.values.toList();
+      try {
+        // 初始化新分类的数据
+        _keys = categoryMap.keys.toList();
+        _values = categoryMap.values.toList();
 
-      // 如果有位置信息，进行排序
-      _sortByLocation();
+        // 如果有位置信息，进行排序
+        _sortByLocation();
 
-      // 尝试在新分类中查找当前播放的频道
-      if (currentPlayingTitle != null && currentPlayingGroup != null) {
-        int newGroupIndex = _keys.indexOf(currentPlayingGroup);
-        if (newGroupIndex != -1 && _values[newGroupIndex].containsKey(currentPlayingTitle)) {
-          _groupIndex = newGroupIndex;
-          _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
+        // 在新分类中查找当前播放的频道
+        if (currentPlayingTitle != null && currentPlayingGroup != null) {
+          int newGroupIndex = _keys.indexOf(currentPlayingGroup);
+          if (newGroupIndex != -1 && _values[newGroupIndex].containsKey(currentPlayingTitle)) {
+            _groupIndex = newGroupIndex;
+            _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
+          } else {
+            // 如果在新分类中找不到当前播放的频道，则选择第一个分组和第一个频道
+            _groupIndex = 0;
+            _channelIndex = 0;
+          }
         } else {
           _groupIndex = 0;
-          _channelIndex = -1;
+          _channelIndex = 0;
         }
-      } else {
-        _groupIndex = 0;
-        _channelIndex = -1;
-      }
 
-      // 分组不为空时，初始化频道数据
-      _initializeChannelData();
-      
-      // 初始化焦点节点
-      int totalFocusNodes = _categories.length;
-      if (_keys.isNotEmpty) {
-        totalFocusNodes += _keys.length;
-        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-          totalFocusNodes += _values[_groupIndex].length;
+        // 初始化焦点节点
+        int totalFocusNodes = _categories.length;
+        if (_keys.isNotEmpty) {
+          totalFocusNodes += _keys.length;
+          if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+            totalFocusNodes += _values[_groupIndex].length;
+          }
         }
-      }
-      _initializeFocusNodes(totalFocusNodes);
-      _updateStartIndexes(includeGroupsAndChannels: true);
-      
-      // 重置滚动位置
-      _scrollToTop(_scrollController);
+        _initializeFocusNodes(totalFocusNodes);
+        _updateStartIndexes(includeGroupsAndChannels: true);
+        
+// 延迟执行滚动，确保视图已更新
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  // 只有分组索引大于0时才需要滚动
+  if (_scrollController.hasClients && _groupIndex > 0) {
+    _scrollToPosition(_scrollController, _groupIndex);
+  }
+  
+  // 频道滚动逻辑: 
+  if (_scrollChannelController.hasClients) {
+    // 找到了当前播放的频道，需要滚动以确保可见
+    if (currentPlayingTitle != null && currentPlayingGroup != null && 
+        _values[_groupIndex].containsKey(currentPlayingTitle)) {
+      _scrollToPosition(_scrollChannelController, _channelIndex);
+    } else {
+      // 未找到当前播放频道，重置到顶部
       _scrollToTop(_scrollChannelController);
+    }
+  }
+});
+
+      } catch (e, stackTrace) {
+        LogUtil.logError('切换分类时出错', e, stackTrace);
+        // 发生错误时重置到安全状态
+        _groupIndex = 0;
+        _channelIndex = 0;
+      }
     }
   });
       
   // 重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) { 
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-      }
-      _reInitializeFocusListeners();
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.releaseResources();
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
+    }
+    _reInitializeFocusListeners();
   });
 }
       
@@ -997,7 +1020,18 @@ void _onGroupTap(int index) {
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
     
-    _scrollToTop(_scrollChannelController);
+    // 延迟执行滚动，确保视图已更新
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollChannelController.hasClients) {
+        // 如果找到了当前播放的频道，滚动到对应位置
+        if (currentTitle != null && _values[index].containsKey(currentTitle)) {
+          _scrollToPosition(_scrollChannelController, _channelIndex);
+        } else {
+          // 未找到当前播放频道，重置到顶部
+          _scrollToTop(_scrollChannelController);
+        }
+      }
+    });
   });
 
   // 状态更新后重新初始化焦点系统
@@ -1066,13 +1100,20 @@ void _onChannelTap(PlayModel? newModel) {
   }
 
   // 根据索引调整滚动位置
-  void _scrollToPosition(ScrollController controller, int index) {
-    if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-    final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * 0.5;
-    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
-  }
+void _scrollToPosition(ScrollController controller, int index) {
+  if (!controller.hasClients) return;
+  
+  final maxScrollExtent = controller.position.maxScrollExtent;
+  final double viewPortHeight = _viewPortHeight ?? controller.position.viewportDimension;
+  
+  // 计算目标偏移量，让选中项居中显示
+  final shouldOffset = index * defaultMinHeight - (viewPortHeight - defaultMinHeight) / 2;
+  
+  // 确保偏移量在合理范围内
+  final normalizedOffset = max(0.0, min(shouldOffset, maxScrollExtent));
+  
+  controller.jumpTo(normalizedOffset);
+}
 
 // 加载EPG
 Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
