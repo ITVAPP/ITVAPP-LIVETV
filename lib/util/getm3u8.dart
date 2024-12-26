@@ -339,7 +339,7 @@ GetM3U8({
         _foundUrls.add(finalUrl);
         _m3u8Found = true;
         if (!completer.isCompleted) {
-          completer.complete(url);
+          completer.complete(finalUrl);
         }
         _logPerformanceMetrics();
         disposeResources();
