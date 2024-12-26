@@ -118,56 +118,28 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 音频检测状态
   bool _isAudio = false;
   
-// 定义视频格式常量
-const videoFormats = [
-  '.mp4',
-  '.mkv', 
-  '.avi',
-  '.wmv',
-  '.mov',
-  '.flv',
-  '.webm',
-  '.mpeg',
-  '.mpg',
-  '.rm',
-  '.rmvb'
+// 视频和音频格式（类成员变量）
+static const List<String> _videoFormats = [
+  '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.flv',
+  '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'
 ];
-
-// 定义音频格式常量
-const audioFormats = [
-  '.mp3',
-  '.wav',
-  '.aac',
-  '.wma',
-  '.ogg',
-  '.m4a',
-  '.flac'
+static const List<String> _audioFormats = [
+  '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
 ];
-
-// 所有直接播放格式
-final directPlayFormats = [...videoFormats, ...audioFormats];
 
 // 检查是否为音频流
 bool _checkIsAudioStream(String? url) {
   if (url == null || url.isEmpty) return false;
   final lowercaseUrl = url.toLowerCase();
-  
-  // 先检查是否为视频格式
-  if (videoFormats.any((format) => lowercaseUrl.contains(format))) {
-    return false;
-  }
-  
-  // 如果不是视频，则检查是否为音频格式
-  return audioFormats.any((format) => lowercaseUrl.contains(format));
+  return !_videoFormats.any(lowercaseUrl.contains) && 
+         _audioFormats.any(lowercaseUrl.contains);
 }
 
 // 判断是否是HLS流
 bool _isHlsStream(String? url) {
   if (url == null || url.isEmpty) return false;
-  final lowercaseUrl = url.toLowerCase();
-  
-  // 如果包含任意一个直接播放格式，就不是HLS
-  return !directPlayFormats.any((format) => lowercaseUrl.contains(format));
+  // 组合所有格式检查
+  return !([..._videoFormats, ..._audioFormats].any(url.toLowerCase().contains));
 }
   
 /// 播放前解析频道的视频源 
