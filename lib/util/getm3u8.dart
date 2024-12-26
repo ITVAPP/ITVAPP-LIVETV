@@ -41,6 +41,12 @@ class GetM3U8 {
   /// 目标URL
   final String url;
   
+  /// URL参数：from值
+  final String? fromParam;
+  
+  /// URL参数：to值 
+  final String? toParam;
+  
   /// 超时时间(秒)
   final int timeoutSeconds;
   
@@ -99,7 +105,16 @@ class GetM3U8 {
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 8,
-  }) : _filterRules = _parseRules(rulesString);
+  }) : _filterRules = _parseRules(rulesString) {
+        // 解析URL参数
+        final uri = Uri.parse(url);
+        fromParam = uri.queryParameters['from'];
+        toParam = uri.queryParameters['to'];
+    
+        if (fromParam != null && toParam != null) {
+          LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
+        }
+      }
 
   /// 解析规则字符串
   static List<M3U8FilterRule> _parseRules(String rulesString) {
@@ -316,7 +331,15 @@ class GetM3U8 {
       
       if (_isValidM3U8Url(url)) {
         LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-        _foundUrls.add(url);
+        // 处理URL参数替换
+        String finalUrl = url;
+        if (fromParam != null && toParam != null) {
+          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+          finalUrl = url.replaceAll(fromParam!, toParam!);
+          LogUtil.i('替换后的URL: $finalUrl');
+        }
+    
+        _foundUrls.add(finalUrl);
         _m3u8Found = true;
         if (!completer.isCompleted) {
           completer.complete(url);
