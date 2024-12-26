@@ -36,7 +36,7 @@ class M3U8FilterRule {
 class GetM3U8 {
   /// 全局规则配置字符串
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud';
+  static String rulesString = 'setv.sh.cn|programme10_ud@cditv.cn|wslivehls.com';
   
   /// 目标URL
   final String url;
