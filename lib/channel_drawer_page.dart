@@ -188,9 +188,13 @@ Widget buildListItem({
             ),
             child: Text(
               title,
-              style: (focusNode?.hasFocus ?? false)
-                  ? defaultTextStyle.merge(selectedTextStyle)
-                  : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+              style: isTV 
+                  ? ((focusNode?.hasFocus ?? false) || isSelected 
+                      ? defaultTextStyle.merge(selectedTextStyle) 
+                      : defaultTextStyle)
+                  : (isSelected 
+                      ? defaultTextStyle.merge(selectedTextStyle) 
+                      : defaultTextStyle),
               softWrap: true,
               maxLines: null,
               overflow: TextOverflow.visible,
@@ -810,7 +814,6 @@ void _sortByLocation() {
   if (locationStr == null || locationStr.isEmpty) return;
 
   try {
-    // 解析格式化的字符串
     List<String> lines = locationStr.split('\n');
     String? region;
     String? city;
@@ -897,6 +900,10 @@ void _onCategoryTap(int index) {
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
 
+    // 保存当前播放的频道和分组信息
+    final currentPlayingTitle = widget.playModel?.title;
+    final currentPlayingGroup = widget.playModel?.group;
+    
     // 重置所有焦点状态
     _focusStates.clear();
 
@@ -908,30 +915,48 @@ void _onCategoryTap(int index) {
       _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
       _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
+      // 初始化新分类的数据
+      _keys = categoryMap.keys.toList();
+      _values = categoryMap.values.toList();
+
+      // 如果有位置信息，进行排序
+      _sortByLocation();
+
+      // 尝试在新分类中查找当前播放的频道
+      if (currentPlayingTitle != null && currentPlayingGroup != null) {
+        int newGroupIndex = _keys.indexOf(currentPlayingGroup);
+        if (newGroupIndex != -1 && _values[newGroupIndex].containsKey(currentPlayingTitle)) {
+          _groupIndex = newGroupIndex;
+          _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
+        } else {
+          _groupIndex = 0;
+          _channelIndex = -1;
+        }
+      } else {
+        _groupIndex = 0;
+        _channelIndex = -1;
+      }
+
       // 分组不为空时，初始化频道数据
       _initializeChannelData();
-
-      // 计算新分类下的总节点数，并初始化 FocusNode
-      int totalFocusNodes = _categories.length;
       
-      // 确保 _keys 不为空且 _values 有效时才添加其长度
+      // 初始化焦点节点
+      int totalFocusNodes = _categories.length;
       if (_keys.isNotEmpty) {
         totalFocusNodes += _keys.length;
-        // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
         if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
           totalFocusNodes += _values[_groupIndex].length;
         }
       }
-      
       _initializeFocusNodes(totalFocusNodes);
       _updateStartIndexes(includeGroupsAndChannels: true);
-
+      
       // 重置滚动位置
       _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
     }
   });
-  
+      
   // 重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tvKeyNavigationState != null) { 
