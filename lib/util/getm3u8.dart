@@ -102,19 +102,16 @@ class GetM3U8 {
   final List<M3U8FilterRule> _filterRules;
 
   /// 构造函数
-  GetM3U8({
-    required this.url,
-    this.timeoutSeconds = 8,
-  }) : _filterRules = _parseRules(rulesString) {
-        // 解析URL参数
-        final uri = Uri.parse(url);
-        fromParam = uri.queryParameters['from'];
-        toParam = uri.queryParameters['to'];
-    
-        if (fromParam != null && toParam != null) {
-          LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
-        }
-      }
+GetM3U8({
+  required this.url,
+  this.timeoutSeconds = 8,
+}) : _filterRules = _parseRules(rulesString),
+     fromParam = Uri.parse(url).queryParameters['from'],
+     toParam = Uri.parse(url).queryParameters['to'] {
+  if (fromParam != null && toParam != null) {
+    LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
+  }
+}
 
   /// 解析规则字符串
   static List<M3U8FilterRule> _parseRules(String rulesString) {
