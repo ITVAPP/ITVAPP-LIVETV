@@ -393,6 +393,7 @@ class ChannelList extends StatefulWidget {
   final String? selectedChannelName;
   final bool isTV;
   final int startIndex;
+  final bool isSystemAutoSelected; 
 
   const ChannelList({
     super.key,
@@ -402,6 +403,7 @@ class ChannelList extends StatefulWidget {
     this.selectedChannelName,
     required this.isTV,
     this.startIndex = 0,
+    this.isSystemAutoSelected = false, 
   });
 
   @override
