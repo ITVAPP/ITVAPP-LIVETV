@@ -74,19 +74,25 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false}) {
+BoxDecoration buildItemDecoration({
+  bool isSelected = false, 
+  bool hasFocus = false, 
+  bool isTV = false,
+  required int groupIndex, 
+  required int channelIndex
+}) {
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
             ? unselectedColor.withOpacity(0.8)  
-            : (isSelected && _groupIndex != -1 && _channelIndex != -1 
+            : (isSelected && groupIndex != -1 && channelIndex != -1 
                 ? selectedColor.withOpacity(0.9) 
                 : Colors.transparent))
-        : (isSelected && _groupIndex != -1 && _channelIndex != -1 
+        : (isSelected && groupIndex != -1 && channelIndex != -1 
             ? selectedColor.withOpacity(0.9) 
             : Colors.transparent),
     border: Border.all(
-      color: (isSelected && _groupIndex != -1 && _channelIndex != -1) || (isTV && hasFocus)
+      color: (isSelected && groupIndex != -1 && channelIndex != -1) || (isTV && hasFocus)
           ? Colors.white.withOpacity(0.15)
           : Colors.transparent,
       width: 1,
@@ -173,6 +179,11 @@ Widget buildListItem({
       ? _focusNodes[index]
       : null;
 
+  // 从 State 类中获取 groupIndex 和 channelIndex
+  final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+  final groupIndex = state?._groupIndex ?? -1;
+  final channelIndex = state?._channelIndex ?? -1;
+  
   Widget listItemContent = Column(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -189,6 +200,8 @@ Widget buildListItem({
               isSelected: isSelected,
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
+              groupIndex: groupIndex, 
+              channelIndex: channelIndex
             ),
             child: Text(
               title,
