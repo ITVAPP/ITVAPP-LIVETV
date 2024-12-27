@@ -952,13 +952,13 @@ void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
     
-    // 检查新选中的分组是否包含当前播放的频道
-    if (widget.playModel?.title != null) {
-      final channels = _values[index].keys.toList();
-      _channelIndex = channels.indexOf(widget.playModel!.title);
-    } else {
-      _channelIndex = 0;
-    }
+final currentTitle = widget.playModel?.title;
+if (currentTitle != null) {
+  final channels = _values[index].keys.toList();
+  _channelIndex = channels.indexOf(currentTitle);
+} else {
+  _channelIndex = 0;
+}
 
     // 重置所有焦点状态
     _focusStates.clear();
