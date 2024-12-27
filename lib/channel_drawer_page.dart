@@ -74,15 +74,20 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false}) {
+BoxDecoration buildItemDecoration({
+  bool isSelected = false,
+  bool hasFocus = false,
+  bool isTV = false,
+  bool isSystemAutoSelected = false, 
+}) {
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
             ? unselectedColor.withOpacity(0.8)  
-            : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
-        : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
+            : (isSelected && !isSystemAutoSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
+        : (isSelected && !isSystemAutoSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
     border: Border.all(
-      color: isSelected || (isTV && hasFocus) 
+      color: (isSelected && !isSystemAutoSelected) || (isTV && hasFocus) 
           ? Colors.white.withOpacity(0.15)
           : Colors.transparent,
       width: 1,
@@ -163,7 +168,8 @@ Widget buildListItem({
   bool isTV = false,
   int? index,
   bool useFocusableItem = true,
-  bool isLastItem = false, // 新增参数，用于判断是否为最后一项
+  bool isLastItem = false,
+  bool isSystemAutoSelected = false,
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
       ? _focusNodes[index]
@@ -185,12 +191,13 @@ Widget buildListItem({
               isSelected: isSelected,
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
+              isSystemAutoSelected: isSystemAutoSelected,
             ),
-            child: Text(
-              title,
-              style: (focusNode?.hasFocus ?? false)
-                  ? defaultTextStyle.merge(selectedTextStyle)
-                  : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+    child: Text(
+      title,
+      style: (focusNode?.hasFocus ?? false)
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
               softWrap: true,
               maxLines: null,
               overflow: TextOverflow.visible,
@@ -368,6 +375,7 @@ return Container(
                   context: context,
                   index: widget.startIndex + index,
                   isLastItem: index == widget.keys.length - 1,
+                  isSystemAutoSelected: (context.findAncestorStateOfType<_ChannelDrawerPageState>()?._isSystemAutoSelected ?? false),
                 );
               }),
             ),
@@ -459,6 +467,7 @@ class _ChannelListState extends State<ChannelList> {
                 context: context,
                 index: widget.startIndex + index,
                 isLastItem: index == channelList.length - 1,
+                 isSystemAutoSelected: (context.findAncestorStateOfType<_ChannelDrawerPageState>()?._isSystemAutoSelected ?? false),
               );
             }),
           ),
@@ -590,6 +599,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
   bool isPortrait = true;
+  bool _isSystemAutoSelected = false;
 
   final GlobalKey _viewPortKey = GlobalKey();
   double? _viewPortHeight;
@@ -798,6 +808,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         ? _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '')
         : 0;
 
+_isSystemAutoSelected = _groupIndex == -1 || _channelIndex == -1;
+
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
   }
@@ -898,11 +910,12 @@ void _onCategoryTap(int index) {
     // 重置所有焦点状态
     _focusStates.clear();
     // 检查选中的分类是否有分组
-    final selectedCategory = _categories[_categoryIndex];  // 修正变量名
+    final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
-      _initializeFocusNodes(_categories.length); // 修正函数名
+      _isSystemAutoSelected = true; // 新增：空分类时设置为系统自动选中
+      _initializeFocusNodes(_categories.length);
       _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
       // 分组不为空时，初始化频道数据
@@ -914,7 +927,7 @@ void _onCategoryTap(int index) {
       if (_keys.isNotEmpty) {
         totalFocusNodes += _keys.length;
         // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
-        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {  // 修正变量名
+        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
           totalFocusNodes += _values[_groupIndex].length;
         }
       }
@@ -926,10 +939,12 @@ void _onCategoryTap(int index) {
       if (widget.playModel?.title == null || 
           !_values[_groupIndex].containsKey(widget.playModel?.title)) {
         // 不是当前播放频道所在分类时，重置滚动位置
-        _scrollToTop(_scrollController);  // 修正函数名和变量名
-        _scrollToTop(_scrollChannelController);  // 修正函数名和变量名
+        _isSystemAutoSelected = true; // 新增：找不到当前播放频道时设置为系统自动选中
+        _scrollToTop(_scrollController);
+        _scrollToTop(_scrollChannelController);
       } else {
         // 是当前播放频道所在分类时，调整到正确位置
+        _isSystemAutoSelected = false; // 新增：找到当前播放频道时取消系统自动选中
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _adjustScrollPositions();
         });
@@ -951,10 +966,8 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
-
     // 重置所有焦点状态
     _focusStates.clear();
-
     // 重新计算所需节点数，并初始化 FocusNode
     int totalFocusNodes = _categories.length
         + (_keys.isNotEmpty ? _keys.length : 0)
@@ -962,7 +975,6 @@ void _onGroupTap(int index) {
             ? _values[_groupIndex].length
             : 0);
     _initializeFocusNodes(totalFocusNodes);
-
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
     
@@ -970,7 +982,12 @@ void _onGroupTap(int index) {
     if (widget.playModel?.group == _keys[index]) {
       // 是当前播放频道所在分组，找到对应的频道索引
       _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-      if (_channelIndex == -1) _channelIndex = 0;
+      if (_channelIndex == -1) {
+        _channelIndex = 0;
+        _isSystemAutoSelected = true; // 新增：找不到当前频道时设置为系统自动选中
+      } else {
+        _isSystemAutoSelected = false; // 新增：找到当前播放频道时取消系统自动选中
+      }
       
       // 调整到正确位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -979,10 +996,10 @@ void _onGroupTap(int index) {
     } else {
       // 不是当前播放频道所在分组，重置到第一个频道
       _channelIndex = 0;
+      _isSystemAutoSelected = true; // 新增：不是当前播放频道所在分组时设置为系统自动选中
       _scrollToTop(_scrollChannelController);
     }
   });
-
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
