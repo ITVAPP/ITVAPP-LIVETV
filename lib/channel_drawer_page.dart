@@ -74,25 +74,15 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({
-  bool isSelected = false, 
-  bool hasFocus = false, 
-  bool isTV = false,
-  required int groupIndex, 
-  required int channelIndex
-}) {
+BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false}) {
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
             ? unselectedColor.withOpacity(0.8)  
-            : (isSelected && groupIndex != -1 && channelIndex != -1 
-                ? selectedColor.withOpacity(0.9) 
-                : Colors.transparent))
-        : (isSelected && groupIndex != -1 && channelIndex != -1 
-            ? selectedColor.withOpacity(0.9) 
-            : Colors.transparent),
+            : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
+        : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
     border: Border.all(
-      color: (isSelected && groupIndex != -1 && channelIndex != -1) || (isTV && hasFocus)
+      color: isSelected || (isTV && hasFocus) 
           ? Colors.white.withOpacity(0.15)
           : Colors.transparent,
       width: 1,
@@ -179,11 +169,6 @@ Widget buildListItem({
       ? _focusNodes[index]
       : null;
 
-  // 从 State 类中获取 groupIndex 和 channelIndex
-  final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
-  final groupIndex = state?._groupIndex ?? -1;
-  final channelIndex = state?._channelIndex ?? -1;
-  
   Widget listItemContent = Column(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -200,22 +185,16 @@ Widget buildListItem({
               isSelected: isSelected,
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
-              groupIndex: groupIndex, 
-              channelIndex: channelIndex
             ),
-child: Text(
-  title,
-  style: isTV 
-      ? ((focusNode?.hasFocus ?? false) || (isSelected && groupIndex != -1 && channelIndex != -1)
-          ? defaultTextStyle.merge(selectedTextStyle) 
-          : defaultTextStyle)
-      : (isSelected && groupIndex != -1 && channelIndex != -1
-          ? defaultTextStyle.merge(selectedTextStyle) 
-          : defaultTextStyle),
-  softWrap: true,
-  maxLines: null,
-  overflow: TextOverflow.visible,
-),
+            child: Text(
+              title,
+              style: (focusNode?.hasFocus ?? false)
+                  ? defaultTextStyle.merge(selectedTextStyle)
+                  : (isSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+              softWrap: true,
+              maxLines: null,
+              overflow: TextOverflow.visible,
+            ),
           ),
         ),
       ),
@@ -831,6 +810,7 @@ void _sortByLocation() {
   if (locationStr == null || locationStr.isEmpty) return;
 
   try {
+    // 解析格式化的字符串
     List<String> lines = locationStr.split('\n');
     String? region;
     String? city;
@@ -912,98 +892,53 @@ void _reInitializeFocusListeners() {
 
 // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
-  if (_categoryIndex == index) return;
+  if (_categoryIndex == index) return; 
 
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
 
-    // 保存当前播放的频道和分组信息
-    final currentPlayingTitle = widget.playModel?.title;
-    final currentPlayingGroup = widget.playModel?.group;
-    
     // 重置所有焦点状态
     _focusStates.clear();
 
     // 检查选中的分类是否有分组
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
-    
     if (categoryMap == null || categoryMap.isEmpty) {
-      _resetChannelData();
+      _resetChannelData(); 
       _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
       _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
-      try {
-        // 初始化新分类的数据
-        _keys = categoryMap.keys.toList();
-        _values = categoryMap.values.toList();
+      // 分组不为空时，初始化频道数据
+      _initializeChannelData();
 
-        // 如果有位置信息，进行排序
-        _sortByLocation();
-
-        // 在新分类中查找当前播放的频道
-        if (currentPlayingTitle != null && currentPlayingGroup != null) {
-          int newGroupIndex = _keys.indexOf(currentPlayingGroup);
-          if (newGroupIndex != -1 && _values[newGroupIndex].containsKey(currentPlayingTitle)) {
-            _groupIndex = newGroupIndex;
-            _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
-          } else {
-            // 如果在新分类中找不到当前播放的频道，则选择第一个分组和第一个频道
-            _groupIndex = 0;
-            _channelIndex = 0;
-          }
-        } else {
-          _groupIndex = 0;
-          _channelIndex = 0;
+      // 计算新分类下的总节点数，并初始化 FocusNode
+      int totalFocusNodes = _categories.length;
+      
+      // 确保 _keys 不为空且 _values 有效时才添加其长度
+      if (_keys.isNotEmpty) {
+        totalFocusNodes += _keys.length;
+        // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
+        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+          totalFocusNodes += _values[_groupIndex].length;
         }
+      }
+      
+      _initializeFocusNodes(totalFocusNodes);
+      _updateStartIndexes(includeGroupsAndChannels: true);
 
-        // 初始化焦点节点
-        int totalFocusNodes = _categories.length;
-        if (_keys.isNotEmpty) {
-          totalFocusNodes += _keys.length;
-          if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-            totalFocusNodes += _values[_groupIndex].length;
-          }
-        }
-        _initializeFocusNodes(totalFocusNodes);
-        _updateStartIndexes(includeGroupsAndChannels: true);
-        
-// 延迟执行滚动，确保视图已更新
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  // 只有分组索引大于0时才需要滚动
-  if (_scrollController.hasClients && _groupIndex > 0) {
-    _scrollToPosition(_scrollController, _groupIndex);
-  }
-  
-  // 频道滚动逻辑: 
-  if (_scrollChannelController.hasClients) {
-    // 找到了当前播放的频道，需要滚动以确保可见
-    if (currentPlayingTitle != null && currentPlayingGroup != null && 
-        _values[_groupIndex].containsKey(currentPlayingTitle)) {
-      _scrollToPosition(_scrollChannelController, _channelIndex);
-    } else {
-      // 未找到当前播放频道，重置到顶部
+      // 重置滚动位置
+      _scrollToTop(_scrollController);
       _scrollToTop(_scrollChannelController);
     }
-  }
-});
-
-      } catch (e, stackTrace) {
-        LogUtil.logError('切换分类时出错', e, stackTrace);
-        // 发生错误时重置到安全状态
-        _groupIndex = 0;
-        _channelIndex = 0;
-      }
-    }
   });
-      
+  
   // 重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-    }
-    _reInitializeFocusListeners();
+      if (_tvKeyNavigationState != null) { 
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
+      }
+      _reInitializeFocusListeners();
   });
 }
       
@@ -1011,18 +946,8 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
-    
-    // 更安全的方式处理可空类型
-    final currentTitle = widget.playModel?.title;
-    if (currentTitle != null) {
-      _channelIndex = _values[index].keys.toList().indexOf(currentTitle);
-      if (_channelIndex == -1) {
-        _channelIndex = -1; // 如果在新分组中找不到当前播放的频道
-      }
-    } else {
-      _channelIndex = -1; // 如果没有正在播放的频道
-    }
-    
+    _channelIndex = 0; // 重置频道索引到第一个频道
+
     // 重置所有焦点状态
     _focusStates.clear();
 
@@ -1037,30 +962,15 @@ void _onGroupTap(int index) {
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
     
-    // 延迟执行滚动，确保视图已更新
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollChannelController.hasClients) {
-        // 如果找到了当前播放的频道，滚动到对应位置
-        if (currentTitle != null && _values[index].containsKey(currentTitle)) {
-          _scrollToPosition(_scrollChannelController, _channelIndex);
-        } else {
-          // 未找到当前播放频道，重置到顶部
-          _scrollToTop(_scrollChannelController);
-        }
-      }
-    });
+    _scrollToTop(_scrollChannelController);
   });
 
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 计算焦点索引，如果没有选中的频道则默认焦点在分组列表的末尾
-      int channelFocusIndex = _channelIndex != -1 
-          ? _categories.length + _keys.length + _channelIndex
-          : _categories.length + _keys.length;
-          
+      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       if (_tvKeyNavigationState != null) {
         _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: channelFocusIndex);
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
       }
       // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
@@ -1242,13 +1152,11 @@ Widget build(BuildContext context) {
       currentFocusIndex += _keys.length; // 更新焦点索引
       channelListWidget = ChannelList(
         channels: _values[_groupIndex],
-        selectedChannelName: _channelIndex != -1 && _channelIndex < _values[_groupIndex].keys.length 
-            ? _values[_groupIndex].keys.toList()[_channelIndex]
-            : null,
+        selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
         onChannelTap: _onChannelTap,
         isTV: isTV,
         scrollController: _scrollChannelController,
-        startIndex: currentFocusIndex,
+        startIndex: currentFocusIndex,  // 频道列表起始索引
       );
 
       // EPG 列表
