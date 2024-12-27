@@ -120,8 +120,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
 // 视频和音频格式（类成员变量）
 static const List<String> _videoFormats = [
-  '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.flv',
-  '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'
+  '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'
 ];
 static const List<String> _audioFormats = [
   '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
