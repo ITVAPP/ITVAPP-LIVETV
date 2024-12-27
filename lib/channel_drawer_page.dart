@@ -965,59 +965,56 @@ void _onCategoryTap(int index) {
       
 // 切换分组时更新频道
 void _onGroupTap(int index) {
-  // 更新状态相关变量
-  setState(() {
-    _groupIndex = index;
-    
-    if (widget.playModel?.title != null) {
-      final channels = _values[index].keys.toList();
-      _channelIndex = channels.indexOf(widget.playModel?.title ?? '');
-      // 检查新分组是否包含当前播放频道
-      _isAutoSelected = _channelIndex == -1;
-    } else {
-      _channelIndex = 0;
-      _isAutoSelected = true;
-    }
-  });
+ setState(() {
+   _groupIndex = index;
+   
+   if (widget.playModel?.title != null) {
+     final channels = _values[index].keys.toList();
+     _channelIndex = channels.indexOf(widget.playModel?.title ?? '');
+     // 检查新分组是否包含当前播放频道
+     _isAutoSelected = _channelIndex == -1;
+   } else {
+     _channelIndex = 0;
+     _isAutoSelected = true;
+   }
+   _focusStates.clear();
 
-  // 重置焦点状态
-  _focusStates.clear();
+   // 重新计算所需节点数，并初始化 FocusNode
+   int totalFocusNodes = _categories.length
+       + (_keys.isNotEmpty ? _keys.length : 0)
+       + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+           ? _values[_groupIndex].length
+           : 0);
+   _initializeFocusNodes(totalFocusNodes);
 
-  // 重新计算并初始化焦点节点
-  int totalFocusNodes = _categories.length
-      + (_keys.isNotEmpty ? _keys.length : 0)
-      + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-          ? _values[_groupIndex].length
-          : 0);
-  _initializeFocusNodes(totalFocusNodes);
+   // 重新分配索引
+   _updateStartIndexes(includeGroupsAndChannels: true);
+ });
 
-  // 更新索引
-  _updateStartIndexes(includeGroupsAndChannels: true);
-    
-  // 处理滚动位置
-  if (_channelIndex > 0) {
-    // 如果找到当前播放频道，延迟执行滚动
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToPosition(_scrollChannelController, _channelIndex);
-    });
-  } else {
-    // 如果没有找到当前播放频道，滚动到顶部
-    _scrollToTop(_scrollChannelController);
-  }
+ // 根据是否包含当前播放频道来决定滚动行为
+ if (_channelIndex > 0) {
+   // 如果找到当前播放频道，延迟执行滚动
+   WidgetsBinding.instance.addPostFrameCallback((_) {
+     _scrollToPosition(_scrollChannelController, _channelIndex);
+   });
+ } else {
+   // 如果没有找到当前播放频道，滚动到顶部
+   _scrollToTop(_scrollChannelController);
+ }
 
-  // 状态更新后重新初始化焦点系统
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    int focusIndex = _channelIndex > 0 
-        ? _categories.length + _keys.length + _channelIndex
-        : _categories.length + _keys.length;
-        
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
-    }
-    // 重新初始化所有焦点监听器
-    _reInitializeFocusListeners();
-  });
+ // 状态更新后重新初始化焦点系统
+ WidgetsBinding.instance.addPostFrameCallback((_) {
+   int focusIndex = _channelIndex > 0 
+       ? _categories.length + _keys.length + _channelIndex
+       : _categories.length + _keys.length;
+       
+   if (_tvKeyNavigationState != null) {
+     _tvKeyNavigationState!.releaseResources();
+     _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
+   }
+   // 重新初始化所有焦点监听器
+   _reInitializeFocusListeners();
+ });
 }
 
   // 切换频道
