@@ -112,7 +112,6 @@ class HeadersConfig {
       
       final headers = {
         ..._baseHeaders,
-        'host': host,
         'origin': referer,
         'referer': '$referer/',
         'sec-fetch-dest': 'empty',
