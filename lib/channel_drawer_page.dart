@@ -74,8 +74,13 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false, bool isValidIndex = true}) {
-  // 只有在索引有效时才显示选中效果
+BoxDecoration buildItemDecoration({
+  bool isSelected = false, 
+  bool hasFocus = false, 
+  bool isTV = false, 
+  bool isValidIndex = true  // 简化判断逻辑
+}) {
+  // 只在索引有效时才显示选中效果
   final bool shouldShowSelection = isSelected && isValidIndex;
   return BoxDecoration(
     color: isTV
@@ -92,7 +97,7 @@ BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = fals
   );
 }
 
-// 用于管理所有 FocusNode 的列表和全局焦点状态
+// 管理所有 FocusNode 列表和全局焦点状态
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
