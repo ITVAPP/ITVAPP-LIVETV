@@ -20,7 +20,7 @@ class HeadersConfig {
     'accept-encoding': '*',
     'cache-control': 'no-cache',
     'connection': 'keep-alive',
-    'sec-ch-ua-platform': 'Windows',
+    'sec-ch-ua-platform': '"Windows"',
     'sec-ch-ua-mobile': '?0',
     'sec-fetch-user': '?1',
     'dnt': '1',
@@ -112,10 +112,12 @@ class HeadersConfig {
       
       final headers = {
         ..._baseHeaders,
-        'origin': referer,
+        'host': host,
+        'origin': referer.trimEnd('/'),  // 移除末尾的斜杠
         'referer': referer,
         'sec-fetch-dest': 'empty',
       };
+      LogUtil.i('生成主机头：$headers');
       return headers;
       
     } catch (e, stackTrace) {
