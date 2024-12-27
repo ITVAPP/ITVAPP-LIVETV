@@ -21,11 +21,11 @@ class HeadersConfig {
    'accept': '*/*',
    'accept-language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8',
    'accept-encoding': '*',
-   //'cache-control': 'no-cache',
+   'cache-control': 'no-cache',
    'connection': 'keep-alive',
    'sec-ch-ua-platform': '"Windows"',
    'sec-ch-ua-mobile': '?0',
-   //'sec-fetch-user': '?1',
+   'sec-fetch-user': '?1',
    'dnt': '1',
    'sec-fetch-dest': 'empty',
  };
