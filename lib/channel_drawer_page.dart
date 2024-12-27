@@ -893,13 +893,10 @@ void _reInitializeFocusListeners() {
 // 切换分类时更新分组和频道
 void _onCategoryTap(int index) {
   if (_categoryIndex == index) return; 
-
   setState(() {
     _categoryIndex = index; // 更新选中的分类索引
-
     // 重置所有焦点状态
     _focusStates.clear();
-
     // 检查选中的分类是否有分组
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
@@ -910,7 +907,6 @@ void _onCategoryTap(int index) {
     } else {
       // 分组不为空时，初始化频道数据
       _initializeChannelData();
-
       // 计算新分类下的总节点数，并初始化 FocusNode
       int totalFocusNodes = _categories.length;
       
@@ -925,10 +921,19 @@ void _onCategoryTap(int index) {
       
       _initializeFocusNodes(totalFocusNodes);
       _updateStartIndexes(includeGroupsAndChannels: true);
-
-      // 重置滚动位置
-      _scrollToTop(_scrollController);
-      _scrollToTop(_scrollChannelController);
+      
+      // 判断是否是当前播放频道所在分类
+      if (widget.playModel?.title == null || 
+          !_values[_groupIndex].containsKey(widget.playModel?.title)) {
+        // 不是当前播放频道所在分类时，重置滚动位置
+        _scrollToTop(_scrollController);
+        _scrollToTop(_scrollChannelController);
+      } else {
+        // 是当前播放频道所在分类时，调整到正确位置
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _adjustScrollPositions();
+        });
+      }
     }
   });
   
@@ -946,7 +951,14 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
-    _channelIndex = 0; // 重置频道索引到第一个频道
+    
+    // 检查新选中的分组是否包含当前播放的频道
+    if (widget.playModel?.title != null) {
+      final channels = _values[index].keys.toList();
+      _channelIndex = channels.indexOf(widget.playModel!.title);
+    } else {
+      _channelIndex = 0;
+    }
 
     // 重置所有焦点状态
     _focusStates.clear();
@@ -962,18 +974,30 @@ void _onGroupTap(int index) {
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
     
-    _scrollToTop(_scrollChannelController);
+    // 根据是否包含当前播放频道来决定滚动行为
+    if (_channelIndex > 0) {
+      // 如果找到当前播放频道，延迟执行滚动
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToPosition(_scrollChannelController, _channelIndex);
+      });
+    } else {
+      // 如果没有找到当前播放频道，滚动到顶部
+      _scrollToTop(_scrollChannelController);
+    }
   });
 
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
-      }
-      // 重新初始化所有焦点监听器
-      _reInitializeFocusListeners();
+    int focusIndex = _channelIndex > 0 
+        ? _categories.length + _keys.length + _channelIndex
+        : _categories.length + _keys.length;
+        
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.releaseResources();
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
+    }
+    // 重新初始化所有焦点监听器
+    _reInitializeFocusListeners();
   });
 }
 
@@ -1020,11 +1044,19 @@ void _onChannelTap(PlayModel? newModel) {
   }
 
   // 调整分组和频道列表的滚动位置
-  void _adjustScrollPositions() {
-    if (_viewPortHeight == null) return;
+void _adjustScrollPositions() {
+  if (_viewPortHeight == null) return;
+  
+  // 添加索引检查
+  if (_groupIndex >= 0 && _keys.isNotEmpty) {
     _scrollToPosition(_scrollController, _groupIndex);
+  }
+  
+  if (_channelIndex >= 0 && _values.isNotEmpty && 
+      _groupIndex >= 0 && _groupIndex < _values.length) {
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
+}
 
   // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
