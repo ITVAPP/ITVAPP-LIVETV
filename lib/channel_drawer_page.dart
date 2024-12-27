@@ -192,7 +192,7 @@ Widget buildListItem({
               isSelected: isSelected,
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
-              isValidIndex: index != null && index >= 0 && (_groupIndex >= 0 || _channelIndex >= 0),
+              isValidIndex: index != null && index >= 0, 
             ),
             child: Text(
               title,
