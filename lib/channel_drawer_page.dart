@@ -78,10 +78,12 @@ BoxDecoration buildItemDecoration({
   bool isSelected = false, 
   bool hasFocus = false, 
   bool isTV = false, 
-  bool isValidIndex = true  // 简化判断逻辑
+  bool isValidIndex = true,
+  bool isDefaultSelection = false  // 是否是默认选择
 }) {
-  // 只在索引有效时才显示选中效果
-  final bool shouldShowSelection = isSelected && isValidIndex;
+  // 只在非默认选择且索引有效时才显示选中效果
+  final bool shouldShowSelection = isSelected && isValidIndex && !isDefaultSelection;
+  
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
@@ -170,7 +172,8 @@ Widget buildListItem({
   bool isTV = false,
   int? index,
   bool useFocusableItem = true,
-  bool isLastItem = false, // 新增参数，用于判断是否为最后一项
+  bool isLastItem = false, // 用于判断是否为最后一项
+  bool isDefaultSelection = false,
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
       ? _focusNodes[index]
@@ -193,6 +196,7 @@ Widget buildListItem({
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
               isValidIndex: index != null && index >= 0, 
+              isDefaultSelection: isDefaultSelection,
             ),
             child: Text(
               title,
@@ -284,6 +288,7 @@ class _CategoryListState extends State<CategoryList> {
               context: context,
               index: widget.startIndex + index,
               isLastItem: index == widget.categories.length - 1,
+              isDefaultSelection: widget.isDefaultSelection,
             );
           }),
         ),
@@ -301,6 +306,7 @@ class GroupList extends StatefulWidget {
   final bool isTV;
   final bool isFavoriteCategory;
   final int startIndex;
+  final bool isDefaultSelection;
 
   const GroupList({
     super.key,
@@ -311,6 +317,7 @@ class GroupList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     this.isFavoriteCategory = false,
+    this.isDefaultSelection = false,
   });
 
   @override
@@ -380,6 +387,7 @@ return Container(
                   context: context,
                   index: widget.startIndex + index,
                   isLastItem: index == widget.keys.length - 1,
+                  isDefaultSelection: widget.selectedGroupIndex == index && widget.isDefaultSelection,
                 );
               }),
             ),
@@ -397,6 +405,7 @@ class ChannelList extends StatefulWidget {
   final String? selectedChannelName;
   final bool isTV;
   final int startIndex;
+  final bool isDefaultSelection;
 
   const ChannelList({
     super.key,
@@ -406,6 +415,7 @@ class ChannelList extends StatefulWidget {
     this.selectedChannelName,
     required this.isTV,
     this.startIndex = 0,
+    this.isDefaultSelection = false,
   });
 
   @override
@@ -471,6 +481,7 @@ class _ChannelListState extends State<ChannelList> {
                 context: context,
                 index: widget.startIndex + index,
                 isLastItem: index == channelList.length - 1,
+                isDefaultSelection: widget.isDefaultSelection,
               );
             }),
           ),
@@ -558,6 +569,7 @@ class _EPGListState extends State<EPGList> {
                   context: context,
                   useFocusableItem: false,
                   isLastItem: index == (widget.epgData!.length - 1),
+                  isDefaultSelection: widget.isDefaultSelection,
                 );
               },
             ),
@@ -602,6 +614,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
   bool isPortrait = true;
+  bool _isDefaultSelection = false;
 
   final GlobalKey _viewPortKey = GlobalKey();
   double? _viewPortHeight;
@@ -938,14 +951,17 @@ void _onCategoryTap(int index) {
           if (newGroupIndex != -1 && _values[newGroupIndex].containsKey(currentPlayingTitle)) {
             _groupIndex = newGroupIndex;
             _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
+            _isDefaultSelection = false;
           } else {
             // 如果在新分类中找不到当前播放的频道，则选择第一个分组和第一个频道
             _groupIndex = -1;
             _channelIndex = -1;
+            _isDefaultSelection = true;
           }
         } else {
           _groupIndex = -1;
           _channelIndex = -1;
+          _isDefaultSelection = true;
         }
 
         // 初始化焦点节点
@@ -984,6 +1000,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
         // 发生错误时重置到安全状态
         _groupIndex = -1;
         _channelIndex = -1;
+        _isDefaultSelection = true;
       }
     }
   });
@@ -1002,6 +1019,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
+    _isDefaultSelection = false;
     
     // 更安全的方式处理可空类型
     final currentTitle = widget.playModel?.title;
@@ -1061,6 +1079,7 @@ void _onGroupTap(int index) {
   // 切换频道
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
+  _isDefaultSelection = false;
 
   // 向父组件发送选中的频道
   widget.onTapChannel?.call(newModel);
@@ -1115,7 +1134,7 @@ void _scrollToPosition(ScrollController controller, int index) {
   final double viewPortHeight = _viewPortHeight ?? controller.position.viewportDimension;
   
   // 考虑分割线高度（1像素）
-  final itemTotalHeight = defaultMinHeight + 1; // 项目高度 + 分割线高度
+  final itemTotalHeight = defaultMinHeight - 1; // 项目高度 - 分割线高度
   
   // 计算目标偏移量，让选中项居中显示
   final shouldOffset = index * itemTotalHeight - (viewPortHeight - itemTotalHeight) / 2;
@@ -1235,6 +1254,7 @@ Widget build(BuildContext context) {
     scrollController: _scrollController,
     isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
     startIndex: currentFocusIndex,  // 分组列表起始索引
+    isDefaultSelection: _isDefaultSelection,
   );
   
   if (_keys.isNotEmpty) {
@@ -1250,6 +1270,7 @@ Widget build(BuildContext context) {
         isTV: isTV,
         scrollController: _scrollChannelController,
         startIndex: currentFocusIndex,
+        isDefaultSelection: _isDefaultSelection,
       );
 
       // EPG 列表
