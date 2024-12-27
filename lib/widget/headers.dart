@@ -21,13 +21,14 @@ class HeadersConfig {
    'accept': '*/*',
    'accept-language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8',
    'accept-encoding': 'gzip, deflate, br, zstd',
-   'cache-control': 'no-cache',
+   //'cache-control': 'no-cache',
    'connection': 'keep-alive',
    'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Opera";v="114"',
    'sec-ch-ua-platform': '"Windows"',
    'sec-ch-ua-mobile': '?0',
-   'sec-fetch-user': '?1',
+   //'sec-fetch-user': '?1',
    'dnt': '1',
+   'sec-fetch-dest': 'empty',
  };
 
  /// 解析规则字符串返回域名和对应的referer映射
@@ -122,7 +123,6 @@ class HeadersConfig {
        ..._baseHeaders,
        'origin': referer,
        'referer': '$referer/',
-       'sec-fetch-dest': 'empty',
        if (needCors) ...{
          'host': host,
          'sec-fetch-mode': 'cors',
