@@ -193,11 +193,11 @@ Widget buildListItem({
               isTV: isTV,
               isSystemAutoSelected: isSystemAutoSelected,
             ),
-    child: Text(
-      title,
-      style: (focusNode?.hasFocus ?? false)
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+            child: Text(
+              title,
+              style: (focusNode?.hasFocus ?? false || (isSelected && !isSystemAutoSelected))
+                  ? defaultTextStyle.merge(selectedTextStyle)
+                  : defaultTextStyle,
               softWrap: true,
               maxLines: null,
               overflow: TextOverflow.visible,
@@ -205,7 +205,7 @@ Widget buildListItem({
           ),
         ),
       ),
-      if (!isLastItem) horizontalDivider, // 不是最后一项时添加分割线
+      if (!isLastItem) horizontalDivider,
     ],
   );
 
@@ -966,6 +966,8 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
+    _isSystemAutoSelected = false; 
+
     // 重置所有焦点状态
     _focusStates.clear();
     // 重新计算所需节点数，并初始化 FocusNode
@@ -984,11 +986,8 @@ void _onGroupTap(int index) {
       _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
       if (_channelIndex == -1) {
         _channelIndex = 0;
-        _isSystemAutoSelected = true; // 新增：找不到当前频道时设置为系统自动选中
-      } else {
-        _isSystemAutoSelected = false; // 新增：找到当前播放频道时取消系统自动选中
+        _isSystemAutoSelected = true; // 找不到当前频道时设置为系统自动选中
       }
-      
       // 调整到正确位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _adjustScrollPositions();
@@ -996,10 +995,11 @@ void _onGroupTap(int index) {
     } else {
       // 不是当前播放频道所在分组，重置到第一个频道
       _channelIndex = 0;
-      _isSystemAutoSelected = true; // 新增：不是当前播放频道所在分组时设置为系统自动选中
+      _isSystemAutoSelected = true; // 不是当前播放频道所在分组时设置为系统自动选中
       _scrollToTop(_scrollChannelController);
     }
   });
+  
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
@@ -1016,6 +1016,7 @@ void _onGroupTap(int index) {
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
 
+ _isSystemAutoSelected = false; 
   // 向父组件发送选中的频道
   widget.onTapChannel?.call(newModel);
   
