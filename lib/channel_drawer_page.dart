@@ -964,51 +964,58 @@ void _onCategoryTap(int index) {
       
 // 切换分组时更新频道
 void _onGroupTap(int index) {
-  setState(() {
-    _groupIndex = index;
-    _isSystemAutoSelected = false; // 用户点击，直接设置为 false
-    
-    // 重置所有焦点状态
-    _focusStates.clear();
-    // 重新计算所需节点数，并初始化 FocusNode
-    int totalFocusNodes = _categories.length
-        + (_keys.isNotEmpty ? _keys.length : 0)
-        + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-            ? _values[_groupIndex].length
-            : 0);
-    _initializeFocusNodes(totalFocusNodes);
-    // 重新分配索引
-    _updateStartIndexes(includeGroupsAndChannels: true);
-    
-    // 判断是否是当前播放频道所在分组
-    if (widget.playModel?.group == _keys[index]) {
-      // 是当前播放频道所在分组，找到对应的频道索引
-      _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-      if (_channelIndex == -1) {
-        _channelIndex = 0;
-      }
-      
-      // 调整到正确位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _adjustScrollPositions();
-      });
-    } else {
-      // 不是当前播放频道所在分组，重置到第一个频道
-      _channelIndex = 0;
-      _scrollToTop(_scrollChannelController);
-    }
-  });
-  
-  // 状态更新后重新初始化焦点系统
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
-      }
-      // 重新初始化所有焦点监听器
-      _reInitializeFocusListeners();
-  });
+ // 先计算新的频道索引和是否是系统自动选中
+ bool shouldAutoSelect = true;  // 默认为 true
+ int newChannelIndex = 0;  // 默认选择第一个频道
+
+ // 判断是否是当前播放频道所在分组
+ if (widget.playModel?.group == _keys[index]) {
+   // 是当前播放频道所在分组，找到对应的频道索引
+   newChannelIndex = _values[index].keys.toList().indexOf(widget.playModel?.title ?? '');
+   if (newChannelIndex != -1) {
+     shouldAutoSelect = false;  // 找到当前播放频道，不是自动选中
+   } else {
+     newChannelIndex = 0;  // 找不到当前频道，选择第一个
+   }
+ }
+
+ setState(() {
+   _groupIndex = index;
+   _channelIndex = newChannelIndex;
+   _isSystemAutoSelected = shouldAutoSelect;
+   
+   // 重置所有焦点状态
+   _focusStates.clear();
+   // 重新计算所需节点数，并初始化 FocusNode
+   int totalFocusNodes = _categories.length
+       + (_keys.isNotEmpty ? _keys.length : 0)
+       + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+           ? _values[_groupIndex].length
+           : 0);
+   _initializeFocusNodes(totalFocusNodes);
+   // 重新分配索引
+   _updateStartIndexes(includeGroupsAndChannels: true);
+ });
+
+ // 处理滚动位置
+ if (!shouldAutoSelect) {
+   WidgetsBinding.instance.addPostFrameCallback((_) {
+     _adjustScrollPositions();
+   });
+ } else {
+   _scrollToTop(_scrollChannelController);
+ }
+ 
+ // 状态更新后重新初始化焦点系统
+ WidgetsBinding.instance.addPostFrameCallback((_) {
+   int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+   if (_tvKeyNavigationState != null) {
+     _tvKeyNavigationState!.releaseResources();
+     _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+   }
+   // 重新初始化所有焦点监听器
+   _reInitializeFocusListeners();
+ });
 }
 
 // 切换频道
