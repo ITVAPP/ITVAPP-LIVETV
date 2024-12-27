@@ -203,19 +203,19 @@ Widget buildListItem({
               groupIndex: groupIndex, 
               channelIndex: channelIndex
             ),
-            child: Text(
-              title,
-              style: isTV 
-                  ? ((focusNode?.hasFocus ?? false) || (isSelected && _groupIndex != -1 && _channelIndex != -1)
-                      ? defaultTextStyle.merge(selectedTextStyle) 
-                      : defaultTextStyle)
-                  : (isSelected && _groupIndex != -1 && _channelIndex != -1
-                      ? defaultTextStyle.merge(selectedTextStyle) 
-                      : defaultTextStyle),
-              softWrap: true,
-              maxLines: null,
-              overflow: TextOverflow.visible,
-            ),
+child: Text(
+  title,
+  style: isTV 
+      ? ((focusNode?.hasFocus ?? false) || (isSelected && groupIndex != -1 && channelIndex != -1)
+          ? defaultTextStyle.merge(selectedTextStyle) 
+          : defaultTextStyle)
+      : (isSelected && groupIndex != -1 && channelIndex != -1
+          ? defaultTextStyle.merge(selectedTextStyle) 
+          : defaultTextStyle),
+  softWrap: true,
+  maxLines: null,
+  overflow: TextOverflow.visible,
+),
           ),
         ),
       ),
