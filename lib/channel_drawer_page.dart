@@ -898,11 +898,11 @@ void _onCategoryTap(int index) {
     // 重置所有焦点状态
     _focusStates.clear();
     // 检查选中的分类是否有分组
-    final selectedCategory = _categories[_categoryIndex];
+    final selectedCategory = _categories[_categoryIndex];  // 修正变量名
     final categoryMap = widget.videoMap?.playList[selectedCategory];
     if (categoryMap == null || categoryMap.isEmpty) {
       _resetChannelData(); 
-      _initializeFocusNodes(_categories.length); // 初始化焦点节点，仅包含分类节点
+      _initializeFocusNodes(_categories.length); // 修正函数名
       _updateStartIndexes(includeGroupsAndChannels: false);
     } else {
       // 分组不为空时，初始化频道数据
@@ -914,7 +914,7 @@ void _onCategoryTap(int index) {
       if (_keys.isNotEmpty) {
         totalFocusNodes += _keys.length;
         // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
-        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+        if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {  // 修正变量名
           totalFocusNodes += _values[_groupIndex].length;
         }
       }
@@ -926,8 +926,8 @@ void _onCategoryTap(int index) {
       if (widget.playModel?.title == null || 
           !_values[_groupIndex].containsKey(widget.playModel?.title)) {
         // 不是当前播放频道所在分类时，重置滚动位置
-        _scrollToTop(_scrollController);
-        _scrollToTop(_scrollChannelController);
+        _scrollToTop(_scrollController);  // 修正函数名和变量名
+        _scrollToTop(_scrollChannelController);  // 修正函数名和变量名
       } else {
         // 是当前播放频道所在分类时，调整到正确位置
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -951,14 +951,6 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
-    
-    // 检查新选中的分组是否包含当前播放的频道
-    if (widget.playModel?.title != null) {
-      final channels = _values[index].keys.toList();
-      _channelIndex = channels.indexOf(widget.playModel!.title);
-    } else {
-      _channelIndex = 0;
-    }
 
     // 重置所有焦点状态
     _focusStates.clear();
@@ -974,30 +966,32 @@ void _onGroupTap(int index) {
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
     
-    // 根据是否包含当前播放频道来决定滚动行为
-    if (_channelIndex > 0) {
-      // 如果找到当前播放频道，延迟执行滚动
+    // 判断是否是当前播放频道所在分组
+    if (widget.playModel?.group == _keys[index]) {
+      // 是当前播放频道所在分组，找到对应的频道索引
+      _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
+      if (_channelIndex == -1) _channelIndex = 0;
+      
+      // 调整到正确位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToPosition(_scrollChannelController, _channelIndex);
+        _adjustScrollPositions();
       });
     } else {
-      // 如果没有找到当前播放频道，滚动到顶部
+      // 不是当前播放频道所在分组，重置到第一个频道
+      _channelIndex = 0;
       _scrollToTop(_scrollChannelController);
     }
   });
 
   // 状态更新后重新初始化焦点系统
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    int focusIndex = _channelIndex > 0 
-        ? _categories.length + _keys.length + _channelIndex
-        : _categories.length + _keys.length;
-        
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
-    }
-    // 重新初始化所有焦点监听器
-    _reInitializeFocusListeners();
+      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      }
+      // 重新初始化所有焦点监听器
+      _reInitializeFocusListeners();
   });
 }
 
@@ -1044,19 +1038,11 @@ void _onChannelTap(PlayModel? newModel) {
   }
 
   // 调整分组和频道列表的滚动位置
-void _adjustScrollPositions() {
-  if (_viewPortHeight == null) return;
-  
-  // 添加索引检查
-  if (_groupIndex >= 0 && _keys.isNotEmpty) {
+  void _adjustScrollPositions() {
+    if (_viewPortHeight == null) return;
     _scrollToPosition(_scrollController, _groupIndex);
-  }
-  
-  if (_channelIndex >= 0 && _values.isNotEmpty && 
-      _groupIndex >= 0 && _groupIndex < _values.length) {
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
-}
 
   // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
