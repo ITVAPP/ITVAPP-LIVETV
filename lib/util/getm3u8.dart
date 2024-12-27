@@ -34,9 +34,9 @@ class M3U8FilterRule {
 /// M3U8地址获取类
 /// 用于从网页中提取M3U8视频流地址
 class GetM3U8 {
-  /// 全局规则配置字符串
+  /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@cditv.cn|wslivehls.com';
+  static String rulesString = 'setv.sh.cn|programme10_ud@cditv.cn|https://cdn1.cditv.cn';
   
   /// 目标URL
   final String url;
