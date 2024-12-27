@@ -124,6 +124,7 @@ class HeadersConfig {
        'referer': '$referer/',
        'sec-fetch-dest': 'empty',
        if (needCors) ...{
+         'host': host
          'sec-fetch-mode': 'cors',
          'sec-fetch-site': 'cross-site',
        }
