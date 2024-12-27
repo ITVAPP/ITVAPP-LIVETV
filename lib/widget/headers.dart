@@ -42,7 +42,7 @@ class HeadersConfig {
         final domain = parts[0].trim();
         final referer = parts[1].trim();
         if (domain.isNotEmpty && referer.isNotEmpty) {
-          rules[domain] = 'https://$referer/';
+          rules[domain] = 'https://$referer';
         }
       }
     }
@@ -108,13 +108,13 @@ class HeadersConfig {
 
       // 获取referer
       final customReferer = _getRefererByRules(host);
-      final referer = customReferer ?? '$scheme://$host/';
+      final referer = customReferer ?? '$scheme://$host';
       
       final headers = {
         ..._baseHeaders,
         'host': host,
-        'origin': referer.trimEnd('/'),  // 移除末尾的斜杠
-        'referer': referer,
+        'origin': referer,
+        'referer': '$referer/',
         'sec-fetch-dest': 'empty',
       };
       LogUtil.i('生成主机头：$headers');
