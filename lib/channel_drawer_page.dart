@@ -193,17 +193,15 @@ Widget buildListItem({
               isTV: isTV,
               isSystemAutoSelected: isSystemAutoSelected,
             ),
-child: Text(
-  title,
-  style: (focusNode?.hasFocus ?? false)
-      ? defaultTextStyle.merge(selectedTextStyle)
-      : (isSelected && !isSystemAutoSelected 
-          ? defaultTextStyle.merge(selectedTextStyle) 
-          : defaultTextStyle),
-  softWrap: true,
-  maxLines: null,
-  overflow: TextOverflow.visible,
-),
+    child: Text(
+      title,
+      style: (focusNode?.hasFocus ?? false)
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+              softWrap: true,
+              maxLines: null,
+              overflow: TextOverflow.visible,
+            ),
           ),
         ),
       ),
@@ -968,28 +966,8 @@ void _onCategoryTap(int index) {
 void _onGroupTap(int index) {
   setState(() {
     _groupIndex = index;
+    _isSystemAutoSelected = false; // 用户点击，直接设置为 false
     
-    // 判断是否是当前播放频道所在分组
-    if (widget.playModel?.group == _keys[index]) {
-      // 是当前播放频道所在分组，找到对应的频道索引
-      _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-      if (_channelIndex == -1) {
-        _channelIndex = 0;
-        _isSystemAutoSelected = true; // 找不到当前频道时设置为系统自动选中
-      } else {
-        _isSystemAutoSelected = false; // 找到当前播放频道时取消系统自动选中
-      }
-      // 调整到正确位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _adjustScrollPositions();
-      });
-    } else {
-      // 不是当前播放频道所在分组，重置到第一个频道
-      _channelIndex = 0;
-      _isSystemAutoSelected = true; // 不是当前播放频道所在分组时设置为系统自动选中
-      _scrollToTop(_scrollChannelController);
-    }
-
     // 重置所有焦点状态
     _focusStates.clear();
     // 重新计算所需节点数，并初始化 FocusNode
@@ -1001,6 +979,24 @@ void _onGroupTap(int index) {
     _initializeFocusNodes(totalFocusNodes);
     // 重新分配索引
     _updateStartIndexes(includeGroupsAndChannels: true);
+    
+    // 判断是否是当前播放频道所在分组
+    if (widget.playModel?.group == _keys[index]) {
+      // 是当前播放频道所在分组，找到对应的频道索引
+      _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
+      if (_channelIndex == -1) {
+        _channelIndex = 0;
+      }
+      
+      // 调整到正确位置
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _adjustScrollPositions();
+      });
+    } else {
+      // 不是当前播放频道所在分组，重置到第一个频道
+      _channelIndex = 0;
+      _scrollToTop(_scrollChannelController);
+    }
   });
   
   // 状态更新后重新初始化焦点系统
@@ -1015,10 +1011,12 @@ void _onGroupTap(int index) {
   });
 }
 
-  // 切换频道
+// 切换频道
 void _onChannelTap(PlayModel? newModel) {
   if (newModel?.title == widget.playModel?.title) return; // 防止重复点击已选频道
 
+  _isSystemAutoSelected = false; // 用户点击，直接设置为 false
+  
   // 向父组件发送选中的频道
   widget.onTapChannel?.call(newModel);
   
@@ -1031,7 +1029,6 @@ void _onChannelTap(PlayModel? newModel) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
   });
-  
 }
 
   // 滚动到顶部
