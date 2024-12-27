@@ -74,15 +74,17 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
 
-BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false}) {
+BoxDecoration buildItemDecoration({bool isSelected = false, bool hasFocus = false, bool isTV = false, bool isValidIndex = true}) {
+  // 只有在索引有效时才显示选中效果
+  final bool shouldShowSelection = isSelected && isValidIndex;
   return BoxDecoration(
     color: isTV
         ? (hasFocus 
             ? unselectedColor.withOpacity(0.8)  
-            : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
-        : (isSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
+            : (shouldShowSelection ? selectedColor.withOpacity(0.9) : Colors.transparent))
+        : (shouldShowSelection ? selectedColor.withOpacity(0.9) : Colors.transparent),
     border: Border.all(
-      color: isSelected || (isTV && hasFocus) 
+      color: shouldShowSelection || (isTV && hasFocus) 
           ? Colors.white.withOpacity(0.15)
           : Colors.transparent,
       width: 1,
@@ -185,6 +187,7 @@ Widget buildListItem({
               isSelected: isSelected,
               hasFocus: focusNode?.hasFocus ?? false,
               isTV: isTV,
+              isValidIndex: index != null && index >= 0 && (_groupIndex >= 0 || _channelIndex >= 0),
             ),
             child: Text(
               title,
@@ -932,12 +935,12 @@ void _onCategoryTap(int index) {
             _channelIndex = _values[newGroupIndex].keys.toList().indexOf(currentPlayingTitle);
           } else {
             // 如果在新分类中找不到当前播放的频道，则选择第一个分组和第一个频道
-            _groupIndex = 0;
-            _channelIndex = 0;
+            _groupIndex = -1;
+            _channelIndex = -1;
           }
         } else {
-          _groupIndex = 0;
-          _channelIndex = 0;
+          _groupIndex = -1;
+          _channelIndex = -1;
         }
 
         // 初始化焦点节点
@@ -974,8 +977,8 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
       } catch (e, stackTrace) {
         LogUtil.logError('切换分类时出错', e, stackTrace);
         // 发生错误时重置到安全状态
-        _groupIndex = 0;
-        _channelIndex = 0;
+        _groupIndex = -1;
+        _channelIndex = -1;
       }
     }
   });
@@ -1106,8 +1109,11 @@ void _scrollToPosition(ScrollController controller, int index) {
   final maxScrollExtent = controller.position.maxScrollExtent;
   final double viewPortHeight = _viewPortHeight ?? controller.position.viewportDimension;
   
+  // 考虑分割线高度（1像素）
+  final itemTotalHeight = defaultMinHeight + 1; // 项目高度 + 分割线高度
+  
   // 计算目标偏移量，让选中项居中显示
-  final shouldOffset = index * defaultMinHeight - (viewPortHeight - defaultMinHeight) / 2;
+  final shouldOffset = index * itemTotalHeight - (viewPortHeight - itemTotalHeight) / 2;
   
   // 确保偏移量在合理范围内
   final normalizedOffset = max(0.0, min(shouldOffset, maxScrollExtent));
