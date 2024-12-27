@@ -13,7 +13,7 @@ class HeadersConfig {
  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@wslivehls.com|www.cditv.cn';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'wslivehls.com';
+ static String corsRulesString = 'cdn1.cditv.cn';
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
