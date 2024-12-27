@@ -230,6 +230,7 @@ class CategoryList extends StatefulWidget {
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
+  final bool isDefaultSelection;
 
   const CategoryList({
     super.key,
@@ -238,6 +239,7 @@ class CategoryList extends StatefulWidget {
     required this.onCategoryTap,
     required this.isTV,
     this.startIndex = 0,
+    this.isDefaultSelection = false,
   });
 
   @override
@@ -569,7 +571,6 @@ class _EPGListState extends State<EPGList> {
                   context: context,
                   useFocusableItem: false,
                   isLastItem: index == (widget.epgData!.length - 1),
-                  isDefaultSelection: widget.isDefaultSelection,
                 );
               },
             ),
