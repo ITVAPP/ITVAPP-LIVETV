@@ -10,10 +10,10 @@ class HeadersConfig {
  
  /// 格式: domain1|referer1@domain2|referer2
  /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
- static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@wslivehls.com|www.cditv.cn@candocloud.cn|www.cditv.cn';
+ static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@wslivehls.com|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'domain.cn';
+ static String corsRulesString = 'yntv-api.yntv.cn';
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
@@ -125,7 +125,7 @@ class HeadersConfig {
        if (needCors) ...{
          'host': host,
          'sec-fetch-mode': 'cors',
-         'sec-fetch-site': 'cross-site',
+         'sec-fetch-site': 'same-site',
        }
      };
 
