@@ -215,7 +215,7 @@ Future<String?> _checkPageContent() async {
   }
 
   /// 初始化WebViewController
-  Future<void> _initController(Completer<String> completer) async {
+Future<void> _initController(Completer<String> completer) async {
     LogUtil.i('开始初始化WebViewController');
     try {
       _controller = WebViewController()
@@ -232,17 +232,14 @@ Future<String?> _checkPageContent() async {
           NavigationDelegate(
             onNavigationRequest: (NavigationRequest request) {
               LogUtil.i('页面导航请求: ${request.url}');
-
               // 解析URL
               final uri = Uri.tryParse(request.url);
               if (uri == null) {
                 LogUtil.i('无效的URL，阻止加载');
                 return NavigationDecision.prevent;
               }
-
               // 获取文件扩展名
               final extension = uri.path.toLowerCase().split('.').last;
-
               // 需要阻止的资源类型
               final blockedExtensions = [
                 'jpg', 'jpeg', 'png', 'gif', 'webp', // 图片
@@ -254,42 +251,36 @@ Future<String?> _checkPageContent() async {
                 'pdf', 'doc', 'docx', // 文档
                 'swf', // Flash
               ];
-
               // 如果是被阻止的扩展名，阻止加载
               if (blockedExtensions.contains(extension)) {
                 LogUtil.i('阻止加载资源: ${request.url}');
                 return NavigationDecision.prevent;
               }
-
               // 特别允许m3u8相关的请求
               if (request.url.contains('.m3u8')) {
                 LogUtil.i('允许加载m3u8资源: ${request.url}');
                 return NavigationDecision.navigate;
               }
-
               // 默认允许其他资源加载
               LogUtil.i('允许加载资源: ${request.url}');
               return NavigationDecision.navigate;
             },
-            onPageFinished: (String url) async {
+            onPageFinished: (String url) {
               LogUtil.i('页面加载完成: $url');
-
-              // 先检查页面内容
-              final m3u8Url = await _checkPageContent();
-              if (m3u8Url != null) {
-                LogUtil.i('在页面内容中找到有效的M3U8地址');
-                if (!completer.isCompleted) {
+              
+              // 立即启动JS检测器
+              _setupPeriodicCheck();
+              _injectM3U8Detector();
+              
+              // 同时进行页面内容检查
+              _checkPageContent().then((m3u8Url) {
+                if (m3u8Url != null && !completer.isCompleted) {
                   _m3u8Found = true;
                   completer.complete(m3u8Url);
                   _logPerformanceMetrics();
                   disposeResources();
-                  return;
                 }
-              }
-
-              LogUtil.i('页面内容中未找到有效的M3U8地址，继续使用检测器');
-              _setupPeriodicCheck();
-              _injectM3U8Detector();
+              });
             },
             onWebResourceError: (WebResourceError error) {
               // 忽略被阻止资源的错误
@@ -297,13 +288,11 @@ Future<String?> _checkPageContent() async {
                 LogUtil.i('资源被阻止加载: ${error.description}');
                 return;
               }
-
               LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
               _handleLoadError(completer);
             },
           ),
         );
-
       await _loadUrlWithHeaders();
       LogUtil.i('WebViewController初始化完成');
     } catch (e, stackTrace) {
