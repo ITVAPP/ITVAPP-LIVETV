@@ -509,13 +509,13 @@ class GetM3U8 {
     );
   }
   
-  /// 新增: JS检测启动方法
+  /// JS检测启动方法
   Future<String?> _startJSDetection() async {
     if (!_isDetectorInjected) {
-      await _injectM3U8Detector();
+      _injectM3U8Detector();
       _isDetectorInjected = true;
     }
-    return null; // 初始返回null，后续通过JavaScriptChannel接收结果
+    return null;
   }
   
   /// 检查页面内容中的M3U8地址 - 优化版本
@@ -585,7 +585,7 @@ class GetM3U8 {
               if(style && style.includes('m3u8')) {
                 const matches = style.match(/url\\(['"]?(.*?m3u8[^'"\\)]*)/g);
                 if(matches) {
-                  results.push(...matches.map(url => url.replace(/^url\\(['"]?|['"]?\\)\\$/g, '')));
+                  results.push(...matches.map(url => url.replace(/^url\\(['"]?|['"]?\\)\\\$/g, '')));
                 }
               }
             });
@@ -772,7 +772,7 @@ class GetM3U8 {
           if (style && style.includes('m3u8')) {
             const matches = style.match(/url\\(['"]?(.*?m3u8[^'"\\)]*)/g);
             if (matches) {
-              matches.map(url => url.replace(/^url\\(['"]?|['"]?\\)\\$/g, ''))
+              matches.map(url => url.replace(/^url\\(['"]?|['"]?\\)\\\$/g, ''))
                      .forEach(url => urls.add(url));
             }
           }
