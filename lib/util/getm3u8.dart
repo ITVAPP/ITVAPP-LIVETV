@@ -113,7 +113,7 @@ GetM3U8({
   }
 }
 
-  /// 解析规则字符串
+/// 解析规则字符串
   static List<M3U8FilterRule> _parseRules(String rulesString) {
     if (rulesString.isEmpty) {
       return [];
@@ -217,7 +217,8 @@ onPageFinished: (String url) async {
     );
     
     if (content != null) {
-      final m3u8Pattern = RegExp(r'https?://[^\s<>"\']+?\.m3u8[^\s<>"\']*');
+      // 这里修复了正则表达式的语法
+      final m3u8Pattern = RegExp(r'https?:\/\/[^\s<>"\']+?\.m3u8[^\s<>"\']*');
       final matches = m3u8Pattern.allMatches(content.toString());
       
       bool foundValidM3U8 = false;
@@ -265,8 +266,8 @@ onPageFinished: (String url) async {
     _handleLoadError(completer);
   }
 }
-  
-  /// 处理加载错误
+
+/// 处理加载错误
   Future<void> _handleLoadError(Completer<String> completer) async {
     if (_retryCount < RETRY_DELAYS.length && !_isDisposed) {
       final delaySeconds = RETRY_DELAYS[_retryCount];
@@ -278,7 +279,7 @@ onPageFinished: (String url) async {
       }
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数或已释放资源');
-      completer.complete('ERROR'); // 修改：返回ERROR而不是空字符串
+      completer.complete('ERROR');
       _logPerformanceMetrics();
       disposeResources();
     }
@@ -428,8 +429,8 @@ Set<String> _extractM3U8FromHTML(String html) {
     _extractUrlsFromText(videoTag, urls);
   }
   
-  // 检查source标签
-  final sourcePattern = RegExp(r'<source[^>]+src=["\'](.*?)["\']', dotAll: true);
+  // 检查source标签 - 修复了正则表达式
+  final sourcePattern = RegExp(r'<source[^>]+src=["\']([^"\']+)["\']', dotAll: true);
   final sourceMatches = sourcePattern.allMatches(html);
   
   for (final match in sourceMatches) {
@@ -447,8 +448,8 @@ Set<String> _extractM3U8FromHTML(String html) {
 
 /// 从文本中提取URL
 void _extractUrlsFromText(String text, Set<String> urls) {
-  // 匹配标准URL格式
-  final urlPattern = RegExp(r'https?://[^\s<>"\']+?\.m3u8[^\s<>"\']*');
+  // 匹配标准URL格式 - 修复了正则表达式
+  final urlPattern = RegExp(r'https?:\/\/[^\s<>"\']+?\.m3u8[^\s<>"\']*');
   final matches = urlPattern.allMatches(text);
   
   for (final match in matches) {
@@ -458,8 +459,8 @@ void _extractUrlsFromText(String text, Set<String> urls) {
     }
   }
   
-  // 匹配带引号的URL
-  final quotedPattern = RegExp(r'["\'](https?://[^"\']+?\.m3u8[^"\']*)["\']');
+  // 匹配带引号的URL - 修复了正则表达式
+  final quotedPattern = RegExp(r'["\']?(https?:\/\/[^"\']+?\.m3u8[^"\']*)["\']?');
   final quotedMatches = quotedPattern.allMatches(text);
   
   for (final match in quotedMatches) {
@@ -495,39 +496,7 @@ String _normalizeUrl(String inputUrl) {
   return processedUrl;
 }
 
-  /// 处理发现的M3U8 URL
-void _handleM3U8Found(String url, Completer<String> completer) {
-  LogUtil.i('处理发现的URL: $url');
-  if (!_m3u8Found && url.isNotEmpty) {
-    LogUtil.i('发现新的未处理URL');
-    
-    // 标准化URL
-    final normalizedUrl = _normalizeUrl(url);
-    
-    if (_isValidM3U8Url(normalizedUrl)) {
-      LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-      // 处理URL参数替换
-      String finalUrl = normalizedUrl;
-      if (fromParam != null && toParam != null) {
-        LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-        finalUrl = normalizedUrl.replaceAll(fromParam!, toParam!);
-        LogUtil.i('替换后的URL: $finalUrl');
-      }
-  
-      _foundUrls.add(finalUrl);
-      _m3u8Found = true;
-      if (!completer.isCompleted) {
-        completer.complete(finalUrl);
-      }
-      _logPerformanceMetrics();
-      disposeResources();
-    } else {
-      LogUtil.i('URL验证失败，继续等待新的URL');
-    }
-  }
-}
-
-  /// 验证M3U8 URL是否有效
+/// 验证M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
     LogUtil.i('开始验证URL: $url');
     
@@ -789,7 +758,7 @@ void _handleM3U8Found(String url, Completer<String> completer) {
 function efficientDOMScan() {
   LogUtil.i('开始高效DOM扫描');
   
-  // 优先扫描明显的m3u8链接 (原有代码)
+  // 优先扫描明显的m3u8链接
   const elements = document.querySelectorAll([
     'a[href*="m3u8"]',
     'source[src*="m3u8"]',
@@ -827,7 +796,7 @@ function efficientDOMScan() {
     }
   });
   
-  // 扫描script标签中的内容 (优化原有代码)
+  // 扫描script标签中的内容
   document.querySelectorAll('script:not([src])').forEach(script => {
     const content = script.textContent;
     if (content) {
@@ -900,7 +869,7 @@ function efficientDOMScan() {
       const urlPattern = /https?:\/\/[^\s<>"]+?\.m3u8[^\s<>"']*/g;
       const matches = content.match(urlPattern);
       if (matches) {
-        matches.forEach(url => processM3U8Url(url, 0));
+      	matches.forEach(url => processM3U8Url(url, 0));
       }
     }
   }
@@ -1048,7 +1017,7 @@ function checkBase64Content(content) {
             XHR.open = originalOpen;
             XHR.setRequestHeader = originalSetRequestHeader;
             XHR.send = originalSend;
-            }
+          }
           
           // 清理DOM事件监听器
           window.removeEventListener('popstate', handleUrlChange);
