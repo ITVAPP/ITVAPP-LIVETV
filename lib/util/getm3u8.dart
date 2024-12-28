@@ -137,32 +137,47 @@ GetM3U8({
     }
   }
 
-  /// URL整理
-  String _cleanUrl(String url) {
-    String cleanedUrl = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll(RegExp(r'([^:])//+'), r'$1/')
-      .replaceAll('+', '%20')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/');
+/// URL整理
+String _cleanUrl(String url) {
+ // 先处理基本的字符清理
+ String cleanedUrl = url.trim()
+   .replaceAll(r'\s*\\s*$', '')
+   .replaceAll('&amp;', '&')
+   .replaceAll(RegExp(r'([^:])//+'), r'$1/')
+   .replaceAll('+', '%20')
+   .replaceAll('&quot;', '"')
+   .replaceAll('&#x2F;', '/')
+   .replaceAll('&#47;', '/');
 
-    if (!cleanedUrl.startsWith('http')) {
-      if (cleanedUrl.startsWith('//')) {
-        cleanedUrl = 'https:$cleanedUrl';
-      } else if (cleanedUrl.startsWith('/')) {
-        final baseUri = Uri.parse(url);
-        cleanedUrl = Uri(
-          scheme: baseUri.scheme,
-          host: baseUri.host,
-          path: cleanedUrl
-        ).toString();
-      }
-    }
+ // 如果已经是完整URL则直接返回
+ if (cleanedUrl.startsWith('http')) {
+   return cleanedUrl;
+ }
 
-    return cleanedUrl;
-  }
+ try {
+   final baseUri = Uri.parse(this.url);
+   
+   if (cleanedUrl.startsWith('//')) {
+     // 如果以//开头，去除//和域名部分(如果有)
+     String cleanPath = cleanedUrl.substring(2);
+     if (cleanPath.contains('/')) {
+       // 如果包含域名，去除域名部分
+       cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+     }
+     // 确保路径以/开头
+     cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+   } else {
+     // 处理以/开头或不以/开头的URL
+     String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
+     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+   }
+ } catch (e) {
+   LogUtil.e('URL整理失败: $e');
+ }
+
+ return cleanedUrl;
+}
 
 /// 处理相对路径,转换为完整URL
 String _handleRelativePath(String path) {
@@ -170,28 +185,22 @@ String _handleRelativePath(String path) {
   if (path.startsWith('http')) {
     return path;
   }
-
   try {
     final baseUri = Uri.parse(url); 
     String fullUrl;
-
     if (path.startsWith('//')) {
-      // 处理以 // 开头的URL, 这部分让 _cleanUrl 处理
-      return path;
-    } else if (path.startsWith('/')) {
-      // 处理以 / 开头的URL
-      fullUrl = '${baseUri.scheme}://${baseUri.host}$path';
-    } else {
-      // 处理相对路径
-      String basePath = baseUri.path;
-      if (!basePath.endsWith('/')) {
-        basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+      String cleanPath = path.substring(2);
+      if (cleanPath.contains('/')) {
+        cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
       }
-      fullUrl = '${baseUri.scheme}://${baseUri.host}$basePath$path';
+      cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    } else {
+      String cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
     }
-
-    LogUtil.i('相对路径[$path]转换为完整URL[$fullUrl]');
-    return fullUrl;
+    // 最后通过_cleanUrl再处理一次
+    return _cleanUrl(fullUrl);
   } catch (e) {
     LogUtil.e('处理相对路径失败: $e');
     return path;
