@@ -175,6 +175,8 @@ Widget buildListItem({
       ? _focusNodes[index]
       : null;
 
+  final hasFocus = focusNode?.hasFocus ?? false;
+  
   Widget listItemContent = Column(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -189,15 +191,21 @@ Widget buildListItem({
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
               isSelected: isSelected,
-              hasFocus: focusNode?.hasFocus ?? false,
+              hasFocus: hasFocus,
               isTV: isTV,
               isSystemAutoSelected: isSystemAutoSelected,
             ),
             child: Text(
               title,
-              style: (focusNode?.hasFocus ?? false)
-                  ? defaultTextStyle.merge(selectedTextStyle)
-                  : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle),
+              style: isTV
+                  ? (hasFocus
+                      ? defaultTextStyle.merge(selectedTextStyle)
+                      : (isSelected && !isSystemAutoSelected 
+                          ? defaultTextStyle.merge(selectedTextStyle) 
+                          : defaultTextStyle))
+                  : (isSelected && !isSystemAutoSelected 
+                      ? defaultTextStyle.merge(selectedTextStyle) 
+                      : defaultTextStyle),
               softWrap: true,
               maxLines: null,
               overflow: TextOverflow.visible,
