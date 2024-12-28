@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -450,7 +451,7 @@ class GetM3U8 {
     String cleanedUrl = url.trim()
       .replaceAll(r'\s*\\s*$', '')
       .replaceAll('&amp;', '&')
-      .replaceAll(r'([^:])//+', '$1/')
+      .replaceAll(RegExp(r'([^:])//+'), r'$1/')
       .replaceAll('+', '%20')
       .replaceAll('&quot;', '"')
       .replaceAll('&#x2F;', '/')
