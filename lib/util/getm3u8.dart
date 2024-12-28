@@ -528,7 +528,7 @@ Future<String?> _checkPageContent() async {
     final regexPatterns = [
       // 修改正则以匹配相对路径
       r'''(?:https?://)?[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''', // 标准 URL 
-      r'''"(?:url|src|href)"?\s*:\s*"([^"]+?\.m3u8[^"]*)"''', // JSON 格式
+      r'"(?:url|src|href)"\s*:\s*"((?:\\\/|[^"])+?\.m3u8[^"]*)"',  // JSON 格式
       r'''['"](?:url|src|href)['"]?\s*=\s*['"]([^'"]+?\.m3u8[^'"]*?)['"]''', // HTML 属性
       r'''url\(\s*['"]?([^'")]+?\.m3u8[^'")]*?)['"]?\s*\)''' // CSS URL
     ];
