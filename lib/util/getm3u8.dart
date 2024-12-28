@@ -618,7 +618,7 @@ Future<String?> _checkPageContent() async {
   // 处理相对路径
   if (url.startsWith('/')) {
     const baseUrl = new URL(window.location.href);
-    url = `${baseUrl.protocol}//${baseUrl.host}${url}`;
+    url = baseUrl.protocol + '//' + baseUrl.host + url;
   } else if (!url.startsWith('http')) {
     const baseUrl = new URL(window.location.href);
     url = new URL(url, baseUrl).toString();
