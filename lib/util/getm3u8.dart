@@ -164,6 +164,40 @@ GetM3U8({
     return cleanedUrl;
   }
 
+/// 处理相对路径,转换为完整URL
+String _handleRelativePath(String path) {
+  // 已经是完整URL就直接返回
+  if (path.startsWith('http')) {
+    return path;
+  }
+
+  try {
+    final baseUri = Uri.parse(url); 
+    String fullUrl;
+
+    if (path.startsWith('//')) {
+      // 处理以 // 开头的URL, 这部分让 _cleanUrl 处理
+      return path;
+    } else if (path.startsWith('/')) {
+      // 处理以 / 开头的URL
+      fullUrl = '${baseUri.scheme}://${baseUri.host}$path';
+    } else {
+      // 处理相对路径
+      String basePath = baseUri.path;
+      if (!basePath.endsWith('/')) {
+        basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+      }
+      fullUrl = '${baseUri.scheme}://${baseUri.host}$basePath$path';
+    }
+
+    LogUtil.i('相对路径[$path]转换为完整URL[$fullUrl]');
+    return fullUrl;
+  } catch (e) {
+    LogUtil.e('处理相对路径失败: $e');
+    return path;
+  }
+}
+
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
   Future<String> getUrl() async {
     final completer = Completer<String>();
@@ -414,12 +448,6 @@ void _handleM3U8Found(String url, Completer<String> completer) {
       LogUtil.i('URL不包含.m3u8扩展名');
       return false;
     }
-    
-    // 检查是否为完整URL
-    if (!url.startsWith('http')) {
-      LogUtil.i('URL不是以http开头的完整地址');
-      return false;
-    }
 
     // 检查是否包含无效关键词
     final lowercaseUrl = url.toLowerCase();
@@ -489,10 +517,11 @@ Future<String?> _checkPageContent() async {
 
     // 多模式正则匹配
     final regexPatterns = [
-      r'''https?://[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''', // 标准 URL
-      r'''"(?:url|src|href)"?\s*:\s*"(https?://[^"]+?\.m3u8[^"]*)"''', // JSON 格式
+      // 修改正则以匹配相对路径
+      r'''(?:https?://)?[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''', // 标准 URL 
+      r'''"(?:url|src|href)"?\s*:\s*"([^"]+?\.m3u8[^"]*)"''', // JSON 格式
       r'''['"](?:url|src|href)['"]?\s*=\s*['"]([^'"]+?\.m3u8[^'"]*?)['"]''', // HTML 属性
-      r'''url\(\s*['"]?(https?://[^'")]+?\.m3u8[^'")]*?)['"]?\s*\)''', // CSS URL
+      r'''url\(\s*['"]?([^'")]+?\.m3u8[^'")]*?)['"]?\s*\)''' // CSS URL
     ];
 
     final Set<String> foundUrls = {};
@@ -510,7 +539,8 @@ Future<String?> _checkPageContent() async {
           : (match.group(0) ?? '');
           
         if (url.isNotEmpty) {
-          foundUrls.add(url);
+          // 处理相对路径
+          foundUrls.add(_handleRelativePath(url));
         }
       }
     }
@@ -584,6 +614,15 @@ Future<String?> _checkPageContent() async {
           if (!url || typeof url !== 'string') {
             return;
           }
+          
+  // 处理相对路径
+  if (url.startsWith('/')) {
+    const baseUrl = new URL(window.location.href);
+    url = `${baseUrl.protocol}//${baseUrl.host}${url}`;
+  } else if (!url.startsWith('http')) {
+    const baseUrl = new URL(window.location.href);
+    url = new URL(url, baseUrl).toString();
+  }
           
           if (depth > MAX_RECURSION_DEPTH) {
             return;
