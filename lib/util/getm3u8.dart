@@ -149,40 +149,40 @@ class GetM3U8 {
   }
 
   /// 检查页面内容中的M3U8地址
-  Future<String?> _checkPageContent() async {
-    LogUtil.i('开始检查页面内容中的M3U8地址');
-    try {
-      // 获取页面完整内容
-      final String content = await _controller.runJavaScriptReturningResult(
-        'document.documentElement.outerHTML'
-      ) as String;
+Future<String?> _checkPageContent() async {
+  LogUtil.i('开始检查页面内容中的M3U8地址');
+  try {
+    // 获取页面完整内容
+    final String content = await _controller.runJavaScriptReturningResult(
+      'document.documentElement.outerHTML'
+    ) as String;
 
-      // 使用正则表达式匹配所有m3u8地址
-      final regex = RegExp(r'''https?://[^\s<>"']+?\.m3u8[^\s<>"']*''');
-      final matches = regex.allMatches(content);
-      LogUtil.i('页面内容中找到 ${matches.length} 个潜在的M3U8地址');
+    // 使用正则表达式匹配所有m3u8地址
+    final regex = RegExp(r'''https?://[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''');
+    final matches = regex.allMatches(content);
+    LogUtil.i('页面内容中找到 ${matches.length} 个潜在的M3U8地址');
 
-      // 检查每个匹配的URL
-      for (final match in matches) {
-        final rawUrl = match.group(0) ?? '';
-        LogUtil.i('检查潜在的M3U8地址: $rawUrl');
+    // 检查每个匹配的URL
+    for (final match in matches) {
+      final rawUrl = match.group(0) ?? '';
+      LogUtil.i('检查潜在的M3U8地址: $rawUrl');
 
-        final processedUrl = await _processUrl(rawUrl, checkCache: false);
-        if (processedUrl != null) {
-          LogUtil.i('找到符合规则的M3U8地址: $processedUrl');
-          return processedUrl;
-        } else {
-          LogUtil.i('M3U8地址未通过规则验证: $rawUrl');
-        }
+      final processedUrl = await _processUrl(rawUrl, checkCache: false);
+      if (processedUrl != null) {
+        LogUtil.i('找到符合规则的M3U8地址: $processedUrl');
+        return processedUrl;
+      } else {
+        LogUtil.i('M3U8地址未通过规则验证: $rawUrl');
       }
-
-      LogUtil.i('页面内容中未找到符合规则的M3U8地址');
-      return null;
-    } catch (e, stackTrace) {
-      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-      return null;
     }
+
+    LogUtil.i('页面内容中未找到符合规则的M3U8地址');
+    return null;
+  } catch (e, stackTrace) {
+    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+    return null;
   }
+}
 
   /// 处理发现的M3U8 URL
   void _handleM3U8Found(String url, Completer<String> completer) {
