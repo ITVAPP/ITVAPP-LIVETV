@@ -57,6 +57,12 @@ class GetM3U8 {
   /// 是否已找到M3U8
   bool _m3u8Found = false;
 
+  /// 是否正在进行静态检查
+  bool _isStaticChecking = false;
+
+  /// 是否已找到静态M3U8
+  bool _staticM3u8Found = false;
+
   /// 已发现的URL集合
   final Set<String> _foundUrls = {};
 
@@ -78,7 +84,7 @@ class GetM3U8 {
   /// 最大检查间隔(秒)
   static const int MAX_CHECK_INTERVAL = 5;
 
-  /// 最大重试次数
+  /// 最大重试次数  
   static const int MAX_RETRIES = 2;
 
   /// 重试延迟时间(秒)
@@ -101,7 +107,7 @@ class GetM3U8 {
 
   /// 规则列表
   final List<M3U8FilterRule> _filterRules;
-
+  
   /// 构造函数
   GetM3U8({
     required this.url,
@@ -149,40 +155,44 @@ class GetM3U8 {
   }
 
   /// 检查页面内容中的M3U8地址
-Future<String?> _checkPageContent() async {
-  LogUtil.i('开始检查页面内容中的M3U8地址');
-  try {
-    // 获取页面完整内容
-    final String content = await _controller.runJavaScriptReturningResult(
-      'document.documentElement.outerHTML'
-    ) as String;
+  Future<String?> _checkPageContent() async {
+    LogUtil.i('开始检查页面内容中的M3U8地址');
+    _isStaticChecking = true;
+    try {
+      // 获取页面完整内容
+      final String content = await _controller.runJavaScriptReturningResult(
+        'document.documentElement.outerHTML'
+      ) as String;
 
-    // 使用正则表达式匹配所有m3u8地址
-    final regex = RegExp(r'''https?://[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''');
-    final matches = regex.allMatches(content);
-    LogUtil.i('页面内容中找到 ${matches.length} 个潜在的M3U8地址');
+      // 使用正则表达式匹配所有m3u8地址
+      final regex = RegExp(r'''https?://[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''');
+      final matches = regex.allMatches(content);
+      LogUtil.i('页面内容中找到 ${matches.length} 个潜在的M3U8地址');
 
-    // 检查每个匹配的URL
-    for (final match in matches) {
-      final rawUrl = match.group(0) ?? '';
-      LogUtil.i('检查潜在的M3U8地址: $rawUrl');
+      // 检查每个匹配的URL
+      for (final match in matches) {
+        final rawUrl = match.group(0) ?? '';
+        LogUtil.i('检查潜在的M3U8地址: $rawUrl');
 
-      final processedUrl = await _processUrl(rawUrl, checkCache: false);
-      if (processedUrl != null) {
-        LogUtil.i('找到符合规则的M3U8地址: $processedUrl');
-        return processedUrl;
-      } else {
-        LogUtil.i('M3U8地址未通过规则验证: $rawUrl');
+        final processedUrl = await _processUrl(rawUrl, checkCache: false);
+        if (processedUrl != null) {
+          LogUtil.i('找到符合规则的M3U8地址: $processedUrl');
+          _staticM3u8Found = true;
+          return processedUrl;
+        } else {
+          LogUtil.i('M3U8地址未通过规则验证: $rawUrl');
+        }
       }
-    }
 
-    LogUtil.i('页面内容中未找到符合规则的M3U8地址');
-    return null;
-  } catch (e, stackTrace) {
-    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-    return null;
+      LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续进行JS检测');
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+      return null;
+    } finally {
+      _isStaticChecking = false;
+    }
   }
-}
 
   /// 处理发现的M3U8 URL
   void _handleM3U8Found(String url, Completer<String> completer) {
@@ -213,9 +223,9 @@ Future<String?> _checkPageContent() async {
       }
     });
   }
-
+  
   /// 初始化WebViewController
-Future<void> _initController(Completer<String> completer) async {
+  Future<void> _initController(Completer<String> completer) async {
     LogUtil.i('开始初始化WebViewController');
     try {
       _controller = WebViewController()
@@ -265,22 +275,24 @@ Future<void> _initController(Completer<String> completer) async {
               LogUtil.i('允许加载资源: ${request.url}');
               return NavigationDecision.navigate;
             },
-            onPageFinished: (String url) {
+            onPageFinished: (String url) async {
               LogUtil.i('页面加载完成: $url');
               
-              // 立即启动JS检测器
-              _setupPeriodicCheck();
-              _injectM3U8Detector();
+              // 先进行页面内容检查
+              final m3u8Url = await _checkPageContent();
+              if (m3u8Url != null && !completer.isCompleted) {
+                _m3u8Found = true;
+                completer.complete(m3u8Url);
+                _logPerformanceMetrics();
+                disposeResources();
+                return;
+              }
               
-              // 同时进行页面内容检查
-              _checkPageContent().then((m3u8Url) {
-                if (m3u8Url != null && !completer.isCompleted) {
-                  _m3u8Found = true;
-                  completer.complete(m3u8Url);
-                  _logPerformanceMetrics();
-                  disposeResources();
-                }
-              });
+              // 如果页面内容检查没找到，启动JS检测
+              if (!_m3u8Found && !_staticM3u8Found) {
+                _setupPeriodicCheck();
+                _injectM3U8Detector();
+              }
             },
             onWebResourceError: (WebResourceError error) {
               // 忽略被阻止资源的错误
@@ -333,7 +345,7 @@ Future<void> _initController(Completer<String> completer) async {
       rethrow;
     }
   }
-
+  
   /// 设置定期检查
   void _setupPeriodicCheck() {
     LogUtil.i('设置定期检查任务');
@@ -345,7 +357,7 @@ Future<void> _initController(Completer<String> completer) async {
     _periodicCheckTimer = Timer.periodic(
       const Duration(seconds: 1),
       (timer) {
-        if (!_m3u8Found && !_isDisposed) {
+        if (!_m3u8Found && !_isDisposed && !_isStaticChecking) {
           _checkCount++;
           LogUtil.i('执行第$_checkCount次定期检查');
 
@@ -434,7 +446,7 @@ Future<void> _initController(Completer<String> completer) async {
       return null;
     }
   }
-
+  
   /// URL清理
   String _cleanUrl(String url) {
     String cleanedUrl = url.trim()
@@ -550,7 +562,7 @@ Future<void> _initController(Completer<String> completer) async {
 
     LogUtil.i('资源释放完成');
   }
-
+  
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
     // 如果已经注入过，直接返回
@@ -645,6 +657,7 @@ Future<void> _initController(Completer<String> completer) async {
           }
           return originalSend.apply(this, arguments);
         };
+
         // 拦截Fetch请求
         const originalFetch = window.fetch;
         window.fetch = function(input) {
@@ -858,7 +871,7 @@ Future<void> _initController(Completer<String> completer) async {
             XHR.open = originalOpen;
             XHR.setRequestHeader = originalSetRequestHeader;
             XHR.send = originalSend;
-            }
+          }
 
           // 清理DOM事件监听器
           window.removeEventListener('popstate', handleUrlChange);
