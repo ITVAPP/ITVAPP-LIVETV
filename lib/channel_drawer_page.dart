@@ -296,6 +296,7 @@ class GroupList extends StatefulWidget {
   final bool isTV;
   final bool isFavoriteCategory;
   final int startIndex;
+  final bool isSystemAutoSelected;
 
   const GroupList({
     super.key,
@@ -306,6 +307,7 @@ class GroupList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     this.isFavoriteCategory = false,
+    required this.isSystemAutoSelected,
   });
 
   @override
@@ -375,7 +377,7 @@ class _GroupListState extends State<GroupList> {
                       context: context,
                       index: widget.startIndex + index,
                       isLastItem: index == widget.keys.length - 1,
-                      isSystemAutoSelected: (context.findAncestorStateOfType<_ChannelDrawerPageState>()?._isSystemAutoSelected ?? false),
+                      isSystemAutoSelected: widget.isSystemAutoSelected,
                     );
                   }),
                 ),
@@ -469,7 +471,7 @@ class _ChannelListState extends State<ChannelList> {
                   context: context,
                   index: widget.startIndex + index,
                   isLastItem: index == channelList.length - 1,
-                  isSystemAutoSelected: (context.findAncestorStateOfType<_ChannelDrawerPageState>()?._isSystemAutoSelected ?? false),
+                  isSystemAutoSelected: widget.isSystemAutoSelected,
                 );
               }),
             ),
@@ -1186,6 +1188,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       scrollController: _scrollController,
       isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,  // 分组列表起始索引
+      isSystemAutoSelected: _isSystemAutoSelected,
     );
 
     if (_keys.isNotEmpty) {
