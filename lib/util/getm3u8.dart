@@ -100,12 +100,6 @@ class GetM3U8 {
 
   /// 规则列表
   final List<M3U8FilterRule> _filterRules;
-  
-  /// 是否正在进行静态检测
-  bool _isStaticChecking = false;
-
-  /// 是否已通过静态检测找到M3U8
-  bool _staticM3u8Found = false;
 
   /// 构造函数
 GetM3U8({
@@ -136,34 +130,7 @@ GetM3U8({
       return [];
     }
   }
-
-  /// URL整理
-  String _cleanUrl(String url) {
-    String cleanedUrl = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll(RegExp(r'([^:])//+'), r'$1/')
-      .replaceAll('+', '%20')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/');
-
-    if (!cleanedUrl.startsWith('http')) {
-      if (cleanedUrl.startsWith('//')) {
-        cleanedUrl = 'https:$cleanedUrl';
-      } else if (cleanedUrl.startsWith('/')) {
-        final baseUri = Uri.parse(url);
-        cleanedUrl = Uri(
-          scheme: baseUri.scheme,
-          host: baseUri.host,
-          path: cleanedUrl
-        ).toString();
-      }
-    }
-
-    return cleanedUrl;
-  }
-
+  
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
   Future<String> getUrl() async {
     final completer = Completer<String>();
@@ -237,23 +204,11 @@ GetM3U8({
               LogUtil.i('允许加载资源: ${request.url}');
               return NavigationDecision.navigate;
             },
-onPageFinished: (String url) async {
-  LogUtil.i('页面加载完成: $url');
-  
-  // 先进行页面内容检查
-  final m3u8Url = await _checkPageContent();
-  if (m3u8Url != null && !completer.isCompleted) {
-    _m3u8Found = true;
-    completer.complete(m3u8Url);
-    _logPerformanceMetrics();
-    disposeResources();
-    return;
-  }
-
-  // 如果静态检查没找到，启动JS检测
-  _setupPeriodicCheck();
-  _injectM3U8Detector();
-},
+            onPageFinished: (String url) {
+              LogUtil.i('页面加载完成: $url');
+              _setupPeriodicCheck();
+              _injectM3U8Detector();
+            },
             onWebResourceError: (WebResourceError error) {
               // 忽略被阻止资源的错误
               if (error.errorCode == -1) {
@@ -366,37 +321,33 @@ onPageFinished: (String url) async {
   }
   
   /// 处理发现的M3U8 URL
-void _handleM3U8Found(String url, Completer<String> completer) {
-  LogUtil.i('处理发现的URL: $url');
-  if (!_m3u8Found && url.isNotEmpty) {
-    LogUtil.i('发现新的未处理URL');
-    
-    // 首先整理URL
-    String cleanedUrl = _cleanUrl(url);
-    LogUtil.i('整理后的URL: $cleanedUrl');
+  void _handleM3U8Found(String url, Completer<String> completer) {
+    LogUtil.i('处理发现的URL: $url');
+    if (!_m3u8Found && url.isNotEmpty) {
+      LogUtil.i('发现新的未处理URL');
       
-    if (_isValidM3U8Url(cleanedUrl)) {
-      LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-      // 处理URL参数替换
-      String finalUrl = cleanedUrl;
-      if (fromParam != null && toParam != null) {
-        LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-        finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-        LogUtil.i('替换后的URL: $finalUrl');
-      }
+      if (_isValidM3U8Url(url)) {
+        LogUtil.i('URL验证通过，标记为有效的m3u8地址');
+        // 处理URL参数替换
+        String finalUrl = url;
+        if (fromParam != null && toParam != null) {
+          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+          finalUrl = url.replaceAll(fromParam!, toParam!);
+          LogUtil.i('替换后的URL: $finalUrl');
+        }
     
-      _foundUrls.add(finalUrl);
-      _m3u8Found = true;
-      if (!completer.isCompleted) {
-        completer.complete(finalUrl);
+        _foundUrls.add(finalUrl);
+        _m3u8Found = true;
+        if (!completer.isCompleted) {
+          completer.complete(finalUrl);
+        }
+        _logPerformanceMetrics();
+        disposeResources();
+      } else {
+        LogUtil.i('URL验证失败，继续等待新的URL');
       }
-      _logPerformanceMetrics();
-      disposeResources();
-    } else {
-      LogUtil.i('URL验证失败，继续等待新的URL');
     }
   }
-}
 
   /// 验证M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
@@ -476,84 +427,7 @@ void _handleM3U8Found(String url, Completer<String> completer) {
     
     LogUtil.i('资源释放完成');
   }
-
-/// 检查页面内容中的M3U8地址 
-Future<String?> _checkPageContent() async {
-  LogUtil.i('开始检查页面内容中的M3U8地址');
-  _isStaticChecking = true;
-  try {
-    // 获取页面完整内容
-    final String content = await _controller.runJavaScriptReturningResult(
-      'document.documentElement.outerHTML'
-    ) as String;
-
-    // 多模式正则匹配
-    final regexPatterns = [
-      r'''https?://[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''', // 标准 URL
-      r'''"(?:url|src|href)"?\s*:\s*"(https?://[^"]+?\.m3u8[^"]*)"''', // JSON 格式
-      r'''['"](?:url|src|href)['"]?\s*=\s*['"]([^'"]+?\.m3u8[^'"]*?)['"]''', // HTML 属性
-      r'''url\(\s*['"]?(https?://[^'")]+?\.m3u8[^'")]*?)['"]?\s*\)''', // CSS URL
-    ];
-
-    final Set<String> foundUrls = {};
-    int totalMatches = 0;
-
-    for (final pattern in regexPatterns) {
-      final regex = RegExp(pattern);
-      final matches = regex.allMatches(content);
-      totalMatches += matches.length;
-      
-      for (final match in matches) {
-        // 获取匹配组1(如果有)或者完整匹配
-        final url = match.groupCount > 0 
-          ? (match.group(1) ?? match.group(0) ?? '')
-          : (match.group(0) ?? '');
-          
-        if (url.isNotEmpty) {
-          foundUrls.add(url);
-        }
-      }
-    }
-    
-    LogUtil.i('页面内容中找到 $totalMatches 个潜在的M3U8地址，去重后剩余 ${foundUrls.length} 个');
-
-    // 检查每个匹配的URL
-    for (final url in foundUrls) {
-      LogUtil.i('检查潜在的M3U8地址: $url');
-      
-      // 首先清理URL
-      String cleanedUrl = _cleanUrl(url);
-      LogUtil.i('清理后的URL: $cleanedUrl');
-        
-      if (_isValidM3U8Url(cleanedUrl)) {
-        LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-        // 处理URL参数替换
-        String finalUrl = cleanedUrl;
-        if (fromParam != null && toParam != null) {
-          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-          finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-          LogUtil.i('替换后的URL: $finalUrl');
-        }
-        
-        _foundUrls.add(finalUrl);
-        _staticM3u8Found = true;
-        _m3u8Found = true;
-        return finalUrl;
-      } else {
-        LogUtil.i('URL验证失败，继续检查下一个URL');
-      }
-    }
-
-    LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
-    return null;
-  } catch (e, stackTrace) {
-    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-    return null;
-  } finally {
-    _isStaticChecking = false;
-  }
-}
-
+  
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
     // 如果已经注入过，直接返回
