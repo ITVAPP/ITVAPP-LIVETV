@@ -444,7 +444,7 @@ String _handleRelativePath(String path) {
     
     // 取消定时器
     if (_periodicCheckTimer != null) {
-      _periodicCheckTimer.cancel();
+      _periodicCheckTimer?.cancel();
       _periodicCheckTimer = null;
     }
     
