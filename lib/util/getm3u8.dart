@@ -651,11 +651,11 @@ Future<void> disposeResources() async {
     }
 
     try {
-      // 停止所有正在进行的导航
-      await _controller.stopLoading();
-      
       // 注入清理脚本，终止所有正在进行的网络请求和观察器
       await _controller.runJavaScript('''
+        // 停止页面加载
+        window.stop();
+        
         // 清理所有活跃的XHR请求
         const activeXhrs = window._activeXhrs || [];
         activeXhrs.forEach(xhr => xhr.abort());
@@ -698,6 +698,30 @@ Future<void> disposeResources() async {
         // 清理所有websocket连接
         const sockets = window._webSockets || [];
         sockets.forEach(socket => socket.close());
+
+        // 停止所有进行中的网络请求
+        if (window.performance && window.performance.getEntries) {
+          const resources = window.performance.getEntries().filter(e => 
+            e.initiatorType === 'xmlhttprequest' || 
+            e.initiatorType === 'fetch' || 
+            e.initiatorType === 'beacon'
+          );
+          resources.forEach(resource => {
+            if (resource.duration === 0) {
+              try {
+                const controller = new AbortController();
+                controller.abort();
+              } catch(e) {}
+            }
+          });
+        }
+
+        // 清理所有未完成的图片加载
+        document.querySelectorAll('img').forEach(img => {
+          if (!img.complete) {
+            img.src = '';
+          }
+        });
       ''');
 
       // 清空WebView缓存
