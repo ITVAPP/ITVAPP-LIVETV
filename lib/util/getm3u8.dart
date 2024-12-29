@@ -224,10 +224,7 @@ class GetM3U8 {
           }
         }
 
-        console.log('找到的匹配:', JSON.stringify(matches, null, 2));
-
         if (!foundNode) {
-          console.log('未找到目标文本节点');
           return { success: false, matches };
         }
 
@@ -249,7 +246,6 @@ class GetM3U8 {
 
         const clickableElement = findClickableParent(foundNode);
         if (!clickableElement) {
-          console.log('未找到可点击的父元素');
           return { success: false, matches };
         }
 
@@ -297,7 +293,6 @@ class GetM3U8 {
                 }
               });
             } catch (e) {
-              console.error('点击失败:', e);
               resolve({ success: false, error: e.message, matches });
             }
           }, 100);
@@ -478,18 +473,14 @@ String _handleRelativePath(String path) {
 
               // 如果是被阻止的扩展名，阻止加载
               if (blockedExtensions.contains(extension)) {
-                LogUtil.i('阻止加载资源: ${request.url}');
                 return NavigationDecision.prevent;
               }
 
               // 特别允许m3u8相关的请求
               if (request.url.contains('.m3u8')) {
-                LogUtil.i('允许加载m3u8资源: ${request.url}');
                 return NavigationDecision.navigate;
               }
 
-              // 默认允许其他资源加载
-              LogUtil.i('允许加载资源: ${request.url}');
               return NavigationDecision.navigate;
             },
             onPageFinished: (String url) async {
@@ -758,9 +749,6 @@ String _handleRelativePath(String path) {
         }
       }
     }
-    
-    // 没有匹配的规则，使用默认验证
-    LogUtil.i('没有匹配的域名规则，采用默认验证');
     return true;
   }
 
@@ -775,9 +763,9 @@ Future<String?> _checkPageContent() async {
     _isStaticChecking = true;
     
     try {
-      // 尝试获取前20KB内容
+      // 尝试获取前30KB内容
       final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-        document.documentElement.innerHTML.substring(0, 20480)
+        document.documentElement.innerHTML.substring(0, 30680)
       ''');
 
       if (sampleResult == null) {
@@ -788,9 +776,9 @@ Future<String?> _checkPageContent() async {
       final String sample = sampleResult.toString();
       final int sampleLength = sample.length;
 
-      // 如果接近20KB，说明原内容可能更大
-      if (sampleLength > 20180) {
-        LogUtil.i('页面内容较大(超过20KB)，跳过静态检测');
+      // 如果接近30KB，说明原内容可能更大
+      if (sampleLength > 30580) {
+        LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
         return null;
       }
       
@@ -832,16 +820,11 @@ Future<String?> _checkPageContent() async {
         LogUtil.i('检查潜在的M3U8地址: $url');
         
         String cleanedUrl = _cleanUrl(url);
-        LogUtil.i('清理后的URL: $cleanedUrl');
           
         if (_isValidM3U8Url(cleanedUrl)) {
-          LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-          
           String finalUrl = cleanedUrl;
           if (fromParam != null && toParam != null) {
-            LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
             finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-            LogUtil.i('替换后的URL: $finalUrl');
           }
           
           _foundUrls.add(finalUrl);
