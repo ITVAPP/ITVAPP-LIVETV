@@ -182,7 +182,6 @@ Future<String> _handleGetM3U8Url(String url) async {
   if (_isDisposed) return 'ERROR';
   GetM3U8? detector;
   try {
-    LogUtil.i('开始处理GetM3U8 URL: $url');
     detector = GetM3U8(
       url: url,
       timeoutSeconds: timeoutDuration.inSeconds,
@@ -203,7 +202,9 @@ Future<String> _handleGetM3U8Url(String url) async {
     return 'ERROR';
   } finally {
     // 确保释放资源
-    detector?.disposeResources();
+    if (detector != null) {
+      await detector.dispose(); 
+    }
   }
 }
 
