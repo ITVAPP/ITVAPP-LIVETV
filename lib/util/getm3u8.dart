@@ -139,7 +139,6 @@ class GetM3U8 {
   }
 
 /// 执行点击操作
-/// 执行点击操作
 Future<bool> _executeClick() async {
   if (_isClickExecuted || clickText == null || clickText!.isEmpty) {
     LogUtil.i(_isClickExecuted ? '点击已执行，跳过' : '无点击配置，跳过');
@@ -149,7 +148,7 @@ Future<bool> _executeClick() async {
   LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
   
   final jsCode = '''
-  await (async function() {
+  (async function() {
     async function findAndClick() {
       // 获取所有文本节点
       function getTextNodes() {
@@ -308,9 +307,23 @@ Future<bool> _executeClick() async {
           clickableElement.onclick(); // 执行onclick处理函数
         }
 
-        // 立即返回点击成功的状态
+        // 等待可能的变化发生
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // 检查状态变化
+        const afterState = {
+          url: window.location.href,
+          html: clickableElement.innerHTML?.trim()
+        };
+
+        // 判断是否成功
+        const urlChanged = beforeState.url !== afterState.url;
+        const htmlChanged = beforeState.html !== afterState.html;
+        const success = urlChanged || htmlChanged;
+        
+        // 返回纯JavaScript对象
         return {
-          success: true,
+          success: success,
           matches: matches,
           clicked: {
             tag: clickableElement.tagName,
@@ -329,15 +342,25 @@ Future<bool> _executeClick() async {
       }
     }
 
-    const result = await findAndClick();
-    return result;
-  })()
+    return findAndClick();
+  })();
   ''';
 
   try {
     final result = await _controller.runJavaScriptReturningResult(jsCode);
+    
     // 尝试将结果转换为 Map
-    final Map<String, dynamic> response = json.decode(result.toString());
+    Map<String, dynamic> response;
+    try {
+      response = result as Map<String, dynamic>;
+    } catch (e) {
+      // 如果直接转换失败，尝试从字符串解析
+      if (result is String) {
+        response = json.decode(result);
+      } else {
+        throw FormatException('Unexpected response format: ${result.runtimeType}');
+      }
+    }
     
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
