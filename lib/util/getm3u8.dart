@@ -148,7 +148,7 @@ Future<bool> _executeClick() async {
   LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
   
   final jsCode = '''
-  (async function() {
+  (() => {
     async function findAndClick() {
       // 获取所有文本节点
       function getTextNodes() {
@@ -328,30 +328,14 @@ Future<bool> _executeClick() async {
       }
     }
 
-    const result = await findAndClick();
-    return result; // 直接返回结果对象
-  })();
+    return findAndClick();
+  })()
   ''';
 
   try {
-    final result = await _controller.runJavaScriptReturningResult(jsCode);
+    final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
     
-    // 打印结果类型和值，用于调试
-    LogUtil.i('JavaScript返回值类型: ${result.runtimeType}');
-    LogUtil.i('JavaScript返回值: $result');
-    
-    // 尝试将结果转换为 Map
-    Map<String, dynamic> response;
-    try {
-      if (result is String) {
-        response = json.decode(result);
-      } else {
-        response = Map<String, dynamic>.from(result as Map);
-      }
-    } catch (e) {
-      LogUtil.e('返回值解析失败: $e');
-      throw FormatException('无法解析返回值: ${result.runtimeType}');
-    }
+    final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
     
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
@@ -360,9 +344,7 @@ Future<bool> _executeClick() async {
       return true;
     } else {
       LogUtil.e('点击失败：${response['error'] ?? '未找到元素'}');
-      if (response['matches'] != null) {
-        LogUtil.i('找到的匹配: ${response['matches']}');
-      }
+      LogUtil.i('找到的匹配: ${response['matches']}');
       _isClickExecuted = true;
       return false;
     }
