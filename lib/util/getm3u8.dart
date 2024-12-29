@@ -330,6 +330,110 @@ class GetM3U8 {
       return false;
     }
   }
+
+  /// 解析规则字符串
+  static List<M3U8FilterRule> _parseRules(String rulesString) {
+    if (rulesString.isEmpty) {
+      return [];
+    }
+
+    try {
+      return rulesString
+          .split('@')
+          .where((rule) => rule.isNotEmpty)
+          .map((rule) => M3U8FilterRule.fromString(rule))
+          .toList();
+    } catch (e) {
+      LogUtil.e('解析规则字符串失败: $e');
+      return [];
+    }
+  }
+
+/// URL整理
+String _cleanUrl(String url) {
+ // 先处理基本的字符清理
+ String cleanedUrl = url.trim()
+   .replaceAll(r'\s*\\s*$', '')
+   .replaceAll('&amp;', '&')
+   .replaceAll(RegExp(r'([^:])//+'), r'$1/')
+   .replaceAll('+', '%20')
+   .replaceAll('&quot;', '"')
+   .replaceAll('&#x2F;', '/')
+   .replaceAll('&#47;', '/');
+
+ // 如果已经是完整URL则直接返回
+ if (cleanedUrl.startsWith('http')) {
+   return cleanedUrl;
+ }
+
+ try {
+   final baseUri = Uri.parse(this.url);
+   
+   if (cleanedUrl.startsWith('//')) {
+     // 如果以//开头，去除//和域名部分(如果有)
+     String cleanPath = cleanedUrl.substring(2);
+     if (cleanPath.contains('/')) {
+       // 如果包含域名，去除域名部分
+       cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+     }
+     // 确保路径以/开头
+     cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+   } else {
+     // 处理以/开头或不以/开头的URL
+     String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
+     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+   }
+ } catch (e) {
+   LogUtil.e('URL整理失败: $e');
+ }
+
+ return cleanedUrl;
+}
+
+/// 处理相对路径,转换为完整URL
+String _handleRelativePath(String path) {
+  // 已经是完整URL就直接返回
+  if (path.startsWith('http')) {
+    return path;
+  }
+  try {
+    final baseUri = Uri.parse(url); 
+    String fullUrl;
+    if (path.startsWith('//')) {
+      String cleanPath = path.substring(2);
+      if (cleanPath.contains('/')) {
+        cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+      }
+      cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    } else {
+      String cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    }
+    // 最后通过_cleanUrl再处理一次
+    return _cleanUrl(fullUrl);
+  } catch (e) {
+    LogUtil.e('处理相对路径失败: $e');
+    return path;
+  }
+}
+
+  /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
+  Future<String> getUrl() async {
+    final completer = Completer<String>();
+    
+    LogUtil.i('GetM3U8初始化开始，目标URL: $url');
+    try {
+      await _initController(completer);
+      _startTimeout(completer);
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始化过程发生错误', e, stackTrace);
+      completer.complete('ERROR');
+    }
+    
+    return completer.future;
+  }
   
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer) async {
