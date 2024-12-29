@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -81,7 +82,7 @@ class GetM3U8 {
   int _currentInterval = 1;
   
   /// 最大检查间隔(秒)
-  static const int MAX_CHECK_INTERVAL = 5;
+  static const int MAX_CHECK_INTERVAL = 3;
   
   /// 最大重试次数
   static const int MAX_RETRIES = 2;
@@ -122,7 +123,7 @@ class GetM3U8 {
   /// 构造函数
   GetM3U8({
     required this.url,
-    this.timeoutSeconds = 8,
+    this.timeoutSeconds = 9,
   }) : _filterRules = _parseRules(rulesString),
        fromParam = Uri.parse(url).queryParameters['from'],
        toParam = Uri.parse(url).queryParameters['to'],
@@ -305,17 +306,16 @@ class GetM3U8 {
 
     try {
       final result = await _controller.runJavaScriptReturningResult(jsCode);
-      final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
+      final Map<String, dynamic> response = jsonDecode(result.toString()) as Map<String, dynamic>;
       
       if (response['success'] == true) {
         LogUtil.i('点击成功: ${response['clicked']}');
         _isClickExecuted = true;
         // 点击后等待一段时间让页面响应
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(seconds: 3));
         return true;
       } else {
         LogUtil.e('点击失败：${response['error'] ?? '未找到元素'}');
-        LogUtil.i('找到的匹配: ${response['matches']}');
         _isClickExecuted = true;
         return false;
       }
@@ -432,7 +432,6 @@ String _handleRelativePath(String path) {
   
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer) async {
-    LogUtil.i('开始初始化WebViewController');
     try {
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -504,7 +503,7 @@ String _handleRelativePath(String path) {
                 _m3u8Found = true;
                 completer.complete(m3u8Url);
                 _logPerformanceMetrics();
-                disposeResources();
+                await disposeResources();
                 return;
               }
 
@@ -514,7 +513,7 @@ String _handleRelativePath(String path) {
                 _injectM3U8Detector();
               }
             },
-            onWebResourceError: (WebResourceError error) {
+            onWebResourceError: (WebResourceError error) async { 
               // 忽略被阻止资源的错误
               if (error.errorCode == -1) {
                 LogUtil.i('资源被阻止加载: ${error.description}');
@@ -522,7 +521,7 @@ String _handleRelativePath(String path) {
               }
               
               LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-              _handleLoadError(completer);
+              await _handleLoadError(completer);
             },
           ),
         );
@@ -531,7 +530,7 @@ String _handleRelativePath(String path) {
       LogUtil.i('WebViewController初始化完成');
     } catch (e, stackTrace) {
       LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-      _handleLoadError(completer);
+      await _handleLoadError(completer);
     }
   }
   
@@ -552,13 +551,12 @@ String _handleRelativePath(String path) {
       LogUtil.e('达到最大重试次数或已释放资源');
       completer.complete('ERROR');
       _logPerformanceMetrics();
-      disposeResources();
+      await disposeResources();
     }
   }
 
   /// 加载URL并设置headers
   Future<void> _loadUrlWithHeaders() async {
-    LogUtil.i('准备加载URL，添加自定义headers');
     try {
       final headers = HeadersConfig.generateHeaders(url: url);
       await _controller.loadRequest(Uri.parse(url), headers: headers);
@@ -619,12 +617,12 @@ String _handleRelativePath(String path) {
   /// 启动超时计时器
   void _startTimeout(Completer<String> completer) {
     LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
-    Future.delayed(Duration(seconds: timeoutSeconds), () {
+    Future.delayed(Duration(seconds: timeoutSeconds), () async {	
       if (!_isDisposed && !_m3u8Found && !completer.isCompleted) {
         LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
         completer.complete('ERROR');
         _logPerformanceMetrics();
-        disposeResources();
+        await disposeResources();
       }
     });
   }
@@ -636,7 +634,7 @@ String _handleRelativePath(String path) {
   }
   
   /// 释放资源
-  void disposeResources() {
+Future<void> disposeResources() async {
     // 防止重复释放
     if (_isDisposed) {
       LogUtil.i('资源已释放，跳过重复释放');
@@ -651,26 +649,76 @@ String _handleRelativePath(String path) {
       _periodicCheckTimer?.cancel();
       _periodicCheckTimer = null;
     }
-    
-    _isDetectorInjected = false;  // 重置注入标记
-    _isPageLoadProcessed = false; // 重置页面加载处理标记
-    _isClickExecuted = false;     // 重置点击执行标记
-    
-    // 清理JavaScript检测器
-    try {
-      _controller.runJavaScript('if(window._cleanupM3U8Detector) window._cleanupM3U8Detector();');
-    } catch (e) {
-      LogUtil.e('清理JavaScript检测器时发生错误: $e');
-    }
 
-    // 清理其他资源
-    _foundUrls.clear();
-    
-    LogUtil.i('资源释放完成');
-  }
+    try {
+      // 停止所有正在进行的导航
+      await _controller.stopLoading();
+      
+      // 注入清理脚本，终止所有正在进行的网络请求和观察器
+      await _controller.runJavaScript('''
+        // 清理所有活跃的XHR请求
+        const activeXhrs = window._activeXhrs || [];
+        activeXhrs.forEach(xhr => xhr.abort());
+        
+        // 清理所有Fetch请求
+        if (window._abortController) {
+          window._abortController.abort();
+        }
+        
+        // 清理所有定时器
+        const highestTimeoutId = window.setTimeout(() => {}, 0);
+        for (let i = 0; i <= highestTimeoutId; i++) {
+          window.clearTimeout(i);
+          window.clearInterval(i);
+        }
+        
+        // 清理所有事件监听器
+        window.removeEventListener('scroll', window._scrollHandler);
+        window.removeEventListener('popstate', window._urlChangeHandler);
+        window.removeEventListener('hashchange', window._urlChangeHandler);
+        
+        // 清理M3U8检测器
+        if(window._cleanupM3U8Detector) {
+          window._cleanupM3U8Detector();
+        }
+        
+        // 终止所有正在进行的MediaSource操作
+        if (window.MediaSource) {
+          const mediaSources = document.querySelectorAll('video source');
+          mediaSources.forEach(source => {
+            const mediaElement = source.parentElement;
+            if (mediaElement) {
+              mediaElement.pause();
+              mediaElement.removeAttribute('src');
+              mediaElement.load();
+            }
+          });
+        }
+        
+        // 清理所有websocket连接
+        const sockets = window._webSockets || [];
+        sockets.forEach(socket => socket.close());
+      ''');
+
+      // 清空WebView缓存
+      await _controller.clearCache();
+      
+      // 重置所有标记
+      _isDetectorInjected = false;  // 重置注入标记
+      _isPageLoadProcessed = false; // 重置页面加载处理标记
+      _isClickExecuted = false;     // 重置点击执行标记
+      
+      // 清理其他资源
+      _foundUrls.clear();
+      
+      LogUtil.i('资源释放完成');
+    } catch (e, stack) {
+      LogUtil.logError('释放资源时发生错误', e, stack);
+    }
+}
   
   /// 处理发现的M3U8 URL
-  void _handleM3U8Found(String url, Completer<String> completer) {
+  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     // 如果已找到或已释放资源，跳过处理
     if (_m3u8Found || _isDisposed) {
       LogUtil.i('跳过URL处理: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
@@ -679,8 +727,6 @@ String _handleRelativePath(String path) {
 
     LogUtil.i('处理发现的URL: $url');
     if (url.isNotEmpty) {
-      LogUtil.i('发现新的未处理URL');
-      
       // 首先整理URL
       String cleanedUrl = _cleanUrl(url);
       LogUtil.i('整理后的URL: $cleanedUrl');
@@ -700,7 +746,7 @@ String _handleRelativePath(String path) {
         if (!completer.isCompleted) {
           completer.complete(finalUrl);
           _logPerformanceMetrics();
-          disposeResources();
+          await disposeResources();
         }
       } else {
         LogUtil.i('URL验证失败，继续等待新的URL');
@@ -1185,5 +1231,8 @@ Future<String?> _checkPageContent() async {
     } catch (e, stackTrace) {
       LogUtil.logError('执行JS代码时发生错误', e, stackTrace);
     }
+  }
+  Future<void> dispose() async {
+    await disposeResources();
   }
 }
