@@ -775,10 +775,27 @@ String _handleRelativePath(String path) {
     LogUtil.i('开始检查页面内容大小');
     _isStaticChecking = true;
     try {
-    // 获取页面完整内容
-    final String content = await _controller.runJavaScriptReturningResult(
-      'document.documentElement.outerHTML'
-    ) as String;
+    	
+      // 尝试获取前20KB内容
+      final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
+        document.documentElement.innerHTML.substring(0, 20480)
+      ''');
+
+      if (sampleResult == null) {
+        LogUtil.i('获取内容样本失败');
+        return null;
+      }
+
+      final String sample = sampleResult.toString();
+      final int sampleLength = sample.length;
+
+      // 如果接近20KB，说明原内容可能更大
+      if (sampleLength > 20180) {
+        LogUtil.i('页面内容较大(超过20KB)，跳过静态检测');
+        return null;
+      }
+      
+      LogUtil.i('页面内容较小，进行静态检测');
       
       // 多模式正则匹配
       final regexPatterns = [
