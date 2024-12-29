@@ -307,23 +307,9 @@ Future<bool> _executeClick() async {
           clickableElement.onclick(); // 执行onclick处理函数
         }
 
-        // 等待可能的变化发生
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        // 检查状态变化
-        const afterState = {
-          url: window.location.href,
-          html: clickableElement.innerHTML?.trim()
-        };
-
-        // 判断是否成功
-        const urlChanged = beforeState.url !== afterState.url;
-        const htmlChanged = beforeState.html !== afterState.html;
-        const success = urlChanged || htmlChanged;
-        
-        // 返回纯JavaScript对象
+        // 立即返回点击成功的状态
         return {
-          success: success,
+          success: true,
           matches: matches,
           clicked: {
             tag: clickableElement.tagName,
@@ -342,24 +328,29 @@ Future<bool> _executeClick() async {
       }
     }
 
-    return findAndClick();
+    const result = await findAndClick();
+    return result; // 直接返回结果对象
   })();
   ''';
 
   try {
     final result = await _controller.runJavaScriptReturningResult(jsCode);
     
+    // 打印结果类型和值，用于调试
+    LogUtil.i('JavaScript返回值类型: ${result.runtimeType}');
+    LogUtil.i('JavaScript返回值: $result');
+    
     // 尝试将结果转换为 Map
     Map<String, dynamic> response;
     try {
-      response = result as Map<String, dynamic>;
-    } catch (e) {
-      // 如果直接转换失败，尝试从字符串解析
       if (result is String) {
         response = json.decode(result);
       } else {
-        throw FormatException('Unexpected response format: ${result.runtimeType}');
+        response = Map<String, dynamic>.from(result as Map);
       }
+    } catch (e) {
+      LogUtil.e('返回值解析失败: $e');
+      throw FormatException('无法解析返回值: ${result.runtimeType}');
     }
     
     if (response['success'] == true) {
@@ -369,7 +360,9 @@ Future<bool> _executeClick() async {
       return true;
     } else {
       LogUtil.e('点击失败：${response['error'] ?? '未找到元素'}');
-      LogUtil.i('找到的匹配: ${response['matches']}');
+      if (response['matches'] != null) {
+        LogUtil.i('找到的匹配: ${response['matches']}');
+      }
       _isClickExecuted = true;
       return false;
     }
