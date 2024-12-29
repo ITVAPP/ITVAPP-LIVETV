@@ -284,7 +284,6 @@ Future<bool> _executeClick() async {
         return results;
       }
 
-      // [以下代码保持不变...]
       // 查找可点击父元素 - 优化版本
       function findClickableParent(element) {
         let current = element;
@@ -470,15 +469,16 @@ Future<bool> _executeClick() async {
     ''';
 
     try {
-      final result = await _controller.runJavaScriptReturningResult(jsCode);
+      final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
       if (result == null) {
         LogUtil.e('JavaScript执行返回空结果');
         _isClickExecuted = true;
         return false;
       }
 
-      final success = result['success'] as bool?;
-      final clicked = result['clicked'];
+      final Map<String, dynamic> resultMap = result as Map<String, dynamic>;
+      final success = resultMap['success'] as bool?;
+      final clicked = resultMap['clicked'];
       
       if (success == true && clicked != null) {
         LogUtil.i('点击成功: $clicked');
@@ -486,11 +486,11 @@ Future<bool> _executeClick() async {
         await Future.delayed(const Duration(seconds: 1));
         return true;
       } else {
-        final error = result['error']?.toString() ?? "未知错误";
-        final matches = result['matches']?.toString() ?? '';
+        final error = resultMap['error']?.toString() ?? "未知错误";
+        final matches = resultMap['matches']?.toString() ?? '';
         LogUtil.e('点击失败：$error, 匹配结果: $matches');
         
-        final targetInfo = result['targetInfo'];
+        final targetInfo = resultMap['targetInfo'];
         if (targetInfo != null) {
           LogUtil.e('目标元素信息: $targetInfo');
         }
