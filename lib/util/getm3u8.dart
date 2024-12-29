@@ -765,8 +765,7 @@ String _handleRelativePath(String path) {
   }
 
   /// 检查页面内容中的M3U8地址
-  Future<String?> _checkPageContent() async {
-    // 如果已经找到或已释放资源，跳过检查
+Future<String?> _checkPageContent() async {
     if (_m3u8Found || _isDisposed) {
       LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
       return null;
@@ -774,8 +773,8 @@ String _handleRelativePath(String path) {
 
     LogUtil.i('开始检查页面内容大小');
     _isStaticChecking = true;
+    
     try {
-    	
       // 尝试获取前20KB内容
       final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         document.documentElement.innerHTML.substring(0, 20480)
@@ -799,7 +798,6 @@ String _handleRelativePath(String path) {
       
       // 多模式正则匹配
       final regexPatterns = [
-        // 修改正则以匹配相对路径
         r'''(?:https?://)?[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''', // 标准 URL 
         r'"(?:url|src|href)"\s*:\s*"((?:\\\/|[^"])+?\.m3u8[^"]*)"',  // JSON 格式
         r'''['"](?:url|src|href)['"]?\s*=\s*['"]([^'"]+?\.m3u8[^'"]*?)['"]''', // HTML 属性
@@ -811,7 +809,8 @@ String _handleRelativePath(String path) {
 
       for (final pattern in regexPatterns) {
         final regex = RegExp(pattern);
-        final matches = regex.allMatches(content);
+        // 这里改用sample而不是content
+        final matches = regex.allMatches(sample);
         totalMatches += matches.length;
         
         for (final match in matches) {
@@ -832,13 +831,12 @@ String _handleRelativePath(String path) {
       for (final url in foundUrls) {
         LogUtil.i('检查潜在的M3U8地址: $url');
         
-        // 首先清理URL
         String cleanedUrl = _cleanUrl(url);
         LogUtil.i('清理后的URL: $cleanedUrl');
           
         if (_isValidM3U8Url(cleanedUrl)) {
           LogUtil.i('URL验证通过，标记为有效的m3u8地址');
-          // 处理URL参数替换
+          
           String finalUrl = cleanedUrl;
           if (fromParam != null && toParam != null) {
             LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
