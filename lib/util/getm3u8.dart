@@ -148,8 +148,8 @@ Future<bool> _executeClick() async {
   LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
   
   final jsCode = '''
-  (function() {
-    function findAndClick() {
+  (async function() {
+    async function findAndClick() {
       // 获取所有文本节点
       function getTextNodes() {
         const nodes = [];
@@ -308,29 +308,29 @@ Future<bool> _executeClick() async {
         }
 
         // 等待可能的变化发生
-        return new Promise(resolve => setTimeout(() => {
-          // 检查状态变化
-          const afterState = {
-            url: window.location.href,
-            html: clickableElement.innerHTML?.trim()
-          };
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-          // 判断是否成功
-          const urlChanged = beforeState.url !== afterState.url;
-          const htmlChanged = beforeState.html !== afterState.html;
-          const success = urlChanged || htmlChanged;
+        // 检查状态变化
+        const afterState = {
+          url: window.location.href,
+          html: clickableElement.innerHTML?.trim()
+        };
 
-          resolve({ 
-            success: success,
-            matches,
-            clicked: {
-              tag: clickableElement.tagName,
-              text: clickableElement.textContent.trim(),
-              path: getElementPath(clickableElement),
-              totalMatches: matches.length
-            }
-          });
-        }, 300));
+        // 判断是否成功
+        const urlChanged = beforeState.url !== afterState.url;
+        const htmlChanged = beforeState.html !== afterState.html;
+        const success = urlChanged || htmlChanged;
+
+        return { 
+          success: success,
+          matches,
+          clicked: {
+            tag: clickableElement.tagName,
+            text: clickableElement.textContent.trim(),
+            path: getElementPath(clickableElement),
+            totalMatches: matches.length
+          }
+        };
 
       } catch (e) {
         return { 
@@ -341,12 +341,12 @@ Future<bool> _executeClick() async {
       }
     }
 
-    return findAndClick();
+    return await findAndClick();
   })();
   ''';
 
   try {
-    final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
+    final result = await _controller.runJavaScriptReturningResult(jsCode);
     final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
     
     if (response['success'] == true) {
