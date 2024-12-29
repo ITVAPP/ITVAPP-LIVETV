@@ -155,16 +155,42 @@ Future<bool> _executeClick() async {
         const nodes = [];
         const walk = document.createTreeWalker(
           document.body,
-          NodeFilter.SHOW_TEXT,
+          NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, // 同时检查文本和元素节点
           {
             acceptNode: function(node) {
-              // 跳过script和style标签中的内容
-              if (node.parentElement.tagName === 'SCRIPT' || 
-                  node.parentElement.tagName === 'STYLE') {
-                return NodeFilter.FILTER_REJECT;
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                // 检查aria-label和title属性
+                const ariaLabel = node.getAttribute('aria-label');
+                const title = node.getAttribute('title');
+                if (ariaLabel?.includes(searchText) || title?.includes(searchText)) {
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_SKIP;
               }
-              // 只接受非空的文本节点
-              return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+              
+              if (node.nodeType === Node.TEXT_NODE) {
+                const parent = node.parentElement;
+                // 优化隐藏元素过滤
+                if (parent && (
+                    parent.offsetHeight === 0 || 
+                    parent.offsetWidth === 0 ||
+                    window.getComputedStyle(parent).display === 'none' ||
+                    window.getComputedStyle(parent).visibility === 'hidden' ||
+                    window.getComputedStyle(parent).opacity === '0'
+                )) {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                // 跳过脚本和样式标签
+                if (parent && (
+                    parent.tagName === 'SCRIPT' || 
+                    parent.tagName === 'STYLE' ||
+                    parent.tagName === 'NOSCRIPT'
+                )) {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+              }
+              return NodeFilter.FILTER_REJECT;
             }
           }
         );
@@ -198,6 +224,57 @@ Future<bool> _executeClick() async {
         return path.join(' > ');
       }
 
+      // 改进的可点击元素检测
+      function findClickableParent(node) {
+        const clickableSelectors = [
+          'a', 'button', 'input[type="button"]', 'input[type="submit"]',
+          'input[type="reset"]', 'select', 'option', 'label',
+          '[role="button"]', '[role="link"]', '[role="tab"]', '[role="menuitem"]',
+          '[role="option"]', '[role="switch"]', '[role="checkbox"]',
+          '[tabindex]', '[onclick]', '[data-click]', '[class*="btn"]',
+          '[class*="button"]', '[class*="clickable"]', '[class*="selectable"]',
+          'summary', 'details', 'li[role="presentation"]'
+        ];
+        
+        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        let maxDepth = 5;
+        
+        while (current && current !== document.body && maxDepth > 0) {
+          // 检查元素是否可点击
+          if (
+            clickableSelectors.some(selector => current.matches(selector)) ||
+            current.onclick ||
+            current.getAttribute('onclick') ||
+            current.role === 'button' ||
+            current.dataset.click ||
+            current.classList.contains('clickable') ||
+            window.getComputedStyle(current).cursor === 'pointer'
+          ) {
+            // 检查元素状态
+            const style = window.getComputedStyle(current);
+            const isVisible = style.display !== 'none' && 
+                             style.visibility !== 'hidden' && 
+                             style.opacity !== '0' &&
+                             current.offsetWidth > 0 &&
+                             current.offsetHeight > 0;
+                             
+            const isEnabled = !current.disabled &&
+                             !current.hasAttribute('disabled') &&
+                             current.getAttribute('aria-disabled') !== 'true';
+                             
+            const isNotHidden = !current.hasAttribute('hidden') &&
+                               current.getAttribute('aria-hidden') !== 'true';
+                               
+            if (isVisible && isEnabled && isNotHidden) {
+              return current;
+            }
+          }
+          current = current.parentElement;
+          maxDepth--;
+        }
+        return null;
+      }
+
       // 查找匹配的文本节点
       const searchText = '${clickText}';
       const targetIndex = ${clickIndex};
@@ -205,15 +282,17 @@ Future<bool> _executeClick() async {
       
       let currentIndex = 0;
       let foundNode = null;
-
-      // 记录找到的所有匹配，用于调试
       const matches = [];
 
       for (const node of textNodes) {
-        if (node.nodeValue.trim().includes(searchText)) {
+        const nodeText = node.nodeType === Node.TEXT_NODE ? 
+                        node.nodeValue : 
+                        (node.getAttribute('aria-label') || node.getAttribute('title'));
+                        
+        if (nodeText?.trim().includes(searchText)) {
           matches.push({
-            text: node.nodeValue.trim(),
-            path: getElementPath(node.parentElement)
+            text: nodeText.trim(),
+            path: getElementPath(node.parentElement || node)
           });
           
           if (matches.length === 1 || currentIndex === targetIndex) {
@@ -232,39 +311,6 @@ Future<bool> _executeClick() async {
         };
       }
 
-      // 改进的可点击元素检测
-      function findClickableParent(node) {
-        let current = node.parentElement;
-        let maxDepth = 5;
-        
-        while (current && current !== document.body && maxDepth > 0) {
-          // 检查更多可点击的元素类型
-          if (current.tagName === 'A' || 
-              current.tagName === 'BUTTON' || 
-              current.tagName === 'INPUT' || // 添加INPUT元素检查
-              current.tagName === 'LI' ||
-              current.onclick ||
-              current.getAttribute('onclick') || // 检查onclick属性
-              current.role === 'button' || // 检查ARIA角色
-              current.dataset.click || // 检查自定义点击属性
-              current.classList.contains('clickable') || // 检查常见的可点击类名
-              window.getComputedStyle(current).cursor === 'pointer') {
-            
-            // 检查元素是否可见且启用
-            const style = window.getComputedStyle(current);
-            if (style.display !== 'none' && 
-                style.visibility !== 'hidden' && 
-                style.opacity !== '0' &&
-                !current.disabled) {
-              return current;
-            }
-          }
-          current = current.parentElement;
-          maxDepth--;
-        }
-        return node.parentElement;
-      }
-
       const clickableElement = findClickableParent(foundNode);
       if (!clickableElement) {
         return {
@@ -275,53 +321,87 @@ Future<bool> _executeClick() async {
       }
 
       try {
-        // 记录点击前状态
+        // 记录初始状态
         const beforeState = {
           url: window.location.href,
-          html: clickableElement.innerHTML?.trim()
+          html: clickableElement.innerHTML?.trim(),
+          elementState: {
+            classList: [...clickableElement.classList],
+            attributes: Array.from(clickableElement.attributes).map(attr => ({
+              name: attr.name,
+              value: attr.value
+            })),
+            style: window.getComputedStyle(clickableElement).cssText
+          }
         };
 
-        // 改进的点击事件模拟
+        // 扩展的事件序列
         const events = [
+          new MouseEvent('mouseenter', {bubbles: true, cancelable: true, view: window}),
           new MouseEvent('mouseover', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('mousemove', {bubbles: true, cancelable: true, view: window}),
           new MouseEvent('mousedown', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('focus', {bubbles: true, cancelable: true, view: window}),
           new MouseEvent('mouseup', {bubbles: true, cancelable: true, view: window}),
           new MouseEvent('click', {bubbles: true, cancelable: true, view: window})
         ];
 
-        // 按顺序触发事件
-        events.forEach(event => {
+        // 触发事件序列
+        for (const event of events) {
           clickableElement.dispatchEvent(event);
-        });
-
-        // 特殊元素的处理
-        if (clickableElement.tagName === 'A' && clickableElement.href) {
-          // 处理链接
-          if (!clickableElement.target || clickableElement.target === '_self') {
-            window.location.href = clickableElement.href;
-          }
-        } else if (clickableElement.tagName === 'INPUT' && 
-                   (clickableElement.type === 'submit' || clickableElement.type === 'button')) {
-          clickableElement.click(); // 原生点击
-        } else if (typeof clickableElement.onclick === 'function') {
-          clickableElement.onclick(); // 执行onclick处理函数
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        // 等待可能的变化发生
+        // 特殊元素处理
+        if (clickableElement.tagName === 'A' && clickableElement.href) {
+          if (!clickableElement.target || clickableElement.target === '_self') {
+            window.location.href = clickableElement.href;
+          } else {
+            window.open(clickableElement.href, clickableElement.target);
+          }
+        } else if (clickableElement.tagName === 'INPUT') {
+          if (clickableElement.type === 'submit' || clickableElement.type === 'button') {
+            clickableElement.click();
+            if (clickableElement.form) clickableElement.form.submit();
+          } else if (clickableElement.type === 'radio' || clickableElement.type === 'checkbox') {
+            clickableElement.checked = !clickableElement.checked;
+            clickableElement.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        } else if (clickableElement.tagName === 'LABEL') {
+          const forElement = document.getElementById(clickableElement.getAttribute('for'));
+          if (forElement) forElement.click();
+        } else if (typeof clickableElement.onclick === 'function') {
+          clickableElement.onclick();
+        }
+
         await new Promise(resolve => setTimeout(resolve, 300));
 
         // 检查状态变化
         const afterState = {
           url: window.location.href,
-          html: clickableElement.innerHTML?.trim()
+          html: clickableElement.innerHTML?.trim(),
+          elementState: {
+            classList: [...clickableElement.classList],
+            attributes: Array.from(clickableElement.attributes).map(attr => ({
+              name: attr.name,
+              value: attr.value
+            })),
+            style: window.getComputedStyle(clickableElement).cssText
+          }
         };
 
-        // 判断是否成功
-        const urlChanged = beforeState.url !== afterState.url;
-        const htmlChanged = beforeState.html !== afterState.html;
-        const success = urlChanged || htmlChanged;
+        // 检测变化
+        const hasUrlChanged = beforeState.url !== afterState.url;
+        const hasHtmlChanged = beforeState.html !== afterState.html;
+        const hasClassChanged = JSON.stringify(beforeState.elementState.classList) !== 
+                               JSON.stringify(afterState.elementState.classList);
+        const hasAttrChanged = JSON.stringify(beforeState.elementState.attributes) !== 
+                              JSON.stringify(afterState.elementState.attributes);
+        const hasStyleChanged = beforeState.elementState.style !== afterState.elementState.style;
         
-        // 返回纯JavaScript对象
+        const success = hasUrlChanged || hasHtmlChanged || hasClassChanged || 
+                       hasAttrChanged || hasStyleChanged;
+        
         return {
           success: success,
           matches: matches,
@@ -329,7 +409,14 @@ Future<bool> _executeClick() async {
             tag: clickableElement.tagName,
             text: clickableElement.textContent.trim(),
             path: getElementPath(clickableElement),
-            totalMatches: matches.length
+            totalMatches: matches.length,
+            changes: {
+              url: hasUrlChanged,
+              html: hasHtmlChanged,
+              class: hasClassChanged,
+              attributes: hasAttrChanged,
+              style: hasStyleChanged
+            }
           }
         };
 
