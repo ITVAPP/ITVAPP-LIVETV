@@ -150,67 +150,16 @@ Future<bool> _executeClick() async {
     
     final jsCode = '''
     (function() {
-      // 缓存查询结果
-      const queryCache = new Map();
-      
-      // 检查元素可见性 - 仅用于评分
-      function isElementVisible(element) {
-        const cacheKey = 'visible-' + element.tagName + '-' + element.className;
-        if (queryCache.has(cacheKey)) {
-          return queryCache.get(cacheKey);
-        }
-        
-        if (!element) return false;
-        const style = window.getComputedStyle(element);
-        const isVisible = style.display !== 'none' && 
-                         style.visibility !== 'hidden' && 
-                         style.opacity !== '0';
-        
-        queryCache.set(cacheKey, isVisible);
-        return isVisible;
-      }
-
       // 获取元素分数 - 优化版本
       function getElementScore(element) {
-        const cacheKey = 'score-' + element.tagName + '-' + element.className;
-        if (queryCache.has(cacheKey)) {
-          return queryCache.get(cacheKey);
+        const tagName = element.tagName.toLowerCase();
+        if (tagName === 'a' || tagName === 'button' || tagName === 'input' ||
+            element.onclick || element.getAttribute('ng-click') ||
+            element.getAttribute('@click') || element.getAttribute('onClick') ||
+            element.getAttribute('role') === 'button') {
+          return 10;
         }
-        
-        let score = 0;
-        
-        // 基础分 - 元素类型
-        switch(element.tagName.toLowerCase()) {
-          case 'a':
-          case 'button':
-          case 'input':  // 新增 input
-            score += 10;
-            break;
-          case 'li':
-            score += 5;
-            break;
-        }
-        
-        // 可点击特征分
-        if (element.onclick ||
-            element.getAttribute('ng-click') ||
-            element.getAttribute('@click') ||
-            element.getAttribute('onClick')) {
-          score += 5;
-        }
-        
-        // 角色属性分
-        if (element.getAttribute('role') === 'button') {
-          score += 3;
-        }
-        
-        // 可见性分
-        if (isElementVisible(element)) {
-          score += 8;
-        }
-        
-        queryCache.set(cacheKey, score);
-        return score;
+        return tagName === 'li' ? 5 : 0;
       }
 
       // 优化的节点查找函数 - 使用优先级搜索
@@ -227,19 +176,12 @@ Future<bool> _executeClick() async {
         const mediumPriorityElements = document.body.querySelectorAll(mediumPrioritySelector);
 
         // 3. 处理高优先级元素
-        highPriorityElements.forEach(element => {
-          if (!isElementVisible(element)) return;
-          
+        highPriorityElements.forEach(element => {          
           if (element.textContent?.trim().toLowerCase().includes(searchText)) {
             results.push({
               type: 'text',
               node: element.firstChild,
               element: element
-            });
-            console.log('找到匹配文本(高优先级):', {
-              text: element.textContent.trim(),
-              parent: element.tagName,
-              parentText: element.textContent.trim()
             });
           }
         });
@@ -247,18 +189,11 @@ Future<bool> _executeClick() async {
         // 4. 如果高优先级没找到，处理次优先级
         if (results.length === 0) {
           mediumPriorityElements.forEach(element => {
-            if (!isElementVisible(element)) return;
-            
             if (element.textContent?.trim().toLowerCase().includes(searchText)) {
               results.push({
                 type: 'text',
                 node: element.firstChild,
                 element: element
-              });
-              console.log('找到匹配文本(次优先级):', {
-                text: element.textContent.trim(),
-                parent: element.tagName,
-                parentText: element.textContent.trim()
               });
             }
           });
@@ -280,10 +215,6 @@ Future<bool> _executeClick() async {
                   return NodeFilter.FILTER_REJECT;
                 }
                 
-                if (!isElementVisible(parent)) {
-                  return NodeFilter.FILTER_REJECT;
-                }
-                
                 const text = node.textContent.trim().toLowerCase();
                 return text.includes(searchText) ? 
                        NodeFilter.FILTER_ACCEPT : 
@@ -295,13 +226,7 @@ Future<bool> _executeClick() async {
           let textNode;
           while (textNode = treeWalker.nextNode()) {
             const parentElement = textNode.parentElement;
-            if (parentElement) {
-              console.log('找到匹配文本(其他元素):', {
-                text: textNode.textContent.trim(),
-                parent: parentElement.tagName,
-                parentText: parentElement.textContent.trim()
-              });
-              
+            if (parentElement) {              
               results.push({
                 type: 'text',
                 node: textNode,
@@ -316,11 +241,6 @@ Future<bool> _executeClick() async {
 
       // 查找可点击父元素 - 优化版本
       function findClickableParent(element) {
-        const cacheKey = 'clickable-' + element.tagName + '-' + element.className;
-        if (queryCache.has(cacheKey)) {
-          return queryCache.get(cacheKey);
-        }
-
         let current = element;
         const maxDepth = 5;
         let depth = 0;
@@ -328,19 +248,17 @@ Future<bool> _executeClick() async {
         while (current && current !== document.body && depth < maxDepth) {
           if (current.tagName === 'A' || 
               current.tagName === 'BUTTON' ||
-              current.tagName === 'INPUT' ||  // 新增 input
+              current.tagName === 'INPUT' ||
               current.onclick ||
               current.getAttribute('ng-click') ||
               current.getAttribute('@click') ||
               current.getAttribute('onClick')) {
-            queryCache.set(cacheKey, current);
             return current;
           }
           current = current.parentElement;
           depth++;
         }
         
-        queryCache.set(cacheKey, element);
         return element;
       }
       
@@ -350,23 +268,34 @@ Future<bool> _executeClick() async {
           // 1. 记录点击前的状态
           const beforeState = {
             url: window.location.href,
-            elementText: element.textContent?.trim(),
-            elementHtml: element.innerHTML?.trim(),
-            parentText: element.parentElement?.textContent?.trim(),
-            parentHtml: element.parentElement?.innerHTML?.trim()
+            html: element.innerHTML?.trim()
           };
     
           // 2. 构造标准点击事件
           const event = new MouseEvent('click', {
             bubbles: true,
             cancelable: true,
-            view: window
+            view: window,
+            detail: 1,
+            screenX: 0,
+            screenY: 0,
+            clientX: 0,
+            clientY: 0,
+            ctrlKey: false,
+            altKey: false,
+            shiftKey: false,
+            metaKey: false,
+            button: 0,
+            buttons: 1,
+            relatedTarget: null
           });
           
           // 3. 触发事件
+          element.dispatchEvent(new MouseEvent('mousedown', event));
+          element.dispatchEvent(new MouseEvent('mouseup', event));
           const dispatched = element.dispatchEvent(event);
+          
           if (!dispatched) {
-            console.log('事件被取消');
             return {
               success: false,
               error: '事件被取消'
@@ -388,33 +317,13 @@ Future<bool> _executeClick() async {
           // 6. 检查状态变化
           const afterState = {
             url: window.location.href,
-            elementText: element.textContent?.trim(),
-            elementHtml: element.innerHTML?.trim(),
-            parentText: element.parentElement?.textContent?.trim(),
-            parentHtml: element.parentElement?.innerHTML?.trim()
+            html: element.innerHTML?.trim()
           };
     
-          // 7. 判断是否有变化发生
-          const changes = {
-            urlChanged: beforeState.url !== afterState.url,
-            elementTextChanged: beforeState.elementText !== afterState.elementText,
-            elementHtmlChanged: beforeState.elementHtml !== afterState.elementHtml,
-            parentTextChanged: beforeState.parentText !== afterState.parentText,
-            parentHtmlChanged: beforeState.parentHtml !== afterState.parentHtml
-          };
-    
-          const success = changes.urlChanged || 
-                         changes.elementTextChanged ||
-                         changes.elementHtmlChanged ||
-                         changes.parentTextChanged ||
-                         changes.parentHtmlChanged;
-    
-          // 8. 返回详细结果
+          // 7. 判断是否有变化发生 
           return {
-            success,
-            changes,
-            beforeState,
-            afterState
+            success: beforeState.url !== afterState.url || 
+                    beforeState.html !== afterState.html
           };
     
         } catch (e) {
@@ -459,10 +368,8 @@ Future<bool> _executeClick() async {
         // 5. 选择目标节点
         let targetNode;
         if (highestScoredNodes.length === 1) {
-          // 如果只有一个最高分节点，直接使用它
           targetNode = highestScoredNodes[0];
         } else {
-          // 如果有多个最高分节点，再使用索引值选择
           targetNode = highestScoredNodes[targetIndex] || highestScoredNodes[0];
         }
         
@@ -479,7 +386,6 @@ Future<bool> _executeClick() async {
         // 6. 获取可点击元素
         const clickableElement = findClickableParent(targetNode.element);
         if (!clickableElement) {
-          console.log('未找到可点击元素:', targetNode.element);
           return { 
             success: false, 
             error: '未找到可点击元素', 
@@ -507,52 +413,44 @@ Future<bool> _executeClick() async {
               hasOnClick: !!clickableElement.onclick,
               role: clickableElement.getAttribute('role'),
               type: clickableElement.getAttribute('type')
-            },
-            changes: clickResult.changes,
-            beforeState: clickResult.beforeState,
-            afterState: clickResult.afterState
+            }
           } : null,
           error: clickResult.error
         };
       }
 
-      // 清理缓存并返回结果
-      const result = await findAndClick();
-      queryCache.clear();
-      return result;
+      return await findAndClick();
     })();
     ''';
 
-try {
-  final result = await _controller.runJavaScriptReturningResult(jsCode);
-  if (result == null) {
-    LogUtil.e('JavaScript执行返回空结果');
-    _isClickExecuted = true;
-    return false;
-  }
-  
-  Map<String, dynamic>? response;
-  try {
-    response = jsonDecode(result.toString()) as Map<String, dynamic>;
-  } catch (e) {
-    LogUtil.e('JSON解析失败: $e');
-    _isClickExecuted = true;
-    return false;
-  }
-  
-  if (response['success'] == true && response['clicked'] != null) {
-    LogUtil.i('点击成功: ${response['clicked']}');
-    _isClickExecuted = true;
-    await Future.delayed(const Duration(seconds: 1));
-    return true;
-  } else {
-    LogUtil.e('点击失败：${response['error'] ?? "未知错误"}, 匹配结果: ${response['matches']}');
-    if (response['targetInfo'] != null) {
-      LogUtil.e('目标元素信息: ${response['targetInfo']}');
-    }
-    _isClickExecuted = true;
-    return false;
-  }
+    try {
+      final result = await _controller.runJavaScriptReturningResult(jsCode);
+      if (result == null) {
+        LogUtil.e('JavaScript执行返回空结果');
+        _isClickExecuted = true;
+        return false;
+      }
+
+      final success = result['success'] as bool?;
+      final clicked = result['clicked'];
+      
+      if (success == true && clicked != null) {
+        LogUtil.i('点击成功: $clicked');
+        _isClickExecuted = true;
+        await Future.delayed(const Duration(seconds: 1));
+        return true;
+      } else {
+        final error = result['error']?.toString() ?? "未知错误";
+        final matches = result['matches']?.toString() ?? '';
+        LogUtil.e('点击失败：$error, 匹配结果: $matches');
+        
+        final targetInfo = result['targetInfo'];
+        if (targetInfo != null) {
+          LogUtil.e('目标元素信息: $targetInfo');
+        }
+        _isClickExecuted = true;
+        return false;
+      }
     } catch (e, stack) {
       LogUtil.logError('执行点击操作时发生错误', e, stack);
       _isClickExecuted = true;
