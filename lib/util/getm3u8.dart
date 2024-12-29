@@ -225,10 +225,10 @@ Future<bool> _executeClick() async {
       }
 
       if (!foundNode) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: '未找到匹配元素',
-          matches 
+          matches: matches
         };
       }
 
@@ -267,10 +267,10 @@ Future<bool> _executeClick() async {
 
       const clickableElement = findClickableParent(foundNode);
       if (!clickableElement) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: '未找到可点击元素',
-          matches 
+          matches: matches
         };
       }
 
@@ -320,10 +320,11 @@ Future<bool> _executeClick() async {
         const urlChanged = beforeState.url !== afterState.url;
         const htmlChanged = beforeState.html !== afterState.html;
         const success = urlChanged || htmlChanged;
-
-        return { 
+        
+        // 返回纯JavaScript对象
+        return {
           success: success,
-          matches,
+          matches: matches,
           clicked: {
             tag: clickableElement.tagName,
             text: clickableElement.textContent.trim(),
@@ -333,21 +334,33 @@ Future<bool> _executeClick() async {
         };
 
       } catch (e) {
-        return { 
-          success: false, 
-          error: e.message, 
-          matches 
+        return {
+          success: false,
+          error: e.message || String(e),
+          matches: matches
         };
       }
     }
 
-    return await findAndClick();
+    return findAndClick();
   })();
   ''';
 
   try {
     final result = await _controller.runJavaScriptReturningResult(jsCode);
-    final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
+    
+    // 尝试将结果转换为 Map
+    Map<String, dynamic> response;
+    try {
+      response = result as Map<String, dynamic>;
+    } catch (e) {
+      // 如果直接转换失败，尝试从字符串解析
+      if (result is String) {
+        response = json.decode(result);
+      } else {
+        throw FormatException('Unexpected response format: ${result.runtimeType}');
+      }
+    }
     
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
