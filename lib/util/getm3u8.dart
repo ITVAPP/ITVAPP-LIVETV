@@ -552,7 +552,8 @@ try {
     }
     _isClickExecuted = true;
     return false;
-  } catch (e, stack) {
+  }
+    } catch (e, stack) {
       LogUtil.logError('执行点击操作时发生错误', e, stack);
       _isClickExecuted = true;
       return false;
