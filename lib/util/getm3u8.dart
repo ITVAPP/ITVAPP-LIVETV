@@ -139,8 +139,8 @@ class GetM3U8 {
   }
   
   /// 执行点击操作
-  Future<bool> _executeClick() async {
-    // 如果已经执行过点击或没有点击配置，直接返回
+Future<bool> _executeClick() async {
+    // 保持原有的检查逻辑
     if (_isClickExecuted || clickText == null || clickText!.isEmpty) {
       LogUtil.i(_isClickExecuted ? '点击已执行，跳过' : '无点击配置，跳过');
       return false;
@@ -150,154 +150,223 @@ class GetM3U8 {
     
     final jsCode = '''
     (function() {
-      function findAndClick() {
-        // 获取所有文本节点
-        function getTextNodes() {
-          const nodes = [];
-          const walk = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT,
-            {
-              acceptNode: function(node) {
-                // 跳过script和style标签中的内容
-                if (node.parentElement.tagName === 'SCRIPT' || 
-                    node.parentElement.tagName === 'STYLE') {
-                  return NodeFilter.FILTER_REJECT;
-                }
-                // 只接受非空的文本节点
-                return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-              }
-            }
-          );
+      // 检查元素可见性
+      function isElementVisible(element) {
+        if (!element) return false;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.display !== 'none' && 
+               style.visibility !== 'hidden' && 
+               style.opacity !== '0' &&
+               rect.width > 0 &&
+               rect.height > 0;
+      }
 
-          let node;
-          while (node = walk.nextNode()) {
-            nodes.push(node);
-          }
-          return nodes;
-        }
+      // 获取元素得分（用于排序）
+      function getElementScore(element) {
+        let score = 0;
+        // 可点击元素得分较高
+        if (element.tagName === 'A' || element.tagName === 'BUTTON') score += 10;
+        if (element.onclick || element.addEventListener) score += 5;
+        if (window.getComputedStyle(element).cursor === 'pointer') score += 3;
+        // 可见元素得分较高
+        if (isElementVisible(element)) score += 8;
+        return score;
+      }
 
-        // 获取元素路径，用于调试
-        function getElementPath(node) {
-          const path = [];
-          while (node && node.nodeType === Node.ELEMENT_NODE) {
-            let selector = node.nodeName.toLowerCase();
-            if (node.id) {
-              selector += '#' + node.id;
-            } else {
-              let sibling = node;
-              let nth = 1;
-              while (sibling.previousElementSibling) {
-                sibling = sibling.previousElementSibling;
-                nth++;
-              }
-              selector += ':nth-child(' + nth + ')';
-            }
-            path.unshift(selector);
-            node = node.parentNode;
-          }
-          return path.join(' > ');
-        }
-
-        // 查找匹配的文本节点
-        const searchText = '${clickText}';
-        const targetIndex = ${clickIndex};
-        const textNodes = getTextNodes();
+      // 改进的文本节点获取函数
+      function getTextAndElementNodes() {
+        const results = [];
         
-        let currentIndex = 0;
-        let foundNode = null;
+        // 1. 通过文本节点查找
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode: function(node) {
+              if (!node.parentElement) return NodeFilter.FILTER_REJECT;
+              if (node.parentElement.tagName === 'SCRIPT' || 
+                  node.parentElement.tagName === 'STYLE') {
+                return NodeFilter.FILTER_REJECT;
+              }
+              return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+          }
+        );
 
-        // 记录找到的所有匹配，用于调试
-        const matches = [];
+        let node;
+        while (node = walker.nextNode()) {
+          results.push({
+            type: 'text',
+            node: node,
+            element: node.parentElement
+          });
+        }
 
-        for (const node of textNodes) {
-          if (node.nodeValue.trim().includes(searchText)) {
-            matches.push({
-              text: node.nodeValue.trim(),
-              path: getElementPath(node.parentElement)
+        // 2. 通过元素属性查找
+        const searchText = '${clickText}'.toLowerCase();
+        const elementQuery = [
+          '[title*="' + searchText + '"]',
+          '[aria-label*="' + searchText + '"]',
+          '[data-text*="' + searchText + '"]',
+          'a:contains("' + searchText + '")',
+          'button:contains("' + searchText + '")',
+          'li:contains("' + searchText + '")',
+          'div[role="button"]:contains("' + searchText + '")'
+        ].join(',');
+
+        try {
+          document.querySelectorAll(elementQuery).forEach(element => {
+            results.push({
+              type: 'element',
+              node: element,
+              element: element
             });
-            
-            if (currentIndex === targetIndex) {
-              foundNode = node;
-              break;
-            }
-            currentIndex++;
+          });
+        } catch (e) {
+          console.error('查询选择器错误:', e);
+        }
+
+        return results;
+      }
+
+      // 改进的可点击元素查找函数
+      function findClickableParent(element) {
+        let current = element;
+        const maxDepth = 5; // 限制向上查找的层级
+        let depth = 0;
+
+        while (current && current !== document.body && depth < maxDepth) {
+          if (current.tagName === 'A' || 
+              current.tagName === 'BUTTON' || 
+              current.onclick || 
+              current.tagName === 'LI' ||
+              current.role === 'button' ||
+              current.getAttribute('aria-role') === 'button' ||
+              current.getAttribute('data-click') ||
+              current.classList.contains('clickable') ||
+              window.getComputedStyle(current).cursor === 'pointer' ||
+              current.getAttribute('ng-click') || // Angular
+              current.getAttribute('@click') ||   // Vue
+              current.getAttribute('onClick')) {  // React
+            return current;
           }
+          current = current.parentElement;
+          depth++;
         }
+        return element;
+      }
 
-        if (!foundNode) {
-          return { success: false, matches };
-        }
+      // 准备元素进行点击
+      async function prepareElementForClick(element) {
+        // 保存原始状态
+        const originalStyles = {
+          display: element.style.display,
+          visibility: element.style.visibility,
+          opacity: element.style.opacity,
+          pointerEvents: element.style.pointerEvents
+        };
 
-        // 寻找可点击的父元素
-        function findClickableParent(node) {
-          let current = node.parentElement;
-          while (current && current !== document.body) {
-            if (current.tagName === 'A' || 
-                current.tagName === 'BUTTON' || 
-                current.onclick || 
-                current.tagName === 'LI' ||
-                window.getComputedStyle(current).cursor === 'pointer') {
-              return current;
-            }
-            current = current.parentElement;
-          }
-          return node.parentElement;
-        }
-
-        const clickableElement = findClickableParent(foundNode);
-        if (!clickableElement) {
-          return { success: false, matches };
-        }
-
-        // 记录原始显示状态
-        const originalDisplay = window.getComputedStyle(clickableElement).display;
-        const originalVisibility = window.getComputedStyle(clickableElement).visibility;
-        const originalOpacity = window.getComputedStyle(clickableElement).opacity;
-
-        // 确保元素可见
-        clickableElement.style.display = 'block';
-        clickableElement.style.visibility = 'visible';
-        clickableElement.style.opacity = '1';
+        // 确保元素可交互
+        element.style.display = 'block';
+        element.style.visibility = 'visible';
+        element.style.opacity = '1';
+        element.style.pointerEvents = 'auto';
 
         // 滚动到元素位置
-        clickableElement.scrollIntoView({
+        element.scrollIntoView({
           behavior: 'instant',
           block: 'center'
         });
 
-        // 延迟一下再点击，确保滚动完成
-        return new Promise(resolve => {
-          setTimeout(() => {
-            try {
-              // 模拟点击事件
-              ['mousedown', 'mouseup', 'click'].forEach(eventType => {
-                clickableElement.dispatchEvent(new MouseEvent(eventType, {
-                  bubbles: true,
-                  cancelable: true,
-                  view: window
-                }));
-              });
+        // 等待滚动和样式更新完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        return originalStyles;
+      }
 
-              // 恢复原始状态
-              clickableElement.style.display = originalDisplay;
-              clickableElement.style.visibility = originalVisibility;
-              clickableElement.style.opacity = originalOpacity;
+      // 执行点击
+      async function executeClick(element, originalStyles) {
+        try {
+          const events = ['mousedown', 'mouseup', 'click'];
+          events.forEach(eventType => {
+            const event = new MouseEvent(eventType, {
+              view: window,
+              bubbles: true,
+              cancelable: true,
+              buttons: 1
+            });
+            element.dispatchEvent(event);
+          });
 
-              resolve({ 
-                success: true, 
-                matches,
-                clicked: {
-                  tag: clickableElement.tagName,
-                  text: clickableElement.textContent.trim(),
-                  path: getElementPath(clickableElement)
-                }
-              });
-            } catch (e) {
-              resolve({ success: false, error: e.message, matches });
-            }
-          }, 100);
+          // 恢复原始样式
+          Object.assign(element.style, originalStyles);
+          
+          // 等待可能的动画或转换完成
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          return true;
+        } catch (e) {
+          console.error('点击执行错误:', e);
+          return false;
+        }
+      }
+
+      // 主函数
+      async function findAndClick() {
+        const searchText = '${clickText}';
+        const targetIndex = ${clickIndex};
+        
+        // 1. 获取所有可能的匹配节点
+        const allNodes = getTextAndElementNodes();
+        
+        // 2. 过滤和排序匹配节点
+        const matchingNodes = allNodes.filter(item => {
+          const text = item.type === 'text' ? 
+                      item.node.nodeValue : 
+                      item.element.textContent;
+          return text.toLowerCase().includes(searchText.toLowerCase());
+        }).sort((a, b) => {
+          return getElementScore(b.element) - getElementScore(a.element);
         });
+
+        // 记录所有匹配，用于调试
+        const matches = matchingNodes.map(item => ({
+          text: item.type === 'text' ? item.node.nodeValue.trim() : item.element.textContent.trim(),
+          path: item.element.tagName,
+          visible: isElementVisible(item.element)
+        }));
+
+        // 3. 获取目标节点
+        const targetNode = matchingNodes[targetIndex];
+        if (!targetNode) {
+          return { success: false, error: '未找到匹配元素', matches };
+        }
+
+        // 4. 获取可点击元素
+        const clickableElement = findClickableParent(targetNode.element);
+        if (!clickableElement) {
+          return { success: false, error: '未找到可点击元素', matches };
+        }
+
+        // 5. 准备元素
+        const originalStyles = await prepareElementForClick(clickableElement);
+
+        // 6. 执行点击
+        const clickSuccess = await executeClick(clickableElement, originalStyles);
+
+        return {
+          success: clickSuccess,
+          matches,
+          clicked: clickSuccess ? {
+            tag: clickableElement.tagName,
+            text: clickableElement.textContent.trim(),
+            position: {
+              x: clickableElement.getBoundingClientRect().left,
+              y: clickableElement.getBoundingClientRect().top
+            }
+          } : null
+        };
       }
 
       return findAndClick();
@@ -306,17 +375,20 @@ class GetM3U8 {
 
     try {
       final result = await _controller.runJavaScriptReturningResult(jsCode);
-      // final Map<String, dynamic> response = jsonDecode(result.toString()) as Map<String, dynamic>;
-      final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
+      final Map<String, dynamic> response = jsonDecode(result.toString()) as Map<String, dynamic>;
       
-      if (response['success'] == true) {
+      // 改进的结果处理
+      if (response['success'] == true && response['clicked'] != null) {
         LogUtil.i('点击成功: ${response['clicked']}');
         _isClickExecuted = true;
         // 点击后等待一段时间让页面响应
-        await Future.delayed(const Duration(seconds: 3));
+        await Future.delayed(const Duration(seconds: 2));
         return true;
       } else {
-        LogUtil.e('点击失败：${response['error'] ?? '未找到元素'}');
+        // 输出更详细的错误信息
+        final String errorMessage = response['error'] ?? '未找到元素';
+        final matches = response['matches'] ?? [];
+        LogUtil.e('点击失败：$errorMessage, 找到的匹配: $matches');
         _isClickExecuted = true;
         return false;
       }
