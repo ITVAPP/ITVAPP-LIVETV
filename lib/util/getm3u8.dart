@@ -153,19 +153,50 @@ Future<bool> _executeClick() async {
       // 获取元素分数 - 优化版本
       function getElementScore(element) {
         const tagName = element.tagName.toLowerCase();
-        if (tagName === 'a' || tagName === 'button' || tagName === 'input' ||
-            element.onclick || element.getAttribute('ng-click') ||
-            element.getAttribute('@click') || element.getAttribute('onClick') ||
-            element.getAttribute('role') === 'button') {
+        
+        // 1. 检查天然可点击元素
+        if (tagName === 'a' || tagName === 'button' || 
+            (tagName === 'input' && 
+             (element.type === 'button' || element.type === 'submit'))) {
           return 10;
         }
-        return tagName === 'li' ? 5 : 0;
+        
+        // 2. 检查点击事件处理器
+        if (element.onclick || 
+            element.getAttribute('ng-click') ||
+            element.getAttribute('@click') ||
+            element.getAttribute('onClick') ||
+            element.getAttribute('v-on:click') ||
+            element.getAttribute('data-click')) {
+          return 10;
+        }
+        
+        // 3. 检查ARIA角色和可点击类名
+        const role = element.getAttribute('role');
+        const className = element.className.toLowerCase();
+        if (role === 'button' || role === 'link' || 
+            className.includes('btn') || className.includes('button')) {
+          return 10;
+        }
+        
+        // 4. 列表项
+        if (tagName === 'li') {
+          const parent = element.parentElement;
+          if (parent && 
+              (parent.getAttribute('role') === 'menu' ||
+               parent.tagName.toLowerCase() === 'nav')) {
+            return 8;
+          }
+          return 5;
+        }
+        
+        return 0;
       }
 
       // 优化的节点查找函数 - 使用优先级搜索
       function getTextAndElementNodes() {
         const results = [];
-        const searchText = '${clickText}'.toLowerCase();
+        const searchText = '${clickText}'.toLowerCase().trim();
 
         // 1. 搜索高优先级元素（button, a, input）
         const highPrioritySelector = 'button, a, input[type="button"], input[type="submit"]';
@@ -175,9 +206,21 @@ Future<bool> _executeClick() async {
         const mediumPrioritySelector = 'li';
         const mediumPriorityElements = document.body.querySelectorAll(mediumPrioritySelector);
 
+        // 检查文本是否精确匹配
+        function isExactMatch(element) {
+          // 获取元素的直接文本内容，不包括子元素的文本
+          let text = '';
+          for (const node of element.childNodes) {
+            if (node.nodeType === 3) { // TEXT_NODE
+              text += node.textContent;
+            }
+          }
+          return text.trim().toLowerCase() === searchText;
+        }
+
         // 3. 处理高优先级元素
         highPriorityElements.forEach(element => {          
-          if (element.textContent?.trim().toLowerCase().includes(searchText)) {
+          if (isExactMatch(element)) {
             results.push({
               type: 'text',
               node: element.firstChild,
@@ -189,7 +232,7 @@ Future<bool> _executeClick() async {
         // 4. 如果高优先级没找到，处理次优先级
         if (results.length === 0) {
           mediumPriorityElements.forEach(element => {
-            if (element.textContent?.trim().toLowerCase().includes(searchText)) {
+            if (isExactMatch(element)) {
               results.push({
                 type: 'text',
                 node: element.firstChild,
@@ -211,14 +254,16 @@ Future<bool> _executeClick() async {
                     parent.tagName === 'SCRIPT' ||
                     parent.tagName === 'STYLE' ||
                     parent.tagName === 'NOSCRIPT' ||
-                    parent.tagName === 'TEMPLATE') {
+                    parent.tagName === 'TEMPLATE' ||
+                    parent.tagName === 'SELECT' ||
+                    parent.tagName === 'OPTION') {
                   return NodeFilter.FILTER_REJECT;
                 }
                 
                 const text = node.textContent.trim().toLowerCase();
-                return text.includes(searchText) ? 
+                return text === searchText ? // 精确匹配
                        NodeFilter.FILTER_ACCEPT : 
-                       NodeFilter.FILTER_SKIP;
+                       NodeFilter.FILTER_REJECT;
               }
             }
           );
@@ -239,6 +284,7 @@ Future<bool> _executeClick() async {
         return results;
       }
 
+      // [以下代码保持不变...]
       // 查找可点击父元素 - 优化版本
       function findClickableParent(element) {
         let current = element;
