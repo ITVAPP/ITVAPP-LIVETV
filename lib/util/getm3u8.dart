@@ -150,17 +150,26 @@ Future<bool> _executeClick() async {
    
    final jsCode = '''
    (function() {
-     // 统一的文本匹配函数
+     // 优化的文本匹配函数
      function isTextMatch(element) {
        const searchText = '${clickText}'.toLowerCase().trim();
        
-       // 1. 检查全部文本内容（包括子元素）
-       const fullText = element.textContent.trim().toLowerCase();
-       if (fullText === searchText) {
+       // 检查所有可能包含文本的属性
+       const textProperties = [
+         element.textContent,
+         element.innerText,
+         element.value,
+         element.placeholder,
+         element.getAttribute('title'),
+         element.getAttribute('aria-label')
+       ].map(t => t?.toLowerCase().trim()).filter(t => t);
+       
+       // 如果任一属性完全匹配，返回true
+       if (textProperties.some(text => text === searchText)) {
          return true;
        }
        
-       // 2. 检查直接文本内容
+       // 检查直接文本节点
        let directText = '';
        for (const node of element.childNodes) {
          if (node.nodeType === 3) { // TEXT_NODE
@@ -173,33 +182,38 @@ Future<bool> _executeClick() async {
      // 优化的节点查找函数
      function getTextAndElementNodes() {
        const results = [];
-       const searchText = '${clickText}'.toLowerCase().trim();
-
-       // 1. 搜索高优先级元素（button, a, input）
-       const highPrioritySelector = 'button, a, input[type="button"], input[type="submit"]';
-       const highPriorityElements = document.body.querySelectorAll(highPrioritySelector);
        
-       // 2. 搜索次优先级元素（li）
-       const mediumPrioritySelector = 'li';
-       const mediumPriorityElements = document.body.querySelectorAll(mediumPrioritySelector);
+       // 扩展的选择器列表
+       const selectors = [
+         // 高优先级：标准可点击元素
+         'button',
+         'a',
+         'input[type="button"]',
+         'input[type="submit"]',
+         'div[role="button"]',
+         'span[role="button"]',
+         '*[onclick]',
+         '*[class*="btn"]',
+         '*[class*="button"]',
+         // 中优先级：列表和其他可交互元素
+         'li',
+         '*[tabindex]',
+         '*[role="tab"]',
+         '*[role="menuitem"]'
+       ].join(',');
 
-       // 3. 处理高优先级元素
-       highPriorityElements.forEach(element => {          
+       // 1. 首先查找所有可能的可点击元素
+       const elements = document.body.querySelectorAll(selectors);
+       elements.forEach(element => {
          if (isTextMatch(element)) {
-           results.push(element);
+           results.push({
+             element,
+             priority: getPriority(element)
+           });
          }
        });
 
-       // 4. 如果高优先级没找到，处理次优先级
-       if (results.length === 0) {
-         mediumPriorityElements.forEach(element => {
-           if (isTextMatch(element)) {
-             results.push(element);
-           }
-         });
-       }
-
-       // 5. 如果上述都没找到，再用 TreeWalker 搜索其他元素
+       // 2. 如果没找到，使用 TreeWalker 查找其他元素
        if (results.length === 0) {
          const treeWalker = document.createTreeWalker(
            document.body,
@@ -222,13 +236,36 @@ Future<bool> _executeClick() async {
            }
          );
 
-         let element;
-         while (element = treeWalker.nextNode()) {
-           results.push(element);
+         let node;
+         while (node = treeWalker.nextNode()) {
+           results.push({
+             element: node,
+             priority: getPriority(node)
+           });
          }
        }
 
-       return results;
+       // 按优先级排序并返回元素
+       return results.sort((a, b) => b.priority - a.priority).map(r => r.element);
+     }
+
+     // 获取元素优先级
+     function getPriority(element) {
+       let priority = 0;
+       const tag = element.tagName.toLowerCase();
+       
+       // 标签优先级
+       if (tag === 'button') priority += 10;
+       if (tag === 'a') priority += 9;
+       if (tag === 'input' && (element.type === 'button' || element.type === 'submit')) priority += 8;
+       
+       // 属性优先级
+       if (element.hasAttribute('onclick')) priority += 5;
+       if (element.getAttribute('role') === 'button') priority += 4;
+       if (element.style.cursor === 'pointer') priority += 2;
+       if (element.hasAttribute('tabindex')) priority += 1;
+       
+       return priority;
      }
      
      // 优化的点击事件触发
@@ -239,60 +276,69 @@ Future<bool> _executeClick() async {
            url: window.location.href,
            html: element.innerHTML?.trim()
          };
-   
-         // 2. 构造标准点击事件
-         const event = new MouseEvent('click', {
-           bubbles: true,
-           cancelable: true,
-           view: window,
-           detail: 1,
-           screenX: 0,
-           screenY: 0,
-           clientX: 0,
-           clientY: 0,
-           ctrlKey: false,
-           altKey: false,
-           shiftKey: false,
-           metaKey: false,
-           button: 0,
-           buttons: 1,
-           relatedTarget: null
-         });
+
+         // 2. 尝试多种点击方式
+         let success = false;
          
-         // 3. 触发事件
-         element.dispatchEvent(new MouseEvent('mousedown', event));
-         element.dispatchEvent(new MouseEvent('mouseup', event));
-         const dispatched = element.dispatchEvent(event);
-         
-         if (!dispatched) {
-           return {
-             success: false,
-             error: '事件被取消'
-           };
+         // 2.1 尝试原生click()方法
+         try {
+           element.click();
+           success = true;
+         } catch (e) {
+           console.log('原生click()失败，尝试其他方法');
          }
-         
-         // 4. 如果有 onclick，调用它
+
+         // 2.2 如果原生方法失败，尝试事件序列
+         if (!success) {
+           const events = ['mouseover', 'mouseenter', 'mousedown', 'mouseup', 'click'];
+           for (const eventType of events) {
+             const event = new MouseEvent(eventType, {
+               view: window,
+               bubbles: true,
+               cancelable: true,
+               detail: 1,
+               screenX: 0,
+               screenY: 0,
+               clientX: 0,
+               clientY: 0,
+               ctrlKey: false,
+               altKey: false,
+               shiftKey: false,
+               metaKey: false,
+               button: 0,
+               buttons: 1,
+               relatedTarget: null
+             });
+             element.dispatchEvent(event);
+           }
+         }
+
+         // 2.3 如果有onclick，确保调用
          if (typeof element.onclick === 'function') {
            try {
-             await element.onclick();
+             await Promise.resolve(element.onclick.call(element));
            } catch (onclickError) {
              console.error('onclick 执行错误:', onclickError);
            }
          }
    
-         // 5. 等待可能的变化发生
+         // 3. 等待可能的变化发生
          await new Promise(resolve => setTimeout(resolve, 300));
    
-         // 6. 检查状态变化
+         // 4. 检查状态变化
          const afterState = {
            url: window.location.href,
            html: element.innerHTML?.trim()
          };
    
-         // 7. 判断是否有变化发生 
+         // 5. 判断是否成功
+         const urlChanged = beforeState.url !== afterState.url;
+         const htmlChanged = beforeState.html !== afterState.html;
+         success = success || urlChanged || htmlChanged;
+   
          return {
-           success: beforeState.url !== afterState.url || 
-                   beforeState.html !== afterState.html
+           success,
+           error: success ? null : '点击可能未生效'
          };
    
        } catch (e) {
@@ -306,7 +352,7 @@ Future<bool> _executeClick() async {
 
      // 主函数
      async function findAndClick() {
-       const targetIndex = ${clickIndex ?? 0};  // 修改这里，确保有默认值
+       const targetIndex = ${clickIndex ?? 0};
        
        // 1. 获取匹配节点
        const matchedElements = getTextAndElementNodes();
@@ -342,13 +388,26 @@ Future<bool> _executeClick() async {
 
    try {
      final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
+     LogUtil.i('JavaScript返回结果类型: ${result.runtimeType}');
+     LogUtil.i('JavaScript返回结果内容: $result');
+
      if (result == null) {
        LogUtil.e('JavaScript执行返回空结果');
        _isClickExecuted = true;
        return false;
      }
 
-     final Map<String, dynamic> resultMap = result as Map<String, dynamic>;
+     Map<String, dynamic> resultMap;
+     if (result is String) {
+       resultMap = json.decode(result) as Map<String, dynamic>;
+     } else if (result is Map<String, dynamic>) {
+       resultMap = result;
+     } else {
+       LogUtil.e('意外的返回类型: ${result.runtimeType}');
+       _isClickExecuted = true;
+       return false;
+     }
+
      final success = resultMap['success'] as bool?;
      final clicked = resultMap['clicked'];
      
