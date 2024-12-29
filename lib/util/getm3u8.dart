@@ -139,6 +139,7 @@ class GetM3U8 {
   }
 
 /// 执行点击操作
+/// 执行点击操作
 Future<bool> _executeClick() async {
   if (_isClickExecuted || clickText == null || clickText!.isEmpty) {
     LogUtil.i(_isClickExecuted ? '点击已执行，跳过' : '无点击配置，跳过');
@@ -148,7 +149,7 @@ Future<bool> _executeClick() async {
   LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
   
   final jsCode = '''
-  (() => {
+  await (async function() {
     async function findAndClick() {
       // 获取所有文本节点
       function getTextNodes() {
@@ -328,14 +329,15 @@ Future<bool> _executeClick() async {
       }
     }
 
-    return findAndClick();
+    const result = await findAndClick();
+    return result;
   })()
   ''';
 
   try {
-    final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
-    
-    final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
+    final result = await _controller.runJavaScriptReturningResult(jsCode);
+    // 尝试将结果转换为 Map
+    final Map<String, dynamic> response = json.decode(result.toString());
     
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
