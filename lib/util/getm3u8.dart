@@ -560,9 +560,14 @@ Future<String?> _checkPageContent() async {
   _isStaticChecking = true;
   try {
     // 先检查内容大小
-    final contentSize = await _controller.runJavaScriptReturningResult(
+    final dynamic contentSizeResult = await _controller.runJavaScriptReturningResult(
       'document.documentElement.outerHTML.length'
-    ) as num;
+    );
+    
+    // 安全地转换内容大小
+    final num contentSize = (contentSizeResult is String) 
+        ? num.tryParse(contentSizeResult) ?? 0 
+        : (contentSizeResult is num ? contentSizeResult : 0);
 
     // 如果内容大于8KB (8 * 1024 = 8192 字节)，基本判断不是api，跳过静态检测
     if (contentSize > 8192) {
@@ -573,9 +578,16 @@ Future<String?> _checkPageContent() async {
     LogUtil.i('页面内容大小适合静态检测 (${contentSize}字节)，开始检查');
     
     // 获取页面完整内容
-    final String content = await _controller.runJavaScriptReturningResult(
+    final dynamic contentResult = await _controller.runJavaScriptReturningResult(
       'document.documentElement.outerHTML'
-    ) as String;
+    );
+    
+    final String content = contentResult?.toString() ?? '';
+    
+    if (content.isEmpty) {
+      LogUtil.i('获取到的页面内容为空，跳过检查');
+      return null;
+    }
 
     // 多模式正则匹配
     final regexPatterns = [
