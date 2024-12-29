@@ -523,24 +523,36 @@ Future<bool> _executeClick() async {
     })();
     ''';
 
-    try {
-      final result = await _controller.runJavaScriptReturningResult(jsCode);
-      final Map<String, dynamic> response = jsonDecode(result.toString());
-      
-      if (response['success'] == true && response['clicked'] != null) {
-        LogUtil.i('点击成功: ${response['clicked']}');
-        _isClickExecuted = true;
-        await Future.delayed(const Duration(seconds: 1));
-        return true;
-      } else {
-        LogUtil.e('点击失败：${response['error'] ?? "未知错误"}, 匹配结果: ${response['matches']}');
-        if (response['targetInfo'] != null) {
-          LogUtil.e('目标元素信息: ${response['targetInfo']}');
-        }
-        _isClickExecuted = true;
-        return false;
-      }
-    } catch (e, stack) {
+try {
+  final result = await _controller.runJavaScriptReturningResult(jsCode);
+  if (result == null) {
+    LogUtil.e('JavaScript执行返回空结果');
+    _isClickExecuted = true;
+    return false;
+  }
+  
+  Map<String, dynamic>? response;
+  try {
+    response = jsonDecode(result.toString()) as Map<String, dynamic>;
+  } catch (e) {
+    LogUtil.e('JSON解析失败: $e');
+    _isClickExecuted = true;
+    return false;
+  }
+  
+  if (response['success'] == true && response['clicked'] != null) {
+    LogUtil.i('点击成功: ${response['clicked']}');
+    _isClickExecuted = true;
+    await Future.delayed(const Duration(seconds: 1));
+    return true;
+  } else {
+    LogUtil.e('点击失败：${response['error'] ?? "未知错误"}, 匹配结果: ${response['matches']}');
+    if (response['targetInfo'] != null) {
+      LogUtil.e('目标元素信息: ${response['targetInfo']}');
+    }
+    _isClickExecuted = true;
+    return false;
+  } catch (e, stack) {
       LogUtil.logError('执行点击操作时发生错误', e, stack);
       _isClickExecuted = true;
       return false;
