@@ -346,7 +346,7 @@ Future<bool> _executeClick() async {
   ''';
 
   try {
-    final result = await _controller.runJavaScriptReturningResult(jsCode);
+    final dynamic result = await _controller.runJavaScriptReturningResult(jsCode);
     final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
     
     if (response['success'] == true) {
