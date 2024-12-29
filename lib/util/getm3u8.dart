@@ -306,7 +306,8 @@ class GetM3U8 {
 
     try {
       final result = await _controller.runJavaScriptReturningResult(jsCode);
-      final Map<String, dynamic> response = jsonDecode(result.toString()) as Map<String, dynamic>;
+      // final Map<String, dynamic> response = jsonDecode(result.toString()) as Map<String, dynamic>;
+      final Map<String, dynamic> response = Map<String, dynamic>.from(result as Map);
       
       if (response['success'] == true) {
         LogUtil.i('点击成功: ${response['clicked']}');
@@ -828,8 +829,6 @@ Future<String?> _checkPageContent() async {
       LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
       return null;
     }
-
-    LogUtil.i('开始检查页面内容大小');
     _isStaticChecking = true;
     
     try {
