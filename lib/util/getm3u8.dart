@@ -898,12 +898,20 @@ Future<String?> _checkPageContent() async {
      return null; 
    }
 
-String sample = Uri.decodeComponent(sampleResult.toString()
+String sample = sampleResult.toString()
   .replaceAll(r'\/', '/')
   .replaceAll(r'\\', '\\')
   .replaceAll(r'\u002F', '/')
   .replaceAll('&quot;', '"')
-  .replaceAll('&#x2F;', '/'));
+  .replaceAll('&#x2F;', '/');
+  
+if (sample.contains('%')) {
+  try {
+    sample = Uri.decodeComponent(sample);
+  } catch (e) {
+    // 解码失败时保持原样
+  }
+}
    
    if (sample.length > 30580) {
      LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
