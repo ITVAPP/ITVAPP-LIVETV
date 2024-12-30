@@ -199,124 +199,74 @@ Future<bool> _executeClick() async {
         return path.join(' > ');
       }
 
-      // 查找目标元素
-      function findTargetElements() {
-        const results = new Set();
-        const searchText = '${clickText}'.toLowerCase();
-        
-        // 1. 通过文本节点查找
-        getTextNodes().forEach(node => {
-          if (node.nodeValue.toLowerCase().includes(searchText)) {
-            results.add(node);
-          }
-        });
-        
-        // 2. 通过常见属性查找
-        ['title', 'aria-label', 'data-title', 'alt'].forEach(attr => {
-          document.querySelectorAll(`[\${attr}]`).forEach(el => {
-            const attrValue = el.getAttribute(attr);
-            if (attrValue && attrValue.toLowerCase().includes(searchText)) {
-              results.add(el);
-            }
+      // 查找匹配的文本节点
+      const searchText = '${clickText}';
+      const targetIndex = ${clickIndex};
+      const textNodes = getTextNodes();
+      
+      let currentIndex = 0;
+      let foundNode = null;
+
+      // 记录找到的所有匹配，用于调试
+      const matches = [];
+
+      for (const node of textNodes) {
+        if (node.nodeValue.trim().includes(searchText)) {
+          matches.push({
+            text: node.nodeValue.trim(),
+            path: getElementPath(node.parentElement)
           });
-        });
-        
-        // 3. 查找可视文本内容
-        const elements = document.getElementsByTagName('*');
-        for (const element of elements) {
-          if (element.tagName !== 'SCRIPT' && 
-              element.tagName !== 'STYLE' && 
-              element.textContent.toLowerCase().includes(searchText)) {
-            results.add(element);
+          
+          if (matches.length === 1 || currentIndex === targetIndex) {
+            foundNode = node;
+            if (matches.length === 1) break;
           }
+          currentIndex++;
         }
-        
-        return Array.from(results);
+      }
+
+      if (!foundNode) {
+        return {
+          success: false,
+          error: '未找到匹配元素',
+          matches: matches
+        };
       }
 
       // 改进的可点击元素检测
       function findClickableParent(node) {
-        // 如果输入是Element，从它开始；如果是TextNode，从其父元素开始
-        let current = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-        let depth = 0;
-        const maxDepth = 5;
-
-        function isVisible(element) {
-          const style = window.getComputedStyle(element);
-          return style.display !== 'none' && 
-                 style.visibility !== 'hidden' && 
-                 style.opacity !== '0' &&
-                 !element.disabled;
-        }
-
-        function isClickable(element) {
-          return element.tagName === 'A' || 
-                 element.tagName === 'BUTTON' || 
-                 element.tagName === 'INPUT' ||
-                 element.tagName === 'LI' ||
-                 element.onclick ||
-                 element.getAttribute('onclick') ||
-                 element.getAttribute('role') === 'button' ||
-                 element.getAttribute('role') === 'tab' ||
-                 element.classList.contains('clickable') ||
-                 element.classList.contains('button') ||
-                 window.getComputedStyle(element).cursor === 'pointer';
-        }
-
-        while (current && depth < maxDepth) {
-          if (isClickable(current) && isVisible(current)) {
-            return current;
-          }
-          current = current.parentElement;
-          depth++;
-        }
+        let current = node.parentElement;
+        let maxDepth = 5;
         
-        return node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-      }
-
-      // 安全的事件分发
-      function safeDispatchEvent(element, eventName) {
-        try {
-          const event = new Event(eventName, {
-            bubbles: true,
-            cancelable: true
-          });
-          element.dispatchEvent(event);
-        } catch (e) {
-          try {
-            // 降级方案
-            const event = document.createEvent('Event');
-            event.initEvent(eventName, true, true);
-            element.dispatchEvent(event);
-          } catch (e2) {
-            // 如果事件分发失败，尝试直接调用事件处理器
-            const handlerName = 'on' + eventName;
-            if (typeof element[handlerName] === 'function') {
-              element[handlerName]();
+        while (current && current !== document.body && maxDepth > 0) {
+          // 检查更多可点击的元素类型
+          if (current.tagName === 'A' || 
+              current.tagName === 'BUTTON' || 
+              current.tagName === 'INPUT' || // 添加INPUT元素检查
+              current.tagName === 'LI' ||
+              current.onclick ||
+              current.getAttribute('onclick') || // 检查onclick属性
+              current.role === 'button' || // 检查ARIA角色
+              current.dataset.click || // 检查自定义点击属性
+              current.classList.contains('clickable') || // 检查常见的可点击类名
+              window.getComputedStyle(current).cursor === 'pointer') {
+            
+            // 检查元素是否可见且启用
+            const style = window.getComputedStyle(current);
+            if (style.display !== 'none' && 
+                style.visibility !== 'hidden' && 
+                style.opacity !== '0' &&
+                !current.disabled) {
+              return current;
             }
           }
+          current = current.parentElement;
+          maxDepth--;
         }
+        return node.parentElement;
       }
 
-      // 主执行逻辑
-      const targetElements = findTargetElements();
-      if (targetElements.length === 0) {
-        return {
-          success: false,
-          error: '未找到匹配元素',
-          matches: []
-        };
-      }
-
-      const targetElement = targetElements[${clickIndex}] || targetElements[0];
-      const clickableElement = findClickableParent(targetElement);
-
-      // 记录匹配信息
-      const matches = targetElements.map(node => ({
-        text: node.nodeType === Node.TEXT_NODE ? node.nodeValue.trim() : node.textContent.trim(),
-        path: getElementPath(node.nodeType === Node.TEXT_NODE ? node.parentElement : node)
-      }));
-
+      const clickableElement = findClickableParent(foundNode);
       if (!clickableElement) {
         return {
           success: false,
@@ -326,64 +276,69 @@ Future<bool> _executeClick() async {
       }
 
       try {
-        // 记录初始状态
+        // 记录点击前状态
         const beforeState = {
           url: window.location.href,
-          html: clickableElement.innerHTML?.trim(),
-          className: clickableElement.className,
-          attributes: Array.from(clickableElement.attributes).map(attr => ({
-            name: attr.name,
-            value: attr.value
-          }))
+          html: clickableElement.innerHTML?.trim()
         };
 
-        // 模拟鼠标事件序列
-        ['mousedown', 'mouseup', 'click'].forEach(eventName => {
-          safeDispatchEvent(clickableElement, eventName);
+        // 改进的点击事件模拟
+        const events = [
+          new MouseEvent('mouseenter', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('mouseover', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('mousemove', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('mousedown', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('focus', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('mouseup', {bubbles: true, cancelable: true, view: window}),
+          new MouseEvent('click', {bubbles: true, cancelable: true, view: window})
+        ];
+
+        // 按顺序触发事件
+        events.forEach(event => {
+          clickableElement.dispatchEvent(event);
         });
 
-        // 特殊元素处理
+        // 特殊元素的处理
         if (clickableElement.tagName === 'A' && clickableElement.href) {
+          // 处理链接
           if (!clickableElement.target || clickableElement.target === '_self') {
             window.location.href = clickableElement.href;
           }
-        }
-        
-        // 触发点击方法
-        if (typeof clickableElement.click === 'function') {
-          clickableElement.click();
+        } else if (clickableElement.tagName === 'INPUT' && 
+                   (clickableElement.type === 'submit' || clickableElement.type === 'button')) {
+          clickableElement.click(); // 原生点击
+        } else if (clickableElement.tagName === 'LI') {
+           // 已经触发过模拟事件,这里尝试用选择器再点一次
+           const index = Array.from(clickableElement.parentElement.children).indexOf(clickableElement);
+           const pathSelector = getElementPath(clickableElement.parentElement);
+           document.querySelector(pathSelector + ' li:nth-child(' + (index + 1) + ')')?.click();
+         } else if (typeof clickableElement.onclick === 'function') {
+          clickableElement.onclick(); // 执行onclick处理函数
         }
 
-        // 等待状态变化
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 等待可能的变化发生
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // 检查状态变化
         const afterState = {
           url: window.location.href,
-          html: clickableElement.innerHTML?.trim(),
-          className: clickableElement.className,
-          attributes: Array.from(clickableElement.attributes).map(attr => ({
-            name: attr.name,
-            value: attr.value
-          }))
+          html: clickableElement.innerHTML?.trim()
         };
 
-        // 检查是否有变化
-        const hasChanges = 
-          beforeState.url !== afterState.url ||
-          beforeState.html !== afterState.html ||
-          beforeState.className !== afterState.className ||
-          JSON.stringify(beforeState.attributes) !== JSON.stringify(afterState.attributes);
-
+        // 判断是否成功
+        const urlChanged = beforeState.url !== afterState.url;
+        const htmlChanged = beforeState.html !== afterState.html;
+        const success = urlChanged || htmlChanged;
+        
+        // 返回纯JavaScript对象
         return {
-          success: hasChanges,
+          success: success,
           matches: matches,
           clicked: {
             tag: clickableElement.tagName,
             text: clickableElement.textContent.trim(),
             path: getElementPath(clickableElement),
-            totalMatches: matches.length,
-            hasChanges: hasChanges
+            totalMatches: matches.length
           }
         };
 
