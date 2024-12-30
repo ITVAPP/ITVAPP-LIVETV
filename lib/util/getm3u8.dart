@@ -902,24 +902,25 @@ Future<String?> _checkPageContent() async {
     // 增强的字符串清理逻辑
     String sample = sampleResult.toString();
     
-    // 处理JSON转义
-    sample = sample
-      .replaceAll(r'\/', '/') 
-      .replaceAll(r'\\/', '/')
-      .replaceAll(r'\\\\/', '/')
-      .replaceAll(r'\\"', '"')
-      .replaceAll(r'\"', '"')
-      .replaceAll(r'\\\\', '\\')
-      .replaceAll(r'\\', '/');  // 对于m3u8 URL，把剩余的反斜杠转为正斜杠
-      
-    // 处理HTML实体
-    sample = sample
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>');
+String cleanSample(String sample) {
+  // 处理JSON转义字符
+  sample = sample
+    .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+    .replaceAll(r'\\/', '/')  // 处理转义斜杠
+    .replaceAll(r'\\"', '"')  // 处理转义双引号
+    .replaceAll(r'\"', '"')  // 处理转义双引号
+    .replaceAll(r"\\'", "'")  // 处理转义单引号
+    .replaceAll(r"\'", "'")  // 处理转义单引号
+    .replaceAll(r'\/', '/');  // 处理转义斜杠
+
+  // 处理HTML实体
+  sample = sample
+    .replaceAll('&quot;', '"')  // 双引号
+    .replaceAll('&#x2F;', '/')  // 斜杠
+    .replaceAll('&#47;', '/')  // 斜杠
+    .replaceAll('&amp;', '&')  // &
+    .replaceAll('&lt;', '<')  // 小于号
+    .replaceAll('&gt;', '>');  // 大于号
     
     // URL解码
     if (sample.contains('%')) {
