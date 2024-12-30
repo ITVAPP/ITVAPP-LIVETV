@@ -897,12 +897,13 @@ Future<String?> _checkPageContent() async {
      LogUtil.i('获取内容样本失败');
      return null; 
    }
-   String sample = sampleResult.toString()
-     .replaceAll(r'\/', '/')
-     .replaceAll(r'\\', '\\')
-     .replaceAll(r'\u002F', '/')
-     .replaceAll('&quot;', '"')
-     .replaceAll('&#x2F;', '/');
+
+String sample = Uri.decodeComponent(sampleResult.toString()
+  .replaceAll(r'\/', '/')
+  .replaceAll(r'\\', '\\')
+  .replaceAll(r'\u002F', '/')
+  .replaceAll('&quot;', '"')
+  .replaceAll('&#x2F;', '/'));
    
    if (sample.length > 30580) {
      LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
@@ -911,10 +912,13 @@ Future<String?> _checkPageContent() async {
    
    LogUtil.i('页面内容较小，进行静态检测');
    final regexPatterns = [
-r'''(?:https?://[^/\s<>"'\\]+)?/?[^\s<>"'\\]+?\.m3u8(?:[^\s<>"'\\]*[?][^\s<>"'\\]*)?''',
-r'"(?:url|src|href|m3u8)"\s*:\s*"(?:https?://[^/]+)?/?[^"]+?\.m3u8(?:[^"]*[?][^"]*)?"\s*',
-r'''['"](?:url|src|href|m3u8)['"]?\s*=\s*['"](?:https?://[^/]+)?/?[^'"]+?\.m3u8(?:[^'"]*[?][^'"]*)?['"]''',
-r'''url\(\s*['"]?(?:https?://[^/]+)?/?[^'")]+?\.m3u8(?:[^'")]*[?][^'")]*)?['"]?\s*\)'''
+r'''(?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//(?:[a-zA-Z0-9\-._~%!$&'()*+,;=]+:)?[a-zA-Z0-9\-._~%!$&'()*+,;=]+@?[^/\s<>"'\\]+(?::\d+)?)?/?[^\s<>"'\\]+?\.m3u8(?:[^\s<>"'\\]*[?][^\s<>"'\\]*)?''',
+
+r'"(?:url|src|href|m3u8)"\s*:\s*"(?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//(?:[a-zA-Z0-9\-._~%!$&'()*+,;=]+:)?[a-zA-Z0-9\-._~%!$&'()*+,;=]+@?[^/]+(?::\d+)?)?/?[^"]+?\.m3u8(?:[^"]*[?][^"]*)?"\s*',
+
+r'''['"](?:url|src|href|m3u8)['"]?\s*=\s*['"](?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//(?:[a-zA-Z0-9\-._~%!$&'()*+,;=]+:)?[a-zA-Z0-9\-._~%!$&'()*+,;=]+@?[^/]+(?::\d+)?)?/?[^'"]+?\.m3u8(?:[^'"]*[?][^'"]*)?['"]''',
+
+r'''url\(\s*['"]?(?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//(?:[a-zA-Z0-9\-._~%!$&'()*+,;=]+:)?[a-zA-Z0-9\-._~%!$&'()*+,;=]+@?[^/'"]+(?::\d+)?)?/?[^'")]+?\.m3u8(?:[^'")]*[?][^'")]*)?['"]?\s*\)'''
    ];
 
    if (clickIndex == 0) {
