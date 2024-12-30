@@ -911,13 +911,17 @@ Future<String?> _checkPageContent() async {
    }
    
    LogUtil.i('页面内容较小，进行静态检测');
-   
-   final regexPatterns = [
-     r'''(?:https?://)?[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''',
-     r'"(?:url|src|href)"\s*:\s*"((?:\\\/|[^"])+?\.m3u8[^"]*)"',
-     r'''['"](?:url|src|href)['"]?\s*=\s*['"]([^'"]+?\.m3u8[^'"]*?)['"]''',
-     r'''url\(\s*['"]?([^'")]+?\.m3u8[^'")]*?)['"]?\s*\)'''
-   ];
+
+final regexPatterns = [
+  // 匹配所有三种形式: 完整URL、绝对路径、相对路径
+  r'''(?:https?://[^/\s<>"'\\]+)?/?[^\s<>"'\\]+/[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''',
+  // JSON 格式
+  r'"(?:url|src|href)"\s*:\s*"(?:https?://[^/]+)?/?[^"]+?\.m3u8[^"]*"',
+  // HTML 属性
+  r'''['"](?:url|src|href)['"]?\s*=\s*['"](?:https?://[^/]+)?/?[^'"]+?\.m3u8[^'"]*?['"]''',
+  // CSS URL
+  r'''url\(\s*['"]?(?:https?://[^/]+)?/?[^'")]+?\.m3u8[^'")]*?['"]?\s*\)'''
+];
    
    final Set<String> foundUrls = {};
    int totalMatches = 0;
