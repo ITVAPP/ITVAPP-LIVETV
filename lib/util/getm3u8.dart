@@ -416,9 +416,9 @@ String _cleanUrl(String url) {
    .replaceAll('&#47;', '/');
 
  // 如果已经是完整URL则直接返回
- if (cleanedUrl.startsWith('http')) {
+if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
    return cleanedUrl;
- }
+}
 
  try {
    final baseUri = Uri.parse(this.url);
@@ -913,7 +913,7 @@ Future<String?> _checkPageContent() async {
      return null;
    }
    
-   LogUtil.i('页面内容较小，进行静态检测');
+   LogUtil.i('页面内容：${sample} ，页面内容较小，进行静态检测');
  
    final pattern = r'''(?:(?:https?|ftp):\/\/|\/\/|\/)?[\w\-./\s%]+?\.m3u8(?:\?[^"'\s<>]*)?(?:#[^"'\s<>]*)?''';
    final regex = RegExp(pattern);
@@ -932,6 +932,7 @@ Future<String?> _checkPageContent() async {
            _foundUrls.add(finalUrl);
            _staticM3u8Found = true;
            _m3u8Found = true;
+           LogUtil.i('页面内容中找到 ${finalUrl}');
            return finalUrl;
          }
        }
@@ -958,6 +959,7 @@ Future<String?> _checkPageContent() async {
          if (index == clickIndex) {
            _staticM3u8Found = true;
            _m3u8Found = true;
+           LogUtil.i('页面内容中找到 ${finalUrl}');
            return finalUrl;
          }
          index++;
