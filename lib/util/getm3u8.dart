@@ -899,12 +899,8 @@ Future<String?> _checkPageContent() async {
       return null; 
     }
     
-    // 增强的字符串清理逻辑
-    String sample = sampleResult.toString();
-    
-String cleanSample(String sample) {
   // 处理JSON转义字符
-  sample = sample
+   String sample = sampleResult.toString()
     .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
     .replaceAll(r'\\/', '/')  // 处理转义斜杠
     .replaceAll(r'\\"', '"')  // 处理转义双引号
