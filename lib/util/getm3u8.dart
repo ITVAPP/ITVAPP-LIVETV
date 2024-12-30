@@ -935,23 +935,10 @@ Future<String?> _checkPageContent() async {
       return null;
     }
     
-    LogUtil.i('页面内容：$sample，页面内容较小，进行静态检测');
+    LogUtil.i('''页面内容：${sample}，页面内容较小，进行静态检测''');
   
     // 改进的正则表达式模式，支持所有指定情况
-    final pattern = r'''
-      (?:
-        (?:(?:https?|ftp)://)?                     # 可选的协议(http://, https://, ftp://)
-        (?:
-          (?:[a-zA-Z0-9][-a-zA-Z0-9]*[a-zA-Z0-9]\.)+[a-zA-Z]{2,}|  # 域名
-          (?:[0-9]{1,3}\.){3}[0-9]{1,3}|                           # IP地址
-          (?://[-a-zA-Z0-9@:%._\+~#=]{1,256})|                     # 相对协议URL
-          (?://?[-a-zA-Z0-9@:%._\+~#=/]*)?                         # 绝对路径
-        )?
-        [-a-zA-Z0-9@:%._\+~#=/]*                  # 相对路径部分
-        \.m3u8                                     # .m3u8后缀
-        (?:\?[^"'<>{}\s\\]*)?                     # 可选的查询参数
-        (?:#[^"'<>{}\s\\]*)?                      # 可选的锚点
-      '''.replaceAll(RegExp(r'\s+'), '');  // 移除注释和空白
+final pattern = r'(?:(?:https?|ftp)://)?(?:(?:[a-zA-Z0-9][-a-zA-Z0-9]*[a-zA-Z0-9]\.)+[a-zA-Z]{2,}|(?:[0-9]{1,3}\.){3}[0-9]{1,3}|//[-a-zA-Z0-9@:%._\+~#=]{1,256}|//?[-a-zA-Z0-9@:%._\+~#=/]*)?[-a-zA-Z0-9@:%._\+~#=/]*\.m3u8(?:\?[^"\'<>{}\s\\]*)?(?:#[^"\'<>{}\s\\]*)?';
 
     final regex = RegExp(pattern, caseSensitive: false);
     final matches = regex.allMatches(sample);
