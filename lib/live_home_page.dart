@@ -145,8 +145,14 @@ bool _isHlsStream(String? url) {
 Future<void> _playVideo() async {
     if (_currentChannel == null) return;
 
+    // 获取线路名称
+    String sourceName = _getSourceDisplayName(
+        _currentChannel!.urls![_sourceIndex],
+        _sourceIndex
+    );
+    
     setState(() {
-        toastString = S.current.lineToast(_sourceIndex + 1, _currentChannel!.title ?? '');
+        toastString = '${_currentChannel!.title} - $sourceName';
         isPlaying = false;     // 重置播放状态
         isBuffering = false;   // 重置缓冲状态
         _isSwitchingChannel = false;  // 重置频道状态
@@ -932,6 +938,14 @@ String getGroupName(String channelId) {
 // 获取当前频道名字
 String getChannelName(String channelId) {
     return _currentChannel?.title ?? '';
+}
+
+// 获取线路名称
+String _getSourceDisplayName(String url, int index) {
+  if (url.contains('\$')) {
+    return url.split('\$')[1].trim();
+  }
+  return S.current.lineIndex(index + 1); // "线路${index + 1}"
 }
 
 // 获取当前频道的播放地址列表
