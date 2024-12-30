@@ -213,7 +213,7 @@ Future<bool> _executeClick() async {
         
         // 2. 通过常见属性查找
         ['title', 'aria-label', 'data-title', 'alt'].forEach(attr => {
-          document.querySelectorAll(`[${attr}]`).forEach(el => {
+          document.querySelectorAll(`[\${attr}]`).forEach(el => {
             const attrValue = el.getAttribute(attr);
             if (attrValue && attrValue.toLowerCase().includes(searchText)) {
               results.add(el);
