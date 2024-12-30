@@ -938,10 +938,16 @@ Future<String?> _checkPageContent() async {
     LogUtil.i('''页面内容：${sample}，页面内容较小，进行静态检测''');
   
     // 改进的正则表达式模式，支持所有指定情况
-final pattern = r'(?:(?:https?|ftp)://)?(?:(?:[a-zA-Z0-9][-a-zA-Z0-9]*[a-zA-Z0-9]\.)+[a-zA-Z]{2,}|(?:[0-9]{1,3}\.){3}[0-9]{1,3}|//[-a-zA-Z0-9@:%._\+~#=]{1,256}|//?[-a-zA-Z0-9@:%._\+~#=/]*)?[-a-zA-Z0-9@:%._\+~#=/]*\.m3u8(?:\?[^"\'<>{}\s\\]*)?(?:#[^"\'<>{}\s\\]*)?';
+   final pattern = r'(?:(?:https?|ftp)://|//)?'                                    // 协议 (可选)
+                  r'(?:(?:[a-zA-Z0-9][-a-zA-Z0-9]*[a-zA-Z0-9]\.)+[a-zA-Z]{2,}|'  // 域名
+                  r'(?:[0-9]{1,3}\.){3}[0-9]{1,3})?'                              // 或 IP
+                  r'(?:/?[-a-zA-Z0-9_/\.]*)?'                                      // 路径
+                  r'[-a-zA-Z0-9_]+\.m3u8'                                          // m3u8文件
+                  r'(?:\?[^"\'<>\s]*)?'                                            // 查询参数
+                  r'(?:#[^"\'<>\s]*)?';                                            // 锚点
 
-    final regex = RegExp(pattern, caseSensitive: false);
-    final matches = regex.allMatches(sample);
+   final regex = RegExp(pattern, caseSensitive: false);
+   final matches = regex.allMatches(sample);
 
     if (clickIndex == 0) {
       for (final match in matches) {
