@@ -448,9 +448,9 @@ String _cleanUrl(String url) {
 /// 处理相对路径,转换为完整URL
 String _handleRelativePath(String path) {
   // 检查是否是完整 URL (包含协议://)
-  if (path.matches(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://')) {
-    return path;
-  }
+if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
+ return path;
+}
   
   // 如果以 // 开头,说明是省略协议的完整URL
   if (path.startsWith('//')) {
