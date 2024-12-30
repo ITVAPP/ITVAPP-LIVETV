@@ -914,8 +914,8 @@ Future<String?> _checkPageContent() async {
    }
    
    LogUtil.i('页面内容较小，进行静态检测');
-
-   final pattern = r'(?:(?:https?|ftp):\/\/|\/\/|\/)?[\w\-\.\/\s%]+?\.m3u8(?:\?[^"\'\s<>]*)?(?:#[^"\'\s<>]*)?';                                                                                              
+ 
+   final pattern = r'(?:(?:https?|ftp):\/\/|\/\/|\/)?[\w\-\./\s%]+?\.m3u8(?:\?[^"\'\s<>]*)?(?:#[^"\'\s<>]*)?';
    final regex = RegExp(pattern);
    final matches = regex.allMatches(sample);
 
