@@ -405,6 +405,9 @@ Future<bool> _executeClick() async {
 
 /// URL整理
 String _cleanUrl(String url) {
+	
+LogUtil.i('URL整理开始，原始URL: $url');
+
  // 先处理基本的字符清理
  String cleanedUrl = url.trim()
    .replaceAll(r'\s*\\s*$', '')
@@ -447,6 +450,9 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
 
 /// 处理相对路径,转换为完整URL
 String _handleRelativePath(String path) {
+	
+LogUtil.i('处理相对路径开始，原始URL: $path');
+
   // 检查是否是完整 URL (包含协议://)
 if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
  return path;
@@ -913,7 +919,7 @@ Future<String?> _checkPageContent() async {
      return null;
    }
    
-   LogUtil.i('页面内容：${sample} ，页面内容较小，进行静态检测');
+   LogUtil.i('页面内容：${sampleResult.toString()}，页面内容较小，进行静态检测');
  
    final pattern = r'''(?:(?:https?|ftp):\/\/|\/\/|\/)?[\w\-./\s%]+?\.m3u8(?:\?[^"'\s<>]*)?(?:#[^"'\s<>]*)?''';
    final regex = RegExp(pattern);
@@ -922,6 +928,7 @@ Future<String?> _checkPageContent() async {
    if (clickIndex == 0) {
      for (final match in matches) {
        final url = match.group(0) ?? '';
+       LogUtil.i('正则匹配到URL: $url');
        if (url.isNotEmpty) {
          String cleanedUrl = _cleanUrl(_handleRelativePath(url));
          if (_isValidM3U8Url(cleanedUrl)) {
@@ -946,6 +953,7 @@ Future<String?> _checkPageContent() async {
      }
      
      LogUtil.i('页面内容中找到 ${urls.length} 个潜在的M3U8地址，去重后剩余 ${foundUrls.length} 个');
+     LogUtil.i('去重后的URLs: ${foundUrls.toList()}');
      
      int index = 0;
      for (final url in foundUrls) {
@@ -959,7 +967,7 @@ Future<String?> _checkPageContent() async {
          if (index == clickIndex) {
            _staticM3u8Found = true;
            _m3u8Found = true;
-           LogUtil.i('页面内容中找到 ${finalUrl}');
+           LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
            return finalUrl;
          }
          index++;
