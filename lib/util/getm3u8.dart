@@ -305,14 +305,10 @@ Future<bool> _executeClick() async {
             window.location.href = clickableElement.href;
           }
         } else if (clickableElement.tagName === 'INPUT' && 
-                   (clickableElement.type === 'submit' || clickableElement.type === 'button')) {
+               (clickableElement.type === 'submit' || clickableElement.type === 'button') || 
+               clickableElement.tagName === 'LI') {
           clickableElement.click(); // 原生点击
-        } else if (clickableElement.tagName === 'LI') {
-           // 已经触发过模拟事件,这里尝试用选择器再点一次
-           const index = Array.from(clickableElement.parentElement.children).indexOf(clickableElement);
-           const pathSelector = getElementPath(clickableElement.parentElement);
-           document.querySelector(pathSelector + ' li:nth-child(' + (index + 1) + ')')?.click();
-         } else if (typeof clickableElement.onclick === 'function') {
+        } else if (typeof clickableElement.onclick === 'function') {
           clickableElement.onclick(); // 执行onclick处理函数
         }
 
