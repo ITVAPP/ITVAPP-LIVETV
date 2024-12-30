@@ -897,7 +897,6 @@ Future<String?> _checkPageContent() async {
      LogUtil.i('获取内容样本失败');
      return null; 
    }
-
    String sample = sampleResult.toString()
      .replaceAll(r'\/', '/')
      .replaceAll(r'\\', '\\')
@@ -911,53 +910,58 @@ Future<String?> _checkPageContent() async {
    }
    
    LogUtil.i('页面内容较小，进行静态检测');
-
-final regexPatterns = [
-  // 匹配所有三种形式: 完整URL、绝对路径、相对路径
-  r'''(?:https?://[^/\s<>"'\\]+)?/?[^\s<>"'\\]+/[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''',
-  // JSON 格式
-  r'"(?:url|src|href)"\s*:\s*"(?:https?://[^/]+)?/?[^"]+?\.m3u8[^"]*"',
-  // HTML 属性
-  r'''['"](?:url|src|href)['"]?\s*=\s*['"](?:https?://[^/]+)?/?[^'"]+?\.m3u8[^'"]*?['"]''',
-  // CSS URL
-  r'''url\(\s*['"]?(?:https?://[^/]+)?/?[^'")]+?\.m3u8[^'")]*?['"]?\s*\)'''
-];
-   
-   final Set<String> foundUrls = {};
-   int totalMatches = 0;
-   for (final pattern in regexPatterns) {
-     final regex = RegExp(pattern);
-     final matches = regex.allMatches(sample);
-     totalMatches += matches.length;
-     
-     for (final match in matches) {
-       final url = match.groupCount > 0 
-         ? (match.group(1) ?? match.group(0) ?? '')
-         : (match.group(0) ?? '');
-         
-       if (url.isNotEmpty) {
-         foundUrls.add(_handleRelativePath(url));
-       }
-     }
-   }
-   
-   LogUtil.i('页面内容中找到 $totalMatches 个潜在的M3U8地址，去重后剩余 ${foundUrls.length} 个');
+   final regexPatterns = [
+     r'''(?:https?://[^/\s<>"'\\]+)?/?[^\s<>"'\\]+/[^\s<>"'\\]+?\.m3u8[^\s<>"'\\]*''',
+     r'"(?:url|src|href)"\s*:\s*"(?:https?://[^/]+)?/?[^"]+?\.m3u8[^"]*"',
+     r'''['"](?:url|src|href)['"]?\s*=\s*['"](?:https?://[^/]+)?/?[^'"]+?\.m3u8[^'"]*?['"]''',
+     r'''url\(\s*['"]?(?:https?://[^/]+)?/?[^'")]+?\.m3u8[^'")]*?['"]?\s*\)'''
+   ];
 
    if (clickIndex == 0) {
-     for (final url in foundUrls) {
-       String cleanedUrl = _cleanUrl(url);
-       if (_isValidM3U8Url(cleanedUrl)) {
-         String finalUrl = cleanedUrl;
-         if (fromParam != null && toParam != null) {
-           finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+     for (final pattern in regexPatterns) {
+       final regex = RegExp(pattern);
+       final matches = regex.allMatches(sample);
+       
+       for (final match in matches) {
+         final url = match.groupCount > 0 
+           ? (match.group(1) ?? match.group(0) ?? '')
+           : (match.group(0) ?? '');
+           
+         if (url.isNotEmpty) {
+           String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+           if (_isValidM3U8Url(cleanedUrl)) {
+             String finalUrl = cleanedUrl;
+             if (fromParam != null && toParam != null) {
+               finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+             }
+             _foundUrls.add(finalUrl);
+             _staticM3u8Found = true;
+             _m3u8Found = true;
+             return finalUrl;
+           }
          }
-         _foundUrls.add(finalUrl);
-         _staticM3u8Found = true;
-         _m3u8Found = true;
-         return finalUrl;
        }
      }
    } else {
+     final Set<String> foundUrls = {};
+     int totalMatches = 0;
+     for (final pattern in regexPatterns) {
+       final regex = RegExp(pattern);
+       final matches = regex.allMatches(sample);
+       totalMatches += matches.length;
+       
+       for (final match in matches) {
+         final url = match.groupCount > 0 
+           ? (match.group(1) ?? match.group(0) ?? '')
+           : (match.group(0) ?? '');
+           
+         if (url.isNotEmpty) {
+           foundUrls.add(_handleRelativePath(url));
+         }
+       }
+     }
+     
+     LogUtil.i('页面内容中找到 $totalMatches 个潜在的M3U8地址，去重后剩余 ${foundUrls.length} 个');
      int index = 0;
      for (final url in foundUrls) {
        String cleanedUrl = _cleanUrl(url);
@@ -976,7 +980,7 @@ final regexPatterns = [
        }
      }
    }
-
+   
    LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
    return null;
  } catch (e, stackTrace) {
