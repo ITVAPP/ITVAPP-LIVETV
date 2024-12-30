@@ -447,29 +447,24 @@ String _cleanUrl(String url) {
 
 /// 处理相对路径,转换为完整URL
 String _handleRelativePath(String path) {
-  // 已经是完整URL就直接返回
-  if (path.startsWith('http')) {
+  // 检查是否是完整 URL (包含协议://)
+  if (path.matches(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://')) {
     return path;
   }
+  
+  // 如果以 // 开头,说明是省略协议的完整URL
+  if (path.startsWith('//')) {
+    final baseUri = Uri.parse(url);
+    return '${baseUri.scheme}:$path';
+  }
+
   try {
-    final baseUri = Uri.parse(url); 
-    String fullUrl;
-    if (path.startsWith('//')) {
-      String cleanPath = path.substring(2);
-      if (cleanPath.contains('/')) {
-        cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
-      }
-      cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-    } else {
-      String cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      fullUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-    }
-    // 最后通过_cleanUrl再处理一次
-    return _cleanUrl(fullUrl);
+    final baseUri = Uri.parse(url);
+    String cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return _cleanUrl('${baseUri.scheme}://${baseUri.host}/$cleanPath');
   } catch (e) {
     LogUtil.e('处理相对路径失败: $e');
-    return path;
+    return path; 
   }
 }
 
