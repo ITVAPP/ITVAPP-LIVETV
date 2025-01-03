@@ -144,26 +144,32 @@ bool _isHlsStream(String? url) {
 /// 播放前解析频道的视频源 
 Future<void> _playVideo() async {
     if (_currentChannel == null) return;
-
+    
     // 获取线路名称
     String sourceName = _getSourceDisplayName(
         _currentChannel!.urls![_sourceIndex],
         _sourceIndex
     );
     
+    // 设置初始状态
     setState(() {
         toastString = '${_currentChannel!.title} - $sourceName';
         isPlaying = false;     // 重置播放状态
         isBuffering = false;   // 重置缓冲状态
-        _isSwitchingChannel = false;  // 重置频道状态
     });
 
-    // 先释放旧播放器，再设置新播放器
-    await _disposePlayer();
-    // 添加短暂延迟确保资源完全释放
-    await Future.delayed(const Duration(milliseconds: 500));
-    
     try {
+        // 等待之前的切换操作完成
+        while (_isSwitchingChannel) {
+            LogUtil.i('等待频道切换完成后再开始播放');
+            await Future.delayed(const Duration(milliseconds: 500));
+        }
+    	
+        // 先释放旧播放器，再设置新播放器
+        await _disposePlayer();
+        // 添加短暂延迟确保资源完全释放
+        await Future.delayed(const Duration(milliseconds: 500));
+        
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
         _streamUrl = StreamUrl(url); 
@@ -185,8 +191,6 @@ Future<void> _playVideo() async {
         
         // 检测是否为hls流
         final bool isHls = _isHlsStream(parsedUrl);
-        
-        if (_isSwitchingChannel) return;  // 如果切换频道的状态改变则停止继续
         
         LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为hls流：$isHls');
 
@@ -210,12 +214,11 @@ Future<void> _playVideo() async {
         try {
             await newController.setupDataSource(dataSource);
         } catch (e, stackTrace) {
-            _handleSourceSwitching();
             LogUtil.logError('初始化出错', e, stackTrace);
+            _handleSourceSwitching();
             return; 
         }
-
-       if (_isSwitchingChannel) return;
+        
         // 设置新的控制器
         setState(() {
             _playerController = newController;
@@ -230,7 +233,7 @@ Future<void> _playVideo() async {
     } finally {
         if (mounted) {
             setState(() {
-                _isSwitchingChannel = false;
+                _isSwitchingChannel = false;  // 确保切换状态被重置
             });
         }
     }
@@ -290,7 +293,7 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为播放时
         case BetterPlayerEventType.play:
-            if (!isPlaying) { // 避免重复设置
+            if (!isPlaying) {
                 setState(() {
                     isPlaying = true;
                     if (!isBuffering) {
@@ -302,7 +305,7 @@ void _videoListener(BetterPlayerEvent event) {
 
         // 当事件类型为暂停时
         case BetterPlayerEventType.pause:
-            if (isPlaying) { // 避免重复设置
+            if (isPlaying) { 
                 setState(() {
                     isPlaying = false;
                     toastString = S.current.playpause; // 更新提示状态
@@ -432,16 +435,20 @@ void _cleanupPreload() {
 
 /// 超时检测方法
 void _startTimeoutCheck() {
-    // 避免重复启动超时检测
+    // 避免重复启动超时检测，以及在不合适的状态启动
     if (_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
         return;
     }
+    
     _timeoutActive = true;  // 标记超时检测已启动
+    
     Timer(Duration(seconds: defaultTimeoutSeconds), () {
-        // 状态检查
+        // 合并所有状态检查
         if (!mounted || !_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
+            _timeoutActive = false;  // 确保重置状态
             return;
         }
+        
         // 检查播放器状态
         if (_playerController?.videoPlayerController == null) {
             LogUtil.e('超时检查：播放器控制器无效');
@@ -449,11 +456,13 @@ void _startTimeoutCheck() {
             _timeoutActive = false;
             return;
         }
+        
         // 只有在缓冲状态下才判断超时
         if (isBuffering) {
             LogUtil.e('缓冲超时，切换下一个源');
             _handleSourceSwitching();
         }
+        
         _timeoutActive = false;
     });
 }
@@ -478,7 +487,7 @@ void _retryPlayback() {
         
         // 延迟后重试
         _retryTimer = Timer(const Duration(seconds: 2), () async {
-            if (!mounted || _isSwitchingChannel) return;
+            if (!mounted || _isRetrying || _isSwitchingChannel || _isDisposing) {
             setState(() {
                 _isRetrying = false;  // 重置重试状态
             });
@@ -510,7 +519,7 @@ void _handleSourceSwitching({
   BetterPlayerController? oldController,
 }) {
   // 防止在不适当的状态下切换源
-  if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
+  if (_isRetrying || _isDisposing) return;
   
   // 清理所有计时器和状态
   _cleanupTimers();
@@ -615,9 +624,11 @@ void _startNewSourceTimer() {
 
 /// 播放器资源释放方法
 Future<void> _disposePlayer() async {
+  // 等待任何正在进行的 dispose 操作完成
   while (_isDisposing) {
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 500));
   }
+  
   _isDisposing = true;
   final currentController = _playerController;
   
@@ -644,29 +655,25 @@ Future<void> _disposePlayer() async {
       // 4. 中断所有网络请求
       _disposeStreamUrl();
       
-      // 5. 释放播放器资源 
-      try {
-        if (currentController.videoPlayerController != null)  {
-          // 强制释放视频控制器
-          currentController.videoPlayerController!.dispose();
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
-        
-          // 最后释放主控制器
-          currentController.dispose(); 
-          
-          // 清理预加载资源
-          _cleanupPreload(); 
-      } catch (e) {
-        LogUtil.logError('释放播放器资源时出错', e);
+      // 5. 释放播放器资源
+      if (currentController.videoPlayerController != null) {
+        // 强制释放视频控制器
+        currentController.videoPlayerController!.dispose();
+        await Future.delayed(const Duration(milliseconds: 300));
       }
+      
+      // 最后释放主控制器和预加载资源
+      currentController.dispose(); 
+      _cleanupPreload(); 
     }
   } catch (e, stackTrace) {
     LogUtil.logError('释放播放器资源时出错', e, stackTrace);
   } finally {
+    if (mounted) {
       setState(() {
-         _isDisposing = false; 
+        _isDisposing = false; 
       });
+    }
   }
 }
 
@@ -687,7 +694,7 @@ void _cleanupTimers() {
 
 /// 处理频道切换操作
 Future<void> _onTapChannel(PlayModel? model) async {
-    if (model == null || _isSwitchingChannel) return;
+    if (model == null) return;
     
     try {
         setState(() {
@@ -715,13 +722,7 @@ Future<void> _onTapChannel(PlayModel? model) async {
             toastString = S.current.playError;
         });
         await _disposePlayer();
-    } finally {
-        if (mounted) {
-            setState(() {
-                _isSwitchingChannel = false;
-            });
-        }
-    }
+    } 
 }
 
 /// 切换视频源方法（手动按钮切换）
