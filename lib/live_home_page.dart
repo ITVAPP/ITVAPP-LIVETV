@@ -477,7 +477,7 @@ void _retryPlayback() {
 
     // 检查是否在重试次数范围内
     if (_retryCount < defaultMaxRetries) {  // 改用 < 而不是 <=，因为从0开始计数
-       LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}');
+        LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}');
         setState(() {
             _isRetrying = true;
             _retryCount++;
@@ -488,9 +488,10 @@ void _retryPlayback() {
         // 延迟后重试
         _retryTimer = Timer(const Duration(seconds: 2), () async {
             if (!mounted || _isRetrying || _isSwitchingChannel || _isDisposing) {
-            setState(() {
-                _isRetrying = false;  // 重置重试状态
-            });
+                setState(() {
+                    _isRetrying = false;  // 重置重试状态
+                });
+            }
             await _playVideo();  // 重新尝试播放
         });
     } else {
