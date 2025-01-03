@@ -831,15 +831,18 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
 
 /// 异步加载视频数据
 Future<void> _loadData() async {
-    // 重置所有状态
     setState(() { 
         _isRetrying = false;
         _cleanupTimers();
         _retryCount = 0;
-        _isAudio = false; // 重置音频状态
+        _isAudio = false;
     });
     
     try {
+      // 增加数据有效性检查
+        if (widget.m3uData.playList == null || widget.m3uData.playList!.isEmpty) {
+          LogUtil.e('加载数据时出错');
+      }
       _videoMap = widget.m3uData;
       _sourceIndex = 0;
       await _handlePlaylist();
