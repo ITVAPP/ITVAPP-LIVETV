@@ -274,8 +274,6 @@ Future<bool> _executeClick() async {
       await Future.delayed(const Duration(seconds: 2));
       return true;
     } else {
-      LogUtil.e('点击失败：${response['error'] ?? '未找到元素'}');
-      LogUtil.i('找到的匹配: ${response['matches']}');
       _isClickExecuted = true;
       return false;
     }
@@ -797,7 +795,7 @@ Future<String?> _checkPageContent() async {
   
   try {
     final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-      document.documentElement.innerHTML.substring(0, 30680)
+      document.documentElement.innerHTML.substring(0, 5988)
     ''');
     if (sampleResult == null) {
       LogUtil.i('获取内容样本失败');
@@ -832,12 +830,12 @@ Future<String?> _checkPageContent() async {
       }
     }
     
-    if (sample.length > 30580) {
-      LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
+    if (sample.length > 5888) {
+      LogUtil.i('页面内容较大(超过6KB)，跳过静态检测');
       return null;
     }
     
-    LogUtil.i('''页面内容：${sample}，页面内容较小，进行静态检测''');
+    LogUtil.i('''页面内容：${sample}，页面内容较小，可能是api，进行静态检测''');
   
     // 新的正则表达式(?:https?|ftp)
     final pattern = r'''[\'"]([^\'"]*?\.m3u8[^\'"\s>]*)[\'"]|(?:^|\s)((?:https?|rtmp|rtsp|ftp|mms|thunder)?//[^\s<>]+?\.m3u8[^\s<>]*)''';
