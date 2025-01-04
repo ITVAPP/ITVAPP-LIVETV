@@ -29,8 +29,7 @@ class M3uUtil {
       if (m3uDataString.isEmpty) {
         return await getDefaultM3uData();
       }
-      final playListModel = await _parseM3u(m3uDataString);
-      return M3uResult(data: playListModel);
+      return M3uResult(data: PlaylistModel.fromString(m3uDataString));
     } catch (e, stackTrace) {
       return M3uResult(errorMessage: S.current.getm3udataerror);
     }
