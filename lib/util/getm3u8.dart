@@ -405,47 +405,51 @@ Future<bool> _executeClick() async {
 
 /// URL整理
 String _cleanUrl(String url) {
-	
-LogUtil.i('URL整理开始，原始URL: $url');
+  LogUtil.i('URL整理开始，原始URL: $url');
 
- // 先处理基本的字符清理
- String cleanedUrl = url.trim()
-   .replaceAll(r'\s*\\s*$', '')
-   .replaceAll('&amp;', '&')
-   .replaceAll(RegExp(r'([^:])//+'), r'$1/')
-   .replaceAll('+', '%20')
-   .replaceAll('&quot;', '"')
-   .replaceAll('&#x2F;', '/')
-   .replaceAll('&#47;', '/');
+  // 先处理基本的字符清理
+  String cleanedUrl = url.trim()
+    .replaceAll(r'\s*\\s*$', '')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#x2F;', '/')
+    .replaceAll('&#47;', '/')
+    .replaceAll('+', '%20');
 
- // 如果已经是完整URL则直接返回
-if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
-   return cleanedUrl;
-}
+  // 修复：只替换3个或更多的连续斜杠，保留双斜杠
+  cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
+  
+  // 保护协议中的双斜杠
+  cleanedUrl = cleanedUrl.replaceAll(RegExp(r'(?<!:)//'), '/');
 
- try {
-   final baseUri = Uri.parse(this.url);
-   
-   if (cleanedUrl.startsWith('//')) {
-     // 如果以//开头，去除//和域名部分(如果有)
-     String cleanPath = cleanedUrl.substring(2);
-     if (cleanPath.contains('/')) {
-       // 如果包含域名，去除域名部分
-       cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
-     }
-     // 确保路径以/开头
-     cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-   } else {
-     // 处理以/开头或不以/开头的URL
-     String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
-     cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-   }
- } catch (e) {
-   LogUtil.e('URL整理失败: $e');
- }
+  // 如果已经是完整URL则直接返回
+  if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
+    return cleanedUrl;
+  }
 
- return cleanedUrl;
+  try {
+    final baseUri = Uri.parse(this.url);
+    
+    if (cleanedUrl.startsWith('//')) {
+      // 如果以//开头，去除//和域名部分(如果有)
+      String cleanPath = cleanedUrl.substring(2);
+      if (cleanPath.contains('/')) {
+        // 如果包含域名，去除域名部分
+        cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+      }
+      // 确保路径以/开头
+      cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+      cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    } else {
+      // 处理以/开头或不以/开头的URL
+      String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
+      cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    }
+  } catch (e) {
+    LogUtil.e('URL整理失败: $e');
+  }
+
+  return cleanedUrl;
 }
 
 /// 处理相对路径,转换为完整URL
