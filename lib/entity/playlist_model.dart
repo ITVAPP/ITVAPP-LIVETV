@@ -88,50 +88,54 @@ class PlaylistModel {
   }
 
   /// 自动判断并解析播放列表结构（两层或三层）
-static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
-   try {
-     LogUtil.i('parsePlayList处理传入的数据： ${json}');
-     // 如果json为空或者json中的所有值为空，返回默认三层结构
-     if (json.isEmpty) {
-       LogUtil.i('空的播放列表结构，返回默认三层结构');
-       return {Config.allChannelsKey: {}};
-     }
+  /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
+  static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
+    try {
+      LogUtil.i('parsePlayList处理传入的数据： ${json}');
 
-     // 检测是三层结构还是两层结构，增加安全检查
-     bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
-         json.values.first is Map<String, dynamic> &&
-         (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
-         (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
-         (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
+      // 如果json为空或者json中的所有值为空，直接返回json
+      if (json.isEmpty) {
+        LogUtil.i('空的播放列表结构，直接返回原始json');
+        return json;
+      }
 
-     if (isThreeLayer) {
-       LogUtil.i('处理三层结构的播放列表');
-       // 如果是三层结构，解析为三层
-       final result = _parseThreeLayer(json);
-       // 确保返回的三层结构非空
-       return result.isEmpty ? {Config.allChannelsKey: {}} : result;
-     } else {
-       LogUtil.i('处理两层结构的播放列表');
-       // 如果是两层结构，进一步判断是否为空的两层结构
-       bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
+      // 检测是三层结构还是两层结构，增加安全检查
+      bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
+          json.values.first is Map<String, dynamic> &&
+          (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
+          (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
+          (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
 
-       if (isEmptyTwoLayer) {
-         LogUtil.i('处理两层结构空结构的播放列表');
-         // 返回带有默认或动态分类键的三层结构
-         String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
-         return {dynamicCategoryKey: {}};
-       } else {
-         // 如果不是空的两层结构，按两层结构解析并包装为三层
-         final Map<String, Map<String, PlayModel>> twoLayerResult = _parseTwoLayer(json);
-         // 将两层结构结果包装到默认分类下
-         return twoLayerResult.isEmpty ? {Config.allChannelsKey: {}} : {Config.allChannelsKey: twoLayerResult};
-       }
-     }
-   } catch (e, stackTrace) {
-     LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
-     return {Config.allChannelsKey: {}}; // 返回默认三层结构
-   }
-}
+      if (isThreeLayer) {
+        LogUtil.i('处理三层结构的播放列表');
+        // 如果是三层结构，解析为三层
+        return _parseThreeLayer(json);
+      } else {
+        LogUtil.i('处理两层结构的播放列表');
+        // 如果是两层结构，进一步判断是否为空的两层结构
+        bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
+
+        if (isEmptyTwoLayer) {
+          LogUtil.i('处理两层结构空结构的播放列表');
+
+          // 返回一个带有默认分类或动态分类键的空播放列表
+          String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
+          return PlaylistModel(
+            playList: {
+              dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
+            },
+          ).playList;
+
+        } else {
+          // 如果不是空的两层结构，按两层结构解析
+          return _parseTwoLayer(json);
+        }
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
+      return {}; // 返回一个空的 Map 以防止程序崩溃
+    }
+  }
 
   /// 自动判断使用两层还是三层结构的 getChannel 方法
   /// [categoryOrGroup] 可以是分类（String）或组（String）。
@@ -176,46 +180,39 @@ static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
   /// - 第一层为分类
   /// - 第二层为组
   /// - 第三层为频道
-static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
-    Map<String, dynamic> json) {
-  Map<String, Map<String, Map<String, PlayModel>>> result = {};
-  try {
-    json.forEach((categoryKey, groupMapJson) {
-      String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
+  static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
+      Map<String, dynamic> json) {
+    Map<String, Map<String, Map<String, PlayModel>>> result = {};
+    try {
+      json.forEach((categoryKey, groupMapJson) {
+        String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
 
-      if (groupMapJson is Map<String, dynamic>) {
-        Map<String, Map<String, PlayModel>> groupMap = {};
-        groupMapJson.forEach((groupTitle, channelMapJson) {
-          if (channelMapJson is Map<String, dynamic>) {
-            Map<String, PlayModel> channelMap = {};
-            channelMapJson.forEach((channelName, channelData) {
-              PlayModel playModel = PlayModel.fromJson(channelData);
-              if (playModel.isValid) {
-                channelMap[channelName] = playModel;
+        if (groupMapJson is Map<String, dynamic>) {
+          Map<String, Map<String, PlayModel>> groupMap = {};
+          groupMapJson.forEach((groupTitle, channelMapJson) {
+            if (channelMapJson is Map<String, dynamic>) {
+              Map<String, PlayModel> channelMap = {};
+              channelMapJson.forEach((channelName, channelData) {
+                PlayModel playModel = PlayModel.fromJson(channelData);
+                if (playModel.isValid) { // 检查 PlayModel 是否有效
+                  channelMap[channelName] = playModel;
+                }
+              });
+              if (channelMap.isNotEmpty) {
+                groupMap[groupTitle] = channelMap;
               }
-            });
-            if (channelMap.isNotEmpty) {
-              groupMap[groupTitle] = channelMap;
             }
+          });
+          if (groupMap.isNotEmpty) {
+            result[category] = groupMap;
           }
-        });
-        if (groupMap.isNotEmpty) {
-          result[category] = groupMap;
         }
-      }
-    });
-
-    // 修改这里：如果result为空，返回默认三层结构
-    if (result.isEmpty) {
-      result[Config.allChannelsKey] = {};
+      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
     }
-  } catch (e, stackTrace) {
-    LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
-    // 修改这里：出错时也返回默认三层结构
-    return {Config.allChannelsKey: {}};
+    return result;
   }
-  return result;
-}
 
   /// 解析两层结构的播放列表
   /// - 第一层为组
