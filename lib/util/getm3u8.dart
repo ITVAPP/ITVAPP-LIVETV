@@ -903,24 +903,24 @@ Future<String?> _checkPageContent() async {
       return null; 
     }
     
-  // 处理JSON转义字符
-   String sample = sampleResult.toString()
-    .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
-    .replaceAll(r'\\/', '/')  // 处理转义斜杠
-    .replaceAll(r'\\"', '"')  // 处理转义双引号
-    .replaceAll(r'\"', '"')  // 处理转义双引号
-    .replaceAll(r"\\'", "'")  // 处理转义单引号
-    .replaceAll(r"\'", "'")  // 处理转义单引号
-    .replaceAll(r'\/', '/');  // 处理转义斜杠
+    // 处理JSON转义字符
+    String sample = sampleResult.toString()
+      .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+      .replaceAll(r'\\/', '/')  // 处理转义斜杠
+      .replaceAll(r'\\"', '"')  // 处理转义双引号
+      .replaceAll(r'\"', '"')  // 处理转义双引号
+      .replaceAll(r"\\'", "'")  // 处理转义单引号
+      .replaceAll(r"\'", "'")  // 处理转义单引号
+      .replaceAll(r'\/', '/');  // 处理转义斜杠
 
-  // 处理HTML实体
-  sample = sample
-    .replaceAll('&quot;', '"')  // 双引号
-    .replaceAll('&#x2F;', '/')  // 斜杠
-    .replaceAll('&#47;', '/')  // 斜杠
-    .replaceAll('&amp;', '&')  // &
-    .replaceAll('&lt;', '<')  // 小于号
-    .replaceAll('&gt;', '>');  // 大于号
+    // 处理HTML实体
+    sample = sample
+      .replaceAll('&quot;', '"')  // 双引号
+      .replaceAll('&#x2F;', '/')  // 斜杠
+      .replaceAll('&#47;', '/')  // 斜杠
+      .replaceAll('&amp;', '&')  // &
+      .replaceAll('&lt;', '<')  // 小于号
+      .replaceAll('&gt;', '>');  // 大于号
     
     // URL解码
     if (sample.contains('%')) {
@@ -938,24 +938,21 @@ Future<String?> _checkPageContent() async {
     
     LogUtil.i('''页面内容：${sample}，页面内容较小，进行静态检测''');
   
-    // 改进的正则表达式模式，支持所有指定情况
-    final pattern = r'''(?:
-      (?:https?|rtmp|rtsp|ftp|mms|thunder)://[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?| # 完整URL格式
-      //[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                      # 协议相对URL
-      /[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                       # 根相对URL
-      [^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                        # 简单URL
-      (?:["']|video\s*:\s*["']|src\s*=\s*["']|url\s*:\s*["']|source\s*:\s*["'])              # JavaScript配置开始
-      ((?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//[^"'\s<>]+?\.m3u8(?:\?[^"'\s<>]*)?(?:#[^"'\s<>]*)?)  # 配置中的URL
-      ["']                                                                                      # 配置结束
-    )''';
-   final regex = RegExp(pattern, caseSensitive: false);
-   final matches = regex.allMatches(sample);
+    // 新的正则表达式(?:https?|ftp)
+    final pattern = r'''[\'"]([^\'"]*?\.m3u8[^\'"\s>]*)[\'"]|(?:^|\s)((?:https?|rtmp|rtsp|ftp|mms|thunder)?//[^\s<>]+?\.m3u8[^\s<>]*)''';
+    final regex = RegExp(pattern, caseSensitive: false);
+    final matches = regex.allMatches(sample);
 
     if (clickIndex == 0) {
       for (final match in matches) {
-        final url = match.group(0) ?? '';
-        LogUtil.i('正则匹配到URL: $url');
-        if (url.isNotEmpty) {
+        // 检查两个捕获组
+        String? url = match.group(1);  // 引号中的内容
+        if (url == null || url.isEmpty) {
+          url = match.group(2);  // 非引号的URL
+        }
+        
+        if (url != null && url.isNotEmpty) {
+          LogUtil.i('正则匹配到URL: $url');
           String cleanedUrl = _cleanUrl(_handleRelativePath(url));
           if (_isValidM3U8Url(cleanedUrl)) {
             String finalUrl = cleanedUrl;
@@ -972,13 +969,19 @@ Future<String?> _checkPageContent() async {
       }
     } else {
       final Set<String> foundUrls = {};
-      final urls = matches.map((m) => m.group(0)).whereType<String>();
       
-      for (final url in urls) {
-        foundUrls.add(_handleRelativePath(url));
+      for (final match in matches) {
+        String? url = match.group(1);
+        if (url == null || url.isEmpty) {
+          url = match.group(2);
+        }
+        
+        if (url != null && url.isNotEmpty) {
+          foundUrls.add(_handleRelativePath(url));
+        }
       }
       
-      LogUtil.i('页面内容中找到 ${urls.length} 个潜在的M3U8地址，去重后剩余 ${foundUrls.length} 个');
+      LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
       LogUtil.i('去重后的URLs: ${foundUrls.toList()}');
       
       int index = 0;
