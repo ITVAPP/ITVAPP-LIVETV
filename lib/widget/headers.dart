@@ -13,7 +13,7 @@ class HeadersConfig {
  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@qtv.com.cn|www.qtv.com.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn@video10.qtv.com.cn';
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
@@ -118,6 +118,23 @@ class HeadersConfig {
      final corsRules = corsRulesString.split('@');
      final needCors = corsRules.any((domain) => host.contains(domain));
      
+    // 判断 referer 和 host 是否同站点
+    String secFetchSite = 'same-origin';  // 默认值
+    if (needCors) {
+      final refererHost = _extractHost(referer);
+      if (refererHost.isEmpty) {
+        secFetchSite = 'none';
+      } else {
+        // 提取主域名进行比较
+        final hostDomain = _extractMainDomain(host);
+        final refererDomain = _extractMainDomain(refererHost);
+        
+        if (hostDomain == refererDomain) {
+          secFetchSite = 'same-site';
+        } 
+      }
+    }
+    
      final headers = {
        ..._baseHeaders,
        'origin': referer,
@@ -125,7 +142,7 @@ class HeadersConfig {
        if (needCors) ...{
          'host': host,
          'sec-fetch-mode': 'cors',
-         'sec-fetch-site': 'same-site',
+         if (secFetchSite != null) 'sec-fetch-site': secFetchSite,
        }
      };
 
@@ -137,4 +154,22 @@ class HeadersConfig {
      return _baseHeaders;
    }
  }
+ 
+ /// 提取主域名
+ static String _extractMainDomain(String host) {
+   try {
+     // 移除可能的端口号
+     final hostWithoutPort = host.split(':')[0];
+     // 分割域名部分
+     final parts = hostWithoutPort.split('.');
+     if (parts.length >= 2) {
+       // 返回最后两段作为主域名
+       return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
+     }
+     return host;
+   } catch (e) {
+     return host;
+   }
+ }
+
 }
