@@ -13,7 +13,7 @@ class HeadersConfig {
  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@qtv.com.cn|www.qtv.com.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net@file.lcxw.cn@video10.qtv.com.cn';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn';
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
@@ -81,21 +81,32 @@ class HeadersConfig {
  }
 
  /// 根据规则获取referer
- static String? _getRefererByRules(String host) {
+static String? _getRefererByRules(String url) {
    final rules = _parseRules();
+   // 解析完整URL
+   final uri = Uri.parse(url);
+   final cleanHost = _extractHost(url).replaceAll(RegExp(r'[\[\]]'), '');
+   // 获取site参数
+   final siteParam = uri.queryParameters['site'];
    
-   // 移除IPv6地址的方括号进行匹配
-   final cleanHost = host.replaceAll(RegExp(r'[\[\]]'), '');
-   
-   // 遍历规则检查host是否匹配
+   // 先检查主机名
    for (final domain in rules.keys) {
      if (cleanHost.contains(domain)) {
        return rules[domain]!;
      }
    }
    
+   // 如果主机名没找到匹配,再检查site参数
+   if (siteParam != null) {
+     for (final domain in rules.keys) {
+       if (siteParam.contains(domain)) {
+         return rules[domain]!;
+       }
+     }
+   }
+   
    return null;
- }
+}
 
  /// 生成请求headers
  static Map<String, String> generateHeaders({
@@ -111,7 +122,7 @@ class HeadersConfig {
      }
 
      // 获取referer
-     final customReferer = _getRefererByRules(host);
+     final customReferer = _getRefererByRules(encodedUrl);
      final referer = customReferer ?? '$scheme://$host';
 
      // 检查是否需要CORS头
