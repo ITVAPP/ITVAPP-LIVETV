@@ -37,7 +37,7 @@ class M3U8FilterRule {
 class GetM3U8 {
   /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@ahtv.cn|live.m3u8';
+  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8';
   
   /// 目标URL
   final String url;
