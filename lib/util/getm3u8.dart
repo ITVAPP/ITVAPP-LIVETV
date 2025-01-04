@@ -939,8 +939,15 @@ Future<String?> _checkPageContent() async {
     LogUtil.i('''页面内容：${sample}，页面内容较小，进行静态检测''');
   
     // 改进的正则表达式模式，支持所有指定情况
-   final pattern = r'(?:https?|ftp)://[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|//[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|/[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?';
-
+    final pattern = r'''(?:
+      (?:https?|rtmp|rtsp|ftp|mms|thunder)://[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?| # 完整URL格式
+      //[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                      # 协议相对URL
+      /[^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                       # 根相对URL
+      [^"\s<>]+?\.m3u8(?:\?[^"\s<>]*)?(?:#[^"\s<>]*)?|                                        # 简单URL
+      (?:["']|video\s*:\s*["']|src\s*=\s*["']|url\s*:\s*["']|source\s*:\s*["'])              # JavaScript配置开始
+      ((?:(?:https?|rtmp|rtsp|ftp|mms|thunder):)?//[^"'\s<>]+?\.m3u8(?:\?[^"'\s<>]*)?(?:#[^"'\s<>]*)?)  # 配置中的URL
+      ["']                                                                                      # 配置结束
+    )''';
    final regex = RegExp(pattern, caseSensitive: false);
    final matches = regex.allMatches(sample);
 
