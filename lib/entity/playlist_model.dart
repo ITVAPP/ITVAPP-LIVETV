@@ -68,14 +68,37 @@ class PlaylistModel {
 
   /// 从字符串解析 [PlaylistModel] 实例
 static PlaylistModel fromString(String data) {
- try {
-   LogUtil.i('fromString处理传入的数据： ${data}');
-   final Map<String, dynamic> jsonData = jsonDecode(data);
-   return PlaylistModel.fromJson(jsonData);
- } catch (e, stackTrace) {
-   LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
-   return PlaylistModel();
- }
+  try {
+    LogUtil.i('fromString处理传入的数据： ${data}');
+    final Map<String, dynamic> jsonData = jsonDecode(data);
+    
+    // 这里是本地缓存读取，强制按三层处理
+    if (jsonData['playList'] != null) {
+      // 如果是两层结构，转换成三层
+      Map<String, dynamic> playList = jsonData['playList'];
+      if (!_isThreeLayerStructure(playList)) {
+        // 包装成三层结构
+        playList = {
+          Config.allChannelsKey: playList
+        };
+        jsonData['playList'] = playList;
+      }
+    }
+    
+    return PlaylistModel.fromJson(jsonData);
+  } catch (e, stackTrace) {
+    LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
+    return PlaylistModel();
+  }
+}
+
+// 添加辅助方法判断结构
+static bool _isThreeLayerStructure(Map<String, dynamic> json) {
+  if (json.isEmpty) return false;
+  var firstValue = json.values.first;
+  if (firstValue is! Map) return false;
+  var secondValue = firstValue.values.first;
+  return secondValue is Map;
 }
 
   /// 将 [PlaylistModel] 实例转换为 JSON 字符串格式
@@ -193,6 +216,12 @@ static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
       json.forEach((categoryKey, groupMapJson) {
         String category = categoryKey.isNotEmpty ? categoryKey : Config.allChannelsKey;
 
+      // 如果分类是空的，直接跳过
+      if (groupMapJson is! Map || (groupMapJson as Map).isEmpty) {
+        result[category] = {};  // 保存空分类
+        return; 
+      }
+      
         if (groupMapJson is Map<String, dynamic>) {
           Map<String, Map<String, PlayModel>> groupMap = {};
           groupMapJson.forEach((groupTitle, channelMapJson) {
