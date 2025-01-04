@@ -161,9 +161,14 @@ Future<void> _playVideo() async {
     try {
         // 等待之前的切换操作完成
         while (_isSwitchingChannel) {
-            LogUtil.i('等待频道切换完成后再开始播放');
-            await Future.delayed(const Duration(milliseconds: 500));
+            LogUtil.i('等待上一次的播放器处理完成后再开始播放');
+            await Future.delayed(const Duration(milliseconds: 1000));
         }
+        
+        // 准备开始切换到新的播放源
+        setState(() {
+            _isSwitchingChannel = true;  // 切换状态设置为true
+        });
     	
         // 先释放旧播放器，再设置新播放器
         await _disposePlayer();
@@ -699,7 +704,6 @@ Future<void> _onTapChannel(PlayModel? model) async {
     
     try {
         setState(() {
-            _isSwitchingChannel = true;
             isBuffering = false;
             toastString = S.current.loading;
             _cleanupTimers();
@@ -738,7 +742,6 @@ Future<void> _changeChannelSources() async {
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
             setState(() {
                   _sourceIndex = selectedIndex;
-                  _isSwitchingChannel = true;
                   _isRetrying = false;
                   _retryCount = 0;
             });
