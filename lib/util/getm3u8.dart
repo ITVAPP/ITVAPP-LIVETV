@@ -234,21 +234,118 @@ Future<bool> _executeClick() async {
       }
 
       // 改进的可点击元素检测
+Future<bool> _executeClick() async {
+  if (_isClickExecuted || clickText == null || clickText!.isEmpty) {
+    LogUtil.i(_isClickExecuted ? '点击已执行，跳过' : '无点击配置，跳过');
+    return false;
+  }
+
+  LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
+  
+  final jsCode = '''
+  (async function() {
+    async function findAndClick() {
+      // 获取所有文本节点
+      function getTextNodes() {
+        const nodes = [];
+        const walk = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode: function(node) {
+              // 跳过script和style标签中的内容
+              if (node.parentElement.tagName === 'SCRIPT' || 
+                  node.parentElement.tagName === 'STYLE' || 
+                  node.parentElement.tagName === 'NOSCRIPT') {
+                return NodeFilter.FILTER_REJECT;
+              }
+              // 只接受非空的文本节点
+              return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+          }
+        );
+
+        let node;
+        while (node = walk.nextNode()) {
+          nodes.push(node);
+        }
+        return nodes;
+      }
+
+      // 获取元素路径，用于调试
+      function getElementPath(node) {
+        const path = [];
+        while (node && node.nodeType === Node.ELEMENT_NODE) {
+          let selector = node.nodeName.toLowerCase();
+          if (node.id) {
+            selector += '#' + node.id;
+          } else {
+            let sibling = node;
+            let nth = 1;
+            while (sibling.previousElementSibling) {
+              sibling = sibling.previousElementSibling;
+              nth++;
+            }
+            selector += ':nth-child(' + nth + ')';
+          }
+          path.unshift(selector);
+          node = node.parentNode;
+        }
+        return path.join(' > ');
+      }
+
+      // 查找匹配的文本节点
+      const searchText = '${clickText}';
+      const targetIndex = ${clickIndex};
+      const textNodes = getTextNodes();
+      
+      let currentIndex = 0;
+      let foundNode = null;
+
+      // 记录找到的所有匹配，用于调试
+      const matches = [];
+
+      for (const node of textNodes) {
+        if (node.nodeValue.trim().includes(searchText)) {
+          matches.push({
+            text: node.nodeValue.trim(),
+            path: getElementPath(node.parentElement)
+          });
+          
+          if (matches.length === 1 || currentIndex === targetIndex) {
+            foundNode = node;
+            if (matches.length === 1) break;
+          }
+          currentIndex++;
+        }
+      }
+
+      if (!foundNode) {
+        return {
+          success: false,
+          error: '未找到匹配元素',
+          matches: matches
+        };
+      }
+
+      // 改进的可点击元素检测
       function findClickableParent(node) {
         let current = node.parentElement;
         let maxDepth = 5;
         
         while (current && current !== document.body && maxDepth > 0) {
-          // 检查更多可点击的元素类型
+          // 检查更多可点击的元素类型和属性
           if (current.tagName === 'A' || 
               current.tagName === 'BUTTON' || 
-              current.tagName === 'INPUT' || // 添加INPUT元素检查
-              current.tagName === 'LI' ||
+              current.tagName === 'INPUT' ||
+              current.tagName === 'LI' ||  // 添加直接支持 LI 元素
               current.onclick ||
-              current.getAttribute('onclick') || // 检查onclick属性
-              current.role === 'button' || // 检查ARIA角色
-              current.dataset.click || // 检查自定义点击属性
-              current.classList.contains('clickable') || // 检查常见的可点击类名
+              current.hasAttribute('onclick') || // 改用 hasAttribute 检查
+              current.hasAttribute('data-click') || // 检查 data-click 属性
+              current.hasAttribute('data-href') || // 检查 data-href 属性
+              current.role === 'button' ||
+              current.dataset.click ||
+              current.classList.contains('clickable') ||
               window.getComputedStyle(current).cursor === 'pointer') {
             
             // 检查元素是否可见且启用
@@ -260,6 +357,21 @@ Future<bool> _executeClick() async {
               return current;
             }
           }
+          
+          // 检查所有属性
+          const attrs = current.attributes;
+          for (let i = 0; i < attrs.length; i++) {
+            const attr = attrs[i];
+            if (attr.name.toLowerCase().includes('click') ||
+                attr.name.toLowerCase().includes('select') ||
+                attr.name.toLowerCase().includes('tap') ||
+                attr.value.toLowerCase().includes('click') ||
+                attr.value.toLowerCase().includes('select') ||
+                attr.value.toLowerCase().includes('tap')) {
+              return current;
+            }
+          }
+
           current = current.parentElement;
           maxDepth--;
         }
@@ -281,6 +393,34 @@ Future<bool> _executeClick() async {
           url: window.location.href,
           html: clickableElement.innerHTML?.trim()
         };
+
+        // 首先处理 onclick 属性
+        const onclickAttr = clickableElement.getAttribute('onclick');
+        if (onclickAttr) {
+          try {
+            // 先尝试直接执行
+            new Function(onclickAttr).call(clickableElement);
+          } catch(e) {
+            // 如果失败，尝试解析并调用
+            const match = onclickAttr.match(/([^\s.(]+(?:\.[^\s.(]+)*)\s*\((.*?)\)/);
+            if (match) {
+              const funcPath = match[1].split('.');
+              const params = match[2].split(',').map(p => {
+                const param = p.trim();
+                return param === 'this' ? clickableElement : param;
+              });
+              
+              // 查找并执行函数
+              let func = window;
+              for (const prop of funcPath) {
+                func = func[prop];
+              }
+              if (typeof func === 'function') {
+                func.apply(window, params);
+              }
+            }
+          }
+        }
 
         // 改进的点击事件模拟
         const events = [
