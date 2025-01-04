@@ -23,17 +23,15 @@ class M3uUtil {
   M3uUtil._();
 
   /// 获取本地播放列表，如数据为空，则尝试获取远程播放列表
-  static Future<PlaylistModel?> getLocalM3uData() async {
+  static Future<M3uResult> getLocalM3uData() async {
     try {
-      final jsonString = await _getCachedM3uData();
-      if (jsonString.isEmpty) {
+      final m3uDataString = await _getCachedM3uData();
+      if (m3uDataString.isEmpty) {
         return await getDefaultM3uData();
-        return result.data;
       }
-      final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-      return PlaylistModel.fromJson(jsonMap);
+      final playListModel = await _parseM3u(m3uDataString);
+      return M3uResult(data: playListModel);
     } catch (e, stackTrace) {
-      LogUtil.logError('获取本地M3U数据失败', e, stackTrace);
       return M3uResult(errorMessage: S.current.getm3udataerror);
     }
   }
@@ -381,10 +379,9 @@ class M3uUtil {
   }
 
   /// 保存播放列表到本地缓存
-  static Future<void> saveCachedM3uData(PlaylistModel data) async {
+  static Future<void> saveCachedM3uData(String data) async {
     try {
-      final jsonString = jsonEncode(data.toJson());
-      await SpUtil.putString(Config.m3uCacheKey, jsonString);
+      await SpUtil.putString(Config.m3uCacheKey, data);
     } catch (e, stackTrace) {
       LogUtil.logError('保存播放列表到本地缓存失败', e, stackTrace);
     }
