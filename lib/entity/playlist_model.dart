@@ -122,9 +122,9 @@ static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
          return {dynamicCategoryKey: {}};
        } else {
          // 如果不是空的两层结构，按两层结构解析并包装为三层
-         final twoLayerResult = _parseTwoLayer(json);
+         final Map<String, Map<String, PlayModel>> twoLayerResult = _parseTwoLayer(json);
          // 将两层结构结果包装到默认分类下
-         return {Config.allChannelsKey: twoLayerResult};
+         return twoLayerResult.isEmpty ? {Config.allChannelsKey: {}} : {Config.allChannelsKey: twoLayerResult};
        }
      }
    } catch (e, stackTrace) {
@@ -241,8 +241,7 @@ static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
     } catch (e, stackTrace) {
       LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
     }
-    // 将两层结构包装成三层结构返回
-    return result.isEmpty ? {} : {Config.allChannelsKey: result}; 
+    return result;
   }
 
   /// 按标题或组名搜索频道
