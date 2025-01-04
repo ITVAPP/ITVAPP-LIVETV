@@ -67,75 +67,104 @@ class PlaylistModel {
   }
 
   /// 从字符串解析 [PlaylistModel] 实例
-  static PlaylistModel fromString(String data) {
-    try {
-      LogUtil.i('fromString处理传入的数据： ${data}');
-      final Map<String, dynamic> jsonData = jsonDecode(data);
-      return PlaylistModel.fromJson(jsonData);
-    } catch (e, stackTrace) {
-      LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
-      return PlaylistModel(); // 返回一个空的 PlaylistModel
+static PlaylistModel fromString(String data) {
+  try {
+    LogUtil.i('fromString处理传入的数据： ${data}');
+    final Map<String, dynamic> jsonData = jsonDecode(data);
+    
+    // 这里是本地缓存读取，强制按三层处理
+    if (jsonData['playList'] != null) {
+      // 如果是两层结构，转换成三层
+      Map<String, dynamic> playList = jsonData['playList'];
+      if (!_isThreeLayerStructure(playList)) {
+        // 包装成三层结构
+        playList = {
+          Config.allChannelsKey: playList
+        };
+        jsonData['playList'] = playList;
+      }
     }
+    
+    return PlaylistModel.fromJson(jsonData);
+  } catch (e, stackTrace) {
+    LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
+    return PlaylistModel();
   }
+}
+
+// 添加辅助方法判断结构
+static bool _isThreeLayerStructure(Map<String, dynamic> json) {
+  if (json.isEmpty) return false;
+  var firstValue = json.values.first;
+  if (firstValue is! Map) return false;
+  var secondValue = firstValue.values.first;
+  return secondValue is Map;
+}
 
   /// 将 [PlaylistModel] 实例转换为 JSON 字符串格式
-  @override
-  String toString() {
-    return jsonEncode({
-      'epgUrl': epgUrl,
-      'playList': playList,
+@override
+String toString() {
+  if (playList != null) {
+    playList.forEach((category, groups) {
+      if (groups is Map<String, dynamic>) {
+        groups.forEach((groupTitle, channels) {
+          if (channels is Map<String, dynamic>) {
+            channels.forEach((channelName, channel) {
+              if (channel is PlayModel) {
+                // 如果 ID 为空，使用频道名称作为 ID
+                if (channel.id == null || channel.id!.isEmpty) {
+                  LogUtil.i('发现无 ID 频道: $channelName，使用频道名称作为 ID');
+                  channel.id = channelName;
+                }
+              }
+            });
+          }
+        });
+      }
     });
   }
+  
+  return jsonEncode({
+    'epgUrl': epgUrl,
+    'playList': playList,
+  });
+}
 
   /// 自动判断并解析播放列表结构（两层或三层）
-  /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
-  static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
-    try {
-      LogUtil.i('parsePlayList处理传入的数据： ${json}');
+/// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
+static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
+ try {
+   LogUtil.i('parsePlayList处理传入的数据： ${json}');
 
-      // 如果json为空或者json中的所有值为空，直接返回json
-      if (json.isEmpty) {
-        LogUtil.i('空的播放列表结构，直接返回原始json');
-        return json;
-      }
+   // 如果json为空,返回默认三层结构
+   if (json.isEmpty) {
+     LogUtil.i('空的播放列表结构，返回默认三层结构');
+     return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
+   }
 
-      // 检测是三层结构还是两层结构，增加安全检查
-      bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
-          json.values.first is Map<String, dynamic> &&
-          (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
-          (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
-          (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
+   // 检测是三层结构还是两层结构
+   bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
+       json.values.first is Map<String, dynamic> &&
+       (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
+       (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
+       (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
 
-      if (isThreeLayer) {
-        LogUtil.i('处理三层结构的播放列表');
-        // 如果是三层结构，解析为三层
-        return _parseThreeLayer(json);
-      } else {
-        LogUtil.i('处理两层结构的播放列表');
-        // 如果是两层结构，进一步判断是否为空的两层结构
-        bool isEmptyTwoLayer = json.values.every((value) => value is Map<String, dynamic> && value.isEmpty);
+   if (isThreeLayer) {
+     LogUtil.i('处理三层结构的播放列表');
+     return _parseThreeLayer(json);
+   }
 
-        if (isEmptyTwoLayer) {
-          LogUtil.i('处理两层结构空结构的播放列表');
+   // 两层结构转换为三层
+   LogUtil.i('处理两层结构的播放列表，转换为三层');
+   return _parseThreeLayer({
+     Config.allChannelsKey: _parseTwoLayer(json)
+   });
 
-          // 返回一个带有默认分类或动态分类键的空播放列表
-          String dynamicCategoryKey = json.keys.isNotEmpty ? json.keys.first : Config.allChannelsKey;
-          return PlaylistModel(
-            playList: {
-              dynamicCategoryKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
-            },
-          ).playList;
-
-        } else {
-          // 如果不是空的两层结构，按两层结构解析
-          return _parseTwoLayer(json);
-        }
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
-      return {}; // 返回一个空的 Map 以防止程序崩溃
-    }
-  }
+ } catch (e, stackTrace) {
+   LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
+   return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
+ }
+}
 
   /// 自动判断使用两层还是三层结构的 getChannel 方法
   /// [categoryOrGroup] 可以是分类（String）或组（String）。
