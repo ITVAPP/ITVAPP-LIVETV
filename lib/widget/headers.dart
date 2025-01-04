@@ -80,28 +80,14 @@ class HeadersConfig {
    }
  }
 
- /// 根据规则获取referer
+/// 根据规则获取referer
 static String? _getRefererByRules(String url) {
    final rules = _parseRules();
-   // 解析完整URL
-   final uri = Uri.parse(url);
-   final cleanHost = _extractHost(url).replaceAll(RegExp(r'[\[\]]'), '');
-   // 获取site参数
-   final siteParam = uri.queryParameters['site'];
    
-   // 先检查主机名
+   // 检查完整URL中是否包含关键字
    for (final domain in rules.keys) {
-     if (cleanHost.contains(domain)) {
+     if (url.contains(domain)) {
        return rules[domain]!;
-     }
-   }
-   
-   // 如果主机名没找到匹配,再检查site参数
-   if (siteParam != null) {
-     for (final domain in rules.keys) {
-       if (siteParam.contains(domain)) {
-         return rules[domain]!;
-       }
      }
    }
    
