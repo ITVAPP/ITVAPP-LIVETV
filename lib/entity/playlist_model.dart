@@ -95,9 +95,11 @@ static PlaylistModel fromString(String data) {
 // 添加辅助方法判断结构
 static bool _isThreeLayerStructure(Map<String, dynamic> json) {
   if (json.isEmpty) return false;
-  var firstValue = json.values.first;
+  // 安全获取第一个值
+  var firstValue = json.values.isEmpty ? null : json.values.first;
   if (firstValue is! Map) return false;
-  var secondValue = firstValue.values.first;
+  // 安全获取第二个值
+  var secondValue = (firstValue as Map).isEmpty ? null : firstValue.values.first;
   return secondValue is Map;
 }
 
