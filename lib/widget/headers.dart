@@ -28,7 +28,7 @@ class HeadersConfig {
    'sec-fetch-user': '?1',
    'dnt': '1',
    'sec-fetch-dest': 'empty',
-   sec-ch-ua: '".Not/A)Brand"';v='"99"', '"Google Chrome"';v='"103"', '"Chromium"';v='"103"',
+   'sec-ch-ua': '".Not/A)Brand"';v='"99"', '"Google Chrome"';v='"103"', '"Chromium"';v='"103"',
  };
 
  /// 解析规则字符串返回域名和对应的referer映射
