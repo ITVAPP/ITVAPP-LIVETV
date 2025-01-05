@@ -139,7 +139,6 @@ String toString() {
   });
 }
 
-  /// 自动判断并解析播放列表结构（两层或三层）
 /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
 static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
  try {
@@ -331,43 +330,47 @@ class PlayModel {
   String? group; // 频道所属的组
   List<String>? urls; // 频道的可播放地址列表
 
-  /// 从 JSON 数据创建 [PlayModel] 实例
-  factory PlayModel.fromJson(dynamic json) {
-    try {
-      // 确保 id 存在并且非空，否则返回一个无效的 PlayModel 实例
-      if (json['id'] == null || (json['id'] as String).isEmpty) {
-        LogUtil.i('PlayModel JSON 缺少必需的 ID 字段');
-        return PlayModel.invalid(); // 返回无效 PlayModel
-      }
+/// 从 JSON 数据创建 [PlayModel] 实例
+factory PlayModel.fromJson(dynamic json) {
+  try {
+    // 处理空 Map 的情况
+    if (json is Map && json.isEmpty) {
+      return PlayModel(); // 返回一个空的 PlayModel
+    }
 
+    // 如果是实际的频道数据,验证必需字段
+    if (json is Map) {
       List<String> urlsList = List<String>.from(json['urls'] ?? []);
-
       return PlayModel(
         id: json['id'] as String?,
         logo: json['logo'] as String?,
         title: json['title'] as String?,
         group: json['group'] as String?,
-        urls: urlsList.isEmpty ? null : urlsList, // 保留 urls 为空的情况
+        urls: urlsList.isEmpty ? null : urlsList,
       );
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
-      return PlayModel.invalid(); // 解析失败时返回无效 PlayModel
     }
-  }
 
-  /// 返回一个无效的 PlayModel 实例
-  factory PlayModel.invalid() {
-    return PlayModel(
-      id: 'invalid', // 设定特殊的 ID 标识无效
-      title: 'Invalid Channel',
-      logo: '',
-      group: '',
-      urls: [],
-    );
-  }
+    LogUtil.i('PlayModel JSON 格式不符合预期');
+    return PlayModel(); // 返回一个空的 PlayModel
 
-  /// 检查 PlayModel 是否有效
-  bool get isValid => id != 'invalid';
+  } catch (e, stackTrace) {
+    LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
+    return PlayModel(); // 解析失败时返回空的 PlayModel
+  }
+}
+
+/// 检查 PlayModel 是否有效
+bool get isValid {
+  // 空的 PlayModel 对于结构节点是有效的
+  if (id == null && title == null && logo == null && 
+      group == null && (urls == null || urls!.isEmpty)) {
+    return true;
+  }
+  
+  // 频道数据至少应该有 id 和 title
+  return id != null && id!.isNotEmpty && 
+         title != null && title!.isNotEmpty;
+}
 
   /// 创建一个新的 [PlayModel] 实例，保留当前实例的属性，并用新值覆盖
   PlayModel copyWith({
