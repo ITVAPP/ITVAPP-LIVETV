@@ -36,368 +36,341 @@ import '../config.dart';
 
 /// 表示一个播放列表模型类，包含了EPG（电子节目指南）URL和按分类和组分类的可播放频道列表。
 class PlaylistModel {
+ PlaylistModel({
+   this.epgUrl,
+   Map<String, dynamic>? playList,
+ }) : playList = playList ?? {};
 
-  PlaylistModel({
-    this.epgUrl,
-    Map<String, dynamic>? playList,
-  }) : playList = playList ?? {};
+ /// 节目（EPG）的URL，用于获取节目相关信息。
+ String? epgUrl;
 
-  /// 节目（EPG）的URL，用于获取节目相关信息。
-  String? epgUrl;
+ /// 存储播放列表的数据结构，支持两层和三层结构
+ Map<String, dynamic> playList;
 
-  /// 存储播放列表的数据结构，支持两层和三层结构
-  Map<String, dynamic> playList;
+ /// 从远程播放列表数据创建 [PlaylistModel] 实例。
+ /// [json] 包含播放列表信息的 JSON 格式数据。
+ factory PlaylistModel.fromJson(Map<String, dynamic> json) {
+   try {
+     LogUtil.i('fromJson处理传入的数据： ${json}');
+     String? epgUrl = json['epgUrl'] as String?;
+     Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
 
-  /// 从远程播放列表数据创建 [PlaylistModel] 实例。
-  /// [json] 包含播放列表信息的 JSON 格式数据。
-  factory PlaylistModel.fromJson(Map<String, dynamic> json) {
-    try {
-      LogUtil.i('fromJson处理传入的数据： ${json}');
-      String? epgUrl = json['epgUrl'] as String?;
-      Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
+     // 使用 _parsePlayList 方法处理结构
+     Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
 
-      // 使用 _parsePlayList 方法处理结构
-      Map<String, dynamic> playList = playListJson != null ? _parsePlayList(playListJson) : {};
-
-      return PlaylistModel(epgUrl: epgUrl, playList: playList);
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析 PlaylistModel 时出错', e, stackTrace);
-      return PlaylistModel(); // 返回一个空的 PlaylistModel
-    }
-  }
-
-  /// 从字符串解析 [PlaylistModel] 实例
-static PlaylistModel fromString(String data) {
-  try {
-    LogUtil.i('fromString处理传入的数据： ${data}');
-    final Map<String, dynamic> jsonData = jsonDecode(data);
-    
-    // 这里是本地缓存读取，强制按三层处理
-    if (jsonData['playList'] != null) {
-      // 如果是两层结构，转换成三层
-      Map<String, dynamic> playList = jsonData['playList'];
-      if (!_isThreeLayerStructure(playList)) {
-        // 包装成三层结构
-        playList = {
-          Config.allChannelsKey: playList
-        };
-        jsonData['playList'] = playList;
-      }
-    }
-    
-    return PlaylistModel.fromJson(jsonData);
-  } catch (e, stackTrace) {
-    LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
-    return PlaylistModel();
-  }
-}
-
-// 添加辅助方法判断结构
-static bool _isThreeLayerStructure(Map<String, dynamic> json) {
- if (json.isEmpty) return false;
- 
- // 遍历所有值，检查是否有任何一个值符合三层结构 
- for (var firstValue in json.values) {
-   if (firstValue is! Map) continue;
-   // 如果是空的 Map，认为是有效的层级
-   if (firstValue.isEmpty) continue; 
-   
-   // 检查第二层
-   for (var secondValue in firstValue.values) {
-     if (secondValue is Map) return true;
+     return PlaylistModel(epgUrl: epgUrl, playList: playList);
+   } catch (e, stackTrace) {
+     LogUtil.logError('解析 PlaylistModel 时出错', e, stackTrace);
+     return PlaylistModel(); // 返回一个空的 PlaylistModel
    }
  }
- return false;
-}
 
-  /// 将 [PlaylistModel] 实例转换为 JSON 字符串格式
-@override
-String toString() {
-  if (playList != null) {
-    playList.forEach((category, groups) {
-      if (groups is Map<String, dynamic>) {
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map<String, dynamic>) {
-            channels.forEach((channelName, channel) {
-              if (channel is PlayModel) {
-                // 如果 ID 为空，使用频道名称作为 ID
-                if (channel.id == null || channel.id!.isEmpty) {
-                  LogUtil.i('发现无 ID 频道: $channelName，使用频道名称作为 ID');
-                  channel.id = channelName;
-                }
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-  
-  return jsonEncode({
-    'epgUrl': epgUrl,
-    'playList': playList,
-  });
-}
+ /// 从字符串解析 [PlaylistModel] 实例
+ static PlaylistModel fromString(String data) {
+   try {
+     LogUtil.i('fromString处理传入的数据： ${data}');
+     final Map<String, dynamic> jsonData = jsonDecode(data);
+     
+     // 如果是从本地缓存读取的数据(已经是标准的三层结构)
+     // 直接转换返回即可，不需要额外的结构处理
+     return PlaylistModel(
+       epgUrl: jsonData['epgUrl'] as String?,
+       playList: jsonData['playList'] as Map<String, dynamic>
+     );
+   } catch (e, stackTrace) {
+     LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
+     return PlaylistModel();
+   }
+ }
 
-  /// 自动判断并解析播放列表结构（两层或三层）
-/// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
-static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
- try {
-   LogUtil.i('parsePlayList处理传入的数据： ${json}');
+ // 添加辅助方法判断结构
+ static bool _isThreeLayerStructure(Map<String, dynamic> json) {
+   if (json.isEmpty) return false;
+   
+   // 遍历所有值，检查是否有任何一个值符合三层结构 
+   for (var firstValue in json.values) {
+     if (firstValue is! Map) continue;
+     // 如果是空的 Map，认为是有效的层级
+     if (firstValue.isEmpty) continue; 
+     
+     // 检查第二层
+     for (var secondValue in firstValue.values) {
+       if (secondValue is Map) return true;
+     }
+   }
+   return false;
+ }
 
-   // 如果json为空,返回默认三层结构
-   if (json.isEmpty) {
-     LogUtil.i('空的播放列表结构，返回默认三层结构');
+ /// 将 [PlaylistModel] 实例转换为 JSON 字符串格式
+ @override
+ String toString() {
+   if (playList != null) {
+     playList.forEach((category, groups) {
+       if (groups is Map<String, dynamic>) {
+         groups.forEach((groupTitle, channels) {
+           if (channels is Map<String, dynamic>) {
+             channels.forEach((channelName, channel) {
+               if (channel is PlayModel) {
+                 // 如果 ID 为空，使用频道名称作为 ID
+                 if (channel.id == null || channel.id!.isEmpty) {
+                   LogUtil.i('发现无 ID 频道: $channelName，使用频道名称作为 ID');
+                   channel.id = channelName;
+                 }
+               }
+             });
+           }
+         });
+       }
+     });
+   }
+   
+   return jsonEncode({
+     'epgUrl': epgUrl,
+     'playList': playList,
+   });
+ }
+
+ /// 根据播放列表的嵌套深度（两层或三层）选择相应的解析方式。
+ static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
+   try {
+     LogUtil.i('parsePlayList处理传入的数据： ${json}');
+
+     // 如果json为空,返回默认三层结构
+     if (json.isEmpty) {
+       LogUtil.i('空的播放列表结构，返回默认三层结构');
+       return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
+     }
+
+     // 检测是三层结构还是两层结构
+     if (_isThreeLayerStructure(json)) {
+       LogUtil.i('处理三层结构的播放列表');
+       return _parseThreeLayer(json);
+     }
+
+     // 两层结构转换为三层
+     LogUtil.i('处理两层结构的播放列表，转换为三层');
+     return _parseThreeLayer({
+       Config.allChannelsKey: _parseTwoLayer(json)
+     });
+
+   } catch (e, stackTrace) {
+     LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
      return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
    }
-
-   // 检测是三层结构还是两层结构
-   bool isThreeLayer = json.values.isNotEmpty && // 确保有值可检查
-       json.values.first is Map<String, dynamic> &&
-       (json.values.first as Map<String, dynamic>).isNotEmpty && // 检查第一层嵌套不为空
-       (json.values.first as Map<String, dynamic>).values.isNotEmpty && // 确保有第二层值
-       (json.values.first as Map<String, dynamic>).values.first is Map<String, dynamic>; // 确保是Map而不是PlayModel
-
-   if (isThreeLayer) {
-     LogUtil.i('处理三层结构的播放列表');
-     return _parseThreeLayer(json);
-   }
-
-   // 两层结构转换为三层
-   LogUtil.i('处理两层结构的播放列表，转换为三层');
-   return _parseThreeLayer({
-     Config.allChannelsKey: _parseTwoLayer(json)
-   });
-
- } catch (e, stackTrace) {
-   LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
-   return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
  }
-}
 
-  /// 自动判断使用两层还是三层结构的 getChannel 方法
-  /// [categoryOrGroup] 可以是分类（String）或组（String）。
-  /// [groupOrChannel] 如果 [categoryOrGroup] 是分类，则表示组名；如果是组，则表示频道名。
-  /// [channel] 仅在使用三层结构时提供，用于指定频道名称。
-  PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
-    if (channel == null && categoryOrGroup is String) {
-      // 两个参数，处理两层结构
-      String group = categoryOrGroup;
-      String channelName = groupOrChannel;
+ /// 自动判断使用两层还是三层结构的 getChannel 方法
+ /// [categoryOrGroup] 可以是分类（String）或组（String）。
+ /// [groupOrChannel] 如果 [categoryOrGroup] 是分类，则表示组名；如果是组，则表示频道名。
+ /// [channel] 仅在使用三层结构时提供，用于指定频道名称。
+ PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
+   if (channel == null && categoryOrGroup is String) {
+     // 两个参数，处理两层结构
+     String group = categoryOrGroup;
+     String channelName = groupOrChannel;
 
-      // 优化：先检查默认分类，减少不必要的遍历
-      if (playList.containsKey(Config.allChannelsKey)) {
-        var defaultCategory = playList[Config.allChannelsKey];
-        if (defaultCategory is Map<String, Map<String, PlayModel>>) {
-          var result = defaultCategory[group]?[channelName];
-          if (result != null) return result;
-        }
-      }
-
-      // 如果默认分类未找到，遍历其他分类
-      for (var categoryMap in playList.values) {
-        if (categoryMap is Map<String, Map<String, PlayModel>> &&
-            categoryMap.containsKey(group)) {
-          return categoryMap[group]?[channelName];
-        }
-      }
-    } else if (channel != null && categoryOrGroup is String) {
-      // 三个参数，处理三层结构
-      String category = categoryOrGroup;
-      String group = groupOrChannel;
-
-      // 从三层结构查找
-      if (playList[category] is Map<String, Map<String, PlayModel>>) {
-        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
-      }
-    }
-    return null;
-  }
-
-  /// 解析三层结构的播放列表
-  /// - 第一层为分类
-  /// - 第二层为组
-  /// - 第三层为频道
-static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
-   Map<String, dynamic> json) {
- Map<String, Map<String, Map<String, PlayModel>>> result = {};
- try {
-   for (var entry in json.entries) {
-     String category = entry.key.isNotEmpty ? entry.key : Config.allChannelsKey;
-     var groupMapJson = entry.value;
-
-     // 如果分类是空的，保存为标准的空分类结构
-     if (groupMapJson is! Map || (groupMapJson as Map).isEmpty) {
-       result[category] = <String, Map<String, PlayModel>>{};
-       continue;  // 使用 continue 而不是 return
+     // 优化：先检查默认分类，减少不必要的遍历
+     if (playList.containsKey(Config.allChannelsKey)) {
+       var defaultCategory = playList[Config.allChannelsKey];
+       if (defaultCategory is Map<String, Map<String, PlayModel>>) {
+         var result = defaultCategory[group]?[channelName];
+         if (result != null) return result;
+       }
      }
-     
-     if (groupMapJson is Map<String, dynamic>) {
-       Map<String, Map<String, PlayModel>> groupMap = {};
-       for (var groupEntry in groupMapJson.entries) {
-         var groupTitle = groupEntry.key;
-         var channelMapJson = groupEntry.value;
 
-         // 如果组是空的，保存为标准的空组结构
-         if (channelMapJson is! Map || (channelMapJson as Map).isEmpty) {
-           groupMap[groupTitle] = <String, PlayModel>{};
-           continue;  // 使用 continue 而不是 return
+     // 如果默认分类未找到，遍历其他分类
+     for (var categoryMap in playList.values) {
+       if (categoryMap is Map<String, Map<String, PlayModel>> &&
+           categoryMap.containsKey(group)) {
+         return categoryMap[group]?[channelName];
+       }
+     }
+   } else if (channel != null && categoryOrGroup is String) {
+     // 三个参数，处理三层结构
+     String category = categoryOrGroup;
+     String group = groupOrChannel;
+
+     // 从三层结构查找
+     if (playList[category] is Map<String, Map<String, PlayModel>>) {
+       return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
+     }
+   }
+   return null;
+ }
+
+ /// 解析三层结构的播放列表
+ /// - 第一层为分类
+ /// - 第二层为组
+ /// - 第三层为频道
+ static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
+     Map<String, dynamic> json) {
+   Map<String, Map<String, Map<String, PlayModel>>> result = {};
+   try {
+     for (var entry in json.entries) {
+       String category = entry.key.isNotEmpty ? entry.key : Config.allChannelsKey;
+       var groupMapJson = entry.value;
+
+       // 如果分类是空的或不是Map，初始化为空Map但要保留
+       if (groupMapJson is! Map) {
+         result[category] = <String, Map<String, PlayModel>>{};
+         continue;
+       }
+       
+       if (groupMapJson is Map<String, dynamic>) {
+         Map<String, Map<String, PlayModel>> groupMap = {};
+         for (var groupEntry in groupMapJson.entries) {
+           var groupTitle = groupEntry.key;
+           var channelMapJson = groupEntry.value;
+
+           // 如果组是空的或不是Map，初始化为空Map但要保留
+           if (channelMapJson is! Map) {
+             groupMap[groupTitle] = <String, PlayModel>{};
+             continue;
+           }
+
+           if (channelMapJson is Map<String, dynamic>) {
+             Map<String, PlayModel> channelMap = {};
+             channelMapJson.forEach((channelName, channelData) {
+               if (channelData is Map && channelData.isEmpty) {
+                 channelMap[channelName] = PlayModel();
+               } else {
+                 channelMap[channelName] = PlayModel.fromJson(channelData);
+               }
+             });
+             // 无论是否为空都保存组
+             groupMap[groupTitle] = channelMap;
+           }
          }
+         // 无论是否为空都保存分类
+         result[category] = groupMap;
+       }
+     }
+   } catch (e, stackTrace) {
+     LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
+   }
+   return result;
+ }
 
-         if (channelMapJson is Map<String, dynamic>) {
-           Map<String, PlayModel> channelMap = {};
-           channelMapJson.forEach((channelName, channelData) {
-             if (channelData is Map && channelData.isEmpty) {
-               return; 
-             }
-             PlayModel playModel = PlayModel.fromJson(channelData);
-             if (playModel.isValid) {
-               channelMap[channelName] = playModel;
-             }
-           });
-           groupMap[groupTitle] = channelMap;
+ /// 解析两层结构的播放列表
+ /// - 第一层为组
+ /// - 第二层为频道
+ static Map<String, Map<String, PlayModel>> _parseTwoLayer(
+     Map<String, dynamic> json) {
+   Map<String, Map<String, PlayModel>> result = {};
+   try {
+     json.forEach((groupTitle, channelMapJson) {
+       // 如果组是空Map或null，保存为空组
+       if (channelMapJson == null || (channelMapJson is Map && channelMapJson.isEmpty)) {
+         result[groupTitle] = <String, PlayModel>{};
+         return;
+       }
+
+       if (channelMapJson is Map<String, dynamic>) {
+         Map<String, PlayModel> channelMap = {};
+         channelMapJson.forEach((channelName, channelData) {
+           if (channelData is Map<String, dynamic>) {
+             channelMap[channelName] = PlayModel.fromJson(channelData);
+           } else if (channelData is Map && channelData.isEmpty) {
+             channelMap[channelName] = PlayModel();
+           }
+         });
+         // 总是保存组，无论是否为空
+         result[groupTitle] = channelMap;
+       }
+     });
+   } catch (e, stackTrace) {
+     LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
+   }
+   return result;
+ }
+
+ /// 按标题或组名搜索频道
+ /// [keyword] 要搜索的关键词。
+ /// 返回包含匹配的 [PlayModel] 实例的列表。
+ List<PlayModel> searchChannels(String keyword) {
+   List<PlayModel> results = [];
+   for (var groupMap in playList.values) {
+     if (groupMap is Map<String, Map<String, PlayModel>>) {
+       for (var channelMap in groupMap.values) {
+         for (var channel in channelMap.values) {
+           if ((channel.title?.contains(keyword) ?? false) ||
+               (channel.group?.contains(keyword) ?? false)) {
+             results.add(channel);
+           }
          }
        }
-       result[category] = groupMap;
      }
    }
- } catch (e, stackTrace) {
-   LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
+   return results;
  }
- return result;
-}
-
-  /// 解析两层结构的播放列表
-  /// - 第一层为组
-  /// - 第二层为频道
-  static Map<String, Map<String, PlayModel>> _parseTwoLayer(
-      Map<String, dynamic> json) {
-    Map<String, Map<String, PlayModel>> result = {};
-    try {
-      json.forEach((groupTitle, channelMapJson) {
-        if (channelMapJson is Map<String, dynamic>) {
-          Map<String, PlayModel> channelMap = {};
-          channelMapJson.forEach((channelName, channelData) {
-            PlayModel playModel = PlayModel.fromJson(channelData);
-            if (playModel.isValid) { // 检查 PlayModel 是否有效
-              channelMap[channelName] = playModel;
-            }
-          });
-          if (channelMap.isNotEmpty) {
-            result[groupTitle] = channelMap;
-          }
-        }
-      });
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
-    }
-    return result;
-  }
-
-  /// 按标题或组名搜索频道
-  /// [keyword] 要搜索的关键词。
-  /// 返回包含匹配的 [PlayModel] 实例的列表。
-  List<PlayModel> searchChannels(String keyword) {
-    List<PlayModel> results = [];
-    for (var groupMap in playList.values) {
-      if (groupMap is Map<String, Map<String, PlayModel>>) {
-        for (var channelMap in groupMap.values) {
-          for (var channel in channelMap.values) {
-            if ((channel.title?.contains(keyword) ?? false) ||
-                (channel.group?.contains(keyword) ?? false)) {
-              results.add(channel);
-            }
-          }
-        }
-      }
-    }
-    return results;
-  }
 }
 
 /// 表示单个可播放频道的模型类。
 class PlayModel {
-  PlayModel({
-    this.id,
-    this.logo,
-    this.title,
-    this.group,
-    this.urls,
-  });
+ PlayModel({
+   this.id,
+   this.logo,
+   this.title,
+   this.group,
+   this.urls,
+ });
 
-  String? id; // 频道的唯一标识符
-  String? title; // 频道的名称
-  String? logo; // 频道的Logo URL
-  String? group; // 频道所属的组
-  List<String>? urls; // 频道的可播放地址列表
+ String? id; // 频道的唯一标识符
+ String? title; // 频道的名称
+ String? logo; // 频道的Logo URL
+ String? group; // 频道所属的组
+ List<String>? urls; // 频道的可播放地址列表
 
-/// 从 JSON 数据创建 [PlayModel] 实例
-factory PlayModel.fromJson(dynamic json) {
-  try {
-    // 处理空 Map 的情况 - 这在某些结构层级是合法的
-    if (json is Map && json.isEmpty) {
-      return PlayModel(); // 返回一个空的 PlayModel
-    }
+ /// 从 JSON 数据创建 [PlayModel] 实例
+ factory PlayModel.fromJson(dynamic json) {
+   try {
+     if (json is Map && json.isEmpty) {
+       return PlayModel();
+     }
 
-    // 如果是实际的频道数据,验证必需字段
-    if (json is Map) {
-      List<String> urlsList = List<String>.from(json['urls'] ?? []);
-      return PlayModel(
-        id: json['id'] as String?,
-        logo: json['logo'] as String?,
-        title: json['title'] as String?,
-        group: json['group'] as String?,
-        urls: urlsList.isEmpty ? null : urlsList,
-      );
-    }
+     if (json is Map) {
+       List<String> urlsList = List<String>.from(json['urls'] ?? []);
+       return PlayModel(
+         id: json['id'] as String?,
+         logo: json['logo'] as String?,
+         title: json['title'] as String?,
+         group: json['group'] as String?,
+         urls: urlsList.isEmpty ? null : urlsList,
+       );
+     }
 
-    LogUtil.i('PlayModel JSON 格式不符合预期');
-    return PlayModel(); // 返回一个空的 PlayModel
+     return PlayModel();
+   } catch (e, stackTrace) {
+     LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
+     return PlayModel();
+   }
+ }
 
-  } catch (e, stackTrace) {
-    LogUtil.logError('解析 PlayModel JSON 时出错', e, stackTrace);
-    return PlayModel(); // 解析失败时返回空的 PlayModel
-  }
-}
+ /// 创建一个新的 [PlayModel] 实例，保留当前实例的属性，并用新值覆盖
+ PlayModel copyWith({
+   String? id,
+   String? logo,
+   String? title,
+   String? group,
+   List<String>? urls,
+ }) {
+   return PlayModel(
+     id: id ?? this.id,
+     logo: logo ?? this.logo,
+     urls: urls ?? this.urls,
+     title: title ?? this.title,
+     group: group ?? this.group,
+   );
+ }
 
-/// 检查 PlayModel 是否有效
-bool get isValid {
-  // 空的 PlayModel 对于结构节点是有效的
-  if (id == null && title == null && logo == null && 
-      group == null && (urls == null || urls!.isEmpty)) {
-    return true;
-  }
-  
-  // 频道数据至少应该有 id 和 title
-  return id != null && id!.isNotEmpty && 
-         title != null && title!.isNotEmpty;
-}
-
-  /// 创建一个新的 [PlayModel] 实例，保留当前实例的属性，并用新值覆盖
-  PlayModel copyWith({
-    String? id,
-    String? logo,
-    String? title,
-    String? group,
-    List<String>? urls,
-  }) {
-    return PlayModel(
-      id: id ?? this.id,
-      logo: logo ?? this.logo,
-      urls: urls ?? this.urls,
-      title: title ?? this.title,
-      group: group ?? this.group,
-    );
-  }
-
-  /// 将 [PlayModel] 实例转换为 JSON 格式
-  Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{};
-    map['id'] = id;
-    map['logo'] = logo;
-    map['title'] = title;
-    map['group'] = group;
-    map['urls'] = urls;
-    return map;
-  }
+ /// 将 [PlayModel] 实例转换为 JSON 格式
+ Map<String, dynamic> toJson() {
+   final map = <String, dynamic>{};
+   map['id'] = id;
+   map['logo'] = logo;
+   map['title'] = title;
+   map['group'] = group;
+   map['urls'] = urls;
+   return map;
+ }
 }
