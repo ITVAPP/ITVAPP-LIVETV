@@ -225,10 +225,10 @@ static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
      String category = entry.key.isNotEmpty ? entry.key : Config.allChannelsKey;
      var groupMapJson = entry.value;
 
-     // 如果分类是空的，保存为标准的空分类结构
-     if (groupMapJson is! Map || (groupMapJson as Map).isEmpty) {
+     // 如果分类是空的或不是Map，初始化为空Map但要保留
+     if (groupMapJson is! Map) {
        result[category] = <String, Map<String, PlayModel>>{};
-       continue;  // 使用 continue 而不是 return
+       continue;
      }
      
      if (groupMapJson is Map<String, dynamic>) {
@@ -237,26 +237,30 @@ static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
          var groupTitle = groupEntry.key;
          var channelMapJson = groupEntry.value;
 
-         // 如果组是空的，保存为标准的空组结构
-         if (channelMapJson is! Map || (channelMapJson as Map).isEmpty) {
+         // 如果组是空的或不是Map，初始化为空Map但要保留
+         if (channelMapJson is! Map) {
            groupMap[groupTitle] = <String, PlayModel>{};
-           continue;  // 使用 continue 而不是 return
+           continue;
          }
 
          if (channelMapJson is Map<String, dynamic>) {
            Map<String, PlayModel> channelMap = {};
            channelMapJson.forEach((channelName, channelData) {
+             // 如果channelData是空Map，保存一个空的PlayModel
              if (channelData is Map && channelData.isEmpty) {
-               return; 
-             }
-             PlayModel playModel = PlayModel.fromJson(channelData);
-             if (playModel.isValid) {
-               channelMap[channelName] = playModel;
+               channelMap[channelName] = PlayModel();
+             } else {
+               PlayModel playModel = PlayModel.fromJson(channelData);
+               if (playModel.isValid) {
+                 channelMap[channelName] = playModel;
+               }
              }
            });
+           // 无论是否为空都保存组
            groupMap[groupTitle] = channelMap;
          }
        }
+       // 无论是否为空都保存分类
        result[category] = groupMap;
      }
    }
