@@ -230,6 +230,10 @@ static Map<String, dynamic> _parsePlayList(Map<String, dynamic> json) {
             if (channelMapJson is Map<String, dynamic>) {
               Map<String, PlayModel> channelMap = {};
               channelMapJson.forEach((channelName, channelData) {
+                // 如果 channelData 是空的 Map，就跳过
+                if (channelData is Map && channelData.isEmpty) {
+                  return; 
+                }
                 PlayModel playModel = PlayModel.fromJson(channelData);
                 if (playModel.isValid) { // 检查 PlayModel 是否有效
                   channelMap[channelName] = playModel;
