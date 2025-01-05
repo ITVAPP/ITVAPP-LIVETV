@@ -273,29 +273,41 @@ static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(
   /// 解析两层结构的播放列表
   /// - 第一层为组
   /// - 第二层为频道
-  static Map<String, Map<String, PlayModel>> _parseTwoLayer(
-      Map<String, dynamic> json) {
-    Map<String, Map<String, PlayModel>> result = {};
-    try {
-      json.forEach((groupTitle, channelMapJson) {
-        if (channelMapJson is Map<String, dynamic>) {
-          Map<String, PlayModel> channelMap = {};
-          channelMapJson.forEach((channelName, channelData) {
+static Map<String, Map<String, PlayModel>> _parseTwoLayer(
+    Map<String, dynamic> json) {
+  Map<String, Map<String, PlayModel>> result = {};
+  try {
+    json.forEach((groupTitle, channelMapJson) {
+      // 如果组是空Map或null，保存为空组
+      if (channelMapJson == null || (channelMapJson is Map && channelMapJson.isEmpty)) {
+        result[groupTitle] = <String, PlayModel>{};
+        return;
+      }
+
+      if (channelMapJson is Map<String, dynamic>) {
+        Map<String, PlayModel> channelMap = {};
+        channelMapJson.forEach((channelName, channelData) {
+          // 如果是有效的频道数据
+          if (channelData is Map<String, dynamic> && 
+              (channelData['id'] != null || channelData['title'] != null)) {
             PlayModel playModel = PlayModel.fromJson(channelData);
-            if (playModel.isValid) { // 检查 PlayModel 是否有效
+            if (playModel.isValid) {
               channelMap[channelName] = playModel;
             }
-          });
-          if (channelMap.isNotEmpty) {
-            result[groupTitle] = channelMap;
+          } else if (channelData is Map && channelData.isEmpty) {
+            // 如果是空的Map，保存为空的PlayModel
+            channelMap[channelName] = PlayModel();
           }
-        }
-      });
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
-    }
-    return result;
+        });
+        // 总是保存组，无论是否为空
+        result[groupTitle] = channelMap;
+      }
+    });
+  } catch (e, stackTrace) {
+    LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
   }
+  return result;
+}
 
   /// 按标题或组名搜索频道
   /// [keyword] 要搜索的关键词。
