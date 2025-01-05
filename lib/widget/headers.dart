@@ -10,10 +10,10 @@ class HeadersConfig {
  
  /// 格式: domain1|referer1@domain2|referer2
  /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
- static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@qtv.com.cn|www.qtv.com.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com';
+ static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net@file.lcxw.cn@livehhhttps.sxrtv.com@video10.qtv.com.cn';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn@livehhhttps.sxrtv.com';
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
@@ -26,6 +26,7 @@ class HeadersConfig {
    'sec-ch-ua-platform': '"Windows"',
    'sec-ch-ua-mobile': '?0',
    'sec-fetch-user': '?1',
+   'sec-fetch-mode': 'navigate'
    'dnt': '1',
    'sec-fetch-dest': 'empty',
    'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
@@ -156,9 +157,7 @@ static String? _getRefererByRules(String url) {
  /// 提取主域名
  static String _extractMainDomain(String host) {
    try {
-     // 移除可能的端口号
      final hostWithoutPort = host.split(':')[0];
-     // 分割域名部分
      final parts = hostWithoutPort.split('.');
      if (parts.length >= 2) {
        // 返回最后两段作为主域名
