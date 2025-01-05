@@ -271,6 +271,7 @@ Future<bool> _executeClick() async {
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
       _isClickExecuted = true;
+      await Future.delayed(const Duration(seconds: 2));
       return true;
     } else {
       _isClickExecuted = true;
@@ -392,105 +393,109 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
     return completer.future;
   }
   
-/// 初始化WebViewController
-Future<void> _initController(Completer<String> completer) async {
-  try {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(HeadersConfig.userAgent)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (NavigationRequest request) {
-            LogUtil.i('页面导航请求: ${request.url}');
-            
-            // 解析URL
-            final uri = Uri.tryParse(request.url);
-            if (uri == null) {
-              LogUtil.i('无效的URL，阻止加载');
-              return NavigationDecision.prevent;
-            }
-            // 获取文件扩展名
-            final extension = uri.path.toLowerCase().split('.').last;
-            
-            // 需要阻止的资源类型
-            final blockedExtensions = [
-              'jpg', 'jpeg', 'png', 'gif', 'webp', // 图片
-              'css', // 样式表
-              'woff', 'woff2', 'ttf', 'eot', // 字体
-              'ico', 'svg', // 图标
-              'mp4', 'webm', 'ogg', // 视频
-              'mp3', 'wav', // 音频
-              'pdf', 'doc', 'docx', // 文档
-              'swf', // Flash
-            ];
-            // 如果是被阻止的扩展名，阻止加载
-            if (blockedExtensions.contains(extension)) {
-              return NavigationDecision.prevent;
-            }
-            // 特别允许m3u8相关的请求
-            if (request.url.contains('.m3u8')) {
+  /// 初始化WebViewController
+  Future<void> _initController(Completer<String> completer) async {
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setUserAgent(HeadersConfig.userAgent)
+        ..addJavaScriptChannel(
+          'M3U8Detector',
+          onMessageReceived: (JavaScriptMessage message) {
+            LogUtil.i('JS检测器发现新的URL: ${message.message}');
+            _handleM3U8Found(message.message, completer);
+          },
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onNavigationRequest: (NavigationRequest request) {
+              LogUtil.i('页面导航请求: ${request.url}');
+              
+              // 解析URL
+              final uri = Uri.tryParse(request.url);
+              if (uri == null) {
+                LogUtil.i('无效的URL，阻止加载');
+                return NavigationDecision.prevent;
+              }
+
+              // 获取文件扩展名
+              final extension = uri.path.toLowerCase().split('.').last;
+              
+              // 需要阻止的资源类型
+              final blockedExtensions = [
+                'jpg', 'jpeg', 'png', 'gif', 'webp', // 图片
+                'css', // 样式表
+                'woff', 'woff2', 'ttf', 'eot', // 字体
+                'ico', 'svg', // 图标
+                'mp4', 'webm', 'ogg', // 视频
+                'mp3', 'wav', // 音频
+                'pdf', 'doc', 'docx', // 文档
+                'swf', // Flash
+              ];
+
+              // 如果是被阻止的扩展名，阻止加载
+              if (blockedExtensions.contains(extension)) {
+                return NavigationDecision.prevent;
+              }
+
+              // 特别允许m3u8相关的请求
+              if (request.url.contains('.m3u8')) {
+                return NavigationDecision.navigate;
+              }
+
               return NavigationDecision.navigate;
-            }
-            return NavigationDecision.navigate;
-          },
-          onPageFinished: (String url) async {
-            // 防止重复处理页面加载完成事件
-            if (_isPageLoadProcessed || _isDisposed) {
-              LogUtil.i('页面加载完成事件已处理或资源已释放，跳过处理');
-              return;
-            }
-            _isPageLoadProcessed = true;
-            
-            LogUtil.i('页面加载完成: $url');
-            
-            // 如果需要点击操作，执行完点击后再添加监听
-            if (clickText != null && !_isClickExecuted) {
-              await _executeClick();
-            } 
-            
-              // 添加监听
-              _controller.addJavaScriptChannel(
-                'M3U8Detector',
-                onMessageReceived: (JavaScriptMessage message) {
-                  LogUtil.i('JS检测器发现新的URL: ${message.message}');
-                  _handleM3U8Found(message.message, completer);
-                },
-              );
-            
-            // 再进行页面内容检查
-            final m3u8Url = await _checkPageContent();
-            if (m3u8Url != null && !completer.isCompleted) {
-              _m3u8Found = true;
-              completer.complete(m3u8Url);
-              _logPerformanceMetrics();
-              await disposeResources();
-              return;
-            }
-            // 如果静态检查没找到，启动JS检测
-            if (!_isDisposed && !_m3u8Found) {
-              _setupPeriodicCheck();
-              _injectM3U8Detector();
-            }
-          },
-          onWebResourceError: (WebResourceError error) async { 
-            // 忽略被阻止资源的错误
-            if (error.errorCode == -1) {
-              LogUtil.i('资源被阻止加载: ${error.description}');
-              return;
-            }
-            
-            LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-            await _handleLoadError(completer);
-          },
-        ),
-      );
-    await _loadUrlWithHeaders();
-    LogUtil.i('WebViewController初始化完成');
-  } catch (e, stackTrace) {
-    LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-    await _handleLoadError(completer);
+            },
+            onPageFinished: (String url) async {
+              // 防止重复处理页面加载完成事件
+              if (_isPageLoadProcessed || _isDisposed) {
+                LogUtil.i('页面加载完成事件已处理或资源已释放，跳过处理');
+                return;
+              }
+              _isPageLoadProcessed = true;
+              
+              LogUtil.i('页面加载完成: $url');
+              
+              // 先执行点击操作（如果有配置）
+              if (clickText != null && !_isClickExecuted) {
+                await _executeClick();
+              }
+
+              // 再进行页面内容检查
+              final m3u8Url = await _checkPageContent();
+              if (m3u8Url != null && !completer.isCompleted) {
+                _m3u8Found = true;
+                completer.complete(m3u8Url);
+                _logPerformanceMetrics();
+                await disposeResources();
+                return;
+              }
+
+              // 如果静态检查没找到，启动JS检测
+              if (!_isDisposed && !_m3u8Found) {
+                _setupPeriodicCheck();
+                _injectM3U8Detector();
+              }
+            },
+            onWebResourceError: (WebResourceError error) async { 
+              // 忽略被阻止资源的错误
+              if (error.errorCode == -1) {
+                LogUtil.i('资源被阻止加载: ${error.description}');
+                return;
+              }
+              
+              LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+              await _handleLoadError(completer);
+            },
+          ),
+        );
+
+      await _loadUrlWithHeaders();
+      LogUtil.i('WebViewController初始化完成');
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      await _handleLoadError(completer);
+    }
   }
-}
   
   /// 处理加载错误
   Future<void> _handleLoadError(Completer<String> completer) async {
@@ -701,6 +706,13 @@ Future<void> disposeResources() async {
   
   /// 处理发现的M3U8 URL
   Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+  	
+  // 如果需要点击且还没点击，忽略这个URL
+  if (clickText != null && !_isClickExecuted) {
+    LogUtil.i('点击操作未完成，忽略URL: $url');
+    return;
+  }
+  
     // 如果已找到或已释放资源，跳过处理
     if (_m3u8Found || _isDisposed) {
       LogUtil.i('跳过URL处理: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
