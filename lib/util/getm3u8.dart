@@ -271,7 +271,6 @@ Future<bool> _executeClick() async {
     if (response['success'] == true) {
       LogUtil.i('点击成功: ${response['clicked']}');
       _isClickExecuted = true;
-      await Future.delayed(const Duration(seconds: 2));
       return true;
     } else {
       _isClickExecuted = true;
@@ -444,10 +443,12 @@ Future<void> _initController(Completer<String> completer) async {
             
             LogUtil.i('页面加载完成: $url');
             
-            // 先执行点击操作（如果有配置）
+            // 如果需要点击操作，执行完点击后再添加监听
             if (clickText != null && !_isClickExecuted) {
               await _executeClick();
-              // 点击完成后再添加 JavaScriptChannel
+            } 
+            
+              // 添加监听
               _controller.addJavaScriptChannel(
                 'M3U8Detector',
                 onMessageReceived: (JavaScriptMessage message) {
@@ -455,16 +456,6 @@ Future<void> _initController(Completer<String> completer) async {
                   _handleM3U8Found(message.message, completer);
                 },
               );
-            } else {
-              // 如果不需要点击操作，直接添加 JavaScriptChannel
-              _controller.addJavaScriptChannel(
-                'M3U8Detector',
-                onMessageReceived: (JavaScriptMessage message) {
-                  LogUtil.i('JS检测器发现新的URL: ${message.message}');
-                  _handleM3U8Found(message.message, completer);
-                },
-              );
-            }
             
             // 再进行页面内容检查
             final m3u8Url = await _checkPageContent();
