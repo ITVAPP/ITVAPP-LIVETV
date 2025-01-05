@@ -72,19 +72,15 @@ static PlaylistModel fromString(String data) {
     LogUtil.i('fromString处理传入的数据： ${data}');
     final Map<String, dynamic> jsonData = jsonDecode(data);
     
-    // 如果是从本地缓存读取的数据(已经是标准的三层结构)
-    // 直接转换返回即可，不需要额外的结构处理
-    return PlaylistModel(
-      epgUrl: jsonData['epgUrl'] as String?,
-      playList: jsonData['playList'] as Map<String, dynamic>
-    );
+    // 使用 fromJson 来正确恢复包含 PlayModel 对象的完整结构
+    return PlaylistModel.fromJson(jsonData);
   } catch (e, stackTrace) {
     LogUtil.logError('从字符串解析 PlaylistModel 时出错', e, stackTrace);
     return PlaylistModel();
   }
 }
 
-// 添加辅助方法判断结构
+// 判断结构辅助方法
 static bool _isThreeLayerStructure(Map<String, dynamic> json) {
  if (json.isEmpty) return false;
  
