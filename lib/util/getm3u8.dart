@@ -802,7 +802,7 @@ Future<String?> _checkPageContent() async {
   
   try {
     final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-      document.documentElement.innerHTML.substring(0, 5988)
+      document.documentElement.innerHTML.substring(0, 29998)
     ''');
     if (sampleResult == null) {
       LogUtil.i('获取内容样本失败');
@@ -837,8 +837,8 @@ Future<String?> _checkPageContent() async {
       }
     }
     
-    if (sample.length > 5888) {
-      LogUtil.i('页面内容较大(超过6KB)，跳过静态检测');
+    if (sample.length > 28888) {
+      LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
       return null;
     }
     
