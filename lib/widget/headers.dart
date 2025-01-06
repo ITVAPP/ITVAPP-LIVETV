@@ -26,7 +26,7 @@ class HeadersConfig {
    'sec-ch-ua-platform': '"Windows"',
    'sec-ch-ua-mobile': '?0',
    'sec-fetch-user': '?1',
-   'sec-fetch-mode': 'navigate'
+   'sec-fetch-mode': 'navigate',
    'dnt': '1',
    'sec-fetch-dest': 'empty',
    'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
