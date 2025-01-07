@@ -134,41 +134,43 @@ static String? _getRefererByRules(String url) {
       }
     }
      
-// 山西卫视特定的请求头
-if (referer == 'https://www.sxrtv.com') {   
-  return {
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-    'accept-encoding': 'gzip, deflate, br',
-    'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'cache-control': 'max-age=0',
-    'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'upgrade-insecure-requests': '1',
-  };
-} else {
-  final headers = {
-    ..._baseHeaders,
-    'origin': referer,
-    'referer': '$referer/',
-    if (needCors) ...{
-      'host': host,
-      'sec-fetch-mode': 'cors',
-      if (secFetchSite != null) 'sec-fetch-site': secFetchSite,
+      // 山西卫视特定的请求头
+      if (referer == 'https://www.sxrtv.com') {   
+        return {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+          'accept-encoding': 'gzip, deflate, br',
+          'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'cache-control': 'max-age=0',
+          'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'document',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-site': 'none',
+          'sec-fetch-user': '?1',
+          'upgrade-insecure-requests': '1',
+        };
+      } else {
+        final headers = {
+          ..._baseHeaders,
+          'origin': referer,
+          'referer': '$referer/',
+          if (needCors) ...{
+            'host': host,
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': secFetchSite,
+          }
+        };
+        LogUtil.i('生成主机头：$headers');
+        return headers;
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
+      return _baseHeaders;
     }
-  };
-  LogUtil.i('生成主机头：$headers');
-  return headers;
-   } catch (e, stackTrace) {
-     LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
-     return _baseHeaders;
-   }
- }
+  }
+}
  
  /// 提取主域名
  static String _extractMainDomain(String host) {
