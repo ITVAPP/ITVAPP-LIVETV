@@ -82,6 +82,21 @@ class HeadersConfig {
    }
  }
 
+ /// 提取主域名
+ static String _extractMainDomain(String host) {
+   try {
+     final hostWithoutPort = host.split(':')[0];
+     final parts = hostWithoutPort.split('.');
+     if (parts.length >= 2) {
+       // 返回最后两段作为主域名
+       return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
+     }
+     return host;
+   } catch (e) {
+     return host;
+   }
+ }
+
 /// 根据规则获取referer
 static String? _getRefererByRules(String url) {
    final rules = _parseRules();
@@ -165,26 +180,9 @@ static String? _getRefererByRules(String url) {
         LogUtil.i('生成主机头：$headers');
         return headers;
       }
-    } catch (e, stackTrace) {
-      LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
-      return _baseHeaders;
-    }
-  }
-}
- 
- /// 提取主域名
- static String _extractMainDomain(String host) {
-   try {
-     final hostWithoutPort = host.split(':')[0];
-     final parts = hostWithoutPort.split('.');
-     if (parts.length >= 2) {
-       // 返回最后两段作为主域名
-       return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
-     }
-     return host;
-   } catch (e) {
-     return host;
+   } catch (e, stackTrace) {
+     LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
+     return _baseHeaders;
    }
  }
-
 }
