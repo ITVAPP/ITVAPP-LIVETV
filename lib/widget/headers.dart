@@ -22,8 +22,9 @@ class HeadersConfig {
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
   // 'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 12) ExoPlayer',  // 包含系统信息和播放器标识
-  'user-agent': userAgent,
+  'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
   'accept': '*/*',
+  'accept-language': '*',
   'connection': 'keep-alive',
   'range': 'bytes=0-'  // 支持分片下载
  };
