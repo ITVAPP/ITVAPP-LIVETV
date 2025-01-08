@@ -19,11 +19,12 @@ class HeadersConfig {
  /// 在此列表中的域名将使用播放器请求头
  static String excludeDomainsString = 'loulannews@chinamobile.com';
 
- /// 播放器请求头
+ /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
-   'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 11; MI 10 Build/RKQ1.200826.002)',
-   'accept': '*/*',
-   'connection': 'keep-alive',
+  'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 12) ExoPlayer',  // 包含系统信息和播放器标识
+  'accept': '*/*',
+  'connection': 'keep-alive',
+  'range': 'bytes=0-'  // 支持分片下载
  };
 
  /// 基础请求头
