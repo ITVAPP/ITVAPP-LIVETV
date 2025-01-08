@@ -13,7 +13,7 @@ class HeadersConfig {
  static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@gxtv.cn|www.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com@tv_radio_47447|live.lzgd.com.cn@tv_radio_51742|www.yltvb.com';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net@file.lcxw.cn';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com';
 
  /// 排除规则字符串，格式: domain1@domain2@domain3
  /// 在此列表中的域名将使用播放器请求头
