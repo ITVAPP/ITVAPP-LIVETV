@@ -16,29 +16,31 @@ class HeadersConfig {
  static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com';
 
  /// 排除规则字符串，格式: domain1@domain2@domain3
- /// 在此列表中的域名将使用播放器请求头
+ /// 在此列表中的域名将使用通用播放器请求头
  static String excludeDomainsString = 'loulannews@chinamobile.com';
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
-  'use-default-headers': 'true'
+  'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7'  // 标准的安卓系统 User-Agent
+  'accept': '*/*',
+  'accept-language': '*',
+  'connection': 'keep-alive',
+  'range': 'bytes=0-'  // 支持分片下载
  };
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
    'user-agent': userAgent,
    'accept': '*/*',
-   'accept-language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8',
-   'accept-encoding': '*',
+   'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+   'accept-encoding': 'gzip, deflate, br, zstd',
    'cache-control': 'no-cache',
    'connection': 'keep-alive',
-   'sec-ch-ua-platform': '"Windows"',
+   'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
    'sec-ch-ua-mobile': '?0',
-   'sec-fetch-user': '?1',
-   'sec-fetch-mode': 'navigate',
-   'dnt': '1',
+   'sec-ch-ua-platform': '"Windows"',
    'sec-fetch-dest': 'empty',
-   'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
+   'dnt': '1',
  };
 
  /// 解析规则字符串返回域名和对应的referer映射
@@ -75,14 +77,45 @@ class HeadersConfig {
      .toList();
  }
 
- /// 检查域名是否在排除列表中
+ /// 检查域名是否在排除列表中，或者是 IP 地址
  static bool _isExcludedDomain(String url) {
    try {
      final host = _extractHost(url);
+     
+     // 如果是 IP 地址，返回 true
+     if (_isIpAddress(host)) {
+       LogUtil.i('检测到 IP 地址：$host');
+       return true;
+     }
+     
+     // 检查是否在排除域名列表中
      final excludeDomains = _getExcludeDomains();
      return excludeDomains.any((domain) => host.contains(domain));
    } catch (e) {
      LogUtil.logError('检查排除域名失败', e);
+     return false;
+   }
+ }
+ 
+ /// 检查是否是 IP 地址
+ static bool _isIpAddress(String host) {
+   try {
+     // 去除可能的 IPv6 方括号
+     final cleanHost = host.replaceAll(RegExp(r'[\[\]]'), '');
+     
+     // IPv4 模式
+     final ipv4Pattern = RegExp(
+       r'^(\d{1,3}\.){3}\d{1,3}$'
+     );
+     
+     // IPv6 模式
+     final ipv6Pattern = RegExp(
+       r'^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|'   // 标准格式
+       r'^(([0-9a-fA-F]{1,4}:){0,6}::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})$'  // 压缩格式
+     );
+     
+     return ipv4Pattern.hasMatch(cleanHost) || ipv6Pattern.hasMatch(cleanHost);
+   } catch (e) {
      return false;
    }
  }
