@@ -133,11 +133,20 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   void didUpdateWidget(covariant TableVideoWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 当抽屉状态发生变化时，同步更新 UI 状态
-    if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
-      _updateUIState(drawerIsOpen: widget.drawerIsOpen);
-    }
+      super.didUpdateWidget(oldWidget);
+      // 检查频道是否发生变化
+      if (widget.currentChannelId != oldWidget.currentChannelId) {
+          // 重置所有 UI 状态
+          _updateUIState(
+              showPauseIcon: false,
+              showPlayIcon: false,
+          );
+          // 取消暂停图标定时器
+          _pauseIconTimer?.cancel();
+          _pauseIconTimer = null;
+      } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
+          _updateUIState(drawerIsOpen: widget.drawerIsOpen);
+      }
   }
 
   @override
