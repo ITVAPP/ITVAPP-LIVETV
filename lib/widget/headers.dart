@@ -21,7 +21,8 @@ class HeadersConfig {
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
-  'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 12) ExoPlayer',  // 包含系统信息和播放器标识
+  // 'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 12) ExoPlayer',  // 包含系统信息和播放器标识
+  'user-agent': userAgent,
   'accept': '*/*',
   'connection': 'keep-alive',
   'range': 'bytes=0-'  // 支持分片下载
@@ -137,8 +138,7 @@ static String? _getRefererByRules(String url) {
    try {
      // 首先检查是否在排除列表中
      if (_isExcludedDomain(url)) {
-       LogUtil.i('域名在排除列表中，返回播放器headers');
-       return _playerHeaders;
+       LogUtil.i('生成播放器通用主机头：$_playerHeaders');
      }
 
      final encodedUrl = Uri.encodeFull(url);
