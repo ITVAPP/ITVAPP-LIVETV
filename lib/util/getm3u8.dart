@@ -572,17 +572,6 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
     final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
     final secret = '6ca114a836ac7d73'; // 密钥
     final sign = sha256.convert(utf8.encode('$secret$ts')).toString(); // 签名
-    final uri = Uri.parse(url);
-    // 替换路径中的 `getm3u8` 为时间戳路径
-    final newPath = uri.path.replaceFirst('/getm3u8', '/$ts');
-    // 构造新的 URL，不设置 `queryParameters`，以避免生成多余的 `?`
-    final modifiedUrl = Uri(
-      scheme: uri.scheme,
-      host: uri.host,
-      port: uri.hasPort ? uri.port : null,
-      path: newPath,
-    ).toString();
-      LogUtil.i('生成替换后的URL: $modifiedUrl');
       final headers = {
         'Accept': 'application/json, text/plain, */*',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -602,7 +591,7 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
       };
       LogUtil.i('生成headers: $headers');
-      await _controller.loadRequest(Uri.parse(modifiedUrl), headers: headers);
+      await _controller.loadRequest(Uri.parse('https://pubmod.hntv.tv/program/getAuth/live/class/program/11?getm3u8=1'), headers: headers);
   } else {
       final headers = HeadersConfig.generateHeaders(url: url);
       await _controller.loadRequest(Uri.parse(url), headers: headers);
