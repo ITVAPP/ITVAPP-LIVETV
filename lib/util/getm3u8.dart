@@ -6,16 +6,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-// 添加生成带签名URL的函数
-String generateSignedUrl(String url) {
-  final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 获取当前Unix时间戳
-  final secret = '6ca114a836ac7d73'; // 你的密钥
-  final sign = sha256.convert(utf8.encode('$secret$ts')).toString(); // 生成签名
-  final uri = Uri.parse(url);
-  final newPath = uri.path.replaceFirst('getm3u8', 'getAuth/vod/originStream/program/145/$ts');
-  return uri.replace(path: newPath, queryParameters: {'sign': sign}).toString();
-}
-
 /// M3U8过滤规则配置
 class M3U8FilterRule {
   /// 域名关键词
@@ -362,6 +352,25 @@ String _cleanUrl(String url) {
   return cleanedUrl;
 }
 
+/// 生成签名后的 URL
+String _processAndSignUrl(String url) {
+  if (url.contains('hntv.tv')) {
+    final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
+    final secret = '6ca114a836ac7d73'; // 密钥
+    final sign = sha256.convert(utf8.encode('$secret$ts')).toString(); // 签名
+
+    final uri = Uri.parse(url);
+    // 替换路径中的 `getm3u8` 为签名
+    final newPath = uri.path.replaceFirst('getm3u8', '$ts');
+    final signedUrl = uri.replace(path: newPath, queryParameters: {'sign': sign}).toString();
+
+    LogUtil.i('生成签名并替换后的URL: $signedUrl');
+    return signedUrl;
+  }
+  return url;
+}
+
+
 /// 处理相对路径,转换为完整URL
 String _handleRelativePath(String path) {
 	
@@ -532,8 +541,10 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
   /// 加载URL并设置headers
   Future<void> _loadUrlWithHeaders() async {
     try {
-      final headers = HeadersConfig.generateHeaders(url: url);
-      await _controller.loadRequest(Uri.parse(url), headers: headers);
+      // 检查如果是需要签名的处理的URL，进行签名替换getm3u8
+      String modifiedUrl = _processAndSignUrl(url);
+      final headers = HeadersConfig.generateHeaders(url: modifiedUrl);
+      await _controller.loadRequest(Uri.parse(modifiedUrl), headers: headers);
     } catch (e, stackTrace) {
       LogUtil.logError('加载URL时发生错误', e, stackTrace);
       rethrow;
@@ -732,13 +743,6 @@ Future<void> disposeResources() async {
 
     LogUtil.i('处理发现的URL: $url');
     if (url.isNotEmpty) {
-    	
-      // 检查URL是否包含'hntv.tv'并且包含'getm3u8'，如果是则替换为带签名的URL
-      if (url.contains('hntv.tv') && url.contains('getm3u8')) {
-        url = generateSignedUrl(url);
-        LogUtil.i('生成签名后的URL: $url');
-      }
-      
       // 首先整理URL
       String cleanedUrl = _cleanUrl(url);
       LogUtil.i('整理后的URL: $cleanedUrl');
