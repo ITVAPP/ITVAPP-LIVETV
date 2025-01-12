@@ -352,7 +352,7 @@ String _cleanUrl(String url) {
   return cleanedUrl;
 }
 
-/// 生成签名后的 URL
+/// 对指定的关键字使用签名替换getm3u8字符
 String _processAndSignUrl(String url) {
   LogUtil.i('检查并处理URL: $url');
   if (url.contains('hntv.tv') && url.contains('getm3u8')) {
@@ -844,23 +844,18 @@ Future<String?> _checkPageContent() async {
   _isStaticChecking = true;
   
   try {
+    // 尝试获取原始响应内容，而不是HTML
     final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       (function() {
-        try {
-          const htmlContent = document.documentElement.innerHTML.substring(0, 29998);
-          if (htmlContent.trim()) return htmlContent;
-
-          const textContent = document.body.innerText || document.body.textContent || '';
-          if (textContent.trim()) return textContent;
-
-          const preTag = document.querySelector('pre');
-          if (preTag && preTag.textContent.trim()) return preTag.textContent;
-
-          return ''; // 如果没有内容，返回空字符串
-        } catch (e) {
-          return null; // 如果出错，返回 null
+        // 如果是普通HTML页面
+        if (document.contentType === "text/html") {
+          return document.documentElement.innerHTML.substring(0, 29998);
         }
-      })();
+        // 如果是JSON或其他类型
+        else {
+          return document.body.textContent;
+        }
+      })()
     ''');
     
     if (sampleResult == null) {
