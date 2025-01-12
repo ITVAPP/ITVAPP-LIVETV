@@ -357,6 +357,8 @@ String _processAndSignUrl(String url) {
   LogUtil.i('检查并处理URL: $url');
   if (url.contains('hntv.tv') && url.contains('getm3u8')) {
     final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
+    final secret = '6ca114a836ac7d73'; // 密钥
+    final sign = sha256.convert(utf8.encode('$secret$ts')).toString(); // 签名
     final uri = Uri.parse(url);
     // 替换路径中的 `getm3u8` 为时间戳路径
     final newPath = uri.path.replaceFirst('/getm3u8', '/$ts');
@@ -563,9 +565,47 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
   Future<void> _loadUrlWithHeaders() async {
     try {
       // 检查如果是需要签名的处理的URL，进行签名替换getm3u8
-      String modifiedUrl = _processAndSignUrl(url);
-      final headers = HeadersConfig.generateHeaders(url: modifiedUrl);
+
+/// 对指定的关键字使用签名替换getm3u8字符
+
+  if (url.contains('hntv.tv') && url.contains('getm3u8')) {
+    final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
+    final secret = '6ca114a836ac7d73'; // 密钥
+    final sign = sha256.convert(utf8.encode('$secret$ts')).toString(); // 签名
+    final uri = Uri.parse(url);
+    // 替换路径中的 `getm3u8` 为时间戳路径
+    final newPath = uri.path.replaceFirst('/getm3u8', '/$ts');
+    // 构造新的 URL，不设置 `queryParameters`，以避免生成多余的 `?`
+    final modifiedUrl = Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: newPath,
+    ).toString();
+      LogUtil.i('生成替换后的URL: $modifiedUrl');
+      final headers = {
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Connection': 'keep-alive',
+        'Host': 'pubmod.hntv.tv',
+        'Origin': 'https://static.hntv.tv',
+        'Referer': 'https://static.hntv.tv/',
+        'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        'sign': sign,
+        'timestamp': ts.toString(),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+      };
       await _controller.loadRequest(Uri.parse(modifiedUrl), headers: headers);
+  } else {
+      final headers = HeadersConfig.generateHeaders(url: url);
+      await _controller.loadRequest(Uri.parse(url), headers: headers);
+  }    
     } catch (e, stackTrace) {
       LogUtil.logError('加载URL时发生错误', e, stackTrace);
       rethrow;
