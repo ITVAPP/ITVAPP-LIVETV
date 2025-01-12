@@ -845,8 +845,18 @@ Future<String?> _checkPageContent() async {
   
   try {
     final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-      document.documentElement.innerHTML.substring(0, 29998)
+      (function() {
+        try {
+          // 读取 HTML 内容
+          const htmlContent = document.documentElement.innerHTML.substring(0, 29998);
+          // 如果 HTML 内容为空，再尝试读取 body 的文本内容（支持 JSON 返回的情况）
+          return htmlContent || document.body.innerText || '';
+        } catch (e) {
+          return null;
+        }
+      })();
     ''');
+    
     if (sampleResult == null) {
       LogUtil.i('获取内容样本失败');
       return null; 
