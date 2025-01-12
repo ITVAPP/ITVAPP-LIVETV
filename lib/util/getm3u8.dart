@@ -601,6 +601,7 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
         'timestamp': ts.toString(),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
       };
+      LogUtil.i('生成headers: $headers');
       await _controller.loadRequest(Uri.parse(modifiedUrl), headers: headers);
   } else {
       final headers = HeadersConfig.generateHeaders(url: url);
