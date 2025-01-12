@@ -436,7 +436,7 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
 
               // 如果是被阻止的扩展名，阻止加载
               if (blockedExtensions.contains(extension)) {
-                return NavigationDecision.prevent;
+               // return NavigationDecision.prevent;
               }
 
               // 特别允许m3u8相关的请求
