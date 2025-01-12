@@ -354,6 +354,28 @@ String _cleanUrl(String url) {
 
 /// 生成签名后的 URL
 String _processAndSignUrl(String url) {
+  LogUtil.i('检查并处理URL: $url');
+
+  if (url.contains('hntv.tv') && url.contains('getm3u8')) {
+    final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
+
+    final uri = Uri.parse(url);
+
+    // 替换路径中的 `getm3u8` 为时间戳路径
+    final newPath = uri.path.replaceFirst('/getm3u8', '/$ts');
+
+    // 构造新的 URL，不添加任何查询参数
+    final modifiedUrl = uri.replace(path: newPath, queryParameters: {}).toString();
+
+    LogUtil.i('生成替换后的URL（不带查询参数）: $modifiedUrl');
+    return modifiedUrl;
+  }
+
+  LogUtil.i('无需替换，返回原始URL: $url');
+  return url;
+}
+	
+String _processAndSignUrl2(String url) {
   if (url.contains('hntv.tv')) {
     final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
     final secret = '6ca114a836ac7d73'; // 密钥
