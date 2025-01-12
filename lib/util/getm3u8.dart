@@ -373,7 +373,7 @@ String _processAndSignUrl(String url) {
   return url;
 }
 
-	
+/// 对指定的关键字使用签名替换getm3u8字符
 String _processAndSignUrl2(String url) {
   if (url.contains('hntv.tv')) {
     final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000; // 当前Unix时间戳
@@ -847,12 +847,18 @@ Future<String?> _checkPageContent() async {
     final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       (function() {
         try {
-          // 读取 HTML 内容
           const htmlContent = document.documentElement.innerHTML.substring(0, 29998);
-          // 如果 HTML 内容为空，再尝试读取 body 的文本内容（支持 JSON 返回的情况）
-          return htmlContent || document.body.innerText || '';
+          if (htmlContent.trim()) return htmlContent;
+
+          const textContent = document.body.innerText || document.body.textContent || '';
+          if (textContent.trim()) return textContent;
+
+          const preTag = document.querySelector('pre');
+          if (preTag && preTag.textContent.trim()) return preTag.textContent;
+
+          return ''; // 如果没有内容，返回空字符串
         } catch (e) {
-          return null;
+          return null; // 如果出错，返回 null
         }
       })();
     ''');
