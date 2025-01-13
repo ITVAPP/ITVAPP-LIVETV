@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// M3U8过滤规则配置
@@ -383,6 +384,23 @@ if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
     final completer = Completer<String>();
     
     LogUtil.i('GetM3U8初始化开始，目标URL: $url');
+    
+  // 判断是否为含指定关键词的 URL
+  if (url.contains('sztv.com.cn')) {
+    LogUtil.i('检测到深圳电视台 URL，调用 getm3u8diy');
+    try {
+      // 使用 getm3u8diy 获取直播地址
+      final streamUrl = await getm3u8diy.getStreamUrl(url);
+      LogUtil.i('成功获取播放地址: $streamUrl');
+      completer.complete(streamUrl);
+      return completer.future;
+    } catch (e, stackTrace) {
+      LogUtil.logError('getm3u8diy获取播放地址失败', e, stackTrace);
+      completer.completeError('ERROR');
+      return completer.future;
+    }
+  }
+  
     try {
       await _initController(completer);
       _startTimeout(completer);
