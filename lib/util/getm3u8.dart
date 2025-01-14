@@ -1225,11 +1225,11 @@ void _resetControllerState() {
         function efficientDOMScan() {
           // 扫描所有可能的媒体链接
           const elements = document.querySelectorAll([
-            `a[href*="${targetFileType}"]`,
-            `source[src*="${targetFileType}"]`,
-            `video[src*="${targetFileType}"]`,
-            `[data-src*="${targetFileType}"]`,
-            `iframe[src*="${targetFileType}"]`,
+            `a[href*="." + targetFileType]`,
+            `source[src*="." + targetFileType]`,
+            `video[src*="." + targetFileType]`,
+            `[data-src*="." + targetFileType]`,
+            `iframe[src*="." + targetFileType]`,
             '[class*="player"]',
             '[id*="player"]'
           ].join(','));
@@ -1245,7 +1245,7 @@ void _resetControllerState() {
           document.querySelectorAll('script:not([src])').forEach(script => {
             const content = script.textContent;
             if (content) {
-              const urlRegex = /https?:\\/\\/[^\\s<>"]+?\\.${targetFileType}[^\\s<>"']*/g;
+              const urlRegex = /https?:\\/\\/[^\\s<>"]+?\\." + targetFileType + "[^\\s<>"']*/g;
               const matches = content.match(urlRegex);
               if (matches) {
                 matches.forEach(match => {
