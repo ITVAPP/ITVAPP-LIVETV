@@ -188,7 +188,7 @@ static String? _getRefererByRules(String url) {
      final needCors = corsRules.any((domain) => host.contains(domain));
      
     // 判断 referer 和 host 是否同站点
-    String secFetchSite = 'same-origin';  // 默认值
+    String secFetchSite = 'cross-site';  // 默认值
     if (needCors) {
       final refererHost = _extractHost(referer);
       if (refererHost.isEmpty) {
@@ -211,7 +211,7 @@ static String? _getRefererByRules(String url) {
        if (needCors) ...{
          'host': host,
          'sec-fetch-mode': 'cors',
-         if (secFetchSite != null) 'sec-fetch-site': secFetchSite,
+         'sec-fetch-site': secFetchSite,
        }
      };
 
