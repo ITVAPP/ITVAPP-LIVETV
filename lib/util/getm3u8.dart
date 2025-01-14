@@ -521,37 +521,42 @@ Future<bool> _executeClick() async {
               LogUtil.i('URL不符合监听模式 ($filePattern)，阻止加载: ${request.url}');
               return NavigationDecision.prevent;
             },
-            onPageFinished: (String url) async {
-              // 防止重复处理页面加载完成事件
-              if (_isPageLoadProcessed || _isDisposed) {
-                LogUtil.i('页面加载完成事件已处理或资源已释放，跳过处理');
-                return;
-              }
-              _isPageLoadProcessed = true;
+// 在 onPageFinished 处理器中:
+onPageFinished: (String url) async {
+  // 只在资源已释放时提前返回
+  if (_isDisposed) {
+    LogUtil.i('资源已释放，跳过处理');
+    return;
+  }
 
-              LogUtil.i('页面加载完成: $url');
+  LogUtil.i('页面加载完成: $url');
 
-              // 先执行点击操作（如果有配置）
-              if (clickText != null && !_isClickExecuted) {
-                await _executeClick();
-              }
+  // 如果配置了点击且未执行过，则执行点击操作
+  if (clickText != null && !_isClickExecuted) {
+    await _executeClick();
+  }
 
-              // 再进行页面内容检查
-              final m3u8Url = await _checkPageContent();
-              if (m3u8Url != null && !completer.isCompleted) {
-                _m3u8Found = true;
-                completer.complete(m3u8Url);
-                _logPerformanceMetrics();
-                await disposeResources();
-                return;
-              }
+  // 如果页面加载未处理过，则处理页面加载逻辑
+  if (!_isPageLoadProcessed) {
+    _isPageLoadProcessed = true;
+    
+    // 执行剩余的页面加载逻辑
+    final m3u8Url = await _checkPageContent();
+    if (m3u8Url != null && !completer.isCompleted) {
+      _m3u8Found = true;
+      completer.complete(m3u8Url);
+      _logPerformanceMetrics();
+      await disposeResources();
+      return;
+    }
 
-              // 如果静态检查没找到，启动JS检测
-              if (!_isDisposed && !_m3u8Found) {
-                _setupPeriodicCheck();
-                _injectM3U8Detector();
-              }
-            },
+    // 如果静态检查没找到，启动JS检测
+    if (!_isDisposed && !_m3u8Found) {
+      _setupPeriodicCheck();
+      _injectM3U8Detector();
+    }
+  }
+},
             onWebResourceError: (WebResourceError error) async {
               // 忽略被阻止资源的错误
               if (error.errorCode == -1) {
