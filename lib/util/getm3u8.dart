@@ -551,19 +551,19 @@ onPageFinished: (String url) async {
         _hashFirstLoadMap[mapKey] = true;
         LogUtil.i('检测到hash路由首次加载，等待第二次加载');
         return;
-      }
-    }
-  } catch (e) {
-    LogUtil.e('解析URL失败: $e');
-  }
-
+      } else {
   // 3. 点击处理
   if (!_isClickExecuted && clickText != null) {
     LogUtil.i('准备执行点击操作');
-    await Future.delayed(Duration(milliseconds: 500)); 
+    await Future.delayed(Duration(milliseconds: 1000)); 
     if (!_isDisposed) {
       await _executeClick();
     }
+  }
+    }
+    }
+  } catch (e) {
+    LogUtil.e('解析URL失败: $e');
   }
 
   // 4. 首次加载逻辑
