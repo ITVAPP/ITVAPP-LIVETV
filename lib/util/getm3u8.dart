@@ -521,14 +521,16 @@ Future<bool> _executeClick() async {
               LogUtil.i('URL不符合监听模式 ($filePattern)，阻止加载: ${request.url}');
               return NavigationDecision.prevent;
             },
-// 在 onPageFinished 处理器中:
 onPageFinished: (String url) async {
-  // 只在资源已释放时提前返回
-  if (_isDisposed) {
-    LogUtil.i('资源已释放，跳过处理');
+  // 先检查是否已处理过和资源释放
+  if (_isDisposed || _isPageLoadProcessed) {
+    LogUtil.i('跳过页面加载处理: ${_isDisposed ? "资源已释放" : "页面已处理过"}');
     return;
   }
 
+  // 立即标记为已处理，防止重复触发
+  _isPageLoadProcessed = true;
+  
   LogUtil.i('页面加载完成: $url');
 
   // 如果配置了点击且未执行过，则执行点击操作
@@ -536,25 +538,20 @@ onPageFinished: (String url) async {
     await _executeClick();
   }
 
-  // 如果页面加载未处理过，则处理页面加载逻辑
-  if (!_isPageLoadProcessed) {
-    _isPageLoadProcessed = true;
-    
-    // 执行剩余的页面加载逻辑
-    final m3u8Url = await _checkPageContent();
-    if (m3u8Url != null && !completer.isCompleted) {
-      _m3u8Found = true;
-      completer.complete(m3u8Url);
-      _logPerformanceMetrics();
-      await disposeResources();
-      return;
-    }
+  // 执行剩余的页面加载逻辑
+  final m3u8Url = await _checkPageContent();
+  if (m3u8Url != null && !completer.isCompleted) {
+    _m3u8Found = true;
+    completer.complete(m3u8Url);
+    _logPerformanceMetrics();
+    await disposeResources();
+    return;
+  }
 
-    // 如果静态检查没找到，启动JS检测
-    if (!_isDisposed && !_m3u8Found) {
-      _setupPeriodicCheck();
-      _injectM3U8Detector();
-    }
+  // 如果静态检查没找到，启动JS检测
+  if (!_isDisposed && !_m3u8Found) {
+    _setupPeriodicCheck();
+    _injectM3U8Detector();
   }
 },
             onWebResourceError: (WebResourceError error) async {
