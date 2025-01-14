@@ -472,7 +472,7 @@ Future<bool> _executeClick() async {
         LogUtil.i('检测到匹配的关键词规则: $keyword，调用 getm3u8diy');
         try {
           // 使用 getm3u8diy 获取直播地址
-          final streamUrl = await getm3u8diy.getStreamUrl(url);
+          final streamUrl = await GetM3u8Diy.getStreamUrl(url);
           LogUtil.i('成功获取播放地址: $streamUrl');
           completer.complete(streamUrl);
           return completer.future;
