@@ -10,10 +10,10 @@ class HeadersConfig {
  
  /// 格式: domain1|referer1@domain2|referer2
  /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
- static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@tvlive.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@gxtv.cn|www.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com@tv_radio_47447|live.lzgd.com.cn@51742.hlsplay.aodianyun.com|www.yltvb.com@pubmod.hntv.tv|static.hntv.tv@tvcdn.stream3.hndt.com|static.hntv.tv';
+ static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@hwapi.yntv.net|cloudxyapi.yntv.net@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@gxtv.cn|www.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com@tv_radio_47447|live.lzgd.com.cn@51742.hlsplay.aodianyun.com|www.yltvb.com@pubmod.hntv.tv|static.hntv.tv@tvcdn.stream3.hndt.com|static.hntv.tv';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com@pubmod.hntv.tv@yntv-api.yntv.cn@tvlive.yntv.cn';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com@pubmod.hntv.tv';
 
  /// 排除规则字符串，格式: domain1@domain2@domain3
  /// 在此列表中的域名将使用通用播放器请求头
