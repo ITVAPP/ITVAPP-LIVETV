@@ -573,6 +573,11 @@ onPageFinished: (String url) async {
     if (isHashRoute) {
       // 使用完整URL作为key，确保每个URL有自己的首次加载标记
       String mapKey = uri.toString();
+      
+    LogUtil.i('当前URL: $mapKey');
+    LogUtil.i('_hashFirstLoadMap状态: ${_hashFirstLoadMap.toString()}');
+    LogUtil.i('URL是否存在于Map中: ${_hashFirstLoadMap.containsKey(mapKey)}');
+    
       // 如果是首次加载hash路由
       if (_hashFirstLoadMap[mapKey] != true) {
         _hashFirstLoadMap[mapKey] = true;
@@ -970,18 +975,28 @@ void _resetControllerState() {
 
     try {
       // 尝试获取原始响应内容，而不是HTML
-      final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-        (function() {
-          // 如果是普通HTML页面
-          if (document.contentType === "text/html") {
-            return document.documentElement.innerHTML.substring(0, 29998);
-          }
-          // 如果是JSON或其他类型
-          else {
-            return document.body.textContent;
-          }
-        })()
-      ''');
+final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
+  (function() {
+    // 如果是普通HTML页面
+    if (document.contentType === "text/html") {
+      // 创建一个临时容器来操作内容
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = document.documentElement.innerHTML;
+      
+      // 移除所有 style 标签
+      const styles = tempDiv.getElementsByTagName('style');
+      for(let i = styles.length - 1; i >= 0; i--) {
+        styles[i].parentNode.removeChild(styles[i]);
+      }
+      
+      return tempDiv.innerHTML.substring(0, 59998);
+    }
+    // 如果是JSON或其他类型
+    else {
+      return document.body.textContent;
+    }
+  })()
+''');
 
       if (sampleResult == null) {
         LogUtil.i('获取内容样本失败');
@@ -1016,8 +1031,8 @@ void _resetControllerState() {
         }
       }
 
-      if (sample.length > 28888) {
-        LogUtil.i('页面内容较大(超过30KB)，跳过静态检测');
+      if (sample.length > 58888) {
+        LogUtil.i('页面内容较大(超过58KB)，跳过静态检测');
         return null;
       }
 
