@@ -525,27 +525,32 @@ Future<String> getUrl() async {
               return NavigationDecision.prevent;
             },
 onPageFinished: (String url) async {
-  // 1. 状态检查
+  // 1. 基础状态检查
   if (_isDisposed) {
     LogUtil.i('资源已释放，跳过处理');
     return;
   }
-
+  
   LogUtil.i('页面加载完成: $url');
 
-  // 2. 检查是否是SPA导航
-  bool isSpaNavigation = false;
+  // 2. hash路由处理
+  bool isHashRoute = false;
   try {
     final uri = Uri.parse(url);
-    isSpaNavigation = uri.fragment.isNotEmpty;
+    isHashRoute = uri.fragment.isNotEmpty;
+    
+    // 如果是首次加载且带hash，等待第二次加载
+    if (!_isPageLoadProcessed && isHashRoute) {
+      LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+      return;
+    }
   } catch (e) {
     LogUtil.e('解析URL失败: $e');
   }
 
-  // 3. 分两种情况处理点击:
-  // - 首次加载 (!_isPageLoadProcessed)
-  // - SPA导航 (isSpaNavigation)
-  if ((!_isPageLoadProcessed || isSpaNavigation) && clickText != null && !_isClickExecuted) {
+  // 3. 点击处理
+  if (!_isClickExecuted && clickText != null) {
+    LogUtil.i('准备执行点击操作');
     // 给予页面渲染时间
     await Future.delayed(Duration(milliseconds: 500)); 
     if (!_isDisposed) {
@@ -553,9 +558,9 @@ onPageFinished: (String url) async {
     }
   }
 
-  // 4. 只在首次加载时执行的逻辑
+  // 4. 首次加载逻辑
   if (!_isPageLoadProcessed) {
-    _isPageLoadProcessed = true;  // 标记已处理
+    _isPageLoadProcessed = true;
     
     // 检查页面内容
     final m3u8Url = await _checkPageContent();
@@ -1117,7 +1122,7 @@ void _resetControllerState() {
           if (url.includes('base64,')) {
             const base64Content = url.split('base64,')[1];
             const decodedContent = atob(base64Content);
-            if (decodedContent.includes('.m3u8')) {
+            if (decodedContent.includes('.' + '${_filePattern}')) { 	
               processM3U8Url(decodedContent, depth + 1);
             }
           }
@@ -1129,12 +1134,24 @@ if (url.includes('.' + '${_filePattern}')) {
         }
 
         // 监控MediaSource
-        if (window.MediaSource) {
-          const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-          MediaSource.prototype.addSourceBuffer = function(mimeType) {
-            return originalAddSourceBuffer.call(this, mimeType);
-          };
-        }
+if (window.MediaSource) {
+  const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+  MediaSource.prototype.addSourceBuffer = function(mimeType) {
+    // 根据文件类型添加相应的MIME类型检查
+    const supportedTypes = {
+      'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+      'flv': ['video/x-flv', 'application/x-flv'],
+      'mp4': ['video/mp4', 'application/mp4']
+    };
+    
+    const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
+    if (currentSupportedTypes.some(type => mimeType.includes(type))) {
+      processM3U8Url(this.url, 0);
+    }
+    
+    return originalAddSourceBuffer.call(this, mimeType);
+  };
+}
 
         // 拦截XHR请求
         const XHR = XMLHttpRequest.prototype;
@@ -1172,33 +1189,46 @@ if (url.includes('.' + '${_filePattern}')) {
         // 检查媒体元素
         function checkMediaElements(doc = document) {
           // 优先检查video元素
-          doc.querySelectorAll('video').forEach(element => {
-            // 首先检查video元素本身的source
-            [element.src, element.currentSrc].forEach(src => {
-              if (src) processM3U8Url(src, 0);
-            });
+  doc.querySelectorAll('video').forEach(element => {
+    // 首先检查video元素本身的source
+    [element.src, element.currentSrc].forEach(src => {
+      if (src) processM3U8Url(src, 0);
+    });
 
-            // 检查source子元素
-            element.querySelectorAll('source').forEach(source => {
-              const src = source.src || source.getAttribute('src');
-              if (src) processM3U8Url(src, 0);
-            });
+    // 检查source子元素
+    element.querySelectorAll('source').forEach(source => {
+      const src = source.src || source.getAttribute('src');
+      if (src) processM3U8Url(src, 0);
+    });
 
-            // 检查data属性
-            for (const attr of element.attributes) {
-              if (attr.name.startsWith('data-') && attr.value) {
-                processM3U8Url(attr.value, 0);
-              }
-            }
-          });
+    // 检查特定于文件类型的属性
+    const fileTypeAttributes = [
+      'src',
+      'data-src',
+      `data-${_filePattern}`,
+      `${_filePattern}-url`,
+      `data-${_filePattern}-url`,
+      'data-video-url'
+    ];
+    
+    fileTypeAttributes.forEach(attr => {
+      const value = element.getAttribute(attr);
+      if (value) processM3U8Url(value, 0);
+    });
+  });
 
           // 检查其他可能包含视频源的元素
-          const videoContainers = doc.querySelectorAll([
-            '[class*="video"]',
-            '[class*="player"]',
-            '[id*="video"]',
-            '[id*="player"]'
-          ].join(','));
+const videoContainers = doc.querySelectorAll([
+  '[class*="video"]',
+  '[class*="player"]',
+  '[id*="video"]',
+  '[id*="player"]',
+  // 添加特定于文件类型的选择器
+  '[class*="${_filePattern}"]',
+  '[id*="${_filePattern}"]',
+  '[data-${_filePattern}]',
+  '[data-video-type="${_filePattern}"]'
+].join(','));
 
           videoContainers.forEach(container => {
             // 检查所有data属性
@@ -1308,13 +1338,21 @@ if (url.includes('.' + '${_filePattern}')) {
         });
 
         // 启动观察器，设置更具体的配置
-        observer.observe(document.documentElement, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ['src', 'href', 'data-src', 'currentSrc'],
-          characterData: false
-        });
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: [
+    'src', 
+    'href', 
+    'data-src', 
+    'currentSrc',
+    `data-${_filePattern}`,
+    `${_filePattern}-url`,
+    `data-${_filePattern}-url`
+  ],
+  characterData: false
+});
 
         // 处理现有iframe
         document.querySelectorAll('iframe').forEach(handleIframe);
