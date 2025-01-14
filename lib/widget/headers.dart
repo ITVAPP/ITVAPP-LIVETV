@@ -210,8 +210,11 @@ static String? _getRefererByRules(String url) {
        'referer': '$referer/',
        if (needCors) ...{
          'host': host,
-         'sec-fetch-mode': 'cors',
-         'sec-fetch-site': secFetchSite,
+         // 只有当不是 cross-site 时才添加这些头部
+         if (secFetchSite != 'cross-site') ...{
+           'sec-fetch-mode': 'cors',
+           'sec-fetch-site': secFetchSite,
+         }
        }
      };
 
