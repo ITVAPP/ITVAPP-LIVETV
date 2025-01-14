@@ -42,7 +42,7 @@ class GetM3U8 {
   static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8';
 
   /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
-  static String specialRulesString = 'nctv.net.cn|flv@mydomaint.com|mp4';
+  static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
 
   /// 动态关键词规则字符串，符合规则使用getm3u8diy来解析
   static String dynamicKeywordsString = 'sztv.com.cn@mycustomdomain.com';
