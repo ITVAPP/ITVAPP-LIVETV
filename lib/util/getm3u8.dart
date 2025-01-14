@@ -236,13 +236,9 @@ Future<bool> _executeClick() async {
           }
         }
 
-        // 如果没找到匹配的节点
         if (!foundNode) {
-          return {
-            success: false,
-            error: '未找到匹配元素',
-            matches: matches.map(m => m.text)
-          };
+          console.error('未找到匹配的元素');
+          return;
         }
 
         try {
@@ -251,97 +247,45 @@ Future<bool> _executeClick() async {
           foundNode.click();
 
           // 等待 1000ms 检查 class 是否发生变化
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const updatedClass = foundNode.getAttribute('class') || '';
+          setTimeout(() => {
+            const updatedClass = foundNode.getAttribute('class') || '';
+            if (originalClass !== updatedClass) {
+              console.info('节点点击成功，class 发生变化');
+            } else if (foundNode.parentElement) {
+              // 尝试点击父节点
+              const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
+              foundNode.parentElement.click();
 
-          if (originalClass !== updatedClass) {
-            return {
-              success: true,
-              matches: matches.map(m => m.text),
-              clicked: '节点本身',
-              originalClass: originalClass,
-              updatedClass: updatedClass
-            };
-          }
-
-          // 如果节点本身未变化，尝试点击父节点
-          if (foundNode.parentElement) {
-            const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
-            foundNode.parentElement.click();
-
-            // 等待 1000ms 检查父节点 class 是否发生变化
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
-
-            if (parentOriginalClass !== parentUpdatedClass) {
-              return {
-                success: true,
-                matches: matches.map(m => m.text),
-                clicked: '父节点',
-                originalClass: parentOriginalClass,
-                updatedClass: parentUpdatedClass
-              };
+              setTimeout(() => {
+                const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+                if (parentOriginalClass !== parentUpdatedClass) {
+                  console.info('父节点点击成功，class 发生变化');
+                } else {
+                  console.error('点击后无任何变化');
+                }
+              }, 1000);
             }
-          }
-
-          return {
-            success: false,
-            error: '点击后无变化',
-            matches: matches.map(m => m.text)
-          };
+          }, 1000);
         } catch (e) {
-          return {
-            success: false,
-            error: e.message || String(e),
-            matches: matches.map(m => m.text)
-          };
+          console.error('点击操作失败:', e);
         }
       }
 
-      return findAndClick();
+      findAndClick();
     } catch (e) {
-      return { success: false, error: e.message };
+      console.error('JavaScript 执行时发生错误:', e);
     }
   })();
   ''';
 
   try {
-    final result = await _controller.runJavaScriptReturningResult(jsCode);
-
-    // 尝试将结果解析为 Map
-    if (result == null) {
-      LogUtil.e('JavaScript返回结果为空');
-      return false;
-    }
-
-    Map<String, dynamic>? response;
-    if (result is String) {
-      try {
-        response = json.decode(result) as Map<String, dynamic>;
-      } catch (e) {
-        LogUtil.e('无法解析返回的JSON字符串: $result, 错误: $e');
-        return false;
-      }
-    } else if (result is Map<String, dynamic>) {
-      response = result;
-    } else {
-      LogUtil.e('返回结果类型不符合预期: ${result.runtimeType}');
-      return false;
-    }
-
-    if (response['success'] == true) {
-      LogUtil.i('点击成功: ${response['clicked']}');
-      _isClickExecuted = true;
-      await Future.delayed(const Duration(seconds: 2));
-      return true;
-    } else {
-      LogUtil.e('点击失败: ${response['error']}');
-      _isClickExecuted = true;
-      return false;
-    }
+    await _controller.runJavaScript(jsCode);
+    LogUtil.i('点击操作已执行，无需返回结果');
+    _isClickExecuted = true; // 标记为已执行
+    return true;
   } catch (e, stack) {
     LogUtil.logError('执行点击操作时发生错误', e, stack);
-    _isClickExecuted = true;
+    _isClickExecuted = true; // 标记为已执行
     return false;
   }
 }
