@@ -1042,11 +1042,11 @@ void _resetControllerState() {
   }
     // 如果已经注入过，直接返回
     if (_isDetectorInjected) {
-      LogUtil.i('M3U8检测器已注入，跳过重复注入');
+      LogUtil.i('检测器已注入，跳过重复注入');
       return;
     }
 
-    LogUtil.i('开始注入m3u8检测器JS代码');
+    LogUtil.i('开始注入媒体流检测器JS代码');
     final jsCode = '''
       (function() {
         // 避免重复初始化
@@ -1063,6 +1063,21 @@ void _resetControllerState() {
         let observer = null;
         const MAX_RECURSION_DEPTH = 3;
 
+        // 获取要检测的文件类型
+        const currentHost = window.location.hostname;
+        const specialRules = ${specialRulesString};
+        let targetFileType = 'm3u8'; // 默认检测类型
+
+        // 解析特殊规则
+        if (specialRules) {
+          specialRules.split('@').forEach(rule => {
+            const [domain, fileType] = rule.split('|');
+            if (currentHost.includes(domain.trim())) {
+              targetFileType = fileType.trim();
+            }
+          });
+        }
+        
         // URL处理函数
         function processM3U8Url(url, depth = 0) {
           if (!url || typeof url !== 'string') {
@@ -1095,12 +1110,12 @@ void _resetControllerState() {
           if (url.includes('base64,')) {
             const base64Content = url.split('base64,')[1];
             const decodedContent = atob(base64Content);
-            if (decodedContent.includes('.m3u8')) {
+            if (decodedContent.includes('.' + targetFileType)) {	
               processM3U8Url(decodedContent, depth + 1);
             }
           }
 
-          if (url.includes('.m3u8')) {
+          if (url.includes('.' + targetFileType)) {
             processedUrls.add(url);
             window.M3U8Detector.postMessage(url);
           }
@@ -1171,17 +1186,18 @@ void _resetControllerState() {
           });
 
           // 检查其他可能包含视频源的元素
-          const videoContainers = doc.querySelectorAll([
+          const mediaContainers = doc.querySelectorAll([
             '[class*="video"]',
             '[class*="player"]',
             '[id*="video"]',
-            '[id*="player"]'
+            '[id*="player"]',
+            '[class*="live"]',
+            '[id*="live"]'
           ].join(','));
 
-          videoContainers.forEach(container => {
-            // 检查所有data属性
+          mediaContainers.forEach(container => {
             for (const attr of container.attributes) {
-              if (attr.value) processM3U8Url(attr.value, 0);
+              if (attr.value) processStreamUrl(attr.value, 0);
             }
           });
 
@@ -1207,13 +1223,15 @@ void _resetControllerState() {
 
         // 高效的DOM扫描
         function efficientDOMScan() {
-          // 优先扫描明显的m3u8链接
+          // 扫描所有可能的媒体链接
           const elements = document.querySelectorAll([
-            'a[href*="m3u8"]',
-            'source[src*="m3u8"]',
-            'video[src*="m3u8"]',
-            '[data-src*="m3u8"]',
-            'iframe[src*="m3u8"]'
+            `a[href*="${targetFileType}"]`,
+            `source[src*="${targetFileType}"]`,
+            `video[src*="${targetFileType}"]`,
+            `[data-src*="${targetFileType}"]`,
+            `iframe[src*="${targetFileType}"]`,
+            '[class*="player"]',
+            '[id*="player"]'
           ].join(','));
 
           elements.forEach(element => {
@@ -1227,7 +1245,7 @@ void _resetControllerState() {
           document.querySelectorAll('script:not([src])').forEach(script => {
             const content = script.textContent;
             if (content) {
-              const urlRegex = /https?:\\/\\/[^\\s<>"]+?\\.m3u8[^\\s<>"']*/g;
+              const urlRegex = /https?:\\/\\/[^\\s<>"]+?\\.${targetFileType}[^\\s<>"']*/g;
               const matches = content.match(urlRegex);
               if (matches) {
                 matches.forEach(match => {
