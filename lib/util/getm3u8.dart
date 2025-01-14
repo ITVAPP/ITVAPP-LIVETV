@@ -1122,7 +1122,7 @@ void _resetControllerState() {
             }
           }
 
-if (url.includes('.' + '${filePattern}')) {
+if (url.includes('.' + '${_filePattern}')) {
   processedUrls.add(url);
   window.M3U8Detector.postMessage(url);
 }
@@ -1230,13 +1230,13 @@ if (url.includes('.' + '${filePattern}')) {
         // 高效的DOM扫描
         function efficientDOMScan() {
           // 优先扫描明显的m3u8链接
-const elements = document.querySelectorAll([
-  `a[href*="${_filePattern}"]`,
-  `source[src*="${_filePattern}"]`,
-  `video[src*="${_filePattern}"]`,
-  `[data-src*="${_filePattern}"]`,
-  `iframe[src*="${_filePattern}"]`
-].join(','));
+      const elements = document.querySelectorAll([
+        'a[href*="${_filePattern}"]',          
+        'source[src*="${_filePattern}"]',   
+        'video[src*="${_filePattern}"]',    
+        '[data-src*="${_filePattern}"]',      
+        'iframe[src*="${_filePattern}"]'       
+      ].join(','));
 
           elements.forEach(element => {
             for (const attr of ['href', 'src', 'data-src']) {
