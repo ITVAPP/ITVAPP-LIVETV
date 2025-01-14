@@ -527,6 +527,12 @@ Future<String> getUrl() async {
                 LogUtil.i('无效的URL，阻止加载');
                 return NavigationDecision.prevent;
               }
+              
+  // 对于已经处理过的相同URL,阻止重复加载
+  if (_hashFirstLoadMap.containsKey(request.url)) {
+    LogUtil.i('阻止重复加载: ${request.url}');
+    return NavigationDecision.prevent;
+  }
 
               // 获取文件扩展名
               final extension = uri.path.toLowerCase().split('.').last;
@@ -574,9 +580,7 @@ onPageFinished: (String url) async {
       // 使用完整URL作为key，确保每个URL有自己的首次加载标记
       String mapKey = uri.toString();
       
-    LogUtil.i('当前URL: $mapKey');
-    LogUtil.i('_hashFirstLoadMap状态: ${_hashFirstLoadMap.toString()}');
-    LogUtil.i('URL是否存在于Map中: ${_hashFirstLoadMap.containsKey(mapKey)}');
+    LogUtil.i('hashFirstLoadMap状态: ${_hashFirstLoadMap.toString()}, URL是否存在于Map中: ${_hashFirstLoadMap.containsKey(mapKey)}');
     
       // 如果是首次加载hash路由
       if (_hashFirstLoadMap[mapKey] != true) {
@@ -989,7 +993,7 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         styles[i].parentNode.removeChild(styles[i]);
       }
       
-      return tempDiv.innerHTML.substring(0, 59998);
+      return tempDiv.innerHTML.substring(0, 39998);
     }
     // 如果是JSON或其他类型
     else {
@@ -1031,8 +1035,8 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         }
       }
 
-      if (sample.length > 58888) {
-        LogUtil.i('页面内容较大(超过58KB)，跳过静态检测');
+      if (sample.length > 38888) {
+        LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
         return null;
       }
 
