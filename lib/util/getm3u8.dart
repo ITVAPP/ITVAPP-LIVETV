@@ -139,51 +139,48 @@ static final Map<String, bool> _hashFirstLoadMap = {};
 
 bool isHashRoute = false;
 
-/// 从URL中提取查询参数，支持hash路由和普通URL
-Map<String, String> _extractQueryParams(String url) {
-  try {
-    final uri = Uri.parse(url);
-    Map<String, String> params = Map.from(uri.queryParameters);
-    
-    // 如果URL包含hash部分，解析hash中的参数
-    if (uri.fragment.isNotEmpty) {
-      // 检查fragment是否包含查询参数
-      final fragmentParts = uri.fragment.split('?');
-      if (fragmentParts.length > 1) {
-        // 解析hash部分的查询参数
-        final hashParams = Uri.splitQueryString(fragmentParts[1]);
-        // 合并参数，hash部分的参数优先级更高
-        params.addAll(hashParams);
-      }
-    }
-    
-    return params;
-  } catch (e) {
-    LogUtil.e('解析URL参数时发生错误: $e');
-    return {};
-  }
-}
-
   /// 构造函数
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 9,
-  }) : _filterRules = _parseRules(rulesString) {
-    // 使用新的参数提取方法
-    final params = _extractQueryParams(url);
+  }) : _filterRules = _parseRules(rulesString),
+       // 初始化成员变量
+       fromParam = _extractQueryParams(url)['from'],
+       toParam = _extractQueryParams(url)['to'],
+       clickText = _extractQueryParams(url)['clickText'],
+       clickIndex = int.tryParse(_extractQueryParams(url)['clickIndex'] ?? '') ?? 0 {
     
-    // 初始化成员变量
-    fromParam = params['from'];
-    toParam = params['to'];
-    clickText = params['clickText'];
-    clickIndex = int.tryParse(params['clickIndex'] ?? '') ?? 0;
-
     // 记录提取到的参数
     if (fromParam != null && toParam != null) {
       LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
     }
     if (clickText != null) {
       LogUtil.i('检测到点击配置: text=$clickText, index=$clickIndex');
+    }
+  }
+  
+  /// 从URL中提取查询参数，支持hash路由和普通URL
+  static Map<String, String> _extractQueryParams(String url) {
+    try {
+      final uri = Uri.parse(url);
+      Map<String, String> params = Map.from(uri.queryParameters);
+      
+      // 如果URL包含hash部分，解析hash中的参数
+      if (uri.fragment.isNotEmpty) {
+        // 检查fragment是否包含查询参数
+        final fragmentParts = uri.fragment.split('?');
+        if (fragmentParts.length > 1) {
+          // 解析hash部分的查询参数
+          final hashParams = Uri.splitQueryString(fragmentParts[1]);
+          // 合并参数，hash部分的参数优先级更高
+          params.addAll(hashParams);
+        }
+      }
+      
+      return params;
+    } catch (e) {
+      LogUtil.e('解析URL参数时发生错误: $e');
+      return {};
     }
   }
 
