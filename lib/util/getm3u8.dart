@@ -137,6 +137,8 @@ String _filePattern = 'm3u8';  // 默认为 m3u8
 // 跟踪首次hash加载
 static final Map<String, bool> _hashFirstLoadMap = {};
 
+bool isHashRoute = false;
+
   /// 构造函数
   GetM3U8({
     required this.url,
@@ -534,10 +536,9 @@ onPageFinished: (String url) async {
     return;
   }
   
-  LogUtil.i('页面加载完成: $url');
+  LogUtil.i('页面加载完成: $url , isClickExecuted=$_isClickExecuted, clickText=$clickText, _isDisposed=$_isDisposed');
 
   // 2. hash路由处理
-  bool isHashRoute = false;
   try {
     final uri = Uri.parse(url);
     isHashRoute = uri.fragment.isNotEmpty;
@@ -551,7 +552,12 @@ onPageFinished: (String url) async {
         _hashFirstLoadMap[mapKey] = true;
         LogUtil.i('检测到hash路由首次加载，等待第二次加载');
         return;
-      } else {
+      } 
+    }
+  } catch (e) {
+    LogUtil.e('解析URL失败: $e');
+  }
+
   // 3. 点击处理
   if (!_isClickExecuted && clickText != null) {
     LogUtil.i('准备执行点击操作');
@@ -560,12 +566,7 @@ onPageFinished: (String url) async {
       await _executeClick();
     }
   }
-    }
-    }
-  } catch (e) {
-    LogUtil.e('解析URL失败: $e');
-  }
-
+  
   // 4. 首次加载逻辑
   if (!_isPageLoadProcessed) {
     _isPageLoadProcessed = true;
