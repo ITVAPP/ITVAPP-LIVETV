@@ -134,6 +134,9 @@ class GetM3U8 {
 /// 当前检测的文件类型
 String _filePattern = 'm3u8';  // 默认为 m3u8
 
+// 跟踪首次hash加载
+static final Map<String, bool> _hashFirstLoadMap = {};
+
   /// 构造函数
   GetM3U8({
     required this.url,
@@ -539,10 +542,16 @@ onPageFinished: (String url) async {
     final uri = Uri.parse(url);
     isHashRoute = uri.fragment.isNotEmpty;
     
-    // 如果是首次加载且带hash，等待第二次加载
-    if (!_isPageLoadProcessed && isHashRoute) {
-      LogUtil.i('检测到hash路由首次加载，等待第二次加载');
-      return;
+    if (isHashRoute) {
+      // 使用完整URL作为key，确保每个URL有自己的首次加载标记
+      String mapKey = uri.toString();
+      
+      // 如果是首次加载hash路由
+      if (_hashFirstLoadMap[mapKey] != true) {
+        _hashFirstLoadMap[mapKey] = true;
+        LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+        return;
+      }
     }
   } catch (e) {
     LogUtil.e('解析URL失败: $e');
@@ -551,7 +560,6 @@ onPageFinished: (String url) async {
   // 3. 点击处理
   if (!_isClickExecuted && clickText != null) {
     LogUtil.i('准备执行点击操作');
-    // 给予页面渲染时间
     await Future.delayed(Duration(milliseconds: 500)); 
     if (!_isDisposed) {
       await _executeClick();
@@ -732,6 +740,10 @@ void _resetControllerState() {
     LogUtil.i('开始释放资源');
     _isDisposed = true;
 
+  // 清理首次加载标记
+  final currentUrl = Uri.parse(url).toString();
+  _hashFirstLoadMap.remove(currentUrl);
+  
     // 取消定时器
     if (_periodicCheckTimer != null) {
       _periodicCheckTimer?.cancel();
@@ -1140,7 +1152,7 @@ if (window.MediaSource) {
     // 根据文件类型添加相应的MIME类型检查
     const supportedTypes = {
       'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-      'flv': ['video/x-flv', 'application/x-flv'],
+      'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'], 
       'mp4': ['video/mp4', 'application/mp4']
     };
     
@@ -1159,12 +1171,19 @@ if (window.MediaSource) {
         const originalSetRequestHeader = XHR.setRequestHeader;
         const originalSend = XHR.send;
 
-        XHR.open = function() {
-          this._method = arguments[0];
-          this._url = arguments[1];
-          this._requestHeaders = {};
-          return originalOpen.apply(this, arguments);
-        };
+XHR.open = function() {
+  this._method = arguments[0];
+  this._url = arguments[1];
+  this._requestHeaders = {};
+  if (this._url) {
+    // 检查 Content-Type
+    const contentType = this._requestHeaders['content-type'];
+    if (contentType && contentType.includes('flv')) {
+      processM3U8Url(this._url, 0);
+    }
+  }
+  return originalOpen.apply(this, arguments);
+};
 
         XHR.setRequestHeader = function(header, value) {
           this._requestHeaders[header.toLowerCase()] = value;
