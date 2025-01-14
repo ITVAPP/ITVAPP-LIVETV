@@ -42,7 +42,7 @@ class GetM3U8 {
   static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8';
 
   /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
-  static String specialRulesString = 'example.com|flv@mydomaint.com|mp4';
+  static String specialRulesString = 'nctv.net.cn|flv@mydomaint.com|mp4';
 
   /// 动态关键词规则字符串，符合规则使用getm3u8diy来解析
   static String dynamicKeywordsString = 'sztv.com.cn@mycustomdomain.com';
@@ -127,6 +127,9 @@ class GetM3U8 {
 
   /// 标记点击是否已执行
   bool _isClickExecuted = false;
+  
+  // 初始化状态标记
+  bool _isControllerInitialized = false; // 添加初始化状态标记
 
   /// 构造函数
   GetM3U8({
@@ -146,8 +149,12 @@ class GetM3U8 {
     }
   }
 
-  /// 执行点击操作
-Future<bool> _executeClick() async { 
+/// 执行点击操作
+Future<bool> _executeClick() async {
+  if (!_isControllerReady()) {
+    LogUtil.e('WebViewController 未初始化，无法执行点击');
+    return false;
+  }
   if (_isClickExecuted || clickText == null || clickText!.isEmpty) {
     LogUtil.i(_isClickExecuted ? '点击已执行，跳过' : '无点击配置，跳过');
     return false;
@@ -157,159 +164,169 @@ Future<bool> _executeClick() async {
 
   final jsCode = '''
   (async function() {
-    function findAndClick() {
-      const searchText = '${clickText}';
-      const targetIndex = ${clickIndex};
+    try {
+      function findAndClick() {
+        const searchText = '${clickText}';
+        const targetIndex = ${clickIndex};
 
-      // 获取所有文本和元素节点
-      const walk = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-        {
-          acceptNode: function(node) {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
-                return NodeFilter.FILTER_REJECT;
+        // 获取所有文本和元素节点
+        const walk = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+          {
+            acceptNode: function(node) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
               }
-              return NodeFilter.FILTER_ACCEPT;
+              if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_REJECT;
             }
-            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-              return NodeFilter.FILTER_ACCEPT;
+          }
+        );
+
+        // 记录找到的匹配
+        const matches = [];
+        let currentIndex = 0;
+        let foundNode = null;
+
+        // 遍历节点
+        let node;
+        while (node = walk.nextNode()) {
+          // 处理文本节点
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent.trim();
+            if (text === searchText) {
+              matches.push({
+                text: text,
+                node: node.parentElement
+              });
+
+              if (currentIndex === targetIndex) {
+                foundNode = node.parentElement;
+                break;
+              }
+              currentIndex++;
             }
-            return NodeFilter.FILTER_REJECT;
+          }
+          // 处理元素节点
+          else if (node.nodeType === Node.ELEMENT_NODE) {
+            const children = Array.from(node.childNodes);
+            const directText = children
+              .filter(child => child.nodeType === Node.TEXT_NODE)
+              .map(child => child.textContent.trim())
+              .join('');
+
+            if (directText === searchText) {
+              matches.push({
+                text: directText,
+                node: node
+              });
+
+              if (currentIndex === targetIndex) {
+                foundNode = node;
+                break;
+              }
+              currentIndex++;
+            }
           }
         }
-      );
 
-      // 记录找到的匹配
-      const matches = [];
-      let currentIndex = 0;
-      let foundNode = null;
-
-      // 遍历节点
-      let node;
-      while (node = walk.nextNode()) {
-        // 处理文本节点
-        if (node.nodeType === Node.TEXT_NODE) {
-          const text = node.textContent.trim();
-          if (text === searchText) {
-            matches.push({
-              text: text,
-              node: node.parentElement
-            });
-
-            if (currentIndex === targetIndex) {
-              foundNode = node.parentElement;
-              break;
-            }
-            currentIndex++;
-          }
-        }
-        // 处理元素节点
-        else if (node.nodeType === Node.ELEMENT_NODE) {
-          const children = Array.from(node.childNodes);
-          const directText = children
-            .filter(child => child.nodeType === Node.TEXT_NODE)
-            .map(child => child.textContent.trim())
-            .join('');
-
-          if (directText === searchText) {
-            matches.push({
-              text: directText,
-              node: node
-            });
-
-            if (currentIndex === targetIndex) {
-              foundNode = node;
-              break;
-            }
-            currentIndex++;
-          }
-        }
-      }
-
-      // 如果没找到匹配的节点
-      if (!foundNode) {
-        return {
-          success: false,
-          error: '未找到匹配元素',
-          matches: matches.map(m => m.text)
-        };
-      }
-
-      LogUtil.i('找到目标元素，开始清空 _foundUrls');
-      _foundUrls.clear(); // 只要找到目标元素就清空
-      
-      try {
-        // 优先点击节点本身
-        const originalClass = foundNode.getAttribute('class') || '';
-        foundNode.click();
-
-        // 等待 1000ms 检查 class 是否发生变化
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const updatedClass = foundNode.getAttribute('class') || '';
-
-        if (originalClass !== updatedClass) {
+        // 如果没找到匹配的节点
+        if (!foundNode) {
           return {
-            success: true,
-            matches: matches.map(m => m.text),
-            clicked: '节点本身',
-            originalClass: originalClass,
-            updatedClass: updatedClass
+            success: false,
+            error: '未找到匹配元素',
+            matches: matches.map(m => m.text)
           };
         }
 
-        // 如果节点本身未变化，尝试点击父节点
-        if (foundNode.parentElement) {
-          const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
-          foundNode.parentElement.click();
+        try {
+          // 优先点击节点本身
+          const originalClass = foundNode.getAttribute('class') || '';
+          foundNode.click();
 
-          // 等待 1000ms 检查父节点 class 是否发生变化
+          // 等待 1000ms 检查 class 是否发生变化
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+          const updatedClass = foundNode.getAttribute('class') || '';
 
-          if (parentOriginalClass !== parentUpdatedClass) {
+          if (originalClass !== updatedClass) {
             return {
               success: true,
               matches: matches.map(m => m.text),
-              clicked: '父节点',
-              originalClass: parentOriginalClass,
-              updatedClass: parentUpdatedClass
+              clicked: '节点本身',
+              originalClass: originalClass,
+              updatedClass: updatedClass
             };
           }
+
+          // 如果节点本身未变化，尝试点击父节点
+          if (foundNode.parentElement) {
+            const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
+            foundNode.parentElement.click();
+
+            // 等待 1000ms 检查父节点 class 是否发生变化
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+
+            if (parentOriginalClass !== parentUpdatedClass) {
+              return {
+                success: true,
+                matches: matches.map(m => m.text),
+                clicked: '父节点',
+                originalClass: parentOriginalClass,
+                updatedClass: parentUpdatedClass
+              };
+            }
+          }
+
+          return {
+            success: false,
+            error: '点击后无变化',
+            matches: matches.map(m => m.text)
+          };
+        } catch (e) {
+          return {
+            success: false,
+            error: e.message || String(e),
+            matches: matches.map(m => m.text)
+          };
         }
-
-        return {
-          success: false,
-          error: '点击后无变化',
-          matches: matches.map(m => m.text)
-        };
-      } catch (e) {
-        return {
-          success: false,
-          error: e.message || String(e),
-          matches: matches.map(m => m.text)
-        };
       }
-    }
 
-    return findAndClick();
+      return findAndClick();
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   })();
   ''';
 
   try {
     final result = await _controller.runJavaScriptReturningResult(jsCode);
 
-    // 尝试将结果转换为 Map
-    Map<String, dynamic> response;
-    try {
-      response = result as Map<String, dynamic>;
-    } catch (e) {
-      if (result is String) {
-        response = json.decode(result);
-      } else {
-        throw FormatException('Unexpected response format: ${result.runtimeType}');
+    // 尝试将结果解析为 Map
+    if (result == null) {
+      LogUtil.e('JavaScript返回结果为空');
+      return false;
+    }
+
+    Map<String, dynamic>? response;
+    if (result is String) {
+      try {
+        response = json.decode(result) as Map<String, dynamic>;
+      } catch (e) {
+        LogUtil.e('无法解析返回的JSON字符串: $result, 错误: $e');
+        return false;
       }
+    } else if (result is Map<String, dynamic>) {
+      response = result;
+    } else {
+      LogUtil.e('返回结果类型不符合预期: ${result.runtimeType}');
+      return false;
     }
 
     if (response['success'] == true) {
@@ -486,8 +503,6 @@ Future<bool> _executeClick() async {
 
     // 动态解析特殊规则
     final specialRules = _parseSpecialRules(specialRulesString);
-    LogUtil.i('解析到的特殊规则: $specialRules');
-
     // 判断是否符合特殊规则
     String filePattern = 'm3u8'; // 默认只监听 m3u8
     specialRules.forEach((domain, fileType) {
@@ -606,10 +621,12 @@ Future<bool> _executeClick() async {
           ),
         );
 
+      _isControllerInitialized = true; // 标记为已初始化
       await _loadUrlWithHeaders();
       LogUtil.i('WebViewController初始化完成');
     } catch (e, stackTrace) {
       LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      _isControllerInitialized = false; // 标记初始化失败
       await _handleLoadError(completer);
     }
   }
@@ -637,6 +654,10 @@ Future<bool> _executeClick() async {
 
   /// 加载URL并设置headers
   Future<void> _loadUrlWithHeaders() async {
+  if (!_isControllerReady()) {
+    LogUtil.e('WebViewController 未初始化，无法加载URL');
+    return;
+  }
     try {
       final headers = HeadersConfig.generateHeaders(url: url);
       await _controller.loadRequest(Uri.parse(url), headers: headers);
@@ -713,6 +734,22 @@ Future<bool> _executeClick() async {
     LogUtil.i('Performance: 耗时=${duration.inMilliseconds}ms, 检查=$_checkCount, 重试=$_retryCount, URL数=${_foundUrls.length}, 结果=${_m3u8Found ? "成功" : "失败"}');
   }
 
+bool _isControllerReady() {
+  if (!_isControllerInitialized || _isDisposed) {
+    LogUtil.i('Controller 未初始化或资源已释放，操作跳过');
+    return false;
+  }
+  return true;
+}
+
+void _resetControllerState() {
+  _isControllerInitialized = false;
+  _isDetectorInjected = false;
+  _isPageLoadProcessed = false;
+  _isClickExecuted = false;
+  _m3u8Found = false;
+}
+
   /// 释放资源
   Future<void> disposeResources() async {
     // 防止重复释放
@@ -729,7 +766,8 @@ Future<bool> _executeClick() async {
       _periodicCheckTimer?.cancel();
       _periodicCheckTimer = null;
     }
-
+   
+   if (_isControllerInitialized) {
     try {
       // 注入清理脚本，终止所有正在进行的网络请求和观察器
       await _controller.runJavaScript('''
@@ -808,17 +846,16 @@ Future<bool> _executeClick() async {
       await _controller.clearCache();
 
       // 重置所有标记
-      _isDetectorInjected = false;  // 重置注入标记
-      _isPageLoadProcessed = false; // 重置页面加载处理标记
-      _isClickExecuted = false;     // 重置点击执行标记
+      _resetControllerState();
 
       // 清理其他资源
       _foundUrls.clear();
-
       LogUtil.i('资源释放完成');
     } catch (e, stack) {
       LogUtil.logError('释放资源时发生错误', e, stack);
-    }
+    } else {
+    LogUtil.i('_controller 未初始化，跳过释放资源');
+   }
   }
 
   /// 处理发现的M3U8 URL
@@ -910,6 +947,10 @@ Future<bool> _executeClick() async {
 
   /// 检查页面内容中的M3U8地址
   Future<String?> _checkPageContent() async {
+  if (!_isControllerReady()) {
+    LogUtil.e('WebViewController 未初始化，无法检查页面内容');
+    return null;
+  }
     if (_m3u8Found || _isDisposed) {
       LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
       return null;
@@ -1050,6 +1091,10 @@ Future<bool> _executeClick() async {
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
+  if (!_isControllerReady()) {
+    LogUtil.e('WebViewController 未初始化，无法注入JS');
+    return;
+  }
     // 如果已经注入过，直接返回
     if (_isDetectorInjected) {
       LogUtil.i('M3U8检测器已注入，跳过重复注入');
