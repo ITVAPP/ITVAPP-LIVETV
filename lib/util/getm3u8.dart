@@ -130,6 +130,9 @@ class GetM3U8 {
   
   // 初始化状态标记
   bool _isControllerInitialized = false; // 添加初始化状态标记
+  
+/// 当前检测的文件类型
+String _filePattern = 'm3u8';  // 默认为 m3u8
 
   /// 构造函数
   GetM3U8({
@@ -420,53 +423,53 @@ Future<bool> _executeClick() async {
   }
 
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
-  Future<String> getUrl() async {
-    final completer = Completer<String>();
-    // 解析动态关键词规则
-    final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
+Future<String> getUrl() async {
+  final completer = Completer<String>();
+  // 解析动态关键词规则
+  final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
 
-    LogUtil.i('GetM3U8初始化开始，目标URL: $url');
+  LogUtil.i('GetM3U8初始化开始，目标URL: $url');
 
-    // 动态检查关键词
-    for (final keyword in dynamicKeywords) {
-      if (url.contains(keyword)) {
-        LogUtil.i('检测到匹配的关键词规则: $keyword，调用 getm3u8diy');
-        try {
-          // 使用 getm3u8diy 获取直播地址
-          final streamUrl = await GetM3u8Diy.getStreamUrl(url);
-          LogUtil.i('成功获取播放地址: $streamUrl');
-          completer.complete(streamUrl);
-          return completer.future;
-        } catch (e, stackTrace) {
-          LogUtil.logError('getm3u8diy 获取播放地址失败', e, stackTrace);
-          completer.completeError('ERROR');
-          return completer.future;
-        }
+  // 动态检查关键词
+  for (final keyword in dynamicKeywords) {
+    if (url.contains(keyword)) {
+      LogUtil.i('检测到匹配的关键词规则: $keyword，调用 getm3u8diy');
+      try {
+        // 使用 getm3u8diy 获取直播地址
+        final streamUrl = await GetM3u8Diy.getStreamUrl(url);
+        LogUtil.i('成功获取播放地址: $streamUrl');
+        completer.complete(streamUrl);
+        return completer.future;
+      } catch (e, stackTrace) {
+        LogUtil.logError('getm3u8diy 获取播放地址失败', e, stackTrace);
+        completer.completeError('ERROR');
+        return completer.future;
       }
     }
-
-    // 动态解析特殊规则
-    final specialRules = _parseSpecialRules(specialRulesString);
-    // 判断是否符合特殊规则
-    String filePattern = 'm3u8'; // 默认只监听 m3u8
-    specialRules.forEach((domain, fileType) {
-      if (url.contains(domain)) {
-        filePattern = fileType; // 匹配到规则则监听指定文件类型
-      }
-    });
-
-    LogUtil.i('检测模式: ${filePattern == "m3u8" ? "仅监听m3u8" : "监听$filePattern"}');
-
-    try {
-      await _initController(completer, filePattern);
-      _startTimeout(completer);
-    } catch (e, stackTrace) {
-      LogUtil.logError('初始化过程发生错误', e, stackTrace);
-      completer.complete('ERROR');
-    }
-
-    return completer.future;
   }
+
+  // 动态解析特殊规则
+  final specialRules = _parseSpecialRules(specialRulesString);
+  // 判断是否符合特殊规则
+  _filePattern = 'm3u8'; // 默认只监听 m3u8，修改为使用类变量
+  specialRules.forEach((domain, fileType) {
+    if (url.contains(domain)) {
+      _filePattern = fileType; // 匹配到规则则监听指定文件类型
+    }
+  });
+
+  LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
+
+  try {
+    await _initController(completer, _filePattern);  // 使用类变量
+    _startTimeout(completer);
+  } catch (e, stackTrace) {
+    LogUtil.logError('初始化过程发生错误', e, stackTrace);
+    completer.complete('ERROR');
+  }
+
+  return completer.future;
+}
 
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer, String filePattern) async {
@@ -522,36 +525,53 @@ Future<bool> _executeClick() async {
               return NavigationDecision.prevent;
             },
 onPageFinished: (String url) async {
-  // 先检查是否已处理过和资源释放
-  if (_isDisposed || _isPageLoadProcessed) {
-    LogUtil.i('跳过页面加载处理: ${_isDisposed ? "资源已释放" : "页面已处理过"}');
+  // 1. 状态检查
+  if (_isDisposed) {
+    LogUtil.i('资源已释放，跳过处理');
     return;
   }
 
-  // 立即标记为已处理，防止重复触发
-  _isPageLoadProcessed = true;
-  
   LogUtil.i('页面加载完成: $url');
 
-  // 如果配置了点击且未执行过，则执行点击操作
-  if (clickText != null && !_isClickExecuted) {
-    await _executeClick();
+  // 2. 检查是否是SPA导航
+  bool isSpaNavigation = false;
+  try {
+    final uri = Uri.parse(url);
+    isSpaNavigation = uri.fragment.isNotEmpty;
+  } catch (e) {
+    LogUtil.e('解析URL失败: $e');
   }
 
-  // 执行剩余的页面加载逻辑
-  final m3u8Url = await _checkPageContent();
-  if (m3u8Url != null && !completer.isCompleted) {
-    _m3u8Found = true;
-    completer.complete(m3u8Url);
-    _logPerformanceMetrics();
-    await disposeResources();
-    return;
+  // 3. 分两种情况处理点击:
+  // - 首次加载 (!_isPageLoadProcessed)
+  // - SPA导航 (isSpaNavigation)
+  if ((!_isPageLoadProcessed || isSpaNavigation) && clickText != null && !_isClickExecuted) {
+    // 给予页面渲染时间
+    await Future.delayed(Duration(milliseconds: 500)); 
+    if (!_isDisposed) {
+      await _executeClick();
+    }
   }
 
-  // 如果静态检查没找到，启动JS检测
-  if (!_isDisposed && !_m3u8Found) {
-    _setupPeriodicCheck();
-    _injectM3U8Detector();
+  // 4. 只在首次加载时执行的逻辑
+  if (!_isPageLoadProcessed) {
+    _isPageLoadProcessed = true;  // 标记已处理
+    
+    // 检查页面内容
+    final m3u8Url = await _checkPageContent();
+    if (m3u8Url != null && !completer.isCompleted) {
+      _m3u8Found = true;
+      completer.complete(m3u8Url);
+      _logPerformanceMetrics();
+      await disposeResources();
+      return;
+    }
+
+    // 如果静态检查没找到，启动JS检测
+    if (!_isDisposed && !_m3u8Found) {
+      _setupPeriodicCheck();
+      _injectM3U8Detector();
+    }
   }
 },
             onWebResourceError: (WebResourceError error) async {
@@ -588,7 +608,7 @@ onPageFinished: (String url) async {
         // 重置页面加载处理标记和点击执行标记，允许新的重试重新执行所有操作
         _isPageLoadProcessed = false;
         _isClickExecuted = false;  // 重置点击状态，允许重试时重新点击
-        await _initController(completer, 'm3u8'); // 默认重试 m3u8
+        await _initController(completer, _filePattern);
       }
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数或已释放资源');
@@ -859,11 +879,11 @@ void _resetControllerState() {
       return false;
     }
 
-    // 检查文件扩展名
-    if (!url.toLowerCase().contains('.m3u8')) {
-      LogUtil.i('URL不包含.m3u8扩展名');
-      return false;
-    }
+  // 检查文件扩展名 - 使用 _filePattern
+  if (!url.toLowerCase().contains('.' + _filePattern)) {  
+    LogUtil.i('URL不包含.$_filePattern扩展名');  
+    return false;
+  }
 
     // 检查是否包含无效关键词
     final lowercaseUrl = url.toLowerCase();
@@ -960,7 +980,7 @@ void _resetControllerState() {
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
       // 新的正则表达式(?:https?|ftp)
-      final pattern = r'''[\'"]([^\'"]*?\.m3u8[^\'"\s>]*)[\'"]|(?:^|\s)((?:https?|rtmp|rtsp|ftp|mms|thunder)?//[^\s<>]+?\.m3u8[^\s<>]*)''';
+      final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?|rtmp|rtsp|ftp|mms|thunder)?//[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
 
@@ -1102,10 +1122,10 @@ void _resetControllerState() {
             }
           }
 
-          if (url.includes('.m3u8')) {
-            processedUrls.add(url);
-            window.M3U8Detector.postMessage(url);
-          }
+if (url.includes('.' + '${filePattern}')) {
+  processedUrls.add(url);
+  window.M3U8Detector.postMessage(url);
+}
         }
 
         // 监控MediaSource
@@ -1210,13 +1230,13 @@ void _resetControllerState() {
         // 高效的DOM扫描
         function efficientDOMScan() {
           // 优先扫描明显的m3u8链接
-          const elements = document.querySelectorAll([
-            'a[href*="m3u8"]',
-            'source[src*="m3u8"]',
-            'video[src*="m3u8"]',
-            '[data-src*="m3u8"]',
-            'iframe[src*="m3u8"]'
-          ].join(','));
+const elements = document.querySelectorAll([
+  `a[href*="${_filePattern}"]`,
+  `source[src*="${_filePattern}"]`,
+  `video[src*="${_filePattern}"]`,
+  `[data-src*="${_filePattern}"]`,
+  `iframe[src*="${_filePattern}"]`
+].join(','));
 
           elements.forEach(element => {
             for (const attr of ['href', 'src', 'data-src']) {
@@ -1229,7 +1249,7 @@ void _resetControllerState() {
           document.querySelectorAll('script:not([src])').forEach(script => {
             const content = script.textContent;
             if (content) {
-              const urlRegex = /https?:\\/\\/[^\\s<>"]+?\\.m3u8[^\\s<>"']*/g;
+              const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
               const matches = content.match(urlRegex);
               if (matches) {
                 matches.forEach(match => {
