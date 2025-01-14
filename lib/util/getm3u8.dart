@@ -853,7 +853,8 @@ void _resetControllerState() {
       LogUtil.i('资源释放完成');
     } catch (e, stack) {
       LogUtil.logError('释放资源时发生错误', e, stack);
-    } else {
+    }
+   } else {
     LogUtil.i('_controller 未初始化，跳过释放资源');
    }
   }
