@@ -576,12 +576,10 @@ onPageFinished: (String url) async {
     // 获取当前触发次数
     int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
     currentTriggers++;
-      
-    LogUtil.i('hashFirstLoadMap状态: ${_hashFirstLoadMap.toString()}, URL是否存在于Map中: ${_hashFirstLoadMap.containsKey(mapKey)}');
     
     // 检查触发次数
     if (currentTriggers > 2) {
-      LogUtil.i('URL触发超过2次，跳过处理');
+      LogUtil.i('hash路由L触发超过2次，跳过处理');
       return;
     }
     
@@ -592,12 +590,6 @@ onPageFinished: (String url) async {
       LogUtil.i('检测到hash路由首次加载，等待第二次加载');
       return;
     }
-      
-      // 如果已经执行过点击，跳过后续处理
-      if (_isClickExecuted) {
-        LogUtil.i('点击已执行，跳过处理');
-        return;
-      }
     }
   } catch (e) {
     LogUtil.e('解析URL失败: $e');
