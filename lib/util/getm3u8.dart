@@ -135,7 +135,7 @@ class GetM3U8 {
 String _filePattern = 'm3u8';  // 默认为 m3u8
 
 // 跟踪首次hash加载
-static final Map<String, bool> _hashFirstLoadMap = {};
+static final Map<String, int> _hashFirstLoadMap = {};
 
 bool isHashRoute = false;
 
@@ -528,12 +528,6 @@ Future<String> getUrl() async {
                 return NavigationDecision.prevent;
               }
               
-  // 对于已经处理过的相同URL,阻止重复加载
-  if (_hashFirstLoadMap.containsKey(request.url)) {
-    LogUtil.i('阻止重复加载: ${request.url}');
-    return NavigationDecision.prevent;
-  }
-
               // 获取文件扩展名
               final extension = uri.path.toLowerCase().split('.').last;
 
@@ -579,15 +573,31 @@ onPageFinished: (String url) async {
     if (isHashRoute) {
       // 使用完整URL作为key，确保每个URL有自己的首次加载标记
       String mapKey = uri.toString();
+    // 获取当前触发次数
+    int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
+    currentTriggers++;
       
     LogUtil.i('hashFirstLoadMap状态: ${_hashFirstLoadMap.toString()}, URL是否存在于Map中: ${_hashFirstLoadMap.containsKey(mapKey)}');
     
-      // 如果是首次加载hash路由
-      if (_hashFirstLoadMap[mapKey] != true) {
-        _hashFirstLoadMap[mapKey] = true;
-        LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+    // 检查触发次数
+    if (currentTriggers > 2) {
+      LogUtil.i('URL触发超过2次，跳过处理');
+      return;
+    }
+    
+    // 更新触发次数
+    _hashFirstLoadMap[mapKey] = currentTriggers;
+    
+    if (currentTriggers == 1) {
+      LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+      return;
+    }
+      
+      // 如果已经执行过点击，跳过后续处理
+      if (_isClickExecuted) {
+        LogUtil.i('点击已执行，跳过处理');
         return;
-      } 
+      }
     }
   } catch (e) {
     LogUtil.e('解析URL失败: $e');
