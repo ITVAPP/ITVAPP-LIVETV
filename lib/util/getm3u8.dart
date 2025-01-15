@@ -640,8 +640,8 @@ if (m3u8Url != null) {
 
     // 如果静态检查没找到，启动JS检测
     if (!_isDisposed && !_m3u8Found) {
-      _setupPeriodicCheck();
-      _injectM3U8Detector();
+      //_setupPeriodicCheck();
+      //_injectM3U8Detector();
     }
   }
 },
@@ -1076,7 +1076,7 @@ final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?
 final regex = RegExp(pattern, caseSensitive: false);
 final matches = regex.allMatches(sample);
 
-      if (clickIndex != 0) {
+      if (clickIndex == 0) {
         for (final match in matches) {
           // 检查两个捕获组
           String? url = match.group(1);  // 引号中的内容
