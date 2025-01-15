@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -124,10 +123,48 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       LogUtil.i('停用页面的焦点管理');
   }
   
-@override
+  @override
   void dispose() {
     releaseResources();
     super.dispose();
+  }
+
+  /// 释放组件使用的资源
+  void releaseResources() {
+    try {
+      if (!mounted) {
+        return;
+      }
+
+      if (_currentFocus != null && _currentFocus!.canRequestFocus) {
+        if (widget.frameType == "parent") {
+          _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
+        }
+        if (_currentFocus!.hasFocus) {
+          _currentFocus!.unfocus();
+        }
+        _currentFocus = null;
+      }
+
+      if (widget.frameType == "child" || !widget.isFrame) {
+        _groupFocusCache.clear();
+      }
+
+      _isFocusManagementActive = !widget.isFrame;
+
+      WidgetsBinding.instance.removeObserver(this);
+
+    } catch (e) {
+      _ensureCriticalResourceRelease();
+    }
+  }
+
+  void _ensureCriticalResourceRelease() {
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {
+      // 忽略最终清理时的错误
+    }
   }
 
   /// 初始化焦点逻辑
@@ -156,83 +193,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
     });
   }
-
-/// 释放组件使用的资源
-void releaseResources() {
-  try {
-    // 1. 首先检查 context 是否有效
-    if (!mounted) {
-      return;
-    }
-
-    // 2. 清理定时器资源（优先级最高，避免后续可能的回调）
-    _cancelTimer();
-
-    // 3. 清理焦点相关资源（在清理UI之前处理状态）
-    if (_currentFocus != null && _currentFocus!.canRequestFocus) {
-      if (widget.frameType == "parent") {
-        // 保存父页面最后的焦点位置
-        _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
-      }
-      // 安全地取消焦点
-      if (_currentFocus!.hasFocus) {
-        _currentFocus!.unfocus();
-      }
-      _currentFocus = null;
-    }
-
-    // 4. 清理调试相关资源（从内到外清理UI）
-    _debugMessages.clear();
-    // 安全地移除所有调试覆盖层
-    if (_debugOverlays.isNotEmpty) {
-      for (var entry in List<OverlayEntry>.from(_debugOverlays)) {
-        if (entry.mounted) {
-          entry.remove();
-        }
-      }
-      _debugOverlays.clear();
-    }
-
-    // 5. 清理缓存资源
-    if (widget.frameType == "child" || !widget.isFrame) {
-      // 清理分组焦点缓存
-      _groupFocusCache.clear();
-    }
-
-    // 6. 重置组件状态（在最后阶段重置状态变量）
-    _isFocusManagementActive = !widget.isFrame;
-
-    // 7. 移除生命周期观察者（最后执行，因为可能还需要生命周期回调）
-    WidgetsBinding.instance.removeObserver(this);
-
-  } catch (e, _) {
-    // 确保关键资源释放
-    _ensureCriticalResourceRelease();
-  }
-}
-
-/// 确保关键资源释放的辅助方法
-void _ensureCriticalResourceRelease() {
-  try {
-    // 1. 确保定时器被取消
-    _cancelTimer();
-    
-    // 2. 确保移除生命周期观察者
-    WidgetsBinding.instance.removeObserver(this);
-    
-    // 3. 确保清理所有覆盖层
-    if (_debugOverlays.isNotEmpty) {
-      for (var entry in List<OverlayEntry>.from(_debugOverlays)) {
-        if (entry.mounted) {
-          entry.remove();
-        }
-      }
-      _debugOverlays.clear();
-    }
-  } catch (_) {
-    // 忽略最终清理时的错误
-  }
-}
 
   /// 封装错误处理逻辑
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
@@ -501,7 +461,7 @@ void _ensureCriticalResourceRelease() {
     }
     return groups;
   }
-  
+
 /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     FocusNode? currentFocus = _currentFocus;
