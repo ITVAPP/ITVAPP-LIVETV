@@ -519,9 +519,7 @@ _filePattern = specialRules.entries
         ..setNavigationDelegate(
           NavigationDelegate(
 onNavigationRequest: (NavigationRequest request) {
-  
   LogUtil.i('页面导航请求: ${request.url}');
-  return;
   final uri = Uri.tryParse(request.url);
   if (uri == null) {
     LogUtil.i('无效的URL，阻止加载');
