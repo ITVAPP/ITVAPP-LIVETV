@@ -40,12 +40,12 @@ class LogUtil {
   }
 
   /// 安全执行方法
-  static void safeExecute(Function() action) {
+  static Future<void> safeExecute(Future<void> Function() action) async {
     try {
-      action();
-    } catch (e, stackTrace) {
-      e('执行操作时发生错误: ${e.toString()}');
-      logError('安全执行失败', e, stackTrace);
+      await action();
+    } catch (error, stackTrace) {
+      e('执行操作时发生错误: ${error.toString()}');
+      logError('安全执行失败', error, stackTrace);
     }
   }
 
