@@ -1015,6 +1015,16 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         return null;
       }
 
+      if (sampleResult.length > 38888) {
+        LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
+        return null;
+      }
+
+  if (!sampleResult.contains('.' + _filePattern)) {
+    LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+    return null;
+  }
+  
       // 处理JSON转义字符
       String sample = sampleResult.toString()
         .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
@@ -1042,80 +1052,35 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
           LogUtil.i('URL解码失败，保持原样: $e');
         }
       }
-
-      if (sample.length > 38888) {
-        LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
-        return null;
-      }
-
+      
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
-      // 新的正则表达式(?:https?|ftp)
-      final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?|rtmp|rtsp|ftp|mms|thunder)?//[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
+      // 正则表达式
+      final pattern = '(?:https?://[^\\s"\'>]+?\\.${_filePattern}[^\\s"\'}>]*)';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
 
-      if (clickIndex == 0) {
-        for (final match in matches) {
-          // 检查两个捕获组
-          String? url = match.group(1);  // 引号中的内容
-          if (url == null || url.isEmpty) {
-            url = match.group(2);  // 非引号的URL
-          }
-
-          if (url != null && url.isNotEmpty) {
-            LogUtil.i('正则匹配到URL: $url');
-            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
-            if (_isValidM3U8Url(cleanedUrl)) {
-              String finalUrl = cleanedUrl;
-              if (fromParam != null && toParam != null) {
-                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-              }
-              _foundUrls.add(finalUrl);
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('页面内容中找到 $finalUrl');
-              return finalUrl;
-            }
-          }
-        }
-      } else {
-        final Set<String> foundUrls = {};
-
-        for (final match in matches) {
-          String? url = match.group(1);
-          if (url == null || url.isEmpty) {
-            url = match.group(2);
-          }
-
-          if (url != null && url.isNotEmpty) {
-            foundUrls.add(_handleRelativePath(url));
-          }
-        }
-
-        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
-        LogUtil.i('去重后的URLs: ${foundUrls.toList()}');
-
-        int index = 0;
-        for (final url in foundUrls) {
-          String cleanedUrl = _cleanUrl(url);
-          if (_isValidM3U8Url(cleanedUrl)) {
-            String finalUrl = cleanedUrl;
-            if (fromParam != null && toParam != null) {
-              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-            }
-            _foundUrls.add(finalUrl);
-            if (index == clickIndex) {
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-              return finalUrl;
-            }
-            index++;
-          }
-        }
+if (clickIndex == 0) {
+  // 找第一个匹配的URL
+  for (final match in matches) {
+    final url = match.group(0);
+    if (url != null && _isValidM3U8Url(url)) {
+      return url;
+    }
+  }
+} else {
+  // 需要指定索引的URL
+  final validUrls = <String>[];
+  for (final match in matches) {
+    final url = match.group(0);
+    if (url != null && _isValidM3U8Url(url)) {
+      validUrls.add(url);
+      if (validUrls.length > clickIndex) {
+        return validUrls[clickIndex];
       }
-
+    }
+  }
+}
       LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
       return null;
 
