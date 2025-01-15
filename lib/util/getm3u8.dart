@@ -567,7 +567,7 @@ onPageFinished: (String url) async {
     return;
   }
   
-  LogUtil.i('页面加载完成: $url , isClickExecuted=$_isClickExecuted, clickText=$clickText, _isDisposed=$_isDisposed');
+  LogUtil.i('页面加载完成: $url');
 
    // 如果已经执行过点击，跳过后续处理
    if (_isClickExecuted) {
@@ -640,8 +640,8 @@ if (m3u8Url != null) {
 
     // 如果静态检查没找到，启动JS检测
     if (!_isDisposed && !_m3u8Found) {
-      //_setupPeriodicCheck();
-      //_injectM3U8Detector();
+      _setupPeriodicCheck();
+      _injectM3U8Detector();
     }
   }
 },
@@ -1071,70 +1071,7 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
-// 正则表达式
-final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
-final regex = RegExp(pattern, caseSensitive: false);
-final matches = regex.allMatches(sample);
 
-      if (clickIndex == 0) {
-        for (final match in matches) {
-          // 检查两个捕获组
-          String? url = match.group(1);  // 引号中的内容
-          if (url == null || url.isEmpty) {
-            url = match.group(2);  // 非引号的URL
-          }
-
-          if (url != null && url.isNotEmpty) {
-            LogUtil.i('正则匹配到URL: $url');
-            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
-            if (_isValidM3U8Url(cleanedUrl)) {
-              String finalUrl = cleanedUrl;
-              if (fromParam != null && toParam != null) {
-                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-              }
-              _foundUrls.add(finalUrl);
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('页面内容中找到 $finalUrl');
-              return finalUrl;
-            }
-          }
-        }
-      } else {
-        final Set<String> foundUrls = {};
-
-        for (final match in matches) {
-          String? url = match.group(1);
-          if (url == null || url.isEmpty) {
-            url = match.group(2);
-          }
-
-          if (url != null && url.isNotEmpty) {
-            foundUrls.add(_handleRelativePath(url));
-          }
-        }
-
-        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
-
-        int index = 0;
-        for (final url in foundUrls) {
-          String cleanedUrl = _cleanUrl(url);
-          if (_isValidM3U8Url(cleanedUrl)) {
-            String finalUrl = cleanedUrl;
-            if (fromParam != null && toParam != null) {
-              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-            }
-            _foundUrls.add(finalUrl);
-            if (index == clickIndex) {
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-              return finalUrl;
-            }
-            index++;
-          }
-        }
-      }
       
       LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
       final isApiOrJson = await _controller.runJavaScriptReturningResult('window.contentIsApiOrJson');
