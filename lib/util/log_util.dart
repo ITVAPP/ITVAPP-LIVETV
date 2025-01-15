@@ -133,47 +133,49 @@ static Future<void> _saveLogsToStorage() async {
  }
 
  // 显示调试信息的弹窗
- static void _showDebugMessage(String message) {
-   _debugMessages.add(message);
-   if (_debugMessages.length > 6) {
-     _debugMessages.removeAt(0);
-   }
+static void _showDebugMessage(String message) {
+  // 在开头插入新消息（最新的消息在最上面）
+  _debugMessages.insert(0, message);
+  if (_debugMessages.length > 6) {
+    // 移除最后一条（最旧的）消息
+    _debugMessages.removeLast();
+  }
 
-   _hideOverlay();  // 先清理已有的弹窗
-
-   final overlayState = _findOverlayState();
-   if (overlayState != null) {
-     _overlayEntry = OverlayEntry(
-       builder: (context) => Positioned(
-         bottom: 20.0,
-         right: 20.0,
-         child: Material(
-           color: Colors.transparent,
-           child: Container(
-             constraints: const BoxConstraints(maxWidth: 300.0),
-             padding: const EdgeInsets.all(8.0),
-             decoration: BoxDecoration(
-               color: Colors.black.withOpacity(0.7),
-               borderRadius: BorderRadius.circular(8),
-             ),
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: _debugMessages.map((msg) => Text(
-                 msg,
-                 style: const TextStyle(color: Colors.white, fontSize: 14),
-                 softWrap: true,
-                 overflow: TextOverflow.visible,
-               )).toList(),
-             ),
-           ),
-         ),
-       ),
-     );
-     
-     overlayState.insert(_overlayEntry!);
-     _startAutoHideTimer();
-   }
- }
+  _hideOverlay();  // 先清理已有的弹窗
+  
+  final overlayState = _findOverlayState();
+  if (overlayState != null) {
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 20.0,
+        right: 20.0,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 300.0),
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _debugMessages.map((msg) => Text(
+                msg,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                softWrap: true,
+                overflow: TextOverflow.visible,
+              )).toList(),
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    overlayState.insert(_overlayEntry!);
+    _startAutoHideTimer();
+  }
+}
 
  // 查找有效的 OverlayState
   static final navigatorObserver = NavigatorObserver();
@@ -213,19 +215,26 @@ static Future<void> _saveLogsToStorage() async {
  }
 
  // 启动自动隐藏计时器
- static void _startAutoHideTimer() {
-   _timer?.cancel();
-   _timer = Timer(Duration(seconds: _messageDisplayDuration), () {
-     if (_debugMessages.isNotEmpty) {
-       _debugMessages.removeAt(0);
-       if (_debugMessages.isEmpty) {
-         _hideOverlay();
-       } else {
-         _overlayEntry?.markNeedsBuild();
-       }
-     }
-   });
- }
+static void _startAutoHideTimer() {
+  _timer?.cancel();
+  _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
+    if (_debugMessages.isEmpty) {
+      _hideOverlay();
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      // 每次都移除最后一条（最旧的）消息
+      _debugMessages.removeLast();
+      if (_debugMessages.isEmpty) {
+        _hideOverlay();
+        _timer?.cancel();
+        _timer = null;
+      } else {
+        _overlayEntry?.markNeedsBuild();
+      }
+    }
+  });
+}
 
  // 封装的日志记录方法，增加参数检查并记录堆栈位置
  static Future<void> logError(String message, dynamic error, [StackTrace? stackTrace]) async {
