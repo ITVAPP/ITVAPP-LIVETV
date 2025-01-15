@@ -1130,7 +1130,7 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
     if (_isDisposed) {
-      LogUtil.i('资源已释放，跳过注入JS'');
+      LogUtil.i('资源已释放，跳过注入JS');
       return;
     }
   if (!_isControllerReady()) {
