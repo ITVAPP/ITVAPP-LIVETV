@@ -14,6 +14,14 @@ class LogUtil {
  static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
 
+ // 弹窗相关属性
+ static bool _showOverlay = true; // 控制是否显示弹窗
+ static final List<OverlayEntry> _debugOverlays = [];
+ static final List<String> _debugMessages = [];
+ static Timer? _timer;
+ static const int _messageDisplayDuration = 3;
+ static BuildContext? _lastContext;
+
  // 初始化方法，在应用启动时调用
  static Future<void> init() async {
    await SpUtil.getInstance();
@@ -55,9 +63,18 @@ static Future<void> _saveLogsToStorage() async {
    }
  }
 
+ // 设置是否显示弹窗
+ static void setShowOverlay(bool show) {
+   _showOverlay = show;
+   if (!show) {
+     _clearAllOverlays();
+   }
+ }
+
  // 通过 Provider 来获取 isLogOn 并设置 debugMode
  static void updateDebugModeFromProvider(BuildContext context) {
    try {
+     _lastContext = context; // 保存context以供弹窗使用
      var themeProvider = Provider.of<ThemeProvider>(context, listen: false);
      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
      setDebugMode(isLogOn);
@@ -135,9 +152,94 @@ static Future<void> _saveLogsToStorage() async {
      _logs.add({'time': time, 'level': level, 'message': logMessage});
      await _saveLogsToStorage(); // 等待保存完成
      developer.log(logMessage);
+
+     // 如果开启了弹窗显示，则显示弹窗
+     if (_showOverlay) {
+       _showDebugOverlay('[$level] $objectStr');
+     }
    } catch (e) {
      developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
    }
+ }
+
+ // Debug Overlay 相关方法
+ static void _showDebugOverlay(String message) {
+   if (!_showOverlay || _lastContext == null) return;
+    
+   _debugMessages.add(message);
+   if (_debugMessages.length > 6) {
+     _debugMessages.removeAt(0);
+   }
+    
+   _clearAllOverlays();
+   final overlayEntry = _createDebugOverlay();
+   Overlay.of(_lastContext!).insert(overlayEntry);
+   _debugOverlays.add(overlayEntry);
+   _resetTimer();
+ }
+
+ static OverlayEntry _createDebugOverlay() {
+   return OverlayEntry(
+     builder: (context) => Positioned(
+       bottom: 20.0,
+       right: 20.0,
+       child: Material(
+         color: Colors.transparent,
+         child: Container(
+           constraints: const BoxConstraints(maxWidth: 300.0),
+           padding: const EdgeInsets.all(8.0),
+           decoration: BoxDecoration(
+             color: Colors.black.withOpacity(0.7),
+             borderRadius: BorderRadius.circular(8),
+           ),
+           child: Column(
+             crossAxisAlignment: CrossAxisAlignment.start,
+             children: _debugMessages.map((msg) => Text(
+               msg,
+               style: const TextStyle(color: Colors.white, fontSize: 14),
+               softWrap: true,
+               overflow: TextOverflow.visible,
+             )).toList(),
+           ),
+         ),
+       ),
+     ),
+   );
+ }
+
+ static void _resetTimer() {
+   if (!_showOverlay || (_timer?.isActive ?? false)) return;
+    
+   _cancelTimer();
+   _timer = Timer.periodic(const Duration(seconds: _messageDisplayDuration), (timer) {
+     if (_debugMessages.isNotEmpty) {
+       _debugMessages.removeAt(0);
+       if (_debugMessages.isEmpty) {
+         _clearAllOverlays();
+         _cancelTimer();
+       } else {
+         _updateOverlayMessages();
+       }
+     }
+   });
+ }
+
+ static void _updateOverlayMessages() {
+   if (_debugOverlays.isNotEmpty) {
+     _debugOverlays.first.markNeedsBuild();
+   }
+ }
+
+ static void _clearAllOverlays() {
+   for (var entry in _debugOverlays) {
+     entry.remove();
+   }
+   _debugOverlays.clear();
+ }
+
+ static void _cancelTimer() {
+   _timer?.cancel();
+   _timer = null;
  }
 
  // 获取文件名和行号，记录 frames
