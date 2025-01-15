@@ -38,15 +38,14 @@ class LogUtil {
  }
 
  // 保存日志到持久化存储
- static Future<void> _saveLogsToStorage() async {
+static Future<void> _saveLogsToStorage() async {
    try {
      final String logsStr = json.encode(_logs);
-     await SpUtil.putString(_logsKey, logsStr);
-     await SpUtil.commit(); 
+     await SpUtil.putString(_logsKey, logsStr);  // putString 会自动保存
    } catch (e) {
      developer.log('保存日志到持久化存储失败: $e');
    }
- }
+}
 
  // 设置 debugMode 状态，供外部调用
  static void setDebugMode(bool isEnabled) {
