@@ -1031,18 +1031,18 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         return null;
       }
 
-      if (sampleResult.length > 38888) {
+      String sample = sampleResult.toString(); 
+
+      if (sample.length > 38888) {
         LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
         return null;
       }
 
-  if (!sampleResult.contains('.' + _filePattern)) {
+  if (!sample.contains('.' + _filePattern)) {
     LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
     return null;
   }
   
-
-      
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
 // 正则表达式
