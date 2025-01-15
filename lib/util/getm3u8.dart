@@ -688,6 +688,7 @@ if (m3u8Url != null && !completer.isCompleted) {
 
   /// 设置定期检查
   void _setupPeriodicCheck() {
+    return;
     // 如果已经有定时器在运行，或者已释放资源，或者已找到M3U8，则直接返回
     if (_periodicCheckTimer != null || _isDisposed || _m3u8Found) {
       LogUtil.i('跳过定期检查设置: ${_periodicCheckTimer != null ? "定时器已存在" : _isDisposed ? "已释放资源" : "已找到M3U8"}');
@@ -1138,6 +1139,7 @@ final matches = regex.allMatches(sample);
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
+    return;
 if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
   LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' : 
             !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
