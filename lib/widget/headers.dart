@@ -21,11 +21,11 @@ class HeadersConfig {
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
-  'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
   'accept': '*/*',
   'accept-language': '*',
   'connection': 'keep-alive',
   'range': 'bytes=0-',  // 支持分片下载
+  'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
  };
 
  /// 基础请求头
