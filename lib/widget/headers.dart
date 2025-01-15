@@ -214,8 +214,8 @@ static String? _getRefererByRules(String url) {
            'sec-fetch-mode': 'cors',
            'sec-fetch-site': secFetchSite,
          }
-        'user-agent': userAgent,
        }
+      'user-agent': userAgent,
      };
 
      LogUtil.i('生成主机头：$headers');
