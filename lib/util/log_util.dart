@@ -23,7 +23,7 @@ class LogUtil {
  // 从持久化存储加载日志
  static Future<void> _loadLogsFromStorage() async {
    try {
-     final String? logsStr = await SpUtil.getString(_logsKey);
+     final String? logsStr = SpUtil.getString(_logsKey);  
      if (logsStr != null && logsStr.isNotEmpty) {
        final List<dynamic> logsList = json.decode(logsStr);
        _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
