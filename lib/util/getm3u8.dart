@@ -481,14 +481,14 @@ Future<String> getUrl() async {
   }
 
   // 动态解析特殊规则
-  final specialRules = _parseSpecialRules(specialRulesString);
-  // 判断是否符合特殊规则
-  _filePattern = 'm3u8'; // 默认只监听 m3u8，修改为使用类变量
-  specialRules.forEach((domain, fileType) {
-    if (url.contains(domain)) {
-      _filePattern = fileType; // 匹配到规则则监听指定文件类型
-    }
-  });
+final specialRules = _parseSpecialRules(specialRulesString);
+// 使用 firstWhere 或 entries.firstWhere 直接找到匹配的规则
+_filePattern = specialRules.entries
+    .firstWhere(
+      (entry) => url.contains(entry.key),
+      orElse: () => const MapEntry('', 'm3u8')
+    )
+    .value;
 
   LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
 
@@ -615,7 +615,6 @@ if (_isDisposed || _isClickExecuted) {
 if (m3u8Url != null && !completer.isCompleted) {
     _m3u8Found = true;
     completer.complete(m3u8Url);
-    _logPerformanceMetrics();
     await disposeResources();
     return;
 }
@@ -666,7 +665,6 @@ if (m3u8Url != null && !completer.isCompleted) {
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数或已释放资源');
       completer.complete('ERROR');
-      _logPerformanceMetrics();
       await disposeResources();
     }
   }
@@ -688,7 +686,6 @@ if (m3u8Url != null && !completer.isCompleted) {
 
   /// 设置定期检查
   void _setupPeriodicCheck() {
-    return;
     // 如果已经有定时器在运行，或者已释放资源，或者已找到M3U8，则直接返回
     if (_periodicCheckTimer != null || _isDisposed || _m3u8Found) {
       LogUtil.i('跳过定期检查设置: ${_periodicCheckTimer != null ? "定时器已存在" : _isDisposed ? "已释放资源" : "已找到M3U8"}');
@@ -742,16 +739,9 @@ if (m3u8Url != null && !completer.isCompleted) {
       if (!_isDisposed && !_m3u8Found && !completer.isCompleted) {
         LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
         completer.complete('ERROR');
-        _logPerformanceMetrics();
         await disposeResources();
       }
     });
-  }
-
-  /// 记录性能指标
-  void _logPerformanceMetrics() {
-    final duration = DateTime.now().difference(_startTime);
-    LogUtil.i('Performance: 耗时=${duration.inMilliseconds}ms, 检查=$_checkCount, 重试=$_retryCount, URL数=${_foundUrls.length}, 结果=${_m3u8Found ? "成功" : "失败"}');
   }
 
 bool _isControllerReady() {
@@ -914,7 +904,6 @@ if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
         _m3u8Found = true;
         if (!completer.isCompleted) {
           completer.complete(finalUrl);
-          _logPerformanceMetrics();
           await disposeResources();
         }
       } else {
@@ -1139,7 +1128,6 @@ final matches = regex.allMatches(sample);
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
-    return;
 if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
   LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' : 
             !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
