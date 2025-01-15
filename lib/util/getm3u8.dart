@@ -968,13 +968,12 @@ if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
 
   /// 检查页面内容中的M3U8地址
   Future<String?> _checkPageContent() async {
-if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+if (!_isControllerReady() || m3u8Found || isDisposed) {
   LogUtil.i(
-    !_isControllerReady() 
-      ? LogLevel.error : LogLevel.info,
     !_isControllerReady()
       ? 'WebViewController 未初始化，无法检查页面内容'
-      : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}'
+      : '跳过页面内容检查: ${m3u8Found ? "已找到M3U8" : "资源已释放"}',
+    tag: !_isControllerReady() ? LogLevel.error.toString() : LogLevel.info.toString()
   );
   return null;
 }
