@@ -518,44 +518,48 @@ Future<String> getUrl() async {
         )
         ..setNavigationDelegate(
           NavigationDelegate(
-            onNavigationRequest: (NavigationRequest request) {
-              LogUtil.i('页面导航请求: ${request.url}');
+onNavigationRequest: (NavigationRequest request) {
+  LogUtil.i('页面导航请求: ${request.url}');
+  final uri = Uri.tryParse(request.url);
+  if (uri == null) {
+    LogUtil.i('无效的URL，阻止加载');
+    return NavigationDecision.prevent;
+  }
 
-              // 解析URL
-              final uri = Uri.tryParse(request.url);
-              if (uri == null) {
-                LogUtil.i('无效的URL，阻止加载');
-                return NavigationDecision.prevent;
-              }
-              
-              // 获取文件扩展名
-              final extension = uri.path.toLowerCase().split('.').last;
+  // 1. 首先检查是否是需要阻止的资源
+  try {
+    final extension = uri.path.toLowerCase().split('.').last;
+    final blockedExtensions = [
+      'jpg', 'jpeg', 'png', 'gif', 'webp',
+      'css', 'woff', 'woff2', 'ttf', 'eot',
+      'ico', 'svg', 'mp3', 'wav',
+      'pdf', 'doc', 'docx', 'swf',
+    ];
+    
+    if (blockedExtensions.contains(extension)) {
+      return NavigationDecision.prevent;
+    }
+  } catch (e) {
+    // 如果获取扩展名失败，继续处理
+  }
 
-              // 需要阻止的资源类型
-              final blockedExtensions = [
-                'jpg', 'jpeg', 'png', 'gif', 'webp', // 图片
-                'css', // 样式表
-                'woff', 'woff2', 'ttf', 'eot', // 字体
-                'ico', 'svg', // 图标
-                'mp3', 'wav', // 音频
-                'pdf', 'doc', 'docx', // 文档
-                'swf', // Flash
-              ];
+  // 2. 检查是否为目标资源
+  try {
+    final lowercasePath = uri.path.toLowerCase();
+    if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
+      // 如果是目标资源，收集地址但不加载
+      _controller.runJavaScript(
+        'window.M3U8Detector?.postMessage("${request.url}");'
+      ).catchError((_) {});
+      return NavigationDecision.prevent;  // 阻止加载目标资源
+    }
+  } catch (e) {
+    LogUtil.e('URL检查失败: $e');
+  }
 
-              // 如果是被阻止的扩展名，阻止加载
-              if (blockedExtensions.contains(extension)) {
-                return NavigationDecision.prevent;
-              }
-
-              // 匹配指定文件类型
-              if (RegExp(filePattern, caseSensitive: false).hasMatch(uri.path)) {
-                return NavigationDecision.navigate;
-              }
-
-              // 如果不匹配目标文件类型，则阻止加载
-              LogUtil.i('URL不符合监听模式 ($filePattern)，阻止加载: ${request.url}');
-              return NavigationDecision.prevent;
-            },
+  // 3. 允许其他所有请求通过
+  return NavigationDecision.navigate;
+},
 onPageFinished: (String url) async {
   // 1. 基础状态检查
   if (_isDisposed) {
@@ -1067,70 +1071,60 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
-      // 正则表达式
-      final pattern = '(?:https?://[^\\s"\'>]+?\\.${_filePattern}[^\\s"\'}>]*)';
-      final regex = RegExp(pattern, caseSensitive: false);
-      final matches = regex.allMatches(sample);
+// 正则表达式
+final pattern = '(?:https?://[^\\s"\'>]+?\\.${_filePattern}[^\\s"\'}>]*)';
+final regex = RegExp(pattern, caseSensitive: false);
+final matches = regex.allMatches(sample);
 
-      if (clickIndex == 0) {
-        for (final match in matches) {
-          // 检查两个捕获组
-          String? url = match.group(1);  // 引号中的内容
-          if (url == null || url.isEmpty) {
-            url = match.group(2);  // 非引号的URL
-          }
-
-          if (url != null && url.isNotEmpty) {
-            LogUtil.i('正则匹配到URL: $url');
-            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
-            if (_isValidM3U8Url(cleanedUrl)) {
-              String finalUrl = cleanedUrl;
-              if (fromParam != null && toParam != null) {
-                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-              }
-              _foundUrls.add(finalUrl);
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('页面内容中找到 $finalUrl');
-              return finalUrl;
-            }
-          }
+if (clickIndex == 0) {
+  for (final match in matches) {
+    // 使用 group(0) 获取整个匹配
+    String? url = match.group(0);  // 修改这里
+    if (url != null && url.isNotEmpty) {
+      LogUtil.i('正则匹配到URL: $url');
+      String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+      if (_isValidM3U8Url(cleanedUrl)) {
+        String finalUrl = cleanedUrl;
+        if (fromParam != null && toParam != null) {
+          finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
         }
-      } else {
-        final Set<String> foundUrls = {};
-
-        for (final match in matches) {
-          String? url = match.group(1);
-          if (url == null || url.isEmpty) {
-            url = match.group(2);
-          }
-
-          if (url != null && url.isNotEmpty) {
-            foundUrls.add(_handleRelativePath(url));
-          }
-        }
-
-        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址, 去重后的URLs: ${foundUrls.toList()}');
-
-        int index = 0;
-        for (final url in foundUrls) {
-          String cleanedUrl = _cleanUrl(url);
-          if (_isValidM3U8Url(cleanedUrl)) {
-            String finalUrl = cleanedUrl;
-            if (fromParam != null && toParam != null) {
-              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-            }
-            _foundUrls.add(finalUrl);
-            if (index == clickIndex) {
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-              return finalUrl;
-            }
-            index++;
-          }
-        }
+        _foundUrls.add(finalUrl);
+        _staticM3u8Found = true;
+        _m3u8Found = true;
+        LogUtil.i('页面内容中找到 $finalUrl');
+        return finalUrl;
       }
+    }
+  }
+} else {
+  final Set<String> foundUrls = {};
+  for (final match in matches) {
+    // 使用 group(0) 获取整个匹配
+    String? url = match.group(0);  // 修改这里
+    if (url != null && url.isNotEmpty) {
+      foundUrls.add(_handleRelativePath(url));
+    }
+  }
+  LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址, 去重后的URLs: ${foundUrls.toList()}');
+  int index = 0;
+  for (final url in foundUrls) {
+    String cleanedUrl = _cleanUrl(url);
+    if (_isValidM3U8Url(cleanedUrl)) {
+      String finalUrl = cleanedUrl;
+      if (fromParam != null && toParam != null) {
+        finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+      }
+      _foundUrls.add(finalUrl);
+      if (index == clickIndex) {
+        _staticM3u8Found = true;
+        _m3u8Found = true;
+        LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+        return finalUrl;
+      }
+      index++;
+    }
+  }
+}
       
       LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
       final isApiOrJson = await _controller.runJavaScriptReturningResult('window.contentIsApiOrJson');
