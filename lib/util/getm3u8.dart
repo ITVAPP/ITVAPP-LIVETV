@@ -7,66 +7,114 @@ import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
 class LogUtil {
+  static final List<LogEntry> _logEntries = [];
+  static bool _isDialogShowing = false;
+  static BuildContext? _currentContext;
+  static const int _maxLogEntries = 5;
+
   /// 信息日志
-  static void i(BuildContext? context, String message, {String tag = 'INFO'}) {
-    _handleLog(context, 'INFO', message, tag);
+  static void i(BuildContext context, String message, {String tag = 'INFO'}) {
+    _addLog(context, 'INFO', message, tag);
   }
 
   /// 错误日志
-  static void e(BuildContext? context, String message, {String tag = 'ERROR'}) {
-    _handleLog(context, 'ERROR', message, tag);
+  static void e(BuildContext context, String message, {String tag = 'ERROR'}) {
+    _addLog(context, 'ERROR', message, tag);
   }
 
   /// 调试日志
-  static void d(BuildContext? context, String message, {String tag = 'DEBUG'}) {
-    _handleLog(context, 'DEBUG', message, tag);
+  static void d(BuildContext context, String message, {String tag = 'DEBUG'}) {
+    _addLog(context, 'DEBUG', message, tag);
   }
 
   /// 错误日志（带异常和堆栈）
   static void logError(
-    BuildContext? context,
+    BuildContext context,
     String message,
     Object error,
     StackTrace stackTrace, {
     String tag = 'ERROR',
   }) {
-    final fullMessage =
-        '$message\nError: $error\nStackTrace:\n$stackTrace'; // 拼接详细错误信息
-    _handleLog(context, 'ERROR', fullMessage, tag);
+    final fullMessage = '$message\nError: $error\nStackTrace:\n$stackTrace';
+    _addLog(context, 'ERROR', fullMessage, tag);
   }
 
-  /// 日志处理逻辑
-  static void _handleLog(BuildContext? context, String level, String message, String tag) {
-    if (context != null && _isContextValid(context)) {
-      // 显示弹窗
-      _showLog(context, level, message, tag);
-    } else {
-      // 使用 debugPrint 输出
-      debugPrint('[$level][$tag]: $message');
+  /// 添加日志
+  static void _addLog(BuildContext context, String level, String message, String tag) {
+    if (!_isContextValid(context)) return;
+
+    // 添加新日志
+    _logEntries.add(LogEntry(
+      timestamp: DateTime.now(),
+      level: level,
+      message: message,
+      tag: tag,
+    ));
+
+    // 保持最新的5条记录
+    if (_logEntries.length > _maxLogEntries) {
+      _logEntries.removeAt(0);
     }
+
+    // 更新或显示弹窗
+    _currentContext = context;
+    if (_isDialogShowing) {
+      // 如果弹窗已经显示，关闭当前弹窗并显示新弹窗
+      Navigator.of(context).pop();
+    }
+    _showLogDialog(context);
   }
 
   /// 显示日志弹窗
-  static void _showLog(BuildContext context, String level, String message, String tag) {
+  static void _showLogDialog(BuildContext context) {
+    _isDialogShowing = true;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('[$level] $tag'),
-          content: SingleChildScrollView(
-            child: Text(message),
+          title: const Text('日志记录'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                _formatLogs(),
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // 关闭弹窗
+                _isDialogShowing = false;
+                Navigator.of(context).pop();
               },
-              child: const Text('确定'),
+              child: const Text('关闭'),
             ),
           ],
         );
       },
-    );
+    ).then((_) {
+      _isDialogShowing = false;
+    });
+  }
+
+  /// 格式化日志内容
+  static String _formatLogs() {
+    if (_logEntries.isEmpty) return '暂无日志';
+
+    return _logEntries.map((entry) {
+      final time = _formatTime(entry.timestamp);
+      return '[$time][${entry.level}][${entry.tag}]\n${entry.message}\n';
+    }).join('\n');
+  }
+
+  /// 格式化时间
+  static String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}:'
+        '${time.second.toString().padLeft(2, '0')}';
   }
 
   /// 检查上下文是否有效
@@ -74,38 +122,24 @@ class LogUtil {
     try {
       return context.mounted;
     } catch (e) {
-      return false; // 如果 context 无法验证是否 mounted，则认为无效
+      return false;
     }
   }
 }
 
+/// 日志条目类
+class LogEntry {
+  final DateTime timestamp;
+  final String level;
+  final String message;
+  final String tag;
 
-
-/// M3U8过滤规则配置
-class M3U8FilterRule {
-  /// 域名关键词
-  final String domain;
-
-  /// 必须包含的关键词
-  final String requiredKeyword;
-
-  const M3U8FilterRule({
-    required this.domain,
-    required this.requiredKeyword,
+  LogEntry({
+    required this.timestamp,
+    required this.level,
+    required this.message,
+    required this.tag,
   });
-
-  /// 从字符串解析规则
-  /// 格式: domain|keyword
-  factory M3U8FilterRule.fromString(String rule) {
-    final parts = rule.split('|');
-    if (parts.length != 2) {
-      throw FormatException('无效的规则格式: $rule，正确格式: domain|keyword');
-    }
-    return M3U8FilterRule(
-      domain: parts[0].trim(),
-      requiredKeyword: parts[1].trim(),
-    );
-  }
 }
 
 /// M3U8地址获取类
