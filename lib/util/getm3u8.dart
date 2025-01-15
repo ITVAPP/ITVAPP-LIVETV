@@ -611,7 +611,7 @@ if (_isDisposed || _isClickExecuted) {
     _isPageLoadProcessed = true;
     
     // 检查页面内容
-   // final m3u8Url = await _checkPageContent();
+ final m3u8Url = null;
 if (m3u8Url != null && !completer.isCompleted) {
     _m3u8Found = true;
     completer.complete(m3u8Url);
