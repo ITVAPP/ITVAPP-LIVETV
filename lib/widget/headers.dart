@@ -203,6 +203,7 @@ static String? _getRefererByRules(String url) {
       }
     }
     
+     // 修改后的 headers map 定义
      final headers = {
        ..._baseHeaders,
        'origin': referer,
@@ -213,9 +214,9 @@ static String? _getRefererByRules(String url) {
          if (secFetchSite != 'cross-site') ...{
            'sec-fetch-mode': 'cors',
            'sec-fetch-site': secFetchSite,
-         }
-       }
-      'user-agent': userAgent,
+         },
+       },  // 添加逗号
+       'user-agent': userAgent,
      };
 
      LogUtil.i('生成主机头：$headers');
