@@ -176,13 +176,35 @@ static Future<void> _saveLogsToStorage() async {
  }
 
  // 查找有效的 OverlayState
- static OverlayState? _findOverlayState() {
-   final context = WidgetsBinding.instance.platformDispatcher.views.first.context;
-   if (context == null) return null;
-   
-   final overlay = Overlay.of(context, rootOverlay: true);
-   return overlay;
- }
+  static final navigatorObserver = NavigatorObserver();
+  static OverlayState? _findOverlayState() {
+    try {
+      if (navigatorObserver.navigator?.overlay != null) {
+        return navigatorObserver.navigator?.overlay;
+      }
+      
+      // 备用方案：从根元素开始搜索
+      Element? rootElement = WidgetsBinding.instance.renderViewElement;
+      if (rootElement == null) return null;
+
+      OverlayState? overlayState;
+      void visitor(Element element) {
+        if (overlayState != null) return;
+        if (element is StatefulElement &&
+            element.state is OverlayState) {
+          overlayState = element.state as OverlayState;
+          return;
+        }
+        element.visitChildren(visitor);
+      }
+      rootElement.visitChildren(visitor);
+
+      return overlayState;
+    } catch (e) {
+      developer.log('获取 OverlayState 失败: $e');
+      return null;
+    }
+  }
 
  // 隐藏弹窗
  static void _hideOverlay() {
