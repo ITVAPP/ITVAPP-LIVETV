@@ -22,16 +22,19 @@ class LogUtil {
 
  // 从持久化存储加载日志
  static Future<void> _loadLogsFromStorage() async {
-   try {
-     final String? logsStr = SpUtil.getString(_logsKey);  
-     if (logsStr != null && logsStr.isNotEmpty) {
-       final List<dynamic> logsList = json.decode(logsStr);
-       _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
-     }
-   } catch (e) {
-     developer.log('加载持久化日志失败: $e');
-     _logs = [];
-   }
+    try {
+      final String? logsStr = SpUtil.getString(_logsKey);  
+      if (logsStr != null && logsStr.isNotEmpty) {
+        final List<dynamic> logsList = json.decode(logsStr);
+        _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
+      }
+    } catch (e) {
+      developer.log('加载持久化日志失败: $e');
+      // 加载失败时不清空内存中的日志
+      if (_logs.isEmpty) {
+        _logs = [];  // 只有在内存也为空时才初始化
+      }
+    }
  }
 
  // 保存日志到持久化存储
@@ -39,6 +42,7 @@ class LogUtil {
    try {
      final String logsStr = json.encode(_logs);
      await SpUtil.putString(_logsKey, logsStr);
+     await SpUtil.commit(); 
    } catch (e) {
      developer.log('保存日志到持久化存储失败: $e');
    }
@@ -59,7 +63,7 @@ class LogUtil {
      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
      setDebugMode(isLogOn);
    } catch (e) {
-     // setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
+     setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
      print('未能读取到 ThemeProvider，默认关闭日志功能: $e');
    }
  }
