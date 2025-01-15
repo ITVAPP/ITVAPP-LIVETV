@@ -30,17 +30,16 @@ class HeadersConfig {
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
-   'user-agent': userAgent,
    'accept': '*/*',
    'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
    'accept-encoding': 'gzip, deflate, br, zstd',
    'cache-control': 'no-cache',
-   // 'connection': 'keep-alive',
-   // 'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+   'connection': 'keep-alive',
+   'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
    'sec-ch-ua-mobile': '?0',
    'sec-ch-ua-platform': '"Windows"',
-   // 'sec-fetch-dest': 'empty',
-   // 'dnt': '1',
+   'sec-fetch-dest': 'empty',
+   'dnt': '1',
  };
 
  /// 解析规则字符串返回域名和对应的referer映射
@@ -215,6 +214,7 @@ static String? _getRefererByRules(String url) {
            'sec-fetch-mode': 'cors',
            'sec-fetch-site': secFetchSite,
          }
+        'user-agent': userAgent,
        }
      };
 
