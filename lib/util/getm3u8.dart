@@ -1005,24 +1005,36 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
   (function() {
   	window.contentIsApiOrJson = null;
     // 如果是普通HTML页面
-    if (document.contentType === "text/html") {
-      // 创建一个临时容器来操作内容
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = document.documentElement.innerHTML;
-      
-      // 移除所有 style 标签
-      const styles = tempDiv.getElementsByTagName('style');
-      for(let i = styles.length - 1; i >= 0; i--) {
-        styles[i].parentNode.removeChild(styles[i]);
-      }
-      
-      return tempDiv.innerHTML.substring(0, 39998);
-    }
-    // 如果是JSON或其他类型
-    else {
-      window.contentIsApiOrJson = 'NO_INJECT_JS';
-      return document.body.textContent;
-    }
+if (document.contentType === "text/html") {
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = document.documentElement.innerHTML;
+  
+  const styles = tempDiv.getElementsByTagName('style');
+  for(let i = styles.length - 1; i >= 0; i--) {
+    styles[i].parentNode.removeChild(styles[i]);
+  }
+  
+  return tempDiv.innerHTML.substring(0, 39998);
+} else {
+  window.contentIsApiOrJson = 'NO_INJECT_JS';
+  const text = document.body.textContent;
+  
+  // 找出所有匹配位置
+  const pattern = new RegExp('\\.' + '${_filePattern}', 'g');
+  const matches = Array.from(text.matchAll(pattern));
+  
+  if (matches.length === 0) {
+    return null;
+  }
+  
+  // 提取包含所有匹配的最小文本范围
+  const firstPos = matches[0].index;
+  const lastPos = matches[matches.length - 1].index;
+  const start = Math.max(0, firstPos - 100);
+  const end = Math.min(text.length, lastPos + 100);
+  
+  return text.substring(start, end);
+}
   })()
 ''');
 
@@ -1071,7 +1083,70 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
+// 正则表达式
+final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
+final regex = RegExp(pattern, caseSensitive: false);
+final matches = regex.allMatches(sample);
 
+      if (clickIndex == 0) {
+        for (final match in matches) {
+          // 检查两个捕获组
+          String? url = match.group(1);  // 引号中的内容
+          if (url == null || url.isEmpty) {
+            url = match.group(2);  // 非引号的URL
+          }
+
+          if (url != null && url.isNotEmpty) {
+            LogUtil.i('正则匹配到URL: $url');
+            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+            if (_isValidM3U8Url(cleanedUrl)) {
+              String finalUrl = cleanedUrl;
+              if (fromParam != null && toParam != null) {
+                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+              }
+              _foundUrls.add(finalUrl);
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('页面内容中找到 $finalUrl');
+              return finalUrl;
+            }
+          }
+        }
+      } else {
+        final Set<String> foundUrls = {};
+
+        for (final match in matches) {
+          String? url = match.group(1);
+          if (url == null || url.isEmpty) {
+            url = match.group(2);
+          }
+
+          if (url != null && url.isNotEmpty) {
+            foundUrls.add(_handleRelativePath(url));
+          }
+        }
+
+        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
+
+        int index = 0;
+        for (final url in foundUrls) {
+          String cleanedUrl = _cleanUrl(url);
+          if (_isValidM3U8Url(cleanedUrl)) {
+            String finalUrl = cleanedUrl;
+            if (fromParam != null && toParam != null) {
+              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+            }
+            _foundUrls.add(finalUrl);
+            if (index == clickIndex) {
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+              return finalUrl;
+            }
+            index++;
+          }
+        }
+      }
       
       LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
       final isApiOrJson = await _controller.runJavaScriptReturningResult('window.contentIsApiOrJson');
