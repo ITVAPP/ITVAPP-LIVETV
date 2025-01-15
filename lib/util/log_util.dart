@@ -59,7 +59,7 @@ class LogUtil {
      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
      setDebugMode(isLogOn);
    } catch (e) {
-     setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
+     // setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
      print('未能读取到 ThemeProvider，默认关闭日志功能: $e');
    }
  }
