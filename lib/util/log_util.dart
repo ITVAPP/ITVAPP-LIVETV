@@ -20,7 +20,6 @@ class LogUtil {
  static final List<String> _debugMessages = [];
  static Timer? _timer;
  static const int _messageDisplayDuration = 3;
- static BuildContext? _lastContext;
 
  // 初始化方法，在应用启动时调用
  static Future<void> init() async {
@@ -74,7 +73,6 @@ static Future<void> _saveLogsToStorage() async {
  // 通过 Provider 来获取 isLogOn 并设置 debugMode
  static void updateDebugModeFromProvider(BuildContext context) {
    try {
-     _lastContext = context; // 保存context以供弹窗使用
      var themeProvider = Provider.of<ThemeProvider>(context, listen: false);
      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
      setDebugMode(isLogOn);
@@ -155,7 +153,14 @@ static Future<void> _saveLogsToStorage() async {
 
      // 如果开启了弹窗显示，则显示弹窗
      if (_showOverlay) {
-       _showDebugOverlay('[$level] $objectStr');
+       try {
+         final context = WidgetsBinding.instance.platformDispatcher.views.first.context;
+         if (context != null) {
+           _showDebugOverlay('[$level] $objectStr', context);
+         }
+       } catch (e) {
+         developer.log('获取全局 context 失败: $e');
+       }
      }
    } catch (e) {
      developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
@@ -163,8 +168,8 @@ static Future<void> _saveLogsToStorage() async {
  }
 
  // Debug Overlay 相关方法
- static void _showDebugOverlay(String message) {
-   if (!_showOverlay || _lastContext == null) return;
+ static void _showDebugOverlay(String message, BuildContext context) {
+   if (!_showOverlay) return;
     
    _debugMessages.add(message);
    if (_debugMessages.length > 6) {
@@ -173,7 +178,7 @@ static Future<void> _saveLogsToStorage() async {
     
    _clearAllOverlays();
    final overlayEntry = _createDebugOverlay();
-   Overlay.of(_lastContext!).insert(overlayEntry);
+   Overlay.of(context).insert(overlayEntry);
    _debugOverlays.add(overlayEntry);
    _resetTimer();
  }
