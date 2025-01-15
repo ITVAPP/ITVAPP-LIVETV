@@ -616,13 +616,23 @@ onPageFinished: (String url) async {
     
     // 检查页面内容
     final m3u8Url = await _checkPageContent();
-    if (m3u8Url != null && !completer.isCompleted) {
-      _m3u8Found = true;
-      completer.complete(m3u8Url);
-      _logPerformanceMetrics();
-      await disposeResources();
-      return;
-    }
+if (m3u8Url != null) {
+  if (m3u8Url == 'NO_INJECT_JS') {
+    LogUtil.i('API/JSON内容无需注入JS检测器');
+    completer.complete('ERROR');
+    _logPerformanceMetrics();
+    await disposeResources();
+    return;
+  }
+  
+  if (!completer.isCompleted) {
+    _m3u8Found = true;
+    completer.complete(m3u8Url);
+    _logPerformanceMetrics();
+    await disposeResources();
+    return;
+  }
+}
 
     // 如果静态检查没找到，启动JS检测
     if (!_isDisposed && !_m3u8Found) {
@@ -989,6 +999,7 @@ void _resetControllerState() {
       // 尝试获取原始响应内容，而不是HTML
 final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
   (function() {
+  	window.contentIsApiOrJson = null;
     // 如果是普通HTML页面
     if (document.contentType === "text/html") {
       // 创建一个临时容器来操作内容
@@ -1005,6 +1016,7 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
     }
     // 如果是JSON或其他类型
     else {
+      window.contentIsApiOrJson = 'NO_INJECT_JS';
       return document.body.textContent;
     }
   })()
@@ -1060,30 +1072,73 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
 
-if (clickIndex == 0) {
-  // 找第一个匹配的URL
-  for (final match in matches) {
-    final url = match.group(0);
-    if (url != null && _isValidM3U8Url(url)) {
-      return url;
-    }
-  }
-} else {
-  // 需要指定索引的URL
-  final validUrls = <String>[];
-  for (final match in matches) {
-    final url = match.group(0);
-    if (url != null && _isValidM3U8Url(url)) {
-      validUrls.add(url);
-      if (validUrls.length > clickIndex) {
-        return validUrls[clickIndex];
-      }
-    }
-  }
-}
-      LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
-      return null;
+      if (clickIndex == 0) {
+        for (final match in matches) {
+          // 检查两个捕获组
+          String? url = match.group(1);  // 引号中的内容
+          if (url == null || url.isEmpty) {
+            url = match.group(2);  // 非引号的URL
+          }
 
+          if (url != null && url.isNotEmpty) {
+            LogUtil.i('正则匹配到URL: $url');
+            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+            if (_isValidM3U8Url(cleanedUrl)) {
+              String finalUrl = cleanedUrl;
+              if (fromParam != null && toParam != null) {
+                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+              }
+              _foundUrls.add(finalUrl);
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('页面内容中找到 $finalUrl');
+              return finalUrl;
+            }
+          }
+        }
+      } else {
+        final Set<String> foundUrls = {};
+
+        for (final match in matches) {
+          String? url = match.group(1);
+          if (url == null || url.isEmpty) {
+            url = match.group(2);
+          }
+
+          if (url != null && url.isNotEmpty) {
+            foundUrls.add(_handleRelativePath(url));
+          }
+        }
+
+        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址, 去重后的URLs: ${foundUrls.toList()}');
+
+        int index = 0;
+        for (final url in foundUrls) {
+          String cleanedUrl = _cleanUrl(url);
+          if (_isValidM3U8Url(cleanedUrl)) {
+            String finalUrl = cleanedUrl;
+            if (fromParam != null && toParam != null) {
+              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+            }
+            _foundUrls.add(finalUrl);
+            if (index == clickIndex) {
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+              return finalUrl;
+            }
+            index++;
+          }
+        }
+      }
+      
+      LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
+      final isApiOrJson = await _controller.runJavaScriptReturningResult('window.contentIsApiOrJson');
+      if (isApiOrJson == 'NO_INJECT_JS') {
+         return 'NO_INJECT_JS';
+       } else  {
+       	return null;
+       }	
     } catch (e, stackTrace) {
       LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
       return null;
