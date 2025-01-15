@@ -562,18 +562,10 @@ onNavigationRequest: (NavigationRequest request) {
 },
 onPageFinished: (String url) async {
   // 1. 基础状态检查
-  if (_isDisposed) {
-    LogUtil.i('资源已释放，跳过处理');
-    return;
-  }
-  
-  LogUtil.i('页面加载完成: $url');
-
-   // 如果已经执行过点击，跳过后续处理
-   if (_isClickExecuted) {
-     LogUtil.i('点击已执行，跳过处理');
-     return;
-   }
+if (_isDisposed || _isClickExecuted) {
+  LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
+  return;
+}
   
   // 2. hash路由处理
   try {
@@ -619,23 +611,13 @@ onPageFinished: (String url) async {
     _isPageLoadProcessed = true;
     
     // 检查页面内容
-    final m3u8Url = await _checkPageContent();
-if (m3u8Url != null) {
-  if (m3u8Url == 'NO_INJECT_JS') {
-    LogUtil.i('API/JSON内容无需注入JS检测器');
-    completer.complete('ERROR');
-    _logPerformanceMetrics();
-    await disposeResources();
-    return;
-  }
-  
-  if (!completer.isCompleted) {
+   // final m3u8Url = await _checkPageContent();
+if (m3u8Url != null && !completer.isCompleted) {
     _m3u8Found = true;
     completer.complete(m3u8Url);
     _logPerformanceMetrics();
     await disposeResources();
     return;
-  }
 }
 
     // 如果静态检查没找到，启动JS检测
@@ -902,17 +884,14 @@ void _resetControllerState() {
 
   /// 处理发现的M3U8 URL
   Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-    // 如果需要点击且还没点击，忽略这个URL
-    if (clickText != null && !_isClickExecuted) {
-      LogUtil.i('点击操作未完成，忽略URL: $url');
-      return;
-    }
-
-    // 如果已找到或已释放资源，跳过处理
-    if (_m3u8Found || _isDisposed) {
-      LogUtil.i('跳过URL处理: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
-      return;
-    }
+if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
+  LogUtil.i(
+    clickText != null && !_isClickExecuted ? '点击操作未完成，忽略URL: $url' :
+    _m3u8Found ? '跳过URL处理: 已找到M3U8' : 
+    '跳过URL处理: 资源已释放'
+  );
+  return;
+}
 
     LogUtil.i('处理发现的URL: $url');
     if (url.isNotEmpty) {
@@ -1003,7 +982,6 @@ void _resetControllerState() {
       // 尝试获取原始响应内容，而不是HTML
 final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
   (function() {
-  	window.contentIsApiOrJson = null;
     // 如果是普通HTML页面
 if (document.contentType === "text/html") {
   const tempDiv = document.createElement('div');
@@ -1016,8 +994,6 @@ if (document.contentType === "text/html") {
   
   return tempDiv.innerHTML.substring(0, 39998);
 } else {
-  window.contentIsApiOrJson = 'NO_INJECT_JS';
-  return null;
   const text = document.body.textContent;
   
   // 找出所有匹配位置
@@ -1150,12 +1126,7 @@ final matches = regex.allMatches(sample);
       }
       
       LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
-      final isApiOrJson = await _controller.runJavaScriptReturningResult('window.contentIsApiOrJson');
-      if (isApiOrJson == 'NO_INJECT_JS') {
-         return 'NO_INJECT_JS';
-       } else  {
-       	return null;
-       }	
+      return null;	
     } catch (e, stackTrace) {
       LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
       return null;
@@ -1166,19 +1137,12 @@ final matches = regex.allMatches(sample);
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
-    if (_isDisposed) {
-      LogUtil.i('资源已释放，跳过注入JS');
-      return;
-    }
-  if (!_isControllerReady()) {
-    LogUtil.e('WebViewController 未初始化，无法注入JS');
-    return;
-  }
-    // 如果已经注入过，直接返回
-    if (_isDetectorInjected) {
-      LogUtil.i('M3U8检测器已注入，跳过重复注入');
-      return;
-    }
+if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
+  LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' : 
+            !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
+            'M3U8检测器已注入，跳过重复注入');
+  return;
+}
 
     LogUtil.i('开始注入m3u8检测器JS代码');
     final jsCode = '''
@@ -1212,11 +1176,7 @@ final matches = regex.allMatches(sample);
             url = new URL(url, baseUrl).toString();
           }
 
-          if (depth > MAX_RECURSION_DEPTH) {
-            return;
-          }
-
-          if (processedUrls.has(url)) {
+          if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) {
             return;
           }
 
