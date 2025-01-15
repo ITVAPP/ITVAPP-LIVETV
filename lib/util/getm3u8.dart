@@ -611,7 +611,7 @@ if (_isDisposed || _isClickExecuted) {
     _isPageLoadProcessed = true;
     
     // 检查页面内容
- final m3u8Url = null;
+   final m3u8Url = await _checkPageContent();
 if (m3u8Url != null && !completer.isCompleted) {
     _m3u8Found = true;
     completer.complete(m3u8Url);
@@ -968,14 +968,16 @@ if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
 
   /// 检查页面内容中的M3U8地址
   Future<String?> _checkPageContent() async {
-  if (!_isControllerReady()) {
-    LogUtil.e('WebViewController 未初始化，无法检查页面内容');
-    return null;
-  }
-    if (_m3u8Found || _isDisposed) {
-      LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}');
-      return null;
-    }
+if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+  LogUtil.i(
+    !_isControllerReady() 
+      ? LogLevel.error : LogLevel.info,
+    !_isControllerReady()
+      ? 'WebViewController 未初始化，无法检查页面内容'
+      : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}'
+  );
+  return null;
+}
     _isStaticChecking = true;
 
     try {
