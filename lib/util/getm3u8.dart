@@ -1031,18 +1031,44 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
         return null;
       }
 
-      String sample = sampleResult.toString(); 
-
-      if (sample.length > 38888) {
+      if (sampleResult.length > 38888) {
         LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
         return null;
       }
 
-  if (!sample.contains('.' + _filePattern)) {
+  if (!sampleResult.contains('.' + _filePattern)) {
     LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
     return null;
   }
   
+      // 处理JSON转义字符
+      String sample = sampleResult.toString()
+        .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+        .replaceAll(r'\\/', '/')  // 处理转义斜杠
+        .replaceAll(r'\\"', '"')  // 处理转义双引号
+        .replaceAll(r'\"', '"')  // 处理转义双引号
+        .replaceAll(r"\\'", "'")  // 处理转义单引号
+        .replaceAll(r"\'", "'")  // 处理转义单引号
+        .replaceAll(r'\/', '/');  // 处理转义斜杠
+
+      // 处理HTML实体
+      sample = sample
+        .replaceAll('&quot;', '"')  // 双引号
+        .replaceAll('&#x2F;', '/')  // 斜杠
+        .replaceAll('&#47;', '/')  // 斜杠
+        .replaceAll('&amp;', '&')  // &
+        .replaceAll('&lt;', '<')  // 小于号
+        .replaceAll('&gt;', '>');  // 大于号
+
+      // URL解码
+      if (sample.contains('%')) {
+        try {
+          sample = Uri.decodeComponent(sample);
+        } catch (e) {
+          LogUtil.i('URL解码失败，保持原样: $e');
+        }
+      }
+      
       LogUtil.i('页面内容：${sample}，页面内容较小，可能是api，进行静态检测');
 
 // 正则表达式
@@ -1050,7 +1076,7 @@ final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?
 final regex = RegExp(pattern, caseSensitive: false);
 final matches = regex.allMatches(sample);
 
-      if (clickIndex == 0) {
+      if (clickIndex != 0) {
         for (final match in matches) {
           // 检查两个捕获组
           String? url = match.group(1);  // 引号中的内容
@@ -1089,7 +1115,6 @@ final matches = regex.allMatches(sample);
         }
 
         LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
-        LogUtil.i('去重后的URLs: ${foundUrls.toList()}');
 
         int index = 0;
         for (final url in foundUrls) {
