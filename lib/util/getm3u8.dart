@@ -565,6 +565,12 @@ onPageFinished: (String url) async {
   
   LogUtil.i('页面加载完成: $url , isClickExecuted=$_isClickExecuted, clickText=$clickText, _isDisposed=$_isDisposed');
 
+   // 如果已经执行过点击，跳过后续处理
+   if (_isClickExecuted) {
+     LogUtil.i('点击已执行，跳过处理');
+     return;
+   }
+  
   // 2. hash路由处理
   try {
     final uri = Uri.parse(url);
@@ -1123,6 +1129,10 @@ final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
+    if (_isDisposed) {
+      LogUtil.i('资源已释放，跳过注入JS'');
+      return;
+    }
   if (!_isControllerReady()) {
     LogUtil.e('WebViewController 未初始化，无法注入JS');
     return;
