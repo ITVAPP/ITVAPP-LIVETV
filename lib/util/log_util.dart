@@ -17,13 +17,13 @@ class LogUtil {
  // 初始化方法，在应用启动时调用
  static Future<void> init() async {
    await SpUtil.getInstance();
-   _loadLogsFromStorage(); // 加载持久化的日志
+   await _loadLogsFromStorage(); // 等待日志加载完成
  }
 
  // 从持久化存储加载日志
- static void _loadLogsFromStorage() {
+ static Future<void> _loadLogsFromStorage() async {
    try {
-     final String? logsStr = SpUtil.getString(_logsKey);
+     final String? logsStr = await SpUtil.getString(_logsKey);
      if (logsStr != null && logsStr.isNotEmpty) {
        final List<dynamic> logsList = json.decode(logsStr);
        _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
@@ -65,52 +65,52 @@ class LogUtil {
  }
 
  // 封装的日志记录方法，增加参数检查并记录堆栈位置
- static void logError(String message, dynamic error, [StackTrace? stackTrace]) {
+ static Future<void> logError(String message, dynamic error, [StackTrace? stackTrace]) async {
    if (!debugMode) return; // 如果 debugMode 为 false，不记录日志
 
    stackTrace ??= StackTrace.current; // 使用当前堆栈信息
 
    if (message?.isNotEmpty != true || error == null) {
-     LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
+     await LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
      return;
    }
 
-   _log('e', '错误: $message\n错误详情: $error\n堆栈信息: ${_processStackTrace(stackTrace)}', _defTag);
+   await _log('e', '错误: $message\n错误详情: $error\n堆栈信息: ${_processStackTrace(stackTrace)}', _defTag);
  }
 
  // 安全执行方法，捕获并记录异常
- static void safeExecute(void Function()? action, String errorMessage, [StackTrace? stackTrace]) {
+ static Future<void> safeExecute(void Function()? action, String errorMessage, [StackTrace? stackTrace]) async {
    if (action == null) {
-     logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', stackTrace ?? StackTrace.current);
+     await logError('$errorMessage - 函数调用时参数为空或不匹配', 'action is null', stackTrace ?? StackTrace.current);
      return;
    }
 
    try {
      action(); // 执行传入的函数
    } catch (error, st) {
-     logError(errorMessage, error, st); // 捕获并记录异常
+     await logError(errorMessage, error, st); // 捕获并记录异常
    }
  }
 
  // 记录不同类型的日志
- static void v(Object? object, {String? tag}) {
-   _log('v', object, tag);
+ static Future<void> v(Object? object, {String? tag}) async {
+   await _log('v', object, tag);
  }
 
- static void e(Object? object, {String? tag}) {
-   _log('e', object, tag);
+ static Future<void> e(Object? object, {String? tag}) async {
+   await _log('e', object, tag);
  }
 
- static void i(Object? object, {String? tag}) {
-   _log('i', object, tag);
+ static Future<void> i(Object? object, {String? tag}) async {
+   await _log('i', object, tag);
  }
 
- static void d(Object? object, {String? tag}) {
-   _log('d', object, tag);
+ static Future<void> d(Object? object, {String? tag}) async {
+   await _log('d', object, tag);
  }
 
  // 通用日志记录方法，日志记录受 debugMode 控制
- static void _log(String level, Object? object, String? tag) {
+ static Future<void> _log(String level, Object? object, String? tag) async {
    if (!debugMode || object == null) return;
 
    try {
@@ -130,7 +130,7 @@ class LogUtil {
      }
 
      _logs.add({'time': time, 'level': level, 'message': logMessage});
-     _saveLogsToStorage(); // 保存到持久化存储
+     await _saveLogsToStorage(); // 等待保存完成
      developer.log(logMessage);
    } catch (e) {
      developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
