@@ -1,15 +1,48 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sp_util/sp_util.dart';
 import '../provider/theme_provider.dart';
 
 class LogUtil {
  static const String _defTag = 'common_utils';
  static bool debugMode = false; // 控制是否记录日志 true 或 false
  static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
- static const int _maxLogs = 800; // 设置最大日志条目数
+ static const int _maxLogs = 300; // 设置最大日志条目数
  static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
+ static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
+
+ // 初始化方法，在应用启动时调用
+ static Future<void> init() async {
+   await SpUtil.getInstance();
+   _loadLogsFromStorage(); // 加载持久化的日志
+ }
+
+ // 从持久化存储加载日志
+ static void _loadLogsFromStorage() {
+   try {
+     final String? logsStr = SpUtil.getString(_logsKey);
+     if (logsStr != null && logsStr.isNotEmpty) {
+       final List<dynamic> logsList = json.decode(logsStr);
+       _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
+     }
+   } catch (e) {
+     developer.log('加载持久化日志失败: $e');
+     _logs = [];
+   }
+ }
+
+ // 保存日志到持久化存储
+ static Future<void> _saveLogsToStorage() async {
+   try {
+     final String logsStr = json.encode(_logs);
+     await SpUtil.putString(_logsKey, logsStr);
+   } catch (e) {
+     developer.log('保存日志到持久化存储失败: $e');
+   }
+ }
 
  // 设置 debugMode 状态，供外部调用
  static void setDebugMode(bool isEnabled) {
@@ -97,6 +130,7 @@ class LogUtil {
      }
 
      _logs.add({'time': time, 'level': level, 'message': logMessage});
+     _saveLogsToStorage(); // 保存到持久化存储
      developer.log(logMessage);
    } catch (e) {
      developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
@@ -162,12 +196,13 @@ class LogUtil {
  }
 
  // 清空日志，支持传入参数来清空特定类型的日志
- static void clearLogs([String? level]) {
+ static Future<void> clearLogs([String? level]) async {
    if (level == null) {
      _logs.clear(); // 清空所有日志
    } else {
      _logs.removeWhere((log) => log['level'] == level); // 清空特定类型的日志
    }
+   await _saveLogsToStorage(); // 同步清理持久化存储的日志
  }
 
  // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
