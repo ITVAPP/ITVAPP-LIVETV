@@ -1017,8 +1017,9 @@ if (document.contentType === "text/html") {
   return tempDiv.innerHTML.substring(0, 39998);
 } else {
   window.contentIsApiOrJson = 'NO_INJECT_JS';
+  return null;
   const text = document.body.textContent;
-  return text.substring(0, 39998);
+  
   // 找出所有匹配位置
   const pattern = new RegExp('\\.' + '${_filePattern}', 'g');
   const matches = Array.from(text.matchAll(pattern));
