@@ -13,36 +13,44 @@ class LogUtil {
   static const int _maxLogEntries = 5;
 
   /// 信息日志
-  static void i(BuildContext context, String message, {String tag = 'INFO'}) {
-    _addLog(context, 'INFO', message, tag);
+  static void i(String message, {BuildContext? context, String tag = 'INFO'}) {
+    _addLog(message, 'INFO', tag, context);
   }
 
   /// 错误日志
-  static void e(BuildContext context, String message, {String tag = 'ERROR'}) {
-    _addLog(context, 'ERROR', message, tag);
+  static void e(String message, {BuildContext? context, String tag = 'ERROR'}) {
+    _addLog(message, 'ERROR', tag, context);
   }
 
   /// 调试日志
-  static void d(BuildContext context, String message, {String tag = 'DEBUG'}) {
-    _addLog(context, 'DEBUG', message, tag);
+  static void d(String message, {BuildContext? context, String tag = 'DEBUG'}) {
+    _addLog(message, 'DEBUG', tag, context);
   }
 
   /// 错误日志（带异常和堆栈）
   static void logError(
-    BuildContext context,
     String message,
     Object error,
     StackTrace stackTrace, {
+    BuildContext? context,
     String tag = 'ERROR',
   }) {
     final fullMessage = '$message\nError: $error\nStackTrace:\n$stackTrace';
-    _addLog(context, 'ERROR', fullMessage, tag);
+    _addLog(fullMessage, 'ERROR', tag, context);
+  }
+
+  /// 安全执行方法
+  static void safeExecute(Function() action) {
+    try {
+      action();
+    } catch (e, stackTrace) {
+      e('执行操作时发生错误: ${e.toString()}');
+      logError('安全执行失败', e, stackTrace);
+    }
   }
 
   /// 添加日志
-  static void _addLog(BuildContext context, String level, String message, String tag) {
-    if (!_isContextValid(context)) return;
-
+  static void _addLog(String message, String level, String tag, BuildContext? context) {
     // 添加新日志
     _logEntries.add(LogEntry(
       timestamp: DateTime.now(),
@@ -56,13 +64,14 @@ class LogUtil {
       _logEntries.removeAt(0);
     }
 
-    // 更新或显示弹窗
-    _currentContext = context;
-    if (_isDialogShowing) {
-      // 如果弹窗已经显示，关闭当前弹窗并显示新弹窗
-      Navigator.of(context).pop();
+    // 如果有context且弹窗正在显示，更新弹窗
+    if (context != null && _isContextValid(context)) {
+      _currentContext = context;
+      if (_isDialogShowing) {
+        Navigator.of(context).pop();
+      }
+      _showLogDialog(context);
     }
-    _showLogDialog(context);
   }
 
   /// 显示日志弹窗
@@ -141,6 +150,34 @@ class LogEntry {
     required this.tag,
   });
 }
+
+/// M3U8过滤规则配置
+class M3U8FilterRule {
+  /// 域名关键词
+  final String domain;
+
+  /// 必须包含的关键词
+  final String requiredKeyword;
+
+  const M3U8FilterRule({
+    required this.domain,
+    required this.requiredKeyword,
+  });
+
+  /// 从字符串解析规则
+  /// 格式: domain|keyword
+  factory M3U8FilterRule.fromString(String rule) {
+    final parts = rule.split('|');
+    if (parts.length != 2) {
+      throw FormatException('无效的规则格式: $rule，正确格式: domain|keyword');
+    }
+    return M3U8FilterRule(
+      domain: parts[0].trim(),
+      requiredKeyword: parts[1].trim(),
+    );
+  }
+}
+
 
 /// M3U8地址获取类
 /// 用于从网页中提取M3U8视频流地址
