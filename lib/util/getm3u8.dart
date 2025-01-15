@@ -8,23 +8,23 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 class LogUtil {
   /// 信息日志
-  static void i(BuildContext context, String message, {String tag = 'INFO'}) {
-    _showLog(context, 'INFO', message, tag);
+  static void i(BuildContext? context, String message, {String tag = 'INFO'}) {
+    _handleLog(context, 'INFO', message, tag);
   }
 
   /// 错误日志
-  static void e(BuildContext context, String message, {String tag = 'ERROR'}) {
-    _showLog(context, 'ERROR', message, tag);
+  static void e(BuildContext? context, String message, {String tag = 'ERROR'}) {
+    _handleLog(context, 'ERROR', message, tag);
   }
 
   /// 调试日志
-  static void d(BuildContext context, String message, {String tag = 'DEBUG'}) {
-    _showLog(context, 'DEBUG', message, tag);
+  static void d(BuildContext? context, String message, {String tag = 'DEBUG'}) {
+    _handleLog(context, 'DEBUG', message, tag);
   }
 
   /// 错误日志（带异常和堆栈）
   static void logError(
-    BuildContext context,
+    BuildContext? context,
     String message,
     Object error,
     StackTrace stackTrace, {
@@ -32,7 +32,18 @@ class LogUtil {
   }) {
     final fullMessage =
         '$message\nError: $error\nStackTrace:\n$stackTrace'; // 拼接详细错误信息
-    _showLog(context, 'ERROR', fullMessage, tag);
+    _handleLog(context, 'ERROR', fullMessage, tag);
+  }
+
+  /// 日志处理逻辑
+  static void _handleLog(BuildContext? context, String level, String message, String tag) {
+    if (context != null && _isContextValid(context)) {
+      // 显示弹窗
+      _showLog(context, level, message, tag);
+    } else {
+      // 使用 debugPrint 输出
+      debugPrint('[$level][$tag]: $message');
+    }
   }
 
   /// 显示日志弹窗
@@ -57,7 +68,17 @@ class LogUtil {
       },
     );
   }
+
+  /// 检查上下文是否有效
+  static bool _isContextValid(BuildContext context) {
+    try {
+      return context.mounted;
+    } catch (e) {
+      return false; // 如果 context 无法验证是否 mounted，则认为无效
+    }
+  }
 }
+
 
 
 /// M3U8过滤规则配置
