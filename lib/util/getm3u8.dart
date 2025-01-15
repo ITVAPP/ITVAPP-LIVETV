@@ -3,9 +3,62 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+
+class LogUtil {
+  /// 信息日志
+  static void i(BuildContext context, String message, {String tag = 'INFO'}) {
+    _showLog(context, 'INFO', message, tag);
+  }
+
+  /// 错误日志
+  static void e(BuildContext context, String message, {String tag = 'ERROR'}) {
+    _showLog(context, 'ERROR', message, tag);
+  }
+
+  /// 调试日志
+  static void d(BuildContext context, String message, {String tag = 'DEBUG'}) {
+    _showLog(context, 'DEBUG', message, tag);
+  }
+
+  /// 错误日志（带异常和堆栈）
+  static void logError(
+    BuildContext context,
+    String message,
+    Object error,
+    StackTrace stackTrace, {
+    String tag = 'ERROR',
+  }) {
+    final fullMessage =
+        '$message\nError: $error\nStackTrace:\n$stackTrace'; // 拼接详细错误信息
+    _showLog(context, 'ERROR', fullMessage, tag);
+  }
+
+  /// 显示日志弹窗
+  static void _showLog(BuildContext context, String level, String message, String tag) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('[$level] $tag'),
+          content: SingleChildScrollView(
+            child: Text(message),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // 关闭弹窗
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 
 /// M3U8过滤规则配置
 class M3U8FilterRule {
