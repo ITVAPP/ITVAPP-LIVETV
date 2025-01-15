@@ -562,6 +562,12 @@ onNavigationRequest: (NavigationRequest request) {
   return NavigationDecision.navigate;
 },
 onPageFinished: (String url) async {
+	
+  LogUtil.i('页面加载完成，当前状态：\n'
+      '资源是否释放: $_isDisposed\n'
+      '点击是否执行: $_isClickExecuted\n'
+      '是否找到M3U8: $_m3u8Found');
+      
   // 1. 基础状态检查
 if (_isDisposed || _isClickExecuted) {
   LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
@@ -734,16 +740,30 @@ if (m3u8Url != null && !completer.isCompleted) {
   }
 
   /// 启动超时计时器
-  void _startTimeout(Completer<String> completer) {
-    LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
-    Future.delayed(Duration(seconds: timeoutSeconds), () async {
-      if (!_isDisposed && !_m3u8Found && !completer.isCompleted) {
-        LogUtil.i('GetM3U8提取超时，未找到有效的m3u8地址');
-        completer.complete('ERROR');
-        await disposeResources();
-      }
-    });
-  }
+void _startTimeout(Completer<String> completer) {
+  LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
+  Future.delayed(Duration(seconds: timeoutSeconds), () async {
+    if (_isDisposed) {
+      LogUtil.i('已释放资源，跳过超时处理');
+      return;
+    }
+    
+    if (completer.isCompleted) {
+      LogUtil.i('已完成处理，跳过超时处理');
+      return;
+    }
+    
+    // 记录当前状态
+    LogUtil.i('超时触发时的状态：\n'
+        '控制器初始化: $_isControllerInitialized\n'
+        'JS检测器已注入: $_isDetectorInjected\n'
+        '页面加载已处理: $_isPageLoadProcessed\n'
+        '定时检查次数: $_checkCount');
+    
+    completer.complete('ERROR');
+    await disposeResources();
+  });
+}
 
 bool _isControllerReady() {
   if (!_isControllerInitialized || _isDisposed) {
