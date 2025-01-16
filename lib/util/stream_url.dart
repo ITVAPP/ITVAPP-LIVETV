@@ -491,9 +491,11 @@ bool needsRedirectCheck(String url, String rulesString) {
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
   try {
+    // 正确设置 followRedirects
     final response = await client.get(
       Uri.parse(url),
-      headers: HeadersConfig.generateHeaders(url: url)
+      headers: HeadersConfig.generateHeaders(url: url),
+      followRedirects: false,  // 在 get 方法中直接设置
     ).timeout(timeout);
     
     // 打印详细的响应信息
@@ -503,16 +505,22 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
     请求URL: ${response.request?.url}
     响应头: ${response.headers}
     响应体长度: ${response.body.length}
-    响应体预览: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}...
+    响应体预览: ${response.body.length > 0 ? response.body.substring(0, response.body.length > 500 ? 500 : response.body.length) : ''}
     ====================''');
 
-    // 检查重定向状态码 (301, 302, 303, 307, 308)
-    if (response.statusCode >= 300 && response.statusCode < 400) {
+    // 处理重定向响应
+    if (response.statusCode == 302 || response.statusCode == 301 || 
+        response.statusCode == 303 || response.statusCode == 307 || 
+        response.statusCode == 308) {
+      
       final location = response.headers['location'];
+      LogUtil.i('获取到重定向地址: $location');
+      
       if (location != null && location.isNotEmpty) {
         if (location.startsWith('http')) {
           return location;
         } else {
+          // 处理相对路径
           final baseUri = Uri.parse(url);
           final redirectUri = Uri.parse(location);
           return baseUri.resolve(redirectUri.toString()).toString();
@@ -520,10 +528,16 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
       }
     }
     
-    return url;
+    // 对于非重定向响应，如果是m3u8内容，解析内容中的实际URL
+    if (response.statusCode == 200 && 
+        response.headers['content-type']?.contains('application/vnd.apple.mpegurl') == true) {
+      // 可以在这里添加解析m3u8内容的逻辑，如果需要的话
+      LogUtil.i('检测到m3u8内容，返回原始URL');
+    }
     
-  } catch (e) {
-    LogUtil.e('重定向处理失败: ${e.toString()}');
+    return url;
+  } catch (e, stackTrace) {
+    LogUtil.e('重定向处理失败: ${e.toString()}\n$stackTrace');
     return url;
   }
 }
