@@ -533,7 +533,7 @@ class GetM3U8 {
         }
         _periodicCheckTimer = Timer(Duration.zero, () {});
 
-        LogUtil.i('成功获取非 HTML 页面内容:  ${_httpResponseContent}');
+        LogUtil.i('成功获取非 HTML 页面内容');
         _isControllerInitialized = true; // 标记为已初始化
 
         // 直接调用 _checkPageContent() 处理
@@ -1141,9 +1141,6 @@ Future<String?> _checkPageContent() async {
           String url = match.group(0)!;  // 直接获取完整匹配
           foundUrls.add(_handleRelativePath(url));
         }
-
-        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在地址');
-
         int index = 0;
         for (final url in foundUrls) {
           String cleanedUrl = _cleanUrl(url);
