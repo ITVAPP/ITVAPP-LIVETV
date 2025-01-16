@@ -519,9 +519,9 @@ LogUtil.i('初始化.1: 开始初始化控制器');
 _controller = WebViewController()
   ..setJavaScriptMode(JavaScriptMode.unrestricted)
   ..setUserAgent(HeadersConfig.userAgent)
-  ..setDOMStorageEnabled(false)  // 禁用 DOM 存储来减少内存使用
-  ..setDatabaseEnabled(false)    // 禁用数据库存储
-  ..setCacheMode(WebViewCacheMode.LOAD_NO_CACHE)  // 不使用缓存
+  ..enableDOMStorage(false)  // 禁用 DOM 存储来减少内存使用
+  ..enableDatabaseAccess(false)  // 禁用数据库存储
+  ..setCacheMode(CacheMode.cacheNone)  // 不使用缓存
   ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
         
         LogUtil.i('初始化.2: 基本设置完成');
