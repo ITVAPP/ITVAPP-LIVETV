@@ -564,8 +564,7 @@ _controller = WebViewController()
             LogUtil.i('初始化.3: JS检测器发现新的URL: ${message.message}');
             _handleM3U8Found(message.message, completer);
           },
-        );
-        LogUtil.i('初始化.4: 开始设置导航代理');
+        )
          ..setNavigationDelegate(
           NavigationDelegate(
 onNavigationRequest: (NavigationRequest request) {
