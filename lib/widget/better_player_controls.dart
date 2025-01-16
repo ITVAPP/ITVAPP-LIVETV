@@ -1,6 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
@@ -25,29 +25,26 @@ class BetterPlayerConfig {
     }
 
     try {
-      // 同步发送HEAD请求
-      final response = http.head(
-        Uri.parse(url),
-        followRedirects: false,
-      ).timeout(const Duration(seconds: 3));  // 设置超时时间
+      final httpClient = HttpClient();
+      String finalUrl = url;
       
-      // 同步等待响应
-      final result = response.then((resp) {
-        if (resp.statusCode >= 300 && resp.statusCode < 400) {
-          final redirectUrl = resp.headers['location'];
-          if (redirectUrl != null) {
-            print('URL重定向到: $redirectUrl');
-            return redirectUrl;
-          }
+      // 使用同步方式发送请求
+      final request = httpClient.headSync(Uri.parse(url).host, 80, Uri.parse(url).path);
+      request.headers.add('Accept', '*/*');
+      
+      final response = request.closeSync();
+      
+      // 检查是否有重定向
+      if (response.statusCode >= 300 && response.statusCode < 400) {
+        final location = response.headers['location'];
+        if (location != null && location.isNotEmpty) {
+          print('URL重定向到: ${location.first}');
+          finalUrl = location.first;
         }
-        return url;
-      }).catchError((e) {
-        print('检查重定向时出错: $e');
-        return url;
-      });
+      }
       
-      // 同步获取结果
-      return result.sync();
+      httpClient.close();
+      return finalUrl;
     } catch (e) {
       print('URL检查过程出错: $e');
       return url;  // 发生错误时返回原URL
