@@ -542,10 +542,11 @@ try {
     })();
   ''');
   _isHtmlContent = contentType == 'text/html';
-} catch (e) {
-  _isHtmlContent = false;
-}
-
+} catch (e, stack) {
+        LogUtil.logError('初始化.2.2: 检查内容类型失败', e, stack);
+        _isHtmlContent = false; // 异常情况当作非HTML处理
+      }
+      
         if (!_isHtmlContent) {
           LogUtil.i('初始化.2.1: 检测到非HTML内容，标记为已注入状态');
           _isDetectorInjected = true;  // 标记为已注入，避免后续注入
@@ -564,17 +565,7 @@ try {
         _httpResponseContent = httpdata;
         _isControllerInitialized = true; // 标记为已初始化
       }
-
         }
-      } catch (e, stack) {
-        LogUtil.logError('初始化.2.2: 检查内容类型失败', e, stack);
-        _isHtmlContent = false; // 异常情况当作非HTML处理
-        _isDetectorInjected = true;
-        if (_periodicCheckTimer != null) {
-          _periodicCheckTimer?.cancel();  
-        }
-        _periodicCheckTimer = Timer(Duration.zero, () {});
-      }
       
          _controller.addJavaScriptChannel(
           'M3U8Detector',
