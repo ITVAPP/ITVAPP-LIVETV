@@ -389,9 +389,6 @@ class GetM3U8 {
   /// URL整理
   String _cleanUrl(String url) {
     LogUtil.i('URL整理开始，原始URL: $url');
-
-    // 移除前后空白
-    String cleanedUrl = url.trim();
     
   // 先处理基本的字符清理
   String cleanedUrl = url.trim()
