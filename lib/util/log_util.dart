@@ -9,11 +9,11 @@ import '../provider/theme_provider.dart';
 class LogUtil {
  static const String _defTag = 'common_utils';
  static bool debugMode = true; // 控制是否记录日志 true 或 false
- static List<Map<String, String>> _logs = []; // 存储所有类型的日志，包含级别和时间
- static const int _maxLogs = 300; // 设置最大日志条目数
- static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
-
+ static bool _isOperating = false; // 添加操作锁，防止并发问题
+ static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
+ static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
+ 
  // 弹窗相关属性
  static bool _showOverlay = true; // 控制是否显示弹窗
  static OverlayEntry? _overlayEntry;  // 修改为单个 OverlayEntry
@@ -23,36 +23,31 @@ class LogUtil {
 
  // 初始化方法，在应用启动时调用
  static Future<void> init() async {
-   await SpUtil.getInstance();
-   await _loadLogsFromStorage(); // 等待日志加载完成
- }
-
- // 从持久化存储加载日志
- static Future<void> _loadLogsFromStorage() async {
-    try {
-      final String? logsStr = SpUtil.getString(_logsKey);  
-      if (logsStr != null && logsStr.isNotEmpty) {
-        final List<dynamic> logsList = json.decode(logsStr);
-        _logs = logsList.map((log) => Map<String, String>.from(log)).toList();
-      }
-    } catch (e) {
-      developer.log('加载持久化日志失败: $e');
-      // 加载失败时不清空内存中的日志
-      if (_logs.isEmpty) {
-        _logs = [];  // 只有在内存也为空时才初始化
-      }
-    }
- }
-
- // 保存日志到持久化存储
-static Future<void> _saveLogsToStorage() async {
    try {
-     final String logsStr = json.encode(_logs);
-     await SpUtil.putString(_logsKey, logsStr);  // putString 会自动保存
+     await SpUtil.getInstance();
+     await _checkAndHandleLogSize();
    } catch (e) {
-     developer.log('保存日志到持久化存储失败: $e');
+     developer.log('日志初始化失败: $e');
+     await _clearLogs();
    }
-}
+ }
+
+ // 检查并处理日志文件大小
+ static Future<void> _checkAndHandleLogSize() async {
+   try {
+     final String? logsStr = await SpUtil.getString(_logsKey);
+     if (logsStr != null) {
+       int sizeInBytes = utf8.encode(logsStr).length;
+       if (sizeInBytes > _maxFileSizeBytes) {
+         developer.log('日志文件超过5MB，执行清理');
+         await _clearLogs();
+       }
+     }
+   } catch (e) {
+     developer.log('检查日志大小失败: $e');
+     await _clearLogs();
+   }
+ }
 
  // 设置 debugMode 状态，供外部调用
  static void setDebugMode(bool isEnabled) {
@@ -103,32 +98,53 @@ static Future<void> _saveLogsToStorage() async {
  static Future<void> _log(String level, Object? object, String? tag) async {
    if (!debugMode || object == null) return;
 
+   if (_isOperating) {
+     developer.log('有其他日志操作正在进行，暂缓记录新日志');
+     return;
+   }
+
+   _isOperating = true;
+   
    try {
      String time = DateTime.now().toString();
-     String fileInfo = _getFileAndLine(); // 获取文件和行号信息
+     String fileInfo = _getFileAndLine();
      
-     // 安全处理 object，避免出现 null 值导致错误
-     String objectStr = object?.toString() ?? 'null';
+     String objectStr = object?.toString().replaceAll('\n', '\\n') ?? 'null';
      if (objectStr.length > _maxSingleLogLength) {
        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
      }
      String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
 
-     // 限制日志的数量，如果超过最大数量，则移除最旧的日志
-     if (_logs.length >= _maxLogs) {
-       _logs.removeAt(0); // 移除最旧的一条日志
+     // 使用JSON格式存储日志
+     Map<String, String> logEntry = {
+       'time': time,
+       'level': level,
+       'message': logMessage
+     };
+     
+     String newLog = json.encode(logEntry) + '\n';
+     
+     // 获取现有日志
+     String? existingLogs = await SpUtil.getString(_logsKey) ?? '';
+     String updatedLogs = newLog + existingLogs;
+     
+     // 检查更新后的日志大小
+     if (utf8.encode(updatedLogs).length > _maxFileSizeBytes) {
+       await _clearLogs();
+       updatedLogs = newLog;
      }
-
-     _logs.add({'time': time, 'level': level, 'message': logMessage});
-     await _saveLogsToStorage(); // 等待保存完成
+     
+     await SpUtil.putString(_logsKey, updatedLogs);
      developer.log(logMessage);
 
-     // 如果开启了弹窗显示，则显示弹窗
      if (_showOverlay) {
        _showDebugMessage('[$level] $objectStr');
      }
    } catch (e) {
-     developer.log('日志记录时发生异常: $e'); // 捕获日志记录中的异常并记录
+     developer.log('日志记录失败: $e');
+     rethrow;
+   } finally {
+     _isOperating = false;
    }
  }
 
@@ -313,32 +329,67 @@ static void _startAutoHideTimer() {
  }
 
  // 获取所有日志
- static List<Map<String, String>> getLogs() {
-   return _logs;
- }
-
- // 获取指定类型的日志
- static List<Map<String, String>> getLogsByLevel(String level) {
-   return _logs.where((log) => log['level'] == level).toList();
- }
-
- // 清空日志，支持传入参数来清空特定类型的日志
- static Future<void> clearLogs([String? level]) async {
-   if (level == null) {
-     _logs.clear(); // 清空所有日志
-   } else {
-     _logs.removeWhere((log) => log['level'] == level); // 清空特定类型的日志
+ static Future<List<Map<String, dynamic>>> getLogs() async {
+   try {
+     final String? logsStr = await SpUtil.getString(_logsKey);
+     if (logsStr == null || logsStr.isEmpty) return [];
+     
+     return logsStr
+       .split('\n')
+       .where((line) => line.isNotEmpty)
+       .map((line) => json.decode(line) as Map<String, dynamic>)
+       .toList();
+   } catch (e) {
+     developer.log('获取日志失败: $e');
+     return [];
    }
-   await _saveLogsToStorage(); // 同步清理持久化存储的日志
+ }
+ 
+ // 按级别获取日志的方法
+ static Future<List<Map<String, dynamic>>> getLogsByLevel(String level) async {
+   try {
+     final List<Map<String, dynamic>> allLogs = await getLogs();
+     return allLogs.where((log) => log['level'] == level).toList();
+   } catch (e) {
+     developer.log('按级别获取日志失败: $e');
+     return [];
+   }
+ }
+
+ // 清空日志
+ static Future<void> clearLogs() async {
+   await _clearLogs();
+ }
+
+ // 内部清空日志方法
+ static Future<void> _clearLogs() async {
+   if (_isOperating) return;
+   
+   _isOperating = true;
+   try {
+     await SpUtil.putString(_logsKey, '');
+   } catch (e) {
+     developer.log('清空日志失败: $e');
+   } finally {
+     _isOperating = false;
+   }
  }
 
  // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
  static String parseLogMessage(String message) {
-   // 按 '|' 分割，返回第二部分，即实际的日志内容和文件名行号
-   List<String> parts = message.split('|');
-   if (parts.length >= 2) {
-     return parts[1].trim(); // 保留文件名和行号信息
+   try {
+     if (message.trim().startsWith('{')) {
+       final Map<String, dynamic> logMap = json.decode(message);
+       return logMap['message'] ?? message;
+     }
+     
+     List<String> parts = message.split('|');
+     if (parts.length >= 2) {
+       return parts[1].trim();
+     }
+   } catch (e) {
+     developer.log('解析日志消息失败: $e');
    }
-   return message; // 如果日志格式不符，返回原始信息
+   return message;
  }
 }
