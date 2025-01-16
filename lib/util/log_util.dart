@@ -40,34 +40,43 @@ class LogUtil {
  
  // 新增：从本地加载日志到内存
  static Future<void> _loadLogsFromLocal() async {
-   try {
-     final String? logsStr = await SpUtil.getString(_logsKey);
-     if (logsStr != null && logsStr.isNotEmpty) {
-       final logs = logsStr
-         .split('\n')
-         .where((line) => line.isNotEmpty)
-         .map((line) {
-           try {
-             final Map<String, dynamic> decoded = json.decode(line);
-             return {
-               'time': decoded['time']?.toString() ?? '',
-               'level': decoded['level']?.toString() ?? '',
-               'message': decoded['message']?.toString() ?? ''
-             };
-           } catch (e) {
-             return null;
-           }
-         })
-         .where((log) => log != null)
-         .cast<Map<String, String>>()
-         .toList();
-         
-       _memoryLogs.addAll(logs);
-     }
-   } catch (e) {
-     developer.log('从本地加载日志失败: $e');
-   }
- }
+  try {
+    final String? logsStr = await SpUtil.getString(_logsKey);
+    if (logsStr != null && logsStr.isNotEmpty) {
+      final logs = logsStr
+        .split('\n')
+        .where((line) => line.isNotEmpty)
+        .map((line) {
+          try {
+            // 格式：[时间] [级别] [标签] | 消息内容 | 文件位置
+            final RegExp regex = RegExp(r'\[(.*?)\] \[(.*?)\] \[(.*?)\] \| (.*?) \| (.*)');
+            final match = regex.firstMatch(line);
+            if (match != null) {
+              return {
+                'time': match.group(1) ?? '',
+                'level': match.group(2) ?? '',
+                'tag': match.group(3) ?? '',
+                'message': match.group(4) ?? '',
+                'fileInfo': match.group(5) ?? ''
+              };
+            }
+            return null;
+          } catch (e) {
+            return null;
+          }
+        })
+        .where((log) => log != null)
+        .cast<Map<String, String>>()
+        .toList();
+        
+      // 直接赋值，保持顺序一致
+      _memoryLogs.clear();  // 清空现有内容
+      _memoryLogs.addAll(logs);  // 按照本地存储的顺序添加
+    }
+  } catch (e) {
+    developer.log('从本地加载日志失败: $e');
+  }
+}
 
  // 检查并处理日志文件大小
  static Future<void> _checkAndHandleLogSize() async {
@@ -143,12 +152,15 @@ class LogUtil {
      if (objectStr.length > _maxSingleLogLength) {
        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
      }
-     String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
+     // 格式：[时间] [级别] [标签] | 消息内容 | 文件位置
+     String logMessage = '[$time] [$level] [${tag ?? _defTag}] | $objectStr | $fileInfo';
 
      Map<String, String> logEntry = {
        'time': time,
        'level': level,
-       'message': logMessage
+       'message': objectStr,
+       'tag': tag ?? _defTag,
+       'fileInfo': fileInfo
      };
      
      // 添加到内存
@@ -169,10 +181,10 @@ class LogUtil {
    } catch (e) {
      developer.log('日志记录失败: $e');
    }
- }
+}
 
  // 新增：将缓冲区的日志写入本地
- static Future<void> _flushToLocal() async {
+static Future<void> _flushToLocal() async {
    if (_newLogsBuffer.isEmpty || _isOperating) return;
    
    _isOperating = true;
@@ -180,7 +192,11 @@ class LogUtil {
      final List<Map<String, String>> logsToWrite = List.from(_newLogsBuffer);
      _newLogsBuffer.clear();
      
-     String newContent = logsToWrite.map((log) => json.encode(log)).join('\n');
+     // 转换为文本格式
+     String newContent = logsToWrite.map((log) => 
+       '[${log['time']}] [${log['level']}] [${log['tag']}] | ${log['message']} | ${log['fileInfo']}'
+     ).join('\n');
+     
      String? existingContent = await SpUtil.getString(_logsKey) ?? '';
      if (existingContent.isNotEmpty) {
        newContent += '\n$existingContent';
@@ -194,7 +210,7 @@ class LogUtil {
    } finally {
      _isOperating = false;
    }
- }
+}
 
  // 显示调试信息的弹窗
 static void _showDebugMessage(String message) {
@@ -411,9 +427,9 @@ static void _startAutoHideTimer() {
        // 清空特定级别的日志
        _memoryLogs.removeWhere((log) => log['level'] == level);
        _newLogsBuffer.removeWhere((log) => log['level'] == level);
-       final String updatedLogs = _memoryLogs
-         .map((log) => json.encode(log))
-         .join('\n');
+       final String updatedLogs = _memoryLogs.map((log) =>
+         '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
+       ).join('\n');
        await SpUtil.putString(_logsKey, updatedLogs);
      }
    } catch (e) {
@@ -440,22 +456,19 @@ static void _startAutoHideTimer() {
  }
 
  // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
- static String parseLogMessage(String message) {
+static String parseLogMessage(String message) {
    try {
-     if (message.trim().startsWith('{')) {
-       final Map<String, dynamic> logMap = json.decode(message);
-       return logMap['message'] ?? message;
-     }
-     
-     List<String> parts = message.split('|');
-     if (parts.length >= 2) {
-       return parts[1].trim();
+     // 新格式：[时间] [级别] [标签] | 消息内容 | 文件位置
+     final RegExp regex = RegExp(r'\[.*?\] \[.*?\] \[.*?\] \| (.*?) \|');
+     final match = regex.firstMatch(message);
+     if (match != null) {
+       return match.group(1)?.trim() ?? message;
      }
    } catch (e) {
      developer.log('解析日志消息失败: $e');
    }
    return message;
- }
+}
  
  // 应用退出时调用
  static Future<void> dispose() async {
