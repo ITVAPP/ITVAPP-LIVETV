@@ -497,10 +497,9 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
 
   try {
     while (redirectCount < maxRedirects) {
-      final response = await client.head(
+      final response = await client.get(  // 改用 get 请求
         Uri.parse(currentUrl),
         headers: HeadersConfig.generateHeaders(url: currentUrl),
-        followRedirects: false,
       ).timeout(timeout);
 
       if (response.statusCode >= 300 && response.statusCode < 400) {
