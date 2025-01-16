@@ -558,10 +558,6 @@ LogUtil.i('初始化.1: 开始初始化控制器');
 _controller = WebViewController()
   ..setJavaScriptMode(JavaScriptMode.unrestricted)
   ..setUserAgent(HeadersConfig.userAgent)
-  ..setCacheMode(CacheMode.cacheNone)  // 不使用缓存
-  ..setMediaPlaybackRequiresUserGesture(true)    // 阻止媒体自动加载
-   ..enableDOMStorage(false)  // 禁用 DOM 存储来减少内存使用
-  ..enableDatabaseAccess(false)  // 禁用数据库存储
         ..addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
@@ -1076,36 +1072,30 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
 
     String? sampleResult;
     // 如果是非 HTML 页面，直接使用 HttpUtil 获取的数据
-    if (!_isHtmlContent) {
-      if (_httpResponseContent == null) {
-        LogUtil.e('非 HTML 页面数据为空，跳过检测');
-        return null;
-      }
+if (!_isHtmlContent) {
+  if (_httpResponseContent == null) {
+    LogUtil.e('非 HTML 页面数据为空，跳过检测');
+    return null;
+  }
 
-      LogUtil.i('使用 HttpUtil 获取的数据进行提取: ${_filePattern}');
+  LogUtil.i('使用 HttpUtil 获取的数据进行提取: ${_filePattern}');
 
-      if (!_httpResponseContent!.contains('.${_filePattern}')) {
-        return "NO_PATTERN";
-      }
+String pattern = '.' + _filePattern;
+int firstPos = _httpResponseContent!.indexOf(pattern);
+if (firstPos == -1) {
+  return "NO_PATTERN";
+}
 
-      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
-      final matches = pattern.allMatches(_httpResponseContent!);
+int lastPos = _httpResponseContent!.lastIndexOf(pattern);
+// 计算前 100 字符的起始位置
+int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
+// 计算后 100 字符的结束位置，注意要从模式结束位置开始算
+int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
+sampleResult = _httpResponseContent!.substring(start, end);
 
-      if (matches.isEmpty) {
-        return null;
-      }
-
-      // 获取最小匹配范围
-      final firstPos = matches.first.start;
-      final lastPos = matches.last.start;
-      final start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
-      final end = (lastPos + 100).clamp(0, _httpResponseContent!.length);
-
-      sampleResult = _httpResponseContent!.substring(start, end);
-      LogUtil.i('提取的内容: $sampleResult');
-
-      return sampleResult;
-    } else {
+LogUtil.i('提取的内容: $sampleResult');
+return sampleResult;
+} else {
   // 如果是 HTML 页面，使用 WebView 解析
   final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
     (function() {
