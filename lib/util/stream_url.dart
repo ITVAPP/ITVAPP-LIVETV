@@ -495,20 +495,36 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
       Uri.parse(url),
       headers: HeadersConfig.generateHeaders(url: url)
     ).timeout(timeout);
+    
+    // 打印详细的响应信息
+    LogUtil.i('''
+    ======= 响应信息 =======
+    状态码: ${response.statusCode}
+    请求URL: ${response.request?.url}
+    响应头: ${response.headers}
+    响应体长度: ${response.body.length}
+    响应体预览: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}...
+    ====================''');
 
     // 检查重定向状态码 (301, 302, 303, 307, 308)
     if (response.statusCode >= 300 && response.statusCode < 400) {
       final location = response.headers['location'];
       if (location != null && location.isNotEmpty) {
-        return location;  // 返回重定向地址
+        if (location.startsWith('http')) {
+          return location;
+        } else {
+          final baseUri = Uri.parse(url);
+          final redirectUri = Uri.parse(location);
+          return baseUri.resolve(redirectUri.toString()).toString();
+        }
       }
     }
     
-    return url;  // 如果没有重定向，返回原始URL
+    return url;
     
   } catch (e) {
     LogUtil.e('重定向处理失败: ${e.toString()}');
-    return url;  // 发生错误时返回原始URL
+    return url;
   }
 }
 
