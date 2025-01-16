@@ -494,8 +494,11 @@ _filePattern = specialRules.entries
   LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
 
   try {
+  LogUtil.i('开始初始化控制器前');	
     await _initController(completer, _filePattern);  // 使用类变量
+    LogUtil.i('控制器初始化完成，准备启动超时计时');
     _startTimeout(completer);
+    LogUtil.i('超时计时启动完成，继续执行后续逻辑');
   } catch (e, stackTrace) {
     LogUtil.logError('初始化过程发生错误', e, stackTrace);
     completer.complete('ERROR');
