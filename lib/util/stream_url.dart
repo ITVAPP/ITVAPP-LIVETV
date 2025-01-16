@@ -491,13 +491,10 @@ bool needsRedirectCheck(String url, String rulesString) {
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
   try {
-    // 添加特殊头，防止重定向
-    final headers = HeadersConfig.generateHeaders(url: url);
-    headers['Max-Forwards'] = '0';  // 防止自动重定向
-    
-    final response = await client.get(
+    // 使用 HEAD 请求来获取重定向信息
+    final response = await client.head(
       Uri.parse(url),
-      headers: headers
+      headers: HeadersConfig.generateHeaders(url: url),
     ).timeout(timeout);
     
     // 打印详细的响应信息
