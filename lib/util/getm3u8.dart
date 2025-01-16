@@ -1037,7 +1037,6 @@ Future<void> disposeResources() async {
           // 计算后 100 字符的结束位置，注意要从模式结束位置开始算
           int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
           sampleResult = _httpResponseContent!.substring(start, end);
-          LogUtil.i('提取到内容: $sampleResult');
         }
       } else {
         // 如果是 HTML 页面，使用 WebView 解析
@@ -1114,7 +1113,7 @@ Future<void> disposeResources() async {
       LogUtil.i('正在检测页面中的 $_filePattern 文件，处理后的内容: $sample');
 
       // 正则表达式
-      final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
+      final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s|:)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
 
