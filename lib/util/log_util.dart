@@ -10,7 +10,6 @@ class LogUtil {
  static const String _defTag = 'common_utils';
  static bool debugMode = true; // 控制是否记录日志 true 或 false
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
- static bool _isOperating = false; // 添加操作锁，防止并发问题
  static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
  static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
  
@@ -95,15 +94,8 @@ class LogUtil {
  }
 
   // 通用日志记录方法，日志记录受 debugMode 控制
-   static Future<void> _log(String level, Object? object, String? tag) async {
+  static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
-
-    if (_isOperating) {
-      developer.log('有其他日志操作正在进行，暂缓记录新日志');
-      return;
-    }
-
-    _isOperating = true;
     
     try {
       String time = DateTime.now().toString();
@@ -123,16 +115,17 @@ class LogUtil {
       
       String newLog = json.encode(logEntry) + '\n';
       
-      // 获取现有日志
-      String? existingLogs = SpUtil.getString(_logsKey) ?? '';
+      // 获取现有日志并添加新日志
+      String existingLogs = await SpUtil.getString(_logsKey) ?? '';
       String updatedLogs = newLog + existingLogs;
       
       // 检查更新后的日志大小
       if (utf8.encode(updatedLogs).length > _maxFileSizeBytes) {
-        await clearLogs();
+        await _trimOldLogs();
         updatedLogs = newLog;
       }
       
+      // 写入更新后的日志
       await SpUtil.putString(_logsKey, updatedLogs);
       developer.log(logMessage);
 
@@ -142,8 +135,27 @@ class LogUtil {
     } catch (e) {
       developer.log('日志记录失败: $e');
       rethrow;
-    } finally {
-      _isOperating = false;
+    }
+  }
+
+  // 清理旧日志而不是完全清空
+  static Future<void> _trimOldLogs() async {
+    try {
+      final String? logsStr = await SpUtil.getString(_logsKey);
+      if (logsStr == null || logsStr.isEmpty) return;
+      
+      List<String> logLines = logsStr.split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
+          
+      // 保留最新的75%的日志
+      int keepCount = (logLines.length * 0.75).floor();
+      logLines = logLines.sublist(0, keepCount);
+      
+      await SpUtil.putString(_logsKey, logLines.join('\n'));
+    } catch (e) {
+      developer.log('清理旧日志失败: $e');
+      await _clearLogs();
     }
   }
 
@@ -369,9 +381,6 @@ static void _startAutoHideTimer() {
 
  // 清空日志
   static Future<void> clearLogs([String? level]) async {
-    if (_isOperating) return;
-    
-    _isOperating = true;
     try {
       if (level == null) {
         // 清空所有日志
@@ -391,22 +400,15 @@ static void _startAutoHideTimer() {
       }
     } catch (e) {
       developer.log('清空日志失败: $e');
-    } finally {
-      _isOperating = false;
     }
   }
 
  // 内部清空日志方法
  static Future<void> _clearLogs() async {
-   if (_isOperating) return;
-   
-   _isOperating = true;
    try {
      await SpUtil.putString(_logsKey, '');
    } catch (e) {
      developer.log('清空日志失败: $e');
-   } finally {
-     _isOperating = false;
    }
  }
 
