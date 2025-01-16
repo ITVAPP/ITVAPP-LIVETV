@@ -517,6 +517,11 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
+        ..setDOMStorageEnabled(false)  // 禁用 DOM 存储来减少内存使用
+        ..setDatabaseEnabled(false)    // 禁用数据库存储
+        ..setCacheMode(WebViewCacheMode.LOAD_NO_CACHE)  // 不使用缓存
+        ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
+        
         LogUtil.i('初始化.2: 基本设置完成');
         
       // 检查内容类型并设置状态
@@ -1137,7 +1142,7 @@ if (!isHtmlContent) {
      return null;
    }
       
-      LogUtil.i('进行页面静态检测:$sampleResult');
+      LogUtil.i('从页面内容检测$_filePattern : $sampleResult');
 
 // 正则表达式
 final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
