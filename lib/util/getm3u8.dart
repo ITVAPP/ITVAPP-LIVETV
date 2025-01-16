@@ -1015,25 +1015,23 @@ if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
   }
 
   /// 检查页面内容中的M3U8地址
-Future<String?> _checkPageContent() async {
- if (!_isControllerReady() || _m3u8Found || _isDisposed) {
-   LogUtil.i(
-     !_isControllerReady()
-       ? 'WebViewController 未初始化，无法检查页面内容'
-       : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
-     tag: !_isControllerReady() ? 'ERROR' : 'INFO'
-   );
-   return null;
- }
- _isStaticChecking = true;
+  Future<String?> _checkPageContent() async {
+if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+  LogUtil.i(
+    !_isControllerReady()
+      ? 'WebViewController 未初始化，无法检查页面内容'
+      : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
+    tag: !_isControllerReady() ? 'ERROR' : 'INFO'
+  );
+  return null;
+}
+    _isStaticChecking = true;
 
- try {
-   // 定义提取URL的正则表达式，以便复用
-   final urlPattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
-
-   // 尝试获取原始响应内容，而不是HTML
-   final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-     (function() {
+    try {
+      // 尝试获取原始响应内容，而不是HTML
+final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
+  (function() {
+  	
        // 统一的转义处理函数
        function decodeText(text) {
          return text
@@ -1057,44 +1055,48 @@ Future<String?> _checkPageContent() async {
              }
            });
        }
-
-       const urlPattern = ${urlPattern};
-       const urlRegex = new RegExp(urlPattern, 'gi');
-       const results = new Set();
-
-       if (!isHtmlContent) {
-         const text = decodeText(document.body.textContent || '');
+       
+    // 如果是普通HTML页面
+if (!isHtmlContent) {
+  const text = decodeText(document.body.textContent || '');
          if (!text.includes('.${_filePattern}')) {
            return "NO_PATTERN";
          }
+  // 找出所有匹配位置
+  const pattern = new RegExp('\\.' + '${_filePattern}', 'g');
+  const matches = Array.from(text.matchAll(pattern));
+  
+  if (matches.length === 0) {
+    return null;
+  }
+  
+  // 提取包含所有匹配的最小文本范围
+  const firstPos = matches[0].index;
+  const lastPos = matches[matches.length - 1].index;
+  const start = Math.max(0, firstPos - 100);
+  const end = Math.min(text.length, lastPos + 100);
+  
+  return text.substring(start, end);
 
-         let match;
-         while ((match = urlRegex.exec(text)) !== null) {
-           if (match[1]) results.add(match[1]);
-           else if (match[2]) results.add(match[2]);
-         }
-       } else {
-         const content = document.documentElement.innerHTML;
+} else {
+  const content = document.documentElement.innerHTML;
          if (content.length > 38888) {
            return "SIZE_EXCEEDED";
          }
-         
          // 处理整个HTML内容
          const decodedContent = decodeText(content);
          if (!decodedContent.includes('.${_filePattern}')) {
            return "NO_PATTERN";
          }
-         
-         let match;
-         while ((match = urlRegex.exec(decodedContent)) !== null) {
-           if (match[1]) results.add(match[1]);
-           else if (match[2]) results.add(match[2]);
-         }
-       }
+  return decodedContent;
+}
+  })()
+''');
 
-       return results.size > 0 ? Array.from(results).join('\\n') : null;
-     })()
-   ''');
+      if (sampleResult == null) {
+        LogUtil.i('获取内容样本失败');
+        return null;
+      }
 
    if (sampleResult == "SIZE_EXCEEDED") {
      LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
@@ -1105,85 +1107,83 @@ Future<String?> _checkPageContent() async {
      LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
      return null;
    }
+      
+      LogUtil.i('进行页面静态检测');
 
-   if (sampleResult == null) {
-     LogUtil.i('获取内容样本失败');
-     return null;
-   }
+// 正则表达式
+final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
+final regex = RegExp(pattern, caseSensitive: false);
+final matches = regex.allMatches(sample);
 
-   LogUtil.i('页面内容：${sampleResult}，进行静态检测');
+      if (clickIndex == 0) {
+        for (final match in matches) {
+          // 检查两个捕获组
+          String? url = match.group(1);  // 引号中的内容
+          if (url == null || url.isEmpty) {
+            url = match.group(2);  // 非引号的URL
+          }
 
-   // 使用之前定义的正则表达式
-   final regex = RegExp(urlPattern, caseSensitive: false);
-   final matches = regex.allMatches(sampleResult.toString());
+          if (url != null && url.isNotEmpty) {
+            LogUtil.i('正则匹配到URL: $url');
+            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+            if (_isValidM3U8Url(cleanedUrl)) {
+              String finalUrl = cleanedUrl;
+              if (fromParam != null && toParam != null) {
+                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+              }
+              _foundUrls.add(finalUrl);
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('页面内容中找到 $finalUrl');
+              return finalUrl;
+            }
+          }
+        }
+      } else {
+        final Set<String> foundUrls = {};
 
-   if (clickIndex == 0) {
-     for (final match in matches) {
-       String? url = match.group(1);
-       if (url == null || url.isEmpty) {
-         url = match.group(2);
-       }
+        for (final match in matches) {
+          String? url = match.group(1);
+          if (url == null || url.isEmpty) {
+            url = match.group(2);
+          }
 
-       if (url != null && url.isNotEmpty) {
-         LogUtil.i('正则匹配到URL: $url');
-         String cleanedUrl = _cleanUrl(_handleRelativePath(url));
-         if (_isValidM3U8Url(cleanedUrl)) {
-           String finalUrl = cleanedUrl;
-           if (fromParam != null && toParam != null) {
-             finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-           }
-           _foundUrls.add(finalUrl);
-           _staticM3u8Found = true;
-           _m3u8Found = true;
-           LogUtil.i('页面内容中找到 $finalUrl');
-           return finalUrl;
-         }
-       }
-     }
-   } else {
-     final Set<String> foundUrls = {};
-     for (final match in matches) {
-       String? url = match.group(1);
-       if (url == null || url.isEmpty) {
-         url = match.group(2);
-       }
+          if (url != null && url.isNotEmpty) {
+            foundUrls.add(_handleRelativePath(url));
+          }
+        }
 
-       if (url != null && url.isNotEmpty) {
-         foundUrls.add(_handleRelativePath(url));
-       }
-     }
+        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
 
-     LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
-
-     int index = 0;
-     for (final url in foundUrls) {
-       String cleanedUrl = _cleanUrl(url);
-       if (_isValidM3U8Url(cleanedUrl)) {
-         String finalUrl = cleanedUrl;
-         if (fromParam != null && toParam != null) {
-           finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-         }
-         _foundUrls.add(finalUrl);
-         if (index == clickIndex) {
-           _staticM3u8Found = true;
-           _m3u8Found = true;
-           LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-           return finalUrl;
-         }
-         index++;
-       }
-     }
-   }
-     
-   LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
-   return null;	
- } catch (e, stackTrace) {
-   LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-   return null;
- } finally {
-   _isStaticChecking = false;
- }
-}
+        int index = 0;
+        for (final url in foundUrls) {
+          String cleanedUrl = _cleanUrl(url);
+          if (_isValidM3U8Url(cleanedUrl)) {
+            String finalUrl = cleanedUrl;
+            if (fromParam != null && toParam != null) {
+              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+            }
+            _foundUrls.add(finalUrl);
+            if (index == clickIndex) {
+              _staticM3u8Found = true;
+              _m3u8Found = true;
+              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+              return finalUrl;
+            }
+            index++;
+          }
+        }
+      }
+      
+      LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
+      return null;	
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+      return null;
+    } finally {
+      _isStaticChecking = false;
+    }
+  }
 
   /// 注入M3U8检测器的JavaScript代码
   void _injectM3U8Detector() {
