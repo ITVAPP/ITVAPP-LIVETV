@@ -1113,7 +1113,7 @@ if (!isHtmlContent) {
 // 正则表达式
 final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
 final regex = RegExp(pattern, caseSensitive: false);
-final matches = regex.allMatches(sample);
+final matches = regex.allMatches(sampleResult);
 
       if (clickIndex == 0) {
         for (final match in matches) {
