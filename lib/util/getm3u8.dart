@@ -513,6 +513,7 @@ Future<String> getUrl() async {
 
   /// 初始化WebViewController
 Future<void> _initController(Completer<String> completer, String filePattern) async {
+	
     try {
 LogUtil.i('初始化.1: 开始初始化控制器');
 _controller = WebViewController()
@@ -524,9 +525,10 @@ _controller = WebViewController()
   ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
         
         LogUtil.i('初始化.2: 基本设置完成');
-        
-      // 检查内容类型并设置状态
-bool isHtmlContent = false;
+
+late String? _httpResponseContent;
+ // 检查内容类型并设置状态
+bool _isHtmlContent = false;
 try {
   final contentType = await _controller.runJavaScriptReturningResult('''
     (function() {
@@ -539,12 +541,12 @@ try {
       }
     })();
   ''');
-  isHtmlContent = contentType == 'text/html';
+  _isHtmlContent = contentType == 'text/html';
 } catch (e) {
-  isHtmlContent = false;
+  _isHtmlContent = false;
 }
-        
-        if (!isHtmlContent) {
+
+        if (!_isHtmlContent) {
           LogUtil.i('初始化.2.1: 检测到非HTML内容，标记为已注入状态');
           _isDetectorInjected = true;  // 标记为已注入，避免后续注入
           // 创建一个完成的定时器，避免后续定时检查
@@ -552,10 +554,21 @@ try {
             _periodicCheckTimer?.cancel();  
           }
           _periodicCheckTimer = Timer(Duration.zero, () {});
+          
+      final httpdata = await HttpUtil().getRequest<String>(url);
+      if (httpdata == null) {
+        LogUtil.e('HttpUtil 请求失败，未获取到数据');
+        _httpResponseContent = null;
+      } else {
+        LogUtil.i('成功获取非 HTML 页面内容');
+        _httpResponseContent = httpdata;
+        _isControllerInitialized = true; // 标记为已初始化
+      }
+
         }
       } catch (e, stack) {
         LogUtil.logError('初始化.2.2: 检查内容类型失败', e, stack);
-        isHtmlContent = false; // 异常情况当作非HTML处理
+        _isHtmlContent = false; // 异常情况当作非HTML处理
         _isDetectorInjected = true;
         if (_periodicCheckTimer != null) {
           _periodicCheckTimer?.cancel();  
@@ -1074,41 +1087,40 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
     _isStaticChecking = true;
 
     try {
-      // 尝试获取原始响应内容，而不是HTML
 
-if (!isHtmlContent) {
-  final data = await HttpUtil().getRequest<String>(url);
+    String? sampleResult;
+    // 如果是非 HTML 页面，直接使用 HttpUtil 获取的数据
+    if (!_isHtmlContent) {
+      if (_httpResponseContent == null) {
+        LogUtil.e('非 HTML 页面数据为空，跳过检测');
+        return null;
+      }
 
-  if (data == null) {
-    LogUtil.e('非 HTML 页面内容请求失败，无法获取数据');
-    return null;
-  }
+      LogUtil.i('使用 HttpUtil 获取的数据进行提取: ${_filePattern}');
 
-  LogUtil.i('成功获取非 HTML 页面内容，尝试提取 ${_filePattern} 关键内容');
+      if (!_httpResponseContent!.contains('.${_filePattern}')) {
+        return "NO_PATTERN";
+      }
 
-  if (!data.contains('.${_filePattern}')) {
-    return "NO_PATTERN";
-  }
+      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
+      final matches = pattern.allMatches(_httpResponseContent!);
 
-  final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
-  final matches = pattern.allMatches(data);
+      if (matches.isEmpty) {
+        return null;
+      }
 
-  if (matches.isEmpty) {
-    return null;
-  }
+      // 获取最小匹配范围
+      final firstPos = matches.first.start;
+      final lastPos = matches.last.start;
+      final start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
+      final end = (lastPos + 100).clamp(0, _httpResponseContent!.length);
 
-  // **获取最小匹配范围**
-  final firstPos = matches.first.start;
-  final lastPos = matches.last.start;
-  final start = (firstPos - 100).clamp(0, data.length);
-  final end = (lastPos + 100).clamp(0, data.length);
+      sampleResult = _httpResponseContent!.substring(start, end);
+      LogUtil.i('提取的内容: $sampleResult');
 
-  final sampleResult = data.substring(start, end);
-  LogUtil.i('提取的内容: $sampleResult');
-
-  return sampleResult;
-} else {
-  // **如果是 HTML 页面，使用 WebView 解析**
+      return sampleResult;
+    } else {
+  // 如果是 HTML 页面，使用 WebView 解析
   final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
     (function() {
       function decodeText(text) {
