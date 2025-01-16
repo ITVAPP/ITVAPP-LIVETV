@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
@@ -513,24 +514,35 @@ Future<String> getUrl() async {
   /// 初始化WebViewController
 Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
-    	LogUtil.i('初始化.1: 开始初始化控制器');
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent);
-        ..setDOMStorageEnabled(false)  // 禁用 DOM 存储来减少内存使用
-        ..setDatabaseEnabled(false)    // 禁用数据库存储
-        ..setCacheMode(WebViewCacheMode.LOAD_NO_CACHE)  // 不使用缓存
-        ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
+LogUtil.i('初始化.1: 开始初始化控制器');
+_controller = WebViewController()
+  ..setJavaScriptMode(JavaScriptMode.unrestricted)
+  ..setUserAgent(HeadersConfig.userAgent)
+  ..setDOMStorageEnabled(false)  // 禁用 DOM 存储来减少内存使用
+  ..setDatabaseEnabled(false)    // 禁用数据库存储
+  ..setCacheMode(WebViewCacheMode.LOAD_NO_CACHE)  // 不使用缓存
+  ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
         
         LogUtil.i('初始化.2: 基本设置完成');
         
       // 检查内容类型并设置状态
-      bool isHtmlContent = false;
+bool isHtmlContent = false;
+try {
+  final contentType = await _controller.runJavaScriptReturningResult('''
+    (function() {
       try {
-        final contentType = await _controller.runJavaScriptReturningResult(
-          'document.contentType || document.getElementsByTagName("html").length > 0 ? "text/html" : ""'
-        );
-        isHtmlContent = contentType == 'text/html';
+        const htmlExists = document.getElementsByTagName("html").length > 0;
+        const detectedType = document.contentType ? document.contentType : (htmlExists ? "text/html" : "");
+        return detectedType;
+      } catch (e) {
+        return ""; // 避免异常影响逻辑
+      }
+    })();
+  ''');
+  isHtmlContent = contentType == 'text/html';
+} catch (e) {
+  isHtmlContent = false;
+}
         
         if (!isHtmlContent) {
           LogUtil.i('初始化.2.1: 检测到非HTML内容，标记为已注入状态');
@@ -1063,69 +1075,75 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
 
     try {
       // 尝试获取原始响应内容，而不是HTML
-final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
-  (function() {
-  	
-       // 统一的转义处理函数
-       function decodeText(text) {
-         return text
-           // 处理JSON转义
-           .replace(/\\\\/g, '\\\\')
-           .replace(/\\\//g, '/')
-           .replace(/\\"/g, '"')
-           .replace(/\\'/g, "'")
-           // 处理HTML实体
-           .replace(/&quot;/g, '"')
-           .replace(/&#x2F;|&#47;/g, '/')
-           .replace(/&amp;/g, '&')
-           .replace(/&lt;/g, '<')
-           .replace(/&gt;/g, '>')
-           // URL解码
-           .replace(/%[0-9a-fA-F]{2}/g, match => {
-             try {
-               return decodeURIComponent(match);
-             } catch(e) {
-               return match;
-             }
-           });
-       }
-       
-    // 如果是普通HTML页面
+
 if (!isHtmlContent) {
-  const text = decodeText(document.body.textContent || '');
-         if (!text.includes('.${_filePattern}')) {
-           return "NO_PATTERN";
-         }
-  // 找出所有匹配位置
-  const pattern = new RegExp('\\.' + '${_filePattern}', 'g');
-  const matches = Array.from(text.matchAll(pattern));
-  
-  if (matches.length === 0) {
+  final data = await HttpUtil().getRequest<String>(url);
+
+  if (data == null) {
+    LogUtil.e('非 HTML 页面内容请求失败，无法获取数据');
     return null;
   }
-  
-  // 提取包含所有匹配的最小文本范围
-  const firstPos = matches[0].index;
-  const lastPos = matches[matches.length - 1].index;
-  const start = Math.max(0, firstPos - 100);
-  const end = Math.min(text.length, lastPos + 100);
-  
-  return text.substring(start, end);
 
+  LogUtil.i('成功获取非 HTML 页面内容，尝试提取 ${_filePattern} 关键内容');
+
+  if (!data.contains('.${_filePattern}')) {
+    return "NO_PATTERN";
+  }
+
+  final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
+  final matches = pattern.allMatches(data);
+
+  if (matches.isEmpty) {
+    return null;
+  }
+
+  // **获取最小匹配范围**
+  final firstPos = matches.first.start;
+  final lastPos = matches.last.start;
+  final start = (firstPos - 100).clamp(0, data.length);
+  final end = (lastPos + 100).clamp(0, data.length);
+
+  final sampleResult = data.substring(start, end);
+  LogUtil.i('提取的内容: $sampleResult');
+
+  return sampleResult;
 } else {
-  const content = document.documentElement.innerHTML;
-         if (content.length > 38888) {
-           return "SIZE_EXCEEDED";
-         }
-         // 处理整个HTML内容
-         const decodedContent = decodeText(content);
-         if (!decodedContent.includes('.${_filePattern}')) {
-           return "NO_PATTERN";
-         }
-  return decodedContent;
+  // **如果是 HTML 页面，使用 WebView 解析**
+  final dynamic sampleResult = await _controller.runJavaScriptReturningResult('''
+    (function() {
+      function decodeText(text) {
+        return text
+          .replace(/\\\\/g, '\\\\')
+          .replace(/\\\//g, '/')
+          .replace(/\\"/g, '"')
+          .replace(/\\'/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/&#x2F;|&#47;/g, '/')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/%[0-9a-fA-F]{2}/g, match => {
+            try { return decodeURIComponent(match); } catch(e) { return match; }
+          });
+      }
+
+      const filePattern = "${RegExp.escape(_filePattern)}";
+      let content = document.documentElement.innerHTML;
+
+      if (content.length > 38888) {
+        return "SIZE_EXCEEDED";
+      }
+
+      const decodedContent = decodeText(content);
+      if (!decodedContent.includes('.' + filePattern)) {
+        return "NO_PATTERN";
+      }
+      return decodedContent;
+    })();
+  ''');
+
+  sampleResult = sampleResult as String?;
 }
-  })()
-''');
 
       if (sampleResult == null) {
         LogUtil.i('获取内容样本失败');
