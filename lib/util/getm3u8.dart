@@ -457,79 +457,82 @@ Future<bool> _executeClick() async {
 
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
 Future<String> getUrl() async {
+  LogUtil.i('1. getUrl方法开始执行');
   final completer = Completer<String>();
+  
   // 解析动态关键词规则
+  LogUtil.i('2. 开始解析动态关键词');
   final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
-
-  LogUtil.i('GetM3U8初始化开始，目标URL: $url');
-
+  LogUtil.i('3. GetM3U8初始化开始，目标URL: $url');
+  
   // 动态检查关键词
+  LogUtil.i('4. 开始检查关键词匹配');
   for (final keyword in dynamicKeywords) {
     if (url.contains(keyword)) {
-      LogUtil.i('检测到匹配的关键词规则: $keyword，调用 getm3u8diy');
+      LogUtil.i('5. 检测到匹配的关键词规则: $keyword，调用 getm3u8diy');
       try {
-        // 使用 getm3u8diy 获取直播地址
+        LogUtil.i('6. 开始调用 getm3u8diy');
         final streamUrl = await GetM3u8Diy.getStreamUrl(url);
-        LogUtil.i('成功获取播放地址: $streamUrl');
+        LogUtil.i('7. 成功获取播放地址: $streamUrl');
         completer.complete(streamUrl);
         return completer.future;
       } catch (e, stackTrace) {
-        LogUtil.logError('getm3u8diy 获取播放地址失败', e, stackTrace);
+        LogUtil.logError('8. getm3u8diy 获取播放地址失败', e, stackTrace);
         completer.completeError('ERROR');
         return completer.future;
       }
     }
   }
-
+  
   // 动态解析特殊规则
-final specialRules = _parseSpecialRules(specialRulesString);
-// 使用 firstWhere 或 entries.firstWhere 直接找到匹配的规则
-_filePattern = specialRules.entries
-    .firstWhere(
-      (entry) => url.contains(entry.key),
-      orElse: () => const MapEntry('', 'm3u8')
-    )
-    .value;
-
-  LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
-
+  LogUtil.i('9. 开始解析特殊规则');
+  final specialRules = _parseSpecialRules(specialRulesString);
+  _filePattern = specialRules.entries
+      .firstWhere(
+        (entry) => url.contains(entry.key),
+        orElse: () => const MapEntry('', 'm3u8')
+      )
+      .value;
+  LogUtil.i('10. 检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
+  
   try {
-  LogUtil.i('开始初始化控制器前');	
-    await _initController(completer, _filePattern);  // 使用类变量
-    LogUtil.i('控制器初始化完成，准备启动超时计时');
+    LogUtil.i('11. 开始初始化控制器前');	
+    await _initController(completer, _filePattern);
+    LogUtil.i('12. 控制器初始化完成，准备启动超时计时');
     _startTimeout(completer);
-    LogUtil.i('超时计时启动完成，继续执行后续逻辑');
+    LogUtil.i('13. 超时计时启动完成，继续执行后续逻辑');
   } catch (e, stackTrace) {
-    LogUtil.logError('初始化过程发生错误', e, stackTrace);
+    LogUtil.logError('14. 初始化过程发生错误', e, stackTrace);
     completer.complete('ERROR');
   }
-
+  
+  LogUtil.i('15. getUrl方法执行完成，返回future');
   return completer.future;
 }
 
   /// 初始化WebViewController
-  Future<void> _initController(Completer<String> completer, String filePattern) async {
+Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
-    	LogUtil.i('开始初始化控制器');
+    	LogUtil.i('初始化.1: 开始初始化控制器');
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
-        LogUtil.i('基本设置完成');
+        LogUtil.i('初始化.2: 基本设置完成');
          _controller.addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
-            LogUtil.i('JS检测器发现新的URL: ${message.message}');
+            LogUtil.i('初始化.3: JS检测器发现新的URL: ${message.message}');
             _handleM3U8Found(message.message, completer);
           },
         );
-        LogUtil.i('开始设置导航代理');
+        LogUtil.i('初始化.4: 开始设置导航代理');
         _controller.setNavigationDelegate(
           NavigationDelegate(
 onNavigationRequest: (NavigationRequest request) {
-  LogUtil.i('页面导航请求: ${request.url}');
+  LogUtil.i('导航.1: 页面导航请求: ${request.url}');
   final uri = Uri.tryParse(request.url);
   if (uri == null) {
-    LogUtil.i('无效的URL，阻止加载');
+    LogUtil.i('导航.2: 无效的URL，阻止加载');
     return NavigationDecision.prevent;
   }
 
@@ -561,7 +564,7 @@ onNavigationRequest: (NavigationRequest request) {
       return NavigationDecision.prevent;  // 阻止加载目标资源
     }
   } catch (e) {
-    LogUtil.e('URL检查失败: $e');
+    LogUtil.e('导航.ERR: URL检查失败: $e');
   }
 
   // 3. 允许其他所有请求通过
@@ -569,14 +572,14 @@ onNavigationRequest: (NavigationRequest request) {
 },
 onPageFinished: (String url) async {
 	
-  LogUtil.i('页面加载完成，当前状态：\n'
+  LogUtil.i('页面.1: 页面加载完成，当前状态：\n'
       '资源是否释放: $_isDisposed\n'
       '点击是否执行: $_isClickExecuted\n'
       '是否找到M3U8: $_m3u8Found');
       
   // 1. 基础状态检查
 if (_isDisposed || _isClickExecuted) {
-  LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
+  LogUtil.i('页面.2: ' + (_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理'));
   return;
 }
   
@@ -594,7 +597,7 @@ if (_isDisposed || _isClickExecuted) {
     
     // 检查触发次数
     if (currentTriggers > 2) {
-      LogUtil.i('hash路由L触发超过2次，跳过处理');
+      LogUtil.i('页面.3: hash路由触发超过2次，跳过处理');
       return;
     }
     
@@ -602,17 +605,17 @@ if (_isDisposed || _isClickExecuted) {
     _hashFirstLoadMap[mapKey] = currentTriggers;
     
     if (currentTriggers == 1) {
-      LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+      LogUtil.i('页面.4: 检测到hash路由首次加载，等待第二次加载');
       return;
     }
     }
   } catch (e) {
-    LogUtil.e('解析URL失败: $e');
+    LogUtil.e('页面.ERR: 解析URL失败: $e');
   }
 
   // 3. 点击处理
   if (!_isClickExecuted && clickText != null) {
-    LogUtil.i('准备执行点击操作');
+    LogUtil.i('页面.5: 准备执行点击操作');
     await Future.delayed(Duration(milliseconds: 1000)); 
     if (!_isDisposed) {
       await _executeClick();
@@ -642,11 +645,11 @@ if (m3u8Url != null && !completer.isCompleted) {
             onWebResourceError: (WebResourceError error) async {
               // 忽略被阻止资源的错误
               if (error.errorCode == -1) {
-                LogUtil.i('资源被阻止加载: ${error.description}');
+                LogUtil.i('错误.1: 资源被阻止加载: ${error.description}');
                 return;
               }
 
-              LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+              LogUtil.e('错误.2: WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
               await _handleLoadError(completer);
             },
           ),
@@ -654,9 +657,9 @@ if (m3u8Url != null && !completer.isCompleted) {
 
       _isControllerInitialized = true; // 标记为已初始化
       await _loadUrlWithHeaders();
-      LogUtil.i('WebViewController初始化完成');
+      LogUtil.i('初始化.5: WebViewController初始化完成');
     } catch (e, stackTrace) {
-      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      LogUtil.logError('初始化.ERR: 初始化WebViewController时发生错误', e, stackTrace);
       _isControllerInitialized = false; // 标记初始化失败
       await _handleLoadError(completer);
     }
