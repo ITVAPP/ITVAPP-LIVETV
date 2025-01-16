@@ -94,59 +94,58 @@ class LogUtil {
    await _log('d', object, tag);
  }
 
- // 通用日志记录方法，日志记录受 debugMode 控制
- static Future<void> _log(String level, Object? object, String? tag) async {
-   if (!debugMode || object == null) return;
+  // 通用日志记录方法，日志记录受 debugMode 控制
+   static Future<void> _log(String level, Object? object, String? tag) async {
+    if (!debugMode || object == null) return;
 
-   if (_isOperating) {
-     developer.log('有其他日志操作正在进行，暂缓记录新日志');
-     return;
-   }
+    if (_isOperating) {
+      developer.log('有其他日志操作正在进行，暂缓记录新日志');
+      return;
+    }
 
-   _isOperating = true;
-   
-   try {
-     String time = DateTime.now().toString();
-     String fileInfo = _getFileAndLine();
-     
-     String objectStr = object?.toString().replaceAll('\n', '\\n') ?? 'null';
-     if (objectStr.length > _maxSingleLogLength) {
-       objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
-     }
-     String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
+    _isOperating = true;
+    
+    try {
+      String time = DateTime.now().toString();
+      String fileInfo = _getFileAndLine();
+      
+      String objectStr = object?.toString().replaceAll('\n', '\\n') ?? 'null';
+      if (objectStr.length > _maxSingleLogLength) {
+        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
+      }
+      String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
 
-     // 使用JSON格式存储日志
-     Map<String, String> logEntry = {
-       'time': time,
-       'level': level,
-       'message': logMessage
-     };
-     
-     String newLog = json.encode(logEntry) + '\n';
-     
-     // 获取现有日志
-     String? existingLogs = await SpUtil.getString(_logsKey) ?? '';
-     String updatedLogs = newLog + existingLogs;
-     
-     // 检查更新后的日志大小
-     if (utf8.encode(updatedLogs).length > _maxFileSizeBytes) {
-       await _clearLogs();
-       updatedLogs = newLog;
-     }
-     
-     await SpUtil.putString(_logsKey, updatedLogs);
-     developer.log(logMessage);
+      Map<String, String> logEntry = {
+        'time': time,
+        'level': level,
+        'message': logMessage
+      };
+      
+      String newLog = json.encode(logEntry) + '\n';
+      
+      // 获取现有日志
+      String? existingLogs = SpUtil.getString(_logsKey) ?? '';
+      String updatedLogs = newLog + existingLogs;
+      
+      // 检查更新后的日志大小
+      if (utf8.encode(updatedLogs).length > _maxFileSizeBytes) {
+        await clearLogs();
+        updatedLogs = newLog;
+      }
+      
+      await SpUtil.putString(_logsKey, updatedLogs);
+      developer.log(logMessage);
 
-     if (_showOverlay) {
-       _showDebugMessage('[$level] $objectStr');
-     }
-   } catch (e) {
-     developer.log('日志记录失败: $e');
-     rethrow;
-   } finally {
-     _isOperating = false;
-   }
- }
+      if (_showOverlay) {
+        _showDebugMessage('[$level] $objectStr');
+      }
+    } catch (e) {
+      developer.log('日志记录失败: $e');
+      rethrow;
+    } finally {
+      _isOperating = false;
+    }
+  }
 
  // 显示调试信息的弹窗
 static void _showDebugMessage(String message) {
@@ -329,37 +328,73 @@ static void _startAutoHideTimer() {
  }
 
  // 获取所有日志
- static Future<List<Map<String, dynamic>>> getLogs() async {
-   try {
-     final String? logsStr = await SpUtil.getString(_logsKey);
-     if (logsStr == null || logsStr.isEmpty) return [];
-     
-     return logsStr
-       .split('\n')
-       .where((line) => line.isNotEmpty)
-       .map((line) => json.decode(line) as Map<String, dynamic>)
-       .toList();
-   } catch (e) {
-     developer.log('获取日志失败: $e');
-     return [];
-   }
- }
+  static List<Map<String, String>> getLogs() {
+    try {
+      final String? logsStr = SpUtil.getString(_logsKey);
+      if (logsStr == null || logsStr.isEmpty) return [];
+      
+      return logsStr
+        .split('\n')
+        .where((line) => line.isNotEmpty)
+        .map((line) {
+          try {
+            final Map<String, dynamic> decoded = json.decode(line);
+            return {
+              'time': decoded['time']?.toString() ?? '',
+              'level': decoded['level']?.toString() ?? '',
+              'message': decoded['message']?.toString() ?? ''
+            };
+          } catch (e) {
+            return <String, String>{};
+          }
+        })
+        .where((map) => map.isNotEmpty)
+        .toList();
+    } catch (e) {
+      developer.log('获取日志失败: $e');
+      return [];
+    }
+  }
  
  // 按级别获取日志的方法
- static Future<List<Map<String, dynamic>>> getLogsByLevel(String level) async {
-   try {
-     final List<Map<String, dynamic>> allLogs = await getLogs();
-     return allLogs.where((log) => log['level'] == level).toList();
-   } catch (e) {
-     developer.log('按级别获取日志失败: $e');
-     return [];
-   }
- }
+  static List<Map<String, String>> getLogsByLevel(String level) {
+    try {
+      final List<Map<String, String>> allLogs = getLogs();
+      return allLogs.where((log) => log['level'] == level).toList();
+    } catch (e) {
+      developer.log('按级别获取日志失败: $e');
+      return [];
+    }
+  }
 
  // 清空日志
- static Future<void> clearLogs() async {
-   await _clearLogs();
- }
+  static Future<void> clearLogs([String? level]) async {
+    if (_isOperating) return;
+    
+    _isOperating = true;
+    try {
+      if (level == null) {
+        // 清空所有日志
+        await SpUtil.putString(_logsKey, '');
+      } else {
+        // 清空特定级别的日志
+        final List<Map<String, String>> allLogs = getLogs();
+        final List<Map<String, String>> remainingLogs = 
+          allLogs.where((log) => log['level'] != level).toList();
+        
+        // 将剩余日志重新格式化并保存
+        final String updatedLogs = remainingLogs
+          .map((log) => json.encode(log))
+          .join('\n');
+        
+        await SpUtil.putString(_logsKey, updatedLogs);
+      }
+    } catch (e) {
+      developer.log('清空日志失败: $e');
+    } finally {
+      _isOperating = false;
+    }
+  }
 
  // 内部清空日志方法
  static Future<void> _clearLogs() async {
