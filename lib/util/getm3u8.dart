@@ -1006,7 +1006,7 @@ Future<void> disposeResources() async {
   }
 
   /// 检查页面内容中的M3U8地址
-  Future<String?> _checkPageContent() async {
+Future<String?> _checkPageContent() async {
     if (!_isControllerReady() || _m3u8Found || _isDisposed) {
       LogUtil.i(
         !_isControllerReady()
@@ -1112,49 +1112,36 @@ Future<void> disposeResources() async {
       
       LogUtil.i('正在检测页面中的 $_filePattern 文件，处理后的内容: $sample');
 
-      // 正则表达式
-      final pattern = '''[\'"]([^\'"]*?\\.${_filePattern}[^\'"\s>]*)[\'"]|(?:^|\\s|:)((?:https?)://[^\\s<>]+?\\.${_filePattern}[^\\s<>]*)''';
+      // 修改后的正则表达式 - 匹配所有形式的URL到下一个引号或空格
+      final pattern = '''(?:https?://|//|/)[^'"\s<>]+?\\.${_filePattern}[^'"\s<>]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
 
       if (clickIndex == 0) {
         for (final match in matches) {
-          // 检查两个捕获组
-          String? url = match.group(1);  // 引号中的内容
-          if (url == null || url.isEmpty) {
-            url = match.group(2);  // 非引号的URL
-          }
-
-          if (url != null && url.isNotEmpty) {
-            String cleanedUrl = _handleRelativePath(url);
-            if (_isValidM3U8Url(cleanedUrl)) {
-              String finalUrl = cleanedUrl;
-              if (fromParam != null && toParam != null) {
-                finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-              }
-              _foundUrls.add(finalUrl);
-              _staticM3u8Found = true;
-              _m3u8Found = true;
-              LogUtil.i('页面内容中找到 $finalUrl');
-              return finalUrl;
+          String url = match.group(0)!;  // 直接获取完整匹配
+          String cleanedUrl = _handleRelativePath(url);
+          if (_isValidM3U8Url(cleanedUrl)) {
+            String finalUrl = cleanedUrl;
+            if (fromParam != null && toParam != null) {
+              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
             }
+            _foundUrls.add(finalUrl);
+            _staticM3u8Found = true;
+            _m3u8Found = true;
+            LogUtil.i('页面内容中找到 $finalUrl');
+            return finalUrl;
           }
         }
       } else {
         final Set<String> foundUrls = {};
 
         for (final match in matches) {
-          String? url = match.group(1);
-          if (url == null || url.isEmpty) {
-            url = match.group(2);
-          }
-
-          if (url != null && url.isNotEmpty) {
-            foundUrls.add(_handleRelativePath(url));
-          }
+          String url = match.group(0)!;  // 直接获取完整匹配
+          foundUrls.add(_handleRelativePath(url));
         }
 
-        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在的M3U8地址');
+        LogUtil.i('页面内容中找到 ${foundUrls.length} 个潜在地址');
 
         int index = 0;
         for (final url in foundUrls) {
@@ -1176,7 +1163,7 @@ Future<void> disposeResources() async {
         }
       }
 
-      LogUtil.i('页面内容中未找到符合规则的M3U8地址，继续使用JS检测器');
+      LogUtil.i('页面内容中未找到符合规则的地址，继续使用JS检测器');
       return null;
     } catch (e, stackTrace) {
       LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
