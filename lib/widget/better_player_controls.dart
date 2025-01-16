@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
@@ -6,8 +5,6 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 播放器配置工具类
 class BetterPlayerConfig {
-  // 定义重定向规则，用@分隔不同的关键字
-  static String rulesString = '.php@.asp@.jsp@.aspx';
   // 定义常量背景图片Widget
   static const _backgroundImage = Image(
     image: AssetImage('assets/images/video_bg.png'),
@@ -15,41 +12,6 @@ class BetterPlayerConfig {
     gaplessPlayback: true,  // 防止图片加载时闪烁
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
-  
-  /// 同步检查URL重定向
-  static String _checkUrlSync(String url) {
-    // 检查URL是否需要处理重定向
-    final rules = rulesString.split('@');
-    if (!rules.any((rule) => url.contains(rule))) {
-      return url;  // 如果不需要检查重定向，直接返回原URL
-    }
-
-    try {
-      final httpClient = HttpClient();
-      String finalUrl = url;
-      
-      // 使用同步方式发送请求
-      final request = httpClient.headSync(Uri.parse(url).host, 80, Uri.parse(url).path);
-      request.headers.add('Accept', '*/*');
-      
-      final response = request.closeSync();
-      
-      // 检查是否有重定向
-      if (response.statusCode >= 300 && response.statusCode < 400) {
-        final location = response.headers['location'];
-        if (location != null && location.isNotEmpty) {
-          print('URL重定向到: ${location.first}');
-          finalUrl = location.first;
-        }
-      }
-      
-      httpClient.close();
-      return finalUrl;
-    } catch (e) {
-      print('URL检查过程出错: $e');
-      return url;  // 发生错误时返回原URL
-    }
-  }
 
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
@@ -59,15 +21,12 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
-    // 先检查URL是否需要重定向
-    final finalUrl = _checkUrlSync(url);
-  	
      // 使用 HeadersConfig 生成默认 headers
-    final defaultHeaders = HeadersConfig.generateHeaders(url: finalUrl);
+    final defaultHeaders = HeadersConfig.generateHeaders(url: url);
   
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
-      finalUrl,
+      url,
       liveStream: isHls, // 根据 URL 判断是否为直播流
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
