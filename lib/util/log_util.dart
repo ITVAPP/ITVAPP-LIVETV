@@ -11,7 +11,7 @@ class LogUtil {
  static bool debugMode = true; // 控制是否记录日志 true 或 false
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
  static bool _isOperating = false; // 添加操作锁，防止并发问题
- static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
+ static const int _maxSingleLogLength = 2200; // 添加单条日志最大长度限制
  static const int _maxFileSizeBytes = 1 * 1024 * 1024; // 最大日志限制1MB
  
  // 新增：内存存储相关
