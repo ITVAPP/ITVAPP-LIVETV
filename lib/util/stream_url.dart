@@ -491,11 +491,13 @@ bool needsRedirectCheck(String url, String rulesString) {
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
   try {
-    // 正确设置 followRedirects
+    // 添加特殊头，防止重定向
+    final headers = HeadersConfig.generateHeaders(url: url);
+    headers['Max-Forwards'] = '0';  // 防止自动重定向
+    
     final response = await client.get(
       Uri.parse(url),
-      headers: HeadersConfig.generateHeaders(url: url),
-      followRedirects: false,  // 在 get 方法中直接设置
+      headers: headers
     ).timeout(timeout);
     
     // 打印详细的响应信息
@@ -507,7 +509,7 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
     响应体长度: ${response.body.length}
     响应体预览: ${response.body.length > 0 ? response.body.substring(0, response.body.length > 500 ? 500 : response.body.length) : ''}
     ====================''');
-
+    
     // 处理重定向响应
     if (response.statusCode == 302 || response.statusCode == 301 || 
         response.statusCode == 303 || response.statusCode == 307 || 
@@ -526,13 +528,6 @@ Future<String> checkRedirection(String url, http.Client client, Duration timeout
           return baseUri.resolve(redirectUri.toString()).toString();
         }
       }
-    }
-    
-    // 对于非重定向响应，如果是m3u8内容，解析内容中的实际URL
-    if (response.statusCode == 200 && 
-        response.headers['content-type']?.contains('application/vnd.apple.mpegurl') == true) {
-      // 可以在这里添加解析m3u8内容的逻辑，如果需要的话
-      LogUtil.i('检测到m3u8内容，返回原始URL');
     }
     
     return url;
