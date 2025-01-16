@@ -558,14 +558,11 @@ LogUtil.i('初始化.1: 开始初始化控制器');
 _controller = WebViewController()
   ..setJavaScriptMode(JavaScriptMode.unrestricted)
   ..setUserAgent(HeadersConfig.userAgent)
-  ..setPlatformNavigationDelegate(
-    PlatformNavigationDelegate(
-      const PlatformNavigationDelegateCreationParams()
-        ..allowsInlineMediaPlayback = false  // 禁用自动播放
-    )
-  );
-        LogUtil.i('初始化.2: 基本设置完成');
-         _controller.addJavaScriptChannel(
+  ..setCacheMode(CacheMode.cacheNone)  // 不使用缓存
+  ..setMediaPlaybackRequiresUserGesture(true)    // 阻止媒体自动加载
+   ..enableDOMStorage(false)  // 禁用 DOM 存储来减少内存使用
+  ..enableDatabaseAccess(false)  // 禁用数据库存储
+        ..addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
             LogUtil.i('初始化.3: JS检测器发现新的URL: ${message.message}');
@@ -573,7 +570,7 @@ _controller = WebViewController()
           },
         );
         LogUtil.i('初始化.4: 开始设置导航代理');
-        _controller.setNavigationDelegate(
+         ..setNavigationDelegate(
           NavigationDelegate(
 onNavigationRequest: (NavigationRequest request) {
   LogUtil.i('导航.1: 页面导航请求: ${request.url}');
@@ -1091,7 +1088,7 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
         return "NO_PATTERN";
       }
 
-      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\\s>]*', caseSensitive: false);
+      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
       final matches = pattern.allMatches(_httpResponseContent!);
 
       if (matches.isEmpty) {
@@ -1143,7 +1140,7 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
     })();
   ''');
 
-  sampleResult = sampleResult as String?;
+  var processedResult = sampleResult as String?;
 }
 
       if (sampleResult == null) {
