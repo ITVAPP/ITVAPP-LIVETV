@@ -507,17 +507,20 @@ _filePattern = specialRules.entries
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
+    	LogUtil.i('开始初始化控制器');
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent)
-        ..addJavaScriptChannel(
+        ..setUserAgent(HeadersConfig.userAgent);
+        LogUtil.i('基本设置完成');
+         _controller.addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
             LogUtil.i('JS检测器发现新的URL: ${message.message}');
             _handleM3U8Found(message.message, completer);
           },
-        )
-        ..setNavigationDelegate(
+        );
+        LogUtil.i('开始设置导航代理');
+        _controller.setNavigationDelegate(
           NavigationDelegate(
 onNavigationRequest: (NavigationRequest request) {
   LogUtil.i('页面导航请求: ${request.url}');
