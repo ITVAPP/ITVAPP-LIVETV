@@ -1113,9 +1113,10 @@ Future<String?> _checkPageContent() async {
       LogUtil.i('正在检测页面中的 $_filePattern 文件，处理后的内容: $sample');
 
       // 修改后的正则表达式 - 匹配所有形式的URL到下一个引号或空格
-      final pattern = '''(?:https?://|//|/)[^'"\s<>]+?\\.${_filePattern}[^'"\s<>]*''';
+      final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
+      LogUtil.i('正则匹配到 ${matches.length} 个结果');
 
       if (clickIndex == 0) {
         for (final match in matches) {
