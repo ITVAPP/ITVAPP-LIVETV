@@ -390,14 +390,17 @@ class GetM3U8 {
   String _cleanUrl(String url) {
     LogUtil.i('URL整理开始，原始URL: $url');
 
-    // 先处理基本的字符清理
-    String cleanedUrl = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/')
-      .replaceAll('+', '%20');
+    // 移除前后空白
+    String cleanedUrl = url.trim();
+    
+  // 先处理基本的字符清理
+  String cleanedUrl = url.trim()
+    .replaceAll(r'\s*\\s*$', '')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#x2F;', '/')
+    .replaceAll('&#47;', '/')
+    .replaceAll('+', '%20');
 
     // 修复：只替换3个或更多的连续斜杠，保留双斜杠
     cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
@@ -1084,6 +1087,15 @@ Future<void> disposeResources() async {
         .replaceAll(r"\'", "'")  // 处理转义单引号
         .replaceAll(r'\/', '/');  // 处理转义斜杠
 
+      // 处理Unicode转义序列
+      sample = sample.replaceAllMapped(RegExp(r'\\u([0-9a-fA-F]{4})'), (match) {
+        try {
+          return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
+        } catch (e) {
+          return match.group(0)!;
+        }
+      });
+
       // 处理HTML实体
       sample = sample
         .replaceAll('&quot;', '"')  // 双引号
@@ -1118,7 +1130,7 @@ Future<void> disposeResources() async {
           }
 
           if (url != null && url.isNotEmpty) {
-            String cleanedUrl = _cleanUrl(_handleRelativePath(url));
+            String cleanedUrl = _handleRelativePath(url);
             if (_isValidM3U8Url(cleanedUrl)) {
               String finalUrl = cleanedUrl;
               if (fromParam != null && toParam != null) {
