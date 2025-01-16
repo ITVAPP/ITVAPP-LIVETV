@@ -141,6 +141,10 @@ static final Map<String, int> _hashFirstLoadMap = {};
 
 bool isHashRoute = false;
 
+  bool _isHtmlContent = false;
+  
+  String? _httpResponseContent;
+
   /// 构造函数
   GetM3U8({
     required this.url,
@@ -516,57 +520,51 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
 	
     try {
 LogUtil.i('初始化.1: 开始初始化控制器');
+
+    // 检查内容类型
+    final httpdata = await HttpUtil().getRequest<String>(url);
+    if (httpdata == null) {
+      LogUtil.e('HttpUtil 请求失败，未获取到数据');
+      _httpResponseContent = null;
+      completer.complete('ERROR');
+      return;
+    }
+    
+    _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
+    _httpResponseContent = httpdata;
+    
+    if (!_isHtmlContent) {
+      LogUtil.i('初始化.2.1: 检测到非HTML内容，标记为已注入状态');
+      _isDetectorInjected = true;  // 标记为已注入，避免后续注入
+      // 创建一个完成的定时器，避免后续定时检查
+      if (_periodicCheckTimer != null) {
+        _periodicCheckTimer?.cancel();  
+      }
+      _periodicCheckTimer = Timer(Duration.zero, () {});
+      
+      LogUtil.i('成功获取非 HTML 页面内容');
+      _isControllerInitialized = true; // 标记为已初始化
+      
+      // 直接调用 _checkPageContent() 处理
+      final result = await _checkPageContent();
+      if (result != null) {
+        completer.complete(result);
+        return;
+      }
+      completer.complete('ERROR');
+      return;
+    }
+    
 _controller = WebViewController()
   ..setJavaScriptMode(JavaScriptMode.unrestricted)
   ..setUserAgent(HeadersConfig.userAgent)
-  ..enableDOMStorage(false)  // 禁用 DOM 存储来减少内存使用
-  ..enableDatabaseAccess(false)  // 禁用数据库存储
-  ..setCacheMode(CacheMode.cacheNone)  // 不使用缓存
-  ..setMediaPlaybackRequiresUserGesture(true);    // 阻止媒体自动加载
-        
+  ..setPlatformNavigationDelegate(
+    PlatformNavigationDelegate(
+      const PlatformNavigationDelegateCreationParams()
+        ..allowsInlineMediaPlayback = false  // 禁用自动播放
+    )
+  );
         LogUtil.i('初始化.2: 基本设置完成');
-
-late String? _httpResponseContent;
- // 检查内容类型并设置状态
-bool _isHtmlContent = false;
-try {
-  final contentType = await _controller.runJavaScriptReturningResult('''
-    (function() {
-      try {
-        const htmlExists = document.getElementsByTagName("html").length > 0;
-        const detectedType = document.contentType ? document.contentType : (htmlExists ? "text/html" : "");
-        return detectedType;
-      } catch (e) {
-        return ""; // 避免异常影响逻辑
-      }
-    })();
-  ''');
-  _isHtmlContent = contentType == 'text/html';
-} catch (e, stack) {
-        LogUtil.logError('初始化.2.2: 检查内容类型失败', e, stack);
-        _isHtmlContent = false; // 异常情况当作非HTML处理
-      }
-      
-        if (!_isHtmlContent) {
-          LogUtil.i('初始化.2.1: 检测到非HTML内容，标记为已注入状态');
-          _isDetectorInjected = true;  // 标记为已注入，避免后续注入
-          // 创建一个完成的定时器，避免后续定时检查
-          if (_periodicCheckTimer != null) {
-            _periodicCheckTimer?.cancel();  
-          }
-          _periodicCheckTimer = Timer(Duration.zero, () {});
-          
-      final httpdata = await HttpUtil().getRequest<String>(url);
-      if (httpdata == null) {
-        LogUtil.e('HttpUtil 请求失败，未获取到数据');
-        _httpResponseContent = null;
-      } else {
-        LogUtil.i('成功获取非 HTML 页面内容');
-        _httpResponseContent = httpdata;
-        _isControllerInitialized = true; // 标记为已初始化
-      }
-        }
-      
          _controller.addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
@@ -1093,7 +1091,7 @@ if (!_isControllerReady() || _m3u8Found || _isDisposed) {
         return "NO_PATTERN";
       }
 
-      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\s>]*', caseSensitive: false);
+      final pattern = RegExp(r'\.' + RegExp.escape(_filePattern) + r'[^"\'\\s>]*', caseSensitive: false);
       final matches = pattern.allMatches(_httpResponseContent!);
 
       if (matches.isEmpty) {
