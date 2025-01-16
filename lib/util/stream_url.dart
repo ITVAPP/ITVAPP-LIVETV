@@ -490,51 +490,22 @@ bool needsRedirectCheck(String url, String rulesString) {
 
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
-  const maxRedirects = 2;  // 最大重定向次数
-  var redirectCount = 0;
-  var currentUrl = url;
-  var visitedUrls = <String>{url};  // 用于检测循环
-
   try {
-    while (redirectCount < maxRedirects) {
-      // 创建一个配置了自动重定向的客户端
-      final response = await client.get(
-        Uri.parse(currentUrl),
-        headers: HeadersConfig.generateHeaders(url: currentUrl),
-      ).timeout(timeout);
+    final response = await client.get(
+      Uri.parse(url),
+      headers: HeadersConfig.generateHeaders(url: url)
+    ).timeout(timeout);
 
-      // 检查响应头中的Location字段
+    // 检查重定向状态码 (301, 302, 303, 307, 308)
+    if (response.statusCode >= 300 && response.statusCode < 400) {
       final location = response.headers['location'];
-      if (location == null || location.isEmpty) {
-        return currentUrl;
+      if (location != null && location.isNotEmpty) {
+        return location;  // 返回重定向地址
       }
-
-      // 构建新的URL
-      String newUrl;
-      if (location.startsWith('http')) {
-        newUrl = location;  // 完整URL
-      } else if (location.startsWith('//')) {
-        final uri = Uri.parse(currentUrl);
-        newUrl = '${uri.scheme}:$location';  // 协议相对URL
-      } else if (location.startsWith('/')) {
-        final uri = Uri.parse(currentUrl);
-        newUrl = '${uri.scheme}://${uri.host}$location';  // 根相对路径
-      } else {
-        final uri = Uri.parse(currentUrl);
-        final basePath = uri.path.substring(0, uri.path.lastIndexOf('/') + 1);
-        newUrl = '${uri.scheme}://${uri.host}$basePath$location';  // 普通相对路径
-      }
-
-      // 检查循环
-      if (visitedUrls.contains(newUrl)) {
-        return currentUrl;  // 发现循环，返回当前URL
-      }
-
-      visitedUrls.add(newUrl);
-      currentUrl = newUrl;
-      redirectCount++;
     }
-    return currentUrl;  // 达到最大重定向次数，返回当前URL
+    
+    return url;  // 如果没有重定向，返回原始URL
+    
   } catch (e) {
     LogUtil.e('重定向处理失败: ${e.toString()}');
     return url;  // 发生错误时返回原始URL
