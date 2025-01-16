@@ -1269,31 +1269,16 @@ void _injectM3U8Detector() {
       // 拦截XHR请求
       const XHR = XMLHttpRequest.prototype;
       const originalOpen = XHR.open;
-      const originalSetRequestHeader = XHR.setRequestHeader;
       const originalSend = XHR.send;
 
       XHR.open = function() {
-        this._method = arguments[0];
         this._url = arguments[1];
-        this._requestHeaders = {};
-        if (this._url) {
-          // 检查 Content-Type
-          const contentType = this._requestHeaders['content-type'];
-          if (contentType && contentType.includes('flv')) {
-            processM3U8Url(this._url, 0);
-          }
-        }
         return originalOpen.apply(this, arguments);
-      };
-
-      XHR.setRequestHeader = function(header, value) {
-        this._requestHeaders[header.toLowerCase()] = value;
-        return originalSetRequestHeader.apply(this, arguments);
       };
 
       XHR.send = function() {
         if (this._url) {
-          processM3U8Url(this._url, 0);
+          processM3U8Url(this._url);
         }
         return originalSend.apply(this, arguments);
       };
