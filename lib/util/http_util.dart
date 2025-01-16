@@ -40,53 +40,56 @@ class HttpUtil {
     };
   }
 
-  // GET 请求方法，支持自动重试机制
-  Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters, // 查询参数
-      Options? options, // 可选的请求配置
-      CancelToken? cancelToken, // 请求取消令牌
-      ProgressCallback? onReceiveProgress, // 接收进度回调
-      int retryCount = 2, // 重试次数
-      Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response;
-    int currentAttempt = 0; // 当前重试次数
-    Duration currentDelay = retryDelay; // 当前重试延迟
+// GET 请求方法，确保返回 String? 时不会出错
+Future<T?> getRequest<T>(String path,
+    {Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2)}) async {
+  Response? response;
+  int currentAttempt = 0; // 当前重试次数
+  Duration currentDelay = retryDelay; // 当前重试延迟
 
-    while (currentAttempt < retryCount) {
-      try {
-        response = await _dio.get<T>(
-          path,
-          queryParameters: queryParameters,
-          options: (options ?? Options()).copyWith(
-            extra: {'attempt': currentAttempt},
-            headers: HeadersConfig.generateHeaders(url: path),
-          ),
-          cancelToken: cancelToken,
-          onReceiveProgress: onReceiveProgress,
-        );
+  while (currentAttempt < retryCount) {
+    try {
+      response = await _dio.get<T>(
+        path,
+        queryParameters: queryParameters,
+        options: (options ?? Options()).copyWith(
+          extra: {'attempt': currentAttempt},
+          headers: HeadersConfig.generateHeaders(url: path),
+        ),
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
+      );
 
-        if (response.data != null) {
-          return response.data; // 成功返回数据
-        }
+      if (T == String && response.data is! String) {
+        LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
         return null;
-      } on DioException catch (e, stackTrace) {
-        currentAttempt++;
-        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace); // 记录失败日志
-
-        // 如果达到最大重试次数或请求被取消，则不再重试
-        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-          formatError(e); // 处理错误信息
-          return null;
-        }
-
-        // 等待一定时间后重试，并加倍延迟时间
-        await Future.delayed(currentDelay);
-        currentDelay *= 2;
-        LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
       }
+
+      if (response.data != null) {
+        return response.data; // 成功返回数据
+      }
+      return null;
+    } on DioException catch (e, stackTrace) {
+      currentAttempt++;
+      LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+
+      if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+        formatError(e);
+        return null;
+      }
+
+      await Future.delayed(currentDelay);
+      currentDelay *= 2;
+      LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
     }
-    return null; // 重试后依然失败则返回 null
   }
+  return null;
+}
 
   // 文件下载方法，支持显示下载进度
   Future<int?> downloadFile(String url, String savePath,
