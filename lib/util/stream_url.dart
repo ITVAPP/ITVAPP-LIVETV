@@ -25,6 +25,9 @@ class StreamUrl {
     '360': (640, 360)
   };
   
+  // 定义重定向规则，用@分隔不同的关键字
+  static String rulesString = '.php@.asp@.jsp@.aspx';
+  
   // 预定义容器类型集合，提高查找效率
   static final Set<String> validContainers = {'mp4', 'webm'};
   
@@ -66,8 +69,13 @@ class StreamUrl {
       
       // 检查 URL 是否为 YouTube 链接
       if (!isYTUrl(url)) {
+        // 检查是否需要处理重定向
+        if (needsRedirectCheck(url, rulesString)) {
+          LogUtil.i('URL包含重定向规则关键字，检查重定向');
+          return await checkRedirection(url, _client, timeoutDuration);
+        }
         return url;
-      } 
+      }
       
       // 选择处理 YouTube 直播或普通视频的任务
       final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
@@ -76,16 +84,11 @@ class StreamUrl {
       try {
         final result = await task().timeout(timeoutDuration);
         if (result != 'ERROR') {
-          LogUtil.i('首次获取视频流成功');
           return result;
         }
         LogUtil.e('首次获取视频流失败，准备重试');
       } catch (e) {
-        if (e is TimeoutException) {
-          LogUtil.e('首次获取视频流超时，准备重试');
-        } else {
           LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
-        }
       }
       
       // 等待一秒后再次尝试获取视频流
@@ -94,17 +97,12 @@ class StreamUrl {
       try {
         final result = await task().timeout(timeoutDuration);
         if (result != 'ERROR') {
-          LogUtil.i('重试获取视频流成功');
           return result;
         }
         LogUtil.e('重试获取视频流失败');
         return 'ERROR';
       } catch (retryError) {
-        if (retryError is TimeoutException) {
-          LogUtil.e('重试获取视频流超时');
-        } else {
           LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
-        }
         return 'ERROR';
       }
       
@@ -193,8 +191,6 @@ Future<String> _handleGetM3U8Url(String url) async {
       LogUtil.e('GetM3U8返回空结果');
       return 'ERROR';
     }
-
-    LogUtil.i('GetM3U8成功获取到URL: $result');
     return result;
 
   } catch (e, stackTrace) {
@@ -317,9 +313,6 @@ Future<String> _getYouTubeVideoUrl() async {
               '$videoUrl\n'
               '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
               'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
-               
-          LogUtil.i('''生成新的m3u8文件：
-$combinedM3u8''');
           
           await file.writeAsString(combinedM3u8);
           LogUtil.i('成功保存m3u8文件到: $filePath');
@@ -395,7 +388,6 @@ Future<String> _getYouTubeLiveStreamUrl() async {
   try {
     final m3u8Url = await _getYouTubeM3U8Url(url, resolutionMap.keys.toList());
     if (m3u8Url != null) {
-      LogUtil.i('获取到 YT 直播流地址: $m3u8Url');
       return m3u8Url;
     }
     LogUtil.e('未能获取到有效的直播流地址');
@@ -463,7 +455,6 @@ Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQu
       // 按照预定义的分辨率顺序查找
       for (var quality in preferredQualities) {
         if (qualityUrls.containsKey(quality)) {
-          LogUtil.i('找到 ${quality}p 质量的直播流');
           return qualityUrls[quality];
         }
       }
@@ -489,6 +480,68 @@ String? _extractQuality(String extInfLine) {
   if (_isDisposed) return null;
   final match = resolutionRegex.firstMatch(extInfLine);
   return match?.group(1);
+}
+
+// 检查 URL 是否需要处理重定向
+bool needsRedirectCheck(String url, String rulesString) {
+  final rules = rulesString.split('@');
+  return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
+}
+
+// 检查并处理URL重定向
+Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
+  const maxRedirects = 2;  // 最大重定向次数
+  var redirectCount = 0;
+  var currentUrl = url;
+  var visitedUrls = <String>{url};  // 用于检测循环
+
+  try {
+    while (redirectCount < maxRedirects) {
+      final response = await client.head(
+        Uri.parse(currentUrl),
+        headers: HeadersConfig.generateHeaders(url: currentUrl),
+        followRedirects: false,
+      ).timeout(timeout);
+
+      if (response.statusCode >= 300 && response.statusCode < 400) {
+        final location = response.headers['location'];
+        if (location == null || location.isEmpty) {
+          return currentUrl;
+        }
+
+        // 构建新的URL
+        String newUrl;
+        if (location.startsWith('http')) {
+          newUrl = location;  // 完整URL
+        } else if (location.startsWith('//')) {
+          final uri = Uri.parse(currentUrl);
+          newUrl = '${uri.scheme}:$location';  // 协议相对URL
+        } else if (location.startsWith('/')) {
+          final uri = Uri.parse(currentUrl);
+          newUrl = '${uri.scheme}://${uri.host}$location';  // 根相对路径
+        } else {
+          final uri = Uri.parse(currentUrl);
+          final basePath = uri.path.substring(0, uri.path.lastIndexOf('/') + 1);
+          newUrl = '${uri.scheme}://${uri.host}$basePath$location';  // 普通相对路径
+        }
+
+        // 检查循环
+        if (visitedUrls.contains(newUrl)) {
+          return currentUrl;  // 发现循环，返回当前URL
+        }
+
+        visitedUrls.add(newUrl);
+        currentUrl = newUrl;
+        redirectCount++;
+      } else {
+        return currentUrl;  // 无重定向，返回当前URL
+      }
+    }
+    return currentUrl;  // 达到最大重定向次数，返回当前URL
+  } catch (e) {
+    LogUtil.e('重定向处理失败: ${e.toString()}');
+    return url;  // 发生错误时返回原始URL
+  }
 }
 
 // 获取 HTTP 请求需要的头信息，设置 User-Agent 来模拟浏览器访问
