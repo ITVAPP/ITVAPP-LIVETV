@@ -542,7 +542,7 @@ LogUtil.i('初始化.1: 开始初始化控制器');
       }
       _periodicCheckTimer = Timer(Duration.zero, () {});
       
-      LogUtil.i('成功获取非 HTML 页面内容');
+      LogUtil.i('成功获取非 HTML 页面内容:  ${_httpResponseContent}');
       _isControllerInitialized = true; // 标记为已初始化
       
       // 直接调用 _checkPageContent() 处理
@@ -784,25 +784,6 @@ void _setupPeriodicCheck() {
         ''').catchError((error) {
           LogUtil.e('执行扫描失败: $error');
         });
-
-        // 动态调整检查间隔
-        if (_checkCount > 5) {
-          _currentInterval = (_currentInterval + 1).clamp(1, MAX_CHECK_INTERVAL);
-          timer.cancel();
-          if (!_m3u8Found && !_isDisposed) {
-            _periodicCheckTimer = Timer.periodic(
-              Duration(seconds: _currentInterval),
-              (Timer t) async {
-                if (_m3u8Found || _isDisposed) {
-                  t.cancel();
-                  _periodicCheckTimer = null;
-                  return;
-                }
-              }
-            );
-          }
-        }
-
       } catch (e, stack) {
         LogUtil.logError('定期检查执行出错', e, stack);
       }
