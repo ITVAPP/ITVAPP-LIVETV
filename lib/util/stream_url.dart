@@ -490,16 +490,17 @@ bool needsRedirectCheck(String url, String rulesString) {
 
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
-  const maxRedirects = 2;  // 最大重定向次数
+  const maxRedirects = 3;  // 最大重定向次数
   var redirectCount = 0;
   var currentUrl = url;
   var visitedUrls = <String>{url};  // 用于检测循环
 
   try {
     while (redirectCount < maxRedirects) {
-      final response = await client.get(  // 改用 get 请求
+      final response = await client.head(
         Uri.parse(currentUrl),
         headers: HeadersConfig.generateHeaders(url: currentUrl),
+        followRedirects: false,
       ).timeout(timeout);
 
       if (response.statusCode >= 300 && response.statusCode < 400) {
