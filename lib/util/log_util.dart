@@ -10,8 +10,14 @@ class LogUtil {
  static const String _defTag = 'common_utils';
  static bool debugMode = true; // 控制是否记录日志 true 或 false
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
+ static bool _isOperating = false; // 添加操作锁，防止并发问题
  static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
- static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
+ static const int _maxFileSizeBytes = 1 * 1024 * 1024; // 最大日志限制1MB
+ 
+ // 新增：内存存储相关
+ static final List<Map<String, String>> _memoryLogs = [];
+ static final List<Map<String, String>> _newLogsBuffer = [];
+ static const int _writeThreshold = 5;  // 累积5条日志才写入本地
  
  // 弹窗相关属性
  static bool _showOverlay = true; // 控制是否显示弹窗
@@ -25,9 +31,41 @@ class LogUtil {
    try {
      await SpUtil.getInstance();
      await _checkAndHandleLogSize();
+     await _loadLogsFromLocal(); // 新增：从本地加载日志到内存
    } catch (e) {
      developer.log('日志初始化失败: $e');
      await _clearLogs();
+   }
+ }
+ 
+ // 新增：从本地加载日志到内存
+ static Future<void> _loadLogsFromLocal() async {
+   try {
+     final String? logsStr = await SpUtil.getString(_logsKey);
+     if (logsStr != null && logsStr.isNotEmpty) {
+       final logs = logsStr
+         .split('\n')
+         .where((line) => line.isNotEmpty)
+         .map((line) {
+           try {
+             final Map<String, dynamic> decoded = json.decode(line);
+             return {
+               'time': decoded['time']?.toString() ?? '',
+               'level': decoded['level']?.toString() ?? '',
+               'message': decoded['message']?.toString() ?? ''
+             };
+           } catch (e) {
+             return null;
+           }
+         })
+         .where((log) => log != null)
+         .cast<Map<String, String>>()
+         .toList();
+         
+       _memoryLogs.addAll(logs);
+     }
+   } catch (e) {
+     developer.log('从本地加载日志失败: $e');
    }
  }
 
@@ -38,7 +76,7 @@ class LogUtil {
      if (logsStr != null) {
        int sizeInBytes = utf8.encode(logsStr).length;
        if (sizeInBytes > _maxFileSizeBytes) {
-         developer.log('日志文件超过5MB，执行清理');
+         developer.log('日志文件超过1MB，执行清理');
          await _clearLogs();
        }
      }
@@ -94,70 +132,69 @@ class LogUtil {
  }
 
   // 通用日志记录方法，日志记录受 debugMode 控制
-  static Future<void> _log(String level, Object? object, String? tag) async {
-    if (!debugMode || object == null) return;
-    
-    try {
-      String time = DateTime.now().toString();
-      String fileInfo = _getFileAndLine();
-      
-      String objectStr = object?.toString().replaceAll('\n', '\\n') ?? 'null';
-      if (objectStr.length > _maxSingleLogLength) {
-        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
-      }
-      String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
+ static Future<void> _log(String level, Object? object, String? tag) async {
+   if (!debugMode || object == null) return;
 
-      Map<String, String> logEntry = {
-        'time': time,
-        'level': level,
-        'message': logMessage
-      };
-      
-      String newLog = json.encode(logEntry) + '\n';
-      
-      // 获取现有日志并添加新日志
-      String existingLogs = await SpUtil.getString(_logsKey) ?? '';
-      String updatedLogs = newLog + existingLogs;
-      
-      // 检查更新后的日志大小
-      if (utf8.encode(updatedLogs).length > _maxFileSizeBytes) {
-        await _trimOldLogs();
-        updatedLogs = newLog;
-      }
-      
-      // 写入更新后的日志
-      await SpUtil.putString(_logsKey, updatedLogs);
-      developer.log(logMessage);
+   try {
+     String time = DateTime.now().toString();
+     String fileInfo = _getFileAndLine();
+     
+     String objectStr = object?.toString().replaceAll('\n', '\\n') ?? 'null';
+     if (objectStr.length > _maxSingleLogLength) {
+       objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
+     }
+     String logMessage = '${tag ?? _defTag} $level | $objectStr\n$fileInfo';
 
-      if (_showOverlay) {
-        _showDebugMessage('[$level] $objectStr');
-      }
-    } catch (e) {
-      developer.log('日志记录失败: $e');
-      rethrow;
-    }
-  }
+     Map<String, String> logEntry = {
+       'time': time,
+       'level': level,
+       'message': logMessage
+     };
+     
+     // 添加到内存
+     _memoryLogs.insert(0, logEntry);
+     // 添加到缓冲区
+     _newLogsBuffer.insert(0, logEntry);
 
-  // 清理旧日志而不是完全清空
-  static Future<void> _trimOldLogs() async {
-    try {
-      final String? logsStr = await SpUtil.getString(_logsKey);
-      if (logsStr == null || logsStr.isEmpty) return;
-      
-      List<String> logLines = logsStr.split('\n')
-          .where((line) => line.isNotEmpty)
-          .toList();
-          
-      // 保留最新的75%的日志
-      int keepCount = (logLines.length * 0.75).floor();
-      logLines = logLines.sublist(0, keepCount);
-      
-      await SpUtil.putString(_logsKey, logLines.join('\n'));
-    } catch (e) {
-      developer.log('清理旧日志失败: $e');
-      await _clearLogs();
-    }
-  }
+     // 检查是否需要写入本地
+     if (_newLogsBuffer.length >= _writeThreshold) {
+       await _flushToLocal();
+     }
+
+     developer.log(logMessage);
+
+     if (_showOverlay) {
+       _showDebugMessage('[$level] $objectStr');
+     }
+   } catch (e) {
+     developer.log('日志记录失败: $e');
+   }
+ }
+
+ // 新增：将缓冲区的日志写入本地
+ static Future<void> _flushToLocal() async {
+   if (_newLogsBuffer.isEmpty || _isOperating) return;
+   
+   _isOperating = true;
+   try {
+     final List<Map<String, String>> logsToWrite = List.from(_newLogsBuffer);
+     _newLogsBuffer.clear();
+     
+     String newContent = logsToWrite.map((log) => json.encode(log)).join('\n');
+     String? existingContent = await SpUtil.getString(_logsKey) ?? '';
+     if (existingContent.isNotEmpty) {
+       newContent += '\n$existingContent';
+     }
+     
+     await SpUtil.putString(_logsKey, newContent);
+   } catch (e) {
+     developer.log('写入本地存储失败: $e');
+     // 写入失败时，将日志放回缓冲区
+     _newLogsBuffer.insertAll(0, List.from(_newLogsBuffer));
+   } finally {
+     _isOperating = false;
+   }
+ }
 
  // 显示调试信息的弹窗
 static void _showDebugMessage(String message) {
@@ -339,76 +376,66 @@ static void _startAutoHideTimer() {
    return 'Unknown';
  }
 
- // 获取所有日志
-  static List<Map<String, String>> getLogs() {
-    try {
-      final String? logsStr = SpUtil.getString(_logsKey);
-      if (logsStr == null || logsStr.isEmpty) return [];
-      
-      return logsStr
-        .split('\n')
-        .where((line) => line.isNotEmpty)
-        .map((line) {
-          try {
-            final Map<String, dynamic> decoded = json.decode(line);
-            return {
-              'time': decoded['time']?.toString() ?? '',
-              'level': decoded['level']?.toString() ?? '',
-              'message': decoded['message']?.toString() ?? ''
-            };
-          } catch (e) {
-            return <String, String>{};
-          }
-        })
-        .where((map) => map.isNotEmpty)
-        .toList();
-    } catch (e) {
-      developer.log('获取日志失败: $e');
-      return [];
-    }
-  }
+ // 获取所有日志（从内存获取）
+ static List<Map<String, String>> getLogs() {
+   try {
+     return List.from(_memoryLogs);
+   } catch (e) {
+     developer.log('获取日志失败: $e');
+     return [];
+   }
+ }
  
- // 按级别获取日志的方法
-  static List<Map<String, String>> getLogsByLevel(String level) {
-    try {
-      final List<Map<String, String>> allLogs = getLogs();
-      return allLogs.where((log) => log['level'] == level).toList();
-    } catch (e) {
-      developer.log('按级别获取日志失败: $e');
-      return [];
-    }
-  }
+ // 按级别获取日志（从内存获取）
+ static List<Map<String, String>> getLogsByLevel(String level) {
+   try {
+     return _memoryLogs.where((log) => log['level'] == level).toList();
+   } catch (e) {
+     developer.log('按级别获取日志失败: $e');
+     return [];
+   }
+ }
 
  // 清空日志
-  static Future<void> clearLogs([String? level]) async {
-    try {
-      if (level == null) {
-        // 清空所有日志
-        await SpUtil.putString(_logsKey, '');
-      } else {
-        // 清空特定级别的日志
-        final List<Map<String, String>> allLogs = getLogs();
-        final List<Map<String, String>> remainingLogs = 
-          allLogs.where((log) => log['level'] != level).toList();
-        
-        // 将剩余日志重新格式化并保存
-        final String updatedLogs = remainingLogs
-          .map((log) => json.encode(log))
-          .join('\n');
-        
-        await SpUtil.putString(_logsKey, updatedLogs);
-      }
-    } catch (e) {
-      developer.log('清空日志失败: $e');
-    }
-  }
+ static Future<void> clearLogs([String? level]) async {
+   if (_isOperating) return;
+   
+   _isOperating = true;
+   try {
+     if (level == null) {
+       // 清空所有日志
+       _memoryLogs.clear();
+       _newLogsBuffer.clear();
+       await SpUtil.putString(_logsKey, '');
+     } else {
+       // 清空特定级别的日志
+       _memoryLogs.removeWhere((log) => log['level'] == level);
+       _newLogsBuffer.removeWhere((log) => log['level'] == level);
+       final String updatedLogs = _memoryLogs
+         .map((log) => json.encode(log))
+         .join('\n');
+       await SpUtil.putString(_logsKey, updatedLogs);
+     }
+   } catch (e) {
+     developer.log('清空日志失败: $e');
+   } finally {
+     _isOperating = false;
+   }
+ }
 
  // 内部清空日志方法
  static Future<void> _clearLogs() async {
+   if (_isOperating) return;
+   
+   _isOperating = true;
    try {
+     _memoryLogs.clear();  // 新增：清空内存日志
+     _newLogsBuffer.clear();  // 新增：清空缓冲区
      await SpUtil.putString(_logsKey, '');
    } catch (e) {
      developer.log('清空日志失败: $e');
+   } finally {
+     _isOperating = false;
    }
  }
 
@@ -428,5 +455,12 @@ static void _startAutoHideTimer() {
      developer.log('解析日志消息失败: $e');
    }
    return message;
+ }
+ 
+ // 应用退出时调用
+ static Future<void> dispose() async {
+   if (_newLogsBuffer.isNotEmpty) {
+     await _flushToLocal();
+   }
  }
 }
