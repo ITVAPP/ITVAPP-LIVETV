@@ -532,7 +532,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
           _isDetectorInjected = true;  // 标记为已注入，避免后续注入
           // 创建一个完成的定时器，避免后续定时检查
           if (_periodicCheckTimer != null) {
-            _periodicCheckTimer.cancel();
+            _periodicCheckTimer?.cancel();  
           }
           _periodicCheckTimer = Timer(Duration.zero, () {});
         }
@@ -541,7 +541,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         isHtmlContent = false; // 异常情况当作非HTML处理
         _isDetectorInjected = true;
         if (_periodicCheckTimer != null) {
-          _periodicCheckTimer.cancel();
+          _periodicCheckTimer?.cancel();  
         }
         _periodicCheckTimer = Timer(Duration.zero, () {});
       }
