@@ -114,14 +114,13 @@ class LogUtil {
            _memoryLogs.addAll(logs.reversed);
          }
 
-         // 记录日志加载结果
          await i('历史日志加载完成 - 成功: $successCount, 失败: $failCount, 总数: ${_memoryLogs.length}');
        } else {
          await i('历史日志文件为空');
        }
      }
    } catch (error) {
-     await e('从文件加载历史日志失败: $error');
+     await i('从文件加载历史日志失败: $error');
    }
  }
 
@@ -153,14 +152,14 @@ class LogUtil {
    }
  }
 
- static Future<void> updateDebugModeFromProvider(BuildContext context) async {
+ static void updateDebugModeFromProvider(BuildContext context) {
    try {
      var themeProvider = Provider.of<ThemeProvider>(context, listen: false);
      bool isLogOn = themeProvider.isLogOn;
      setDebugMode(isLogOn);
    } catch (e) {
      setDebugMode(false);
-     await e('未能读取到 ThemeProvider，默认关闭日志功能: $e');
+     LogUtil.e('未能读取到 ThemeProvider，默认关闭日志功能: $e');
    }
  }
 
@@ -326,7 +325,7 @@ class LogUtil {
 
      return overlayState;
    } catch (e) {
-     i('获取 OverlayState 失败: $e');
+     LogUtil.e('获取 OverlayState 失败: $e');
      return null;
    }
  }
@@ -362,7 +361,7 @@ class LogUtil {
    stackTrace ??= StackTrace.current;
 
    if (message?.isNotEmpty != true || error == null) {
-     await e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
+     await LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
      return;
    }
 
@@ -415,20 +414,20 @@ class LogUtil {
    return 'Unknown';
  }
 
- static Future<List<Map<String, String>>> getLogs() async {
+ static List<Map<String, String>> getLogs() {
    try {
      return List.from(_memoryLogs);
    } catch (e) {
-     await e('获取日志失败: $e');
+     LogUtil.e('获取日志失败: $e');
      return [];
    }
  }
 
-static Future<List<Map<String, String>>> getLogsByLevel(String level) async {
-    try {
+ static List<Map<String, String>> getLogsByLevel(String level) {
+   try {
       return _memoryLogs.where((log) => log['level'] == level).toList();
     } catch (e) {
-      await e('按级别获取日志失败: $e');
+      LogUtil.e('按级别获取日志失败: $e');
       return [];
     }
   }
@@ -439,18 +438,22 @@ static Future<List<Map<String, String>>> getLogsByLevel(String level) async {
     _isOperating = true;
     try {
       if (level == null) {
+        // 清空所有日志
         _memoryLogs.clear();
         _newLogsBuffer.clear();
 
+        // 删除日志文件
         final filePath = await _getLogFilePath();
         final file = File(filePath);
         if (await file.exists()) {
           await file.delete();
         }
       } else {
+        // 清空特定级别的日志
         _memoryLogs.removeWhere((log) => log['level'] == level);
         _newLogsBuffer.removeWhere((log) => log['level'] == level);
 
+        // 更新文件内容
         final filePath = await _getLogFilePath();
         final file = File(filePath);
         final String updatedLogs = _memoryLogs.map((log) =>
@@ -473,6 +476,7 @@ static Future<List<Map<String, String>>> getLogsByLevel(String level) async {
       _memoryLogs.clear();
       _newLogsBuffer.clear();
 
+      // 删除日志文件
       final filePath = await _getLogFilePath();
       final file = File(filePath);
       if (await file.exists()) {
@@ -485,7 +489,7 @@ static Future<List<Map<String, String>>> getLogsByLevel(String level) async {
     }
   }
 
-  static Future<String?> parseLogMessage(String message) async {
+  static String parseLogMessage(String message) {
     try {
       final RegExp regex = RegExp(r'\[.*?\] \[.*?\] \[.*?\] \| (.*?) \|');
       final match = regex.firstMatch(message);
@@ -493,13 +497,13 @@ static Future<List<Map<String, String>>> getLogsByLevel(String level) async {
         return match.group(1)?.trim() ?? message;
       }
     } catch (e) {
-      await e('解析日志消息失败: $e');
+      LogUtil.e('解析日志消息失败: $e');
     }
     return message;
   }
 
   static Future<void> dispose() async {
-    if (!_isOperating && _newLogsBuffer.isNotEmpty) {
+    if (!_isOperating && _newLogsBuffer.isNotEmpty) {  // 添加锁检查
       await _flushToLocal();
     }
   }
