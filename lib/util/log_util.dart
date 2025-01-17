@@ -41,19 +41,19 @@ class LogUtil {
       // 2. 检查文件是否存在，不存在则创建
       if (!await file.exists()) {
         await file.create();
-        developer.log('创建日志文件: $filePath');
+        await i('创建日志文件: $filePath');
       } else {
         // 3. 检查文件大小
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          developer.log('日志文件超过大小限制，执行清理');
+          await i('日志文件超过大小限制，执行清理');
           await _clearLogs();
         } else {
           await _loadLogsFromLocal(); // 从本地加载日志到内存
         }
       }
     } catch (e) {
-      developer.log('日志初始化失败: $e');
+      await i('日志初始化失败: $e');
       await _clearLogs();
     }
   }
@@ -68,77 +68,77 @@ class LogUtil {
   }
 
   // 从本地加载日志到内存
-static Future<void> _loadLogsFromLocal() async {
-   try {
-     await i('开始从本地加载历史日志');
-     final filePath = await _getLogFilePath();
-     final file = File(filePath);
+  static Future<void> _loadLogsFromLocal() async {
+    try {
+      await i('开始从本地加载历史日志');
+      final filePath = await _getLogFilePath();
+      final file = File(filePath);
 
-     if (await file.exists()) {
-       final String content = await file.readAsString();
-       await i('读取到历史日志文件，内容大小: ${content.length}');
+      if (await file.exists()) {
+        final String content = await file.readAsString();
+        await i('读取到历史日志文件，内容大小: ${content.length}');
 
-       if (content.isNotEmpty) {
-         final List<Map<String, String>> logs = [];
-         int successCount = 0;
-         int failCount = 0;
+        if (content.isNotEmpty) {
+          final List<Map<String, String>> logs = [];
+          int successCount = 0;
+          int failCount = 0;
 
-         content.split('\n').where((line) => line.isNotEmpty).forEach((line) {
-           try {
-             // 格式是: [时间] [级别] [标签] | 消息 | 文件位置
-             final parts = line.split('|').map((s) => s.trim()).toList();
-             if (parts.length == 3) {
-               final headers = parts[0].split(']')
-                   .map((s) => s.trim().replaceAll('[', ''))
-                   .where((s) => s.isNotEmpty)
-                   .toList();
+          content.split('\n').where((line) => line.isNotEmpty).forEach((line) {
+            try {
+              // 格式是: [时间] [级别] [标签] | 消息 | 文件位置
+              final parts = line.split('|').map((s) => s.trim()).toList();
+              if (parts.length == 3) {
+                final headers = parts[0].split(']')
+                    .map((s) => s.trim().replaceAll('[', ''))
+                    .where((s) => s.isNotEmpty)
+                    .toList();
 
-               if (headers.length == 3) {
-                 // 还原特殊字符
-                 String message = parts[1]
-                   .replaceAll('\\n', '\n')
-                   .replaceAll('\\r', '\r')
-                   .replaceAll('\\|', '|')
-                   .replaceAll('\\[', '[')
-                   .replaceAll('\\]', ']');
+                if (headers.length == 3) {
+                  // 还原特殊字符
+                  String message = parts[1]
+                    .replaceAll('\\n', '\n')
+                    .replaceAll('\\r', '\r')
+                    .replaceAll('\\|', '|')
+                    .replaceAll('\\[', '[')
+                    .replaceAll('\\]', ']');
 
-                 logs.add({
-                   'time': headers[0],
-                   'level': headers[1],
-                   'tag': headers[2],
-                   'message': message,
-                   'fileInfo': parts[2]
-                 });
-                 successCount++;
-               } else {
-                 failCount++;
-                 e('解析日志行头部失败，headers长度错误: ${headers.length}, line: $line');
-               }
-             } else {
-               failCount++;
-               e('解析日志行失败，parts长度错误: ${parts.length}, line: $line');
-             }
-           } catch (e) {
-             failCount++;
-             e('解析日志行异常: $line, 错误: $e'); 
-           }
-         });
+                  logs.add({
+                    'time': headers[0],
+                    'level': headers[1],
+                    'tag': headers[2],
+                    'message': message,
+                    'fileInfo': parts[2]
+                  });
+                  successCount++;
+                } else {
+                  failCount++;
+                  _log('e', '解析日志行头部失败，headers长度错误: ${headers.length}, line: $line', _defTag);
+                }
+              } else {
+                failCount++;
+                _log('e', '解析日志行失败，parts长度错误: ${parts.length}, line: $line', _defTag);
+              }
+            } catch (error) {
+              failCount++;
+              _log('e', '解析日志行异常: $line, 错误: $error', _defTag);
+            }
+          });
 
-         await i('历史日志解析完成 - 成功: $successCount, 失败: $failCount');
-         
-         _memoryLogs.clear();
-         _memoryLogs.addAll(logs.reversed);
-         await i('历史日志加载到内存完成，共${_memoryLogs.length}条');
-       } else {
-         await i('历史日志文件为空');
-       }
-     } else {
-       await i('历史日志文件不存在');
-     }
-   } catch (e) {
-     await e('从文件加载历史日志失败: $e');
-   }
- }
+          await i('历史日志解析完成 - 成功: $successCount, 失败: $failCount');
+          
+          _memoryLogs.clear();
+          _memoryLogs.addAll(logs.reversed);
+          await i('历史日志加载到内存完成，共${_memoryLogs.length}条');
+        } else {
+          await i('历史日志文件为空');
+        }
+      } else {
+        await i('历史日志文件不存在');
+      }
+    } catch (error) {
+      await e('从文件加载历史日志失败: $error');
+    }
+  }
 
   // 检查并处理日志文件大小
   static Future<void> _checkAndHandleLogSize() async {
@@ -148,12 +148,12 @@ static Future<void> _loadLogsFromLocal() async {
       if (await file.exists()) {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          developer.log('日志文件大小超过限制，执行清理');
+          await i('日志文件大小超过限制，执行清理');
           await _clearLogs();
         }
       }
     } catch (e) {
-      developer.log('检查日志大小失败: $e');
+      await i('检查日志大小失败: $e');
       await _clearLogs();
     }
   }
@@ -244,7 +244,6 @@ static Future<void> _loadLogsFromLocal() async {
         await _flushToLocal();
       }
 
-      developer.log(logMessage);
       if (_showOverlay) {
         String displayMessage = logEntry["message"] ?? '';
         // 还原特殊字符以便显示
@@ -258,7 +257,7 @@ static Future<void> _loadLogsFromLocal() async {
         _showDebugMessage('[${logEntry["level"]}] $displayMessage');
       }
     } catch (e) {
-      developer.log('日志记录失败: $e');
+      await i('日志记录失败: $e');
     }
   }
 
@@ -287,7 +286,7 @@ static Future<void> _loadLogsFromLocal() async {
       );
 
     } catch (e) {
-      developer.log('写入日志文件失败: $e');
+      await i('写入日志文件失败: $e');
       _newLogsBuffer.insertAll(0, logsToWrite); // 写入失败时恢复日志
     } finally {
       _isOperating = false;
@@ -364,7 +363,7 @@ static Future<void> _loadLogsFromLocal() async {
 
       return overlayState;
     } catch (e) {
-      developer.log('获取 OverlayState 失败: $e');
+      _log('e', '获取 OverlayState 失败: $e', _defTag);
       return null;
     }
   }
@@ -375,7 +374,7 @@ static Future<void> _loadLogsFromLocal() async {
     _overlayEntry = null;
   }
 
-  // 启动自动隐藏计时器
+// 启动自动隐藏计时器
   static void _startAutoHideTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
@@ -404,7 +403,7 @@ static Future<void> _loadLogsFromLocal() async {
     stackTrace ??= StackTrace.current; // 使用当前堆栈信息
 
     if (message?.isNotEmpty != true || error == null) {
-      await LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
+      await e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
       return;
     }
 
@@ -425,14 +424,11 @@ static Future<void> _loadLogsFromLocal() async {
     }
   }
 
-  // 获取文件名和行号，记录 frames
+  // 获取文件名和行号
   static String _getFileAndLine() {
     try {
       final frames = StackTrace.current.toString().split('\n');
-
-      // 记录 frames 到日志
-      String frameInfo = frames.join('\n'); // 将 frames 转换为字符串
-      developer.log('堆栈信息:\n$frameInfo'); // 记录到日志
+      String frameInfo = frames.join('\n'); 
 
       // 从第三帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
       for (int i = 2; i < frames.length; i++) {
@@ -478,7 +474,7 @@ static Future<void> _loadLogsFromLocal() async {
     try {
       return List.from(_memoryLogs);
     } catch (e) {
-      developer.log('获取日志失败: $e');
+      _log('e', '获取日志失败: $e', _defTag);
       return [];
     }
   }
@@ -488,7 +484,7 @@ static Future<void> _loadLogsFromLocal() async {
     try {
       return _memoryLogs.where((log) => log['level'] == level).toList();
     } catch (e) {
-      developer.log('按级别获取日志失败: $e');
+      _log('e', '按级别获取日志失败: $e', _defTag);
       return [];
     }
   }
@@ -524,7 +520,7 @@ static Future<void> _loadLogsFromLocal() async {
         await file.writeAsString(updatedLogs);
       }
     } catch (e) {
-      developer.log('清空日志失败: $e');
+      await i('清空日志失败: $e');
     } finally {
       _isOperating = false;
     }
@@ -546,7 +542,7 @@ static Future<void> _loadLogsFromLocal() async {
         await file.delete();
       }
     } catch (e) {
-      developer.log('清空日志失败: $e');
+      await i('清空日志失败: $e');
     } finally {
       _isOperating = false;
     }
@@ -562,7 +558,7 @@ static Future<void> _loadLogsFromLocal() async {
         return match.group(1)?.trim() ?? message;
       }
     } catch (e) {
-      developer.log('解析日志消息失败: $e');
+      _log('e', '解析日志消息失败: $e', _defTag);
     }
     return message;
   }
