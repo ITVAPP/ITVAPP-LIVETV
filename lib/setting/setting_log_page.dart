@@ -274,7 +274,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                             LogUtil.clearLogs();
                                             _cachedLogs = null; // 清除缓存
                                           } else {
-                                            LogUtil.clearLogs(_selectedLevel);
+                                            LogUtil.clearLogs(level: _selectedLevel);
                                             _cachedLogs = null; // 清除缓存
                                           }
                                         });
