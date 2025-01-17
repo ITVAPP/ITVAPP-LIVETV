@@ -34,27 +34,35 @@ class LogUtil {
   }
   
   // 初始化方法，在应用启动时调用
-  static Future<void> init() async {
+static Future<void> init() async {
     try {
-      _memoryLogs.clear();
-      _newLogsBuffer.clear();
-
+      // 1. 获取并确保日志文件存在
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
       if (!await file.exists()) {
         await file.create();
         await _logDirect('i', '创建日志文件: $filePath', 'LogUtil');
-      } else {
-        final int sizeInBytes = await file.length();
-        if (sizeInBytes > _maxFileSizeBytes) {
-          await _logDirect('i', '日志文件超过大小限制，执行清理', 'LogUtil');
-          await _clearLogs();
-        } else {
-          await _loadLogsFromLocal();
-        }
+      }
+
+      // 2. 检查文件大小并在需要时清理
+      final int sizeInBytes = await file.length();
+      if (sizeInBytes > _maxFileSizeBytes) {
+        await _logDirect('i', '日志文件超过大小限制，执行清理', 'LogUtil');
+        // 清理文件但不清理内存
+        await file.writeAsString('');  // 清空文件内容
+      }
+
+      // 3. 清空内存和缓冲区，准备加载新的日志
+      _memoryLogs.clear();
+      _newLogsBuffer.clear();
+
+      // 4. 从文件加载历史日志
+      if (await file.exists() && await file.length() > 0) {
+        await _loadLogsFromLocal();
       }
     } catch (e) {
+      // 出错时才完全清理
       await _logDirect('e', '日志初始化失败: $e', 'LogUtil');
       await _clearLogs();
     }
