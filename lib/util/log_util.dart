@@ -1,35 +1,37 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sp_util/sp_util.dart';
+import 'package:path_provider/path_provider.dart'; 
 import '../provider/theme_provider.dart';
 
 class LogUtil {
  static const String _defTag = 'common_utils';
  static bool debugMode = true; // 控制是否记录日志 true 或 false
- static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
  static bool _isOperating = false; // 添加操作锁，防止并发问题
  static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
- static const int _maxFileSizeBytes = 1 * 1024 * 1024; // 最大日志限制1MB
+ static const int _maxFileSizeBytes = 3 * 1024 * 1024; // 最大日志限制3MB
  
  // 新增：内存存储相关
  static final List<Map<String, String>> _memoryLogs = [];
  static final List<Map<String, String>> _newLogsBuffer = [];
  static const int _writeThreshold = 5;  // 累积5条日志才写入本地
- 
+  static const String _logFileName = 'ITVAPP_LIVETV_logs.txt';  // 日志文件名
+  static String? _logFilePath;  // 缓存日志文件路径
+  
  // 弹窗相关属性
  static bool _showOverlay = true; // 控制是否显示弹窗
  static OverlayEntry? _overlayEntry;  // 修改为单个 OverlayEntry
  static final List<String> _debugMessages = [];
  static Timer? _timer;
  static const int _messageDisplayDuration = 3;
+ 
 
  // 初始化方法，在应用启动时调用
 static Future<void> init() async {
   try {
-    await SpUtil.getInstance();
     _memoryLogs.clear();  // 初始化时先清空内存
     _newLogsBuffer.clear();  // 初始化时先清空缓冲区
     await _loadLogsFromLocal(); // 先从本地加载
@@ -40,17 +42,29 @@ static Future<void> init() async {
   }
 }
  
+  // 获取日志文件路径
+  static Future<String> _getLogFilePath() async {
+    if (_logFilePath != null) return _logFilePath!;
+    
+    final directory = await getApplicationDocumentsDirectory();
+    _logFilePath = '${directory.path}/$_logFileName';
+    return _logFilePath!;
+  }
+  
  // 新增：从本地加载日志到内存
 static Future<void> _loadLogsFromLocal() async {
   try {
-    final String? logsStr = await SpUtil.getString(_logsKey);
-    if (logsStr != null && logsStr.isNotEmpty) {
-      final logs = logsStr
+    final filePath = await _getLogFilePath();
+    final file = File(filePath);
+    
+    if (await file.exists()) {
+      final String content = await file.readAsString();
+      if (content.isNotEmpty) {
+        final logs = content
           .split('\n')
           .where((line) => line.isNotEmpty)
           .map((line) {
             try {
-              // 尝试解析日志行
               final RegExp regex = RegExp(r'\[(.*?)\] \[(.*?)\] \[(.*?)\] \| (.*?) \| (.*)');
               final match = regex.firstMatch(line);
               if (match != null) {
@@ -64,41 +78,39 @@ static Future<void> _loadLogsFromLocal() async {
               }
               return null;
             } catch (e) {
-              developer.log('解析日志行失败: $e');
               return null;
             }
           })
           .where((log) => log != null)
           .cast<Map<String, String>>()
           .toList();
-
-      // 确保先清空现有内存日志
-      _memoryLogs.clear();
-      // 添加解析的日志到内存
-      _memoryLogs.addAll(logs);
-      developer.log('成功从本地加载 ${logs.length} 条日志');
+          
+        _memoryLogs.clear();
+        _memoryLogs.addAll(logs);
+      }
     }
   } catch (e) {
-    developer.log('从本地加载日志失败: $e');
+    developer.log('从文件加载日志失败: $e');
   }
 }
 
  // 检查并处理日志文件大小
- static Future<void> _checkAndHandleLogSize() async {
-   try {
-     final String? logsStr = await SpUtil.getString(_logsKey);
-     if (logsStr != null) {
-       int sizeInBytes = utf8.encode(logsStr).length;
-       if (sizeInBytes > _maxFileSizeBytes) {
-         developer.log('日志文件超过1MB，执行清理');
-         await _clearLogs();
-       }
-     }
-   } catch (e) {
-     developer.log('检查日志大小失败: $e');
-     await _clearLogs();
-   }
- }
+static Future<void> _checkAndHandleLogSize() async {
+  try {
+    final filePath = await _getLogFilePath();
+    final file = File(filePath);
+    if (await file.exists()) {
+      final int sizeInBytes = await file.length();
+      if (sizeInBytes > _maxFileSizeBytes) {
+        developer.log('日志文件大小超过限制，执行清理');
+        await _clearLogs();
+      }
+    }
+  } catch (e) {
+    developer.log('检查日志大小失败: $e');
+    await _clearLogs();
+  }
+}
 
  // 设置 debugMode 状态，供外部调用
  static void setDebugMode(bool isEnabled) {
@@ -195,31 +207,35 @@ static Future<void> _flushToLocal() async {
    if (_newLogsBuffer.isEmpty || _isOperating) return;
    
    _isOperating = true;
-   List<Map<String, String>> logsToWrite = [];  // 移到这里声明
+   List<Map<String, String>> logsToWrite = [];
    try {
-     logsToWrite = List.from(_newLogsBuffer);  // 赋值
+     logsToWrite = List.from(_newLogsBuffer);
      _newLogsBuffer.clear();
      
-     // 1. 获取现有日志
-     String? existingLogs = await SpUtil.getString(_logsKey) ?? '';
+     // 1. 获取日志文件路径
+     final filePath = await _getLogFilePath();
+     final file = File(filePath);
      
      // 2. 转换新日志为文本格式
      String newContent = logsToWrite.map((log) => 
        '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
      ).join('\n');
      
-     // 3. 合并新旧日志，新日志在前
+     // 3. 如果文件存在,读取现有内容并合并
      String finalContent = newContent;
-     if (existingLogs.isNotEmpty) {
-       finalContent += '\n$existingLogs';
+     if (await file.exists()) {
+       String existingContent = await file.readAsString();
+       if (existingContent.isNotEmpty) {
+         finalContent += '\n$existingContent';
+       }
      }
      
-     // 4. 写入合并后的日志
-     await SpUtil.putString(_logsKey, finalContent);
+     // 4. 写入文件
+     await file.writeAsString(finalContent);
+     
    } catch (e) {
-     developer.log('写入本地存储失败: $e');
-     // 写入失败时，将日志放回缓冲区
-     _newLogsBuffer.insertAll(0, logsToWrite);  // 现在可以访问 logsToWrite 了
+     developer.log('写入日志文件失败: $e');
+     _newLogsBuffer.insertAll(0, logsToWrite);
    } finally {
      _isOperating = false;
    }
@@ -427,30 +443,40 @@ static void _startAutoHideTimer() {
 
  // 清空日志
  static Future<void> clearLogs([String? level]) async {
-   if (_isOperating) return;
-   
-   _isOperating = true;
-   try {
-     if (level == null) {
-       // 清空所有日志
-       _memoryLogs.clear();
-       _newLogsBuffer.clear();
-       await SpUtil.putString(_logsKey, '');
-     } else {
-       // 清空特定级别的日志
-       _memoryLogs.removeWhere((log) => log['level'] == level);
-       _newLogsBuffer.removeWhere((log) => log['level'] == level);
-       final String updatedLogs = _memoryLogs.map((log) =>
-         '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
-       ).join('\n');
-       await SpUtil.putString(_logsKey, updatedLogs);
-     }
-   } catch (e) {
-     developer.log('清空日志失败: $e');
-   } finally {
-     _isOperating = false;
-   }
- }
+  if (_isOperating) return;
+  
+  _isOperating = true;
+  try {
+    if (level == null) {
+      // 清空所有日志
+      _memoryLogs.clear();
+      _newLogsBuffer.clear();
+      
+      // 删除日志文件
+      final filePath = await _getLogFilePath();
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } else {
+      // 清空特定级别的日志
+      _memoryLogs.removeWhere((log) => log['level'] == level);
+      _newLogsBuffer.removeWhere((log) => log['level'] == level);
+      
+      // 更新文件内容
+      final filePath = await _getLogFilePath();
+      final file = File(filePath);
+      final String updatedLogs = _memoryLogs.map((log) =>
+        '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
+      ).join('\n');
+      await file.writeAsString(updatedLogs);
+    }
+  } catch (e) {
+    developer.log('清空日志失败: $e');
+  } finally {
+    _isOperating = false;
+  }
+}
 
  // 内部清空日志方法
  static Future<void> _clearLogs() async {
@@ -458,15 +484,21 @@ static void _startAutoHideTimer() {
    
    _isOperating = true;
    try {
-     _memoryLogs.clear();  // 新增：清空内存日志
-     _newLogsBuffer.clear();  // 新增：清空缓冲区
-     await SpUtil.putString(_logsKey, '');
+     _memoryLogs.clear();
+     _newLogsBuffer.clear();
+     
+     // 删除日志文件
+     final filePath = await _getLogFilePath();
+     final file = File(filePath);
+     if (await file.exists()) {
+       await file.delete();
+     }
    } catch (e) {
      developer.log('清空日志失败: $e');
    } finally {
      _isOperating = false;
    }
- }
+}
 
  // 解析日志消息，展示实际内容时只提取消息部分，保留文件和行号信息
 static String parseLogMessage(String message) {
@@ -484,9 +516,9 @@ static String parseLogMessage(String message) {
 }
  
  // 应用退出时调用
- static Future<void> dispose() async {
-   if (_newLogsBuffer.isNotEmpty) {
-     await _flushToLocal();
-   }
- }
+static Future<void> dispose() async {
+  if (!_isOperating && _newLogsBuffer.isNotEmpty) {  // 添加锁检查
+    await _flushToLocal();
+  }
+}
 }
