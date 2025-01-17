@@ -27,51 +27,56 @@ class LogUtil {
  static const int _messageDisplayDuration = 3;
 
  // 初始化方法，在应用启动时调用
- static Future<void> init() async {
-   try {
-     await SpUtil.getInstance();
-     await _checkAndHandleLogSize();
-     await _loadLogsFromLocal(); // 新增：从本地加载日志到内存
-   } catch (e) {
-     developer.log('日志初始化失败: $e');
-     await _clearLogs();
-   }
- }
+static Future<void> init() async {
+  try {
+    await SpUtil.getInstance();
+    _memoryLogs.clear();  // 初始化时先清空内存
+    _newLogsBuffer.clear();  // 初始化时先清空缓冲区
+    await _loadLogsFromLocal(); // 先从本地加载
+    await _checkAndHandleLogSize(); // 再检查大小
+  } catch (e) {
+    developer.log('日志初始化失败: $e');
+    await _clearLogs();
+  }
+}
  
  // 新增：从本地加载日志到内存
- static Future<void> _loadLogsFromLocal() async {
+static Future<void> _loadLogsFromLocal() async {
   try {
     final String? logsStr = await SpUtil.getString(_logsKey);
     if (logsStr != null && logsStr.isNotEmpty) {
       final logs = logsStr
-        .split('\n')
-        .where((line) => line.isNotEmpty)
-        .map((line) {
-          try {
-            // 格式：[时间] [级别] [标签] | 消息内容 | 文件位置
-            final RegExp regex = RegExp(r'\[(.*?)\] \[(.*?)\] \[(.*?)\] \| (.*?) \| (.*)');
-            final match = regex.firstMatch(line);
-            if (match != null) {
-              return {
-                'time': match.group(1) ?? '',
-                'level': match.group(2) ?? '',
-                'tag': match.group(3) ?? '',
-                'message': match.group(4) ?? '',
-                'fileInfo': match.group(5) ?? ''
-              };
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .map((line) {
+            try {
+              // 尝试解析日志行
+              final RegExp regex = RegExp(r'\[(.*?)\] \[(.*?)\] \[(.*?)\] \| (.*?) \| (.*)');
+              final match = regex.firstMatch(line);
+              if (match != null) {
+                return {
+                  'time': match.group(1) ?? '',
+                  'level': match.group(2) ?? '',
+                  'tag': match.group(3) ?? '',
+                  'message': match.group(4) ?? '',
+                  'fileInfo': match.group(5) ?? ''
+                };
+              }
+              return null;
+            } catch (e) {
+              developer.log('解析日志行失败: $e');
+              return null;
             }
-            return null;
-          } catch (e) {
-            return null;
-          }
-        })
-        .where((log) => log != null)
-        .cast<Map<String, String>>()
-        .toList();
-        
-      // 直接赋值，保持顺序一致
-      _memoryLogs.clear();  // 清空现有内容
-      _memoryLogs.addAll(logs);  // 按照本地存储的顺序添加
+          })
+          .where((log) => log != null)
+          .cast<Map<String, String>>()
+          .toList();
+
+      // 确保先清空现有内存日志
+      _memoryLogs.clear();
+      // 添加解析的日志到内存
+      _memoryLogs.addAll(logs);
+      developer.log('成功从本地加载 ${logs.length} 条日志');
     }
   } catch (e) {
     developer.log('从本地加载日志失败: $e');
@@ -152,9 +157,8 @@ class LogUtil {
      if (objectStr.length > _maxSingleLogLength) {
        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
      }
-     // 格式：[时间] [级别] [标签] | 消息内容 | 文件位置
-     String logMessage = '[$time] [$level] [${tag ?? _defTag}] | $objectStr | $fileInfo';
-
+     
+     // 创建日志条目
      Map<String, String> logEntry = {
        'time': time,
        'level': level,
@@ -162,13 +166,16 @@ class LogUtil {
        'tag': tag ?? _defTag,
        'fileInfo': fileInfo
      };
-     
-     // 添加到内存
+
+     // 添加到内存（新日志在前）
      _memoryLogs.insert(0, logEntry);
-     // 添加到缓冲区
+     // 添加到缓冲区（新日志在前）
      _newLogsBuffer.insert(0, logEntry);
 
-     // 检查是否需要写入本地
+     // 生成控制台日志消息
+     String logMessage = '[${logEntry["time"]}] [${logEntry["level"]}] [${logEntry["tag"]}] | ${logEntry["message"]} | ${logEntry["fileInfo"]}';
+
+     // 如果缓冲区达到阈值，写入本地
      if (_newLogsBuffer.length >= _writeThreshold) {
        await _flushToLocal();
      }
@@ -176,7 +183,7 @@ class LogUtil {
      developer.log(logMessage);
 
      if (_showOverlay) {
-       _showDebugMessage('[$level] $objectStr');
+       _showDebugMessage('[${logEntry["level"]}] ${logEntry["message"]}');
      }
    } catch (e) {
      developer.log('日志记录失败: $e');
@@ -192,21 +199,26 @@ static Future<void> _flushToLocal() async {
      final List<Map<String, String>> logsToWrite = List.from(_newLogsBuffer);
      _newLogsBuffer.clear();
      
-     // 转换为文本格式
+     // 1. 获取现有日志
+     String? existingLogs = await SpUtil.getString(_logsKey) ?? '';
+     
+     // 2. 转换新日志为文本格式
      String newContent = logsToWrite.map((log) => 
-       '[${log['time']}] [${log['level']}] [${log['tag']}] | ${log['message']} | ${log['fileInfo']}'
+       '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
      ).join('\n');
      
-     String? existingContent = await SpUtil.getString(_logsKey) ?? '';
-     if (existingContent.isNotEmpty) {
-       newContent += '\n$existingContent';
+     // 3. 合并新旧日志，新日志在前
+     String finalContent = newContent;
+     if (existingLogs.isNotEmpty) {
+       finalContent += '\n$existingLogs';
      }
      
-     await SpUtil.putString(_logsKey, newContent);
+     // 4. 写入合并后的日志
+     await SpUtil.putString(_logsKey, finalContent);
    } catch (e) {
      developer.log('写入本地存储失败: $e');
      // 写入失败时，将日志放回缓冲区
-     _newLogsBuffer.insertAll(0, List.from(_newLogsBuffer));
+     _newLogsBuffer.insertAll(0, logsToWrite);
    } finally {
      _isOperating = false;
    }
