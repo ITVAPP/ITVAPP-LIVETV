@@ -28,71 +28,82 @@ class LogUtil {
   static Timer? _timer;
   static const int _messageDisplayDuration = 3;
 
-  // 新增：内部日志记录防递归标记
-  static bool _isInternalLogging = false;
+  // 新增：直接记录日志的方法，跳过递归检查
+  static Future<void> _logDirect(String level, String message, String tag) async {
+    if (!debugMode) return;
+    
+    try {
+      String time = DateTime.now().toString();
+      String fileInfo = _getFileAndLine();
+
+      Map<String, String> logEntry = {
+        'time': time,
+        'level': level,
+        'message': message,
+        'tag': tag,
+        'fileInfo': fileInfo
+      };
+
+      _memoryLogs.insert(0, logEntry);
+      _newLogsBuffer.insert(0, logEntry);
+
+      if (_newLogsBuffer.length >= _writeThreshold) {
+        await _flushToLocal();
+      }
+
+      if (_showOverlay) {
+        _showDebugMessage('[$level] $message');
+      }
+    } catch (e) {
+      developer.log('LogUtil内部错误: $e');
+    }
+  }
 
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
-      _memoryLogs.clear();  // 初始化时先清空内存
-      _newLogsBuffer.clear();  // 初始化时先清空缓冲区
+      _memoryLogs.clear();
+      _newLogsBuffer.clear();
 
-      // 1. 获取日志文件路径
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
-      // 2. 检查文件是否存在，不存在则创建
       if (!await file.exists()) {
         await file.create();
-        await _internalLog('i', '创建日志文件: $filePath');
+        await _logDirect('i', '创建日志文件: $filePath', 'LogUtil');
       } else {
-        // 3. 检查文件大小
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          await _internalLog('i', '日志文件超过大小限制，执行清理');
+          await _logDirect('i', '日志文件超过大小限制，执行清理', 'LogUtil');
           await _clearLogs();
         } else {
-          await _loadLogsFromLocal(); // 从本地加载日志到内存
+          await _loadLogsFromLocal();
         }
       }
     } catch (e) {
-      await _internalLog('e', '日志初始化失败: $e');
+      await _logDirect('e', '日志初始化失败: $e', 'LogUtil');
       await _clearLogs();
     }
   }
 
-  // 通用日志记录方法，日志记录受 debugMode 控制
-  static Future<void> _log(String level, Object? object, String? tag, {bool isInternal = false}) async {
+  // 通用日志记录方法
+  static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
-
-    // 如果已经在处理内部日志，直接打印到控制台并返回，防止递归
-    if (_isInternalLogging && !isInternal) {
-      developer.log('Internal log recursion prevented: [$level] $object');
-      return;
-    }
-
     try {
-      if (isInternal) {
-        _isInternalLogging = true;
-      }
-
       String time = DateTime.now().toString();
       String fileInfo = _getFileAndLine();
 
-      // 处理特殊字符
-      String objectStr = object?.toString()
+      String objectStr = object.toString()
         .replaceAll('\n', '\\n')
         .replaceAll('\r', '\\r')
         .replaceAll('|', '\\|')
         .replaceAll('[', '\\[')
-        .replaceAll(']', '\\]')
-        ?? 'null';
+        .replaceAll(']', '\\]');
 
       if (objectStr.length > _maxSingleLogLength) {
         objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
       }
 
-      // 创建日志条目
       Map<String, String> logEntry = {
         'time': time,
         'level': level,
@@ -101,66 +112,47 @@ class LogUtil {
         'fileInfo': fileInfo
       };
 
-      // 添加到内存和缓冲区（新日志在前）
       _memoryLogs.insert(0, logEntry);
       _newLogsBuffer.insert(0, logEntry);
 
-      // 生成控制台日志消息
-      String logMessage = '[${logEntry["time"]}] [${logEntry["level"]}] [${logEntry["tag"]}] | ${logEntry["message"]} | ${logEntry["fileInfo"]}';
-
-      // 如果缓冲区达到阈值，写入本地
       if (_newLogsBuffer.length >= _writeThreshold) {
         await _flushToLocal();
       }
 
       if (_showOverlay) {
-        String displayMessage = logEntry["message"] ?? '';
-        // 还原特殊字符以便显示
-        displayMessage = displayMessage
+        String displayMessage = objectStr
           .replaceAll('\\n', '\n')
           .replaceAll('\\r', '\r')
           .replaceAll('\\|', '|')
           .replaceAll('\\[', '[')
           .replaceAll('\\]', ']');
 
-        _showDebugMessage('[${logEntry["level"]}] $displayMessage');
+        _showDebugMessage('[$level] $displayMessage');
       }
     } catch (e) {
       developer.log('日志记录失败: $e');
-    } finally {
-      if (isInternal) {
-        _isInternalLogging = false;
-      }
     }
   }
-
-  // 新增：内部日志方法，会写入内存和本地
-  static Future<void> _internalLog(String level, String message) async {
-    await _log(level, message, 'LogUtil', isInternal: true);
-  }
-
+  
   // 从本地加载日志到内存
- // 从本地加载日志到内存
   static Future<void> _loadLogsFromLocal() async {
     try {
-      await _internalLog('i', '开始从本地加载历史日志');
+      await _logDirect('i', '开始从本地加载历史日志', 'LogUtil');
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
       if (await file.exists()) {
         final String content = await file.readAsString();
-        await _internalLog('i', '读取到历史日志文件，内容大小: ${content.length}');
+        await _logDirect('i', '读取到历史日志文件，内容大小: ${content.length}', 'LogUtil');
 
         if (content.isNotEmpty) {
           final List<Map<String, String>> logs = [];
           int successCount = 0;
           int failCount = 0;
 
-          // 将 forEach 改为 for 循环
           final lines = content.split('\n').where((line) => line.isNotEmpty);
           for (final line in lines) {
             try {
-              // 格式是: [时间] [级别] [标签] | 消息 | 文件位置
               final parts = line.split('|').map((s) => s.trim()).toList();
               if (parts.length == 3) {
                 final headers = parts[0].split(']')
@@ -169,7 +161,6 @@ class LogUtil {
                     .toList();
 
                 if (headers.length == 3) {
-                  // 还原特殊字符
                   String message = parts[1]
                     .replaceAll('\\n', '\n')
                     .replaceAll('\\r', '\r')
@@ -187,38 +178,35 @@ class LogUtil {
                   successCount++;
                 } else {
                   failCount++;
-                  // 在同步代码块中记录错误，不使用 await
-                  _log('e', '解析日志行头部失败，headers长度错误: ${headers.length}, line: $line', _defTag);
+                  await _logDirect('e', '解析日志行头部失败，headers长度错误: ${headers.length}, line: $line', 'LogUtil');
                 }
               } else {
                 failCount++;
-                // 在同步代码块中记录错误，不使用 await
-                _log('e', '解析日志行失败，parts长度错误: ${parts.length}, line: $line', _defTag);
+                await _logDirect('e', '解析日志行失败，parts长度错误: ${parts.length}, line: $line', 'LogUtil');
               }
             } catch (error) {
               failCount++;
-              // 在同步代码块中记录错误，不使用 await
-              _log('e', '解析日志行异常: $line, 错误: $error', _defTag);
+              await _logDirect('e', '解析日志行异常: $line, 错误: $error', 'LogUtil');
             }
           }
 
-          await _internalLog('i', '历史日志解析完成 - 成功: $successCount, 失败: $failCount');
+          await _logDirect('i', '历史日志解析完成 - 成功: $successCount, 失败: $failCount', 'LogUtil');
           
           _memoryLogs.clear();
           _memoryLogs.addAll(logs.reversed);
-          await _internalLog('i', '历史日志加载到内存完成，共${_memoryLogs.length}条');
+          await _logDirect('i', '历史日志加载到内存完成，共${_memoryLogs.length}条', 'LogUtil');
         } else {
-          await _internalLog('i', '历史日志文件为空');
+          await _logDirect('i', '历史日志文件为空', 'LogUtil');
         }
       } else {
-        await _internalLog('i', '历史日志文件不存在');
+        await _logDirect('i', '历史日志文件不存在', 'LogUtil');
       }
     } catch (error) {
-      await _internalLog('e', '从文件加载历史日志失败: $error');
+      await _logDirect('e', '从文件加载历史日志失败: $error', 'LogUtil');
     }
   }
 
-// 获取日志文件路径
+  // 获取日志文件路径
   static Future<String> _getLogFilePath() async {
     if (_logFilePath != null) return _logFilePath!;
 
@@ -236,24 +224,21 @@ class LogUtil {
       logsToWrite = List.from(_newLogsBuffer);
       _newLogsBuffer.clear();
 
-      // 1. 获取日志文件路径
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
-      // 2. 转换新日志为文本格式
       String content = logsToWrite.map((log) =>
         '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
       ).join('\n');
 
-      // 3. 追加写入 - 如果文件不存在会自动创建
       await file.writeAsString(
-        content + '\n',  // 添加换行符
-        mode: FileMode.append, // 使用追加模式写入
+        content + '\n',
+        mode: FileMode.append,
       );
 
     } catch (e) {
-      await _internalLog('e', '写入日志文件失败: $e');
-      _newLogsBuffer.insertAll(0, logsToWrite); // 写入失败时恢复日志
+      await _logDirect('e', '写入日志文件失败: $e', 'LogUtil');
+      _newLogsBuffer.insertAll(0, logsToWrite);
     } finally {
       _isOperating = false;
     }
@@ -267,16 +252,16 @@ class LogUtil {
       if (await file.exists()) {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          await _internalLog('i', '日志文件大小超过限制，执行清理');
+          await _logDirect('i', '日志文件大小超过限制，执行清理', 'LogUtil');
           await _clearLogs();
         }
       }
     } catch (e) {
-      await _internalLog('e', '检查日志大小失败: $e');
+      await _logDirect('e', '检查日志大小失败: $e', 'LogUtil');
       await _clearLogs();
     }
   }
-
+  
   // 记录不同类型的日志
   static Future<void> v(Object? object, {String? tag}) async {
     await _log('v', object, tag);
@@ -311,11 +296,11 @@ class LogUtil {
   static void updateDebugModeFromProvider(BuildContext context) {
     try {
       var themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-      bool isLogOn = themeProvider.isLogOn; // 获取日志开关状态
+      bool isLogOn = themeProvider.isLogOn;
       setDebugMode(isLogOn);
     } catch (e) {
-      setDebugMode(false); // 如果 Provider 获取失败，默认关闭日志
-      _internalLog('e', '未能读取到 ThemeProvider，默认关闭日志功能: $e');
+      setDebugMode(false);
+      _logDirect('e', '未能读取到 ThemeProvider，默认关闭日志功能: $e', 'LogUtil');
     }
   }
 
@@ -389,7 +374,7 @@ class LogUtil {
 
       return overlayState;
     } catch (e) {
-      _internalLog('e', '获取 OverlayState 失败: $e');
+      _logDirect('e', '获取 OverlayState 失败: $e', 'LogUtil');
       return null;
     }
   }
@@ -428,7 +413,7 @@ class LogUtil {
     stackTrace ??= StackTrace.current;
 
     if (message.isEmpty || error == null) {
-      await _internalLog('e', '参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
+      await _logDirect('e', '参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace', 'LogUtil');
       return;
     }
 
@@ -438,7 +423,7 @@ class LogUtil {
   // 安全执行方法，捕获并记录异常
   static Future<void> safeExecute(void Function()? action, String errorMessage, [StackTrace? stackTrace]) async {
     if (action == null) {
-      await _internalLog('e', '$errorMessage - 函数调用时参数为空或不匹配');
+      await _logDirect('e', '$errorMessage - 函数调用时参数为空或不匹配', 'LogUtil');
       return;
     }
 
@@ -448,23 +433,19 @@ class LogUtil {
       await logError(errorMessage, error, st);
     }
   }
-  
+
   // 获取文件名和行号
   static String _getFileAndLine() {
     try {
       final frames = StackTrace.current.toString().split('\n');
       String frameInfo = frames.join('\n'); 
 
-      // 从第三帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
       for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
 
-        // 修改后的正则表达式，忽略列号，只捕获文件名和行号
         final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
 
-        // 过滤掉与 LogUtil 相关的堆栈帧
         if (match != null && !frame.contains('log_util.dart')) {
-          // 返回捕获到的文件名和行号
           return '${match.group(1)}:${match.group(2)}';
         }
       }
@@ -481,7 +462,6 @@ class LogUtil {
       for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
 
-        // 忽略 log_util.dart 中的堆栈信息
         final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
         if (match != null && !frame.contains('log_util.dart')) {
           return '${match.group(1)}:${match.group(2)}';
@@ -498,7 +478,7 @@ class LogUtil {
     try {
       return List.from(_memoryLogs);
     } catch (e) {
-      _internalLog('e', '获取日志失败: $e');
+      _logDirect('e', '获取日志失败: $e', 'LogUtil');
       return [];
     }
   }
@@ -508,7 +488,7 @@ class LogUtil {
     try {
       return _memoryLogs.where((log) => log['level'] == level).toList();
     } catch (e) {
-      _internalLog('e', '按级别获取日志失败: $e');
+      _logDirect('e', '按级别获取日志失败: $e', 'LogUtil');
       return [];
     }
   }
@@ -530,7 +510,7 @@ class LogUtil {
         if (await file.exists()) {
           await file.delete();
         }
-        await _internalLog('i', '清空所有日志完成');
+        await _logDirect('i', '清空所有日志完成', 'LogUtil');
       } else {
         // 清空特定级别的日志
         _memoryLogs.removeWhere((log) => log['level'] == level);
@@ -543,10 +523,10 @@ class LogUtil {
           '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
         ).join('\n');
         await file.writeAsString(updatedLogs);
-        await _internalLog('i', '清空 $level 级别日志完成');
+        await _logDirect('i', '清空 $level 级别日志完成', 'LogUtil');
       }
     } catch (e) {
-      await _internalLog('e', '清空日志失败: $e');
+      await _logDirect('e', '清空日志失败: $e', 'LogUtil');
     } finally {
       _isOperating = false;
     }
@@ -567,9 +547,9 @@ class LogUtil {
       if (await file.exists()) {
         await file.delete();
       }
-      await _internalLog('i', '内部清空日志完成');
+      await _logDirect('i', '内部清空日志完成', 'LogUtil');
     } catch (e) {
-      await _internalLog('e', '内部清空日志失败: $e');
+      await _logDirect('e', '内部清空日志失败: $e', 'LogUtil');
     } finally {
       _isOperating = false;
     }
@@ -582,18 +562,17 @@ class LogUtil {
       final RegExp regex = RegExp(r'\[.*?\] \[.*?\] \[.*?\] \| (.*?) \|');
       final match = regex.firstMatch(message);
       if (match != null) {
-        return match.group(1)
-        ?.trim() ?? message;
+        return match.group(1)?.trim() ?? message;
       }
     } catch (e) {
-      _internalLog('e', '解析日志消息失败: $e');
+      _logDirect('e', '解析日志消息失败: $e', 'LogUtil');
     }
     return message;
   }
 
   // 应用退出时调用
   static Future<void> dispose() async {
-    if (!_isOperating && _newLogsBuffer.isNotEmpty) {  // 添加锁检查
+    if (!_isOperating && _newLogsBuffer.isNotEmpty) {
       await _flushToLocal();
     }
   }
