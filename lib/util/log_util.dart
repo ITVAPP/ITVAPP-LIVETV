@@ -414,50 +414,52 @@ class LogUtil {
     }
   }
 
-  // 清理日志
-  static Future<void> clearLogs({String? level, bool isAuto = false}) async {
-    if (_isOperating) return;
-    _isOperating = true;
+// 清理日志
+/// @param level 要清理的日志级别，不传则清理所有
+/// @param isAuto 是否为自动清理（仅在 level 为 null 时生效）
+static Future<void> clearLogs([String? level, bool isAuto = false]) async {
+  if (_isOperating) return;
+  _isOperating = true;
+  
+  try {
+    final filePath = await _getLogFilePath();
+    final file = File(filePath);
     
-    try {
-      final filePath = await _getLogFilePath();
-      final file = File(filePath);
+    if (level == null) {
+      // 清理所有日志
+      _memoryLogs.clear();
+      _newLogsBuffer.clear();
       
-      if (level == null) {
-        // 清理所有日志
-        _memoryLogs.clear();
-        _newLogsBuffer.clear();
-        
-        if (await file.exists()) {
-          if (isAuto) {
-            // 自动清理时保留前半部分
-            final lines = await file.readAsLines();
-            if (lines.isNotEmpty) {
-              final endIndex = lines.length ~/ 2;
-              final remainingLogs = lines.sublist(0, endIndex);
-              await file.writeAsString(remainingLogs.join('\n') + '\n');
-            }
-          } else {
-            // 手动清理时直接删除
-            await file.delete();
+      if (await file.exists()) {
+        if (isAuto) {
+          // 自动清理时保留前半部分
+          final lines = await file.readAsLines();
+          if (lines.isNotEmpty) {
+            final endIndex = lines.length ~/ 2;
+            final remainingLogs = lines.sublist(0, endIndex);
+            await file.writeAsString(remainingLogs.join('\n') + '\n');
           }
-        }
-      } else {
-        // 清理指定级别的日志
-        final levelPattern = RegExp(r'\[' + level + r'\]');
-        _memoryLogs.removeWhere((log) => levelPattern.hasMatch(log));
-        _newLogsBuffer.removeWhere((log) => levelPattern.hasMatch(log));
-        
-        if (await file.exists()) {
-          await file.writeAsString(_memoryLogs.join('\n') + '\n');
+        } else {
+          // 手动清理时直接删除
+          await file.delete();
         }
       }
-    } catch (e) {
-      developer.log('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
-    } finally {
-      _isOperating = false;
+    } else {
+      // 清理指定级别的日志
+      final levelPattern = RegExp(r'\[' + level + r'\]');
+      _memoryLogs.removeWhere((log) => levelPattern.hasMatch(log));
+      _newLogsBuffer.removeWhere((log) => levelPattern.hasMatch(log));
+      
+      if (await file.exists()) {
+        await file.writeAsString(_memoryLogs.join('\n') + '\n');
+      }
     }
+  } catch (e) {
+    developer.log('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
+  } finally {
+    _isOperating = false;
   }
+}
 
   // 解析日志消息
   static String parseLogMessage(String logLine) {
