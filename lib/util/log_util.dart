@@ -41,19 +41,19 @@ class LogUtil {
       // 2. 检查文件是否存在，不存在则创建
       if (!await file.exists()) {
         await file.create();
-        await i('创建日志文件: $filePath');
+        developer.log('创建日志文件: $filePath');
       } else {
         // 3. 检查文件大小
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          await i('日志文件超过大小限制，执行清理');
+          developer.log('日志文件超过大小限制，执行清理');
           await _clearLogs();
         } else {
           await _loadLogsFromLocal(); // 从本地加载日志到内存
         }
       }
     } catch (e) {
-      await i('日志初始化失败: $e');
+      developer.log('日志初始化失败: $e');
       await _clearLogs();
     }
   }
@@ -148,12 +148,12 @@ static Future<void> _loadLogsFromLocal() async {
       if (await file.exists()) {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          await i('日志文件大小超过限制，执行清理');
+          developer.log('日志文件大小超过限制，执行清理');
           await _clearLogs();
         }
       }
     } catch (e) {
-      await i('检查日志大小失败: $e');
+      developer.log('检查日志大小失败: $e');
       await _clearLogs();
     }
   }
@@ -244,7 +244,7 @@ static Future<void> _loadLogsFromLocal() async {
         await _flushToLocal();
       }
 
-      await i(logMessage);
+      developer.log(logMessage);
       if (_showOverlay) {
         String displayMessage = logEntry["message"] ?? '';
         // 还原特殊字符以便显示
@@ -258,7 +258,7 @@ static Future<void> _loadLogsFromLocal() async {
         _showDebugMessage('[${logEntry["level"]}] $displayMessage');
       }
     } catch (e) {
-      await i('日志记录失败: $e');
+      developer.log('日志记录失败: $e');
     }
   }
 
@@ -287,7 +287,7 @@ static Future<void> _loadLogsFromLocal() async {
       );
 
     } catch (e) {
-      await i('写入日志文件失败: $e');
+      developer.log('写入日志文件失败: $e');
       _newLogsBuffer.insertAll(0, logsToWrite); // 写入失败时恢复日志
     } finally {
       _isOperating = false;
@@ -364,7 +364,7 @@ static Future<void> _loadLogsFromLocal() async {
 
       return overlayState;
     } catch (e) {
-      await i('获取 OverlayState 失败: $e');
+      developer.log('获取 OverlayState 失败: $e');
       return null;
     }
   }
@@ -432,7 +432,7 @@ static Future<void> _loadLogsFromLocal() async {
 
       // 记录 frames 到日志
       String frameInfo = frames.join('\n'); // 将 frames 转换为字符串
-      await i('堆栈信息:\n$frameInfo'); // 记录到日志
+      developer.log('堆栈信息:\n$frameInfo'); // 记录到日志
 
       // 从第三帧开始遍历堆栈信息，尝试找到业务代码相关的文件名和行号
       for (int i = 2; i < frames.length; i++) {
@@ -478,7 +478,7 @@ static Future<void> _loadLogsFromLocal() async {
     try {
       return List.from(_memoryLogs);
     } catch (e) {
-      await i('获取日志失败: $e');
+      developer.log('获取日志失败: $e');
       return [];
     }
   }
@@ -488,7 +488,7 @@ static Future<void> _loadLogsFromLocal() async {
     try {
       return _memoryLogs.where((log) => log['level'] == level).toList();
     } catch (e) {
-      await i('按级别获取日志失败: $e');
+      developer.log('按级别获取日志失败: $e');
       return [];
     }
   }
@@ -524,7 +524,7 @@ static Future<void> _loadLogsFromLocal() async {
         await file.writeAsString(updatedLogs);
       }
     } catch (e) {
-      await i('清空日志失败: $e');
+      developer.log('清空日志失败: $e');
     } finally {
       _isOperating = false;
     }
@@ -546,7 +546,7 @@ static Future<void> _loadLogsFromLocal() async {
         await file.delete();
       }
     } catch (e) {
-      await i('清空日志失败: $e');
+      developer.log('清空日志失败: $e');
     } finally {
       _isOperating = false;
     }
@@ -562,7 +562,7 @@ static Future<void> _loadLogsFromLocal() async {
         return match.group(1)?.trim() ?? message;
       }
     } catch (e) {
-      await i('解析日志消息失败: $e');
+      developer.log('解析日志消息失败: $e');
     }
     return message;
   }
