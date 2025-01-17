@@ -11,7 +11,7 @@ class LogUtil {
  static bool debugMode = true; // 控制是否记录日志 true 或 false
  static const String _logsKey = 'ITVAPP_LIVETV_logs'; // 持久化存储的key
  static bool _isOperating = false; // 添加操作锁，防止并发问题
- static const int _maxSingleLogLength = 2200; // 添加单条日志最大长度限制
+ static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
  static const int _maxFileSizeBytes = 1 * 1024 * 1024; // 最大日志限制1MB
  
  // 新增：内存存储相关
@@ -195,8 +195,9 @@ static Future<void> _flushToLocal() async {
    if (_newLogsBuffer.isEmpty || _isOperating) return;
    
    _isOperating = true;
+   List<Map<String, String>> logsToWrite = [];  // 移到这里声明
    try {
-     final List<Map<String, String>> logsToWrite = List.from(_newLogsBuffer);
+     logsToWrite = List.from(_newLogsBuffer);  // 赋值
      _newLogsBuffer.clear();
      
      // 1. 获取现有日志
@@ -218,7 +219,7 @@ static Future<void> _flushToLocal() async {
    } catch (e) {
      developer.log('写入本地存储失败: $e');
      // 写入失败时，将日志放回缓冲区
-     _newLogsBuffer.insertAll(0, logsToWrite);
+     _newLogsBuffer.insertAll(0, logsToWrite);  // 现在可以访问 logsToWrite 了
    } finally {
      _isOperating = false;
    }
