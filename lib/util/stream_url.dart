@@ -491,45 +491,28 @@ bool needsRedirectCheck(String url, String rulesString) {
 // 检查并处理URL重定向
 Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
   try {
-    // 使用 HEAD 请求来获取重定向信息
+    // 发送 GET 请求，并获取 Response 对象
     final response = await client.head(
       Uri.parse(url),
-      headers: HeadersConfig.generateHeaders(url: url),
+      headers: HeadersConfig.generateHeaders(url: url)
     ).timeout(timeout);
     
-    // 打印详细的响应信息
     LogUtil.i('''
-    ======= 响应信息 =======
+    ======= 状态码检查 =======
+    请求URL: $url
     状态码: ${response.statusCode}
-    请求URL: ${response.request?.url}
-    响应头: ${response.headers}
-    响应体长度: ${response.body.length}
-    响应体预览: ${response.body.length > 0 ? response.body.substring(0, response.body.length > 500 ? 500 : response.body.length) : ''}
+    位置: ${response.headers['location']}
+    headers: ${response.headers}
     ====================''');
-    
-    // 处理重定向响应
-    if (response.statusCode == 302 || response.statusCode == 301 || 
-        response.statusCode == 303 || response.statusCode == 307 || 
-        response.statusCode == 308) {
-      
-      final location = response.headers['location'];
-      LogUtil.i('获取到重定向地址: $location');
-      
-      if (location != null && location.isNotEmpty) {
-        if (location.startsWith('http')) {
-          return location;
-        } else {
-          // 处理相对路径
-          final baseUri = Uri.parse(url);
-          final redirectUri = Uri.parse(location);
-          return baseUri.resolve(redirectUri.toString()).toString();
-        }
-      }
+
+    // 如果有重定向（301, 302等），返回重定向地址
+    if (response.headers.containsKey('location')) {
+      return response.headers['location'] ?? url;
     }
-    
+
     return url;
-  } catch (e, stackTrace) {
-    LogUtil.e('重定向处理失败: ${e.toString()}\n$stackTrace');
+  } catch (e) {
+    LogUtil.e('状态码检查失败: $e');
     return url;
   }
 }
