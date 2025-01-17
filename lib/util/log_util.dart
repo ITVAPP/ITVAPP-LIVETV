@@ -30,35 +30,9 @@ class LogUtil {
 
   // 新增：直接记录日志的方法，跳过递归检查
   static Future<void> _logDirect(String level, String message, String tag) async {
-    if (!debugMode) return;
-    
-    try {
-      String time = DateTime.now().toString();
-      String fileInfo = _getFileAndLine();
-
-      Map<String, String> logEntry = {
-        'time': time,
-        'level': level,
-        'message': message,
-        'tag': tag,
-        'fileInfo': fileInfo
-      };
-
-      _memoryLogs.insert(0, logEntry);
-      _newLogsBuffer.insert(0, logEntry);
-
-      if (_newLogsBuffer.length >= _writeThreshold) {
-        await _flushToLocal();
-      }
-
-      if (_showOverlay) {
-        _showDebugMessage('[$level] $message');
-      }
-    } catch (e) {
-      developer.log('LogUtil内部错误: $e');
-    }
+    await _log(level, message, tag);  // 直接使用 _log 方法，保持一致性
   }
-
+  
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
@@ -87,7 +61,7 @@ class LogUtil {
   }
 
   // 通用日志记录方法
-  static Future<void> _log(String level, Object? object, String? tag) async {
+static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
     try {
       String time = DateTime.now().toString();
@@ -112,13 +86,16 @@ class LogUtil {
         'fileInfo': fileInfo
       };
 
+      // 先写入日志条目
       _memoryLogs.insert(0, logEntry);
       _newLogsBuffer.insert(0, logEntry);
 
+      // 然后检查是否需要刷新到本地
       if (_newLogsBuffer.length >= _writeThreshold) {
         await _flushToLocal();
       }
 
+      // 最后显示界面消息
       if (_showOverlay) {
         String displayMessage = objectStr
           .replaceAll('\\n', '\n')
@@ -216,7 +193,7 @@ class LogUtil {
   }
 
   // 将缓冲区的日志写入本地
-  static Future<void> _flushToLocal() async {
+ static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
     List<Map<String, String>> logsToWrite = [];
@@ -227,18 +204,23 @@ class LogUtil {
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
+      // 确保每条日志都有换行
       String content = logsToWrite.map((log) =>
         '[${log["time"]}] [${log["level"]}] [${log["tag"]}] | ${log["message"]} | ${log["fileInfo"]}'
       ).join('\n');
 
+      if (!content.endsWith('\n')) {
+        content += '\n';
+      }
+
       await file.writeAsString(
-        content + '\n',
+        content,
         mode: FileMode.append,
       );
 
     } catch (e) {
-      await _logDirect('e', '写入日志文件失败: $e', 'LogUtil');
-      _newLogsBuffer.insertAll(0, logsToWrite);
+      developer.log('写入日志文件失败: $e');
+      _newLogsBuffer.insertAll(0, logsToWrite);  // 写入失败时恢复日志
     } finally {
       _isOperating = false;
     }
