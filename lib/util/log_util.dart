@@ -140,6 +140,7 @@ class LogUtil {
   }
 
   // 从本地加载日志到内存
+ // 从本地加载日志到内存
   static Future<void> _loadLogsFromLocal() async {
     try {
       await _internalLog('i', '开始从本地加载历史日志');
@@ -155,7 +156,9 @@ class LogUtil {
           int successCount = 0;
           int failCount = 0;
 
-          content.split('\n').where((line) => line.isNotEmpty).forEach((line) {
+          // 将 forEach 改为 for 循环
+          final lines = content.split('\n').where((line) => line.isNotEmpty);
+          for (final line in lines) {
             try {
               // 格式是: [时间] [级别] [标签] | 消息 | 文件位置
               final parts = line.split('|').map((s) => s.trim()).toList();
@@ -184,17 +187,20 @@ class LogUtil {
                   successCount++;
                 } else {
                   failCount++;
-                  await _internalLog('e', '解析日志行头部失败，headers长度错误: ${headers.length}, line: $line');
+                  // 在同步代码块中记录错误，不使用 await
+                  _log('e', '解析日志行头部失败，headers长度错误: ${headers.length}, line: $line', _defTag);
                 }
               } else {
                 failCount++;
-                await _internalLog('e', '解析日志行失败，parts长度错误: ${parts.length}, line: $line');
+                // 在同步代码块中记录错误，不使用 await
+                _log('e', '解析日志行失败，parts长度错误: ${parts.length}, line: $line', _defTag);
               }
             } catch (error) {
               failCount++;
-              await _internalLog('e', '解析日志行异常: $line, 错误: $error');
+              // 在同步代码块中记录错误，不使用 await
+              _log('e', '解析日志行异常: $line, 错误: $error', _defTag);
             }
-          });
+          }
 
           await _internalLog('i', '历史日志解析完成 - 成功: $successCount, 失败: $failCount');
           
