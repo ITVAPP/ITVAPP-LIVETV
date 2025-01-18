@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 通用工具类
 class ParserUtils {
@@ -31,7 +32,7 @@ class ParserUtils {
     } catch (e) {
       // 解码失败时记录日志并返回空字符串
       LogUtil.i('Base64 解码失败: $e');
-      return '';
+      return 'ERROR';
     }
   }
 }
@@ -52,11 +53,11 @@ class GetM3u8Diy {
       }
       // 如果不符合任何解析规则，记录日志并返回空字符串
       LogUtil.i('未找到匹配的解析规则: $url');
-      return '';
+      return 'ERROR';
     } catch (e) {
       // 捕获解析异常并记录日志
       LogUtil.i('解析直播流地址失败: $e');
-      return '';
+      return 'ERROR';
     }
   }
 }
@@ -84,7 +85,7 @@ class SztvParser {
     // 检查频道 ID 是否在映射表中
     if (!TV_LIST.containsKey(id)) {
       LogUtil.i('无效的频道 ID');
-      return '';
+      return 'ERROR';
     }
 
     final channelInfo = TV_LIST[id]!; // 获取频道信息
@@ -94,9 +95,9 @@ class SztvParser {
     try {
       // 获取直播密钥和 CDN 密钥
       final liveKey = await _getLiveKey(liveId);
-      if (liveKey.isEmpty) return '';
+      if (liveKey.isEmpty) return 'ERROR';
       final cdnKey = await _getCdnKey(cdnId);
-      if (cdnKey.isEmpty) return '';
+      if (cdnKey.isEmpty) return 'ERROR';
 
       // 生成签名和完整的直播流地址
       final timeHex = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -105,7 +106,7 @@ class SztvParser {
       return 'https://sztv-live.sztv.com.cn/$liveId/500/$liveKey.m3u8?sign=$sign&t=$timeHex';
     } catch (e) {
       LogUtil.i('生成深圳卫视直播流地址失败: $e');
-      return '';
+      return 'ERROR';
     }
   }
 
@@ -125,6 +126,9 @@ class SztvParser {
             'at': '1',
           },
         ),
+        headers: HeadersConfig.generateHeaders(
+          url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -134,7 +138,7 @@ class SztvParser {
     } catch (e) {
       LogUtil.i('获取直播密钥时发生错误: $e');
     }
-    return '';
+    return 'ERROR';
   }
 
   /// 获取 CDN 密钥
@@ -153,6 +157,9 @@ class SztvParser {
             't': timestamp.toString(),
           },
         ),
+        headers: HeadersConfig.generateHeaders(
+          url: 'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -167,7 +174,7 @@ class SztvParser {
     } catch (e) {
       LogUtil.i('获取 CDN 密钥时发生错误: $e');
     }
-    return '';
+    return 'ERROR';
   }
 }
 
@@ -193,7 +200,7 @@ class HntvParser {
 
     if (!TV_LIST.containsKey(id)) {
       LogUtil.i('无效的频道 ID');
-      return '';
+      return 'ERROR';
     }
 
     final channelInfo = TV_LIST[id]!;
@@ -209,6 +216,9 @@ class HntvParser {
         headers: {
           'timestamp': timestamp.toString(),
           'sign': sign,
+          ...HeadersConfig.generateHeaders(
+            url: 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11',
+          ),
         },
       );
 
@@ -226,6 +236,6 @@ class HntvParser {
       LogUtil.i('获取河南电视台直播地址失败: $e');
     }
 
-    return '';
+    return 'ERROR';
   }
 }
