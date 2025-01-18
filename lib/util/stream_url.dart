@@ -506,7 +506,7 @@ Future<String> checkRedirection(
       final location = firstResp.headers['location'];
       if (location != null && location.isNotEmpty) {
         final redirectUri = Uri.parse(url).resolve(location);
-        // 第二次请求（此时随便跟不跟随重定向都行，因为你说只有一次跳转）
+        // 第二次请求（此时随便跟不跟随重定向都行）
         final secondResp = await client
             .get(redirectUri)
             .timeout(timeout);
