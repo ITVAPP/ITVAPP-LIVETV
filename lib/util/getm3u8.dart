@@ -471,21 +471,26 @@ class GetM3U8 {
     // 解析动态关键词规则
     final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
 
-    // 动态检查关键词
-    for (final keyword in dynamicKeywords) {
-      if (url.contains(keyword)) {
-        try {
-          final streamUrl = await GetM3u8Diy.getStreamUrl(url);
-          LogUtil.i('getm3u8diy 成功获取播放地址: $streamUrl');
-          completer.complete(streamUrl);
-          return completer.future;
-        } catch (e, stackTrace) {
-          LogUtil.logError('getm3u8diy 获取播放地址失败', e, stackTrace);
-          completer.completeError('ERROR');
-          return completer.future;
-        }
+    // 检查是否需要使用 getm3u8diy 解析
+Future<String> getUrl() async {
+  final completer = Completer<String>();
+
+  // 解析动态关键词
+  final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
+
+  // 遍历关键词，检查是否匹配当前 URL
+  for (final keyword in dynamicKeywords) {
+    if (url.contains(keyword)) {
+      try {
+        final streamUrl = await GetM3u8Diy.getStreamUrl(url);
+        LogUtil.i('getm3u8diy 返回结果: $streamUrl');
+        return streamUrl;  // 直接返回，不执行后续 WebView 解析
+      } catch (e, stackTrace) {
+        LogUtil.logError('getm3u8diy 获取播放地址失败，返回 ERROR', e, stackTrace);
+        return 'ERROR';  // 失败也直接返回，终止后续逻辑
       }
     }
+  }
 
     // 动态解析特殊规则
     final specialRules = _parseSpecialRules(specialRulesString);
@@ -632,8 +637,8 @@ class GetM3U8 {
                   // 使用完整URL作为key，确保每个URL有自己的首次加载标记
                   String mapKey = uri.toString();
 
-    _pageLoadedStatus.clear();  // 清除之前的状态
-    _pageLoadedStatus[mapKey] = true;  // 设置新的状态
+                  _pageLoadedStatus.clear();  // 清除之前的状态
+                  _pageLoadedStatus[mapKey] = true;  // 设置新的状态
 
                   // 获取当前触发次数
                   int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
