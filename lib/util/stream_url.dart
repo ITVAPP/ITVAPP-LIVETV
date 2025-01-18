@@ -489,28 +489,23 @@ bool needsRedirectCheck(String url, String rulesString) {
 }
 
 // 检查并处理URL重定向
-Future<String> checkRedirection(String url, http.Client client, Duration timeout) async {
+Future<String> checkRedirection(
+  String url,
+  http.Client client,
+  Duration timeout,
+) async {
   try {
-    // 第一次请求，禁用自动重定向
-    final firstRequest = await client.send(http.Request('GET', Uri.parse(url))
-      ..followRedirects = false
-      ..headers.addAll(HeadersConfig.generateHeaders(url: url)))
-      .timeout(timeout);
-      
-    // 检查是否存在重定向（所有 3xx 状态码）
-    if (firstRequest.statusCode >= 300 && firstRequest.statusCode < 400) {
-      final redirectUrl = firstRequest.headers['location'];
-      if (redirectUrl != null) {
-        final secondRequest = await client.get(
-          Uri.parse(redirectUrl),
-          headers: HeadersConfig.generateHeaders(url: redirectUrl)
-        ).timeout(timeout);
-        
-        return secondRequest.request!.url.toString();
-      }
-    }
-    
-    return url;
+    // 这里不再禁用重定向，让 http 库自动跟随
+    final response = await client
+        .get(
+          Uri.parse(url),
+          headers: HeadersConfig.generateHeaders(url: url),
+        )
+        .timeout(timeout);
+
+    // 拿到最终的请求地址（如果发生过重定向，这里会是重定向后的地址）
+    final finalUrl = response.request?.url.toString() ?? url;
+    return finalUrl;
   } catch (e) {
     LogUtil.e('URL检查失败: $e');
     return url;
