@@ -201,7 +201,7 @@ class HntvParser {
     final id = uri.queryParameters['id']; // 提取频道 ID
 
     if (!TV_LIST.containsKey(id)) {
-      LogUtil.i('无效的频道 ID');
+      LogUtil.i('无效的频道 ID: $id');
       return 'ERROR';
     }
 
@@ -211,33 +211,56 @@ class HntvParser {
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final sign = sha256.convert(utf8.encode('6ca114a836ac7d73$timestamp')).toString();
 
+    final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
+    final headers = {
+      'timestamp': timestamp.toString(),
+      'sign': sign,
+      ...HeadersConfig.generateHeaders(url: requestUrl),
+    };
+
+    // 记录请求信息，方便调试
+    LogUtil.i('正在请求河南电视台直播流: $requestUrl');
+    LogUtil.i('请求 Headers: $headers');
+
     try {
-      // 请求河南卫视数据接口
-      final response = await http.get(
-        Uri.parse('https://pubmod.hntv.tv/program/getAuth/live/class/program/11'),
-        headers: {
-          'timestamp': timestamp.toString(),
-          'sign': sign,
-          ...HeadersConfig.generateHeaders(
-            url: 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11',
-          ),
-        },
-      );
+      final response = await http.get(Uri.parse(requestUrl), headers: headers);
+
+      // 记录 HTTP 状态码
+      LogUtil.i('HTTP 状态码: ${response.statusCode}');
+
+      // 记录完整的响应 Body，避免 JSON 结构出错时无法调试
+      LogUtil.i('响应 Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
-        // 检查响应中是否包含 data 字段
+
+        // 确保 data 字段存在并且是列表
         if (jsonResponse.containsKey('data') && jsonResponse['data'] is List) {
           final List<dynamic> channels = jsonResponse['data'];
+
+          LogUtil.i('返回的频道数量: ${channels.length}');
+
           for (var item in channels) {
-            if (item['cid'].toString() == channelId && 
-                item['video_streams'] is List && 
-                (item['video_streams'] as List).isNotEmpty) {
-              return item['video_streams'][0].toString();
+            // 记录每个频道的 ID 和名称
+            LogUtil.i('频道 ID: ${item['cid']}, 频道名称: ${item['title']}');
+
+            if (item['cid'].toString() == channelId) {
+              LogUtil.i('匹配的频道 ID 找到: $channelId');
+
+              // 确保 video_streams 存在并且是列表
+              if (item['video_streams'] is List && (item['video_streams'] as List).isNotEmpty) {
+                LogUtil.i('找到直播流 URL: ${item['video_streams'][0]}');
+                return item['video_streams'][0].toString();
+              } else {
+                LogUtil.i('频道 $channelId 没有可用的视频流');
+              }
             }
           }
+
+          LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
+        } else {
+          LogUtil.i('JSON 结构不符合预期: ${response.body}');
         }
-        LogUtil.i('未找到匹配的频道信息');
       } else {
         LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
       }
