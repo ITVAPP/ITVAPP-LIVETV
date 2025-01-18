@@ -100,8 +100,9 @@ class SztvParser {
       if (cdnKey.isEmpty) return 'ERROR';
 
       // 生成签名和完整的直播流地址
-      final timeHex = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final sign = md5.convert(utf8.encode('$cdnKey/$liveId/500/$liveKey.m3u8$timeHex')).toString();
+      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final timeHex = timestamp.toRadixString(16); // 转换为16进制
+      final sign = md5.convert(utf8.encode('$cdnKey/$liveId/500/$liveKey.m3u8$timestamp')).toString();
 
       return 'https://sztv-live.sztv.com.cn/$liveId/500/$liveKey.m3u8?sign=$sign&t=$timeHex';
     } catch (e) {
