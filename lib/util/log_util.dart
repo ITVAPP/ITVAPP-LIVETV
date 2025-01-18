@@ -365,7 +365,7 @@ static void _showDebugMessage(String message) {
           'time': headers[0],
           'level': headers[1],
           'tag': headers[2],
-          'message': parts[1],
+          'message': '${parts[1]}\n${parts[2]}',
           'fileInfo': parts[2]
         };
       }).toList();
@@ -392,7 +392,7 @@ static void _showDebugMessage(String message) {
           'time': headers[0],
           'level': headers[1],
           'tag': headers[2],
-          'message': parts[1],
+          'message': '${parts[1]}\n${parts[2]}',
           'fileInfo': parts[2]
         };
       }).toList();
