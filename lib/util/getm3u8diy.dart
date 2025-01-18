@@ -3,7 +3,51 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
 
+/// 通用工具类
+class ParserUtils {
+  /// Base64解码函数
+  static String decodeBase64(String input) {
+    try {
+      String cleanInput = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      while (cleanInput.length % 4 != 0) {
+        cleanInput += '=';
+      }
+
+      final halfLength = cleanInput.length ~/ 2;
+      final firstHalf = cleanInput.substring(0, halfLength);
+      final secondHalf = cleanInput.substring(halfLength);
+      final reversed = (secondHalf + firstHalf).split('').reversed.join();
+
+      try {
+        return utf8.decode(base64.decode(reversed));
+      } on FormatException {
+        return utf8.decode(base64.decode(cleanInput));
+      }
+    } catch (e) {
+      LogUtil.i('Base64解码失败: $e');
+      return '';
+    }
+  }
+}
+
 class GetM3u8Diy {
+  static Future<String> getStreamUrl(String url) async {
+    try {
+      if (url.contains('sztv.com.cn')) {
+        return await SztvParser.parse(url);
+      }
+      // 添加其他解析规则
+      LogUtil.i('未找到匹配的解析规则: $url');
+      return '';
+    } catch (e) {
+      LogUtil.i('解析直播流地址失败: $e');
+      return '';
+    }
+  }
+}
+
+/// 深圳卫视解析器
+class SztvParser {
   static const Map<String, List<String>> TV_LIST = {
     'szws': ['AxeFRth', '7867', '深圳卫视'],
     'szds': ['ZwxzUXr', '7868', '都市频道'],
@@ -15,15 +59,13 @@ class GetM3u8Diy {
     'szgj': ['sztvgjpd', '7944', '国际频道'],
   };
 
-  /// 获取直播流地址
-  static Future<String> getStreamUrl(String url) async {
+  static Future<String> parse(String url) async {
     final uri = Uri.parse(url);
     final id = uri.queryParameters['id'];
 
-    // 检查是否是深圳卫视域名且有效的频道ID
-    if (!url.contains('sztv.com.cn') || !TV_LIST.containsKey(id)) {
-      LogUtil.i('无效的URL或频道ID');
-      return ''; // 返回空字符串
+    if (!TV_LIST.containsKey(id)) {
+      LogUtil.i('无效的频道ID');
+      return '';
     }
 
     final channelInfo = TV_LIST[id]!;
@@ -31,24 +73,22 @@ class GetM3u8Diy {
     final cdnId = channelInfo[1];
 
     try {
-      // 1. 获取直播密钥
       final liveKey = await _getLiveKey(liveId);
+      if (liveKey.isEmpty) return '';
 
-      // 2. 获取CDN密钥
       final cdnKey = await _getCdnKey(cdnId);
+      if (cdnKey.isEmpty) return '';
 
-      // 3. 生成最终播放URL
       final timeHex = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final sign = md5.convert(utf8.encode('$cdnKey/$liveId/500/$liveKey.m3u8$timeHex')).toString();
 
       return 'https://sztv-live.sztv.com.cn/$liveId/500/$liveKey.m3u8?sign=$sign&t=$timeHex';
     } catch (e) {
-      LogUtil.i('获取直播流地址失败: $e');
-      return ''; // 返回空字符串
+      LogUtil.i('生成深圳卫视直播流地址失败: $e');
+      return '';
     }
   }
 
-  /// 获取直播密钥
   static Future<String> _getLiveKey(String liveId) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final token = md5.convert(utf8.encode('$timestamp$liveId' + 'cutvLiveStream|Dream2017')).toString();
@@ -66,17 +106,16 @@ class GetM3u8Diy {
       );
 
       if (response.statusCode == 200) {
-        return _decodeBase64(response.body);
-      } else {
-        LogUtil.i('获取直播密钥失败: HTTP ${response.statusCode}');
+        // 使用工具类的解码方法
+        return ParserUtils.decodeBase64(response.body);
       }
+      LogUtil.i('获取直播密钥失败: HTTP ${response.statusCode}');
     } catch (e) {
-      LogUtil.i('获取直播密钥时发生网络错误: $e');
+      LogUtil.i('获取直播密钥时发生错误: $e');
     }
-    return ''; // 返回空字符串
+    return '';
   }
 
-  /// 获取CDN密钥
   static Future<String> _getCdnKey(String cdnId) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final token = md5.convert(utf8.encode('iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp')).toString();
@@ -97,47 +136,14 @@ class GetM3u8Diy {
         final data = json.decode(response.body);
         if (data['key'] != null) {
           return data['key'];
-        } else {
-          LogUtil.i('响应中未找到CDN密钥');
         }
+        LogUtil.i('响应中未找到CDN密钥');
       } else {
         LogUtil.i('获取CDN密钥失败: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      LogUtil.i('获取CDN密钥时发生网络错误: $e');
+      LogUtil.i('获取CDN密钥时发生错误: $e');
     }
-    return ''; // 返回空字符串
-  }
-
-  /// Base64解码函数
-  static String _decodeBase64(String input) {
-    try {
-      // 清理输入字符串，移除所有非Base64字符
-      String cleanInput = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-
-      // 确保输入长度是4的倍数
-      while (cleanInput.length % 4 != 0) {
-        cleanInput += '=';
-      }
-
-      // 将字符串分成两半
-      final halfLength = cleanInput.length ~/ 2;
-      final firstHalf = cleanInput.substring(0, halfLength);
-      final secondHalf = cleanInput.substring(halfLength);
-
-      // 反转并拼接
-      final reversed = (secondHalf + firstHalf).split('').reversed.join();
-
-      // Base64解码
-      try {
-        return utf8.decode(base64.decode(reversed));
-      } on FormatException {
-        // 如果第一次解码失败，尝试直接解码原始输入
-        return utf8.decode(base64.decode(cleanInput));
-      }
-    } catch (e) {
-      LogUtil.i('Base64解码失败: $e');
-      return ''; // 返回空字符串
-    }
+    return '';
   }
 }
