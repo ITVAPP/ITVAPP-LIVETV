@@ -144,6 +144,9 @@ class GetM3U8 {
 
   String? _httpResponseContent;
 
+  // 添加一个变量来跟踪当前URL的加载状态
+  final Map<String, bool> _pageLoadedStatus = {};
+
   /// 构造函数
   GetM3U8({
     required this.url,
@@ -191,6 +194,7 @@ class GetM3U8 {
 
   /// 执行点击操作
   Future<bool> _executeClick() async {
+    // 检查WebViewController是否已初始化
     if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
       LogUtil.i(
         !_isControllerReady()
@@ -389,15 +393,15 @@ class GetM3U8 {
   /// URL整理
   String _cleanUrl(String url) {
     LogUtil.i('URL整理开始，原始URL: $url');
-    
-  // 先处理基本的字符清理
-  String cleanedUrl = url.trim()
-    .replaceAll(r'\s*\\s*$', '')
-    .replaceAll('&amp;', '&')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#x2F;', '/')
-    .replaceAll('&#47;', '/')
-    .replaceAll('+', '%20');
+
+    // 先处理基本的字符清理
+    String cleanedUrl = url.trim()
+      .replaceAll(r'\s*\\s*$', '')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#x2F;', '/')
+      .replaceAll('&#47;', '/')
+      .replaceAll('+', '%20');
 
     // 修复：只替换3个或更多的连续斜杠，保留双斜杠
     cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
@@ -602,14 +606,20 @@ class GetM3U8 {
             },
             onPageFinished: (String url) async {
 
-              LogUtil.i('页面.1: 页面加载完成，当前状态：\n'
-                  '资源是否释放: $_isDisposed\n'
-                  '点击是否执行: $_isClickExecuted\n'
-                  '是否找到M3U8: $_m3u8Found');
+                // 检查此URL是否已经触发过页面加载完成
+                if (_pageLoadedStatus[url] == true) {
+                  LogUtil.i('本页面已经加载完成，跳过重复处理');
+                  return;
+                }
+
+               // 标记该URL已处理
+               _pageLoadedStatus[url] = true;
+
+              LogUtil.i('页面1:  $url 加载完成');
 
               // 1. 基础状态检查
               if (_isDisposed || _isClickExecuted) {
-                LogUtil.i('页面.2: ' + (_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理'));
+                LogUtil.i('页面2: ' + (_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理'));
                 return;
               }
 
@@ -621,6 +631,10 @@ class GetM3U8 {
                 if (isHashRoute) {
                   // 使用完整URL作为key，确保每个URL有自己的首次加载标记
                   String mapKey = uri.toString();
+
+    _pageLoadedStatus.clear();  // 清除之前的状态
+    _pageLoadedStatus[mapKey] = true;  // 设置新的状态
+
                   // 获取当前触发次数
                   int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
                   currentTriggers++;
@@ -704,6 +718,7 @@ class GetM3U8 {
       if (!_isDisposed) {
         // 重置页面加载处理标记和点击执行标记，允许新的重试重新执行所有操作
         _isPageLoadProcessed = false;
+        _pageLoadedStatus.clear();  // 清理加载状态
         _isClickExecuted = false;  // 重置点击状态，允许重试时重新点击
         await _initController(completer, _filePattern);
       }
@@ -823,7 +838,7 @@ Future<void> disposeResources() async {
     LogUtil.i('资源已释放，跳过重复释放');
     return;
   }
-  
+
   _isDisposed = true;
 
   // 清理首次加载标记
@@ -915,6 +930,7 @@ Future<void> disposeResources() async {
   // 重置所有标记和清理通用资源（无论是否HTML页面都需要）
   _resetControllerState();
   _foundUrls.clear();
+  _pageLoadedStatus.clear();
   _httpResponseContent = null;
   _isStaticChecking = false;
   _staticM3u8Found = false;
@@ -923,7 +939,7 @@ Future<void> disposeResources() async {
   _isControllerInitialized = false;
   _isPageLoadProcessed = false;
   _isClickExecuted = false;
-  
+
   LogUtil.i('资源释放完成');
 }
 
@@ -1006,7 +1022,7 @@ Future<void> disposeResources() async {
   }
 
   /// 检查页面内容中的M3U8地址
-Future<String?> _checkPageContent() async {
+  Future<String?> _checkPageContent() async {
     if (!_isControllerReady() || _m3u8Found || _isDisposed) {
       LogUtil.i(
         !_isControllerReady()
@@ -1029,15 +1045,16 @@ Future<String?> _checkPageContent() async {
         String pattern = '.' + _filePattern;
         int firstPos = _httpResponseContent!.indexOf(pattern);
         if (firstPos == -1) {
-          sampleResult = "NO_PATTERN";
-        } else {
-          int lastPos = _httpResponseContent!.lastIndexOf(pattern);
-          // 计算前 100 字符的起始位置
-          int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
-          // 计算后 100 字符的结束位置，注意要从模式结束位置开始算
-          int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
-          sampleResult = _httpResponseContent!.substring(start, end);
+          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+          return null;
         }
+
+        int lastPos = _httpResponseContent!.lastIndexOf(pattern);
+        // 计算前 100 字符的起始位置
+        int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
+        // 计算后 100 字符的结束位置，注意要从模式结束位置开始算
+        int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
+        sampleResult = _httpResponseContent!.substring(start, end);
       } else {
         // 如果是 HTML 页面，使用 WebView 解析
         final dynamic result = await _controller.runJavaScriptReturningResult('''
@@ -1056,16 +1073,17 @@ Future<String?> _checkPageContent() async {
           })();
         ''');
         sampleResult = result as String?;
-      }
 
-      if (sampleResult == "SIZE_EXCEEDED") {
-        LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
-        return null;
-      }
+        // HTML页面特殊情况处理
+        if (sampleResult == "SIZE_EXCEEDED") {
+          LogUtil.i('页面内容较大(超过38KB)，跳过静态检测');
+          return null;
+        }
 
-      if (sampleResult == "NO_PATTERN") {
-        LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
-        return null;
+        if (sampleResult == "NO_PATTERN") {
+          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+          return null;
+        }
       }
 
       if (sampleResult == null) {
@@ -1073,14 +1091,13 @@ Future<String?> _checkPageContent() async {
         return null;
       }
 
+      LogUtil.i('开始处理页面内容');
+
       // 处理JSON转义字符
       String sample = sampleResult.toString()
         .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
         .replaceAll(r'\\/', '/')  // 处理转义斜杠
         .replaceAll(r'\\"', '"')  // 处理转义双引号
-        .replaceAll(r'\"', '"')  // 处理转义双引号
-        .replaceAll(r"\\'", "'")  // 处理转义单引号
-        .replaceAll(r"\'", "'")  // 处理转义单引号
         .replaceAll(r'\/', '/');  // 处理转义斜杠
 
       // 处理Unicode转义序列
@@ -1109,8 +1126,8 @@ Future<String?> _checkPageContent() async {
           LogUtil.i('URL解码失败，保持原样: $e');
         }
       }
-      
-      LogUtil.i('正在检测页面中的 $_filePattern 文件，处理后的内容: $sample');
+
+      LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 修改后的正则表达式 - 匹配所有形式的URL到下一个引号或空格
       final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
@@ -1243,15 +1260,15 @@ Future<String?> _checkPageContent() async {
             // 根据文件类型添加相应的MIME类型检查
             const supportedTypes = {
               'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-              'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'], 
+              'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
               'mp4': ['video/mp4', 'application/mp4']
             };
-    
+
             const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
             if (currentSupportedTypes.some(type => mimeType.includes(type))) {
               processM3U8Url(this.url, 0);
             }
-    
+
             return originalAddSourceBuffer.call(this, mimeType);
           };
         }
