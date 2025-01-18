@@ -489,18 +489,17 @@ bool needsRedirectCheck(String url, String rulesString) {
 }
 
 // 检查并处理URL重定向
-Future<String> checkRedirection(
-  String url,
-  http.Client client,
-  Duration timeout,
-) async {
+Future<String> checkRedirection(String url, http.Client client) async {
+  // 设置固定超时时间为 5 秒
+  const timeout = Duration(seconds: 5);
+  
   try {
     // 第一次请求，禁用自动重定向
     final firstResp = await client.send(
       http.Request('GET', Uri.parse(url))
         ..followRedirects = false
     ).timeout(timeout);
-
+    
     // 如果 3xx
     if (firstResp.statusCode >= 300 && firstResp.statusCode < 400) {
       final location = firstResp.headers['location'];
@@ -510,12 +509,10 @@ Future<String> checkRedirection(
         final secondResp = await client
             .get(redirectUri)
             .timeout(timeout);
-
         // 最终拿到 secondResp.request?.url，防止服务器还干别的事情
         return secondResp.request?.url.toString() ?? redirectUri.toString();
       }
     }
-
     // 没有跳转，就直接返回原始地址
     return url;
   } catch (e) {
