@@ -495,17 +495,29 @@ Future<String> checkRedirection(
   Duration timeout,
 ) async {
   try {
-    // 这里不再禁用重定向，让 http 库自动跟随
-    final response = await client
-        .get(
-          Uri.parse(url),
-          headers: HeadersConfig.generateHeaders(url: url),
-        )
-        .timeout(timeout);
+    // 第一次请求，禁用自动重定向
+    final firstResp = await client.send(
+      http.Request('GET', Uri.parse(url))
+        ..followRedirects = false
+    ).timeout(timeout);
 
-    // 拿到最终的请求地址（如果发生过重定向，这里会是重定向后的地址）
-    final finalUrl = response.request?.url.toString() ?? url;
-    return finalUrl;
+    // 如果 3xx
+    if (firstResp.statusCode >= 300 && firstResp.statusCode < 400) {
+      final location = firstResp.headers['location'];
+      if (location != null && location.isNotEmpty) {
+        final redirectUri = Uri.parse(url).resolve(location);
+        // 第二次请求（此时随便跟不跟随重定向都行，因为你说只有一次跳转）
+        final secondResp = await client
+            .get(redirectUri)
+            .timeout(timeout);
+
+        // 最终拿到 secondResp.request?.url，防止服务器还干别的事情
+        return secondResp.request?.url.toString() ?? redirectUri.toString();
+      }
+    }
+
+    // 没有跳转，就直接返回原始地址
+    return url;
   } catch (e) {
     LogUtil.e('URL检查失败: $e');
     return url;
