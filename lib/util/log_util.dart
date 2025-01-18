@@ -173,49 +173,62 @@ class LogUtil {
     }
   }
 
-  // 显示调试消息
-  static void _showDebugMessage(String message) {
-    _debugMessages.insert(0, message);
-    if (_debugMessages.length > 6) {
-      _debugMessages.removeLast();
-    }
+// 显示调试消息
+static void _showDebugMessage(String message) {
+  // 解析日志消息为指定格式
+  String displayMessage = message;
+  if (message.contains('|')) {
+    final parts = message.split('|').map((s) => s.trim()).toList();
+    final headers = parts[0].split(']')
+        .map((s) => s.trim().replaceAll('[', ''))
+        .where((s) => s.isNotEmpty)
+        .toList();
+    
+    String timeAndLevel = '${headers[0]}\n';  // 时间
+    String content = parts[1];  // 消息内容
+    String fileInfo = parts[2];  // 文件信息
+    
+    displayMessage = '$timeAndLevel$content\n$fileInfo';
+  }
 
-    _hideOverlay();
-
-    final overlayState = _findOverlayState();
-    if (overlayState != null) {
-      _overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          bottom: 20.0,
-          right: 20.0,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 300.0),
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _debugMessages.map((msg) => Text(
-                  msg,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  softWrap: true,
-                  maxLines: null,
-                  overflow: TextOverflow.visible,  // 修改这里从 TextOverlay 到 TextOverflow
-                )).toList(),
-              ),
+  _debugMessages.insert(0, displayMessage);
+  if (_debugMessages.length > 6) {
+    _debugMessages.removeLast();
+  }
+  _hideOverlay();
+  final overlayState = _findOverlayState();
+  if (overlayState != null) {
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 20.0,
+        right: 20.0,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 300.0),
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _debugMessages.map((msg) => Text(
+                msg,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                softWrap: true,
+                maxLines: null,
+                overflow: TextOverflow.visible,  // 修改这里从 TextOverlay 到 TextOverflow
+              )).toList(),
             ),
           ),
         ),
-      );
-
-      overlayState.insert(_overlayEntry!);
-      _startAutoHideTimer();
-    }
+      ),
+    );
+    overlayState.insert(_overlayEntry!);
+    _startAutoHideTimer();
   }
+}
 
   // NavigatorObserver实例
   static final navigatorObserver = NavigatorObserver();
