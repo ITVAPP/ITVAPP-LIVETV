@@ -12,7 +12,7 @@ class LogUtil {
   static bool debugMode = true; // 控制是否记录日志 true 或 false
   static bool _isOperating = false; // 添加操作锁，防止并发问题
   static const int _maxSingleLogLength = 500; // 添加单条日志最大长度限制
-  static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
+  static const int _maxFileSizeBytes = 3 * 1024 * 1024; // 最大日志限制3MB
 
   // 内存存储相关
   static final List<String> _newLogsBuffer = [];
@@ -42,12 +42,12 @@ class LogUtil {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
           developer.log('日志文件超过大小限制，执行清理');
-          await clearLogs(isAuto: true);
+          await clearLogs(isAuto: true);  // 修改为命名参数
         }
       }
     } catch (e) {
       developer.log('日志初始化失败: $e');
-      await clearLogs(isAuto: true);
+      await clearLogs(isAuto: true);  // 修改为命名参数
     }
   }
 
@@ -125,7 +125,7 @@ class LogUtil {
 
       String logMessage = '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 只添加到缓冲区
+      // 添加到缓冲区和文件（新日志在前）
       _newLogsBuffer.insert(0, logMessage);
 
       if (_newLogsBuffer.length >= _writeThreshold) {
@@ -160,7 +160,7 @@ class LogUtil {
       final filePath = await _getLogFilePath();
       final file = File(filePath);
 
-      // 直接将新日志写入文件末尾
+      // 直接将新日志添加到文件末尾
       await file.writeAsString(logsToWrite.join('\n') + '\n', mode: FileMode.append);
 
     } catch (e) {
@@ -336,6 +336,58 @@ class LogUtil {
     return 'Unknown';
   }
 
+  // 获取所有日志
+  static List<Map<String, String>> getLogs() {  // 修改返回类型
+    try {
+      return _newLogsBuffer.map((logStr) {
+        final parts = logStr.split('|').map((s) => s.trim()).toList();
+        final headers = parts[0].split(']')
+            .map((s) => s.trim().replaceAll('[', ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
+        
+        return {
+          'time': headers[0],
+          'level': headers[1],
+          'tag': headers[2],
+          'message': parts[1],
+          'fileInfo': parts[2]
+        };
+      }).toList();
+    } catch (e) {
+      developer.log('获取日志失败: $e');
+      return [];
+    }
+  }
+
+  // 按级别获取日志
+  static List<Map<String, String>> getLogsByLevel(String level) {  // 修改返回类型
+    try {
+      final levelPattern = RegExp(r'\[' + level + r'\]');
+      return _newLogsBuffer
+          .where((log) => levelPattern.hasMatch(log))
+          .map((logStr) {
+        final parts = logStr.split('|').map((s) => s.trim()).toList();
+        final headers = parts[0].split(']')
+            .map((s) => s.trim().replaceAll('[', ''))
+            .where((s) => s.isNotEmpty)
+            .toList();
+        
+        return {
+          'time': headers[0],
+          'level': headers[1],
+          'tag': headers[2],
+          'message': parts[1],
+          'fileInfo': parts[2]
+        };
+      }).toList();
+      
+      } catch (e) {
+      developer.log('按级别获取日志失败: $e');
+      return [];
+    }
+  }
+
   // 清理日志
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
     if (_isOperating) return;
@@ -380,6 +432,19 @@ class LogUtil {
     }
   }
 
+  // 解析日志消息
+  static String parseLogMessage(String logLine) {
+    try {
+      final parts = logLine.split('|');
+      if (parts.length >= 2) {
+        return parts[1].trim();
+      }
+    } catch (e) {
+      developer.log('解析日志消息失败: $e');
+    }
+    return logLine;
+  }
+
   // 释放资源
   static Future<void> dispose() async {
     if (!_isOperating && _newLogsBuffer.isNotEmpty) {
@@ -387,4 +452,3 @@ class LogUtil {
     }
     _hideOverlay();
   }
-}
