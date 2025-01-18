@@ -17,7 +17,7 @@ class HeadersConfig {
 
  /// 排除规则字符串，格式: domain1@domain2@domain3
  /// 在此列表中的域名将使用通用播放器请求头
- static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top';
+ static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top@hls-api.sztv.com.cn@sttv2-api.sztv.com.cn';
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
