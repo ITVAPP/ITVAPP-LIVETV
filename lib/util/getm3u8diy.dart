@@ -143,40 +143,41 @@ class SztvParser {
   }
 
   /// 获取 CDN 密钥
-  static Future<String> _getCdnKey(String cdnId) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final token = md5.convert(utf8.encode('iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp')).toString();
+static Future<String> _getCdnKey(String cdnId) async {
+  final timestamp = DateTime.now().millisecondsSinceEpoch;
+  final token = md5.convert(utf8.encode('iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp')).toString();
 
-    try {
-      // 发送请求获取 CDN 密钥
-      final response = await http.get(
-        Uri.parse('https://sttv2-api.sztv.com.cn/api/getCDNkey.php').replace(
-          queryParameters: {
-            'domain': 'sztv-live.sztv.com.cn',
-            'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
-            'token': token,
-            't': timestamp.toString(),
-          },
-        ),
-        headers: HeadersConfig.generateHeaders(
-          url: 'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
-        ),
-      );
+  try {
+    final response = await http.get(
+      Uri.parse('https://sttv2-api.sztv.com.cn/api/getCDNkey.php').replace(
+        queryParameters: {
+          'domain': 'sztv-live.sztv.com.cn',
+          'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
+          'token': token,
+          't': timestamp.toString(),
+        },
+      ),
+      headers: HeadersConfig.generateHeaders(
+        url: 'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
+      ),
+    );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['key'] != null) {
-          return data['key'];
-        }
-        LogUtil.i('响应中未找到 CDN 密钥');
-      } else {
-        LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      // 根据实际返回的JSON结构进行解析
+      if (data != null && data['status'] == 'ok' && data['key'] != null) {
+        LogUtil.i('成功获取CDN密钥');
+        return data['key'];
       }
-    } catch (e) {
-      LogUtil.i('获取 CDN 密钥时发生错误: $e');
+      LogUtil.i('响应格式不符合预期: ${response.body}');
+    } else {
+      LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
     }
-    return 'ERROR';
+  } catch (e) {
+    LogUtil.i('获取 CDN 密钥时发生错误: $e');
   }
+  return 'ERROR';
+}
 }
 
 /// 河南卫视解析器
@@ -224,12 +225,19 @@ class HntvParser {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        for (var item in data) {
-          if (item['cid'].toString() == channelId) {
-            return item['video_streams'][0];
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        // 检查响应中是否包含 data 字段
+        if (jsonResponse.containsKey('data') && jsonResponse['data'] is List) {
+          final List<dynamic> channels = jsonResponse['data'];
+          for (var item in channels) {
+            if (item['cid'].toString() == channelId && 
+                item['video_streams'] is List && 
+                (item['video_streams'] as List).isNotEmpty) {
+              return item['video_streams'][0].toString();
+            }
           }
         }
+        LogUtil.i('未找到匹配的频道信息');
       } else {
         LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
       }
