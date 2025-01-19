@@ -72,7 +72,7 @@ class StreamUrl {
         // 检查是否需要处理重定向
         if (needsRedirectCheck(url, rulesString)) {
           LogUtil.i('URL包含重定向规则关键字，检查重定向');
-          return await checkRedirection(url, _client, timeoutDuration);
+          return await checkRedirection(url, _client);
         }
         return url;
       }
