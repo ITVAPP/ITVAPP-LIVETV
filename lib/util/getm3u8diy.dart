@@ -7,6 +7,18 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 通用工具类
 class ParserUtils {
+  /// 常用请求头
+  static const Map<String, String> commonHeaders = {
+    'Accept': '*/*',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  };
+
+  /// 创建禁用SSL验证的HttpClient
+  static HttpClient createHttpClient() {
+    return HttpClient()
+      ..badCertificateCallback = ((X509Certificate cert, String host, int port) => true);
+  }
+
   /// Base64 解码函数
   static String decodeBase64(String input) {
     try {
@@ -123,28 +135,39 @@ class SztvParser {
     final token = md5.convert(utf8.encode(timestamp + liveId + 'cutvLiveStream|Dream2017')).toString();
 
     try {
-      // 发送请求获取直播密钥
-      final response = await http.get(
-        Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
-          queryParameters: {
-            't': timestamp,
-            'id': liveId,
-            'token': token,
-            'at': '1',
-          },
-        ),
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Referer': 'https://www.sztv.com.cn/',
-          ...HeadersConfig.generateHeaders(
-            url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
-          ),
+      // 创建 HttpClient 并禁用证书验证
+      final httpClient = ParserUtils.createHttpClient();
+
+      final uri = Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
+        queryParameters: {
+          't': timestamp,
+          'id': liveId,
+          'token': token,
+          'at': '1',
         },
       );
 
+      final request = await httpClient.getUrl(uri);
+      
+      // 添加headers
+      for (var entry in ParserUtils.commonHeaders.entries) {
+        request.headers.add(entry.key, entry.value);
+      }
+      request.headers.add('Referer', 'https://www.sztv.com.cn/');
+      
+      // 添加其他headers
+      final additionalHeaders = HeadersConfig.generateHeaders(
+        url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
+      );
+      additionalHeaders.forEach((key, value) {
+        request.headers.add(key, value);
+      });
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
       if (response.statusCode == 200) {
-        return ParserUtils.decodeBase64(response.body);
+        return ParserUtils.decodeBase64(responseBody);
       }
       LogUtil.i('获取直播密钥失败: HTTP ${response.statusCode}');
     } catch (e) {
@@ -152,7 +175,7 @@ class SztvParser {
     }
     return 'ERROR';
   }
-
+  
   /// 获取 CDN 密钥
   static Future<String> _getCdnKey(String cdnId) async {
     try {
@@ -177,6 +200,9 @@ class SztvParser {
       // 构造Authorization Header(与JS完全一致)
       final authorization = 'hmac username="$username", algorithm="hmac-sha512", headers="x-date request-line host", signature="$signature"';
 
+      // 创建 HttpClient 并禁用证书验证
+      final httpClient = ParserUtils.createHttpClient();
+
       final uri = Uri.parse('https://$host/api/com/article/getArticleList').replace(
         queryParameters: {
           'catalogId': '7901',
@@ -189,21 +215,22 @@ class SztvParser {
         },
       );
 
-      final response = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'x-date': date,
-          'Authorization': authorization,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Referer': 'https://www.sztv.com.cn/',
-        },
-      );
+      final request = await httpClient.getUrl(uri);
+      
+      // 添加headers
+      for (var entry in ParserUtils.commonHeaders.entries) {
+        request.headers.add(entry.key, entry.value);
+      }
+      request.headers.add('x-date', date);
+      request.headers.add('Authorization', authorization);
+      request.headers.add('Referer', 'https://www.sztv.com.cn/');
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
 
       LogUtil.i('CDN 密钥响应状态码: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final responseBody = utf8.decode(response.bodyBytes);
         LogUtil.i('CDN 密钥响应体: $responseBody');
 
         final data = json.decode(responseBody);
@@ -240,7 +267,7 @@ class HntvParser {
     'hngj': ['153', '河南国际'],
     'hnly': ['154', '河南梨园'],
   };
-
+  
   static Future<String> parse(String url) async {
     final uri = Uri.parse(url);
     final id = uri.queryParameters['id']; // 提取频道 ID
@@ -262,66 +289,55 @@ class HntvParser {
 
     final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
 
-    // 修改: 添加完整的请求头信息
-    final headers = {
-      'Accept': 'application/json, text/plain, */*',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Connection': 'keep-alive',
-      'Host': 'pubmod.hntv.tv',
-      'Referer': 'https://static.hntv.tv/',
-      'Origin': 'https://static.hntv.tv',
-      'Sec-Fetch-Dest': 'empty',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-site',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'timestamp': timestamp,
-      'sign': sign,
-    };
-
     // 记录请求信息，方便调试
     LogUtil.i('正在请求河南电视台直播流: $requestUrl');
-    LogUtil.i('请求 Headers: $headers');
+    LogUtil.i('请求 Headers: timestamp:$timestamp, sign:$sign');
 
     try {
-      final response = await http.get(Uri.parse(requestUrl), headers: headers);
+      // 创建 HttpClient 并禁用证书验证
+      final httpClient = ParserUtils.createHttpClient();
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+      
+      // 使用原始header字符串格式添加headers
+      for (var entry in ParserUtils.commonHeaders.entries) {
+        request.headers.add(entry.key, entry.value);
+      }
+      request.headers.add('timestamp', timestamp);
+      request.headers.add('sign', sign);
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
 
       // 记录 HTTP 状态码
       LogUtil.i('HTTP 状态码: ${response.statusCode}');
       // 记录完整的响应 Body，避免 JSON 结构出错时无法调试
-      LogUtil.i('响应 Body: ${response.body}');
+      LogUtil.i('响应 Body: $responseBody');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        // 直接将响应解析为数组，不检查data字段
+        final List<dynamic> channels = json.decode(responseBody);
+        
+        LogUtil.i('返回的频道数量: ${channels.length}');
 
-        // 确保 data 字段存在并且是列表
-        if (jsonResponse.containsKey('data') && jsonResponse['data'] is List) {
-          final List<dynamic> channels = jsonResponse['data'];
+        for (var item in channels) {
+          // 记录每个频道的 ID 和名称
+          LogUtil.i('频道 ID: ${item['cid']}, 频道名称: ${item['title']}');
 
-          LogUtil.i('返回的频道数量: ${channels.length}');
+          if (item['cid'].toString() == channelId) {
+            LogUtil.i('匹配的频道 ID 找到: $channelId');
 
-          for (var item in channels) {
-            // 记录每个频道的 ID 和名称
-            LogUtil.i('频道 ID: ${item['cid']}, 频道名称: ${item['title']}');
-
-            if (item['cid'].toString() == channelId) {
-              LogUtil.i('匹配的频道 ID 找到: $channelId');
-
-              // 确保 video_streams 存在并且是列表
-              if (item['video_streams'] is List && (item['video_streams'] as List).isNotEmpty) {
-                LogUtil.i('找到直播流 URL: ${item['video_streams'][0]}');
-                return item['video_streams'][0].toString();
-              } else {
-                LogUtil.i('频道 $channelId 没有可用的视频流');
-              }
+            // 确保 video_streams 存在并且是列表
+            if (item['video_streams'] is List && (item['video_streams'] as List).isNotEmpty) {
+              LogUtil.i('找到直播流 URL: ${item['video_streams'][0]}');
+              return item['video_streams'][0].toString();
+            } else {
+              LogUtil.i('频道 $channelId 没有可用的视频流');
             }
           }
-
-          LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
-        } else {
-          LogUtil.i('JSON 结构不符合预期: ${response.body}');
         }
+
+        LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
       } else {
         LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
       }
