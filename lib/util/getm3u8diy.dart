@@ -114,27 +114,32 @@ class SztvParser {
 
   /// 获取直播密钥
   static Future<String> _getLiveKey(String liveId) async {
-    // 修改: 确保与JS完全一致的时间戳获取方式
+    // 生成时间戳
     final int ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final timestamp = ts.toString();
     
-    // 修改: 使用空字符串拼接,与JS保持一致
-    final token = md5.convert(utf8.encode(timestamp + "" + liveId + "cutvLiveStream|Dream2017")).toString();
+    // 使用与JS相同的拼接方式生成token
+    final token = md5.convert(utf8.encode(timestamp + liveId + 'cutvLiveStream|Dream2017')).toString();
 
     try {
       // 发送请求获取直播密钥
       final response = await http.get(
         Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
           queryParameters: {
-            't': timestamp.toString(),
+            't': timestamp,
             'id': liveId,
             'token': token,
             'at': '1',
           },
         ),
-        headers: HeadersConfig.generateHeaders(
-          url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
-        ),
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://www.sztv.com.cn/',
+          ...HeadersConfig.generateHeaders(
+            url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
+          ),
+        },
       );
 
       if (response.statusCode == 200) {
@@ -147,74 +152,75 @@ class SztvParser {
     return 'ERROR';
   }
 
-/// 获取 CDN 密钥
-static Future<String> _getCdnKey(String cdnId) async {
-  try {
-    // 固定参数值
-    const username = 'onesz';
-    const host = 'apix.scms.sztv.com.cn';
-    const requestLine = 'HTTP/2.0';
-    const secret = 'xUJ7Gls45St0CTnatnwZwsH4UyYj0rpX';
+  /// 获取 CDN 密钥
+  static Future<String> _getCdnKey(String cdnId) async {
+    try {
+      // 固定参数值
+      const username = 'onesz';
+      const host = 'apix.scms.sztv.com.cn';
+      const requestLine = 'HTTP/2.0';
+      const secret = 'xUJ7Gls45St0CTnatnwZwsH4UyYj0rpX';
 
-    // 当前GMT时间
-    final now = DateTime.now().toUtc();
-    final date = now.toString();
+      // 获取GMT格式的日期(与JS保持一致)
+      final now = DateTime.now().toUtc();
+      final date = now.toGMTString(); // 使用GMT格式
 
-    // 构建签名字符串 
-    final signingString = 'x-date: $date\nGET /api/com/article/getArticleList $requestLine\nhost: $host';
+      // 构建签名字符串(与JS保持完全一致,包括换行符)
+      final signingString = 'x-date: $date\nGET /api/com/article/getArticleList $requestLine\nhost: $host';
 
-    // HMAC-SHA512 签名
-    final hmacSha512 = Hmac(sha512, utf8.encode(secret)); 
-    final digest = hmacSha512.convert(utf8.encode(signingString));
-    final signature = base64.encode(digest.bytes);
+      // HMAC-SHA512 签名
+      final hmacSha512 = Hmac(sha512, utf8.encode(secret));
+      final digest = hmacSha512.convert(utf8.encode(signingString));
+      final signature = base64.encode(digest.bytes);
 
-    // Authorization Header
-    final authorization = 'hmac username="$username", algorithm="hmac-sha512", headers="x-date request-line host", signature="$signature"';
+      // 构造Authorization Header(与JS完全一致)
+      final authorization = 'hmac username="$username", algorithm="hmac-sha512", headers="x-date request-line host", signature="$signature"';
 
-    final uri = Uri.parse('https://apix.scms.sztv.com.cn/api/com/article/getArticleList').replace(
-      queryParameters: {
-        'catalogId': '7901',
-        'tenantid': 'ysz',
-        'tenantId': 'ysz',
-        'pageSize': '12',
-        'page': '1',
-        'extendtype': '1',
-        'specialtype': '1'
-      },
-    );
+      final uri = Uri.parse('https://$host/api/com/article/getArticleList').replace(
+        queryParameters: {
+          'catalogId': '7901',
+          'tenantid': 'ysz',
+          'tenantId': 'ysz',
+          'pageSize': '12',
+          'page': '1',
+          'extendtype': '1',
+          'specialtype': '1'
+        },
+      );
 
-    final response = await http.get(
-      uri,
-      headers: {
-        'Accept': 'application/json',
-        'x-date': date,
-        'Authorization': authorization,
-      },
-    );
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'x-date': date,
+          'Authorization': authorization,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://www.sztv.com.cn/',
+        },
+      );
 
-    LogUtil.i('CDN 密钥响应状态码: ${response.statusCode}');
+      LogUtil.i('CDN 密钥响应状态码: ${response.statusCode}');
 
-    if (response.statusCode == 200) {
-      final responseBody = utf8.decode(response.bodyBytes);
-      LogUtil.i('CDN 密钥响应体: $responseBody');
+      if (response.statusCode == 200) {
+        final responseBody = utf8.decode(response.bodyBytes);
+        LogUtil.i('CDN 密钥响应体: $responseBody');
 
-      final data = json.decode(responseBody);
-      if (data != null && data['returnCode'] == '0000') {
-        LogUtil.i('成功获取CDN密钥');
-        final news = data['returnData']['news'] as List;
-        if (news.isNotEmpty) {
-          return news[0]['key']?.toString() ?? 'ERROR';
+        final data = json.decode(responseBody);
+        if (data != null && data['returnCode'] == '0000') {
+          final news = data['returnData']['news'] as List;
+          if (news.isNotEmpty) {
+            return news[0]['key']?.toString() ?? 'ERROR';
+          }
         }
+        LogUtil.i('响应格式不符合预期: $responseBody');
+      } else {
+        LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
       }
-      LogUtil.i('响应格式不符合预期: $responseBody');
-    } else {
-      LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
+    } catch (e) {
+      LogUtil.i('获取 CDN 密钥时发生错误: $e');
     }
-  } catch (e) {
-    LogUtil.i('获取 CDN 密钥时发生错误: $e');
+    return 'ERROR';
   }
-  return 'ERROR';
-}
 }
 
 /// 河南卫视解析器
