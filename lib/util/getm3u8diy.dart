@@ -257,7 +257,6 @@ class HntvParser {
     final headers = {
       'timestamp': timestamp,  // 使用字符串类型的timestamp
       'sign': sign,
-      ...HeadersConfig.generateHeaders(url: requestUrl),
     };
 
     // 记录请求信息，方便调试
