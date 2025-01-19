@@ -63,6 +63,7 @@ class GetM3u8Diy {
 }
 
 /// 深圳卫视解析器
+//获取密钥的逻辑参考 https://www.sztv.com.cn/pindao/js2020/index.js
 class SztvParser {
   /// 频道列表映射表：频道 ID -> [频道编号, CDN ID, 频道名称]
   static const Map<String, List<String>> TV_LIST = {
@@ -113,8 +114,12 @@ class SztvParser {
 
   /// 获取直播密钥
   static Future<String> _getLiveKey(String liveId) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final token = md5.convert(utf8.encode('$timestamp$liveId' + 'cutvLiveStream|Dream2017')).toString();
+    // 修改: 确保与JS完全一致的时间戳获取方式
+    final int ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final timestamp = ts.toString();
+    
+    // 修改: 使用空字符串拼接,与JS保持一致
+    final token = md5.convert(utf8.encode(timestamp + "" + liveId + "cutvLiveStream|Dream2017")).toString();
 
     try {
       // 发送请求获取直播密钥
@@ -142,34 +147,66 @@ class SztvParser {
     return 'ERROR';
   }
 
-  /// 获取 CDN 密钥
+/// 获取 CDN 密钥
 static Future<String> _getCdnKey(String cdnId) async {
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  final token = md5.convert(utf8.encode('iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp')).toString();
-
   try {
-    final response = await http.get(
-      Uri.parse('https://sttv2-api.sztv.com.cn/api/getCDNkey.php').replace(
-        queryParameters: {
-          'domain': 'sztv-live.sztv.com.cn',
-          'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
-          'token': token,
-          't': timestamp.toString(),
-        },
-      ),
-      headers: HeadersConfig.generateHeaders(
-        url: 'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
-      ),
+    // 固定参数值
+    const username = 'onesz';
+    const host = 'apix.scms.sztv.com.cn';
+    const requestLine = 'HTTP/2.0';
+    const secret = 'xUJ7Gls45St0CTnatnwZwsH4UyYj0rpX';
+
+    // 当前GMT时间
+    final now = DateTime.now().toUtc();
+    final date = now.toString();
+
+    // 构建签名字符串 
+    final signingString = 'x-date: $date\nGET /api/com/article/getArticleList $requestLine\nhost: $host';
+
+    // HMAC-SHA512 签名
+    final hmacSha512 = Hmac(sha512, utf8.encode(secret)); 
+    final digest = hmacSha512.convert(utf8.encode(signingString));
+    final signature = base64.encode(digest.bytes);
+
+    // Authorization Header
+    final authorization = 'hmac username="$username", algorithm="hmac-sha512", headers="x-date request-line host", signature="$signature"';
+
+    final uri = Uri.parse('https://apix.scms.sztv.com.cn/api/com/article/getArticleList').replace(
+      queryParameters: {
+        'catalogId': '7901',
+        'tenantid': 'ysz',
+        'tenantId': 'ysz',
+        'pageSize': '12',
+        'page': '1',
+        'extendtype': '1',
+        'specialtype': '1'
+      },
     );
 
+    final response = await http.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        'x-date': date,
+        'Authorization': authorization,
+      },
+    );
+
+    LogUtil.i('CDN 密钥响应状态码: ${response.statusCode}');
+
     if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      // 根据实际返回的JSON结构进行解析
-      if (data != null && data['status'] == 'ok' && data['key'] != null) {
+      final responseBody = utf8.decode(response.bodyBytes);
+      LogUtil.i('CDN 密钥响应体: $responseBody');
+
+      final data = json.decode(responseBody);
+      if (data != null && data['returnCode'] == '0000') {
         LogUtil.i('成功获取CDN密钥');
-        return data['key'];
+        final news = data['returnData']['news'] as List;
+        if (news.isNotEmpty) {
+          return news[0]['key']?.toString() ?? 'ERROR';
+        }
       }
-      LogUtil.i('响应格式不符合预期: ${response.body}');
+      LogUtil.i('响应格式不符合预期: $responseBody');
     } else {
       LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
     }
@@ -181,6 +218,7 @@ static Future<String> _getCdnKey(String cdnId) async {
 }
 
 /// 河南卫视解析器
+// 计算签名的逻辑参考 https://static.hntv.tv/kds/js/chunk-vendors.1551740b.js
 class HntvParser {
   static const Map<String, List<String>> TV_LIST = {
     'hnws': ['145', '河南卫视'],
@@ -208,12 +246,16 @@ class HntvParser {
     final channelInfo = TV_LIST[id]!;
     final channelId = channelInfo[0];
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    // 修改: 使用int保存时间戳,避免精度问题
+    final int ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final timestamp = ts.toString();
+    
+    // 修改: 使用字符串插值而不是拼接,确保无空格
     final sign = sha256.convert(utf8.encode('6ca114a836ac7d73$timestamp')).toString();
 
     final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
     final headers = {
-      'timestamp': timestamp.toString(),
+      'timestamp': timestamp,  // 使用字符串类型的timestamp
       'sign': sign,
       ...HeadersConfig.generateHeaders(url: requestUrl),
     };
