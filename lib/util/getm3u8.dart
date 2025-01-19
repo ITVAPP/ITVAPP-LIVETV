@@ -472,13 +472,6 @@ class GetM3U8 {
     final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
 
     // 检查是否需要使用 getm3u8diy 解析
-Future<String> getUrl() async {
-  final completer = Completer<String>();
-
-  // 解析动态关键词
-  final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
-
-  // 遍历关键词，检查是否匹配当前 URL
   for (final keyword in dynamicKeywords) {
     if (url.contains(keyword)) {
       try {
