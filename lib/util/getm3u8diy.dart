@@ -261,8 +261,22 @@ class HntvParser {
     final sign = sha256.convert(utf8.encode('6ca114a836ac7d73$timestamp')).toString();
 
     final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
+
+    // 修改: 添加完整的请求头信息
     final headers = {
-      'timestamp': timestamp,  // 使用字符串类型的timestamp
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Connection': 'keep-alive',
+      'Host': 'pubmod.hntv.tv',
+      'Referer': 'https://static.hntv.tv/',
+      'Origin': 'https://static.hntv.tv',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'same-site',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'timestamp': timestamp,
       'sign': sign,
     };
 
@@ -275,7 +289,6 @@ class HntvParser {
 
       // 记录 HTTP 状态码
       LogUtil.i('HTTP 状态码: ${response.statusCode}');
-
       // 记录完整的响应 Body，避免 JSON 结构出错时无法调试
       LogUtil.i('响应 Body: ${response.body}');
 
