@@ -122,17 +122,17 @@ class SztvParser {
       final cdnKey = await _getCdnKey(cdnId);
       if (cdnKey.isEmpty) return 'ERROR';
 
-      // 生成签名和完整的直播流地址
+      // 生成时间戳的16进制表示
       final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final timeHex = timestamp.toRadixString(16); // 转换为16进制
+      final timeHex = timestamp.toRadixString(16);
       
-      // 调整sign计算方式
-      final signString = '$cdnKey$liveId/500/$liveKey$timestamp';
+      // 修正：按照PHP的格式生成sign
+      final signString = '$cdnKey/$liveId/500/$liveKey.m3u8$timeHex';
       LogUtil.i('签名原始字符串: $signString');
       final sign = md5.convert(utf8.encode(signString)).toString();
       LogUtil.i('生成的sign: $sign');
 
-      // 返回正确格式的URL
+      // 修正：按照PHP的格式生成URL
       final streamUrl = 'https://sztv-live.sztv.com.cn/$liveId/500/$liveKey.m3u8?sign=$sign&t=$timeHex';
       LogUtil.i('生成的直播流地址: $streamUrl');
       return streamUrl;
@@ -144,20 +144,13 @@ class SztvParser {
 
   /// 获取直播密钥
   static Future<String> _getLiveKey(String liveId) async {
-    // 生成时间戳(保持秒级)
-    final int ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final timestamp = ts.toString();
-  
-    // 修改: 使用正确的token生成方式 
+    final timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
     final tokenString = timestamp + liveId + 'cutvLiveStream|Dream2017';
     LogUtil.i('直播密钥token原始字符串: $tokenString');
     final token = md5.convert(utf8.encode(tokenString)).toString();
     LogUtil.i('生成的token: $token');
 
     try {
-      // 创建 HttpClient 并禁用证书验证
-      final httpClient = ParserUtils.createHttpClient();
-
       final uri = Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
         queryParameters: {
           't': timestamp,
@@ -167,32 +160,31 @@ class SztvParser {
         },
       );
 
-      // 添加请求日志记录
       LogUtil.i('正在请求深圳卫视直播密钥: ${uri.toString()}');
 
-      // 创建完整的headers Map
-      final Map<String, String> headers = {
-        ...ParserUtils.commonHeaders,
-        'Referer': 'https://www.sztv.com.cn/',
-        ...HeadersConfig.generateHeaders(
-          url: 'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
-        ),
+      // 定义需要的headers
+      final headers = {
+        'Accept': '*/*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://www.sztv.com.cn/'
       };
 
-      // 使用改进的日志方法
-      ParserUtils.logHeaders('LiveKey', headers);
+      // 记录headers日志
+      final headerLog = StringBuffer('LiveKey请求headers:\n');
+      headers.forEach((key, value) => headerLog.write('$key:$value\n'));
+      LogUtil.i(headerLog.toString().trim());
 
+      final httpClient = ParserUtils.createHttpClient();
       final request = await httpClient.getUrl(uri);
       
       // 添加headers
       headers.forEach((key, value) {
-        request.headers.set(key, value);
+        request.headers.add(key, value);
       });
 
       final response = await request.close();
       final responseBody = await response.transform(utf8.decoder).join();
 
-      // 添加响应日志
       LogUtil.i('LiveKey响应状态码: ${response.statusCode}');
       LogUtil.i('LiveKey响应体: $responseBody');
 
@@ -209,16 +201,14 @@ class SztvParser {
   /// 获取 CDN 密钥
   static Future<String> _getCdnKey(String cdnId) async {
     try {
-      // 修改:使用毫秒时间戳
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       
-      // 修改:调整token生成方式
-      final tokenString = timestamp.toString() + 'cutvLiveStream|Dream2017';
+      // 修正：使用与PHP相同的token生成方式
+      final tokenString = 'iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp';
       LogUtil.i('CDN密钥token原始字符串: $tokenString');
       final token = md5.convert(utf8.encode(tokenString)).toString();
       LogUtil.i('生成的token: $token');
       
-      // 构建新的请求URL
       final uri = Uri.parse('https://sttv2-api.sztv.com.cn/api/getCDNkey.php').replace(
         queryParameters: {
           'domain': 'sztv-live.sztv.com.cn',
@@ -228,25 +218,26 @@ class SztvParser {
         },
       );
 
-      // 添加请求日志记录
       LogUtil.i('正在请求CDN密钥: ${uri.toString()}');
 
-      // 创建完整的headers Map
-      final Map<String, String> headers = {
-        ...ParserUtils.commonHeaders,
-        'Referer': 'https://www.sztv.com.cn/',
+      // 定义需要的headers
+      final headers = {
+        'Accept': '*/*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://www.sztv.com.cn/'
       };
 
-      // 使用改进的日志方法
-      ParserUtils.logHeaders('CDN密钥', headers);
+      // 记录headers日志
+      final headerLog = StringBuffer('CDN密钥请求headers:\n');
+      headers.forEach((key, value) => headerLog.write('$key:$value\n'));
+      LogUtil.i(headerLog.toString().trim());
 
-      // 创建 HttpClient 并禁用证书验证
       final httpClient = ParserUtils.createHttpClient();
       final request = await httpClient.getUrl(uri);
       
       // 添加headers
       headers.forEach((key, value) {
-        request.headers.set(key, value);
+        request.headers.add(key, value);
       });
 
       final response = await request.close();
@@ -257,8 +248,8 @@ class SztvParser {
 
       if (response.statusCode == 200) {
         final data = json.decode(responseBody);
-        if (data != null && data['status'] == 'ok') {  //修改:调整判断条件
-          return data['key'] ?? 'ERROR';  //修改:返回key字段
+        if (data != null && data['status'] == 'ok') {
+          return data['key'] ?? 'ERROR';
         }
         LogUtil.i('响应格式不符合预期: $responseBody');
       } else {
@@ -292,7 +283,6 @@ class HntvParser {
   static Future<String> parse(String url) async {
     final uri = Uri.parse(url);
     final id = uri.queryParameters['id']; // 提取频道 ID
-
     if (!TV_LIST.containsKey(id)) {
       LogUtil.i('无效的频道 ID: $id');
       return 'ERROR';
@@ -312,30 +302,20 @@ class HntvParser {
     
     final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
     LogUtil.i('正在请求河南电视台直播流: $requestUrl');
-    
-    // 修改：使用与PHP相同的header格式
-    final List<String> headers = [
-      'timestamp:$timestamp',
-      'sign:$sign'
-    ];
 
-    // 记录headers
-    LogUtil.i('请求headers:');
-    for (var header in headers) {
-      LogUtil.i('  $header');
-    }
+    // 为了日志显示，保留原格式
+    final headerLog = StringBuffer('请求headers:\n');
+    headerLog.write('timestamp:$timestamp\n');
+    headerLog.write('sign:$sign');
+    LogUtil.i(headerLog.toString());
 
     try {
       final httpClient = ParserUtils.createHttpClient();
       final request = await httpClient.getUrl(Uri.parse(requestUrl));
       
-      // 使用PHP相同的方式设置headers
-      for (var header in headers) {
-        final parts = header.split(':');
-        if (parts.length >= 2) {
-          request.headers.set(parts[0], header.substring(parts[0].length + 1));
-        }
-      }
+      // 直接设置header，不使用冒号格式
+      request.headers.add('timestamp', timestamp);
+      request.headers.add('sign', sign);
 
       final response = await request.close();
       final responseBody = await response.transform(utf8.decoder).join();
@@ -363,10 +343,8 @@ class HntvParser {
 
         for (var item in channels) {
           LogUtil.i('频道 ID: ${item['cid']}, 频道名称: ${item['title']}');
-
           if (item['cid'].toString() == channelId) {
             LogUtil.i('匹配的频道 ID 找到: $channelId');
-
             // 修改：与PHP版本保持一致的视频流检查逻辑
             if (item['video_streams'] is List && (item['video_streams'] as List).isNotEmpty) {
               final url = item['video_streams'][0].toString();
@@ -381,7 +359,6 @@ class HntvParser {
             }
           }
         }
-
         LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
       } else {
         LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
