@@ -15,7 +15,6 @@ class ParserUtils {
 
   /// 创建禁用SSL验证的HttpClient
   static HttpClient createHttpClient() {
-    // 修改: 添加SSL相关日志
     LogUtil.i('创建禁用SSL验证的HttpClient');
     return HttpClient()
       ..badCertificateCallback = ((X509Certificate cert, String host, int port) {
@@ -55,10 +54,9 @@ class ParserUtils {
   }
 }
 
+/// m3u8地址解析器
 class GetM3u8Diy {
   /// 根据 URL 获取直播流地址
-  ///
-  /// 功能：根据 URL 判断适用的解析规则，调用对应的解析器获取直播流地址。
   static Future<String> getStreamUrl(String url) async {
     try {
       // 如果 URL 包含 `sztv.com.cn`，调用深圳卫视解析器
@@ -81,22 +79,6 @@ class GetM3u8Diy {
 }
 
 /// 深圳卫视解析器
-//获取密钥的逻辑参考 https://www.sztv.com.cn/pindao/js2020/index.js
-class SztvParser {
-  /// 频道列表映射表：频道 ID -> [频道编号, CDN ID, 频道名称]
-  static const Map<String, List<String>> TV_LIST = {
-    'szws': ['AxeFRth', '7867', '深圳卫视'],
-    'szds': ['ZwxzUXr', '7868', '都市频道'],
-    'szdsj': ['4azbkoY', '7880', '电视剧频道'],
-    'szcj': ['3vlcoxP', '7871', '财经频道'],
-    'szse': ['1SIQj6s', '7881', '少儿频道'],
-    'szyd': ['wDF6KJ3', '7869', '移动电视'],
-    'szyh': ['BJ5u5k2', '7878', '宜和购物频道'],
-    'szgj': ['sztvgjpd', '7944', '国际频道'],
-  };
-
-/// 深圳卫视解析器
-//获取密钥的逻辑参考 https://www.sztv.com.cn/pindao/js2020/index.js
 class SztvParser {
   /// 频道列表映射表：频道 ID -> [频道编号, CDN ID, 频道名称]
   static const Map<String, List<String>> TV_LIST = {
@@ -286,9 +268,7 @@ class SztvParser {
 }
 
 /// 河南卫视解析器
-// 计算签名的逻辑参考 https://static.hntv.tv/kds/js/chunk-vendors.1551740b.js
 class HntvParser {
-  // 添加API_KEY常量
   static const String API_KEY = '6ca114a836ac7d73';
   
   static const Map<String, List<String>> TV_LIST = {
@@ -325,6 +305,7 @@ class HntvParser {
     final signString = '$API_KEY$timestamp';
     LogUtil.i('签名原始字符串: $signString');
     final sign = sha256.convert(utf8.encode(signString)).toString();
+    LogUtil.i('生成的sign: $sign');
     
     final requestUrl = 'https://pubmod.hntv.tv/program/getAuth/live/class/program/11';
     
