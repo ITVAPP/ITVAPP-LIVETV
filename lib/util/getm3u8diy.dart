@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -163,7 +164,7 @@ class SztvParser {
 
       // 获取GMT格式的日期(与JS保持一致)
       final now = DateTime.now().toUtc();
-      final date = now.toGMTString(); // 使用GMT格式
+      final date = HttpDate.format(now); // "Wed, 15 Nov 1995 04:58:08 GMT"
 
       // 构建签名字符串(与JS保持完全一致,包括换行符)
       final signingString = 'x-date: $date\nGET /api/com/article/getArticleList $requestLine\nhost: $host';
