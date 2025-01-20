@@ -231,6 +231,149 @@ class GetM3U8 {
     }
   }
 
+  /// 执行点击操作
+  Future<bool> _executeClick() async {
+    // 检查WebViewController是否已初始化
+    if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
+      LogUtil.i(
+        !_isControllerReady()
+          ? 'WebViewController 未初始化，无法执行点击'
+          : _isClickExecuted
+            ? '点击已执行，跳过'
+            : '无点击配置，跳过'
+      );
+      return false;
+    }
+
+    LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
+
+    final jsCode = '''
+    (async function() {
+      try {
+        function findAndClick() {
+          const searchText = '${clickText}';
+          const targetIndex = ${clickIndex};
+
+          // 获取所有文本和元素节点
+          const walk = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+            {
+              acceptNode: function(node) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                  if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_REJECT;
+              }
+            }
+          );
+
+          // 记录找到的匹配
+          const matches = [];
+          let currentIndex = 0;
+          let foundNode = null;
+
+          // 遍历节点
+          let node;
+          while (node = walk.nextNode()) {
+            // 处理文本节点
+            if (node.nodeType === Node.TEXT_NODE) {
+              const text = node.textContent.trim();
+              if (text === searchText) {
+                matches.push({
+                  text: text,
+                  node: node.parentElement
+                });
+
+                if (currentIndex === targetIndex) {
+                  foundNode = node.parentElement;
+                  break;
+                }
+                currentIndex++;
+              }
+            }
+            // 处理元素节点
+            else if (node.nodeType === Node.ELEMENT_NODE) {
+              const children = Array.from(node.childNodes);
+              const directText = children
+                .filter(child => child.nodeType === Node.TEXT_NODE)
+                .map(child => child.textContent.trim())
+                .join('');
+
+              if (directText === searchText) {
+                matches.push({
+                  text: directText,
+                  node: node
+                });
+
+                if (currentIndex === targetIndex) {
+                  foundNode = node;
+                  break;
+                }
+                currentIndex++;
+              }
+            }
+          }
+
+          if (!foundNode) {
+            console.error('未找到匹配的元素');
+            return;
+          }
+
+          try {
+            // 优先点击节点本身
+            const originalClass = foundNode.getAttribute('class') || '';
+            foundNode.click();
+
+            // 等待 1000ms 检查 class 是否发生变化
+            setTimeout(() => {
+              const updatedClass = foundNode.getAttribute('class') || '';
+              if (originalClass !== updatedClass) {
+                console.info('节点点击成功，class 发生变化');
+              } else if (foundNode.parentElement) {
+                // 尝试点击父节点
+                const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
+                foundNode.parentElement.click();
+
+                setTimeout(() => {
+                  const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+                  if (parentOriginalClass !== parentUpdatedClass) {
+                    console.info('父节点点击成功，class 发生变化');
+                  } else {
+                    console.error('点击后无任何变化');
+                  }
+                }, 1000);
+              }
+            }, 1000);
+          } catch (e) {
+            console.error('点击操作失败:', e);
+          }
+        }
+
+        findAndClick();
+      } catch (e) {
+        console.error('JavaScript 执行时发生错误:', e);
+      }
+    })();
+    ''';
+
+    try {
+      await _controller.runJavaScript(jsCode);
+      _isClickExecuted = true; // 标记为已执行
+      return true;
+    } catch (e, stack) {
+      LogUtil.logError('执行点击操作时发生错误', e, stack);
+      _isClickExecuted = true; // 标记为已执行
+      return false;
+    }
+  }
+  
   /// 解析规则字符串
   static List<M3U8FilterRule> _parseRules(String rulesString) {
     if (rulesString.isEmpty) {
