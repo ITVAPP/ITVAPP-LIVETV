@@ -242,7 +242,30 @@ static Future<String> _getCdnKey(String cdnId) async {
   return 'ERROR';
 }
 
-static Future<String> parse(String url) async {
+/// 河南卫视解析器
+class HntvParser {
+  static const String API_KEY = '6ca114a836ac7d73';
+  
+  static const Map<String, Map<String, dynamic>> TV_LIST = {
+    'hnws': {'id': 145, 'name': '河南卫视'},
+    'hnds': {'id': 141, 'name': '河南都市'},
+    'hnms': {'id': 146, 'name': '河南民生'}, 
+    'hmfz': {'id': 147, 'name': '河南法治'},
+    'hndsj': {'id': 148, 'name': '河南电视剧'},
+    'hnxw': {'id': 149, 'name': '河南新闻'},
+    'htgw': {'id': 150, 'name': '欢腾购物'},
+    'hngg': {'id': 151, 'name': '河南公共'},
+    'hnxc': {'id': 152, 'name': '河南乡村'},
+    'hngj': {'id': 153, 'name': '河南国际'},
+    'hnly': {'id': 154, 'name': '河南梨园'},
+    'wwbk': {'id': 155, 'name': '文物宝库'},
+    'wspd': {'id': 156, 'name': '武术世界'},
+    'jczy': {'id': 157, 'name': '睛彩中原'},
+    'ydxj': {'id': 163, 'name': '移动戏曲'},
+    'xsj': {'id': 183, 'name': '象视界'}
+  };
+  
+  static Future<String> parse(String url) async {
     final uri = Uri.parse(url);
     final id = uri.queryParameters['id'];
     if (!TV_LIST.containsKey(id)) {
@@ -264,7 +287,6 @@ static Future<String> parse(String url) async {
     LogUtil.i('正在请求河南电视台直播流: $requestUrl');
 
     try {
-      // 使用完全原始格式构造headers
       final rawHeaders = [
         'Accept: */*',
         'timestamp:$timestamp',
@@ -274,10 +296,8 @@ static Future<String> parse(String url) async {
       LogUtil.i('请求headers:\n${rawHeaders.join('\n')}');
 
       final dio = Dio()
-        ..options.headers.clear()
         ..interceptors.add(InterceptorsWrapper(
           onRequest: (options, handler) {
-            // 直接设置原始header字符串
             options.headers.clear();
             for (var header in rawHeaders) {
               final parts = header.split(':');
@@ -336,3 +356,4 @@ static Future<String> parse(String url) async {
 
     return 'ERROR';
   }
+}
