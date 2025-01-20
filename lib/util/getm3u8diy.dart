@@ -185,77 +185,64 @@ class SztvParser {
     return 'ERROR';
   }
   
-  /// 获取 CDN 密钥
-  static Future<String> _getCdnKey(String cdnId) async {
-    try {
-      final millisTimestamp = DateTime.now().millisecondsSinceEpoch;
-      LogUtil.i('毫秒时间戳: $millisTimestamp');
-      
-      final tokenString = 'iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$millisTimestamp';
-      LogUtil.i('CDN密钥token原始字符串: $tokenString');
-      final token = md5.convert(utf8.encode(tokenString)).toString();
-      LogUtil.i('生成的token: $token');
+static Future<String> _getCdnKey(String cdnId) async {
+  try {
+    final millisTimestamp = DateTime.now().millisecondsSinceEpoch;
+    LogUtil.i('毫秒时间戳: $millisTimestamp');
+    
+    final tokenString = 'iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$millisTimestamp';
+    LogUtil.i('CDN密钥token原始字符串: $tokenString');
+    final token = md5.convert(utf8.encode(tokenString)).toString();
+    LogUtil.i('生成的token: $token');
 
-      final response = await ParserUtils.dio.get(
-        'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
-        queryParameters: {
-          'domain': 'sztv-live.sztv.com.cn',
-          'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
-          'token': token,
-          't': millisTimestamp.toString(),
+    // 构造查询字符串，确保格式完全一致
+    final Map<String, String> params = {
+      'domain': 'sztv-live.sztv.com.cn',
+      'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
+      'token': token,
+      't': millisTimestamp.toString()  // 确保是字符串
+    };
+
+    // 记录完整的请求 URL
+    final queryString = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    final fullUrl = 'https://sttv2-api.sztv.com.cn/api/getCDNkey.php?$queryString';
+    LogUtil.i('完整请求URL: $fullUrl');
+
+    final response = await ParserUtils.dio.get(
+      'https://sttv2-api.sztv.com.cn/api/getCDNkey.php',
+      queryParameters: params,
+      options: Options(
+        headers: {
+          'Accept': '*/*',
+          'Referer': 'https://www.sztv.com.cn/'
         },
-        options: Options(
-          headers: {
-            'Accept': '*/*',
-            'Referer': 'https://www.sztv.com.cn/'
-          }
-        ),
-      );
+        // 确保参数编码正确
+        listFormat: ListFormat.multiCompatible,
+      ),
+    );
 
-      LogUtil.i('响应状态码: ${response.statusCode}');
-      LogUtil.i('响应头: ${response.headers}');
-      LogUtil.i('响应体: ${response.data}');
+    LogUtil.i('响应状态码: ${response.statusCode}');
+    LogUtil.i('响应头: ${response.headers.toString()}');
+    LogUtil.i('响应体: ${response.data}');
 
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data != null && data['status'] == 'ok' && data['key'] != null) {
-          return data['key'];
-        }
-        LogUtil.i('响应格式不符合预期: ${data}');
-      } else {
-        LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final data = response.data;
+      if (data != null && data['status'] == 'ok' && data['key'] != null) {
+        return data['key'];
       }
-    } catch (e) {
-      LogUtil.i('获取 CDN 密钥时发生错误: $e');
+      LogUtil.i('响应格式不符合预期: $data');
+    } else {
+      LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
     }
-    return 'ERROR';
+  } catch (e) {
+    LogUtil.i('获取 CDN 密钥时发生错误: $e');
   }
+  return 'ERROR';
 }
 
-/// 河南卫视解析器
-class HntvParser {
-  static const String API_KEY = '6ca114a836ac7d73';
-  
-  static const Map<String, Map<String, dynamic>> TV_LIST = {
-    'hnws': {'id': 145, 'name': '河南卫视'},
-    'hnds': {'id': 141, 'name': '河南都市'},
-    'hnms': {'id': 146, 'name': '河南民生'}, 
-    'hmfz': {'id': 147, 'name': '河南法治'},
-    'hndsj': {'id': 148, 'name': '河南电视剧'},
-    'hnxw': {'id': 149, 'name': '河南新闻'},
-    'htgw': {'id': 150, 'name': '欢腾购物'},
-    'hngg': {'id': 151, 'name': '河南公共'},
-    'hnxc': {'id': 152, 'name': '河南乡村'},
-    'hngj': {'id': 153, 'name': '河南国际'},
-    'hnly': {'id': 154, 'name': '河南梨园'},
-    'wwbk': {'id': 155, 'name': '文物宝库'},
-    'wspd': {'id': 156, 'name': '武术世界'},
-    'jczy': {'id': 157, 'name': '睛彩中原'},
-    'ydxj': {'id': 163, 'name': '移动戏曲'},
-    'xsj': {'id': 183, 'name': '象视界'}
-  };
-  
-  static Future<String> parse(String url) async {
+static Future<String> parse(String url) async {
     final uri = Uri.parse(url);
     final id = uri.queryParameters['id'];
     if (!TV_LIST.containsKey(id)) {
@@ -277,37 +264,31 @@ class HntvParser {
     LogUtil.i('正在请求河南电视台直播流: $requestUrl');
 
     try {
-      // 构造完全相同格式的headers
-      final headers = 'timestamp:$timestamp\nsign:$sign';
-      LogUtil.i('请求headers:\n$headers');
+      // 使用完全原始格式构造headers
+      final rawHeaders = [
+        'Accept: */*',
+        'timestamp:$timestamp',
+        'sign:$sign'
+      ];
+      
+      LogUtil.i('请求headers:\n${rawHeaders.join('\n')}');
 
-      // 使用Map构造与PHP完全一致的原始header格式
-      final headerMap = {
-        HttpHeaders.acceptHeader: '*/*',
-        'timestamp': timestamp,
-        'sign': sign
-      };
+      final dio = Dio()
+        ..options.headers.clear()
+        ..interceptors.add(InterceptorsWrapper(
+          onRequest: (options, handler) {
+            // 直接设置原始header字符串
+            options.headers.clear();
+            for (var header in rawHeaders) {
+              final parts = header.split(':');
+              options.headers[parts[0]] = parts[1].trimLeft();
+            }
+            LogUtil.i('发送请求前的headers: ${options.headers}');
+            return handler.next(options);
+          }
+        ));
 
-      // 记录实际发送的header
-      final headersLog = StringBuffer('实际发送的headers:\n');
-      headerMap.forEach((key, value) {
-        headersLog.write('$key:$value\n');
-      });
-      LogUtil.i(headersLog.toString().trim());
-
-      final response = await ParserUtils.dio.get(
-        requestUrl,
-        options: Options(
-          validateStatus: (_) => true,
-          headers: {
-            'Accept': '*/*',
-            for (var entry in headers.split('\n'))
-              // 按照原始格式分割并设置header
-              entry.split(':')[0].trim(): entry.split(':')[1].trim()
-          },
-          listFormat: ListFormat.multiCompatible,  // 防止dio修改header格式
-        ),
-      );
+      final response = await dio.get(requestUrl);
 
       LogUtil.i('HTTP 状态码: ${response.statusCode}');
       LogUtil.i('响应 Body: ${response.data}');
@@ -355,4 +336,3 @@ class HntvParser {
 
     return 'ERROR';
   }
-}
