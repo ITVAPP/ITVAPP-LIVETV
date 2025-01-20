@@ -100,16 +100,6 @@ class SztvParser {
    'szgj': ['sztvgjpd', '7944', '国际频道'],
  };
 
- /// 获取秒级时间戳
- static int getSecondTimestamp() {
-   return DateTime.now().millisecondsSinceEpoch ~/ 1000;
- }
-
- /// 获取毫秒级时间戳(秒*1000)
- static int getMillisTimestamp() {
-   return getSecondTimestamp() * 1000;
- }
-
  /// 解析深圳卫视直播流地址
  static Future<String> parse(String url) async {
    final uri = Uri.parse(url);
@@ -132,8 +122,8 @@ class SztvParser {
      final cdnKey = await _getCdnKey(cdnId);
      if (cdnKey.isEmpty) return 'ERROR';
 
-     // 使用秒级时间戳并转16进制
-     final timestamp = getSecondTimestamp();
+     // 生成时间戳的16进制表示
+     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
      LogUtil.i('生成最终URL使用的时间戳: $timestamp');
      final timeHex = timestamp.toRadixString(16);
      LogUtil.i('转换为16进制: $timeHex');
@@ -157,10 +147,10 @@ class SztvParser {
  /// 获取直播密钥
  static Future<String> _getLiveKey(String liveId) async {
    // 使用秒级时间戳
-   final timestamp = getSecondTimestamp().toString();
+   final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
    LogUtil.i('LiveKey使用的时间戳: $timestamp');
    
-   final tokenString = timestamp + liveId + 'cutvLiveStream|Dream2017';
+   final tokenString = '$timestamp$liveId' + 'cutvLiveStream|Dream2017';
    LogUtil.i('直播密钥token原始字符串: $tokenString');
    final token = md5.convert(utf8.encode(tokenString)).toString();
    LogUtil.i('生成的token: $token');
@@ -168,41 +158,35 @@ class SztvParser {
    try {
      final uri = Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
        queryParameters: {
-         't': timestamp,
+         't': timestamp.toString(),
          'id': liveId,
          'token': token,
          'at': '1',
        },
      );
 
-     LogUtil.i('正在请求深圳卫视直播密钥: ${uri.toString()}');
+     LogUtil.i('完整请求URL: ${uri.toString()}');
      LogUtil.i('请求参数: ${uri.queryParameters}');
 
-     // 定义需要的headers
+     // 仅保留必要的头部
      final headers = {
        'Accept': '*/*',
-       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
        'Referer': 'https://www.sztv.com.cn/'
      };
-
-     // 记录headers日志
-     final headerLog = StringBuffer('LiveKey请求headers:\n');
-     headers.forEach((key, value) => headerLog.write('$key:$value\n'));
-     LogUtil.i(headerLog.toString().trim());
+     
+     LogUtil.i('请求头: $headers');
 
      final httpClient = ParserUtils.createHttpClient();
      final request = await httpClient.getUrl(uri);
      
-     // 添加headers
-     headers.forEach((key, value) {
-       request.headers.add(key, value);
-     });
+     headers.forEach((key, value) => request.headers.set(key, value));
 
      final response = await request.close();
+     LogUtil.i('响应状态码: ${response.statusCode}');
+     LogUtil.i('响应头: ${response.headers}');
+     
      final responseBody = await response.transform(utf8.decoder).join();
-
-     LogUtil.i('LiveKey响应状态码: ${response.statusCode}');
-     LogUtil.i('LiveKey响应体: $responseBody');
+     LogUtil.i('响应体: $responseBody');
 
      if (response.statusCode == 200) {
        return ParserUtils.decodeBase64(responseBody);
@@ -217,12 +201,12 @@ class SztvParser {
  /// 获取 CDN 密钥
  static Future<String> _getCdnKey(String cdnId) async {
    try {
-     // 使用毫秒级时间戳(秒*1000)
-     final timestamp = getMillisTimestamp();
-     LogUtil.i('CDN密钥使用的时间戳: $timestamp');
+     final timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+     final millisTimestamp = timestamp * 1000;
+     LogUtil.i('基础时间戳: $timestamp');
+     LogUtil.i('毫秒时间戳: $millisTimestamp');
      
-     // 生成token
-     final tokenString = 'iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$timestamp';
+     final tokenString = 'iYKkRHlmUanQGaNMIJziWOkNsztv-live.sztv.com.cn$millisTimestamp';
      LogUtil.i('CDN密钥token原始字符串: $tokenString');
      final token = md5.convert(utf8.encode(tokenString)).toString();
      LogUtil.i('生成的token: $token');
@@ -231,39 +215,33 @@ class SztvParser {
        queryParameters: {
          'domain': 'sztv-live.sztv.com.cn',
          'page': 'https://www.sztv.com.cn/pindao/index.html?id=$cdnId',
-         'token': token,
-         't': timestamp.toString(),
+         'token': token,  
+         't': millisTimestamp.toString(),
        },
      );
 
+     LogUtil.i('完整请求URL: ${uri.toString()}');
      LogUtil.i('请求参数: ${uri.queryParameters}');
-     LogUtil.i('正在请求CDN密钥: ${uri.toString()}');
 
-     // 定义需要的headers
+     // 仅使用PHP相同的请求头
      final headers = {
        'Accept': '*/*',
-       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
        'Referer': 'https://www.sztv.com.cn/'
      };
-
-     // 记录headers日志
-     final headerLog = StringBuffer('CDN密钥请求headers:\n');
-     headers.forEach((key, value) => headerLog.write('$key:$value\n'));
-     LogUtil.i(headerLog.toString().trim());
+     
+     LogUtil.i('请求头: $headers');
 
      final httpClient = ParserUtils.createHttpClient();
      final request = await httpClient.getUrl(uri);
      
-     // 添加headers
-     headers.forEach((key, value) {
-       request.headers.add(key, value);
-     });
+     headers.forEach((key, value) => request.headers.set(key, value));
 
      final response = await request.close();
+     LogUtil.i('响应状态码: ${response.statusCode}');
+     LogUtil.i('响应头: ${response.headers}');
+     
      final responseBody = await response.transform(utf8.decoder).join();
-
-     LogUtil.i('CDN密钥响应状态码: ${response.statusCode}');
-     LogUtil.i('CDN密钥响应体: $responseBody');
+     LogUtil.i('响应体: $responseBody');
 
      if (response.statusCode == 200) {
        final data = json.decode(responseBody);
@@ -320,7 +298,7 @@ class HntvParser {
    final timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
    
    // 使用与PHP完全相同的签名生成方式
-   final signString = API_KEY + timestamp;  // 使用 + 操作符而不是字符串插值
+   final signString = "${API_KEY}${timestamp}";
    LogUtil.i('签名原始字符串: $signString');
    final sign = sha256.convert(utf8.encode(signString)).toString();
    LogUtil.i('生成的sign: $sign');
@@ -344,7 +322,6 @@ class HntvParser {
      
      // 添加通用头信息
      request.headers.set('Accept', '*/*');
-     request.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
      
      // 使用与PHP相同的header格式添加认证头信息
      for (var header in headers) {
