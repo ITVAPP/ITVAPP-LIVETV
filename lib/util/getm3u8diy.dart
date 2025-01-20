@@ -277,14 +277,35 @@ class HntvParser {
     LogUtil.i('正在请求河南电视台直播流: $requestUrl');
 
     try {
+      // 构造完全相同格式的headers
+      final headers = 'timestamp:$timestamp\nsign:$sign';
+      LogUtil.i('请求headers:\n$headers');
+
+      // 使用Map构造与PHP完全一致的原始header格式
+      final headerMap = {
+        HttpHeaders.acceptHeader: '*/*',
+        'timestamp': timestamp,
+        'sign': sign
+      };
+
+      // 记录实际发送的header
+      final headersLog = StringBuffer('实际发送的headers:\n');
+      headerMap.forEach((key, value) {
+        headersLog.write('$key:$value\n');
+      });
+      LogUtil.i(headersLog.toString().trim());
+
       final response = await ParserUtils.dio.get(
         requestUrl,
         options: Options(
+          validateStatus: (_) => true,
           headers: {
             'Accept': '*/*',
-            'timestamp': timestamp,
-            'sign': sign,
-          }
+            for (var entry in headers.split('\n'))
+              // 按照原始格式分割并设置header
+              entry.split(':')[0].trim(): entry.split(':')[1].trim()
+          },
+          listFormat: ListFormat.multiCompatible,  // 防止dio修改header格式
         ),
       );
 
@@ -317,21 +338,21 @@ class HntvParser {
               return url;
             } else if (item['streams'] is List && (item['streams'] as List).isNotEmpty) {
               final url = item['streams'][0].toString();
-             LogUtil.i('找到streams地址: $url');
-             return url;
-           } else {
-             LogUtil.i('频道 $channelId 没有可用的视频流');
-           }
-         }
-       }
-       LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
-     } else {
-       LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
-     }
-   } catch (e) {
-     LogUtil.i('获取河南电视台直播地址失败: $e');
-   }
+              LogUtil.i('找到streams地址: $url');
+              return url;
+            } else {
+              LogUtil.i('频道 $channelId 没有可用的视频流');
+            }
+          }
+        }
+        LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
+      } else {
+        LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      LogUtil.i('获取河南电视台直播地址失败: $e');
+    }
 
-   return 'ERROR';
- }
+    return 'ERROR';
+  }
 }
