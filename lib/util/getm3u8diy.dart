@@ -15,18 +15,13 @@ class ParserUtils {
 
   /// 创建Dio实例并配置
   static final dio = Dio()
-    ..options.validateStatus = (status) => true  // 允许所有状态码
     ..options.headers = commonHeaders
-    ..httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () {
-        final client = HttpClient();
-        client.badCertificateCallback = (cert, host, port) {
-          LogUtil.i('SSL证书验证已禁用: $host:$port');
-          return true;
-        };
-        return client;
-      },
-    );
+    ..interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        LogUtil.i('SSL证书验证已禁用');
+        return handler.next(options);
+      }
+    ));
 
   /// 记录请求头的辅助方法
   static void logHeaders(String prefix, Map<String, dynamic> headers) {
@@ -104,6 +99,50 @@ class SztvParser {
     'szyh': ['BJ5u5k2', '7878', '宜和购物频道'],
     'szgj': ['sztvgjpd', '7944', '国际频道'],
   };
+
+  /// 解析深圳卫视直播流地址
+  static Future<String> parse(String url) async {
+    final uri = Uri.parse(url);
+    final id = uri.queryParameters['id']; // 提取频道 ID
+
+    // 检查频道 ID 是否在映射表中
+    if (!TV_LIST.containsKey(id)) {
+      LogUtil.i('无效的频道 ID');
+      return 'ERROR';
+    }
+
+    final channelInfo = TV_LIST[id]!; // 获取频道信息
+    final liveId = channelInfo[0];
+    final cdnId = channelInfo[1];
+
+    try {
+      // 获取直播密钥和 CDN 密钥
+      final liveKey = await _getLiveKey(liveId);
+      if (liveKey.isEmpty) return 'ERROR';
+      final cdnKey = await _getCdnKey(cdnId);
+      if (cdnKey.isEmpty) return 'ERROR';
+
+      // 生成时间戳的16进制表示
+      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      LogUtil.i('生成最终URL使用的时间戳: $timestamp');
+      final timeHex = timestamp.toRadixString(16);
+      LogUtil.i('转换为16进制: $timeHex');
+      
+      // 生成sign
+      final signString = '$cdnKey/$liveId/500/$liveKey.m3u8$timeHex';
+      LogUtil.i('签名原始字符串: $signString');
+      final sign = md5.convert(utf8.encode(signString)).toString();
+      LogUtil.i('生成的sign: $sign');
+
+      // 生成最终URL
+      final streamUrl = 'https://sztv-live.sztv.com.cn/$liveId/500/$liveKey.m3u8?sign=$sign&t=$timeHex';
+      LogUtil.i('生成的直播流地址: $streamUrl');
+      return streamUrl;
+    } catch (e) {
+      LogUtil.i('生成深圳卫视直播流地址失败: $e');
+      return 'ERROR';
+    }
+  }
   
   /// 获取直播密钥
   static Future<String> _getLiveKey(String liveId) async {
@@ -116,20 +155,14 @@ class SztvParser {
     LogUtil.i('生成的token: $token');
 
     try {
-      final uri = Uri.parse('https://hls-api.sztv.com.cn/getCutvHlsLiveKey').replace(
+      final response = await ParserUtils.dio.get(
+        'https://hls-api.sztv.com.cn/getCutvHlsLiveKey',
         queryParameters: {
           't': timestamp.toString(),
           'id': liveId,
           'token': token,
           'at': '1',
         },
-      );
-
-      LogUtil.i('完整请求URL: ${uri.toString()}');
-      LogUtil.i('请求参数: ${uri.queryParameters}');
-
-      final response = await ParserUtils.dio.getUri(
-        uri,
         options: Options(
           headers: {
             'Accept': '*/*',
@@ -184,10 +217,11 @@ class SztvParser {
       LogUtil.i('响应体: ${response.data}');
 
       if (response.statusCode == 200) {
-        if (response.data != null && response.data['status'] == 'ok' && response.data['key'] != null) {
-          return response.data['key'];
+        final data = response.data;
+        if (data != null && data['status'] == 'ok' && data['key'] != null) {
+          return data['key'];
         }
-        LogUtil.i('响应格式不符合预期: ${response.data}');
+        LogUtil.i('响应格式不符合预期: ${data}');
       } else {
         LogUtil.i('获取 CDN 密钥失败: HTTP ${response.statusCode}');
       }
@@ -246,7 +280,6 @@ class HntvParser {
       final response = await ParserUtils.dio.get(
         requestUrl,
         options: Options(
-          validateStatus: (_) => true,
           headers: {
             'Accept': '*/*',
             'timestamp': timestamp,
@@ -284,21 +317,21 @@ class HntvParser {
               return url;
             } else if (item['streams'] is List && (item['streams'] as List).isNotEmpty) {
               final url = item['streams'][0].toString();
-              LogUtil.i('找到streams地址: $url');
-              return url;
-            } else {
-              LogUtil.i('频道 $channelId 没有可用的视频流');
-            }
-          }
-        }
-        LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
-      } else {
-        LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
-      }
-    } catch (e) {
-      LogUtil.i('获取河南电视台直播地址失败: $e');
-    }
+             LogUtil.i('找到streams地址: $url');
+             return url;
+           } else {
+             LogUtil.i('频道 $channelId 没有可用的视频流');
+           }
+         }
+       }
+       LogUtil.i('未找到匹配的频道信息: 可能频道 ID 发生变化');
+     } else {
+       LogUtil.i('获取河南电视台数据失败: HTTP ${response.statusCode}');
+     }
+   } catch (e) {
+     LogUtil.i('获取河南电视台直播地址失败: $e');
+   }
 
-    return 'ERROR';
-  }
+   return 'ERROR';
+ }
 }
