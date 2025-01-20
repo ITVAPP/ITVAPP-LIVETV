@@ -47,19 +47,37 @@ Future<T?> getRequest<T>(String path,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
     int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2)}) async {
+    Duration retryDelay = const Duration(seconds: 2),
+    int timeOffset = 0}) async {
   Response? response;
   int currentAttempt = 0; // 当前重试次数
   Duration currentDelay = retryDelay; // 当前重试延迟
 
   while (currentAttempt < retryCount) {
     try {
+      // 获取基础headers
+      final headers = HeadersConfig.generateHeaders(url: path);
+      
+      // 如果有时间差，处理时间头部
+      if (timeOffset != 0) {
+        final correctTime = DateTime.now().add(Duration(milliseconds: timeOffset));
+        if (headers.containsKey('Date')) {
+          headers['Date'] = HttpDate.format(correctTime);
+        }
+        if (headers.containsKey('If-Modified-Since')) {
+          headers['If-Modified-Since'] = HttpDate.format(correctTime);
+        }
+        if (headers.containsKey('If-Unmodified-Since')) {
+          headers['If-Unmodified-Since'] = HttpDate.format(correctTime);
+        }
+      }
+
       response = await _dio.get<T>(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
           extra: {'attempt': currentAttempt},
-          headers: HeadersConfig.generateHeaders(url: path),
+          headers: headers,
         ),
         cancelToken: cancelToken,
         onReceiveProgress: onReceiveProgress,
