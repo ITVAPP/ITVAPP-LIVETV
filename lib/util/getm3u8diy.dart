@@ -34,28 +34,22 @@ class ParserUtils {
   /// Base64 解码函数
   static String decodeBase64(String input) {
     try {
-      // 去除无效字符，确保输入字符串合法
       String cleanInput = input.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-      // 补齐 Base64 长度，避免解码异常
       while (cleanInput.length % 4 != 0) {
         cleanInput += '=';
       }
 
-      // 对输入字符串进行反转和重组
       final halfLength = cleanInput.length ~/ 2;
       final firstHalf = cleanInput.substring(0, halfLength);
       final secondHalf = cleanInput.substring(halfLength);
       final reversed = (secondHalf + firstHalf).split('').reversed.join();
 
       try {
-        // 优先尝试解码反转后的字符串
         return utf8.decode(base64.decode(reversed));
       } on FormatException {
-        // 如果反转解码失败，尝试直接解码原始字符串
         return utf8.decode(base64.decode(cleanInput));
       }
     } catch (e) {
-      // 解码失败时记录日志并返回空字符串
       LogUtil.i('Base64 解码失败: $e');
       return 'ERROR';
     }
@@ -67,19 +61,14 @@ class GetM3u8Diy {
   /// 根据 URL 获取直播流地址
   static Future<String> getStreamUrl(String url) async {
     try {
-      // 如果 URL 包含 `sztv.com.cn`，调用深圳卫视解析器
       if (url.contains('sztv.com.cn')) {
         return await SztvParser.parse(url);
-      }
-      // 如果 URL 包含 `hntv`，调用河南卫视解析器
-      else if (url.contains('hntv')) {
+      } else if (url.contains('hntv')) {
         return await HntvParser.parse(url);
       }
-      // 如果不符合任何解析规则，记录日志并返回空字符串
       LogUtil.i('未找到匹配的解析规则: $url');
       return 'ERROR';
     } catch (e) {
-      // 捕获解析异常并记录日志
       LogUtil.i('解析直播流地址失败: $e');
       return 'ERROR';
     }
