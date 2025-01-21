@@ -749,9 +749,9 @@ class GetM3U8 {
         _timeOffset = await _getTimeOffset();
       }
 
-      // 使用 runJavaScriptBeforeContentLoaded 注入
+      // 使用 runJavaScript 注入
       final timeInterceptorCode = _prepareTimeInterceptorCode();
-      await _controller.runJavaScriptBeforeContentLoaded(timeInterceptorCode);
+      await _controller.runJavaScript(timeInterceptorCode);
       _isTimeInterceptorInjected = true;
       LogUtil.i('时间拦截器注入成功');
     } catch (e, stackTrace) {
@@ -1185,7 +1185,7 @@ class GetM3U8 {
 
       // 8. 注入所有初始化脚本
       for (final script in initScripts) {
-        await _controller.runJavaScriptBeforeContentLoaded(script);
+        await _controller.runJavaScript(script);
         LogUtil.i('成功注入初始化脚本');
       }
 
@@ -1204,7 +1204,7 @@ class GetM3U8 {
               if (currentUri.host != newUri.host) {
                 // 域名发生变化时重新注入所有脚本
                 for (final script in initScripts) {
-                  await _controller.runJavaScriptBeforeContentLoaded(script);
+                  await _controller.runJavaScript(script);
                 }
                 LogUtil.i('重定向页面的拦截器代码已重新注入');
               }
