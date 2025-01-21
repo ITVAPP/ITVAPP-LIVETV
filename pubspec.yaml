@@ -20,28 +20,28 @@ dependencies:
     sdk: flutter  # Flutter的本地化支持库，用于多语言和地区设置的支持。
 
   # 以下是应用所需的第三方库依赖，您可以根据实际需要添加、删除或更新这些依赖的版本。
-  http: ^1.2.2  # 用于发起 HTTP 请求的库。
+  http: ^1.3.0  # 用于发起 HTTP 请求的库。
   better_player: ^0.0.84  # 视频播放库，用于播放视频内容。
-  flutter_animate: ^4.5.0  # 图片切换动画效果
+  flutter_animate: ^4.5.2  # 图片切换动画效果
   responsive_builder: ^0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
-  flutter_easyloading: ^3.0.3  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
-  wakelock_plus: ^1.2.8  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
+  flutter_easyloading: ^3.0.5  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
+  wakelock_plus: ^1.2.10  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
   dio: ^5.7.0  # 网络请求库，功能强大，支持拦截器、请求取消等。
   sp_util: ^2.0.3  # SharedPreferences工具类，简化数据存储操作，适用于存储应用配置等小数据。
   url_launcher: ^6.3.1  # 打开外部URL的插件，支持网页、邮件、电话等链接的调用。
-  flutter_volume_controller: ^1.3.2  # 音量控制插件，用于控制设备音量。
-  screen_brightness: ^2.0.0+2  # 屏幕亮度控制插件，允许调整屏幕亮度。
+  flutter_volume_controller: ^1.3.3  # 音量控制插件，用于控制设备音量。
+  screen_brightness: ^2.1.1  # 屏幕亮度控制插件，允许调整屏幕亮度。
   pretty_qr_code: ^3.3.0  # 生成二维码的插件，支持多种二维码样式。
-  window_manager: ^0.4.2  # 桌面应用的窗口管理插件，允许操作窗口大小、位置等。
-  intl: ^0.19.0  # 国际化支持库，用于支持多语言环境和格式化日期、时间等。
+  window_manager: ^0.4.3  # 桌面应用的窗口管理插件，允许操作窗口大小、位置等。
+  intl: ^0.20.1  # 国际化支持库，用于支持多语言环境和格式化日期、时间等。
   scrollable_positioned_list: ^0.3.8  # 可滚动的定位列表插件，允许直接跳转到列表中的指定位置。
   path_provider: ^2.1.5  # 查找文件系统路径的插件，常用于存储文件在设备中的路径。
   provider: ^6.1.2  # 状态管理库，用于管理应用状态，适用于复杂应用的状态处理。
   flutter_exit_app: ^1.1.4  # 用于退出应用程序的插件，适合在需要强制退出应用的场景。
   xml: ^6.5.0  # XML解析库，用于解析和处理XML格式的数据。
   apk_installer: ^0.0.4  # 用于安装 APK 文件的插件，适用于 Android 应用。
-  device_info_plus: ^11.1.1  # 获取设备信息的插件，可以获取设备型号、操作系统等信息。
-  webview_flutter: ^4.8.0  # 模拟网页访问。
+  device_info_plus: ^11.2.1  # 获取设备信息的插件，可以获取设备型号、操作系统等信息。
+  webview_flutter: ^4.10.0  # 模拟网页访问。
   crypto: ^3.0.1   # 处理sha256签名。
   # file_picker: ^8.1.2  # 文件选择器插件，允许用户选择文件，适用于文件上传等场景。
   
