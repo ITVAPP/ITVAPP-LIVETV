@@ -655,10 +655,6 @@ class GetM3U8 {
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent)
-       ..setZoomEnabled(false)  // 禁用缩放，减少内存占用
-       ..setAllowsInlineMediaPlayback(false)  // 禁用内联媒体自动播放
-       ..setPausedTimersBehavior(PausedTimersBehavior.pause) // 页面不可见时暂停定时器
-       ..setLoadRequestStrategy(LoadRequestStrategy.onlyMainFrame)  // 只加载主框架，减少额外请求
         ..addJavaScriptChannel(
           'M3U8Detector',
           onMessageReceived: (JavaScriptMessage message) {
@@ -1024,7 +1020,6 @@ Future<void> disposeResources() async {
       ''');
       // 清空WebView缓存
       await _controller.clearCache();
-      await _controller.removeAllScriptChannels();  // 移除所有脚本通道
       LogUtil.i('WebView资源清理完成');
     } catch (e, stack) {
       LogUtil.logError('释放资源时发生错误', e, stack);
