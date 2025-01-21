@@ -623,11 +623,19 @@ class GetM3U8 {
         _httpResponseContent = null;
         completer.complete('ERROR');
         return;
-      }
+      } else {
+        _httpResponseContent = httpdata;
+      } 
+      
+      // 1. 检查是否存在重定向标记
+      bool hasRedirect = httpdata.contains('301') || 
+                        httpdata.contains('302') || 
+                        httpdata.toLowerCase().contains('redirect');
 
-      // 判断内容类型
-      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
-      _httpResponseContent = httpdata;
+      // 2. 判断内容类型                 
+      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || 
+                       httpdata.contains('<html') ||
+                       hasRedirect;  // 重定向判断
 
       // 非HTML内容直接处理
       if (!_isHtmlContent) {
