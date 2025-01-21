@@ -785,7 +785,7 @@ class GetM3U8 {
                 }
 
                 // 设置定期检查 - 仅在需要时执行
-                if (!_isDisposed && !_m3u8Found && !_isDetectorInjected) {
+                if (!_isDisposed && !_m3u8Found && _isDetectorInjected) {
                   _setupPeriodicCheck();
                 }
               }
