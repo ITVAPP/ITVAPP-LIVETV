@@ -664,6 +664,19 @@ class GetM3U8 {
         )
         ..setNavigationDelegate(
           NavigationDelegate(
+            onPageStarted: (String url) async {
+              LogUtil.i('页面开始加载: $url');
+              // 在页面开始加载时注入JS
+              if (!_isDetectorInjected) {
+                try {
+                  await _injectM3U8Detector();
+                  _isDetectorInjected = true;
+                  LogUtil.i('JS注入成功');
+                } catch (e) {
+                  LogUtil.e('JS注入失败: $e');
+                }
+              }
+            },
             onNavigationRequest: (NavigationRequest request) {
               LogUtil.i('页面导航请求: ${request.url}');
               final uri = Uri.tryParse(request.url);
@@ -767,7 +780,7 @@ class GetM3U8 {
                 if (m3u8Url != null && !completer.isCompleted) {
                   _m3u8Found = true;
                   completer.complete(m3u8Url);
-                  await disposeResources();
+                  await dispose();
                   return;
                 }
 
@@ -789,10 +802,6 @@ class GetM3U8 {
             },
           ),
         );
-
-      // 先注入 JS 检测器（包含时间劫持功能）
-      await _injectM3U8Detector();
-      LogUtil.i('JS检测器注入完成');
 
       // 标记控制器初始化状态
       _isControllerInitialized = true;
@@ -826,7 +835,7 @@ class GetM3U8 {
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数或已释放资源');
       completer.complete('ERROR');
-      await disposeResources();
+      await dispose();
     }
   }
 
@@ -912,7 +921,7 @@ class GetM3U8 {
       }
 
       completer.complete('ERROR');
-      await disposeResources();
+      await dispose();
     });
   }
 
@@ -1260,7 +1269,7 @@ class GetM3U8 {
   }
 
 /// 释放资源
-Future<void> disposeResources() async {
+Future<void> dispose() async {
   // 防止重复释放
   if (_isDisposed) {
     LogUtil.i('资源已释放，跳过重复释放');
@@ -1398,7 +1407,7 @@ Future<void> disposeResources() async {
         _m3u8Found = true;
         if (!completer.isCompleted) {
           completer.complete(finalUrl);
-          await disposeResources();
+          await dispose();
         }
       } else {
         LogUtil.i('URL验证失败，继续等待新的URL');
@@ -1614,9 +1623,5 @@ Future<void> disposeResources() async {
     } finally {
       _isStaticChecking = false;
     }
-  }
-
-  Future<void> dispose() async {
-    await disposeResources();
   }
 }
