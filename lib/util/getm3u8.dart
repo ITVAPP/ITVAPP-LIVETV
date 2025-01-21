@@ -942,7 +942,7 @@ class GetM3U8 {
   }
 
 /// 注入M3U8检测器的JavaScript代码
-  Future<void> _injectM3U8Detector() async {
+Future<void> _injectM3U8Detector() async {
     if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
       LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
                 !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
@@ -998,6 +998,9 @@ class GetM3U8 {
         let observer = null;
         const MAX_RECURSION_DEPTH = 3;
 
+        // 添加节点缓存，避免重复扫描
+        const processedNodes = new WeakSet();
+        
         // URL处理函数
         function processM3U8Url(url, depth = 0) {
           if (!url || typeof url !== 'string') {
@@ -1086,6 +1089,12 @@ class GetM3U8 {
         function checkMediaElements(doc = document) {
           // 优先检查video元素
           doc.querySelectorAll('video').forEach(element => {
+            // 跳过已处理的节点
+            if (processedNodes.has(element)) {
+              return;
+            }
+            processedNodes.add(element);
+
             // 首先检查video元素本身的source
             [element.src, element.currentSrc].forEach(src => {
               if (src) processM3U8Url(src, 0);
@@ -1093,8 +1102,11 @@ class GetM3U8 {
 
             // 检查source子元素
             element.querySelectorAll('source').forEach(source => {
-              const src = source.src || source.getAttribute('src');
-              if (src) processM3U8Url(src, 0);
+              if (!processedNodes.has(source)) {
+                processedNodes.add(source);
+                const src = source.src || source.getAttribute('src');
+                if (src) processM3U8Url(src, 0);
+              }
             });
 
             // 检查特定于文件类型的属性
@@ -1127,6 +1139,11 @@ class GetM3U8 {
           ].join(','));
 
           videoContainers.forEach(container => {
+            if (processedNodes.has(container)) {
+              return;
+            }
+            processedNodes.add(container);
+            
             // 检查所有data属性
             for (const attr of container.attributes) {
               if (attr.value) processM3U8Url(attr.value, 0);
@@ -1135,12 +1152,19 @@ class GetM3U8 {
 
           // 设置媒体元素变化监控
           doc.querySelectorAll('video,source').forEach(element => {
+            if (processedNodes.has(element)) {
+              return;
+            }
+            processedNodes.add(element);
+
             const elementObserver = new MutationObserver((mutations) => {
               mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes') {
                   const newValue = element.getAttribute(mutation.attributeName);
                   if (newValue) {
                     processM3U8Url(newValue, 0);
+                    // 属性变更时移除节点缓存，允许再次扫描
+                    processedNodes.delete(element);
                   }
                 }
               });
@@ -1164,6 +1188,11 @@ class GetM3U8 {
           ].join(','));
 
           elements.forEach(element => {
+            if (processedNodes.has(element)) {
+              return;
+            }
+            processedNodes.add(element);
+
             for (const attr of ['href', 'src', 'data-src']) {
               const value = element.getAttribute(attr);
               if (value) processM3U8Url(value, 0);
@@ -1172,6 +1201,11 @@ class GetM3U8 {
 
           // 扫描script标签中的内容
           document.querySelectorAll('script:not([src])').forEach(script => {
+            if (processedNodes.has(script)) {
+              return;
+            }
+            processedNodes.add(script);
+
             const content = script.textContent;
             if (content) {
               const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
@@ -1195,14 +1229,18 @@ class GetM3U8 {
                 if (node.tagName === 'VIDEO' ||
                     node.tagName === 'SOURCE' ||
                     node.matches('[class*="video"], [class*="player"]')) {
+                  processedNodes.delete(node); // 新节点允许扫描
                   checkMediaElements(node.parentNode);
                 }
 
                 // 检查新添加元素的所有属性
                 if (node instanceof Element) {
-                  for (const attr of node.attributes) {
-                    if (attr.value) {
-                      processM3U8Url(attr.value, 0);
+                  if (!processedNodes.has(node)) {
+                    processedNodes.add(node);
+                    for (const attr of node.attributes) {
+                      if (attr.value) {
+                        processM3U8Url(attr.value, 0);
+                      }
                     }
                   }
                 }
@@ -1211,7 +1249,9 @@ class GetM3U8 {
 
             // 处理属性变化
             if (mutation.type === 'attributes') {
-              const newValue = mutation.target.getAttribute(mutation.attributeName);
+              const target = mutation.target;
+              processedNodes.delete(target); // 属性变化时移除缓存
+              const newValue = target.getAttribute(mutation.attributeName);
               if (newValue) {
                 processM3U8Url(newValue, 0);
               }
@@ -1266,7 +1306,7 @@ class GetM3U8 {
       LogUtil.logError('执行JS代码时发生错误', e, stackTrace);
       rethrow;
     }
-  }
+}
 
 /// 释放资源
 Future<void> dispose() async {
