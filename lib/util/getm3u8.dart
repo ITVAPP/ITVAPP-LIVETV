@@ -943,8 +943,8 @@ class GetM3U8 {
     _m3u8Found = false;
   }
 
-  /// 注入M3U8检测器的JavaScript代码
-  void _injectM3U8Detector() {
+/// 注入M3U8检测器的JavaScript代码
+Future<void> _injectM3U8Detector() async {
     if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
       LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
                 !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
