@@ -937,7 +937,6 @@ class GetM3U8 {
     _m3u8Found = false;
   }
 
-/// 注入M3U8检测器的JavaScript代码
 Future<void> _injectM3U8Detector() async {
   if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
     LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
@@ -948,9 +947,6 @@ Future<void> _injectM3U8Detector() async {
 
   LogUtil.i('开始注入m3u8检测器JS代码');
   
-  // 获取当前的时间差
-  final timeOffset = _cachedTimeOffset ?? 0;
-  
   final jsCode = '''
     (function() {
       // 避免重复初始化
@@ -958,33 +954,6 @@ Future<void> _injectM3U8Detector() async {
         return;
       }
       window._m3u8DetectorInitialized = true;
-
-      // 劫持时间获取方法
-      const timeOffset = ${timeOffset};
-      const originalDate = window.Date;
-      
-      function getAdjustedTime() {
-        const now = new originalDate();
-        return new originalDate(now.getTime() + timeOffset);
-      }
-      
-      // 替换原生Date对象
-      window.Date = function() {
-        if (arguments.length === 0) {
-          return getAdjustedTime();
-        }
-        return new originalDate(...arguments);
-      };
-      
-      // 继承原型链
-      window.Date.prototype = originalDate.prototype;
-      window.Date.now = function() {
-        return getAdjustedTime().getTime();
-      };
-      
-      // 保持原始的静态方法
-      window.Date.parse = originalDate.parse;
-      window.Date.UTC = originalDate.UTC;
 
       // 已处理的URL缓存 
       const processedUrls = new Set();
@@ -996,7 +965,7 @@ Future<void> _injectM3U8Detector() async {
       // 全局变量
       let observer = null;
 
-      // URL处理函数 - 简化并专注于文件类型检测
+      // URL处理函数
       function processM3U8Url(url) {
         if (!url || typeof url !== 'string' || processedUrls.has(url)) {
           return;
