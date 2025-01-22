@@ -953,305 +953,206 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     return completer.future;
   }
 
-  String _prepareM3U8DetectorCode() {
-    return '''
-    (function() {
-      // 避免重复初始化
-      if (window._m3u8DetectorInitialized) return;
-      window._m3u8DetectorInitialized = true;
+String _prepareM3U8DetectorCode() {
+  return '''
+  (function() {
+    if (window._m3u8DetectorInitialized) return;
+    window._m3u8DetectorInitialized = true;
 
-      // 视频流处理函数
-      function processVideoUrl(url, source = '') {
-        if (!url || typeof url !== 'string') return;
-        
-        try {
-          // 处理相对路径
-          if (url.startsWith('/')) {
-            url = window.location.origin + url;
-          } else if (!url.startsWith('http')) {
-            url = new URL(url, window.location.href).toString();
-          }
+    const processedUrls = new Set();
+    const MAX_CACHE_SIZE = 88;
+    const MAX_RECURSION_DEPTH = 3;
+    let observer = null;
 
-          if (processedUrls.has(url)) return;
+    function processVideoUrl(url, depth = 0) {
+      if (!url || typeof url !== 'string') return;
+      
+      if (url.startsWith('/')) {
+        const baseUrl = new URL(window.location.href);
+        url = baseUrl.protocol + '//' + baseUrl.host + url;
+      } else if (!url.startsWith('http')) {
+        const baseUrl = new URL(window.location.href);
+        url = new URL(url, baseUrl).toString();
+      }
 
-          // 处理base64编码URL
-          if (url.includes('base64,')) {
-            try {
-              const base64Content = url.split('base64,')[1];
-              const decodedContent = atob(base64Content);
-              if (decodedContent.includes('.' + '${_filePattern}')) {
-                processVideoUrl(decodedContent, 'base64-content');
-              }
-            } catch(e) {
-              console.error('Base64解码失败:', e);
-            }
-          }
+      if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
+      
+      if (processedUrls.size > MAX_CACHE_SIZE) {
+        processedUrls.clear();
+      }
 
-          if (url.includes('.' + '${_filePattern}')) {
-            processedUrls.add(url);
-            window.M3U8Detector.postMessage(JSON.stringify({
-              type: 'url',
-              url: url,
-              source: source
-            }));
-          }
-        } catch (e) {
-          console.error('处理URL失败:', e);
+      if (url.includes('base64,')) {
+        const base64Content = url.split('base64,')[1];
+        const decodedContent = atob(base64Content);
+        if (decodedContent.includes('.' + '${_filePattern}')) {
+          processVideoUrl(decodedContent, depth + 1);
         }
       }
 
-      // 缓存处理
-      const processedUrls = new Set();
-      const MAX_CACHE_SIZE = 88;
+      if (url.includes('.' + '${_filePattern}')) {
+        processedUrls.add(url);
+        window.M3U8Detector.postMessage(url);
+      }
+    }
 
-      // MediaSource拦截
-      if (window.MediaSource) {
-        const OriginalMediaSource = window.MediaSource;
-        window.MediaSource = function(...args) {
-          const ms = new OriginalMediaSource(...args);
-          
-          // 监听关键事件
-          ['sourceopen', 'sourceended', 'sourceclose'].forEach(event => {
-            ms.addEventListener(event, () => {
-              if (ms.url) processVideoUrl(ms.url, 'MediaSource-' + event);
-            });
-          });
-
-          // 监听 addSourceBuffer
-          const originalAddSourceBuffer = ms.addSourceBuffer;
-          ms.addSourceBuffer = function(mimeType) {
-            const supportedTypes = {
-              'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-              'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
-              'mp4': ['video/mp4', 'application/mp4']
-            };
-
-            const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
-            if (currentSupportedTypes.some(type => mimeType.includes(type)) && this.url) {
-              processVideoUrl(this.url, 'MediaSource-addSourceBuffer');
-            }
-
-            return originalAddSourceBuffer.call(this, mimeType);
-          };
-          
-          return ms;
+    if (window.MediaSource) {
+      const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      MediaSource.prototype.addSourceBuffer = function(mimeType) {
+        const supportedTypes = {
+          'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+          'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
+          'mp4': ['video/mp4', 'application/mp4']
         };
-        
-        window.MediaSource.prototype = OriginalMediaSource.prototype;
-      }
 
-      // 网络请求监听
-      const originalFetch = window.fetch;
-      window.fetch = function(input, init = {}) {
-        try {
-          const url = input instanceof Request ? input.url : input;
-          processVideoUrl(url, 'fetch');
-          
-          return originalFetch.apply(this, arguments).then(response => {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('mpegurl')) {
-              processVideoUrl(url, 'fetch-response');
-            }
-            return response;
-          });
-        } catch (e) {
-          return originalFetch.apply(this, arguments);
+        const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
+        if (currentSupportedTypes.some(type => mimeType.includes(type))) {
+          processVideoUrl(this.url, 0);
         }
+        return originalAddSourceBuffer.call(this, mimeType);
       };
-
-      // XHR监听
-      const XHR = XMLHttpRequest.prototype;
-      const originalOpen = XHR.open;
-      const originalSend = XHR.send;
-      
-      XHR.open = function() {
-        this._url = arguments[1];
-        return originalOpen.apply(this, arguments);
-      };
-      
-      XHR.send = function() {
-        if (this._url) {
-          processVideoUrl(this._url, 'xhr');
-          this.addEventListener('readystatechange', () => {
-            if (this.readyState === 4) {
-              const contentType = this.getResponseHeader('content-type');
-              if (contentType && contentType.includes('mpegurl')) {
-                processVideoUrl(this._url, 'xhr-response');
-              }
-            }
-          });
-        }
-        return originalSend.apply(this, arguments);
-      };
-
-      // 检查视频元素
-function checkMediaElements(doc = document) {
-    // 快速预检查 - 判断页面内容是否包含目标扩展名
-    const pageContent = doc.documentElement.innerHTML;
-    if (!pageContent.includes('.' + _filePattern)) {
-        LogUtil.i(`页面不包含.${_filePattern}，跳过检查`);
-        return;
     }
 
-    // 1. 检查所有元素（不限于视频元素和容器）
-    doc.querySelectorAll('*').forEach(element => {
-        // 检查元素的所有属性
-        Array.from(element.attributes).forEach(attr => {
-            if (attr.value) processVideoUrl(attr.value, 'element-attribute');
+    const XHR = XMLHttpRequest.prototype;
+    const originalOpen = XHR.open;
+    const originalSend = XHR.send;
+
+    XHR.open = function() {
+      this._url = arguments[1];
+      return originalOpen.apply(this, arguments);
+    };
+
+    XHR.send = function() {
+      if (this._url) processVideoUrl(this._url, 0);
+      return originalSend.apply(this, arguments);
+    };
+
+    const originalFetch = window.fetch;
+    window.fetch = function(input) {
+      const url = (input instanceof Request) ? input.url : input;
+      processVideoUrl(url, 0);
+      return originalFetch.apply(this, arguments);
+    };
+
+    function checkMediaElements(doc = document) {
+      doc.querySelectorAll('video').forEach(element => {
+        [element.src, element.currentSrc].forEach(src => {
+          if (src) processVideoUrl(src, 0);
         });
 
-        // 检查元素的文本内容
-        if (element.textContent) {
-            const text = element.textContent;
-            // 使用正则表达式匹配可能的URL
-            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
-            let match;
-            while ((match = urlPattern.exec(text)) !== null) {
-                processVideoUrl(match[0], 'element-text');
-            }
-        }
-    });
-
-    // 2. 检查所有脚本内容
-    doc.querySelectorAll('script').forEach(script => {
-        if (script.textContent && script.textContent.includes('.' + _filePattern)) {
-            const text = script.textContent;
-            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
-            let match;
-            while ((match = urlPattern.exec(text)) !== null) {
-                processVideoUrl(match[0], 'script-content');
-            }
-        }
-    });
-
-    // 3. 检查注释节点
-    const walker = document.createTreeWalker(
-        doc,
-        NodeFilter.SHOW_COMMENT,
-        null,
-        false
-    );
-    
-    while (walker.nextNode()) {
-        const commentText = walker.currentNode.textContent;
-        if (commentText && commentText.includes('.' + _filePattern)) {
-            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
-            let match;
-            while ((match = urlPattern.exec(commentText)) !== null) {
-                processVideoUrl(match[0], 'comment-node');
-            }
-        }
-    }
-}
-
-        // 高效的DOM扫描
-        function efficientDOMScan() {
-          // 优先扫描明显的链接
-          const elements = document.querySelectorAll([
-            'a[href*="${_filePattern}"]',
-            'source[src*="${_filePattern}"]',
-            'video[src*="${_filePattern}"]',
-            '[data-src*="${_filePattern}"]'
-          ].join(','));
-
-          elements.forEach(element => {
-            for (const attr of ['href', 'src', 'data-src']) {
-              const value = element.getAttribute(attr);
-              if (value) processM3U8Url(value, 0);
-            }
-          });
-
-          // 扫描script标签中的内容
-          document.querySelectorAll('script:not([src])').forEach(script => {
-            const content = script.textContent;
-            if (content) {
-              const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
-              const matches = content.match(urlRegex);
-              if (matches) {
-                matches.forEach(match => {
-                  processM3U8Url(match, 0);
-                });
-              }
-            }
-          });
-        }
-        
-      // DOM变化监听
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
-            if (node.nodeType === 1) {
-              if (node.tagName === 'VIDEO' ||
-                  node.tagName === 'SOURCE' ||
-                  node.matches('[class*="video"], [class*="player"]')) {
-                checkMediaElements(node.parentNode || document);
-              }
-
-              if (node instanceof Element) {
-                Array.from(node.attributes).forEach(attr => {
-                  if (attr.value) processVideoUrl(attr.value, 'new-node-attribute');
-                });
-              }
-            }
-          });
-
-          if (mutation.type === 'attributes') {
-            const newValue = mutation.target.getAttribute(mutation.attributeName);
-            if (newValue) processVideoUrl(newValue, 'attribute-change');
-          }
+        element.querySelectorAll('source').forEach(source => {
+          const src = source.src || source.getAttribute('src');
+          if (src) processVideoUrl(src, 0);
         });
-      });
 
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: [
-          'src', 'href', 'data-src',
-          'currentSrc',
+        const fileTypeAttributes = [
+          'src', 'data-src',
           `data-${_filePattern}`,
           `${_filePattern}-url`,
-          `data-${_filePattern}-url`
-        ]
+          `data-${_filePattern}-url`,
+          'data-video-url'
+        ];
+
+        fileTypeAttributes.forEach(attr => {
+          const value = element.getAttribute(attr);
+          if (value) processVideoUrl(value, 0);
+        });
       });
 
-      // 定时扫描
-      function periodicScan() {
-        if (processedUrls.size > MAX_CACHE_SIZE) {
-          processedUrls.clear();
+      const videoContainers = doc.querySelectorAll([
+        '[class*="video"]',
+        '[class*="player"]',
+        '[id*="video"]',
+        '[id*="player"]',
+        `[class*="${_filePattern}"]`,
+        `[id*="${_filePattern}"]`,
+        `[data-${_filePattern}]`,
+        `[data-video-type="${_filePattern}"]`
+      ].join(','));
+
+      videoContainers.forEach(container => {
+        for (const attr of container.attributes) {
+          if (attr.value) processVideoUrl(attr.value, 0);
         }
+      });
+    }
+
+    function efficientDOMScan() {
+      const elements = document.querySelectorAll([
+        `a[href*="${_filePattern}"]`,
+        `source[src*="${_filePattern}"]`,
+        `video[src*="${_filePattern}"]`,
+        `[data-src*="${_filePattern}"]`
+      ].join(','));
+
+      elements.forEach(element => {
+        ['href', 'src', 'data-src'].forEach(attr => {
+          const value = element.getAttribute(attr);
+          if (value) processVideoUrl(value, 0);
+        });
+      });
+
+      document.querySelectorAll('script:not([src])').forEach(script => {
+        if (script.textContent) {
+          const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
+          const matches = script.textContent.match(urlRegex);
+          if (matches) matches.forEach(match => processVideoUrl(match, 0));
+        }
+      });
+    }
+
+    observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === 1) {
+            if (node.tagName === 'VIDEO' ||
+                node.tagName === 'SOURCE' ||
+                node.matches('[class*="video"], [class*="player"]')) {
+              checkMediaElements(node.parentNode);
+            }
+            if (node instanceof Element) {
+              for (const attr of node.attributes) {
+                if (attr.value) processVideoUrl(attr.value, 0);
+              }
+            }
+          }
+        });
+
+        if (mutation.type === 'attributes') {
+          const newValue = mutation.target.getAttribute(mutation.attributeName);
+          if (newValue) processVideoUrl(newValue, 0);
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        'src', 'href', 'data-src', 'currentSrc',
+        `data-${_filePattern}`,
+        `${_filePattern}-url`,
+        `data-${_filePattern}-url`
+      ]
+    });
+
+    let urlChangeTimeout = null;
+    const handleUrlChange = () => {
+      if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
+      urlChangeTimeout = setTimeout(() => {
         checkMediaElements(document);
-      }
+        efficientDOMScan();
+      }, 100);
+    };
 
-      const scanInterval = setInterval(periodicScan, 1000);
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
 
-      // URL变化监听
-      window.addEventListener('popstate', periodicScan);
-      window.addEventListener('hashchange', periodicScan);
-
-      // 初始扫描
-      checkMediaElements(document);
-
-      // 清理函数
-      window._cleanupM3U8Detector = () => {
-        observer.disconnect();
-        clearInterval(scanInterval);
-        if (window.MediaSource) window.MediaSource = OriginalMediaSource;
-        window.fetch = originalFetch;
-        XHR.open = originalOpen;
-        XHR.send = originalSend;
-        window.removeEventListener('popstate', periodicScan);
-        window.removeEventListener('hashchange', periodicScan);
-        processedUrls.clear();
-        delete window._m3u8DetectorInitialized;
-        delete window._cleanupM3U8Detector;
-      };
-
-      // 初始化完成通知
-      window.M3U8Detector.postMessage(JSON.stringify({type:'init'}));
-    })();
+    checkMediaElements(document);
+    efficientDOMScan();
+  })();
   ''';
-  }
+}
   
   /// 启动超时计时器
   void _startTimeout(Completer<String> completer) {
