@@ -661,48 +661,29 @@ class GetM3U8 {
                  }
                }
              },
-            onNavigationRequest: (NavigationRequest request) {
-              LogUtil.i('页面导航请求: ${request.url}');
-              final uri = Uri.tryParse(request.url);
-              if (uri == null) {
-                LogUtil.i('无效的URL，阻止加载');
-                return NavigationDecision.prevent;
-              }
+onNavigationRequest: (NavigationRequest request) {
+ LogUtil.i('页面导航请求: ${request.url}');
+ 
+ // 先过滤掉明显的图片等静态资源
+ final resourceExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', 
+                     '.css', '.woff', '.woff2', '.ttf', '.eot',
+                     '.ico', '.svg', '.mp3', '.wav', 
+                     '.pdf', '.doc', '.docx', '.swf', '.xml'];
+                     
+ if(resourceExt.any((ext) => request.url.toLowerCase().contains(ext))) {
+   return NavigationDecision.prevent;
+ }
 
-              // 1. 检查是否是需要阻止的资源
-              try {
-                final extension = uri.path.toLowerCase().split('.').last;
-                final blockedExtensions = [
-                  'jpg', 'jpeg', 'png', 'gif', 'webp',
-                  'css', 'woff', 'woff2', 'ttf', 'eot',
-                  'ico', 'svg', 'mp3', 'wav',
-                  'pdf', 'doc', 'docx', 'swf','xml',
-                ];
+ // 检查是否包含目标文件类型(如.m3u8)                    
+ if(request.url.toLowerCase().contains('.' + filePattern.toLowerCase())) {
+   LogUtil.i('发现目标文件: ${request.url}');
+   _handleM3U8Found(request.url, completer);
+   return NavigationDecision.prevent;
+ }
 
-                if (blockedExtensions.contains(extension)) {
-                  return NavigationDecision.prevent;
-                }
-              } catch (e) {
-                // 如果获取扩展名失败，继续处理
-              }
-
-              // 2. 检查是否为目标资源
-              try {
-                final lowercasePath = uri.path.toLowerCase();
-                if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
-                  // 如果是目标资源，收集地址但不加载
-                  _controller.runJavaScript(
-                    'window.M3U8Detector?.postMessage("${request.url}");'
-                  ).catchError((_) {});
-                  return NavigationDecision.prevent;  // 阻止加载目标资源
-                }
-              } catch (e) {
-                LogUtil.e('URL检查失败: $e');
-              }
-
-              // 3. 允许其他所有请求通过
-              return NavigationDecision.navigate;
-            },
+ // 允许其他请求通过
+ return NavigationDecision.navigate;
+},
             onPageFinished: (String url) async {
                // 检查此URL是否已经触发过页面加载完成
                 if (!isHashRoute && _pageLoadedStatus[url] == true) {
@@ -972,49 +953,264 @@ Future<void> _injectM3U8Detector() async {
         }
       }
 
-      // XHR请求监听
+      // 【新增】网络请求监听 - Fetch API
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init = {}) {
+        try {
+          const url = input instanceof Request ? input.url : input;
+          processM3U8Url(url);
+          
+          return originalFetch.apply(this, arguments).then(response => {
+            const contentType = response.headers.get('content-type');
+            if (contentType && (
+              contentType.includes('mpegurl') || 
+              contentType.includes('vnd.apple.mpegurl') ||
+              contentType.includes('x-mpegurl')
+            )) {
+              processM3U8Url(url);
+              // 检查重定向后的URL
+              processM3U8Url(response.url);
+            }
+            return response;
+          }).catch(error => {
+            throw error;
+          });
+        } catch (e) {
+          return originalFetch.apply(this, arguments);
+        }
+      };
+
+      // 【新增】XHR监听
       const XHR = XMLHttpRequest.prototype;
       const originalOpen = XHR.open;
       const originalSend = XHR.send;
 
+      // 存储活跃的XHR请求，用于清理
+      window._activeXhrs = window._activeXhrs || [];
+
       XHR.open = function() {
-        const url = arguments[1];
-        processM3U8Url(url);
+        this._url = arguments[1];
         return originalOpen.apply(this, arguments);
       };
 
       XHR.send = function() {
+        if (this._url) {
+          processM3U8Url(this._url);
+          
+          // 添加到活跃请求列表
+          window._activeXhrs.push(this);
+          
+          // 请求完成时从活跃列表移除
+          const onComplete = () => {
+            const index = window._activeXhrs.indexOf(this);
+            if (index > -1) {
+              window._activeXhrs.splice(index, 1);
+            }
+          };
+          
+          this.addEventListener('readystatechange', () => {
+            if (this.readyState === 4) {
+              const contentType = this.getResponseHeader('content-type');
+              if (contentType && (
+                contentType.includes('mpegurl') || 
+                contentType.includes('vnd.apple.mpegurl') ||
+                contentType.includes('x-mpegurl')
+              )) {
+                processM3U8Url(this._url);
+                
+                // 检查重定向后的URL
+                const responseURL = this.responseURL;
+                if (responseURL && responseURL !== this._url) {
+                  processM3U8Url(responseURL);
+                }
+              }
+              onComplete();
+            }
+          });
+          
+          // 处理错误和中止事件
+          this.addEventListener('error', onComplete);
+          this.addEventListener('abort', onComplete);
+        }
         return originalSend.apply(this, arguments);
       };
 
-      // Fetch请求监听
-      const originalFetch = window.fetch;
-      window.fetch = function(input) {
-        const url = (input instanceof Request) ? input.url : input;
-        processM3U8Url(url);
-        return originalFetch.apply(this, arguments);
-      };
-
-      // MediaSource监听
+      // 增强的MediaSource监听
       if (window.MediaSource) {
-        const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-        MediaSource.prototype.addSourceBuffer = function(mimeType) {
-          processM3U8Url(this.url);
-          return originalAddSourceBuffer.call(this, mimeType);
+        const originalCreateObjectURL = URL.createObjectURL;
+        const originalRevokeObjectURL = URL.revokeObjectURL;
+        const activeMediaSources = new Set();
+
+        // 重写createObjectURL以捕获MediaSource实例
+        URL.createObjectURL = function(obj) {
+          if (obj instanceof MediaSource) {
+            activeMediaSources.add(obj);
+            
+            // 监听sourceopen事件
+            obj.addEventListener('sourceopen', function() {
+              const sourceBuffers = obj.sourceBuffers;
+              for (let i = 0; i < sourceBuffers.length; i++) {
+                const buffer = sourceBuffers[i];
+                if (buffer.mode) {
+                  processM3U8Url(buffer.mode);
+                }
+                // 检查任何可能的segment URLs
+                if (buffer.buffered && buffer.buffered.length > 0) {
+                  processM3U8Url(buffer.buffered.end(0).toString());
+                }
+              }
+            });
+
+            // 监听sourceended事件
+            obj.addEventListener('sourceended', function() {
+              const sourceBuffers = obj.sourceBuffers;
+              for (let i = 0; i < sourceBuffers.length; i++) {
+                const buffer = sourceBuffers[i];
+                if (buffer.buffered && buffer.buffered.length > 0) {
+                  processM3U8Url(buffer.buffered.end(buffer.buffered.length - 1).toString());
+                }
+              }
+            });
+
+            // 监听addSourceBuffer方法
+            const originalAddSourceBuffer = obj.addSourceBuffer;
+            obj.addSourceBuffer = function(mimeType) {
+              const buffer = originalAddSourceBuffer.call(this, mimeType);
+              
+              // 监听update事件
+              buffer.addEventListener('update', function() {
+                if (buffer.updating) {
+                  try {
+                    const segments = buffer.buffered;
+                    for (let i = 0; i < segments.length; i++) {
+                      const start = segments.start(i);
+                      const end = segments.end(i);
+                      // 检查segment URL模式
+                      const potentialUrl = window.location.href.replace(/\\/[^/]*$/, '/') + 'segment_' + Math.floor(start) + '_' + Math.floor(end) + '.ts';
+                      processM3U8Url(potentialUrl);
+                    }
+                  } catch (e) {}
+                }
+              });
+
+              // 监听updateend事件
+              buffer.addEventListener('updateend', function() {
+                // 检查音频轨道
+                if (this.audioTracks) {
+                  this.audioTracks.forEach(track => {
+                    if (track.src) processM3U8Url(track.src);
+                    if (track.sourceBuffer && track.sourceBuffer.mode) {
+                      processM3U8Url(track.sourceBuffer.mode);
+                    }
+                  });
+                }
+                // 检查视频轨道
+                if (this.videoTracks) {
+                  this.videoTracks.forEach(track => {
+                    if (track.src) processM3U8Url(track.src);
+                    if (track.sourceBuffer && track.sourceBuffer.mode) {
+                      processM3U8Url(track.sourceBuffer.mode);
+                    }
+                  });
+                }
+              });
+
+              return buffer;
+            };
+          }
+          return originalCreateObjectURL.call(this, obj);
+        };
+
+        // 重写revokeObjectURL以清理MediaSource实例
+        URL.revokeObjectURL = function(url) {
+          activeMediaSources.forEach(ms => {
+            if (ms.readyState === 'open') {
+              try {
+                ms.endOfStream();
+              } catch (e) {}
+            }
+          });
+          return originalRevokeObjectURL.call(this, url);
         };
       }
 
-      // 监听DOM变化，检查新增节点中的地址
+      // 监听所有媒体元素
+      function observeMediaElements() {
+        const mediaElements = document.querySelectorAll('video, audio');
+        mediaElements.forEach(media => {
+          if (!media._observed) {
+            media._observed = true;
+            
+            // 监听source元素变化
+            const observer = new MutationObserver(mutations => {
+              mutations.forEach(mutation => {
+                if (mutation.type === 'childList') {
+                  mutation.addedNodes.forEach(node => {
+                    if (node.nodeName === 'SOURCE') {
+                      processM3U8Url(node.src);
+                    }
+                  });
+                } else if (mutation.type === 'attributes') {
+                  if (mutation.attributeName === 'src') {
+                    processM3U8Url(media.src);
+                  }
+                }
+              });
+            });
+            
+            observer.observe(media, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['src']
+            });
+
+            // 监听media事件
+            ['loadstart', 'loadedmetadata', 'play', 'playing', 'canplay', 'canplaythrough'].forEach(event => {
+              media.addEventListener(event, () => {
+                processM3U8Url(media.src);
+                processM3U8Url(media.currentSrc);
+                if (media.srcObject instanceof MediaSource) {
+                  try {
+                    const url = URL.createObjectURL(media.srcObject);
+                    processM3U8Url(url);
+                  } catch (e) {}
+                }
+                Array.from(media.querySelectorAll('source')).forEach(source => {
+                  processM3U8Url(source.src);
+                });
+              });
+            });
+          }
+        });
+      }
+
+      // 定期检查新的媒体元素
+      const mediaObserverInterval = setInterval(observeMediaElements, 1000);
+
+      // 监听DOM变化
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
+          // 处理属性变化
+          if (mutation.type === 'attributes') {
+            Array.from(mutation.target.attributes).forEach(attr => {
+              const value = attr.value;
+              if (value && typeof value === 'string') {
+                processM3U8Url(value);
+              }
+            });
+          }
+
+          // 处理节点添加
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const elements = node.querySelectorAll('*');
               elements.forEach((element) => {
-                // 检查所有可能包含URL的属性
-                ['src', 'data-src', 'href', 'data-url'].forEach((attr) => {
-                  if (element.hasAttribute(attr)) {
-                    processM3U8Url(element.getAttribute(attr));
+                // 检查元素的所有属性
+                Array.from(element.attributes).forEach(attr => {
+                  const value = attr.value;
+                  if (value && typeof value === 'string') {
+                    processM3U8Url(value);
                   }
                 });
               });
@@ -1026,12 +1222,27 @@ Future<void> _injectM3U8Detector() async {
       // 启动观察器
       observer.observe(document.documentElement, {
         childList: true,
-        subtree: true
+        subtree: true,
+        attributes: true
       });
 
       // 清理函数
       window._cleanupM3U8Detector = function() {
         observer.disconnect();
+        clearInterval(mediaObserverInterval);
+        processedUrls.clear();
+        activeMediaSources?.clear();
+        // 【新增】清理活跃的XHR请求
+        if (window._activeXhrs) {
+          window._activeXhrs.forEach(xhr => {
+            try {
+              xhr.abort();
+            } catch (e) {
+              console.error('中止XHR请求时发生错误:', e);
+            }
+          });
+          window._activeXhrs = [];
+        }
       };
 
     })();
