@@ -673,13 +673,17 @@ class GetM3U8 {
              //    }
          //      }
          //    },
-        onPageStarted: (String url) async {
-          // 页面开始加载时注入检测器
-          for (final script in initScripts) {
-            await _controller.runJavaScript(script);
-            LogUtil.i('注入脚本成功');
-          }
-        },
+onPageStarted: (String url) async {
+  LogUtil.i('页面开始加载: $url');
+  // 移除判断，确保每次都注入
+  try {
+    await _injectM3U8Detector();
+    _isDetectorInjected = true;
+    LogUtil.i('JS注入成功');
+  } catch (e) {
+    LogUtil.e('JS注入失败: $e');
+  }
+},
             onNavigationRequest: (NavigationRequest request) {
               LogUtil.i('页面导航请求: ${request.url}');
               final uri = Uri.tryParse(request.url);
