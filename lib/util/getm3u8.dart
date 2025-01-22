@@ -1040,6 +1040,35 @@ Future<void> _injectM3U8Detector() async {
         const originalCreateObjectURL = URL.createObjectURL;
         const originalRevokeObjectURL = URL.revokeObjectURL;
         const activeMediaSources = new Set();
+        
+        // 处理buffer范围的公共函数
+        function processBufferRanges(buffer, errorContext = '处理buffer') {
+          if (!buffer.buffered || buffer.buffered.length === 0) return;
+          
+          try {
+            for (let i = 0; i < buffer.buffered.length; i++) {
+              const start = buffer.buffered.start(i);
+              const end = buffer.buffered.end(i);
+              const prefix = window.location.href.replace(/\/[^/]*\$/, '/');
+              const potentialUrl = `${prefix}stream_${Math.floor(start)}_${Math.floor(end)}.${_filePattern}`;
+              processM3U8Url(potentialUrl);
+            }
+          } catch (e) {
+            console.error(`${errorContext}时发生错误:`, e);
+          }
+        }
+
+        // 处理所有sourceBuffers的公共函数
+        function processSourceBuffers(mediaSource) {
+          const sourceBuffers = mediaSource.sourceBuffers;
+          for (let i = 0; i < sourceBuffers.length; i++) {
+            const buffer = sourceBuffers[i];
+            if (buffer.mode) {
+              processM3U8Url(buffer.mode);
+            }
+            processBufferRanges(buffer);
+          }
+        }
 
         // 重写createObjectURL以捕获MediaSource实例
         URL.createObjectURL = function(obj) {
@@ -1047,51 +1076,13 @@ Future<void> _injectM3U8Detector() async {
             activeMediaSources.add(obj);
             
             // 监听sourceopen事件
-            obj.addEventListener('sourceopen', function() {
-              const sourceBuffers = obj.sourceBuffers;
-              for (let i = 0; i < sourceBuffers.length; i++) {
-                const buffer = sourceBuffers[i];
-                if (buffer.mode) {
-                  processM3U8Url(buffer.mode);
-                }
-                // 检查buffered范围
-                if (buffer.buffered && buffer.buffered.length > 0) {
-                  try {
-                    for (let j = 0; j < buffer.buffered.length; j++) {
-                      const start = buffer.buffered.start(j);
-                      const end = buffer.buffered.end(j);
-                      // 使用动态文件类型构造URL
-                      const prefix = window.location.href.replace(/\/[^/]*$/, '/');
-                      const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
-                                        '.' + '${_filePattern}';
-                      processM3U8Url(potentialUrl);
-                    }
-                  } catch (e) {
-                    console.error('处理buffer范围时发生错误:', e);
-                  }
-                }
-              }
-            });
+            obj.addEventListener('sourceopen', () => processSourceBuffers(obj));
 
             // 监听sourceended事件
-            obj.addEventListener('sourceended', function() {
+            obj.addEventListener('sourceended', () => {
               const sourceBuffers = obj.sourceBuffers;
               for (let i = 0; i < sourceBuffers.length; i++) {
-                const buffer = sourceBuffers[i];
-                // 检查最终的buffered范围
-                if (buffer.buffered && buffer.buffered.length > 0) {
-                  try {
-                    const length = buffer.buffered.length;
-                    const start = buffer.buffered.start(length - 1);
-                    const end = buffer.buffered.end(length - 1);
-                    const prefix = window.location.href.replace(/\/[^/]*$/, '/');
-                    const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
-                                      '.' + '${_filePattern}';
-                    processM3U8Url(potentialUrl);
-                  } catch (e) {
-                    console.error('处理结束buffer范围时发生错误:', e);
-                  }
-                }
+                processBufferRanges(sourceBuffers[i], '处理结束buffer');
               }
             });
 
@@ -1099,24 +1090,9 @@ Future<void> _injectM3U8Detector() async {
             const originalAddSourceBuffer = obj.addSourceBuffer;
             obj.addSourceBuffer = function(mimeType) {
               const buffer = originalAddSourceBuffer.call(this, mimeType);
-              
               buffer.addEventListener('updateend', () => {
-                if (buffer.buffered && buffer.buffered.length > 0) {
-                  try {
-                    for (let i = 0; i < buffer.buffered.length; i++) {
-                      const start = buffer.buffered.start(i);
-                      const end = buffer.buffered.end(i);
-                      const prefix = window.location.href.replace(/\/[^/]*$/, '/');
-                      const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
-                                        '.' + '${_filePattern}';
-                      processM3U8Url(potentialUrl);
-                    }
-                  } catch (e) {
-                    console.error('处理buffer更新时发生错误:', e);
-                  }
-                }
+                processBufferRanges(buffer, '处理buffer更新');
               });
-
               return buffer;
             };
           }
