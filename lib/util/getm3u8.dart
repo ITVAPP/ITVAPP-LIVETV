@@ -560,30 +560,60 @@ static Map<String, String> _parseSpecialRules(String rulesString) {
 Future<void> _initController(Completer<String> completer, String filePattern) async {
   try {
     LogUtil.i('开始初始化控制器');
-    
-    // 1. 先初始化 controller
+
+      // 先检查页面内容类型
+      final httpdata = await HttpUtil().getRequest<String>(url);
+      if (httpdata == null) {
+        LogUtil.e('HttpUtil 请求失败，未获取到数据');
+        _httpResponseContent = null;
+        completer.complete('ERROR');
+        return;
+      } else {
+        _httpResponseContent = httpdata;
+      } 
+
+      // 判断内容类型
+      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
+      _httpResponseContent = httpdata;
+      
+      // 非HTML内容直接处理
+      if (!isHashRoute && !_isHtmlContent) {
+        LogUtil.i('检测到非HTML内容，直接处理');
+        _isDetectorInjected = true;  // 标记为已注入，避免后续注入
+        _isControllerInitialized = true;
+        // 直接调用内容检查
+        final result = await _checkPageContent();
+        if (result != null) {
+          completer.complete(result);
+          return;
+        }
+        completer.complete('ERROR');
+        return;
+      }
+      
+    // 获取时间差并注入时间拦截器（对所有页面执行）
+    _cachedTimeOffset ??= await _getTimeOffset();
+      
+    // 初始化 controller
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(HeadersConfig.userAgent);
 
-    // 2. 检查内容和准备脚本 
+    // 检查内容和准备脚本 
     final List<String> initScripts = [];
+    initScripts.add(_prepareTimeInterceptorCode());
     
-    // 3. 添加基础运行时脚本(优先注入)
+    // 添加基础运行时脚本(优先注入)
     initScripts.add('''
       window._videoInit = false;
       window._processedUrls = new Set();
       window._m3u8Found = false;
     ''');
 
-    // 4. 获取时间差并注入时间拦截器（对所有页面执行）
-    _cachedTimeOffset ??= await _getTimeOffset();
-    initScripts.add(_prepareTimeInterceptorCode());
-
-    // 5. M3U8检测器核心脚本 
+    // M3U8检测器核心脚本 
     initScripts.add(_prepareM3U8DetectorCode());
 
-    // 6. 注册消息通道
+    // 注册消息通道
     _controller.addJavaScriptChannel(
       'M3U8Detector',
       onMessageReceived: (JavaScriptMessage message) {
@@ -600,7 +630,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       },
     );
     
-    // 7. 导航委托 
+    // 导航委托 
     _controller.setNavigationDelegate(
       NavigationDelegate(
         onPageStarted: (String url) async {
@@ -755,7 +785,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       ),
     );
     
-    // 8. 初始化完成
+    // 初始化完成
     _isControllerInitialized = true;
     await _loadUrlWithHeaders();
     LogUtil.i('WebViewController初始化完成');
@@ -1446,8 +1476,9 @@ function checkMediaElements(doc = document) {
 
     try {
       String? sampleResult;
+      
       // 如果是非 HTML 页面，直接使用 HttpUtil 获取的数据
-      if (!_isHtmlContent) {
+      if (!isHashRoute && !_isHtmlContent) {	
         if (_httpResponseContent == null) {
           LogUtil.e('非 HTML 页面数据为空，跳过检测');
           return null;
