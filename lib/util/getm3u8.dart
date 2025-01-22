@@ -702,7 +702,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         },
         onPageFinished: (String url) async {
           // 检查此URL是否已经触发过页面加载完成
-          if (_pageLoadedStatus[url] == true) {
+          if (!isHashRoute && _pageLoadedStatus[url] == true) {	
             LogUtil.i('本页面已经加载完成，跳过重复处理');
             return;
           }
@@ -1144,6 +1144,38 @@ function checkMediaElements(doc = document) {
     }
 }
 
+        // 高效的DOM扫描
+        function efficientDOMScan() {
+          // 优先扫描明显的链接
+          const elements = document.querySelectorAll([
+            'a[href*="${_filePattern}"]',
+            'source[src*="${_filePattern}"]',
+            'video[src*="${_filePattern}"]',
+            '[data-src*="${_filePattern}"]'
+          ].join(','));
+
+          elements.forEach(element => {
+            for (const attr of ['href', 'src', 'data-src']) {
+              const value = element.getAttribute(attr);
+              if (value) processM3U8Url(value, 0);
+            }
+          });
+
+          // 扫描script标签中的内容
+          document.querySelectorAll('script:not([src])').forEach(script => {
+            const content = script.textContent;
+            if (content) {
+              const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
+              const matches = content.match(urlRegex);
+              if (matches) {
+                matches.forEach(match => {
+                  processM3U8Url(match, 0);
+                });
+              }
+            }
+          });
+        }
+        
       // DOM变化监听
       const observer = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
