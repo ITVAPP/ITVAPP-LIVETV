@@ -78,23 +78,11 @@ class GetM3U8 {
   /// 已发现的URL集合
   final Set<String> _foundUrls = {};
 
-  /// 定期检查定时器
-  Timer? _periodicCheckTimer;
-
   /// 重试计数器
   int _retryCount = 0;
 
   /// 检测开始时间
   final DateTime _startTime = DateTime.now();
-
-  /// 检查次数统计
-  int _checkCount = 0;
-
-  /// 当前检查间隔(秒)
-  int _currentInterval = 1;
-
-  /// 最大检查间隔(秒)
-  static const int MAX_CHECK_INTERVAL = 3;
 
   /// 最大重试次数
   static const int MAX_RETRIES = 2;
@@ -779,11 +767,6 @@ class GetM3U8 {
                   await dispose();
                   return;
                 }
-
-                // 设置定期检查 - 仅在需要时执行
-                if (!_isDisposed && !_m3u8Found && _isDetectorInjected) {
-                  _setupPeriodicCheck();
-                }
               }
             },
             onWebResourceError: (WebResourceError error) async {
@@ -850,63 +833,6 @@ class GetM3U8 {
     }
   }
 
-  /// 设置定期检查
-  void _setupPeriodicCheck() {
-    // 如果已经有定时器在运行，或者已释放资源，或者已找到M3U8，则直接返回
-    if (_periodicCheckTimer != null || _isDisposed || _m3u8Found) {
-      LogUtil.i('跳过定期检查设置: ${_periodicCheckTimer != null ? "定时器已存在" : _isDisposed ? "已释放资源" : "已找到M3U8"}');
-      return;
-    }
-
-    // 创建新的定期检查定时器
-    _periodicCheckTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (timer) async {
-        // 如果已找到M3U8或已释放资源，取消定时器
-        if (_m3u8Found || _isDisposed) {
-          timer.cancel();
-          _periodicCheckTimer = null;
-          LogUtil.i('停止定期检查，原因: ${_m3u8Found ? "M3U8已找到" : "已释放资源"}');
-          return;
-        }
-
-        _checkCount++;
-        LogUtil.i('执行第$_checkCount次定期检查');
-
-        if (!_isControllerReady()) {
-          LogUtil.i('WebViewController未准备好，跳过本次检查');
-          return;
-        }
-
-        try {
-          // 如果JS检测器未注入，先注入
-          if (!_isDetectorInjected) {
-            await _injectM3U8Detector();
-            return;
-          }
-
-        // 调用JS端的扫描函数
-        await _controller.runJavaScript('''
-          if (window._m3u8DetectorInitialized) {
-              // 触发一次页面内容扫描
-              scanPageContent();
-          }
-        ''').catchError((error) {
-            LogUtil.e('执行扫描失败: $error');
-          });
-        } catch (e, stack) {
-          LogUtil.logError('定期检查执行出错', e, stack);
-        }
-
-        // 如果URL缓存过大，清理它
-        if (_foundUrls.length > MAX_CACHE_SIZE) {
-          _foundUrls.clear();
-          LogUtil.i('URL缓存达到上限，已清理');
-        }
-      },
-    );
-  }
-
   /// 启动超时计时器
   void _startTimeout(Completer<String> completer) {
     LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
@@ -937,236 +863,271 @@ class GetM3U8 {
     _m3u8Found = false;
   }
 
-/// 注入M3U8检测器的JavaScript代码
-Future<void> _injectM3U8Detector() async {
-  if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
-    LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
-              !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
-              'M3U8检测器已注入，跳过重复注入');
-    return;
-  }
+  /// 注入M3U8检测器的JavaScript代码
+  Future<void> _injectM3U8Detector() async {
+    if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
+      LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
+                !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
+                'M3U8检测器已注入，跳过重复注入');
+      return;
+    }
 
-  LogUtil.i('开始注入m3u8检测器JS代码');
-  
-  // 获取当前的时间差
-  final timeOffset = _cachedTimeOffset ?? 0;
-  
-  final jsCode = '''
-    (function() {
-      // 避免重复初始化
-      if (window._m3u8DetectorInitialized) {
-        return;
-      }
-      window._m3u8DetectorInitialized = true;
+    LogUtil.i('开始注入m3u8检测器JS代码');
+    
+    // 获取当前的时间差
+    final timeOffset = _cachedTimeOffset ?? 0;
+    
+    final jsCode = '''
+      (function() {
+        // 避免重复初始化
+        if (window._m3u8DetectorInitialized) {
+          return;
+        }
+        window._m3u8DetectorInitialized = true;
 
-      // 劫持时间获取方法
-      const timeOffset = ${timeOffset};
-      const originalDate = window.Date;
+        // 劫持时间获取方法
+        const timeOffset = ${timeOffset};
+        const originalDate = window.Date;
 
-      function getAdjustedTime() {
-        const now = new originalDate();
-        return new originalDate(now.getTime() + timeOffset);
-      }
-      
-      // 替换原生Date对象
-       window.Date = function(...args) {
-        if (args.length === 0) {
+        function getAdjustedTime() {
           const now = new originalDate();
           return new originalDate(now.getTime() + timeOffset);
-        } else if (args.length === 1) {
-          const arg = args[0];
-          if (arg instanceof originalDate) {
-            return new originalDate(arg.getTime());
-          } else if (typeof arg === 'number') {
-            const isTimestamp = arg > 1000000000000;
-            return new originalDate(isTimestamp ? arg : arg + timeOffset);
-          }
         }
-        return new originalDate(...args);
-      };
-
-      window.Date.prototype = originalDate.prototype;
-      window.Date.now = function() {
-        return originalDate.now() + timeOffset;
-      };
-      window.Date.parse = originalDate.parse;
-      window.Date.UTC = originalDate.UTC;
-
-      // 防止被修改
-      Object.defineProperty(window, 'Date', {
-        writable: false,
-        configurable: false
-      });
-
-      // 已处理的URL缓存 
-      const processedUrls = new Set();
-      const MAX_CACHE_SIZE = 88;
-      
-      // 记录已扫描的文本内容hash
-      let lastContentHash = '';
-
-      // 全局变量
-      let observer = null;
-
-      // URL处理函数 - 简化并专注于文件类型检测
-      function processM3U8Url(url) {
-        if (!url || typeof url !== 'string' || processedUrls.has(url)) {
-          return;
-        }
-
-        // 处理相对路径
-        if (url.startsWith('/')) {
-          const baseUrl = new URL(window.location.href);
-          url = baseUrl.protocol + '//' + baseUrl.host + url;
-        } else if (!url.startsWith('http')) {
-          const baseUrl = new URL(window.location.href);
-          url = new URL(url, baseUrl).toString();
-        }
-
-        // 如果缓存过大，清理它
-        if (processedUrls.size > MAX_CACHE_SIZE) {
-          processedUrls.clear();
-          lastContentHash = ''; // 清理URL缓存时也重置内容hash
-        }
-
-        // 核心判断：只关注是否包含目标文件类型
-        if (url.includes('.' + '${_filePattern}')) {
-          processedUrls.add(url);
-          window.M3U8Detector.postMessage(url);
-        }
-
-        // 处理base64编码的URL  
-        if (url.includes('base64,')) {
-          try {
-            const base64Content = url.split('base64,')[1];
-            const decodedContent = atob(base64Content);
-            if (decodedContent.includes('.' + '${_filePattern}')) {
-              const matches = decodedContent.match(new RegExp(`[^\\s'"]+\\.${_filePattern}[^\\s'"]*`, 'g'));
-              if (matches) {
-                matches.forEach(match => {
-                  if (!processedUrls.has(match)) {
-                    processedUrls.add(match);
-                    window.M3U8Detector.postMessage(match);
-                  }
-                });
-              }
+        
+        // 替换原生Date对象
+        window.Date = function(...args) {
+          if (args.length === 0) {
+            const now = new originalDate();
+            return new originalDate(now.getTime() + timeOffset);
+          } else if (args.length === 1) {
+            const arg = args[0];
+            if (arg instanceof originalDate) {
+              return new originalDate(arg.getTime());
+            } else if (typeof arg === 'number') {
+              const isTimestamp = arg > 1000000000000;
+              return new originalDate(isTimestamp ? arg : arg + timeOffset);
             }
-          } catch (e) {
-            console.error('Base64解码失败:', e);
+          }
+          return new originalDate(...args);
+        };
+
+        window.Date.prototype = originalDate.prototype;
+        window.Date.now = function() {
+          return originalDate.now() + timeOffset;
+        };
+        window.Date.parse = originalDate.parse;
+        window.Date.UTC = originalDate.UTC;
+
+        // 防止被修改
+        Object.defineProperty(window, 'Date', {
+          writable: false,
+          configurable: false
+        });
+
+        // 已处理的URL缓存 
+        const processedUrls = new Set();
+        const MAX_CACHE_SIZE = 88;
+        
+        // 记录已扫描的文本内容hash
+        let lastContentHash = '';
+
+        // 全局变量
+        let observer = null;
+        let autoScanInterval = null;
+
+        // URL处理函数
+        function processM3U8Url(url) {
+          if (!url || typeof url !== 'string' || processedUrls.has(url)) {
+            return;
+          }
+
+          // 处理相对路径
+          if (url.startsWith('/')) {
+            const baseUrl = new URL(window.location.href);
+            url = baseUrl.protocol + '//' + baseUrl.host + url;
+          } else if (!url.startsWith('http')) {
+            const baseUrl = new URL(window.location.href);
+            url = new URL(url, baseUrl).toString();
+          }
+
+          // 如果缓存过大，清理它
+          if (processedUrls.size > MAX_CACHE_SIZE) {
+            processedUrls.clear();
+            lastContentHash = ''; // 清理URL缓存时也重置内容hash
+          }
+
+          // 核心判断：只关注是否包含目标文件类型
+          if (url.includes('.' + '${_filePattern}')) {
+            processedUrls.add(url);
+            window.M3U8Detector.postMessage(url);
+          }
+
+          // 处理base64编码的URL  
+          if (url.includes('base64,')) {
+            try {
+              const base64Content = url.split('base64,')[1];
+              const decodedContent = atob(base64Content);
+              if (decodedContent.includes('.' + '${_filePattern}')) {
+                const matches = decodedContent.match(new RegExp(`[^\\s'"]+\\.${_filePattern}[^\\s'"]*`, 'g'));
+                if (matches) {
+                  matches.forEach(match => {
+                    if (!processedUrls.has(match)) {
+                      processedUrls.add(match);
+                      window.M3U8Detector.postMessage(match);
+                    }
+                  });
+                }
+              }
+            } catch (e) {
+              console.error('Base64解码失败:', e);
+            }
           }
         }
-      }
 
-      // === 监听所有可能的资源加载 ===
+        // === 监听所有可能的资源加载 ===
 
-      // 1. 拦截网络请求
-      // XHR请求
-      const XHR = XMLHttpRequest.prototype;
-      const originalOpen = XHR.open;
-      const originalSend = XHR.send;
+        // 1. 拦截网络请求
+        // XHR请求
+        const XHR = XMLHttpRequest.prototype;
+        const originalOpen = XHR.open;
+        const originalSend = XHR.send;
 
-      XHR.open = function() {
-        const url = arguments[1];
-        processM3U8Url(url);
-        return originalOpen.apply(this, arguments);
-      };
-
-      XHR.send = function() {
-        return originalSend.apply(this, arguments);
-      };
-
-      // Fetch请求
-      const originalFetch = window.fetch;
-      window.fetch = function(input) {
-        const url = (input instanceof Request) ? input.url : input;
-        processM3U8Url(url);
-        return originalFetch.apply(this, arguments);
-      };
-
-      // 2. 监听所有响应内容
-      if (window.MediaSource) {
-        const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-        MediaSource.prototype.addSourceBuffer = function(mimeType) {
-          processM3U8Url(this.url);
-          return originalAddSourceBuffer.call(this, mimeType);
+        XHR.open = function() {
+          const url = arguments[1];
+          processM3U8Url(url);
+          return originalOpen.apply(this, arguments);
         };
-      }
 
-      // === 定期扫描页面内容 ===
-      
-      // 计算hash的函数
-      function hashString(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          hash = ((hash << 5) - hash) + str.charCodeAt(i);
-          hash = hash & hash;
+        XHR.send = function() {
+          return originalSend.apply(this, arguments);
+        };
+
+        // Fetch请求
+        const originalFetch = window.fetch;
+        window.fetch = function(input) {
+          const url = (input instanceof Request) ? input.url : input;
+          processM3U8Url(url);
+          return originalFetch.apply(this, arguments);
+        };
+
+        // 2. 监听所有响应内容
+        if (window.MediaSource) {
+          const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+          MediaSource.prototype.addSourceBuffer = function(mimeType) {
+            processM3U8Url(this.url);
+            return originalAddSourceBuffer.call(this, mimeType);
+          };
         }
-        return hash.toString();
-      }
-      
-      // 扫描页面文本
-      function scanPageContent() {
-        // 获取页面所有文本
-        const content = document.documentElement.textContent;
-        
-        // 计算当前内容的hash
-        const currentHash = hashString(content);
-        
-        // 如果内容未变化，跳过扫描
-        if (currentHash === lastContentHash) {
-          return;
+
+        // 计算hash的函数
+        function hashString(str) {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash = hash & hash;
+          }
+          return hash.toString();
         }
         
-        // 更新hash
-        lastContentHash = currentHash;
-        
-        // 执行扫描
-        const urlPattern = new RegExp(`[^\\s'"<>]+\\.${_filePattern}[^\\s'"<>]*`, 'g');
-        const matches = content.match(urlPattern);
-        if (matches) {
-          matches.forEach(processM3U8Url);
-        }
-      }
-
-      // 监听页面变化
-      observer = new MutationObserver(() => {
-        scanPageContent();
-      });
-
-      // 启动观察器
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        characterData: true
-      });
-
-      // 初始扫描
-      scanPageContent();
-
-      // 监听URL变化
-      let urlChangeTimeout = null;
-      const handleUrlChange = () => {
-        if (urlChangeTimeout) {
-          clearTimeout(urlChangeTimeout);
-        }
-        urlChangeTimeout = setTimeout(scanPageContent, 100);
-      };
-
-      window.addEventListener('popstate', handleUrlChange);
-      window.addEventListener('hashchange', handleUrlChange);
-
-    })();
-  ''';
-
+// 扫描页面内容
+function scanPageContent() {
   try {
-    await _controller.runJavaScript(jsCode);
-    LogUtil.i('JS代码注入成功');
-    _isDetectorInjected = true;  // 标记为已注入
-  } catch (e, stackTrace) {
-    LogUtil.logError('执行JS代码时发生错误', e, stackTrace);
-    rethrow;
+    // 只获取 HTML 内容
+    const content = document.documentElement.innerHTML;
+    
+    // 计算当前内容的hash
+    const currentHash = hashString(content);
+    
+    // 如果内容未变化，跳过扫描
+    if (currentHash === lastContentHash) {
+      window.M3U8Detector.postMessage('LOG:SCAN:内容未变化，跳过本次扫描');
+      return;
+    }
+    
+    // 更新hash
+    lastContentHash = currentHash;
+    
+    window.M3U8Detector.postMessage('LOG:SCAN:开始新一轮扫描');
+
+    // 直接用正则匹配所有可能的URL
+    const urlPattern = new RegExp(`[^\\s'"<>]+\\.${_filePattern}[^\\s'"<>]*`, 'g');
+    const matches = content.match(urlPattern);
+    
+    if(matches) {
+      window.M3U8Detector.postMessage(`LOG:SCAN:找到 ${matches.length} 个潜在地址`);
+      matches.forEach(url => {
+        window.M3U8Detector.postMessage(`LOG:SCAN:检查地址: ${url}`);
+        processM3U8Url(url);
+      });
+    } else {
+      window.M3U8Detector.postMessage('LOG:SCAN:未找到任何匹配地址');
+    }
+
+  } catch(e) {
+    console.error('Scan error:', e);
+    window.M3U8Detector.postMessage('LOG:ERROR:' + e.message);
   }
 }
+
+        // 启动自动扫描
+        function startAutoScan() {
+          if (!autoScanInterval) {
+            autoScanInterval = setInterval(scanPageContent, 1000);
+            console.log('自动扫描已启动');
+          }
+        }
+
+        // 停止自动扫描
+        function stopAutoScan() {
+          if (autoScanInterval) {
+            clearInterval(autoScanInterval);
+            autoScanInterval = null;
+            console.log('自动扫描已停止');
+          }
+        }
+
+        // 监听页面变化
+        observer = new MutationObserver(() => {
+          scanPageContent();
+        });
+
+        // 启动观察器
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+
+        // 初始扫描和启动自动扫描
+        scanPageContent();
+        startAutoScan();
+
+        // 监听URL变化
+        window.addEventListener('popstate', scanPageContent);
+        window.addEventListener('hashchange', scanPageContent);
+
+        // 清理函数
+        window._cleanupM3U8Detector = function() {
+          stopAutoScan();
+          if (observer) {
+            observer.disconnect();
+          }
+          window.removeEventListener('popstate', scanPageContent);
+          window.removeEventListener('hashchange', scanPageContent);
+        };
+
+      })();
+    ''';
+
+    try {
+      await _controller.runJavaScript(jsCode);
+      LogUtil.i('JS代码注入成功');
+      _isDetectorInjected = true;  // 标记为已注入
+    } catch (e, stackTrace) {
+      LogUtil.logError('执行JS代码时发生错误', e, stackTrace);
+      rethrow;
+    }
+  }
 
 /// 释放资源
 Future<void> dispose() async {
@@ -1262,12 +1223,6 @@ Future<void> dispose() async {
  final currentUrl = Uri.parse(url).toString();
  _hashFirstLoadMap.remove(currentUrl);
 
- // 取消定时器
- if (_periodicCheckTimer != null) {
-   _periodicCheckTimer?.cancel();
-   _periodicCheckTimer = null;
- }
-
  // 重置所有标记和清理通用资源（无论是否HTML页面都需要）
  _resetControllerState();
  _foundUrls.clear();
@@ -1289,11 +1244,20 @@ Future<void> dispose() async {
 
   /// 处理发现的M3U8 URL
   Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-  	
-    // 先处理日志消息
-    if (url.startsWith('LOG:TIME:')) {
-      LogUtil.i(url.substring(9)); // 去掉 'LOG:TIME:' 前缀
-      return;  // 是时间日志就直接返回，不继续处理
+    // 处理日志消息
+    if (url.startsWith('LOG:')) {
+      // 根据不同类型的日志进行处理
+      if (url.startsWith('LOG:SCAN:')) {
+        LogUtil.i('扫描状态: ${url.substring(9)}');
+        return;
+      } else if (url.startsWith('LOG:ERROR:')) {
+        LogUtil.e('扫描错误: ${url.substring(10)}');
+        return;
+      } else if (url.startsWith('LOG:TIME:')) {
+        LogUtil.i(url.substring(9));
+        return;
+      }
+      return;
     }
   
     if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
