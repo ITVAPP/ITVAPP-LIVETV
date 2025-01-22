@@ -375,6 +375,43 @@ class GetM3U8 {
       return [];
     }
   }
+  
+/// 解析动态关键词规则
+static Set<String> _parseKeywords(String keywordsString) {
+  if (keywordsString.isEmpty) {
+    return {};
+  }
+
+  try {
+    return keywordsString.split('@').map((keyword) => keyword.trim()).toSet();
+  } catch (e) {
+    LogUtil.e('解析动态关键词规则失败: $e');
+    return {};
+  }
+}
+
+/// 解析特殊规则字符串
+/// 返回 Map，其中键是域名，值是文件类型
+static Map<String, String> _parseSpecialRules(String rulesString) {
+  if (rulesString.isEmpty) {
+    return {};
+  }
+
+  try {
+    return Map.fromEntries(
+      rulesString.split('@').map((rule) {
+        final parts = rule.split('|');
+        if (parts.length != 2) {
+          throw FormatException('规则格式错误: $rule，正确格式: domain|fileType');
+        }
+        return MapEntry(parts[0].trim(), parts[1].trim());
+      }),
+    );
+  } catch (e) {
+    LogUtil.e('解析特殊规则字符串失败: $e');
+    return {};
+  }
+}
 
   /// 获取时间差（毫秒）
   Future<int> _getTimeOffset() async {
@@ -1018,46 +1055,64 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       };
 
       // 检查视频元素
-      function checkMediaElements(doc = document) {
-        doc.querySelectorAll('video').forEach(element => {
-          [element.src, element.currentSrc].forEach(src => {
-            if (src) processVideoUrl(src, 'video-source');
-          });
+function checkMediaElements(doc = document) {
+    // 快速预检查 - 判断页面内容是否包含目标扩展名
+    const pageContent = doc.documentElement.innerHTML;
+    if (!pageContent.includes('.' + _filePattern)) {
+        LogUtil.i(`页面不包含.${_filePattern}，跳过检查`);
+        return;
+    }
 
-          element.querySelectorAll('source').forEach(source => {
-            const src = source.src || source.getAttribute('src');
-            if (src) processVideoUrl(src, 'source-element');
-          });
-
-          const videoAttributes = [
-            'src', 'data-src',
-            `data-${_filePattern}`,
-            `${_filePattern}-url`,
-            `data-${_filePattern}-url`,
-            'data-video-url'
-          ];
-
-          videoAttributes.forEach(attr => {
-            const value = element.getAttribute(attr);
-            if (value) processVideoUrl(value, 'video-attribute-' + attr);
-          });
+    // 1. 检查所有元素（不限于视频元素和容器）
+    doc.querySelectorAll('*').forEach(element => {
+        // 检查元素的所有属性
+        Array.from(element.attributes).forEach(attr => {
+            if (attr.value) processVideoUrl(attr.value, 'element-attribute');
         });
 
-        const containers = doc.querySelectorAll([
-          '[class*="video"]', '[class*="player"]',
-          '[id*="video"]', '[id*="player"]',
-          `[class*="${_filePattern}"]`,
-          `[id*="${_filePattern}"]`,
-          `[data-${_filePattern}]`,
-          `[data-video-type="${_filePattern}"]`
-        ].join(','));
+        // 检查元素的文本内容
+        if (element.textContent) {
+            const text = element.textContent;
+            // 使用正则表达式匹配可能的URL
+            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
+            let match;
+            while ((match = urlPattern.exec(text)) !== null) {
+                processVideoUrl(match[0], 'element-text');
+            }
+        }
+    });
 
-        containers.forEach(container => {
-          Array.from(container.attributes).forEach(attr => {
-            if (attr.value) processVideoUrl(attr.value, 'container-attribute');
-          });
-        });
-      }
+    // 2. 检查所有脚本内容
+    doc.querySelectorAll('script').forEach(script => {
+        if (script.textContent && script.textContent.includes('.' + _filePattern)) {
+            const text = script.textContent;
+            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
+            let match;
+            while ((match = urlPattern.exec(text)) !== null) {
+                processVideoUrl(match[0], 'script-content');
+            }
+        }
+    });
+
+    // 3. 检查注释节点
+    const walker = document.createTreeWalker(
+        doc,
+        NodeFilter.SHOW_COMMENT,
+        null,
+        false
+    );
+    
+    while (walker.nextNode()) {
+        const commentText = walker.currentNode.textContent;
+        if (commentText && commentText.includes('.' + _filePattern)) {
+            const urlPattern = new RegExp(`[^"'\\s]*?\\.${_filePattern}[^"'\\s]*`, 'gi');
+            let match;
+            while ((match = urlPattern.exec(commentText)) !== null) {
+                processVideoUrl(match[0], 'comment-node');
+            }
+        }
+    }
+}
 
       // DOM变化监听
       const observer = new MutationObserver((mutations) => {
