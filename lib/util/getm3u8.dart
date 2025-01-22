@@ -998,9 +998,6 @@ String _prepareM3U8DetectorCode() {
 
     function processVideoUrl(url, depth = 0) {
       if (!url || typeof url !== 'string') return;
-
-      // 处理URL末尾的反斜杠
-      let processedUrl = url.endsWith('\\') ? url.slice(0, -1) : url;
   
       if (url.startsWith('/')) {
         const baseUrl = new URL(window.location.href);
@@ -1698,6 +1695,7 @@ bool _isValidM3U8Url(String url) {
 
     // 先处理基本的字符清理
     String cleanedUrl = url.trim()
+      .replaceAll(r'\\$', '') 
       .replaceAll(r'\s*\\s*$', '')
       .replaceAll('&amp;', '&')
       .replaceAll('&quot;', '"')
