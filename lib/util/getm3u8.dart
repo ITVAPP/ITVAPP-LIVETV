@@ -1029,7 +1029,7 @@ class GetM3U8 {
           return hash.toString();
         }
         
-// 扫描页面内容
+// 修改 scanPageContent 函数的这部分代码
 function scanPageContent() {
   try {
     // 只获取 HTML 内容
@@ -1051,11 +1051,11 @@ function scanPageContent() {
 
     // 直接用正则匹配所有可能的URL
     const urlPattern = new RegExp(`[^\\s'"<>]+\\.${_filePattern}[^\\s'"<>]*`, 'g');
-    const matches = content.match(urlPattern);
+    const results = content.match(urlPattern);  // 先保存匹配结果
     
-    if(matches) {
-      window.M3U8Detector.postMessage(`LOG:SCAN:找到 ${matches.length} 个潜在地址`);
-      matches.forEach(url => {
+    if(results) {  // 使用 results 而不是 matches
+      window.M3U8Detector.postMessage(`LOG:SCAN:找到 ${results.length} 个潜在地址`);
+      results.forEach(url => {  // 这里也使用 results
         window.M3U8Detector.postMessage(`LOG:SCAN:检查地址: ${url}`);
         processM3U8Url(url);
       });
