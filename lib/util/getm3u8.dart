@@ -114,9 +114,6 @@ class GetM3U8 {
   /// 标记 JS 检测器是否已注入
   bool _isDetectorInjected = false;
 
-  /// 标记时间拦截器是否已注入
-  bool _isTimeInterceptorInjected = false;
-
   /// 规则列表
   final List<M3U8FilterRule> _filterRules;
 
@@ -414,37 +411,21 @@ static Map<String, String> _parseSpecialRules(String rulesString) {
 }
 
   /// 获取时间差（毫秒）
-  Future<int> _getTimeOffset() async {
-    // 如果已经有缓存的时间差，直接返回
-    if (_cachedTimeOffset != null) {
-      LogUtil.i('使用缓存时间差: ${_cachedTimeOffset}ms');
+Future<int> _getTimeOffset() async {
+  // 使用缓存优先
+  if (_cachedTimeOffset != null) return _cachedTimeOffset!;
+  
+  final localTime = DateTime.now();
+  // 按顺序尝试多个时间源
+  for (final api in TIME_APIS) {
+    final networkTime = await _getNetworkTime(api['url']!);
+    if (networkTime != null) {
+      _cachedTimeOffset = networkTime.difference(localTime).inMilliseconds;
       return _cachedTimeOffset!;
     }
-
-    try {
-      // 按顺序尝试所有时间源
-      for (final api in TIME_APIS) {
-        try {
-          final networkTime = await _getNetworkTime(api['url']!);
-          if (networkTime != null) {
-            // 计算并缓存时间差
-            _cachedTimeOffset = networkTime.difference(DateTime.now()).inMilliseconds;
-            LogUtil.i('获取到时间差: ${_cachedTimeOffset}ms，来源: ${api['name']}');
-            return _cachedTimeOffset!;
-          }
-        } catch (e) {
-          LogUtil.i('${api['name']} 获取时间失败: $e');
-          continue;
-        }
-      }
-
-      LogUtil.i('所有时间源都失败了，使用默认时间差 0');
-      return 0;
-    } catch (e) {
-      LogUtil.e('获取时间差时发生错误: $e');
-      return 0;
-    }
   }
+  return 0;
+}
 
   /// 从指定 API 获取网络时间
   Future<DateTime?> _getNetworkTime(String url) async {
@@ -475,86 +456,73 @@ static Map<String, String> _parseSpecialRules(String rulesString) {
   }
 
   /// 时间拦截器的代码
-  String _prepareTimeInterceptorCode() {
-    return '''
-    (function() {
-      if (window._timeInterceptorInitialized) return;
-      window._timeInterceptorInitialized = true;
+String _prepareTimeInterceptorCode() {
+ return '''
+ (function() {
+   if (window._timeInterceptorInitialized) return;
+   window._timeInterceptorInitialized = true;
 
-      // 保存原始 Date 对象
-      const OriginalDate = window.Date;
-      const timeOffset = ${_cachedTimeOffset};
+   const originalDate = window.Date;
+   const timeOffset = ${_cachedTimeOffset};
 
-      // 创建代理 Date 对象
-      function CustomDate(...args) {
-        if (args.length === 0) {
-          return new OriginalDate(new OriginalDate().getTime() + timeOffset);
-        }
-        return new OriginalDate(...args);
-      }
+   // 核心时间调整函数
+   function getAdjustedTime() {
+     return new originalDate(new originalDate().getTime() + timeOffset);
+   }
 
-      CustomDate.now = function() {
-        return new OriginalDate().getTime() + timeOffset;
-      };
+   // 代理Date构造函数
+   window.Date = function(...args) {
+     return args.length === 0 ? getAdjustedTime() : new originalDate(...args); 
+   };
 
-      CustomDate.parse = OriginalDate.parse;
-      CustomDate.UTC = OriginalDate.UTC;
-      CustomDate.prototype = OriginalDate.prototype;
-      
-      // 替换全局 Date 
-      window.Date = CustomDate;
+   // 保持原型链和方法
+   window.Date.prototype = originalDate.prototype;
+   window.Date.now = () => getAdjustedTime().getTime();
+   window.Date.parse = originalDate.parse;
+   window.Date.UTC = originalDate.UTC;
 
-      // 拦截其他时间API
-      const originalPerformanceNow = window.performance.now.bind(window.performance);
-      window.performance.now = function() {
-        return originalPerformanceNow() + timeOffset;
-      };
+   // 拦截performance.now
+   const originalPerformanceNow = window.performance.now.bind(window.performance);
+   window.performance.now = () => originalPerformanceNow() + timeOffset;
 
-      // 媒体元素时间处理
-      function setupMediaElement(element) {
-        if (!element._timeProxied) {
-          element._timeProxied = true;
-          Object.defineProperty(element, 'currentTime', {
-            get: function() {
-              const rawTime = element.getRealCurrentTime?.() ?? 0;
-              return rawTime + (timeOffset / 1000);
-            },
-            set: function(value) {
-              const rawTime = value - (timeOffset / 1000);
-              element.setRealCurrentTime?.(rawTime);
-            }
-          });
-        }
-      }
+   // 媒体元素时间处理
+   function setupMediaElement(element) {
+     if (element._timeProxied) return;
+     element._timeProxied = true;
+     
+     Object.defineProperty(element, 'currentTime', {
+       get: () => (element.getRealCurrentTime?.() ?? 0) + (timeOffset / 1000),
+       set: value => element.setRealCurrentTime?.(value - (timeOffset / 1000))
+     });
+   }
 
-      // 监听新添加的媒体元素
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
-            if (node instanceof HTMLMediaElement) {
-              setupMediaElement(node);
-            }
-          });
-        });
-      });
+   // 监听新媒体元素
+   const observer = new MutationObserver(mutations => {
+     mutations.forEach(mutation => {
+       mutation.addedNodes.forEach(node => {
+         if (node instanceof HTMLMediaElement) setupMediaElement(node);
+       });
+     });
+   });
 
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true
-      });
+   observer.observe(document.documentElement, {
+     childList: true,
+     subtree: true
+   });
 
-      // 初始化现有媒体元素
-      document.querySelectorAll('video,audio').forEach(setupMediaElement);
+   // 初始化现有媒体元素
+   document.querySelectorAll('video,audio').forEach(setupMediaElement);
 
-      window._cleanupTimeInterceptor = function() {
-        window.Date = OriginalDate;
-        window.performance.now = originalPerformanceNow;
-        observer.disconnect();
-        delete window._timeInterceptorInitialized;
-      };
-    })();
-  ''';
-  }
+   // 资源清理
+   window._cleanupTimeInterceptor = () => {
+     window.Date = originalDate;
+     window.performance.now = originalPerformanceNow;
+     observer.disconnect();
+     delete window._timeInterceptorInitialized;
+   };
+ })();
+ ''';
+}
 
   /// 初始化WebViewController
 Future<void> _initController(Completer<String> completer, String filePattern) async {
@@ -1012,25 +980,99 @@ String _prepareM3U8DetectorCode() {
       };
     }
 
+    // 保存活跃的 XHR 请求用于清理
+    window._activeXhrs = window._activeXhrs || [];
+
     const XHR = XMLHttpRequest.prototype;
     const originalOpen = XHR.open;
     const originalSend = XHR.send;
 
     XHR.open = function() {
-      this._url = arguments[1];
-      return originalOpen.apply(this, arguments);
+      const xhr = this;
+      xhr._url = arguments[1];
+      xhr._method = arguments[0];
+      
+      const originalStateChange = xhr.onreadystatechange;
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          try {
+            const contentType = xhr.getResponseHeader('Content-Type');
+            if (contentType && (
+                contentType.includes('application/json') ||
+                contentType.includes('text/plain') ||
+                contentType.includes('application/x-mpegURL') ||
+                contentType.includes('application/vnd.apple.mpegURL')
+            )) {
+              processVideoUrl(xhr.responseText, 0);
+            }
+          } catch (e) {
+            // 忽略错误继续执行
+          }
+        }
+        if (originalStateChange) {
+          originalStateChange.apply(xhr, arguments);
+        }
+      };
+
+      return originalOpen.apply(xhr, arguments);
     };
 
     XHR.send = function() {
-      if (this._url) processVideoUrl(this._url, 0);
-      return originalSend.apply(this, arguments);
+      const xhr = this;
+      window._activeXhrs.push(xhr);
+      
+      if (xhr._url) {
+        processVideoUrl(xhr._url, 0);
+      }
+      
+      xhr.addEventListener('loadend', () => {
+        const index = window._activeXhrs.indexOf(xhr);
+        if (index > -1) {
+          window._activeXhrs.splice(index, 1);
+        }
+      });
+      
+      return originalSend.apply(xhr, arguments);
     };
 
+    // 添加中止控制器用于资源清理
+    window._abortController = new AbortController();
+
     const originalFetch = window.fetch;
-    window.fetch = function(input) {
+    window.fetch = function(input, init = {}) {
       const url = (input instanceof Request) ? input.url : input;
       processVideoUrl(url, 0);
-      return originalFetch.apply(this, arguments);
+
+      init.signal = window._abortController.signal;
+
+      return originalFetch.apply(this, [input, init])
+        .then(async response => {
+          const contentType = response.headers.get('Content-Type');
+          
+          const clonedResponse = response.clone();
+          
+          if (contentType && (
+              contentType.includes('application/json') ||
+              contentType.includes('text/plain') ||
+              contentType.includes('application/x-mpegURL') ||
+              contentType.includes('application/vnd.apple.mpegURL')
+          )) {
+            try {
+              const text = await clonedResponse.text();
+              processVideoUrl(text, 0);
+            } catch (e) {
+              // 忽略错误返回原始响应
+            }
+          }
+          
+          return response;
+        })
+        .catch(error => {
+          if (error.name === 'AbortError') {
+            throw error;
+          }
+          return Promise.reject(error);
+        });
     };
 
     function checkMediaElements(doc = document) {
@@ -1179,7 +1221,6 @@ String _prepareM3U8DetectorCode() {
   void _resetControllerState() {
     _isControllerInitialized = false;
     _isDetectorInjected = false;
-    _isTimeInterceptorInjected = false;  // 重置时间拦截器状态
     _isPageLoadProcessed = false;
     _isClickExecuted = false;
     _m3u8Found = false;
@@ -1313,7 +1354,6 @@ String _prepareM3U8DetectorCode() {
     _isStaticChecking = false;
     _m3u8Found = false;
     _isDetectorInjected = false;
-    _isTimeInterceptorInjected = false;
     _isControllerInitialized = false;
     _isPageLoadProcessed = false;
     _isClickExecuted = false;
