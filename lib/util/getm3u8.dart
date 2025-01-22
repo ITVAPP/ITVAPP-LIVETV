@@ -915,7 +915,69 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
   }
 
   /// 用于注入了M3U8检测器检查状态
-  String _prepareM3U8DetectorCode() {
+  void _injectM3U8Detector() {
+    if (_isDisposed || !_isControllerReady() || _isDetectorInjected) {
+      LogUtil.i(_isDisposed ? '资源已释放，跳过注入JS' :
+                !_isControllerReady() ? 'WebViewController 未初始化，无法注入JS' :
+                'M3U8检测器已注入，跳过重复注入');
+      return;
+    }
+
+    // 检查检测器是否正常工作
+    _controller.runJavaScript('''
+      if (window._m3u8DetectorInitialized) {
+        checkMediaElements(document);
+        efficientDOMScan();
+      }
+    ''').catchError((error) {
+      LogUtil.e('检查M3U8检测器状态失败: $error');
+    });
+  }
+  
+/// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
+  Future<String> getUrl() async {
+    final completer = Completer<String>();
+
+    // 解析动态关键词规则
+    final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
+
+    // 检查是否需要使用 getm3u8diy 解析
+    for (final keyword in dynamicKeywords) {
+      if (url.contains(keyword)) {
+        try {
+          final streamUrl = await GetM3u8Diy.getStreamUrl(url);
+          LogUtil.i('getm3u8diy 返回结果: $streamUrl');
+          return streamUrl;  // 直接返回，不执行后续 WebView 解析
+        } catch (e, stackTrace) {
+          LogUtil.logError('getm3u8diy 获取播放地址失败，返回 ERROR', e, stackTrace);
+          return 'ERROR';  // 失败也直接返回，终止后续逻辑
+        }
+      }
+    }
+
+    // 动态解析特殊规则
+    final specialRules = _parseSpecialRules(specialRulesString);
+    _filePattern = specialRules.entries
+        .firstWhere(
+          (entry) => url.contains(entry.key),
+          orElse: () => const MapEntry('', 'm3u8')
+        )
+        .value;
+    LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
+
+    try {
+      await _initController(completer, _filePattern);
+      _startTimeout(completer);
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始化过程发生错误', e, stackTrace);
+      completer.complete('ERROR');
+    }
+
+    LogUtil.i('getUrl方法执行完成');
+    return completer.future;
+  }
+
+String _prepareM3U8DetectorCode() {
   return '''
   (function() {
     if (window._m3u8DetectorInitialized) return;
@@ -1394,56 +1456,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     }
   }
 
-  /// 验证M3U8 URL是否有效
-bool _isValidM3U8Url(String url) {
-  // 优化1: 使用缓存避免重复验证
-  if (_foundUrls.contains(url)) {
-    return false;
-  }
-
-  // 优化2: 快速预检查，减少正则表达式使用
-  final lowercaseUrl = url.toLowerCase();
-  if (!lowercaseUrl.contains('.' + _filePattern)) {
-    LogUtil.i('URL不包含.$_filePattern扩展名');
-    return false;
-  }
-
-  // 验证URL是否为有效格式
-  final validUrl = Uri.tryParse(url);
-  if (validUrl == null) {
-    LogUtil.i('无效的URL格式');
-    return false;
-  }
-
-  // 优化3: 使用预编译的正则表达式检查无效关键词
-  static final invalidPatternRegex = RegExp(
-    INVALID_URL_PATTERNS.join('|'),
-    caseSensitive: false
-  );
-
-  if (invalidPatternRegex.hasMatch(lowercaseUrl)) {
-    LogUtil.i('URL包含无效关键词');
-    return false;
-  }
-
-  // 优化4: 规则检查的短路处理
-  if (_filterRules.isNotEmpty) {
-    bool matchedDomain = false;
-    for (final rule in _filterRules) {
-      if (url.contains(rule.domain)) {
-        matchedDomain = true;
-        final containsKeyword = url.contains(rule.requiredKeyword);
-        LogUtil.i('发现匹配的域名规则: ${rule.domain}');
-        return containsKeyword;
-      }
-    }
-    if (matchedDomain) return false;
-  }
-
-  return true;
-}
-
-  /// 检查页面内容中的M3U8地址
+/// 检查页面内容中的M3U8地址
 Future<String?> _checkPageContent() async {
   if (!_isControllerReady() || _m3u8Found || _isDisposed) {
     LogUtil.i(
@@ -1622,6 +1635,55 @@ Future<String?> _checkPageContent() async {
   } finally {
     _isStaticChecking = false;
   }
+}
+
+/// 验证M3U8 URL是否有效
+bool _isValidM3U8Url(String url) {
+  // 优化1: 使用缓存避免重复验证
+  if (_foundUrls.contains(url)) {
+    return false;
+  }
+
+  // 优化2: 快速预检查，减少正则表达式使用
+  final lowercaseUrl = url.toLowerCase();
+  if (!lowercaseUrl.contains('.' + _filePattern)) {
+    LogUtil.i('URL不包含.$_filePattern扩展名');
+    return false;
+  }
+
+  // 验证URL是否为有效格式
+  final validUrl = Uri.tryParse(url);
+  if (validUrl == null) {
+    LogUtil.i('无效的URL格式');
+    return false;
+  }
+
+  // 优化3: 使用预编译的正则表达式检查无效关键词
+  static final invalidPatternRegex = RegExp(
+    INVALID_URL_PATTERNS.join('|'),
+    caseSensitive: false
+  );
+
+  if (invalidPatternRegex.hasMatch(lowercaseUrl)) {
+    LogUtil.i('URL包含无效关键词');
+    return false;
+  }
+
+  // 优化4: 规则检查的短路处理
+  if (_filterRules.isNotEmpty) {
+    bool matchedDomain = false;
+    for (final rule in _filterRules) {
+      if (url.contains(rule.domain)) {
+        matchedDomain = true;
+        final containsKeyword = url.contains(rule.requiredKeyword);
+        LogUtil.i('发现匹配的域名规则: ${rule.domain}');
+        return containsKeyword;
+      }
+    }
+    if (matchedDomain) return false;
+  }
+
+  return true;
 }
 
   /// URL整理
