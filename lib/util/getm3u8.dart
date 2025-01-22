@@ -635,7 +635,9 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         try {
           final data = json.decode(message.message);
           if (data['type'] == 'timeRequest') {
-            LogUtil.i('检测到时间请求: ${data['method']}');
+            final now = DateTime.now();
+            final adjustedTime = now.add(Duration(milliseconds: _cachedTimeOffset ?? 0));
+            LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
           }
         } catch (e) {
           LogUtil.e('处理时间检查消息失败: $e');
@@ -1152,7 +1154,7 @@ String _prepareM3U8DetectorCode() {
             let urlStart = startIndex;
             while (urlStart > 0) {
               const char = content[urlStart - 1];
-              if (char === '"' || char === "'" || char === ' ' || char === '\\n || char === '\\') {
+              if (char === '"' || char === "'" || char === ' ' || char === '\\n' || char === '\\') {
                 break;
               }
               urlStart--;
@@ -1162,7 +1164,7 @@ String _prepareM3U8DetectorCode() {
             let urlEnd = startIndex;
             while (urlEnd < content.length) {
               const char = content[urlEnd];
-              if (char === '"' || char === "'" || char === ' ' || char === '\\n || char === '\\') {
+              if (char === '"' || char === "'" || char === ' ' || char === '\\n' || char === '\\') {
                 break;
               }
               urlEnd++;
