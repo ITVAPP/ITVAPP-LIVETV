@@ -922,305 +922,204 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
   }
 
 String _prepareM3U8DetectorCode() {
- return '''
- (function() {
-   if (window._m3u8DetectorInitialized) return;
-   window._m3u8DetectorInitialized = true;
+  return '''
+  (function() {
+    if (window._m3u8DetectorInitialized) return;
+    window._m3u8DetectorInitialized = true;
 
-   const processedUrls = new Set();
-   const MAX_CACHE_SIZE = 88;
-   const MAX_RECURSION_DEPTH = 3;
-   let observer = null;
+    const processedUrls = new Set();
+    const MAX_CACHE_SIZE = 88;
+    const MAX_RECURSION_DEPTH = 3;
+    let observer = null;
 
-   function processVideoUrl(url, depth = 0) {
-     if (!url || typeof url !== 'string') return;
-     
-     // 处理 JSON 格式的数据
-     if (url.includes('"streams"') || url.includes('"url"')) {
-       try {
-         const parsed = JSON.parse(url);
-         if (Array.isArray(parsed.streams)) {
-           parsed.streams.forEach(stream => {
-             if (typeof stream === 'string') {
-               processVideoUrl(stream, depth + 1);
-             }
-           });
-           return;
-         }
-         if (typeof parsed.url === 'string') {
-           processVideoUrl(parsed.url, depth + 1);
-           return;
-         }
-       } catch(e) {
-         // 解析失败，按普通 URL 处理
-       }
-     }
-     
-     if (url.startsWith('/')) {
-       const baseUrl = new URL(window.location.href);
-       url = baseUrl.protocol + '//' + baseUrl.host + url;
-     } else if (!url.startsWith('http')) {
-       const baseUrl = new URL(window.location.href);
-       url = new URL(url, baseUrl).toString();
-     }
+    function processVideoUrl(url, depth = 0) {
+      if (!url || typeof url !== 'string') return;
+      
+      if (url.startsWith('/')) {
+        const baseUrl = new URL(window.location.href);
+        url = baseUrl.protocol + '//' + baseUrl.host + url;
+      } else if (!url.startsWith('http')) {
+        const baseUrl = new URL(window.location.href);
+        url = new URL(url, baseUrl).toString();
+      }
 
-     if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
-     
-     if (processedUrls.size > MAX_CACHE_SIZE) {
-       processedUrls.clear();
-     }
+      if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
+      
+      if (processedUrls.size > MAX_CACHE_SIZE) {
+        processedUrls.clear();
+      }
 
-     if (url.includes('base64,')) {
-       const base64Content = url.split('base64,')[1];
-       const decodedContent = atob(base64Content);
-       if (decodedContent.includes('.' + '${_filePattern}')) {
-         processVideoUrl(decodedContent, depth + 1);
-       }
-     }
+      if (url.includes('base64,')) {
+        const base64Content = url.split('base64,')[1];
+        const decodedContent = atob(base64Content);
+        if (decodedContent.includes('.' + '${_filePattern}')) {
+          processVideoUrl(decodedContent, depth + 1);
+        }
+      }
 
-     if (url.includes('.' + '${_filePattern}')) {
-       processedUrls.add(url);
-       window.M3U8Detector.postMessage(
-         JSON.stringify({
-           type: 'url',
-           url: url,
-           source: 'detector'
-         })
-       );
-     }
-   }
+      if (url.includes('.' + '${_filePattern}')) {
+        processedUrls.add(url);
+        window.M3U8Detector.postMessage(url);
+      }
+    }
 
-   if (window.MediaSource) {
-     const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-     MediaSource.prototype.addSourceBuffer = function(mimeType) {
-       const supportedTypes = {
-         'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-         'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
-         'mp4': ['video/mp4', 'application/mp4']
-       };
+    if (window.MediaSource) {
+      const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      MediaSource.prototype.addSourceBuffer = function(mimeType) {
+        const supportedTypes = {
+          'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+          'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
+          'mp4': ['video/mp4', 'application/mp4']
+        };
 
-       const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
-       if (currentSupportedTypes.some(type => mimeType.includes(type))) {
-         processVideoUrl(this.url, 0);
-       }
-       return originalAddSourceBuffer.call(this, mimeType);
-     };
-   }
+        const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
+        if (currentSupportedTypes.some(type => mimeType.includes(type))) {
+          processVideoUrl(this.url, 0);
+        }
+        return originalAddSourceBuffer.call(this, mimeType);
+      };
+    }
 
-   // 保存活跃的 XHR 请求用于清理
-   window._activeXhrs = window._activeXhrs || [];
+    const XHR = XMLHttpRequest.prototype;
+    const originalOpen = XHR.open;
+    const originalSend = XHR.send;
 
-   const XHR = XMLHttpRequest.prototype;
-   const originalOpen = XHR.open;
-   const originalSend = XHR.send;
+    XHR.open = function() {
+      this._url = arguments[1];
+      return originalOpen.apply(this, arguments);
+    };
 
-   XHR.open = function() {
-     const xhr = this;
-     xhr._url = arguments[1];
-     xhr._method = arguments[0];
-     
-     const originalStateChange = xhr.onreadystatechange;
-     xhr.onreadystatechange = function() {
-       if (xhr.readyState === 4 && xhr.status === 200) {
-         try {
-           const contentType = xhr.getResponseHeader('Content-Type');
-           if (contentType && (
-               contentType.includes('application/json') ||
-               contentType.includes('text/plain') ||
-               contentType.includes('application/x-mpegURL') ||
-               contentType.includes('application/vnd.apple.mpegURL')
-           )) {
-             processVideoUrl(xhr.responseText, 0);
-           }
-         } catch (e) {
-           // 忽略错误继续执行
-         }
-       }
-       if (originalStateChange) {
-         originalStateChange.apply(xhr, arguments);
-       }
-     };
+    XHR.send = function() {
+      if (this._url) processVideoUrl(this._url, 0);
+      return originalSend.apply(this, arguments);
+    };
 
-     return originalOpen.apply(xhr, arguments);
-   };
+    const originalFetch = window.fetch;
+    window.fetch = function(input) {
+      const url = (input instanceof Request) ? input.url : input;
+      processVideoUrl(url, 0);
+      return originalFetch.apply(this, arguments);
+    };
 
-   XHR.send = function() {
-     const xhr = this;
-     window._activeXhrs.push(xhr);
-     
-     if (xhr._url) {
-       processVideoUrl(xhr._url, 0);
-     }
-     
-     xhr.addEventListener('loadend', () => {
-       const index = window._activeXhrs.indexOf(xhr);
-       if (index > -1) {
-         window._activeXhrs.splice(index, 1);
-       }
-     });
-     
-     return originalSend.apply(xhr, arguments);
-   };
+    function checkMediaElements(doc = document) {
+      doc.querySelectorAll('video').forEach(element => {
+        [element.src, element.currentSrc].forEach(src => {
+          if (src) processVideoUrl(src, 0);
+        });
 
-   // 添加中止控制器用于资源清理
-   window._abortController = new AbortController();
+        element.querySelectorAll('source').forEach(source => {
+          const src = source.src || source.getAttribute('src');
+          if (src) processVideoUrl(src, 0);
+        });
 
-   const originalFetch = window.fetch;
-   window.fetch = function(input, init = {}) {
-     const url = (input instanceof Request) ? input.url : input;
-     processVideoUrl(url, 0);
+        const fileTypeAttributes = [
+          'src', 'data-src',
+          `data-${_filePattern}`,
+          `${_filePattern}-url`,
+          `data-${_filePattern}-url`,
+          'data-video-url'
+        ];
 
-     init.signal = window._abortController.signal;
+        fileTypeAttributes.forEach(attr => {
+          const value = element.getAttribute(attr);
+          if (value) processVideoUrl(value, 0);
+        });
+      });
 
-     return originalFetch.apply(this, [input, init])
-       .then(async response => {
-         const contentType = response.headers.get('Content-Type');
-         
-         const clonedResponse = response.clone();
-         
-         if (contentType && (
-             contentType.includes('application/json') ||
-             contentType.includes('text/plain') ||
-             contentType.includes('application/x-mpegURL') ||
-             contentType.includes('application/vnd.apple.mpegURL')
-         )) {
-           try {
-             const text = await clonedResponse.text();
-             processVideoUrl(text, 0);
-           } catch (e) {
-             // 忽略错误返回原始响应
-           }
-         }
-         
-         return response;
-       })
-       .catch(error => {
-         if (error.name === 'AbortError') {
-           throw error;
-         }
-         return Promise.reject(error);
-       });
-   };
+      const videoContainers = doc.querySelectorAll([
+        '[class*="video"]',
+        '[class*="player"]',
+        '[id*="video"]',
+        '[id*="player"]',
+        `[class*="${_filePattern}"]`,
+        `[id*="${_filePattern}"]`,
+        `[data-${_filePattern}]`,
+        `[data-video-type="${_filePattern}"]`
+      ].join(','));
 
-   function checkMediaElements(doc = document) {
-     doc.querySelectorAll('video').forEach(element => {
-       [element.src, element.currentSrc].forEach(src => {
-         if (src) processVideoUrl(src, 0);
-       });
+      videoContainers.forEach(container => {
+        for (const attr of container.attributes) {
+          if (attr.value) processVideoUrl(attr.value, 0);
+        }
+      });
+    }
 
-       element.querySelectorAll('source').forEach(source => {
-         const src = source.src || source.getAttribute('src');
-         if (src) processVideoUrl(src, 0);
-       });
+    function efficientDOMScan() {
+      const elements = document.querySelectorAll([
+        `a[href*="${_filePattern}"]`,
+        `source[src*="${_filePattern}"]`,
+        `video[src*="${_filePattern}"]`,
+        `[data-src*="${_filePattern}"]`
+      ].join(','));
 
-       const fileTypeAttributes = [
-         'src', 'data-src',
-         `data-${_filePattern}`,
-         `${_filePattern}-url`,
-         `data-${_filePattern}-url`,
-         'data-video-url'
-       ];
+      elements.forEach(element => {
+        ['href', 'src', 'data-src'].forEach(attr => {
+          const value = element.getAttribute(attr);
+          if (value) processVideoUrl(value, 0);
+        });
+      });
 
-       fileTypeAttributes.forEach(attr => {
-         const value = element.getAttribute(attr);
-         if (value) processVideoUrl(value, 0);
-       });
-     });
+      document.querySelectorAll('script:not([src])').forEach(script => {
+        if (script.textContent) {
+          const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
+          const matches = script.textContent.match(urlRegex);
+          if (matches) matches.forEach(match => processVideoUrl(match, 0));
+        }
+      });
+    }
 
-     const videoContainers = doc.querySelectorAll([
-       '[class*="video"]',
-       '[class*="player"]',
-       '[id*="video"]',
-       '[id*="player"]',
-       `[class*="${_filePattern}"]`,
-       `[id*="${_filePattern}"]`,
-       `[data-${_filePattern}]`,
-       `[data-video-type="${_filePattern}"]`
-     ].join(','));
+    observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === 1) {
+            if (node.tagName === 'VIDEO' ||
+                node.tagName === 'SOURCE' ||
+                node.matches('[class*="video"], [class*="player"]')) {
+              checkMediaElements(node.parentNode);
+            }
+            if (node instanceof Element) {
+              for (const attr of node.attributes) {
+                if (attr.value) processVideoUrl(attr.value, 0);
+              }
+            }
+          }
+        });
 
-     videoContainers.forEach(container => {
-       for (const attr of container.attributes) {
-         if (attr.value) processVideoUrl(attr.value, 0);
-       }
-     });
-   }
+        if (mutation.type === 'attributes') {
+          const newValue = mutation.target.getAttribute(mutation.attributeName);
+          if (newValue) processVideoUrl(newValue, 0);
+        }
+      });
+    });
 
-   function efficientDOMScan() {
-     const elements = document.querySelectorAll([
-       `a[href*="${_filePattern}"]`,
-       `source[src*="${_filePattern}"]`,
-       `video[src*="${_filePattern}"]`,
-       `[data-src*="${_filePattern}"]`
-     ].join(','));
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        'src', 'href', 'data-src', 'currentSrc',
+        `data-${_filePattern}`,
+        `${_filePattern}-url`,
+        `data-${_filePattern}-url`
+      ]
+    });
 
-     elements.forEach(element => {
-       ['href', 'src', 'data-src'].forEach(attr => {
-         const value = element.getAttribute(attr);
-         if (value) processVideoUrl(value, 0);
-       });
-     });
+    let urlChangeTimeout = null;
+    const handleUrlChange = () => {
+      if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
+      urlChangeTimeout = setTimeout(() => {
+        checkMediaElements(document);
+        efficientDOMScan();
+      }, 100);
+    };
 
-     document.querySelectorAll('script:not([src])').forEach(script => {
-       if (script.textContent) {
-         const urlRegex = new RegExp(`https?:\\/\\/[^\\s<>"]+?\\.${_filePattern}[^\\s<>"']*`, 'g');
-         const matches = script.textContent.match(urlRegex);
-         if (matches) matches.forEach(match => processVideoUrl(match, 0));
-       }
-     });
-   }
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
 
-   observer = new MutationObserver(mutations => {
-     mutations.forEach(mutation => {
-       mutation.addedNodes.forEach(node => {
-         if (node.nodeType === 1) {
-           if (node.tagName === 'VIDEO' ||
-               node.tagName === 'SOURCE' ||
-               node.matches('[class*="video"], [class*="player"]')) {
-             checkMediaElements(node.parentNode);
-           }
-           if (node instanceof Element) {
-             for (const attr of node.attributes) {
-               if (attr.value) processVideoUrl(attr.value, 0);
-             }
-           }
-         }
-       });
-
-       if (mutation.type === 'attributes') {
-         const newValue = mutation.target.getAttribute(mutation.attributeName);
-         if (newValue) processVideoUrl(newValue, 0);
-       }
-     });
-   });
-
-   observer.observe(document.documentElement, {
-     childList: true,
-     subtree: true,
-     attributes: true,
-     attributeFilter: [
-       'src', 'href', 'data-src', 'currentSrc',
-       `data-${_filePattern}`,
-       `${_filePattern}-url`,
-       `data-${_filePattern}-url`
-     ]
-   });
-
-   let urlChangeTimeout = null;
-   const handleUrlChange = () => {
-     if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
-     urlChangeTimeout = setTimeout(() => {
-       checkMediaElements(document);
-       efficientDOMScan();
-     }, 100);
-   };
-
-   window.addEventListener('popstate', handleUrlChange);
-   window.addEventListener('hashchange', handleUrlChange);
-
-   checkMediaElements(document);
-   efficientDOMScan();
- })();
- ''';
+    checkMediaElements(document);
+    efficientDOMScan();
+  })();
+  ''';
 }
   
   /// 启动超时计时器
