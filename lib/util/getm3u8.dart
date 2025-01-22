@@ -968,7 +968,6 @@ Future<void> _injectM3U8Detector() async {
               contentType.includes('x-mpegurl')
             )) {
               processM3U8Url(url);
-              // 检查重定向后的URL
               processM3U8Url(response.url);
             }
             return response;
@@ -985,7 +984,6 @@ Future<void> _injectM3U8Detector() async {
       const originalOpen = XHR.open;
       const originalSend = XHR.send;
 
-      // 存储活跃的XHR请求，用于清理
       window._activeXhrs = window._activeXhrs || [];
 
       XHR.open = function() {
@@ -997,10 +995,8 @@ Future<void> _injectM3U8Detector() async {
         if (this._url) {
           processM3U8Url(this._url);
           
-          // 添加到活跃请求列表
           window._activeXhrs.push(this);
           
-          // 请求完成时从活跃列表移除
           const onComplete = () => {
             const index = window._activeXhrs.indexOf(this);
             if (index > -1) {
@@ -1017,8 +1013,6 @@ Future<void> _injectM3U8Detector() async {
                 contentType.includes('x-mpegurl')
               )) {
                 processM3U8Url(this._url);
-                
-                // 检查重定向后的URL
                 const responseURL = this.responseURL;
                 if (responseURL && responseURL !== this._url) {
                   processM3U8Url(responseURL);
@@ -1028,21 +1022,20 @@ Future<void> _injectM3U8Detector() async {
             }
           });
           
-          // 处理错误和中止事件
           this.addEventListener('error', onComplete);
           this.addEventListener('abort', onComplete);
         }
         return originalSend.apply(this, arguments);
       };
 
-      // MediaSource监听 - 修改后的版本，支持多种文件类型
+      // MediaSource监听
       if (window.MediaSource) {
         const originalCreateObjectURL = URL.createObjectURL;
         const originalRevokeObjectURL = URL.revokeObjectURL;
         const activeMediaSources = new Set();
         
         // 处理buffer范围的公共函数
-        function processBufferRanges(buffer, errorContext = '处理buffer') {
+        function processBufferRanges(buffer, errorContext) {
           if (!buffer.buffered || buffer.buffered.length === 0) return;
           
           try {
@@ -1050,11 +1043,12 @@ Future<void> _injectM3U8Detector() async {
               const start = buffer.buffered.start(i);
               const end = buffer.buffered.end(i);
               const prefix = window.location.href.replace(/\/[^/]*\$/, '/');
-              const potentialUrl = `${prefix}stream_${Math.floor(start)}_${Math.floor(end)}.${_filePattern}`;
+              const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
+                                 '.' + '${_filePattern}';
               processM3U8Url(potentialUrl);
             }
           } catch (e) {
-            console.error(`${errorContext}时发生错误:`, e);
+            console.error(errorContext + '时发生错误:', e);
           }
         }
 
@@ -1066,7 +1060,7 @@ Future<void> _injectM3U8Detector() async {
             if (buffer.mode) {
               processM3U8Url(buffer.mode);
             }
-            processBufferRanges(buffer);
+            processBufferRanges(buffer, '处理buffer');
           }
         }
 
@@ -1075,23 +1069,22 @@ Future<void> _injectM3U8Detector() async {
           if (obj instanceof MediaSource) {
             activeMediaSources.add(obj);
             
-            // 监听sourceopen事件
-            obj.addEventListener('sourceopen', () => processSourceBuffers(obj));
+            obj.addEventListener('sourceopen', function() {
+              processSourceBuffers(this);
+            });
 
-            // 监听sourceended事件
-            obj.addEventListener('sourceended', () => {
-              const sourceBuffers = obj.sourceBuffers;
+            obj.addEventListener('sourceended', function() {
+              const sourceBuffers = this.sourceBuffers;
               for (let i = 0; i < sourceBuffers.length; i++) {
                 processBufferRanges(sourceBuffers[i], '处理结束buffer');
               }
             });
 
-            // 处理buffer更新
             const originalAddSourceBuffer = obj.addSourceBuffer;
             obj.addSourceBuffer = function(mimeType) {
               const buffer = originalAddSourceBuffer.call(this, mimeType);
-              buffer.addEventListener('updateend', () => {
-                processBufferRanges(buffer, '处理buffer更新');
+              buffer.addEventListener('updateend', function() {
+                processBufferRanges(this, '处理buffer更新');
               });
               return buffer;
             };
@@ -1099,7 +1092,6 @@ Future<void> _injectM3U8Detector() async {
           return originalCreateObjectURL.call(this, obj);
         };
 
-        // 重写revokeObjectURL以清理MediaSource实例
         URL.revokeObjectURL = function(url) {
           activeMediaSources.forEach(ms => {
             if (ms.readyState === 'open') {
@@ -1119,7 +1111,6 @@ Future<void> _injectM3U8Detector() async {
           if (!media._observed) {
             media._observed = true;
             
-            // 监听source元素变化
             const observer = new MutationObserver(mutations => {
               mutations.forEach(mutation => {
                 if (mutation.type === 'childList') {
@@ -1143,18 +1134,17 @@ Future<void> _injectM3U8Detector() async {
               attributeFilter: ['src']
             });
 
-            // 监听media事件
             ['loadstart', 'loadedmetadata', 'play', 'playing', 'canplay', 'canplaythrough'].forEach(event => {
-              media.addEventListener(event, () => {
-                processM3U8Url(media.src);
-                processM3U8Url(media.currentSrc);
-                if (media.srcObject instanceof MediaSource) {
+              media.addEventListener(event, function() {
+                processM3U8Url(this.src);
+                processM3U8Url(this.currentSrc);
+                if (this.srcObject instanceof MediaSource) {
                   try {
-                    const url = URL.createObjectURL(media.srcObject);
+                    const url = URL.createObjectURL(this.srcObject);
                     processM3U8Url(url);
                   } catch (e) {}
                 }
-                Array.from(media.querySelectorAll('source')).forEach(source => {
+                Array.from(this.querySelectorAll('source')).forEach(source => {
                   processM3U8Url(source.src);
                 });
               });
@@ -1163,13 +1153,10 @@ Future<void> _injectM3U8Detector() async {
         });
       }
 
-      // 定期检查新的媒体元素
       const mediaObserverInterval = setInterval(observeMediaElements, 1000);
 
-      // 监听DOM变化
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
-          // 处理属性变化
           if (mutation.type === 'attributes') {
             Array.from(mutation.target.attributes).forEach(attr => {
               const value = attr.value;
@@ -1179,12 +1166,10 @@ Future<void> _injectM3U8Detector() async {
             });
           }
 
-          // 处理节点添加
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const elements = node.querySelectorAll('*');
               elements.forEach((element) => {
-                // 检查元素的所有属性
                 Array.from(element.attributes).forEach(attr => {
                   const value = attr.value;
                   if (value && typeof value === 'string') {
@@ -1197,20 +1182,17 @@ Future<void> _injectM3U8Detector() async {
         });
       });
 
-      // 启动观察器
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
         attributes: true
       });
 
-      // 清理函数
       window._cleanupM3U8Detector = function() {
         observer.disconnect();
         clearInterval(mediaObserverInterval);
         processedUrls.clear();
         activeMediaSources?.clear();
-        // 【新增】清理活跃的XHR请求
         if (window._activeXhrs) {
           window._activeXhrs.forEach(xhr => {
             try {
