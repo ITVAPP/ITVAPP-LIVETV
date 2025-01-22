@@ -998,7 +998,10 @@ String _prepareM3U8DetectorCode() {
 
     function processVideoUrl(url, depth = 0) {
       if (!url || typeof url !== 'string') return;
-      
+
+      // 处理URL末尾的反斜杠
+      let processedUrl = url.endsWith('\\') ? url.slice(0, -1) : url;
+  
       if (url.startsWith('/')) {
         const baseUrl = new URL(window.location.href);
         url = baseUrl.protocol + '//' + baseUrl.host + url;
@@ -1154,7 +1157,7 @@ String _prepareM3U8DetectorCode() {
             let urlStart = startIndex;
             while (urlStart > 0) {
               const char = content[urlStart - 1];
-              if (char === '"' || char === "'" || char === ' ' || char === '\\n' || char === '\\') {
+              if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
                 break;
               }
               urlStart--;
@@ -1164,7 +1167,7 @@ String _prepareM3U8DetectorCode() {
             let urlEnd = startIndex;
             while (urlEnd < content.length) {
               const char = content[urlEnd];
-              if (char === '"' || char === "'" || char === ' ' || char === '\\n' || char === '\\') {
+              if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
                 break;
               }
               urlEnd++;
