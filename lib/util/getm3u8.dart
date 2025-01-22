@@ -187,6 +187,12 @@ class GetM3U8 {
     }
   }
 
+/// 无效URL检查的正则表达式
+static final _invalidPatternRegex = RegExp(
+  INVALID_URL_PATTERNS.join('|'),
+  caseSensitive: false
+);
+
   /// 从URL中提取查询参数，支持hash路由和普通URL
   static Map<String, String> _extractQueryParams(String url) {
     try {
@@ -1658,13 +1664,8 @@ bool _isValidM3U8Url(String url) {
     return false;
   }
 
-  // 优化3: 使用预编译的正则表达式检查无效关键词
-  static final invalidPatternRegex = RegExp(
-    INVALID_URL_PATTERNS.join('|'),
-    caseSensitive: false
-  );
-
-  if (invalidPatternRegex.hasMatch(lowercaseUrl)) {
+  // 优化3: 使用类级别定义的正则表达式检查无效关键词
+  if (_invalidPatternRegex.hasMatch(lowercaseUrl)) {
     LogUtil.i('URL包含无效关键词');
     return false;
   }
