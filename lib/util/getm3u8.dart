@@ -635,9 +635,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         try {
           final data = json.decode(message.message);
           if (data['type'] == 'timeRequest') {
-            final now = DateTime.now();
-            final adjustedTime = now.add(Duration(milliseconds: _cachedTimeOffset ?? 0));
-            LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
+            LogUtil.i('检测到时间请求: ${data['method']}');
           }
         } catch (e) {
           LogUtil.e('处理时间检查消息失败: $e');
