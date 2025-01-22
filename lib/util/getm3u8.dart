@@ -1035,7 +1035,7 @@ Future<void> _injectM3U8Detector() async {
         return originalSend.apply(this, arguments);
       };
 
-      // 增强的MediaSource监听
+      // MediaSource监听 - 修改后的版本，支持多种文件类型
       if (window.MediaSource) {
         const originalCreateObjectURL = URL.createObjectURL;
         const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -1054,9 +1054,21 @@ Future<void> _injectM3U8Detector() async {
                 if (buffer.mode) {
                   processM3U8Url(buffer.mode);
                 }
-                // 检查任何可能的segment URLs
+                // 检查buffered范围
                 if (buffer.buffered && buffer.buffered.length > 0) {
-                  processM3U8Url(buffer.buffered.end(0).toString());
+                  try {
+                    for (let j = 0; j < buffer.buffered.length; j++) {
+                      const start = buffer.buffered.start(j);
+                      const end = buffer.buffered.end(j);
+                      // 使用动态文件类型构造URL
+                      const prefix = window.location.href.replace(/\/[^/]*$/, '/');
+                      const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
+                                        '.' + '${_filePattern}';
+                      processM3U8Url(potentialUrl);
+                    }
+                  } catch (e) {
+                    console.error('处理buffer范围时发生错误:', e);
+                  }
                 }
               }
             });
@@ -1066,52 +1078,42 @@ Future<void> _injectM3U8Detector() async {
               const sourceBuffers = obj.sourceBuffers;
               for (let i = 0; i < sourceBuffers.length; i++) {
                 const buffer = sourceBuffers[i];
+                // 检查最终的buffered范围
                 if (buffer.buffered && buffer.buffered.length > 0) {
-                  processM3U8Url(buffer.buffered.end(buffer.buffered.length - 1).toString());
+                  try {
+                    const length = buffer.buffered.length;
+                    const start = buffer.buffered.start(length - 1);
+                    const end = buffer.buffered.end(length - 1);
+                    const prefix = window.location.href.replace(/\/[^/]*$/, '/');
+                    const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
+                                      '.' + '${_filePattern}';
+                    processM3U8Url(potentialUrl);
+                  } catch (e) {
+                    console.error('处理结束buffer范围时发生错误:', e);
+                  }
                 }
               }
             });
 
-            // 监听addSourceBuffer方法
+            // 处理buffer更新
             const originalAddSourceBuffer = obj.addSourceBuffer;
             obj.addSourceBuffer = function(mimeType) {
               const buffer = originalAddSourceBuffer.call(this, mimeType);
               
-              // 监听update事件
-              buffer.addEventListener('update', function() {
-                if (buffer.updating) {
+              buffer.addEventListener('updateend', () => {
+                if (buffer.buffered && buffer.buffered.length > 0) {
                   try {
-                    const segments = buffer.buffered;
-                    for (let i = 0; i < segments.length; i++) {
-                      const start = segments.start(i);
-                      const end = segments.end(i);
-                      // 检查segment URL模式
-                      const potentialUrl = window.location.href.replace(/\\/[^/]*$/, '/') + 'segment_' + Math.floor(start) + '_' + Math.floor(end) + '.ts';
+                    for (let i = 0; i < buffer.buffered.length; i++) {
+                      const start = buffer.buffered.start(i);
+                      const end = buffer.buffered.end(i);
+                      const prefix = window.location.href.replace(/\/[^/]*$/, '/');
+                      const potentialUrl = prefix + 'stream_' + Math.floor(start) + '_' + Math.floor(end) + 
+                                        '.' + '${_filePattern}';
                       processM3U8Url(potentialUrl);
                     }
-                  } catch (e) {}
-                }
-              });
-
-              // 监听updateend事件
-              buffer.addEventListener('updateend', function() {
-                // 检查音频轨道
-                if (this.audioTracks) {
-                  this.audioTracks.forEach(track => {
-                    if (track.src) processM3U8Url(track.src);
-                    if (track.sourceBuffer && track.sourceBuffer.mode) {
-                      processM3U8Url(track.sourceBuffer.mode);
-                    }
-                  });
-                }
-                // 检查视频轨道
-                if (this.videoTracks) {
-                  this.videoTracks.forEach(track => {
-                    if (track.src) processM3U8Url(track.src);
-                    if (track.sourceBuffer && track.sourceBuffer.mode) {
-                      processM3U8Url(track.sourceBuffer.mode);
-                    }
-                  });
+                  } catch (e) {
+                    console.error('处理buffer更新时发生错误:', e);
+                  }
                 }
               });
 
