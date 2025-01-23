@@ -1693,9 +1693,13 @@ bool _isValidM3U8Url(String url) {
   String _cleanUrl(String url) {
     LogUtil.i('URL整理开始，原始URL: $url');
 
+    // 如果以\开头，则去除
+    if (url.length > 0 && url[url.length - 1] == '\') {
+      url = url.substring(0, url.length - 1);
+    }
+
     // 先处理基本的字符清理
     String cleanedUrl = url.trim()
-      .replaceAll(r'\\$', '') 
       .replaceAll(r'\s*\\s*$', '')
       .replaceAll('&amp;', '&')
       .replaceAll('&quot;', '"')
