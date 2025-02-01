@@ -805,12 +805,11 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
           }
         },
         onWebResourceError: (WebResourceError error) async {
-          // 忽略被阻止资源的错误
-          if (error.errorCode == -1) {
+          // 忽略被阻止资源的错误，忽略 SSL 错误，继续加载
+          if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
             LogUtil.i('资源被阻止加载: ${error.description}');
             return;
           }
-
           LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
           await _handleLoadError(completer);
         },
