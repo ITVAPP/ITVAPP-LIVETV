@@ -31,11 +31,12 @@ class HttpUtil {
         requestHeader: false, // 不打印请求头
         responseHeader: false, // 不打印响应头
       ));
-
-    // 自定义 HttpClient 适配器，限制每个主机的最大连接数
+      
+    // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient();
-      client.maxConnectionsPerHost = 5; // 设置最大连接数为 5
+      final client = HttpClient()
+        ..maxConnectionsPerHost = 5
+        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
       return client;
     };
   }
