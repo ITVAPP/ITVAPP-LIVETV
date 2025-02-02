@@ -44,7 +44,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1;
   
   // 超时检测的时间
-  static const int defaultTimeoutSeconds = 28;
+  static const int defaultTimeoutSeconds = 32;
   
   // 重试相关的状态管理
   bool _isRetrying = false;
