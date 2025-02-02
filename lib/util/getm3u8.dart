@@ -173,7 +173,7 @@ class GetM3U8 {
   /// 构造函数
   GetM3U8({
     required this.url,
-    this.timeoutSeconds = 9,
+    this.timeoutSeconds = 15,
   }) : _filterRules = _parseRules(rulesString),
        // 初始化成员变量
        fromParam = _extractQueryParams(url)['from'],
@@ -600,7 +600,7 @@ class GetM3U8 {
       // 存储响应内容并判断是否为HTML
       _httpResponseContent = httpdata;
       _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
-      LogUtil.i('已接收到HTTP响应，内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}');
+      LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
 
       // 非HTML内容直接处理
       if (!isHashRoute && !_isHtmlContent) {
