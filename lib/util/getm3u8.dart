@@ -50,9 +50,6 @@ class GetM3U8 {
 
   /// 目标URL
   final String url;
-  
-  /// 解析后的基础 Uri 对象
-  final Uri baseUri;
 
   /// URL参数：from值
   final String? fromParam;
@@ -169,29 +166,37 @@ class GetM3U8 {
       'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime',
     }
   ];
-  
+
+  /// 解析后的URI对象
+  late final Uri _parsedUri;
+
   /// 构造函数
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 9,
-  }) : baseUri = Uri.parse(url),  // 在构造时就解析 Uri
-       _filterRules = _parseRules(rulesString),
+  }) : _filterRules = _parseRules(rulesString),
        // 初始化成员变量
        fromParam = _extractQueryParams(url)['from'],
        toParam = _extractQueryParams(url)['to'],
        clickText = _extractQueryParams(url)['clickText'],
        clickIndex = int.tryParse(_extractQueryParams(url)['clickIndex'] ?? '') ?? 0 {
 
-      // 确定是否是hash路由
-      isHashRoute = baseUri.fragment.isNotEmpty;
-  
-      // 记录提取到的参数
-      if (fromParam != null && toParam != null) {
-        LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
-      }
-      if (clickText != null) {
-        LogUtil.i('检测到点击配置: text=$clickText, index=$clickIndex');
-      }
+    // 解析URL并存储结果
+    try {
+      _parsedUri = Uri.parse(url);
+      isHashRoute = _parsedUri.fragment.isNotEmpty;
+    } catch (e) {
+      LogUtil.e('解析URL失败: $e');
+      isHashRoute = false;
+    }
+
+    // 记录提取到的参数
+    if (fromParam != null && toParam != null) {
+      LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
+    }
+    if (clickText != null) {
+      LogUtil.i('检测到点击配置: text=$clickText, index=$clickIndex');
+    }
   }
 
   /// 无效URL检查的正则表达式
@@ -203,7 +208,6 @@ class GetM3U8 {
   /// 从URL中提取查询参数，支持hash路由和普通URL
   static Map<String, String> _extractQueryParams(String url) {
     try {
-      // 因为这是静态方法，所以这里仍需要解析URL
       final uri = Uri.parse(url);
       Map<String, String> params = Map.from(uri.queryParameters);
 
@@ -224,106 +228,6 @@ class GetM3U8 {
       LogUtil.e('解析URL参数时发生错误: $e');
       return {};
     }
-  }
-
-  /// 解析规则字符串
-  static List<M3U8FilterRule> _parseRules(String rulesString) {
-    if (rulesString.isEmpty) {
-      return [];
-    }
-
-    try {
-      return rulesString
-          .split('@')
-          .where((rule) => rule.isNotEmpty)
-          .map((rule) => M3U8FilterRule.fromString(rule))
-          .toList();
-    } catch (e) {
-      LogUtil.e('解析规则字符串失败: $e');
-      return [];
-    }
-  }
-  
-  /// 解析动态关键词规则
-  static Set<String> _parseKeywords(String keywordsString) {
-    if (keywordsString.isEmpty) {
-      return {};
-    }
-
-    try {
-      return keywordsString.split('@').map((keyword) => keyword.trim()).toSet();
-    } catch (e) {
-      LogUtil.e('解析动态关键词规则失败: $e');
-      return {};
-    }
-  }
-
-  /// 解析特殊规则字符串
-  /// 返回 Map，其中键是域名，值是文件类型
-  static Map<String, String> _parseSpecialRules(String rulesString) {
-    if (rulesString.isEmpty) {
-      return {};
-    }
-
-    try {
-      return Map.fromEntries(
-        rulesString.split('@').map((rule) {
-          final parts = rule.split('|');
-          if (parts.length != 2) {
-            throw FormatException('规则格式错误: $rule，正确格式: domain|fileType');
-          }
-          return MapEntry(parts[0].trim(), parts[1].trim());
-        }),
-      );
-    } catch (e) {
-      LogUtil.e('解析特殊规则字符串失败: $e');
-      return {};
-    }
-  }
-
-  /// 获取时间差（毫秒）
-  Future<int> _getTimeOffset() async {
-    // 使用缓存优先
-    if (_cachedTimeOffset != null) return _cachedTimeOffset!;
-    
-    final localTime = DateTime.now();
-    // 按顺序尝试多个时间源
-    for (final api in TIME_APIS) {
-      final networkTime = await _getNetworkTime(api['url']!);
-      if (networkTime != null) {
-        _cachedTimeOffset = networkTime.difference(localTime).inMilliseconds;
-        return _cachedTimeOffset!;
-      }
-    }
-    return 0;
-  }
-
-  /// 从指定 API 获取网络时间
-  Future<DateTime?> _getNetworkTime(String url) async {
-    final response = await HttpUtil().getRequest<String>(
-      url,
-      retryCount: 1, // 减少重试次数，因为我们有多个备选API
-    );
-
-    if (response == null) return null;
-
-    try {
-      final Map<String, dynamic> data = json.decode(response);
-
-      // 根据不同API返回格式解析时间
-      if (url.contains('taobao')) {
-        return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']['t']));
-      } else if (url.contains('suning')) {
-        return DateTime.parse(data['sysTime2']);
-      } else if (url.contains('worldtimeapi')) {
-        return DateTime.parse(data['datetime']);
-      } else if (url.contains('meituan')) {
-        return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']));
-      }
-    } catch (e) {
-      LogUtil.e('解析时间响应失败: $e');
-    }
-    return null;
   }
 
   /// 执行点击操作
@@ -469,12 +373,112 @@ class GetM3U8 {
     }
   }
 
+  /// 解析规则字符串
+  static List<M3U8FilterRule> _parseRules(String rulesString) {
+    if (rulesString.isEmpty) {
+      return [];
+    }
+
+    try {
+      return rulesString
+          .split('@')
+          .where((rule) => rule.isNotEmpty)
+          .map((rule) => M3U8FilterRule.fromString(rule))
+          .toList();
+    } catch (e) {
+      LogUtil.e('解析规则字符串失败: $e');
+      return [];
+    }
+  }
+
+  /// 解析动态关键词规则
+  static Set<String> _parseKeywords(String keywordsString) {
+    if (keywordsString.isEmpty) {
+      return {};
+    }
+
+    try {
+      return keywordsString.split('@').map((keyword) => keyword.trim()).toSet();
+    } catch (e) {
+      LogUtil.e('解析动态关键词规则失败: $e');
+      return {};
+    }
+  }
+
+  /// 解析特殊规则字符串
+  /// 返回 Map，其中键是域名，值是文件类型
+  static Map<String, String> _parseSpecialRules(String rulesString) {
+    if (rulesString.isEmpty) {
+      return {};
+    }
+
+    try {
+      return Map.fromEntries(
+        rulesString.split('@').map((rule) {
+          final parts = rule.split('|');
+          if (parts.length != 2) {
+            throw FormatException('规则格式错误: $rule，正确格式: domain|fileType');
+          }
+          return MapEntry(parts[0].trim(), parts[1].trim());
+        }),
+      );
+    } catch (e) {
+      LogUtil.e('解析特殊规则字符串失败: $e');
+      return {};
+    }
+  }
+
+  /// 获取时间差（毫秒）
+  Future<int> _getTimeOffset() async {
+    // 使用缓存优先
+    if (_cachedTimeOffset != null) return _cachedTimeOffset!;
+
+    final localTime = DateTime.now();
+    // 按顺序尝试多个时间源
+    for (final api in TIME_APIS) {
+      final networkTime = await _getNetworkTime(api['url']!);
+      if (networkTime != null) {
+        _cachedTimeOffset = networkTime.difference(localTime).inMilliseconds;
+        return _cachedTimeOffset!;
+      }
+    }
+    return 0;
+  }
+
+  /// 从指定 API 获取网络时间
+  Future<DateTime?> _getNetworkTime(String url) async {
+    final response = await HttpUtil().getRequest<String>(
+      url,
+      retryCount: 1, // 减少重试次数，因为我们有多个备选API
+    );
+
+    if (response == null) return null;
+
+    try {
+      final Map<String, dynamic> data = json.decode(response);
+
+      // 根据不同API返回格式解析时间
+      if (url.contains('taobao')) {
+        return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']['t']));
+      } else if (url.contains('suning')) {
+        return DateTime.parse(data['sysTime2']);
+      } else if (url.contains('worldtimeapi')) {
+        return DateTime.parse(data['datetime']);
+      } else if (url.contains('meituan')) {
+        return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']));
+      }
+    } catch (e) {
+      LogUtil.e('解析时间响应失败: $e');
+    }
+    return null;
+  }
+
   /// 时间拦截器的代码
   String _prepareTimeInterceptorCode() {
     if (_cachedTimeOffset == null || _cachedTimeOffset == 0) {
-      return '(function(){})();'; 
+      return '(function(){})();';
     }
-    
+
     return '''
     (function() {
       if (window._timeInterceptorInitialized) return;
@@ -498,7 +502,7 @@ class GetM3U8 {
 
       // 代理Date构造函数
       window.Date = function(...args) {
-        return args.length === 0 ? getAdjustedTime() : new originalDate(...args); 
+        return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
       };
 
       // 保持原型链和方法
@@ -516,7 +520,7 @@ class GetM3U8 {
       window.Date.parse = originalDate.parse;
       window.Date.UTC = originalDate.UTC;
 
-      // 拦截performance.now 
+      // 拦截performance.now
       const originalPerformanceNow = window.performance.now.bind(window.performance);
       let perfTimeRequested = false;
       window.performance.now = () => {
@@ -535,13 +539,13 @@ class GetM3U8 {
       function setupMediaElement(element) {
         if (element._timeProxied) return;
         element._timeProxied = true;
-        
+
         Object.defineProperty(element, 'currentTime', {
           get: () => {
             if (!mediaTimeRequested) {
               mediaTimeRequested = true;
               window.TimeCheck.postMessage(JSON.stringify({
-                type: 'timeRequest', 
+                type: 'timeRequest',
                 method: 'media.currentTime'
               }));
             }
@@ -579,285 +583,6 @@ class GetM3U8 {
     ''';
   }
 
-  String _prepareM3U8DetectorCode() {
-    return '''
-    (function() {
-      if (window._m3u8DetectorInitialized) return;
-      window._m3u8DetectorInitialized = true;
-
-      const processedUrls = new Set();
-      const MAX_CACHE_SIZE = 88;
-      const MAX_RECURSION_DEPTH = 3;
-      let observer = null;
-
-      function processVideoUrl(url, depth = 0) {
-        if (!url || typeof url !== 'string') return;
-    
-        if (url.startsWith('/')) {
-          const baseUrl = new URL(window.location.href);
-          url = baseUrl.protocol + '//' + baseUrl.host + url;
-        } else if (!url.startsWith('http')) {
-          const baseUrl = new URL(window.location.href);
-          url = new URL(url, baseUrl).toString();
-        }
-
-        if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
-        
-        if (processedUrls.size > MAX_CACHE_SIZE) {
-          processedUrls.clear();
-        }
-
-        if (url.includes('base64,')) {
-          const base64Content = url.split('base64,')[1];
-          const decodedContent = atob(base64Content);
-          if (decodedContent.includes('.' + '${_filePattern}')) {
-            processVideoUrl(decodedContent, depth + 1);
-          }
-        }
-
-        if (url.includes('.' + '${_filePattern}')) {
-          processedUrls.add(url);
-          window.M3U8Detector.postMessage(url);
-        }
-      }
-
-      // MediaSource拦截
-      if (window.MediaSource) {
-        const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-        MediaSource.prototype.addSourceBuffer = function(mimeType) {
-          const supportedTypes = {
-            'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-            'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
-            'mp4': ['video/mp4', 'application/mp4']
-          };
-
-          const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
-          if (currentSupportedTypes.some(type => mimeType.includes(type))) {
-            processVideoUrl(this.url, 0);
-          }
-          return originalAddSourceBuffer.call(this, mimeType);
-        };
-      }
-
-      // XHR拦截
-      const XHR = XMLHttpRequest.prototype;
-      const originalOpen = XHR.open;
-      const originalSend = XHR.send;
-
-      XHR.open = function() {
-        this._url = arguments[1];
-        return originalOpen.apply(this, arguments);
-      };
-
-      XHR.send = function() {
-        if (this._url) processVideoUrl(this._url, 0);
-        return originalSend.apply(this, arguments);
-      };
-
-      // Fetch拦截
-      const originalFetch = window.fetch;
-      window.fetch = function(input) {
-        const url = (input instanceof Request) ? input.url : input;
-        processVideoUrl(url, 0);
-        return originalFetch.apply(this, arguments);
-      };
-
-      function checkMediaElements(root = document) {
-        // 使用Set去重
-        const processedElements = new Set();
-        
-        // 优化选择器
-        const selector = [
-          'video',
-          'source',
-          '[class*="video"]',
-          '[class*="player"]',
-          `[class*="${_filePattern}"]`,
-          `[data-${_filePattern}]`
-        ].join(',');
-
-        root.querySelectorAll(selector).forEach(element => {
-          if (processedElements.has(element)) return;
-          processedElements.add(element);
-
-          const attributes = [
-            'src', 'data-src',
-            `data-${_filePattern}`,
-            `${_filePattern}-url`,
-            `data-${_filePattern}-url`,
-            'data-video-url'
-          ];
-
-          attributes.forEach(attr => {
-            const value = element.getAttribute(attr);
-            if (value) processVideoUrl(value, 0);
-          });
-
-          if (element.tagName === 'VIDEO') {
-            [element.src, element.currentSrc].forEach(src => {
-              if (src) processVideoUrl(src, 0);
-            });
-
-            element.querySelectorAll('source').forEach(source => {
-              const src = source.src || source.getAttribute('src');
-              if (src) processVideoUrl(src, 0);
-            });
-          }
-        });
-      }
-
-      function efficientDOMScan() {
-        const selector = [
-          `a[href*="${_filePattern}"]`,
-          `source[src*="${_filePattern}"]`,
-          `video[src*="${_filePattern}"]`,
-          `[data-src*="${_filePattern}"]`
-        ].join(',');
-
-        // 使用requestAnimationFrame分批处理
-        requestAnimationFrame(() => {
-          const elements = document.querySelectorAll(selector);
-          const processElements = (startIndex) => {
-            const endIndex = Math.min(startIndex + 50, elements.length);
-            
-            for (let i = startIndex; i < endIndex; i++) {
-              const element = elements[i];
-              ['href', 'src', 'data-src'].forEach(attr => {
-                const value = element.getAttribute(attr);
-                if (value) processVideoUrl(value, 0);
-              });
-            }
-            
-            if (endIndex < elements.length) {
-              requestAnimationFrame(() => processElements(endIndex));
-            }
-          };
-          
-          processElements(0);
-        });
-
-        // 优化脚本内容扫描
-        document.querySelectorAll('script:not([src])').forEach(script => {
-          if (script.textContent) {
-            const content = script.textContent;
-            const searchPattern = '.' + '${_filePattern}';
-            
-            let startIndex = content.indexOf(searchPattern);
-            while (startIndex !== -1) {
-              // 向前查找URL的开始
-              let urlStart = startIndex;
-              while (urlStart > 0) {
-                const char = content[urlStart - 1];
-                if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
-                  break;
-                }
-                urlStart--;
-              }
-              
-              // 向后查找URL的结束
-              let urlEnd = startIndex;
-              while (urlEnd < content.length) {
-                const char = content[urlEnd];
-                if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
-                  break;
-                }
-                urlEnd++;
-              }
-              
-              const possibleUrl = content.substring(urlStart, urlEnd).trim();
-              if (possibleUrl.includes('http')) {
-                processVideoUrl(possibleUrl, 0);
-              }
-              
-              startIndex = content.indexOf(searchPattern, urlEnd);
-            }
-          }
-        });
-      }
-
-      // 使用MutationObserver监听DOM变化
-      observer = new MutationObserver(mutations => {
-        const processQueue = new Set();
-
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
-            if (node.nodeType === 1) {
-              if (node.tagName === 'VIDEO' ||
-                  node.tagName === 'SOURCE' ||
-                  node.matches('[class*="video"], [class*="player"]')) {
-                processQueue.add(node);
-              }
-              
-              if (node instanceof Element) {
-                for (const attr of node.attributes) {
-                  if (attr.value) processQueue.add(attr.value);
-                }
-              }
-            }
-          });
-
-          if (mutation.type === 'attributes') {
-            const newValue = mutation.target.getAttribute(mutation.attributeName);
-            if (newValue) processQueue.add(newValue);
-          }
-        });
-
-        // 批量处理队列
-        requestIdleCallback(() => {
-          processQueue.forEach(item => {
-            if (typeof item === 'string') {
-              processVideoUrl(item, 0);
-            } else {
-              checkMediaElements(item.parentNode || document);
-            }
-          });
-        }, { timeout: 1000 });
-      });
-
-      // 设置观察选项
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: [
-          'src', 'href', 'data-src', 'currentSrc',
-          `data-${_filePattern}`,
-          `${_filePattern}-url`,
-          `data-${_filePattern}-url`
-        ]
-      });
-
-      // URL变化处理
-      let urlChangeTimeout = null;
-      const handleUrlChange = () => {
-        if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
-        urlChangeTimeout = setTimeout(() => {
-          checkMediaElements(document);
-          efficientDOMScan();
-        }, 100);
-      };
-
-      window.addEventListener('popstate', handleUrlChange);
-      window.addEventListener('hashchange', handleUrlChange);
-
-      // 初始扫描
-      requestIdleCallback(() => {
-        checkMediaElements(document);
-        efficientDOMScan();
-      }, { timeout: 2000 });
-      
-      // 清理函数
-      window._cleanupM3U8Detector = () => {
-        observer.disconnect();
-        window.removeEventListener('popstate', handleUrlChange);
-        window.removeEventListener('hashchange', handleUrlChange);
-        if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
-        delete window._m3u8DetectorInitialized;
-      };
-    })();
-    ''';
-  }
-
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
@@ -876,7 +601,7 @@ class GetM3U8 {
       _httpResponseContent = httpdata;
       _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
       LogUtil.i('已接收到HTTP响应，内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}');
-      
+
       // 非HTML内容直接处理
       if (!isHashRoute && !_isHtmlContent) {
         LogUtil.i('检测到非HTML内容，直接处理');
@@ -891,19 +616,19 @@ class GetM3U8 {
         completer.complete('ERROR');
         return;
       }
-      
+
       // 获取时间差并注入时间拦截器（对所有页面执行）
       _cachedTimeOffset ??= await _getTimeOffset();
-      
+
       // 初始化 controller
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
 
-      // 检查内容和准备脚本 
+      // 检查内容和准备脚本
       final List<String> initScripts = [];
       initScripts.add(_prepareTimeInterceptorCode());
-      
+
       // 添加基础运行时脚本(优先注入)
       initScripts.add('''
         window._videoInit = false;
@@ -911,7 +636,7 @@ class GetM3U8 {
         window._m3u8Found = false;
       ''');
 
-      // M3U8检测器核心脚本 
+      // M3U8检测器核心脚本
       initScripts.add(_prepareM3U8DetectorCode());
 
       // 注册时间检查消息通道
@@ -947,8 +672,8 @@ class GetM3U8 {
           }
         },
       );
-      
-      // 导航委托 
+
+      // 导航委托
       _controller.setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) async {
@@ -961,8 +686,9 @@ class GetM3U8 {
           onNavigationRequest: (NavigationRequest request) async {
             // 检查重定向时是否需要重新注入
             try {
+              final currentUri = _parsedUri;
               final newUri = Uri.parse(request.url);
-              if (baseUri.host != newUri.host) {
+              if (currentUri.host != newUri.host) {
                 // 域名发生变化时重新注入所有脚本
                 for (final script in initScripts) {
                   await _controller.runJavaScript(script);
@@ -975,7 +701,7 @@ class GetM3U8 {
 
             // 原有的导航逻辑
             LogUtil.i('页面导航请求: ${request.url}');
-            final uri = Uri.tryParse(request.url);
+            final uri = Uri.parse(request.url);
             if (uri == null) {
               LogUtil.i('无效的URL，阻止加载');
               return NavigationDecision.prevent;
@@ -1019,7 +745,7 @@ class GetM3U8 {
           },
           onPageFinished: (String url) async {
             // 检查此URL是否已经触发过页面加载完成
-            if (!isHashRoute && _pageLoadedStatus[url] == true) {	
+            if (!isHashRoute && _pageLoadedStatus[url] == true) {
               LogUtil.i('本页面已经加载完成，跳过重复处理');
               return;
             }
@@ -1037,7 +763,7 @@ class GetM3U8 {
             // 处理hash路由
             try {
               if (isHashRoute) {
-                final currentUri = Uri.parse(url);
+                final currentUri = _parsedUri;
                 String mapKey = currentUri.toString();
                 _pageLoadedStatus.clear();
                 _pageLoadedStatus[mapKey] = true;
@@ -1098,106 +824,16 @@ class GetM3U8 {
           },
         ),
       );
-      
+
       // 初始化完成
       _isControllerInitialized = true;
       await _loadUrlWithHeaders();
       LogUtil.i('WebViewController初始化完成');
-      
+
     } catch (e, stackTrace) {
       LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
       _isControllerInitialized = false;
       await _handleLoadError(completer);
-    }
-  }
-
-  /// 加载URL并设置headers
-  Future<void> _loadUrlWithHeaders() async {
-    if (!_isControllerReady()) {
-      LogUtil.e('WebViewController 未初始化，无法加载URL');
-      return;
-    }
-    try {
-      final headers = HeadersConfig.generateHeaders(url: url);
-      await _controller.loadRequest(Uri.parse(url), headers: headers);
-    } catch (e, stackTrace) {
-      LogUtil.logError('加载URL时发生错误', e, stackTrace);
-      rethrow;
-    }
-  }
-
-  /// URL整理
-  String _cleanUrl(String url) {
-    LogUtil.i('URL整理开始，原始URL: $url');
-
-    // 如果以\开头，则去除
-    if (url.length > 0 && url[url.length - 1] == '\\') {
-      url = url.substring(0, url.length - 1);
-    }
-
-    // 先处理基本的字符清理
-    String cleanedUrl = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/')
-      .replaceAll('+', '%20');
-
-    // 只替换3个或更多的连续斜杠，保留双斜杠
-    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
-
-    // 保护协议中的双斜杠
-    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'(?<!:)//'), '/');
-
-    // 如果已经是完整URL则直接返回
-    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
-      return cleanedUrl;
-    }
-
-    try {
-      if (cleanedUrl.startsWith('//')) {
-        // 如果以//开头，去除//和域名部分(如果有)
-        String cleanPath = cleanedUrl.substring(2);
-        if (cleanPath.contains('/')) {
-          // 如果包含域名，去除域名部分
-          cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
-        }
-        // 确保路径以/开头
-        cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-      } else {
-        // 处理以/开头或不以/开头的URL
-        String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
-        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-      }
-    } catch (e) {
-      LogUtil.e('URL整理失败: $e');
-    }
-
-    return cleanedUrl;
-  }
-
-  /// 处理相对路径,转换为完整URL
-  String _handleRelativePath(String path) {
-    LogUtil.i('处理相对路径开始，原始URL: $path');
-
-    // 检查是否是完整 URL (包含协议://)
-    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
-      return path;
-    }
-
-    // 如果以 // 开头,说明是省略协议的完整URL
-    if (path.startsWith('//')) {
-      return '${baseUri.scheme}:$path';
-    }
-
-    try {
-      String cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      return _cleanUrl('${baseUri.scheme}://${baseUri.host}/$cleanPath');
-    } catch (e) {
-      LogUtil.e('处理相对路径失败: $e');
-      return path;
     }
   }
 
@@ -1222,37 +858,22 @@ class GetM3U8 {
     }
   }
 
-  /// 启动超时计时器
-  void _startTimeout(Completer<String> completer) {
-    LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
-    Future.delayed(Duration(seconds: timeoutSeconds), () async {
-      if (_isDisposed || completer.isCompleted) {
-        LogUtil.i('${_isDisposed ? "已释放资源" : "已完成处理"}，跳过超时处理');
-        return;
-      }
-
-      completer.complete('ERROR');
-      await dispose();
-    });
-  }
-
-  bool _isControllerReady() {
-    if (!_isControllerInitialized || _isDisposed) {
-      LogUtil.i('Controller 未初始化或资源已释放，操作跳过');
-      return false;
+  /// 加载URL并设置headers
+  Future<void> _loadUrlWithHeaders() async {
+    if (!_isControllerReady()) {
+      LogUtil.e('WebViewController 未初始化，无法加载URL');
+      return;
     }
-    return true;
+    try {
+      final headers = HeadersConfig.generateHeaders(url: url);
+      await _controller.loadRequest(_parsedUri, headers: headers);
+    } catch (e, stackTrace) {
+      LogUtil.logError('加载URL时发生错误', e, stackTrace);
+      rethrow;
+    }
   }
 
-  void _resetControllerState() {
-    _isControllerInitialized = false;
-    _isDetectorInjected = false;
-    _isPageLoadProcessed = false;
-    _isClickExecuted = false;
-    _m3u8Found = false;
-  }
-
-  /// 设置定期检查
+  /// 设定定期检查
   void _setupPeriodicCheck() {
     // 如果已经有定时器在运行，或者已释放资源，或者已找到M3U8，则直接返回
     if (_periodicCheckTimer != null || _isDisposed || _m3u8Found) {
@@ -1329,85 +950,6 @@ class GetM3U8 {
     });
   }
 
-  /// 验证M3U8 URL是否有效
-  bool _isValidM3U8Url(String url) {
-    // 优化1: 使用缓存避免重复验证
-    if (_foundUrls.contains(url)) {
-      return false;
-    }
-
-    // 优化2: 快速预检查，减少正则表达式使用
-    final lowercaseUrl = url.toLowerCase();
-    if (!lowercaseUrl.contains('.' + _filePattern)) {
-      LogUtil.i('URL不包含.$_filePattern扩展名');
-      return false;
-    }
-
-    // 验证URL是否为有效格式
-    final validUrl = Uri.tryParse(url);
-    if (validUrl == null) {
-      LogUtil.i('无效的URL格式');
-      return false;
-    }
-
-    // 优化3: 使用类级别定义的正则表达式检查无效关键词
-    if (_invalidPatternRegex.hasMatch(lowercaseUrl)) {
-      LogUtil.i('URL包含无效关键词');
-      return false;
-    }
-
-    // 优化4: 规则检查的短路处理
-    if (_filterRules.isNotEmpty) {
-      bool matchedDomain = false;
-      for (final rule in _filterRules) {
-        if (url.contains(rule.domain)) {
-          matchedDomain = true;
-          final containsKeyword = url.contains(rule.requiredKeyword);
-          LogUtil.i('发现匹配的域名规则: ${rule.domain}');
-          return containsKeyword;
-        }
-      }
-      if (matchedDomain) return false;
-    }
-
-    return true;
-  }
-
-  /// 处理发现的M3U8 URL
-  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-    if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
-      LogUtil.i(
-        clickText != null && !_isClickExecuted ? '点击操作未完成，忽略URL: $url' :
-        _m3u8Found ? '跳过URL处理: 已找到M3U8' :
-        '跳过URL处理: 资源已释放'
-      );
-      return;
-    }
-
-    if (url.isNotEmpty) {
-      // 首先整理URL
-      String cleanedUrl = _cleanUrl(url);
-
-      if (_isValidM3U8Url(cleanedUrl)) {
-        // 处理URL参数替换
-        String finalUrl = cleanedUrl;
-        if (fromParam != null && toParam != null) {
-          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-          finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-        }
-
-        _foundUrls.add(finalUrl);
-        _m3u8Found = true;
-        if (!completer.isCompleted) {
-          completer.complete(finalUrl);
-          await dispose();
-        }
-      } else {
-        LogUtil.i('URL验证失败，继续等待新的URL');
-      }
-    }
-  }
-
   /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
   Future<String> getUrl() async {
     final completer = Completer<String>();
@@ -1451,6 +993,315 @@ class GetM3U8 {
     return completer.future;
   }
 
+  String _prepareM3U8DetectorCode() {
+    return '''
+    (function() {
+      if (window._m3u8DetectorInitialized) return;
+      window._m3u8DetectorInitialized = true;
+
+      const processedUrls = new Set();
+      const MAX_CACHE_SIZE = 88;
+      const MAX_RECURSION_DEPTH = 3;
+      let observer = null;
+
+      function processVideoUrl(url, depth = 0) {
+        if (!url || typeof url !== 'string') return;
+
+        if (url.startsWith('/')) {
+          const baseUrl = new URL(window.location.href);
+          url = baseUrl.protocol + '//' + baseUrl.host + url;
+        } else if (!url.startsWith('http')) {
+          const baseUrl = new URL(window.location.href);
+          url = new URL(url, baseUrl).toString();
+        }
+
+        if (depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
+
+        if (processedUrls.size > MAX_CACHE_SIZE) {
+          processedUrls.clear();
+        }
+
+        if (url.includes('base64,')) {
+          const base64Content = url.split('base64,')[1];
+          const decodedContent = atob(base64Content);
+          if (decodedContent.includes('.' + '${_filePattern}')) {
+            processVideoUrl(decodedContent, depth + 1);
+          }
+        }
+
+        if (url.includes('.' + '${_filePattern}')) {
+          processedUrls.add(url);
+          window.M3U8Detector.postMessage(url);
+        }
+      }
+
+      // MediaSource拦截
+      if (window.MediaSource) {
+        const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+        MediaSource.prototype.addSourceBuffer = function(mimeType) {
+          const supportedTypes = {
+            'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+            'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
+            'mp4': ['video/mp4', 'application/mp4']
+          };
+
+          const currentSupportedTypes = supportedTypes['${_filePattern}'] || [];
+          if (currentSupportedTypes.some(type => mimeType.includes(type))) {
+            processVideoUrl(this.url, 0);
+          }
+          return originalAddSourceBuffer.call(this, mimeType);
+        };
+      }
+
+      // XHR拦截
+      const XHR = XMLHttpRequest.prototype;
+      const originalOpen = XHR.open;
+      const originalSend = XHR.send;
+
+      XHR.open = function() {
+        this._url = arguments[1];
+        return originalOpen.apply(this, arguments);
+      };
+
+      XHR.send = function() {
+        if (this._url) processVideoUrl(this._url, 0);
+        return originalSend.apply(this, arguments);
+      };
+
+      // Fetch拦截
+      const originalFetch = window.fetch;
+      window.fetch = function(input) {
+        const url = (input instanceof Request) ? input.url : input;
+        processVideoUrl(url, 0);
+        return originalFetch.apply(this, arguments);
+      };
+
+      function checkMediaElements(root = document) {
+        // 使用Set去重
+        const processedElements = new Set();
+
+        // 优化选择器
+        const selector = [
+          'video',
+          'source',
+          '[class*="video"]',
+          '[class*="player"]',
+          `[class*="${_filePattern}"]`,
+          `[data-${_filePattern}]`
+        ].join(',');
+
+        root.querySelectorAll(selector).forEach(element => {
+          if (processedElements.has(element)) return;
+          processedElements.add(element);
+
+          const attributes = [
+            'src', 'data-src',
+            `data-${_filePattern}`,
+            `${_filePattern}-url`,
+            `${_filePattern}-url`,
+            'data-video-url'
+          ];
+
+          attributes.forEach(attr => {
+            const value = element.getAttribute(attr);
+            if (value) processVideoUrl(value, 0);
+          });
+
+          if (element.tagName === 'VIDEO') {
+            [element.src, element.currentSrc].forEach(src => {
+              if (src) processVideoUrl(src, 0);
+            });
+
+            element.querySelectorAll('source').forEach(source => {
+              const src = source.src || source.getAttribute('src');
+              if (src) processVideoUrl(src, 0);
+            });
+          }
+        });
+      }
+
+      function efficientDOMScan() {
+        const selector = [
+          `a[href*="${_filePattern}"]`,
+          `source[src*="${_filePattern}"]`,
+          `video[src*="${_filePattern}"]`,
+          `[data-src*="${_filePattern}"]`
+        ].join(',');
+
+        // 使用requestAnimationFrame分批处理
+        requestAnimationFrame(() => {
+          const elements = document.querySelectorAll(selector);
+          const processElements = (startIndex) => {
+            const endIndex = Math.min(startIndex + 50, elements.length);
+
+            for (let i = startIndex; i < endIndex; i++) {
+              const element = elements[i];
+              ['href', 'src', 'data-src'].forEach(attr => {
+                const value = element.getAttribute(attr);
+                if (value) processVideoUrl(value, 0);
+              });
+            }
+
+            if (endIndex < elements.length) {
+              requestAnimationFrame(() => processElements(endIndex));
+            }
+          };
+
+          processElements(0);
+        });
+
+        // 优化脚本内容扫描
+        document.querySelectorAll('script:not([src])').forEach(script => {
+          if (script.textContent) {
+            const content = script.textContent;
+            const searchPattern = '.' + '${_filePattern}';
+
+            let startIndex = content.indexOf(searchPattern);
+            while (startIndex !== -1) {
+              // 向前查找URL的开始
+              let urlStart = startIndex;
+              while (urlStart > 0) {
+                const char = content[urlStart - 1];
+                if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
+                  break;
+                }
+                urlStart--;
+              }
+
+              // 向后查找URL的结束
+              let urlEnd = startIndex;
+              while (urlEnd < content.length) {
+                const char = content[urlEnd];
+                if (char === '"' || char === "'" || char === ' ' || char === '\\n') {
+                  break;
+                }
+                urlEnd++;
+              }
+
+              const possibleUrl = content.substring(urlStart, urlEnd).trim();
+              if (possibleUrl.includes('http')) {
+                processVideoUrl(possibleUrl, 0);
+              }
+
+              startIndex = content.indexOf(searchPattern, urlEnd);
+            }
+          }
+        });
+      }
+
+      // 使用MutationObserver监听DOM变化
+      observer = new MutationObserver(mutations => {
+        const processQueue = new Set();
+
+        mutations.forEach(mutation => {
+          mutation.addedNodes.forEach(node => {
+            if (node.nodeType === 1) {
+              if (node.tagName === 'VIDEO' ||
+                  node.tagName === 'SOURCE' ||
+                  node.matches('[class*="video"], [class*="player"]')) {
+                processQueue.add(node);
+              }
+
+              if (node instanceof Element) {
+                for (const attr of node.attributes) {
+                  if (attr.value) processQueue.add(attr.value);
+                }
+              }
+            }
+          });
+
+          if (mutation.type === 'attributes') {
+            const newValue = mutation.target.getAttribute(mutation.attributeName);
+            if (newValue) processQueue.add(newValue);
+          }
+        });
+
+        // 批量处理队列
+        requestIdleCallback(() => {
+          processQueue.forEach(item => {
+            if (typeof item === 'string') {
+              processVideoUrl(item, 0);
+            } else {
+              checkMediaElements(item.parentNode || document);
+            }
+          });
+        }, { timeout: 1000 });
+      });
+
+      // 设置观察选项
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: [
+          'src', 'href', 'data-src', 'currentSrc',
+          `data-${_filePattern}`,
+          `${_filePattern}-url`,
+          `data-${_filePattern}-url`
+        ]
+      });
+
+      // URL变化处理
+      let urlChangeTimeout = null;
+      const handleUrlChange = () => {
+        if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
+        urlChangeTimeout = setTimeout(() => {
+          checkMediaElements(document);
+          efficientDOMScan();
+        }, 100);
+      };
+
+      window.addEventListener('popstate', handleUrlChange);
+      window.addEventListener('hashchange', handleUrlChange);
+
+      // 初始扫描
+      requestIdleCallback(() => {
+        checkMediaElements(document);
+        efficientDOMScan();
+      }, { timeout: 2000 });
+
+      // 清理函数
+      window._cleanupM3U8Detector = () => {
+        observer.disconnect();
+        window.removeEventListener('popstate', handleUrlChange);
+        window.removeEventListener('hashchange', handleUrlChange);
+        if (urlChangeTimeout) clearTimeout(urlChangeTimeout);
+        delete window._m3u8DetectorInitialized;
+      };
+    })();
+    ''';
+  }
+
+  /// 启动超时计时器
+  void _startTimeout(Completer<String> completer) {
+    LogUtil.i('开始超时计时: ${timeoutSeconds}秒');
+    Future.delayed(Duration(seconds: timeoutSeconds), () async {
+      if (_isDisposed || completer.isCompleted) {
+        LogUtil.i('${_isDisposed ? "已释放资源" : "已完成处理"}，跳过超时处理');
+        return;
+      }
+
+      completer.complete('ERROR');
+      await dispose();
+    });
+  }
+
+  bool _isControllerReady() {
+    if (!_isControllerInitialized || _isDisposed) {
+      LogUtil.i('Controller 未初始化或资源已释放，操作跳过');
+      return false;
+    }
+    return true;
+  }
+
+  void _resetControllerState() {
+    _isControllerInitialized = false;
+    _isDetectorInjected = false;
+    _isPageLoadProcessed = false;
+    _isClickExecuted = false;
+    _m3u8Found = false;
+  }
+
   /// 释放资源
   Future<void> dispose() async {
     // 防止重复释放
@@ -1462,8 +1313,8 @@ class GetM3U8 {
     _isDisposed = true;
 
     // 清理首次加载标记
-    String mapKey = baseUri.toString();
-    _hashFirstLoadMap.remove(mapKey);
+    final currentUrl = Uri.parse(url).toString();
+    _hashFirstLoadMap.remove(currentUrl);
 
     // 取消定时器
     if (_periodicCheckTimer != null) {
@@ -1584,5 +1435,344 @@ class GetM3U8 {
     _isClickExecuted = false;
 
     LogUtil.i('资源释放完成');
+  }
+
+  /// 处理发现的M3U8 URL
+  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+    if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
+      LogUtil.i(
+        clickText != null && !_isClickExecuted ? '点击操作未完成，忽略URL: $url' :
+        _m3u8Found ? '跳过URL处理: 已找到M3U8' :
+        '跳过URL处理: 资源已释放'
+      );
+      return;
+    }
+
+    if (url.isNotEmpty) {
+      // 首先整理URL
+      String cleanedUrl = _cleanUrl(url);
+
+      if (_isValidM3U8Url(cleanedUrl)) {
+        // 处理URL参数替换
+        String finalUrl = cleanedUrl;
+        if (fromParam != null && toParam != null) {
+          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+          finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+        }
+
+        _foundUrls.add(finalUrl);
+        _m3u8Found = true;
+        if (!completer.isCompleted) {
+          completer.complete(finalUrl);
+          await dispose();
+        }
+      } else {
+        LogUtil.i('URL验证失败，继续等待新的URL');
+      }
+    }
+  }
+
+  /// 检查页面内容中的M3U8地址
+  Future<String?> _checkPageContent() async {
+    if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+      LogUtil.i(
+        !_isControllerReady()
+          ? 'WebViewController 未初始化，无法检查页面内容'
+          : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
+        tag: !_isControllerReady() ? 'ERROR' : 'INFO'
+      );
+      return null;
+    }
+    _isStaticChecking = true;
+
+    try {
+      String? sampleResult;
+
+      // 如果是非 HTML 页面，直接使用 HttpUtil 获取的数据
+      if (!isHashRoute && !_isHtmlContent) {
+        if (_httpResponseContent == null) {
+          LogUtil.e('非 HTML 页面数据为空，跳过检测');
+          return null;
+        }
+
+        // 性能优化1: 使用更高效的字符串搜索
+        String pattern = '.' + _filePattern;
+        int firstPos = _httpResponseContent!.indexOf(pattern);
+        if (firstPos == -1) {
+          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+          return null;
+        }
+
+        // 性能优化2: 只处理目标区域的内容，减少内存使用
+        int lastPos = _httpResponseContent!.lastIndexOf(pattern);
+        int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
+        int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
+        sampleResult = _httpResponseContent!.substring(start, end);
+      } else {
+        // HTML页面处理优化
+        final dynamic result = await _controller.runJavaScriptReturningResult('''
+          (function() {
+            const filePattern = "${RegExp.escape(_filePattern)}";
+            const pattern = '.' + filePattern;
+
+            // 性能优化3: 只获取必要的HTML内容
+            const videoElements = document.querySelectorAll('video, source, [type*="video"]');
+            let content = Array.from(videoElements).map(el => el.outerHTML).join('');
+
+            // 如果在视频元素中没找到，再检查完整HTML
+            if (!content.includes(pattern)) {
+              content = document.documentElement.innerHTML;
+            }
+
+            if (content.length > 38888) {
+              // 性能优化4: 大内容分块处理
+              const chunks = [];
+              for (let i = 0; i < content.length; i += 38888) {
+                const chunk = content.slice(i, i + 38888);
+                if (chunk.includes(pattern)) {
+                  chunks.push(chunk);
+                }
+              }
+              return chunks.length > 0 ? chunks.join('') : "NO_PATTERN";
+            }
+
+            return content.includes(pattern) ? content : "NO_PATTERN";
+          })();
+        ''');
+
+        // HTML页面特殊情况处理
+        if (result == "NO_PATTERN") {
+          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+          return null;
+        }
+
+        sampleResult = result as String?;
+      }
+
+      if (sampleResult == null) {
+        LogUtil.i('获取内容样本失败');
+        return null;
+      }
+
+      // 处理JSON转义字符
+      String sample = sampleResult.toString()
+        .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+        .replaceAll(r'\\/', '/')   // 处理转义斜杠
+        .replaceAll(r'\\"', '"')   // 处理转义双引号
+        .replaceAll(r'\/', '/');   // 处理转义斜杠
+
+      // 处理Unicode转义序列
+      sample = sample.replaceAllMapped(RegExp(r'\\u([0-9a-fA-F]{4})'), (match) {
+        try {
+          return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
+        } catch (e) {
+          return match.group(0)!;
+        }
+      });
+
+      // 处理HTML实体
+      sample = sample
+        .replaceAll('&quot;', '"')  // 双引号
+        .replaceAll('&#x2F;', '/') // 斜杠
+        .replaceAll('&#47;', '/')  // 斜杠
+        .replaceAll('&amp;', '&')  // &
+        .replaceAll('&lt;', '<')   // 小于号
+        .replaceAll('&gt;', '>');  // 大于号
+
+      // URL解码
+      if (sample.contains('%')) {
+        try {
+          sample = Uri.decodeComponent(sample);
+        } catch (e) {
+          LogUtil.i('URL解码失败，保持原样: $e');
+        }
+      }
+
+      LogUtil.i('正在检测页面中的 $_filePattern 文件');
+
+      // 优化5: 使用预编译的正则表达式提高性能
+      final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
+      final regex = RegExp(pattern, caseSensitive: false);
+      final matches = regex.allMatches(sample);
+      LogUtil.i('正则匹配到 ${matches.length} 个结果');
+
+      // 优化6: URL去重和批量验证
+      if (clickIndex == 0) {
+        final uniqueUrls = <String>{};
+        for (final match in matches) {
+          String url = match.group(0)!;
+          String cleanedUrl = _handleRelativePath(url);
+          uniqueUrls.add(cleanedUrl);
+        }
+
+        for (final url in uniqueUrls) {
+          if (_isValidM3U8Url(url)) {
+            String finalUrl = url;
+            if (fromParam != null && toParam != null) {
+              finalUrl = url.replaceAll(fromParam!, toParam!);
+            }
+            _foundUrls.add(finalUrl);
+            _m3u8Found = true;
+            LogUtil.i('页面内容中找到 $finalUrl');
+            return finalUrl;
+          }
+        }
+      } else {
+        final uniqueUrls = <String>{};
+        for (final match in matches) {
+          String url = match.group(0)!;
+          uniqueUrls.add(_handleRelativePath(url));
+        }
+
+        int index = 0;
+        for (final url in uniqueUrls) {
+          String cleanedUrl = _cleanUrl(url);
+          if (_isValidM3U8Url(cleanedUrl)) {
+            String finalUrl = cleanedUrl;
+            if (fromParam != null && toParam != null) {
+              finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+            }
+            _foundUrls.add(finalUrl);
+            if (index == clickIndex) {
+              _m3u8Found = true;
+              LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+              return finalUrl;
+            }
+            index++;
+          }
+        }
+      }
+
+      LogUtil.i('页面内容中未找到符合规则的地址，继续使用JS检测器');
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+      return null;
+    } finally {
+      _isStaticChecking = false;
+    }
+  }
+
+  /// 验证M3U8 URL是否有效
+  bool _isValidM3U8Url(String url) {
+    // 优化1: 使用缓存避免重复验证
+    if (_foundUrls.contains(url)) {
+      return false;
+    }
+
+    // 优化2: 快速预检查，减少正则表达式使用
+    final lowercaseUrl = url.toLowerCase();
+    if (!lowercaseUrl.contains('.' + _filePattern)) {
+      LogUtil.i('URL不包含.$_filePattern扩展名');
+      return false;
+    }
+
+    // 验证URL是否为有效格式
+    final validUrl = _parsedUri;
+    if (validUrl == null) {
+      LogUtil.i('无效的URL格式');
+      return false;
+    }
+
+    // 优化3: 使用类级别定义的正则表达式检查无效关键词
+    if (_invalidPatternRegex.hasMatch(lowercaseUrl)) {
+      LogUtil.i('URL包含无效关键词');
+      return false;
+    }
+
+    // 优化4: 规则检查的短路处理
+    if (_filterRules.isNotEmpty) {
+      bool matchedDomain = false;
+      for (final rule in _filterRules) {
+        if (url.contains(rule.domain)) {
+          matchedDomain = true;
+          final containsKeyword = url.contains(rule.requiredKeyword);
+          LogUtil.i('发现匹配的域名规则: ${rule.domain}');
+          return containsKeyword;
+        }
+      }
+      if (matchedDomain) return false;
+    }
+
+    return true;
+  }
+
+  /// URL整理
+  String _cleanUrl(String url) {
+    LogUtil.i('URL整理开始，原始URL: $url');
+
+    // 如果以\开头，则去除
+    if (url.length > 0 && url[url.length - 1] == '\\') {
+      url = url.substring(0, url.length - 1);
+    }
+
+    // 先处理基本的字符清理
+    String cleanedUrl = url.trim()
+      .replaceAll(r'\s*\\s*$', '')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#x2F;', '/')
+      .replaceAll('&#47;', '/')
+      .replaceAll('+', '%20');
+
+    // 只替换3个或更多的连续斜杠，保留双斜杠
+    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
+
+    // 保护协议中的双斜杠
+    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'(?<!:)//'), '/');
+
+    // 如果已经是完整URL则直接返回
+    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
+      return cleanedUrl;
+    }
+
+    try {
+      final baseUri = _parsedUri;
+
+      if (cleanedUrl.startsWith('//')) {
+        // 如果以//开头，去除//和域名部分(如果有)
+        String cleanPath = cleanedUrl.substring(2);
+        if (cleanPath.contains('/')) {
+          // 如果包含域名，去除域名部分
+          cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+        }
+        // 确保路径以/开头
+        cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+      } else {
+        // 处理以/开头或不以/开头的URL
+        String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
+        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+      }
+    } catch (e) {
+      LogUtil.e('URL整理失败: $e');
+    }
+
+    return cleanedUrl;
+  }
+
+  /// 处理相对路径,转换为完整URL
+  String _handleRelativePath(String path) {
+    LogUtil.i('处理相对路径开始，原始URL: $path');
+
+    // 检查是否是完整 URL (包含协议://)
+    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
+      return path;
+    }
+
+    // 如果以 // 开头,说明是省略协议的完整URL
+    if (path.startsWith('//')) {
+      final baseUri = _parsedUri;
+      return '${baseUri.scheme}:$path';
+    }
+
+    try {
+      final baseUri = _parsedUri;
+      String cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      return _cleanUrl('${baseUri.scheme}://${baseUri.host}/$cleanPath');
+    } catch (e) {
+      LogUtil.e('处理相对路径失败: $e');
+      return path;
+    }
   }
 }
