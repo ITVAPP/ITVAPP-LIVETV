@@ -178,6 +178,15 @@ class GetM3U8 {
        clickText = _extractQueryParams(url)['clickText'],
        clickIndex = int.tryParse(_extractQueryParams(url)['clickIndex'] ?? '') ?? 0 {
 
+      // 确定是否是hash路由
+      try {
+        final uri = Uri.parse(url);
+        isHashRoute = uri.fragment.isNotEmpty;
+      } catch (e) {
+        LogUtil.e('解析URL失败: $e');
+        isHashRoute = false;
+      }
+  
     // 记录提取到的参数
     if (fromParam != null && toParam != null) {
       LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
@@ -576,20 +585,19 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
   try {
     LogUtil.i('开始初始化控制器');
 
-      // 先检查页面内容类型
+      // 检查页面内容类型
       final httpdata = await HttpUtil().getRequest<String>(url);
       if (httpdata == null) {
-        LogUtil.e('HttpUtil 请求失败，未获取到数据');
+        LogUtil.e('HttpUtil请求失败，未获取到数据');
         _httpResponseContent = null;
         completer.complete('ERROR');
         return;
-      } else {
-        _httpResponseContent = httpdata;
-      } 
+      }
 
-      // 判断内容类型
-      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
+      // 存储响应内容并判断是否为HTML
       _httpResponseContent = httpdata;
+      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
+      LogUtil.i('已接收到HTTP响应，内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}');
       
       // 非HTML内容直接处理
       if (!isHashRoute && !_isHtmlContent) {
@@ -751,9 +759,6 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
 
           // 处理hash路由
           try {
-            final uri = Uri.parse(url);
-            isHashRoute = uri.fragment.isNotEmpty;
-
             if (isHashRoute) {
               String mapKey = uri.toString();
               _pageLoadedStatus.clear();
