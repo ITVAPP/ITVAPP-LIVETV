@@ -36,7 +36,7 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
- StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 18)}) {
+ StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 30)}) {
     // 在构造函数中处理 URL
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
