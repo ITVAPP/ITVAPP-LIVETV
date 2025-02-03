@@ -40,7 +40,7 @@ class M3U8FilterRule {
 class GetM3U8 {
   /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com';
+  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range';
 
   /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
@@ -1502,12 +1502,16 @@ class GetM3U8 {
           LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
           return null;
         }
-
-        // 性能优化2: 只处理目标区域的内容，减少内存使用
-        int lastPos = _httpResponseContent!.lastIndexOf(pattern);
-        int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
-        int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
-        sampleResult = _httpResponseContent!.substring(start, end);
+        // 如果内容长度小于5000，直接使用完整内容，无需截取
+        if (_httpResponseContent!.length < 5000) {
+          sampleResult = _httpResponseContent;
+        } else {
+          // 性能优化2: 只处理目标区域的内容，减少内存使用
+          int lastPos = _httpResponseContent!.lastIndexOf(pattern);
+          int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
+          int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
+          sampleResult = _httpResponseContent!.substring(start, end);
+        }
       } else {
         // HTML页面处理优化
         final dynamic result = await _controller.runJavaScriptReturningResult('''
