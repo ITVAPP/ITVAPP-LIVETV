@@ -10,35 +10,35 @@ class HeadersConfig {
  
  /// 格式: domain1|referer1@domain2|referer2
  /// 例如: 'googlevideo|www.youtube.com@example.com|example.org'
- static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@yntv-api.yntv.cn|www.yntv.cn@tvlive.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@gxtv.cn|www.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com@tv_radio_47447|live.lzgd.com.cn@51742.hlsplay.aodianyun.com|www.yltvb.com@pubmod.hntv.tv|static.hntv.tv@tvcdn.stream3.hndt.com|static.hntv.tv@jiujiang|www.jjntv.cn@sztv.com.cn|www.sztv.com.cn@jxtvcn.com.cn|www.jxntv.cn@ahtv.cn|www.ahtv.cn';
+ static String rulesString = 'googlevideo|www.youtube.com@tcdn.itouchtv.cn|www.gdtv.cn@lanosso.com|lanzoux.com@wwentua.com|lanzoux.com@btime.com|www.btime.com@kksmg.com|live.kankanews.com@iqilu|v.iqilu.com@cditvcn|www.cditv.cn@candocloud.cn|www.cditv.cn@hwapi.yntv.net|cloudxyapi.yntv.net@tvlive.yntv.cn|www.yntv.cn@api.yntv.ynradio.com|www.ynradio.cn@i0834.cn|www.ls666.com@dzxw.net|www.dzrm.cn@zyrb.com.cn|www.sczytv.com@ningxiahuangheyun.com|www.nxtv.com.cn@quklive.com|www.qukanvideo.com@yuexitv|www.yuexitv.com@ahsxrm|www.ahsxrm.cn@liangtv.cn|tv.gxtv.cn@gxtv.cn|www.gxtv.cn@lcxw.cn|www.lcxw.cn@sxtygdy.com|www.sxtygdy.com@sxrtv.com|www.sxrtv.com@tv_radio_47447|live.lzgd.com.cn@51742.hlsplay.aodianyun.com|www.yltvb.com@pubmod.hntv.tv|static.hntv.tv@tvcdn.stream3.hndt.com|static.hntv.tv@jiujiang|www.jjntv.cn@sztv.com.cn|www.sztv.com.cn@jxtvcn.com.cn|www.jxntv.cn@ahtv.cn|www.ahtv.cn';
 
  /// CORS规则字符串，格式: domain1@domain2@domain3
- static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com@pubmod.hntv.tv@tvlive.yntv.cn@yntv-api.yntv.cn@jxtvcn.com.cn@hls-api.sztv.com.cn@sttv2-api.sztv.com.cn@yun-live.jxtvcn.com.cn@mapi.ahtv.cn';
+ static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com@pubmod.hntv.tv@tvlive.yntv.cn@jxtvcn.com.cn@hls-api.sztv.com.cn@sttv2-api.sztv.com.cn@yun-live.jxtvcn.com.cn@mapi.ahtv.cn';
 
  /// 在此列表中的域名将使用通用播放器请求头，格式: domain1@domain2@domain3
- static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top@hwapi.yntv.net@cbg.cn';
+ static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top@cbg.cn';
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
-  'accept': '*/*',
-  'accept-language': '*',
-  'connection': 'keep-alive',
+  'Accept': '*/*',
+  'Accept-Language': '*',
+  'Connection': 'keep-alive',
   'range': 'bytes=0-',  // 支持分片下载
   'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
  };
 
  /// 基础请求头
  static const Map<String, String> _baseHeaders = {
-   'accept': '*/*',
-   'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-   'accept-encoding': 'gzip, deflate, br, zstd',
-   'cache-control': 'no-cache',
-   'connection': 'keep-alive',
+   'Accept': '*/*',
+   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+   'Accept-Encoding': 'gzip, deflate, br, zstd',
+   'Cache-Control': 'no-cache',
+   'Connection': 'keep-alive',
+   'DNT': '1',
+   'Sec-Fetch-Dest': 'empty',
    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
    'sec-ch-ua-mobile': '?0',
    'sec-ch-ua-platform': '"Windows"',
-   'sec-fetch-dest': 'empty',
-   'dnt': '1',
  };
 
  /// 解析规则字符串返回域名和对应的referer映射
@@ -205,17 +205,17 @@ static String? _getRefererByRules(String url) {
      // 修改后的 headers map 定义
      final headers = {
        ..._baseHeaders,
-       'origin': referer,
-       'referer': '$referer/',
+       'Origin': referer,
+       'Referer': '$referer/',
        if (needCors) ...{
-         'host': host,
+         'Host': host,
          // 只有当不是 cross-site 时才添加这些头部
          if (secFetchSite != 'cross-site') ...{
-           'sec-fetch-mode': 'cors',
-           'sec-fetch-site': secFetchSite,
+           'Sec-Fetch-Mode': 'cors',
+           'Sec-Fetch-Site': secFetchSite,
          },
-       },  // 添加逗号
-       'user-agent': userAgent,
+       }, 
+       'User-Agent': userAgent,
      };
 
      LogUtil.i('生成主机头：$headers');
