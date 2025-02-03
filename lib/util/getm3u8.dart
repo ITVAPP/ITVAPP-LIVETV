@@ -1573,6 +1573,15 @@ class GetM3U8 {
           return match.group(0)!;
         }
       });
+      
+      // URL解码
+      if (sample.contains('%')) {
+        try {
+          sample = Uri.decodeComponent(sample);
+        } catch (e) {
+          LogUtil.i('URL解码失败，保持原样: $e');
+        }
+      }
 
       // 处理HTML实体
       sample = sample
@@ -1582,15 +1591,6 @@ class GetM3U8 {
         .replaceAll('&amp;', '&')  // &
         .replaceAll('&lt;', '<')   // 小于号
         .replaceAll('&gt;', '>');  // 大于号
-
-      // URL解码
-      if (sample.contains('%')) {
-        try {
-          sample = Uri.decodeComponent(sample);
-        } catch (e) {
-          LogUtil.i('URL解码失败，保持原样: $e');
-        }
-      }
 
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
@@ -1716,8 +1716,15 @@ class GetM3U8 {
       .replaceAll('&amp;', '&')
       .replaceAll('&quot;', '"')
       .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/')
-      .replaceAll('+', '%20');
+      .replaceAll('&#47;', '/');
+      
+    // URL解码
+    try {
+      cleanedUrl = Uri.decodeComponent(cleanedUrl.replaceAll('+', ' '));
+      LogUtil.i('URL解码后: $cleanedUrl');
+    } catch (e) {
+      LogUtil.e('URL解码失败: $e');
+    }
 
     // 只替换3个或更多的连续斜杠，保留双斜杠
     cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
