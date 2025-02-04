@@ -1483,6 +1483,13 @@ class GetM3U8 {
       );
       return null;
     }
+    
+      // 添加点击操作检查
+      if (clickText != null && !_isClickExecuted) {
+        LogUtil.i('点击操作未完成，跳过页面内容检查');
+        return null;
+      }
+      
     _isStaticChecking = true;
 
     try {
@@ -1558,12 +1565,23 @@ class GetM3U8 {
         return null;
       }
 
-      // 处理JSON转义字符
-      String sample = sampleResult.toString()
-        .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
-        .replaceAll(r'\\/', '/')   // 处理转义斜杠
-        .replaceAll(r'\\"', '"')   // 处理转义双引号
-        .replaceAll(r'\/', '/');   // 处理转义斜杠
+String sample = sampleResult.toString();
+
+// 处理JSON转义字符前先解码URL编码
+try {
+  // 进行两次解码以处理嵌套的URL编码
+  sample = Uri.decodeComponent(sample);
+  sample = Uri.decodeComponent(sample);
+} catch (e) {
+  LogUtil.i('URL解码失败，保持原样: $e');
+}
+
+// 然后再处理 JSON 转义字符
+sample = sample
+  .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+  .replaceAll(r'\\/', '/')   // 处理转义斜杠
+  .replaceAll(r'\\"', '"')   // 处理转义双引号
+  .replaceAll(r'\/', '/');   // 处理转义斜杠
 
       // 处理Unicode转义序列
       sample = sample.replaceAllMapped(RegExp(r'\\u([0-9a-fA-F]{4})'), (match) {
@@ -1717,14 +1735,6 @@ class GetM3U8 {
       .replaceAll('&quot;', '"')
       .replaceAll('&#x2F;', '/')
       .replaceAll('&#47;', '/');
-      
-    // URL解码
-    try {
-      cleanedUrl = Uri.decodeComponent(cleanedUrl.replaceAll('+', ' '));
-      LogUtil.i('URL解码后: $cleanedUrl');
-    } catch (e) {
-      LogUtil.e('URL解码失败: $e');
-    }
 
     // 只替换3个或更多的连续斜杠，保留双斜杠
     cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
