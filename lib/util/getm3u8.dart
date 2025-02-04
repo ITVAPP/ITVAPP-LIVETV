@@ -230,148 +230,181 @@ class GetM3U8 {
     }
   }
 
-  /// 执行点击操作
-  Future<bool> _executeClick() async {
-    // 检查WebViewController是否已初始化
-    if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
-      LogUtil.i(
-        !_isControllerReady()
-          ? 'WebViewController 未初始化，无法执行点击'
-          : _isClickExecuted
-            ? '点击已执行，跳过'
-            : '无点击配置，跳过'
-      );
-      return false;
-    }
+/// 执行点击操作
+Future<bool> _executeClick() async {
+  // 检查WebViewController是否已初始化
+  if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
+    LogUtil.i(
+      !_isControllerReady()
+        ? 'WebViewController 未初始化，无法执行点击'
+        : _isClickExecuted
+          ? '点击已执行，跳过'
+          : '无点击配置，跳过'
+    );
+    return false;
+  }
 
-    LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
+  LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
 
-    final jsCode = '''
-    (async function() {
-      try {
-        function findAndClick() {
-          const searchText = '${clickText}';
-          const targetIndex = ${clickIndex};
+  // 创建点击完成的Completer
+  final clickCompleter = Completer<bool>();
+  
+  final jsCode = '''
+  (async function() {
+    try {
+      function findAndClick() {
+        const searchText = '${clickText}';
+        const targetIndex = ${clickIndex};
 
-          // 获取所有文本和元素节点
-          const walk = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-            {
-              acceptNode: function(node) {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                  if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
-                    return NodeFilter.FILTER_REJECT;
-                  }
-                  return NodeFilter.FILTER_ACCEPT;
+        // 获取所有文本和元素节点
+        const walk = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+          {
+            acceptNode: function(node) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
+                  return NodeFilter.FILTER_REJECT;
                 }
-                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-                  return NodeFilter.FILTER_ACCEPT;
-                }
-                return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
               }
-            }
-          );
-
-          // 记录找到的匹配
-          const matches = [];
-          let currentIndex = 0;
-          let foundNode = null;
-
-          // 遍历节点
-          let node;
-          while (node = walk.nextNode()) {
-            // 处理文本节点
-            if (node.nodeType === Node.TEXT_NODE) {
-              const text = node.textContent.trim();
-              if (text === searchText) {
-                matches.push({
-                  text: text,
-                  node: node.parentElement
-                });
-
-                if (currentIndex === targetIndex) {
-                  foundNode = node.parentElement;
-                  break;
-                }
-                currentIndex++;
+              if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                return NodeFilter.FILTER_ACCEPT;
               }
-            }
-            // 处理元素节点
-            else if (node.nodeType === Node.ELEMENT_NODE) {
-              const children = Array.from(node.childNodes);
-              const directText = children
-                .filter(child => child.nodeType === Node.TEXT_NODE)
-                .map(child => child.textContent.trim())
-                .join('');
-
-              if (directText === searchText) {
-                matches.push({
-                  text: directText,
-                  node: node
-                });
-
-                if (currentIndex === targetIndex) {
-                  foundNode = node;
-                  break;
-                }
-                currentIndex++;
-              }
+              return NodeFilter.FILTER_REJECT;
             }
           }
+        );
 
-          if (!foundNode) {
-            console.error('未找到匹配的元素');
-            return;
-          }
+        // 记录找到的匹配
+        const matches = [];
+        let currentIndex = 0;
+        let foundNode = null;
 
-          try {
-            // 优先点击节点本身
-            const originalClass = foundNode.getAttribute('class') || '';
-            foundNode.click();
+        // 遍历节点
+        let node;
+        while (node = walk.nextNode()) {
+          // 处理文本节点
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent.trim();
+            if (text === searchText) {
+              matches.push({
+                text: text,
+                node: node.parentElement
+              });
 
-            // 等待 1000ms 检查 class 是否发生变化
-            setTimeout(() => {
-              const updatedClass = foundNode.getAttribute('class') || '';
-              if (originalClass !== updatedClass) {
-                console.info('节点点击成功，class 发生变化');
-              } else if (foundNode.parentElement) {
-                // 尝试点击父节点
-                const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
-                foundNode.parentElement.click();
-
-                setTimeout(() => {
-                  const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
-                  if (parentOriginalClass !== parentUpdatedClass) {
-                    console.info('父节点点击成功，class 发生变化');
-                  } else {
-                    console.error('点击后无任何变化');
-                  }
-                }, 1000);
+              if (currentIndex === targetIndex) {
+                foundNode = node.parentElement;
+                break;
               }
-            }, 1000);
-          } catch (e) {
-            console.error('点击操作失败:', e);
+              currentIndex++;
+            }
+          }
+          // 处理元素节点
+          else if (node.nodeType === Node.ELEMENT_NODE) {
+            const children = Array.from(node.childNodes);
+            const directText = children
+              .filter(child => child.nodeType === Node.TEXT_NODE)
+              .map(child => child.textContent.trim())
+              .join('');
+
+            if (directText === searchText) {
+              matches.push({
+                text: directText,
+                node: node
+              });
+
+              if (currentIndex === targetIndex) {
+                foundNode = node;
+                break;
+              }
+              currentIndex++;
+            }
           }
         }
 
-        findAndClick();
-      } catch (e) {
-        console.error('JavaScript 执行时发生错误:', e);
-      }
-    })();
-    ''';
+        if (!foundNode) {
+          console.error('未找到匹配的元素');
+          window.ClickCompleter.postMessage('false');
+          return;
+        }
 
-    try {
-      await _controller.runJavaScript(jsCode);
-      _isClickExecuted = true; // 标记为已执行
-      return true;
-    } catch (e, stack) {
-      LogUtil.logError('执行点击操作时发生错误', e, stack);
-      _isClickExecuted = true; // 标记为已执行
-      return false;
+        try {
+          // 优先点击节点本身
+          const originalClass = foundNode.getAttribute('class') || '';
+          foundNode.click();
+
+          // 等待 1000ms 检查 class 是否发生变化
+          setTimeout(() => {
+            const updatedClass = foundNode.getAttribute('class') || '';
+            if (originalClass !== updatedClass) {
+              console.info('节点点击成功，class 发生变化');
+              window.ClickCompleter.postMessage('true');
+            } else if (foundNode.parentElement) {
+              // 尝试点击父节点
+              const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
+              foundNode.parentElement.click();
+
+              setTimeout(() => {
+                const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+                if (parentOriginalClass !== parentUpdatedClass) {
+                  console.info('父节点点击成功，class 发生变化');
+                  window.ClickCompleter.postMessage('true');
+                } else {
+                  console.error('点击后无任何变化');
+                  window.ClickCompleter.postMessage('true');  // 仍然标记完成，因为点击操作已执行
+                }
+              }, 1000);
+            } else {
+              window.ClickCompleter.postMessage('true');  // 没有父节点但点击已执行
+            }
+          }, 1000);
+        } catch (e) {
+          console.error('点击操作失败:', e);
+          window.ClickCompleter.postMessage('false');
+        }
+      }
+
+      findAndClick();
+    } catch (e) {
+      console.error('JavaScript 执行时发生错误:', e);
+      window.ClickCompleter.postMessage('false');
     }
+  })();
+  ''';
+
+  try {
+    // 添加消息通道来接收点击完成的通知
+    _controller.addJavaScriptChannel(
+      'ClickCompleter',
+      onMessageReceived: (JavaScriptMessage message) {
+        final success = message.message == 'true';
+        if (!clickCompleter.isCompleted) {
+          clickCompleter.complete(success);
+        }
+      },
+    );
+
+    // 执行点击操作
+    await _controller.runJavaScript(jsCode);
+    
+    // 等待点击操作完成
+    final success = await clickCompleter.future;
+    
+    // 额外等待一段时间，确保页面响应完成
+    await Future.delayed(Duration(milliseconds: 500));
+    
+    // 设置点击完成标记
+    _isClickExecuted = true;
+    
+    LogUtil.i('点击操作执行完成，结果: ${success ? "成功" : "失败"}');
+    return success;
+  } catch (e, stack) {
+    LogUtil.logError('执行点击操作时发生错误', e, stack);
+    _isClickExecuted = true;
+    return false;
   }
+}
 
   /// 解析规则字符串
   static List<M3U8FilterRule> _parseRules(String rulesString) {
@@ -1153,8 +1186,13 @@ class GetM3U8 {
         // 优化脚本内容扫描
         document.querySelectorAll('script:not([src])').forEach(script => {
           if (script.textContent) {
-            const content = script.textContent;
-            const searchPattern = '.' + '${_filePattern}';
+            let content;
+            try {
+              content = decodeURIComponent(script.textContent);
+            } catch(e) {
+              content = script.textContent;
+            }
+         const searchPattern = '.' + '${_filePattern}';
 
             let startIndex = content.indexOf(searchPattern);
             while (startIndex !== -1) {
@@ -1437,40 +1475,72 @@ class GetM3U8 {
     LogUtil.i('资源释放完成');
   }
 
-  /// 处理发现的M3U8 URL
-  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-    if ((clickText != null && !_isClickExecuted) || _m3u8Found || _isDisposed) {
-      LogUtil.i(
-        clickText != null && !_isClickExecuted ? '点击操作未完成，忽略URL: $url' :
-        _m3u8Found ? '跳过URL处理: 已找到M3U8' :
-        '跳过URL处理: 资源已释放'
-      );
+/// 处理发现的M3U8 URL
+Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+  if (_m3u8Found || _isDisposed) {
+    LogUtil.i(
+      _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
+    );
+    return;
+  }
+
+  if (url.isEmpty) return;
+
+  // 首先整理URL
+  String cleanedUrl = _cleanUrl(url);
+  if (!_isValidM3U8Url(cleanedUrl)) {
+    LogUtil.i('URL验证失败，继续等待新的URL');
+    return;
+  }
+
+  // 处理URL参数替换
+  String finalUrl = cleanedUrl;
+  if (fromParam != null && toParam != null) {
+    LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+    finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+  }
+
+  // 点击操作相关处理
+  if (clickText != null) {
+    if (!_isClickExecuted) {
+      // 点击未执行完成，先记录URL
+      _foundUrls.add(finalUrl);
+      LogUtil.i('点击操作未完成，记录URL: $finalUrl');
       return;
     }
 
-    if (url.isNotEmpty) {
-      // 首先整理URL
-      String cleanedUrl = _cleanUrl(url);
-
-      if (_isValidM3U8Url(cleanedUrl)) {
-        // 处理URL参数替换
-        String finalUrl = cleanedUrl;
-        if (fromParam != null && toParam != null) {
-          LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-          finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-        }
-
-        _foundUrls.add(finalUrl);
+    // 点击已执行完成
+    if (!_foundUrls.contains(finalUrl)) {
+      // 发现新URL，立即使用
+      _foundUrls.add(finalUrl);
+      _m3u8Found = true;
+      if (!completer.isCompleted) {
+        LogUtil.i('点击后发现新URL: $finalUrl');
+        completer.complete(finalUrl);
+        await dispose();
+      }
+    } else {
+      // 给一个时间窗口等待可能的新URL
+      await Future.delayed(Duration(seconds: 2));
+      if (!_m3u8Found && !completer.isCompleted && _foundUrls.isNotEmpty) {
+        finalUrl = _foundUrls.last; // 使用最后发现的URL
         _m3u8Found = true;
-        if (!completer.isCompleted) {
-          completer.complete(finalUrl);
-          await dispose();
-        }
-      } else {
-        LogUtil.i('URL验证失败，继续等待新的URL');
+        LogUtil.i('未发现新URL，使用已记录的最后一个URL: $finalUrl');
+        completer.complete(finalUrl);
+        await dispose();
       }
     }
+  } else {
+    // 没有点击操作，直接使用发现的URL
+    _foundUrls.add(finalUrl);
+    _m3u8Found = true;
+    if (!completer.isCompleted) {
+      LogUtil.i('发现有效URL: $finalUrl');
+      completer.complete(finalUrl);
+      await dispose();
+    }
   }
+}
 
   /// 检查页面内容中的M3U8地址
   Future<String?> _checkPageContent() async {
