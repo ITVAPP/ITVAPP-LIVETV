@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
@@ -14,6 +15,16 @@ class HttpUtil {
   BaseOptions options = BaseOptions(
     connectTimeout: const Duration(seconds: 6), // 设置连接超时时间
     receiveTimeout: const Duration(seconds: 12), // 设置接收超时时间
+    responseDecoder: (responseBytes, options, responseBody) {
+      if (responseBytes.isEmpty) return responseBody;
+      // 优先尝试 UTF-8 解码
+      try {
+        return utf8.decode(responseBytes);
+      } catch (e) {
+        // 如果 UTF-8 失败，则按照 latin1 解码
+        return latin1.decode(responseBytes);
+      }
+    },
   );
 
   CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
@@ -37,7 +48,6 @@ class HttpUtil {
       final client = HttpClient()
         ..maxConnectionsPerHost = 5
         ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-      client.defaultRequestHeaders.set('accept-encoding', 'gzip, deflate');
       return client;
     };
   }
