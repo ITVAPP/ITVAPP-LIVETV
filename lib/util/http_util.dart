@@ -36,8 +36,8 @@ class HttpUtil {
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient()
         ..maxConnectionsPerHost = 5
-        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true
-        ..autoUncompress = true;  // 自动处理 gzip 解压
+        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+      client.defaultRequestHeaders.set('accept-encoding', 'gzip, deflate');
       return client;
     };
   }
