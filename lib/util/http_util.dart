@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
@@ -11,19 +10,11 @@ class HttpUtil {
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
-// 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
-BaseOptions options = BaseOptions(
-  connectTimeout: const Duration(seconds: 6), // 设置连接超时时间
-  receiveTimeout: const Duration(seconds: 12), // 设置接收超时时间
-  responseDecoder: (responseBytes, options, responseBody) {
-    // 直接尝试 UTF-8 解码，如果失败则使用 latin1
-    try {
-      return utf8.decode(responseBytes);
-    } catch (e) {
-      return latin1.decode(responseBytes);
-    }
-  },
-);
+  // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
+  BaseOptions options = BaseOptions(
+    connectTimeout: const Duration(seconds: 6), // 设置连接超时时间
+    receiveTimeout: const Duration(seconds: 12), // 设置接收超时时间
+  );
 
   CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
 
