@@ -26,12 +26,13 @@ class HttpUtil {
     // 初始化 Dio 实例并配置日志拦截器
     _dio = Dio(options)
       ..interceptors.add(LogInterceptor(
-    requestBody: true,
-    responseBody: true,
-    requestHeader: true, 
-    responseHeader: true, 
-    error: true,        
-    logPrint: (object) => LogUtil.i(object.toString()) // 添加这行，使用 LogUtil
+  requestBody: true,
+  responseBody: true,
+  requestHeader: true,
+  responseHeader: true,
+  request: true,   
+  error: true,      
+  logPrint: (obj) => LogUtil.i(obj.toString())  
       ));
       
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
@@ -74,7 +75,8 @@ Future<T?> getRequest<T>(String path,
       }
 
       if (response.data != null) {
-        return response.data; // 成功返回数据
+        // return response.data; // 成功返回数据
+        return response.data.toString(); // 成功返回数据
       }
       return null;
     } on DioException catch (e, stackTrace) {
