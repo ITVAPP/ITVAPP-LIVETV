@@ -371,9 +371,10 @@ class GetM3U8 {
     // 基础清理
     String cleanedUrl = UrlUtils.basicUrlClean(url);
 
-    // 检查是否已是完整 URL
-    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
-      return cleanedUrl;
+    // 使用同一个正则表达式检查URL
+    final matches = _protocolRegex.allMatches(cleanedUrl);
+    if (matches.length == 1 && matches.first.start == 0) {
+      return cleanedUrl; // 只有一个协议且在开头，直接返回
     }
 
     // 提取目标格式 URL
@@ -902,7 +903,7 @@ class GetM3U8 {
             const originalClass = foundNode.getAttribute('class') || '';
             foundNode.click();
 
-            // 等待 1000ms 检查 class 是否发生变化
+            // 等待 500ms 检查 class 是否发生变化
             setTimeout(() => {
               const updatedClass = foundNode.getAttribute('class') || '';
               if (originalClass !== updatedClass) {
@@ -917,9 +918,9 @@ class GetM3U8 {
                   if (parentOriginalClass !== parentUpdatedClass) {
                     console.info('父节点点击成功，class 发生变化');
                   } 
-                }, 1000);
+                }, 500);
               } 
-            }, 1000);
+            }, 500);
           } catch (e) {
             console.error('点击操作失败:', e);
           }
@@ -934,9 +935,6 @@ class GetM3U8 {
     try {
       // 执行点击操作
       await _controller.runJavaScript(jsCode);
-      
-      // 额外等待一段时间，确保页面响应完成
-      await Future.delayed(Duration(milliseconds: 1000));
       
       // 设置点击完成标记
       _isClickExecuted = true;
@@ -1308,18 +1306,6 @@ void _startUrlCheckTimer(Completer<String> completer) {
    // 点击未执行完成，先记录URL
    _foundUrls.add(finalUrl);
    LogUtil.i('点击操作未完成，记录URL: $finalUrl');
-   return;
- }
- // 点击已执行完成的情况
- if (!_foundUrls.contains(finalUrl)) {
-   // 发现点击后的新URL，立即使用
-   _foundUrls.add(finalUrl);
-   _m3u8Found = true;
-   if (!completer.isCompleted) {
-     LogUtil.i('点击后发现新URL，立即使用: $finalUrl');
-     completer.complete(finalUrl);
-     await dispose();
-   }
    return;
  }
 }
