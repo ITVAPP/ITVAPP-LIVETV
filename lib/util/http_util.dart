@@ -26,10 +26,12 @@ class HttpUtil {
     // 初始化 Dio 实例并配置日志拦截器
     _dio = Dio(options)
       ..interceptors.add(LogInterceptor(
-        requestBody: true, // 日志中打印请求体
-        responseBody: true, // 日志中打印响应体
-        requestHeader: false, // 不打印请求头
-        responseHeader: false, // 不打印响应头
+    requestBody: true,
+    responseBody: true,
+    requestHeader: true, 
+    responseHeader: true, 
+    error: true,        
+    logPrint: (object) => LogUtil.i(object.toString()) // 添加这行，使用 LogUtil
       ));
       
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
