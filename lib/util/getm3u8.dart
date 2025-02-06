@@ -16,6 +16,15 @@ static String basicUrlClean(String url) {
    if (url.endsWith('\\')) {
      url = url.substring(0, url.length - 1);
    }
+   
+// 先处理JSON转义
+url = url
+  .replaceAll(r'\\\\', '\\')
+  .replaceAll(r'\\/', '/')
+  .replaceAll(r'\\"', '"')
+  .replaceAll(r'\/', '/')
+  .replaceAll(':\\[', ':[');
+     
    // URL 解码
    try {
      url = Uri.decodeComponent(url);  // 解码一次
@@ -35,13 +44,6 @@ static String basicUrlClean(String url) {
      .replaceAll('&gt;', '>')
      .replaceAll(RegExp(r'/{3,}'), '/') // 处理多余的斜杠
      .replaceAll(RegExp(r'(?<!:)//'), '/'); // 保护协议中的双斜杠
-
-   // 处理 JSON 转义字符
-   url = url
-     .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
-     .replaceAll(r'\\/', '/')   // 处理转义斜杠
-     .replaceAll(r'\\"', '"')   // 处理转义双引号
-     .replaceAll(r'\/', '/');   // 处理转义斜杠
 
    // 处理 Unicode 转义序列
    url = url.replaceAllMapped(
@@ -750,7 +752,10 @@ class GetM3U8 {
             if (!_isClickExecuted && clickText != null) {
               await Future.delayed(const Duration(milliseconds: 1000));
               if (!_isDisposed) {
-                await _executeClick();
+    final clickResult = await _executeClick();
+    if (clickResult) {
+      _startUrlCheckTimer(completer);
+    }
               }
             }
 
@@ -946,6 +951,21 @@ class GetM3U8 {
       return true; 
     }
   }
+  
+/// 启动URL检查定时器
+void _startUrlCheckTimer(Completer<String> completer) {
+    Timer(Duration(seconds: 5), () async {
+      if (_foundUrls.isNotEmpty) {
+        _m3u8Found = true;
+        final lastUrl = _foundUrls.last;
+        LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
+        completer.complete(lastUrl);
+        await dispose();
+      } else {
+        LogUtil.i('5秒内未发现新URL且无记录的URL，继续检测');
+      }
+    });
+}
   
   /// 处理加载错误
   Future<void> _handleLoadError(Completer<String> completer) async {
@@ -1252,7 +1272,7 @@ class GetM3U8 {
   }
 
 /// 处理发现的M3U8 URL
-Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
  if (_m3u8Found || _isDisposed) {
    LogUtil.i(
      _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
@@ -1301,28 +1321,6 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
      await dispose();
    }
    return;
- }
- // 如果到这里，说明是已记录的URL
- // 设置5秒等待定时器（仅在第一次遇到已记录的URL时设置）
- if (!_m3u8Found && !completer.isCompleted) {
-   LogUtil.i('点击后未发现新URL，等待5秒检查是否有新URL...');
-   Timer(Duration(seconds: 5), () async {
-     // 再次检查状态，确保5秒内没有其他URL被处理
-     if (!_m3u8Found && !completer.isCompleted) {
-       if (_foundUrls.isNotEmpty) {
-         // 有记录的URL，使用最后一个
-         _m3u8Found = true;
-         final lastUrl = _foundUrls.last;
-         LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
-         completer.complete(lastUrl);
-         await dispose();
-       } else {
-         // 没有记录的URL，继续原有检测逻辑
-         LogUtil.i('5秒内未发现新URL且无记录的URL，继续检测');
-         // 不设置 _m3u8Found 为 true，也不调用 dispose()，让检测继续进行
-       }
-     }
-   });
  }
 }
 
