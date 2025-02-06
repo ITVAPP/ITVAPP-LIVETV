@@ -43,7 +43,7 @@ class CheckVersionUtil {
       return null;  // 如果格式不正确，返回 null
     } catch (e, stackTrace) {
       LogUtil.logError('获取最后提示日期失败', e, stackTrace);  // 错误处理
-      return null;
+      return null;  // 获取失败时返回 null
     }
   }
 
@@ -68,6 +68,7 @@ class CheckVersionUtil {
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
     if (latestVersionEntity != null) return latestVersionEntity;  // 如果已有版本信息，则直接返回
     try {
+      HttpUtil().cancelAllRequests();  // 取消所有HTTP请求
       final res = await HttpUtil().getRequest(versionHost);  // 发送网络请求检查最新版本
       if (res != null) {
         final latestVersion = res['tag_name'] as String?;  // 获取最新版本号
