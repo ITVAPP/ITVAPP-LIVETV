@@ -12,95 +12,60 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 class UrlUtils {
   /// 基础 URL 解码和清理
 static String basicUrlClean(String url) {
-    // 首先检查是否包含编码的JSON数据
-    if (url.contains('%7B') || url.contains('%22')) {
-      try {
-        // 第一步：处理百分号编码
-        String decodedUrl = Uri.decodeComponent(url);
-        
-        // 第二步：处理JSON转义字符
-        decodedUrl = decodedUrl
-          .replaceAll(r'\[', '[')
-          .replaceAll(r'\]', ']')
-          .replaceAll(r'\{', '{')
-          .replaceAll(r'\}', '}')
-          .replaceAll(r'\"', '"');
-        
-        // 尝试解析JSON并提取目标URL
-        try {
-          final Map<String, dynamic> data = json.decode(decodedUrl);
-          // 查找特定的URL字段
-          if (data['movie'] != null && data['movie']['livepcurl'] != null) {
-            return data['movie']['livepcurl'];
-          }
-        } catch (e) {
-          LogUtil.i('JSON解析失败,继续使用常规清理流程: $e');
-        }
-      } catch (e) {
-        LogUtil.i('URL解码失败,继续使用常规清理流程: $e');
-      }
-    }
+   // 去除末尾反斜杠
+   if (url.endsWith('\\')) {
+     url = url.substring(0, url.length - 1);
+   }
+   // URL 解码
+   try {
+     url = Uri.decodeComponent(url);  // 解码一次
+     url = Uri.decodeComponent(url);  // 解码第二次
+   } catch (e) {
+     LogUtil.i('URL解码失败，保持原样: $e');
+   }
 
-    // 去除末尾反斜杠
-    if (url.endsWith('\\')) {
-      url = url.substring(0, url.length - 1);
-    }
+   // 基本字符清理、转义字符和HTML实体处理
+   url = url.trim()
+     .replaceAll(r'\s*\\s*$', '')
+     .replaceAll('&amp;', '&')
+     .replaceAll('&quot;', '"')
+     .replaceAll('&#x2F;', '/')
+     .replaceAll('&#47;', '/')
+     .replaceAll('&lt;', '<')
+     .replaceAll('&gt;', '>')
+     .replaceAll(RegExp(r'/{3,}'), '/') // 处理多余的斜杠
+     .replaceAll(RegExp(r'(?<!:)//'), '/'); // 保护协议中的双斜杠
 
-    // URL 解码
-    try {
-      url = Uri.decodeComponent(url);  // 解码一次
-      url = Uri.decodeComponent(url);  // 解码第二次
-    } catch (e) {
-      LogUtil.i('URL解码失败，保持原样: $e');
-    }
+   // 处理 JSON 转义字符
+   url = url
+     .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
+     .replaceAll(r'\\/', '/')   // 处理转义斜杠
+     .replaceAll(r'\\"', '"')   // 处理转义双引号
+     .replaceAll(r'\/', '/');   // 处理转义斜杠
 
-    // 基本字符清理和转义字符处理
-    url = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/')
-      .replaceAll(RegExp(r'/{3,}'), '/') // 处理多余的斜杠
-      .replaceAll(RegExp(r'(?<!:)//'), '/'); // 保护协议中的双斜杠
+   // 处理 Unicode 转义序列
+   url = url.replaceAllMapped(
+     RegExp(r'\\u([0-9a-fA-F]{4})'), 
+     (match) {
+       try {
+         return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
+       } catch (e) {
+         return match.group(0)!;
+       }
+     }
+   );
 
-    // 处理 JSON 转义字符
-    url = url
-      .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
-      .replaceAll(r'\\/', '/')   // 处理转义斜杠
-      .replaceAll(r'\\"', '"')   // 处理转义双引号
-      .replaceAll(r'\/', '/');   // 处理转义斜杠
+   // 处理 URL 编码
+   if (url.contains('%')) {
+     try {
+       url = Uri.decodeComponent(url);
+     } catch (e) {
+       LogUtil.i('URL解码失败，保持原样: $e');
+     }
+   }
 
-    // 处理 Unicode 转义序列
-    url = url.replaceAllMapped(
-      RegExp(r'\\u([0-9a-fA-F]{4})'), 
-      (match) {
-        try {
-          return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
-        } catch (e) {
-          return match.group(0)!;
-        }
-      }
-    );
-
-    // 处理 URL 编码
-    if (url.contains('%')) {
-      try {
-        url = Uri.decodeComponent(url);
-      } catch (e) {
-        LogUtil.i('URL解码失败，保持原样: $e');
-      }
-    }
-
-    // 处理 HTML 实体
-    return url
-      .replaceAll('&quot;', '"')  // 双引号
-      .replaceAll('&#x2F;', '/') // 斜杠
-      .replaceAll('&#47;', '/')  // 斜杠
-      .replaceAll('&amp;', '&')  // &
-      .replaceAll('&lt;', '<')   // 小于号
-      .replaceAll('&gt;', '>');  // 大于号
-  }
+   return url;
+}
 
   /// 构建完整 URL
   static String buildFullUrl(String path, Uri baseUri) {
@@ -117,12 +82,6 @@ static String basicUrlClean(String url) {
     // 构建相对路径
     String cleanPath = path.startsWith('/') ? path.substring(1) : path;
     return '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-  }
-
-  /// 处理相对路径
-  static String handleRelativePath(String path, Uri baseUri) {
-    path = basicUrlClean(path);
-    return buildFullUrl(path, baseUri);
   }
 }
 
@@ -425,12 +384,6 @@ class GetM3U8 {
 
     // 构建完整 URL
     return UrlUtils.buildFullUrl(cleanedUrl, _parsedUri);
-  }
-
-  /// 处理相对路径
-  String _handleRelativePath(String path) {
-    LogUtil.i('处理相对路径开始，原始URL: $path');
-    return UrlUtils.handleRelativePath(path, _parsedUri);
   }
   
   /// 获取时间差（毫秒）
@@ -1306,23 +1259,19 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
    );
    return;
  }
-
  if (url.isEmpty) return;
-
  // 首先整理URL
  String cleanedUrl = _cleanUrl(url);
  if (!_isValidM3U8Url(cleanedUrl)) {
    LogUtil.i('URL验证失败，继续等待新的URL');
    return;
  }
-
  // 处理URL参数替换
  String finalUrl = cleanedUrl;
  if (fromParam != null && toParam != null) {
    LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
    finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
  }
-
  // 没有点击操作的情况，保持原有逻辑
  if (clickText == null) {
    _foundUrls.add(finalUrl);
@@ -1334,7 +1283,6 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
    }
    return;
  }
-
  // 有点击操作的情况
  if (!_isClickExecuted) {
    // 点击未执行完成，先记录URL
@@ -1342,7 +1290,6 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
    LogUtil.i('点击操作未完成，记录URL: $finalUrl');
    return;
  }
-
  // 点击已执行完成的情况
  if (!_foundUrls.contains(finalUrl)) {
    // 发现点击后的新URL，立即使用
@@ -1355,18 +1302,25 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
    }
    return;
  }
-
  // 如果到这里，说明是已记录的URL
  // 设置5秒等待定时器（仅在第一次遇到已记录的URL时设置）
- if (!_foundUrls.isEmpty && !_m3u8Found && !completer.isCompleted) {
+ if (!_m3u8Found && !completer.isCompleted) {
    LogUtil.i('点击后未发现新URL，等待5秒检查是否有新URL...');
    Timer(Duration(seconds: 5), () async {
-     if (!_m3u8Found && !completer.isCompleted && !_foundUrls.isEmpty) {
-       _m3u8Found = true;
-       final lastUrl = _foundUrls.last;
-       LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
-       completer.complete(lastUrl);
-       await dispose();
+     // 再次检查状态，确保5秒内没有其他URL被处理
+     if (!_m3u8Found && !completer.isCompleted) {
+       if (_foundUrls.isNotEmpty) {
+         // 有记录的URL，使用最后一个
+         _m3u8Found = true;
+         final lastUrl = _foundUrls.last;
+         LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
+         completer.complete(lastUrl);
+         await dispose();
+       } else {
+         // 没有记录的URL，继续原有检测逻辑
+         LogUtil.i('5秒内未发现新URL且无记录的URL，继续检测');
+         // 不设置 _m3u8Found 为 true，也不调用 dispose()，让检测继续进行
+       }
      }
    });
  }
@@ -1531,7 +1485,7 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
       String sample = sampleResult.toString();
 
       // 对样本内容进行处理
-      sample = await _processSampleContent(sample);
+      sample = UrlUtils.basicUrlClean(sample);
 
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
@@ -1552,103 +1506,55 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     }
   }
   
-  /// 处理样本内容
-  Future<String> _processSampleContent(String sample) async {
-    // 处理JSON转义字符前先解码URL编码
-    try {
-      // 进行两次解码以处理嵌套的URL编码
-      sample = Uri.decodeComponent(sample);
-      sample = Uri.decodeComponent(sample);
-    } catch (e) {
-      LogUtil.i('URL解码失败，保持原样: $e');
-    }
-
-    // 然后再处理 JSON 转义字符
-    sample = sample
-      .replaceAll(r'\\\\', '\\')  // 处理双反斜杠
-      .replaceAll(r'\\/', '/')   // 处理转义斜杠
-      .replaceAll(r'\\"', '"')   // 处理转义双引号
-      .replaceAll(r'\/', '/');   // 处理转义斜杠
-
-    // 处理Unicode转义序列
-    sample = sample.replaceAllMapped(RegExp(r'\\u([0-9a-fA-F]{4})'), (match) {
-      try {
-        return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
-      } catch (e) {
-        return match.group(0)!;
-      }
-    });
-    
-    // URL解码
-    if (sample.contains('%')) {
-      try {
-        sample = Uri.decodeComponent(sample);
-      } catch (e) {
-        LogUtil.i('URL解码失败，保持原样: $e');
-      }
-    }
-
-    // 处理HTML实体
-    return sample
-      .replaceAll('&quot;', '"')  // 双引号
-      .replaceAll('&#x2F;', '/') // 斜杠
-      .replaceAll('&#47;', '/')  // 斜杠
-      .replaceAll('&amp;', '&')  // &
-      .replaceAll('&lt;', '<')   // 小于号
-      .replaceAll('&gt;', '>');  // 大于号
-  }
-
   /// 处理正则匹配结果
-  Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
-    if (clickIndex == 0) {
-      final uniqueUrls = <String>{};
-      for (final match in matches) {
-        String url = match.group(0)!;
-        String cleanedUrl = _handleRelativePath(url);
-        uniqueUrls.add(cleanedUrl);
-      }
+Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
+ if (clickIndex == 0) {
+   final uniqueUrls = <String>{};
+   for (final match in matches) {
+     String url = match.group(0)!;
+     uniqueUrls.add(_cleanUrl(url));
+   }
 
-      for (final url in uniqueUrls) {
-        if (_isValidM3U8Url(url)) {
-          String finalUrl = url;
-          if (fromParam != null && toParam != null) {
-            finalUrl = url.replaceAll(fromParam!, toParam!);
-          }
-          _foundUrls.add(finalUrl);
-          _m3u8Found = true;
-          LogUtil.i('页面内容中找到 $finalUrl');
-          return finalUrl;
-        }
-      }
-    } else {
-      final uniqueUrls = <String>{};
-      for (final match in matches) {
-        String url = match.group(0)!;
-        uniqueUrls.add(_handleRelativePath(url));
-      }
+   for (final url in uniqueUrls) {
+     if (_isValidM3U8Url(url)) {
+       String finalUrl = url;
+       if (fromParam != null && toParam != null) {
+         finalUrl = url.replaceAll(fromParam!, toParam!);
+       }
+       _foundUrls.add(finalUrl);
+       _m3u8Found = true;
+       LogUtil.i('页面内容中找到 $finalUrl');
+       return finalUrl;
+     }
+   }
+ } else {
+   final uniqueUrls = <String>{};
+   for (final match in matches) {
+     String url = match.group(0)!;
+     uniqueUrls.add(_cleanUrl(url));
+   }
 
-      int index = 0;
-      for (final url in uniqueUrls) {
-        String cleanedUrl = _cleanUrl(url);
-        if (_isValidM3U8Url(cleanedUrl)) {
-          String finalUrl = cleanedUrl;
-          if (fromParam != null && toParam != null) {
-            finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-          }
-          _foundUrls.add(finalUrl);
-          if (index == clickIndex) {
-            _m3u8Found = true;
-            LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-            return finalUrl;
-          }
-          index++;
-        }
-      }
-    }
+   int index = 0;
+   for (final url in uniqueUrls) {
+     if (_isValidM3U8Url(url)) {
+       String finalUrl = url;
+       if (fromParam != null && toParam != null) {
+         finalUrl = url.replaceAll(fromParam!, toParam!);
+       }
+       _foundUrls.add(finalUrl);
+       if (index == clickIndex) {
+         _m3u8Found = true;
+         LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+         return finalUrl;
+       }
+       index++;
+     }
+   }
+ }
 
-    LogUtil.i('页面内容中未找到符合规则的地址，继续使用JS检测器');
-    return null;
-  }
+ LogUtil.i('页面内容中未找到符合规则的地址，继续使用JS检测器');
+ return null;
+}
 
   /// 准备M3U8检测器代码
   String _prepareM3U8DetectorCode() {
