@@ -11,7 +11,36 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 /// URL 处理工具类
 class UrlUtils {
   /// 基础 URL 解码和清理
-  static String basicUrlClean(String url) {
+static String basicUrlClean(String url) {
+    // 首先检查是否包含编码的JSON数据
+    if (url.contains('%7B') || url.contains('%22')) {
+      try {
+        // 第一步：处理百分号编码
+        String decodedUrl = Uri.decodeComponent(url);
+        
+        // 第二步：处理JSON转义字符
+        decodedUrl = decodedUrl
+          .replaceAll(r'\[', '[')
+          .replaceAll(r'\]', ']')
+          .replaceAll(r'\{', '{')
+          .replaceAll(r'\}', '}')
+          .replaceAll(r'\"', '"');
+        
+        // 尝试解析JSON并提取目标URL
+        try {
+          final Map<String, dynamic> data = json.decode(decodedUrl);
+          // 查找特定的URL字段
+          if (data['movie'] != null && data['movie']['livepcurl'] != null) {
+            return data['movie']['livepcurl'];
+          }
+        } catch (e) {
+          LogUtil.i('JSON解析失败,继续使用常规清理流程: $e');
+        }
+      } catch (e) {
+        LogUtil.i('URL解码失败,继续使用常规清理流程: $e');
+      }
+    }
+
     // 去除末尾反斜杠
     if (url.endsWith('\\')) {
       url = url.substring(0, url.length - 1);
@@ -814,175 +843,156 @@ class GetM3U8 {
     }
   }
 
-/// 点击操作执行
- Future<bool> _executeClick() async {
-   // 检查WebViewController是否已初始化
-   if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
-     LogUtil.i(
-       !_isControllerReady()
-         ? 'WebViewController 未初始化，无法执行点击'
-         : _isClickExecuted
-           ? '点击已执行，跳过'
-           : '无点击配置，跳过'
-     );
-     return false;
-   }
+  /// 点击操作执行
+  Future<bool> _executeClick() async {
+    // 检查WebViewController是否已初始化
+    if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
+      LogUtil.i(
+        !_isControllerReady()
+          ? 'WebViewController 未初始化，无法执行点击'
+          : _isClickExecuted
+            ? '点击已执行，跳过'
+            : '无点击配置，跳过'
+      );
+      return false;
+    }
 
-   LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
-   
-   // 点击操作的 JavaScript 代码
-   final jsCode = '''
-   (async function() {
-     try {
-       function tryClick(element) {
-         try {
-           // 1. 直接点击
-           element.click();
-           
-           // 2. 模拟鼠标事件
-           element.dispatchEvent(new MouseEvent('click', {
-             bubbles: true,
-             cancelable: true,
-             view: window
-           }));
-           
-           // 3. 触发任何绑定的事件处理器
-           const clickEvent = element.onclick || element.getAttribute('onclick');
-           if (typeof clickEvent === 'function') {
-             clickEvent.call(element);
-           }
-         } catch (e) {
-           console.error('点击元素失败:', e);
-         }
-       }
+    LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
+    
+    // 点击操作的 JavaScript 代码
+    final jsCode = '''
+    (async function() {
+      try {
+        function findAndClick() {
+          const searchText = '${clickText}';
+          const targetIndex = ${clickIndex};
 
-       function findAndClick() {
-         const searchText = '${clickText}';
-         const targetIndex = ${clickIndex};
+          // 获取所有文本和元素节点
+          const walk = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+            {
+              acceptNode: function(node) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                  if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_REJECT;
+              }
+            }
+          );
 
-         // 获取所有文本和元素节点
-         const walk = document.createTreeWalker(
-           document.body,
-           NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-           {
-             acceptNode: function(node) {
-               if (node.nodeType === Node.ELEMENT_NODE) {
-                 if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
-                   return NodeFilter.FILTER_REJECT;
-                 }
-                 return NodeFilter.FILTER_ACCEPT;
-               }
-               if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-                 return NodeFilter.FILTER_ACCEPT;
-               }
-               return NodeFilter.FILTER_REJECT;
-             }
-           }
-         );
+          // 记录找到的匹配
+          const matches = [];
+          let currentIndex = 0;
+          let foundNode = null;
 
-         // 记录找到的匹配
-         const matches = [];
-         let currentIndex = 0;
-         let foundNode = null;
+          // 遍历节点
+          let node;
+          while (node = walk.nextNode()) {
+            // 处理文本节点
+            if (node.nodeType === Node.TEXT_NODE) {
+              const text = node.textContent.trim();
+              if (text === searchText) {
+                matches.push({
+                  text: text,
+                  node: node.parentElement
+                });
 
-         // 遍历节点
-         let node;
-         while (node = walk.nextNode()) {
-           // 处理文本节点
-           if (node.nodeType === Node.TEXT_NODE) {
-             const text = node.textContent.trim();
-             if (text === searchText) {
-               matches.push({
-                 text: text,
-                 node: node.parentElement
-               });
+                if (currentIndex === targetIndex) {
+                  foundNode = node.parentElement;
+                  break;
+                }
+                currentIndex++;
+              }
+            }
+            // 处理元素节点
+            else if (node.nodeType === Node.ELEMENT_NODE) {
+              const children = Array.from(node.childNodes);
+              const directText = children
+                .filter(child => child.nodeType === Node.TEXT_NODE)
+                .map(child => child.textContent.trim())
+                .join('');
 
-               if (currentIndex === targetIndex) {
-                 foundNode = node.parentElement;
-                 break;
-               }
-               currentIndex++;
-             }
-           }
-           // 处理元素节点
-           else if (node.nodeType === Node.ELEMENT_NODE) {
-             const children = Array.from(node.childNodes);
-             const directText = children
-               .filter(child => child.nodeType === Node.TEXT_NODE)
-               .map(child => child.textContent.trim())
-               .join('');
+              if (directText === searchText) {
+                matches.push({
+                  text: directText,
+                  node: node
+                });
 
-             if (directText === searchText) {
-               matches.push({
-                 text: directText,
-                 node: node
-               });
+                if (currentIndex === targetIndex) {
+                  foundNode = node;
+                  break;
+                }
+                currentIndex++;
+              }
+            }
+          }
 
-               if (currentIndex === targetIndex) {
-                 foundNode = node;
-                 break;
-               }
-               currentIndex++;
-             }
-           }
-         }
+          if (!foundNode) {
+            console.error('未找到匹配的元素');
+            return;
+          }
 
-         if (!foundNode) {
-           console.error('未找到匹配的元素');
-           return;
-         }
+          try {
+            // 优先点击节点本身
+            const originalClass = foundNode.getAttribute('class') || '';
+            foundNode.click();
 
-         try {
-           // 首先查找最近的可点击祖先元素
-           let clickTarget = foundNode;
-           let currentNode = foundNode;
-           while (currentNode && currentNode !== document.body) {
-             if (currentNode.tagName === 'A' || 
-                 currentNode.tagName === 'BUTTON' || 
-                 currentNode.getAttribute('role') === 'button' ||
-                 currentNode.onclick ||
-                 currentNode.getAttribute('onclick')) {
-               clickTarget = currentNode;
-               break;
-             }
-             currentNode = currentNode.parentElement;
-           }
+            // 等待 1000ms 检查 class 是否发生变化
+            setTimeout(() => {
+              const updatedClass = foundNode.getAttribute('class') || '';
+              if (originalClass !== updatedClass) {
+                console.info('节点点击成功，class 发生变化');
+              } else if (foundNode.parentElement) {
+                // 尝试点击父节点
+                const parentOriginalClass = foundNode.parentElement.getAttribute('class') || '';
+                foundNode.parentElement.click();
 
-           // 执行点击
-           tryClick(clickTarget);
-           console.info('点击操作执行完成');
-         } catch (e) {
-           console.error('点击操作失败:', e);
-         }
-       }
+                setTimeout(() => {
+                  const parentUpdatedClass = foundNode.parentElement.getAttribute('class') || '';
+                  if (parentOriginalClass !== parentUpdatedClass) {
+                    console.info('父节点点击成功，class 发生变化');
+                  } 
+                }, 1000);
+              } 
+            }, 1000);
+          } catch (e) {
+            console.error('点击操作失败:', e);
+          }
+        }
+        findAndClick();
+      } catch (e) {
+        console.error('JavaScript 执行时发生错误:', e);
+      }
+    })();
+    ''';
 
-       findAndClick();
-     } catch (e) {
-       console.error('JavaScript 执行时发生错误:', e);
-     }
-   })();
-   ''';
-
-   try {
-     // 执行点击操作
-     await _controller.runJavaScript(jsCode);
-     
-     // 额外等待一段时间，确保页面响应完成
-     await Future.delayed(Duration(milliseconds: 1000));
-     
-     // 设置点击完成标记
-     _isClickExecuted = true;
-     
-     // 无论点击结果如何，最终都返回 true，认为点击成功
-     LogUtil.i('点击操作执行完成，结果: 成功');
-     return true;
-   } catch (e, stack) {
-     LogUtil.logError('执行点击操作时发生错误', e, stack);
-     _isClickExecuted = true;
-     // 无论发生何种错误，都视为点击成功
-     return true; 
-   }
- }
+    try {
+      // 执行点击操作
+      await _controller.runJavaScript(jsCode);
+      
+      // 额外等待一段时间，确保页面响应完成
+      await Future.delayed(Duration(milliseconds: 1000));
+      
+      // 设置点击完成标记
+      _isClickExecuted = true;
+      
+      // 无论点击结果如何，最终都返回 true，认为点击成功
+      LogUtil.i('点击操作执行完成，结果: 成功');
+      return true;
+    } catch (e, stack) {
+      LogUtil.logError('执行点击操作时发生错误', e, stack);
+      _isClickExecuted = true;
+      // 无论发生何种错误，都视为点击成功
+      return true; 
+    }
+  }
   
   /// 处理加载错误
   Future<void> _handleLoadError(Completer<String> completer) async {
@@ -1288,72 +1298,79 @@ class GetM3U8 {
     return true;
   }
 
-  /// 处理发现的M3U8 URL
-  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-    if (_m3u8Found || _isDisposed) {
-      LogUtil.i(
-        _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
-      );
-      return;
-    }
+/// 处理发现的M3U8 URL
+Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+ if (_m3u8Found || _isDisposed) {
+   LogUtil.i(
+     _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
+   );
+   return;
+ }
 
-    if (url.isEmpty) return;
+ if (url.isEmpty) return;
 
-    // 首先整理URL
-    String cleanedUrl = _cleanUrl(url);
-    if (!_isValidM3U8Url(cleanedUrl)) {
-      LogUtil.i('URL验证失败，继续等待新的URL');
-      return;
-    }
+ // 首先整理URL
+ String cleanedUrl = _cleanUrl(url);
+ if (!_isValidM3U8Url(cleanedUrl)) {
+   LogUtil.i('URL验证失败，继续等待新的URL');
+   return;
+ }
 
-    // 处理URL参数替换
-    String finalUrl = cleanedUrl;
-    if (fromParam != null && toParam != null) {
-      LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-      finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-    }
+ // 处理URL参数替换
+ String finalUrl = cleanedUrl;
+ if (fromParam != null && toParam != null) {
+   LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+   finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+ }
 
-    // 点击操作相关处理
-    if (clickText != null) {
-      if (!_isClickExecuted) {
-        // 点击未执行完成，先记录URL
-        _foundUrls.add(finalUrl);
-        LogUtil.i('点击操作未完成，记录URL: $finalUrl');
-        return;
-      }
+ // 没有点击操作的情况，保持原有逻辑
+ if (clickText == null) {
+   _foundUrls.add(finalUrl);
+   _m3u8Found = true;
+   if (!completer.isCompleted) {
+     LogUtil.i('发现有效URL: $finalUrl');
+     completer.complete(finalUrl);
+     await dispose();
+   }
+   return;
+ }
 
-      // 点击已执行完成
-      if (!_foundUrls.contains(finalUrl)) {
-        // 发现新URL，立即使用
-        _foundUrls.add(finalUrl);
-        _m3u8Found = true;
-        if (!completer.isCompleted) {
-          LogUtil.i('点击后发现新URL: $finalUrl');
-          completer.complete(finalUrl);
-          await dispose();
-        }
-      } else {
-        // 给一个时间窗口等待可能的新URL
-        await Future.delayed(Duration(seconds: 2));
-        if (!_m3u8Found && !completer.isCompleted && _foundUrls.isNotEmpty) {
-          finalUrl = _foundUrls.last; // 使用最后发现的URL
-          _m3u8Found = true;
-          LogUtil.i('未发现新URL，使用已记录的最后一个URL: $finalUrl');
-          completer.complete(finalUrl);
-          await dispose();
-        }
-      }
-    } else {
-      // 没有点击操作，直接使用发现的URL
-      _foundUrls.add(finalUrl);
-      _m3u8Found = true;
-      if (!completer.isCompleted) {
-        LogUtil.i('发现有效URL: $finalUrl');
-        completer.complete(finalUrl);
-        await dispose();
-      }
-    }
-  }
+ // 有点击操作的情况
+ if (!_isClickExecuted) {
+   // 点击未执行完成，先记录URL
+   _foundUrls.add(finalUrl);
+   LogUtil.i('点击操作未完成，记录URL: $finalUrl');
+   return;
+ }
+
+ // 点击已执行完成的情况
+ if (!_foundUrls.contains(finalUrl)) {
+   // 发现点击后的新URL，立即使用
+   _foundUrls.add(finalUrl);
+   _m3u8Found = true;
+   if (!completer.isCompleted) {
+     LogUtil.i('点击后发现新URL，立即使用: $finalUrl');
+     completer.complete(finalUrl);
+     await dispose();
+   }
+   return;
+ }
+
+ // 如果到这里，说明是已记录的URL
+ // 设置5秒等待定时器（仅在第一次遇到已记录的URL时设置）
+ if (!_foundUrls.isEmpty && !_m3u8Found && !completer.isCompleted) {
+   LogUtil.i('点击后未发现新URL，等待5秒检查是否有新URL...');
+   Timer(Duration(seconds: 5), () async {
+     if (!_m3u8Found && !completer.isCompleted && !_foundUrls.isEmpty) {
+       _m3u8Found = true;
+       final lastUrl = _foundUrls.last;
+       LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
+       completer.complete(lastUrl);
+       await dispose();
+     }
+   });
+ }
+}
 
   /// 注入M3U8检测器
   void _injectM3U8Detector() {
