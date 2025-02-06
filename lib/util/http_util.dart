@@ -8,276 +8,276 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 import '../generated/l10n.dart';
 
 // 定义 DIO 相关类以兼容接口
-class CancelToken {
- bool isCancelled = false;
- void cancel() => isCancelled = true;
+class HttpCancelToken {
+bool isCancelled = false;
+void cancel() => isCancelled = true;
 }
 
 class Options {
- final Map<String, String>? headers;
- final Duration? receiveTimeout;
- final Map<String, dynamic>? extra;
+final Map<String, String>? headers;
+final Duration? receiveTimeout;
+final Map<String, dynamic>? extra;
 
- Options({this.headers, this.receiveTimeout, this.extra});
+Options({this.headers, this.receiveTimeout, this.extra});
 
- Options copyWith({
-   Map<String, String>? headers,
-   Duration? receiveTimeout,
-   Map<String, dynamic>? extra,
- }) {
-   return Options(
-     headers: headers ?? this.headers,
-     receiveTimeout: receiveTimeout ?? this.receiveTimeout,
-     extra: extra ?? this.extra,
-   );
- }
+Options copyWith({
+  Map<String, String>? headers,
+  Duration? receiveTimeout,
+  Map<String, dynamic>? extra,
+}) {
+  return Options(
+    headers: headers ?? this.headers,
+    receiveTimeout: receiveTimeout ?? this.receiveTimeout,
+    extra: extra ?? this.extra,
+  );
+}
 }
 
 class DioException implements Exception {
- final String? message;
- final DioExceptionType type;
- final dynamic error;
- final Response? response;
- final RequestOptions requestOptions;
+final String? message;
+final DioExceptionType type;
+final dynamic error;
+final Response? response;
+final RequestOptions requestOptions;
 
- DioException({
-   this.message,
-   required this.type,
-   this.error,
-   this.response,
-   required this.requestOptions,
- });
+DioException({
+  this.message,
+  required this.type,
+  this.error,
+  this.response,
+  required this.requestOptions,
+});
 }
 
 enum DioExceptionType {
- connectionTimeout,
- sendTimeout,
- receiveTimeout,
- badResponse,
- cancel,
- other,
+connectionTimeout,
+sendTimeout,
+receiveTimeout,
+badResponse,
+cancel,
+other,
 }
 
 class Response<T> {
- final T? data;
- final int? statusCode;
- final RequestOptions requestOptions;
- 
- Response({
-   this.data,
-   this.statusCode,
-   required this.requestOptions,
- });
+final T? data;
+final int? statusCode;
+final RequestOptions requestOptions;
+
+Response({
+  this.data,
+  this.statusCode,
+  required this.requestOptions,
+});
 }
 
 class RequestOptions {
- final String path;
- final Map<String, dynamic>? queryParameters;
- final Options? options;
- 
- RequestOptions({
-   required this.path,
-   this.queryParameters,
-   this.options,
- });
+final String path;
+final Map<String, dynamic>? queryParameters;
+final Options? options;
+
+RequestOptions({
+  required this.path,
+  this.queryParameters,
+  this.options,
+});
 }
 
 typedef ProgressCallback = void Function(int count, int total);
 
 class HttpUtil {
- static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
- final Duration connectTimeout;
- final Duration receiveTimeout;
- late final http.Client _client;
- bool _isCancelled = false;
+static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
+final Duration connectTimeout;
+final Duration receiveTimeout;
+late final http.Client _client;
+bool _isCancelled = false;
 
- // 初始化基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
- HttpUtil._()
-     : connectTimeout = const Duration(seconds: 3),
-       receiveTimeout = const Duration(seconds: 6) {
-   _client = http.Client();
-   HttpOverrides.global = _CustomHttpOverrides();
-   LogUtil.i('HttpUtil initialized'); // 保持日志记录
- }
+// 初始化基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
+HttpUtil._()
+    : connectTimeout = const Duration(seconds: 3),
+      receiveTimeout = const Duration(seconds: 6) {
+  _client = http.Client();
+  HttpOverrides.global = _CustomHttpOverrides();
+  LogUtil.i('HttpUtil initialized'); // 保持日志记录
+}
 
- factory HttpUtil() {
-   return _instance;
- }
+factory HttpUtil() {
+  return _instance;
+}
 
- void cancelRequests() {
-   _isCancelled = true;
-   LogUtil.i('所有请求已取消');
- }
+void cancelRequests() {
+  _isCancelled = true;
+  LogUtil.i('所有请求已取消');
+}
 
- // GET 请求方法，确保返回 String? 时不会出错
- Future<T?> getRequest<T>(String path,
-     {Map<String, dynamic>? queryParameters,
-     Options? options,
-     CancelToken? cancelToken,
-     ProgressCallback? onReceiveProgress,
-     int retryCount = 2,
-     Duration retryDelay = const Duration(seconds: 2)}) async {
-   Uri uri = Uri.parse(path);
-   if (queryParameters != null) {
-     uri = uri.replace(queryParameters: queryParameters);
-   }
-   
-   int currentAttempt = 0;
-   Duration currentDelay = retryDelay;
+// GET 请求方法，确保返回 String? 时不会出错
+Future<T?> getRequest<T>(String path,
+    {Map<String, dynamic>? queryParameters,
+    Options? options,
+    HttpCancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2)}) async {
+  Uri uri = Uri.parse(path);
+  if (queryParameters != null) {
+    uri = uri.replace(queryParameters: queryParameters);
+  }
+  
+  int currentAttempt = 0;
+  Duration currentDelay = retryDelay;
 
-   while (currentAttempt < retryCount) {
-     try {
-       // 检查是否需要取消请求
-       if (_isCancelled || cancelToken?.isCancelled == true) {
-         throw DioException(
-           type: DioExceptionType.cancel,
-           requestOptions: RequestOptions(path: path),
-         );
-       }
+  while (currentAttempt < retryCount) {
+    try {
+      // 检查是否需要取消请求
+      if (_isCancelled || cancelToken?.isCancelled == true) {
+        throw DioException(
+          type: DioExceptionType.cancel,
+          requestOptions: RequestOptions(path: path),
+        );
+      }
 
-       LogUtil.i('发起请求: $uri'); // 请求日志
-       LogUtil.i('Headers: ${HeadersConfig.generateHeaders(url: path)}'); // 请求头日志
+      LogUtil.i('发起请求: $uri'); // 请求日志
+      LogUtil.i('Headers: ${HeadersConfig.generateHeaders(url: path)}'); // 请求头日志
 
-       final response = await _client
-           .get(
-             uri,
-             headers: {
-               ...HeadersConfig.generateHeaders(url: path),
-               ...?options?.headers,
-             },
-           )
-           .timeout(options?.receiveTimeout ?? connectTimeout);
+      final response = await _client
+          .get(
+            uri,
+            headers: {
+              ...HeadersConfig.generateHeaders(url: path),
+              ...?options?.headers,
+            },
+          )
+          .timeout(options?.receiveTimeout ?? connectTimeout);
 
-       LogUtil.i('响应状态码: ${response.statusCode}'); // 响应状态码日志
-       LogUtil.i('响应体: ${response.body}'); // 响应体日志
+      LogUtil.i('响应状态码: ${response.statusCode}'); // 响应状态码日志
+      LogUtil.i('响应体: ${response.body}'); // 响应体日志
 
-       if (response.statusCode == 200) {
-         return response.body as T;
-       }
-       
-       throw DioException(
-         type: DioExceptionType.badResponse,
-         response: Response(
-           data: response.body,
-           statusCode: response.statusCode,
-           requestOptions: RequestOptions(path: path),
-         ),
-         requestOptions: RequestOptions(path: path),
-       );
-     } catch (e, stackTrace) {
-       currentAttempt++;
-       LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+      if (response.statusCode == 200) {
+        return response.body as T;
+      }
+      
+      throw DioException(
+        type: DioExceptionType.badResponse,
+        response: Response(
+          data: response.body,
+          statusCode: response.statusCode,
+          requestOptions: RequestOptions(path: path),
+        ),
+        requestOptions: RequestOptions(path: path),
+      );
+    } catch (e, stackTrace) {
+      currentAttempt++;
+      LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
 
-       if (currentAttempt >= retryCount) {
-         formatError(_mapToDioException(e, path));
-         return null;
-       }
+      if (currentAttempt >= retryCount) {
+        formatError(_mapToDioException(e, path));
+        return null;
+      }
 
-       await Future.delayed(currentDelay);
-       currentDelay *= 2;
-       LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
-     }
-   }
-   return null;
- }
+      await Future.delayed(currentDelay);
+      currentDelay *= 2;
+      LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+    }
+  }
+  return null;
+}
 
- // 文件下载方法，支持显示下载进度
- Future<int?> downloadFile(String url, String savePath,
-     {ValueChanged<double>? progressCallback}) async {
-   try {
-     final headers = HeadersConfig.generateHeaders(url: url);
-     
-     LogUtil.i('开始下载文件: $url'); // 下载开始日志
-     
-     final response = await _client
-         .get(Uri.parse(url), headers: headers)
-         .timeout(const Duration(seconds: 60));
+// 文件下载方法，支持显示下载进度
+Future<int?> downloadFile(String url, String savePath,
+    {ValueChanged<double>? progressCallback}) async {
+  try {
+    final headers = HeadersConfig.generateHeaders(url: url);
+    
+    LogUtil.i('开始下载文件: $url'); // 下载开始日志
+    
+    final response = await _client
+        .get(Uri.parse(url), headers: headers)
+        .timeout(const Duration(seconds: 60));
 
-     if (response.statusCode == 200) {
-       final file = File(savePath);
-       final bytes = response.bodyBytes;
-       final totalBytes = bytes.length;
-       
-       // 分块写入并更新进度
-       final chunkSize = 1024 * 1024; // 1MB chunks
-       var written = 0;
-       
-       final sink = file.openWrite();
-       for (var i = 0; i < totalBytes; i += chunkSize) {
-         if (_isCancelled) {
-           await sink.close();
-           return null;
-         }
-         
-         final end = (i + chunkSize < totalBytes) ? i + chunkSize : totalBytes;
-         sink.add(bytes.sublist(i, end));
-         written += end - i;
-         
-         progressCallback?.call(written / totalBytes);
-       }
-       await sink.close();
-       
-       LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
-       return response.statusCode;
-     }
+    if (response.statusCode == 200) {
+      final file = File(savePath);
+      final bytes = response.bodyBytes;
+      final totalBytes = bytes.length;
+      
+      // 分块写入并更新进度
+      final chunkSize = 1024 * 1024; // 1MB chunks
+      var written = 0;
+      
+      final sink = file.openWrite();
+      for (var i = 0; i < totalBytes; i += chunkSize) {
+        if (_isCancelled) {
+          await sink.close();
+          return null;
+        }
+        
+        final end = (i + chunkSize < totalBytes) ? i + chunkSize : totalBytes;
+        sink.add(bytes.sublist(i, end));
+        written += end - i;
+        
+        progressCallback?.call(written / totalBytes);
+      }
+      await sink.close();
+      
+      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
+      return response.statusCode;
+    }
 
-     LogUtil.logError('文件下载失败: $url', 'Status code: ${response.statusCode}', StackTrace.current);
-     return 500;
-   } catch (e, stackTrace) {
-     LogUtil.logError('文件下载失败: $url', e, stackTrace);
-     return 500;
-   }
- }
+    LogUtil.logError('文件下载失败: $url', 'Status code: ${response.statusCode}', StackTrace.current);
+    return 500;
+  } catch (e, stackTrace) {
+    LogUtil.logError('文件下载失败: $url', e, stackTrace);
+    return 500;
+  }
+}
 
- void dispose() {
-   _isCancelled = true;
-   _client.close();
-   LogUtil.i('HttpUtil disposed');
- }
+void dispose() {
+  _isCancelled = true;
+  _client.close();
+  LogUtil.i('HttpUtil disposed');
+}
 }
 
 class _CustomHttpOverrides extends HttpOverrides {
- @override
- HttpClient createHttpClient(SecurityContext? context) {
-   return super.createHttpClient(context)
-     ..maxConnectionsPerHost = 5
-     ..badCertificateCallback = (cert, host, port) => true;
- }
+@override
+HttpClient createHttpClient(SecurityContext? context) {
+  return super.createHttpClient(context)
+    ..maxConnectionsPerHost = 5
+    ..badCertificateCallback = (cert, host, port) => true;
+}
 }
 
 DioException _mapToDioException(dynamic error, String path) {
- final requestOptions = RequestOptions(path: path);
- 
- if (error is TimeoutException) {
-   return DioException(
-     type: DioExceptionType.connectionTimeout,
-     requestOptions: requestOptions,
-   );
- }
- 
- if (error is DioException) {
-   return error;
- }
- 
- return DioException(
-   type: DioExceptionType.other,
-   error: error,
-   requestOptions: requestOptions,
- );
+final requestOptions = RequestOptions(path: path);
+
+if (error is TimeoutException) {
+  return DioException(
+    type: DioExceptionType.connectionTimeout,
+    requestOptions: requestOptions,
+  );
+}
+
+if (error is DioException) {
+  return error;
+}
+
+return DioException(
+  type: DioExceptionType.other,
+  error: error,
+  requestOptions: requestOptions,
+);
 }
 
 void formatError(DioException e) {
- LogUtil.safeExecute(() {
-   final message = switch (e.type) {
-     DioExceptionType.connectionTimeout => S.current.netTimeOut,
-     DioExceptionType.sendTimeout => S.current.netSendTimeout,
-     DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
-     DioExceptionType.badResponse => S.current.netBadResponse(
-         e.response?.statusCode?.toString() ?? ''),
-     DioExceptionType.cancel => S.current.netCancel,
-     _ => e.message.toString()
-   };
+LogUtil.safeExecute(() {
+  final message = switch (e.type) {
+    DioExceptionType.connectionTimeout => S.current.netTimeOut,
+    DioExceptionType.sendTimeout => S.current.netSendTimeout,
+    DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
+    DioExceptionType.badResponse => S.current.netBadResponse(
+        e.response?.statusCode?.toString() ?? ''),
+    DioExceptionType.cancel => S.current.netCancel,
+    _ => e.message.toString()
+  };
 
-   LogUtil.v(message);
- }, '处理 DioException 错误时发生异常');
+  LogUtil.v(message);
+}, '处理 DioException 错误时发生异常');
 }
