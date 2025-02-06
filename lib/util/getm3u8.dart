@@ -225,6 +225,8 @@ class GetM3U8 {
 
   // 添加一个变量来跟踪当前URL的加载状态
   final Map<String, bool> _pageLoadedStatus = {};
+  
+  static final _protocolRegex = RegExp(r'(?:https?|rtmp|rtsp|ftp|mms|thunder)://');
 
   /// 时间源配置
   static const List<Map<String, String>> TIME_APIS = [
@@ -371,18 +373,18 @@ class GetM3U8 {
     // 基础清理
     String cleanedUrl = UrlUtils.basicUrlClean(url);
 
-    // 使用同一个正则表达式检查URL
-    final matches = _protocolRegex.allMatches(cleanedUrl);
-    if (matches.length == 1 && matches.first.start == 0) {
-      return cleanedUrl; // 只有一个协议且在开头，直接返回
+    // 使用单个正则表达式检查URL
+    final protocolMatches = _protocolRegex.allMatches(cleanedUrl);
+    if (protocolMatches.length == 1 && protocolMatches.first.start == 0) {
+      return cleanedUrl;
     }
 
     // 提取目标格式 URL
     final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
-    final matches = RegExp(pattern).allMatches(cleanedUrl);
+    final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
     
-    if (matches.isNotEmpty) {
-      return matches.first.group(0)!;
+    if (urlMatches.isNotEmpty) {
+      return urlMatches.first.group(0)!;
     }
 
     // 构建完整 URL
