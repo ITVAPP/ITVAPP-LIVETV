@@ -1822,7 +1822,8 @@ String _cleanUrl(String url) {
   }
 
   // 使用正则表达式提取有效的 M3U8 URL
-  final regex = RegExp(r'(https?://|//|/)[^"\'\s]*?\.${_filePattern}[^"\'\s]*');
+  final pattern = '(https?://|//|/)[^"\'\\s]*?\\.${_filePattern}[^"\'\\s]*';
+  final regex = RegExp(pattern);
   final match = regex.firstMatch(cleanedUrl);
 
   if (match != null) {
