@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
-import 'dart:convert';
-import 'package:flutter/cupertino.dart';  
+import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 import '../generated/l10n.dart';
@@ -42,88 +41,60 @@ class HttpUtil {
     };
   }
 
-  // GET 请求方法，确保返回 String? 时不会出错
-  Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response;
-    int currentAttempt = 0;
-    Duration currentDelay = retryDelay;
+// GET 请求方法，确保返回 String? 时不会出错
+Future<T?> getRequest<T>(String path,
+    {Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2)}) async {
+  Response? response;
+  int currentAttempt = 0;
+  Duration currentDelay = retryDelay;
 
-    while (currentAttempt < retryCount) {
-      try {
-        // 设置 responseType 为 bytes 以获取原始响应数据
-        response = await _dio.get<T>(
-          path,
-          queryParameters: queryParameters,
-          options: (options ?? Options()).copyWith(
-            extra: {'attempt': currentAttempt},
-            headers: HeadersConfig.generateHeaders(url: path),
-            responseType: ResponseType.bytes, // 总是获取原始字节数据
-          ),
-          cancelToken: cancelToken,
-          onReceiveProgress: onReceiveProgress,
-        );
+  while (currentAttempt < retryCount) {
+    try {
+      response = await _dio.get<T>(
+        path,
+        queryParameters: queryParameters,
+        options: (options ?? Options()).copyWith(
+          extra: {'attempt': currentAttempt},
+          headers: HeadersConfig.generateHeaders(url: path),
+        ),
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
+      );
 
-        if (T == String && response.data is List<int>) {
-          final contentType = response.headers.value('content-type')?.toLowerCase() ?? '';
-          
-          try {
-            // 1. 二进制文件直接返回字节数组
-            if (contentType.contains('application/octet-stream') || 
-                contentType.contains('application/pdf') ||
-                contentType.contains('image/') ||
-                contentType.contains('video/') ||
-                contentType.contains('audio/')) {
-              return response.data as T;
-            }
-            
-            // 2. 对文本内容进行 UTF-8 解码
-            String decodedString = utf8.decode(response.data as List<int>);
-            
-            // 3. 根据内容类型进行特殊处理
-            if (contentType.contains('application/json')) {
-              // JSON 内容保持原样返回，让调用方自行解析
-              return decodedString as T;
-            } else if (contentType.contains('text/html')) {
-              // HTML 内容保持原样返回
-              return decodedString as T;
-            } else {
-              // 其他文本内容直接返回解码后的字符串
-              return decodedString as T;
-            }
-
-          } catch (e) {
-            LogUtil.e('解码失败，返回原始数据: $e');
-            // 如果解码失败，返回原始字节数据
-            return response.data as T;
-          }
-        }
-
-        if (response.data != null) {
+      // 处理数据类型转换
+      if (response.data != null) {
+        if (response.data is T) {
           return response.data;
         }
-        return null;
-      } on DioException catch (e, stackTrace) {
-        currentAttempt++;
-        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
-
-        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-          formatError(e);
-          return null;
+        // 如果期望 String 但收到二进制数据
+        if (T == String && response.data is List<int>) {
+          return utf8.decode(response.data as List<int>) as T;
         }
-
-        await Future.delayed(currentDelay);
-        currentDelay *= 2;
-        LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+        LogUtil.e('响应数据类型不匹配: 期望 $T, 实际 ${response.data.runtimeType}');
       }
+      return null;
+
+    } on DioException catch (e, stackTrace) {
+      currentAttempt++;
+      LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+
+      if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+        formatError(e);
+        return null;
+      }
+
+      await Future.delayed(currentDelay);
+      currentDelay *= 2;
+      LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
     }
-    return null;
   }
+  return null;
+}
 
   // 文件下载方法，支持显示下载进度
   Future<int?> downloadFile(String url, String savePath,
