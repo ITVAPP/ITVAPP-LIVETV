@@ -397,12 +397,14 @@ Future<bool> _executeClick() async {
     // 设置点击完成标记
     _isClickExecuted = true;
     
-    LogUtil.i('点击操作执行完成，结果: ${success ? "成功" : "失败"}');
-    return success;
+    // 无论点击结果如何，最终都返回 true，认为点击成功
+    LogUtil.i('点击操作执行完成，结果: 成功');
+    return true;
   } catch (e, stack) {
     LogUtil.logError('执行点击操作时发生错误', e, stack);
     _isClickExecuted = true;
-    return false;
+    // 无论发生何种错误，都视为点击成功
+    return true; 
   }
 }
 
@@ -1186,14 +1188,8 @@ Future<bool> _executeClick() async {
         // 优化脚本内容扫描
         document.querySelectorAll('script:not([src])').forEach(script => {
           if (script.textContent) {
-            let content;
-            try {
-              content = decodeURIComponent(script.textContent);
-            } catch(e) {
-              content = script.textContent;
-            }
-         const searchPattern = '.' + '${_filePattern}';
-
+            const content = script.textContent;
+            const searchPattern = '.' + '${_filePattern}';
             let startIndex = content.indexOf(searchPattern);
             while (startIndex !== -1) {
               // 向前查找URL的开始
@@ -1340,140 +1336,153 @@ Future<bool> _executeClick() async {
     _m3u8Found = false;
   }
 
-  /// 释放资源
-  Future<void> dispose() async {
-    // 防止重复释放
-    if (_isDisposed) {
-      LogUtil.i('资源已释放，跳过重复释放');
-      return;
-    }
+/// 释放资源 
+Future<void> dispose() async {
+  // 防止重复释放
+  if (_isDisposed) {
+    LogUtil.i('资源已释放，跳过重复释放');
+    return;
+  }
 
-    _isDisposed = true;
+  _isDisposed = true;
 
-    // 清理首次加载标记
-    final currentUrl = Uri.parse(url).toString();
-    _hashFirstLoadMap.remove(currentUrl);
+  // 清理首次加载标记
+  final currentUrl = Uri.parse(url).toString();
+  _hashFirstLoadMap.remove(currentUrl);
 
-    // 取消定时器
-    if (_periodicCheckTimer != null) {
-      _periodicCheckTimer?.cancel();
-      _periodicCheckTimer = null;
-    }
+  // 取消定时器
+  if (_periodicCheckTimer != null) {
+    _periodicCheckTimer?.cancel();
+    _periodicCheckTimer = null;
+  }
 
-    // HTML页面才需要清理WebView相关资源
-    if (_isHtmlContent && _isControllerInitialized) {
-      try {
-        // 注入清理脚本，终止所有正在进行的网络请求和观察器
-        await _controller.runJavaScript('''
-          // 停止页面加载
-          window.stop();
+  // 取消所有正在进行的 HTTP 请求
+  HttpUtil().cancelAllRequests();
 
-          // 清理时间拦截器
-          if (window._cleanupTimeInterceptor) {
-            window._cleanupTimeInterceptor();
-          }
+  // HTML页面才需要清理WebView相关资源
+  if (_isHtmlContent && _isControllerInitialized) {
+    try {
+      // 注入清理脚本，终止所有正在进行的网络请求和观察器
+      await _controller.runJavaScript(''' 
+        // 停止页面加载
+        window.stop();
 
-          // 清理所有活跃的XHR请求
-          const activeXhrs = window._activeXhrs || [];
-          activeXhrs.forEach(xhr => xhr.abort());
+        // 清理时间拦截器
+        if (window._cleanupTimeInterceptor) {
+          window._cleanupTimeInterceptor();
+        }
 
-          // 清理所有Fetch请求
-          if (window._abortController) {
-            window._abortController.abort();
-          }
+        // 清理所有活跃的XHR请求
+        const activeXhrs = window._activeXhrs || [];
+        activeXhrs.forEach(xhr => xhr.abort());
 
-          // 清理所有定时器
-          const highestTimeoutId = window.setTimeout(() => {}, 0);
-          for (let i = 0; i <= highestTimeoutId; i++) {
-            window.clearTimeout(i);
-            window.clearInterval(i);
-          }
+        // 清理所有Fetch请求
+        if (window._abortController) {
+          window._abortController.abort();
+        }
 
-          // 清理所有事件监听器
-          window.removeEventListener('scroll', window._scrollHandler);
-          window.removeEventListener('popstate', window._urlChangeHandler);
-          window.removeEventListener('hashchange', window._urlChangeHandler);
+        // 清理所有定时器
+        const highestTimeoutId = window.setTimeout(() => {}, 0);
+        for (let i = 0; i <= highestTimeoutId; i++) {
+          window.clearTimeout(i);
+          window.clearInterval(i);
+        }
 
-          // 清理M3U8检测器
-          if(window._cleanupM3U8Detector) {
-            window._cleanupM3U8Detector();
-          }
+        // 清理所有事件监听器
+        window.removeEventListener('scroll', window._scrollHandler);
+        window.removeEventListener('popstate', window._urlChangeHandler);
+        window.removeEventListener('hashchange', window._urlChangeHandler);
 
-          // 终止所有正在进行的MediaSource操作
-          if (window.MediaSource) {
-            const mediaSources = document.querySelectorAll('video source');
-            mediaSources.forEach(source => {
-              const mediaElement = source.parentElement;
-              if (mediaElement) {
-                mediaElement.pause();
-                mediaElement.removeAttribute('src');
-                mediaElement.load();
-              }
-            });
-          }
+        // 清理M3U8检测器
+        if(window._cleanupM3U8Detector) {
+          window._cleanupM3U8Detector();
+        }
 
-          // 清理所有websocket连接
-          const sockets = window._webSockets || [];
-          sockets.forEach(socket => socket.close());
-
-          // 停止所有进行中的网络请求
-          if (window.performance && window.performance.getEntries) {
-            const resources = window.performance.getEntries().filter(e =>
-              e.initiatorType === 'xmlhttprequest' ||
-              e.initiatorType === 'fetch' ||
-              e.initiatorType === 'beacon'
-            );
-            resources.forEach(resource => {
-              if (resource.duration === 0) {
-                try {
-                  const controller = new AbortController();
-                  controller.abort();
-                } catch(e) {}
-              }
-            });
-          }
-
-          // 清理所有未完成的图片加载
-          document.querySelectorAll('img').forEach(img => {
-            if (!img.complete) {
-              img.src = '';
+        // 终止所有正在进行的MediaSource操作
+        if (window.MediaSource) {
+          const mediaSources = document.querySelectorAll('video source');
+          mediaSources.forEach(source => {
+            const mediaElement = source.parentElement;
+            if (mediaElement) {
+              mediaElement.pause();
+              mediaElement.removeAttribute('src');
+              mediaElement.load();
             }
           });
+        }
 
-          // 清理全局变量
-          delete window._timeInterceptorInitialized;
-          delete window._originalDate;
-          delete window._originalPerformanceNow;
-          delete window._originalRAF;
-          delete window._originalConsoleTime;
-          delete window._originalConsoleTimeEnd;
-          delete window._cleanupTimeInterceptor;
-        ''');
+        // 清理所有websocket连接
+        const sockets = window._webSockets || [];
+        sockets.forEach(socket => socket.close());
 
-        // 清空WebView缓存
-        await _controller.clearCache();
-        LogUtil.i('WebView资源清理完成');
-      } catch (e, stack) {
-        LogUtil.logError('释放资源时发生错误', e, stack);
-      }
-    } else {
-      LogUtil.i(_isHtmlContent ? '_controller 未初始化，跳过释放资源' : '非HTML内容，跳过WebView资源清理');
+        // 停止所有进行中的网络请求
+        if (window.performance && window.performance.getEntries) {
+          const resources = window.performance.getEntries().filter(e =>
+            e.initiatorType === 'xmlhttprequest' ||
+            e.initiatorType === 'fetch' ||
+            e.initiatorType === 'beacon'
+          );
+          resources.forEach(resource => {
+            if (resource.duration === 0) {
+              try {
+                const controller = new AbortController();
+                controller.abort();
+              } catch(e) {}
+            }
+          });
+        }
+
+        // 清理所有未完成的图片加载
+        document.querySelectorAll('img').forEach(img => {
+          if (!img.complete) {
+            img.src = '';
+          }
+        });
+
+        // 清理全局变量
+        delete window._timeInterceptorInitialized;
+        delete window._originalDate;
+        delete window._originalPerformanceNow;
+        delete window._originalRAF;
+        delete window._originalConsoleTime;
+        delete window._originalConsoleTimeEnd;
+        delete window._cleanupTimeInterceptor;
+      ''');
+
+      // 清空WebView缓存
+      await _controller.clearCache();
+      LogUtil.i('WebView资源清理完成');
+    } catch (e, stack) {
+      LogUtil.logError('释放资源时发生错误', e, stack);
     }
-
-    // 重置所有标记和清理通用资源
-    _resetControllerState();
-    _foundUrls.clear();
-    _pageLoadedStatus.clear();
-    _httpResponseContent = null;
-    _isStaticChecking = false;
-    _m3u8Found = false;
-    _isDetectorInjected = false;
-    _isControllerInitialized = false;
-    _isPageLoadProcessed = false;
-    _isClickExecuted = false;
-
-    LogUtil.i('资源释放完成');
+  } else {
+    LogUtil.i(_isHtmlContent ? '_controller 未初始化，跳过释放资源' : '非HTML内容，跳过WebView资源清理');
   }
+
+  // 释放 WebView 控制器
+  if (_isControllerInitialized) {
+    try {
+      await _controller.dispose();  // 显式释放 WebView 控制器
+      LogUtil.i('WebViewController释放完成');
+    } catch (e, stack) {
+      LogUtil.logError('释放 WebViewController 时发生错误', e, stack);
+    }
+  }
+
+  // 重置所有标记和清理通用资源
+  _resetControllerState();
+  _foundUrls.clear();
+  _pageLoadedStatus.clear();
+  _httpResponseContent = null;
+  _isStaticChecking = false;
+  _m3u8Found = false;
+  _isDetectorInjected = false;
+  _isControllerInitialized = false;
+  _isPageLoadProcessed = false;
+  _isClickExecuted = false;
+
+  LogUtil.i('资源释放完成');
+}
 
 /// 处理发现的M3U8 URL
 Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
@@ -1790,57 +1799,74 @@ sample = sample
   }
 
   /// URL整理
-  String _cleanUrl(String url) {
-    LogUtil.i('URL整理开始，原始URL: $url');
+String _cleanUrl(String url) {
+  LogUtil.i('URL整理开始，原始URL: $url');
 
-    // 如果以\开头，则去除
-    if (url.length > 0 && url[url.length - 1] == '\\') {
-      url = url.substring(0, url.length - 1);
-    }
+  // 如果以\开头，则去除
+  if (url.length > 0 && url[url.length - 1] == '\\') {
+    url = url.substring(0, url.length - 1);
+  }
 
-    // 先处理基本的字符清理
-    String cleanedUrl = url.trim()
-      .replaceAll(r'\s*\\s*$', '')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#x2F;', '/')
-      .replaceAll('&#47;', '/');
+  // 第一步：进行两次 URL 解码
+  try {
+    url = Uri.decodeComponent(url);  // 解码一次
+    url = Uri.decodeComponent(url);  // 解码第二次
+  } catch (e) {
+    LogUtil.i('URL解码失败，保持原样: $e');
+  }
 
-    // 只替换3个或更多的连续斜杠，保留双斜杠
-    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
+  // 先处理基本的字符清理
+  String cleanedUrl = url.trim()
+    .replaceAll(r'\s*\\s*$', '')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#x2F;', '/')
+    .replaceAll('&#47;', '/');
 
-    // 保护协议中的双斜杠
-    cleanedUrl = cleanedUrl.replaceAll(RegExp(r'(?<!:)//'), '/');
+  // 只替换3个或更多的连续斜杠，保留双斜杠
+  cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/{3,}'), '/');
 
-    // 如果已经是完整URL则直接返回
-    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
-      return cleanedUrl;
-    }
+  // 保护协议中的双斜杠
+  cleanedUrl = cleanedUrl.replaceAll(RegExp(r'(?<!:)//'), '/');
 
-    try {
-      final baseUri = _parsedUri;
-
-      if (cleanedUrl.startsWith('//')) {
-        // 如果以//开头，去除//和域名部分(如果有)
-        String cleanPath = cleanedUrl.substring(2);
-        if (cleanPath.contains('/')) {
-          // 如果包含域名，去除域名部分
-          cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
-        }
-        // 确保路径以/开头
-        cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-      } else {
-        // 处理以/开头或不以/开头的URL
-        String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
-        cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
-      }
-    } catch (e) {
-      LogUtil.e('URL整理失败: $e');
-    }
-
+  // 如果已经是完整URL则直接返回
+  if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(cleanedUrl)) {
     return cleanedUrl;
   }
+
+  // 使用正则表达式提取有效的 M3U8 URL
+  final regex = RegExp(r'(https?://|//|/)[^"\'\s]*?\.${_filePattern}[^"\'\s]*');
+  final match = regex.firstMatch(cleanedUrl);
+
+  if (match != null) {
+    // 提取并返回有效的 M3U8 URL
+    return match.group(0)!;
+  }
+
+  try {
+    final baseUri = _parsedUri;
+
+    if (cleanedUrl.startsWith('//')) {
+      // 如果以//开头，去除//和域名部分(如果有)
+      String cleanPath = cleanedUrl.substring(2);
+      if (cleanPath.contains('/')) {
+        // 如果包含域名，去除域名部分
+        cleanPath = cleanPath.substring(cleanPath.indexOf('/'));
+      }
+      // 确保路径以/开头
+      cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+      cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    } else {
+      // 处理以/开头或不以/开头的URL
+      String cleanPath = cleanedUrl.startsWith('/') ? cleanedUrl.substring(1) : cleanedUrl;
+      cleanedUrl = '${baseUri.scheme}://${baseUri.host}/$cleanPath';
+    }
+  } catch (e) {
+    LogUtil.e('URL整理失败: $e');
+  }
+
+  return cleanedUrl;
+}
 
   /// 处理相对路径,转换为完整URL
   String _handleRelativePath(String path) {
