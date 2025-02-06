@@ -78,14 +78,19 @@ class EpgUtil {
     return null;
   }
 
-  // 加载EPG XML文件
-  static loadEPGXML(String url) async {
+  // 加载EPG XML文件，支持 cancelToken
+  static loadEPGXML(String url, {CancelToken? cancelToken}) async {
     int index = 0;
     final uStr = url.replaceAll('/h', ',h');
     final urlLink = uStr.split(',');
     XmlDocument? tempXmlDocument;
     while (tempXmlDocument == null && index < urlLink.length) {
-      final res = await HttpUtil().getRequest(urlLink[index]);
+      // 使用 cancelToken 传递取消请求的令牌
+      if (cancelToken?.isCancelled == true) {
+        return;  // 如果请求已取消，退出
+      }
+
+      final res = await HttpUtil().getRequest(urlLink[index], cancelToken: cancelToken);
       if (res != null) {
         tempXmlDocument = XmlDocument.parse(res.toString());
       } else {
