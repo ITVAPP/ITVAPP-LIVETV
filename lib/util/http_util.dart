@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
-import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
@@ -51,8 +50,8 @@ Future<T?> getRequest<T>(String path,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2)}) async {
   Response? response;
-  int currentAttempt = 0;
-  Duration currentDelay = retryDelay;
+  int currentAttempt = 0; // 当前重试次数
+  Duration currentDelay = retryDelay; // 当前重试延迟
 
   while (currentAttempt < retryCount) {
     try {
@@ -67,19 +66,15 @@ Future<T?> getRequest<T>(String path,
         onReceiveProgress: onReceiveProgress,
       );
 
-      // 处理数据类型转换
+      if (T == String && response.data is! String) {
+        LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
+        return null;
+      }
+
       if (response.data != null) {
-        if (response.data is T) {
-          return response.data;
-        }
-        // 如果期望 String 但收到二进制数据
-        if (T == String && response.data is List<int>) {
-          return utf8.decode(response.data as List<int>) as T;
-        }
-        LogUtil.e('响应数据类型不匹配: 期望 $T, 实际 ${response.data.runtimeType}');
+        return response.data; // 成功返回数据
       }
       return null;
-
     } on DioException catch (e, stackTrace) {
       currentAttempt++;
       LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
