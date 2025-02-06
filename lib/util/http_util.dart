@@ -58,7 +58,7 @@ Future<T?> getRequest<T>(String path,
 
   while (currentAttempt < retryCount) {
     try {
-      response = await _dio.get<String>(
+      response = await _dio.get<T>(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
@@ -75,7 +75,7 @@ Future<T?> getRequest<T>(String path,
       }
 
       if (response.data != null) {
-        return response.data as T;
+        return response.data; // 成功返回数据
       }
       return null;
     } on DioException catch (e, stackTrace) {
