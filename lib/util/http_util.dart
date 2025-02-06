@@ -16,11 +16,7 @@ class HttpUtil {
     receiveTimeout: const Duration(seconds: 12), // 设置接收超时时间
   );
 
-  // 用于取消请求的令牌
-  CancelToken cancelToken = CancelToken();
-
-  // 存储所有的CancelToken
-  final List<CancelToken> _cancelTokens = [];
+  CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
 
   factory HttpUtil() {
     return _instance;
@@ -35,7 +31,7 @@ class HttpUtil {
         requestHeader: false, // 不打印请求头
         responseHeader: false, // 不打印响应头
       ));
-
+      
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient()
@@ -45,71 +41,56 @@ class HttpUtil {
     };
   }
 
-  // 取消所有请求
-  void cancelAllRequests() {
-    for (final token in _cancelTokens) {
-      token.cancel('请求已取消');
-    }
-    _cancelTokens.clear(); // 清空已取消的令牌
-    LogUtil.i('所有请求已取消');
-  }
+// GET 请求方法，确保返回 String? 时不会出错
+Future<T?> getRequest<T>(String path,
+    {Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2)}) async {
+  Response? response;
+  int currentAttempt = 0; // 当前重试次数
+  Duration currentDelay = retryDelay; // 当前重试延迟
 
-  // GET 请求方法，确保返回 String? 时不会出错
-  Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response;
-    int currentAttempt = 0; // 当前重试次数
-    Duration currentDelay = retryDelay; // 当前重试延迟
+  while (currentAttempt < retryCount) {
+    try {
+      response = await _dio.get<T>(
+        path,
+        queryParameters: queryParameters,
+        options: (options ?? Options()).copyWith(
+          extra: {'attempt': currentAttempt},
+          headers: HeadersConfig.generateHeaders(url: path),
+        ),
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
+      );
 
-    // 如果没有传入 CancelToken，则创建一个新的
-    cancelToken ??= CancelToken();
-
-    // 将新的 CancelToken 添加到 _cancelTokens 列表中
-    _cancelTokens.add(cancelToken);
-
-    while (currentAttempt < retryCount) {
-      try {
-        response = await _dio.get<T>(
-          path,
-          queryParameters: queryParameters,
-          options: (options ?? Options()).copyWith(
-            extra: {'attempt': currentAttempt},
-            headers: HeadersConfig.generateHeaders(url: path),
-          ),
-          cancelToken: cancelToken,
-          onReceiveProgress: onReceiveProgress,
-        );
-
-        if (T == String && response.data is! String) {
-          LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
-          return null;
-        }
-
-        if (response.data != null) {
-          return response.data; // 成功返回数据
-        }
+      if (T == String && response.data is! String) {
+        LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
         return null;
-      } on DioException catch (e, stackTrace) {
-        currentAttempt++;
-        LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
-
-        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-          formatError(e);
-          return null;
-        }
-
-        await Future.delayed(currentDelay);
-        currentDelay *= 2;
-        LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
       }
+
+      if (response.data != null) {
+        return response.data; // 成功返回数据
+      }
+      return null;
+    } on DioException catch (e, stackTrace) {
+      currentAttempt++;
+      LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+
+      if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+        formatError(e);
+        return null;
+      }
+
+      await Future.delayed(currentDelay);
+      currentDelay *= 2;
+      LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
     }
-    return null;
   }
+  return null;
+}
 
   // 文件下载方法，支持显示下载进度
   Future<int?> downloadFile(String url, String savePath,
