@@ -23,27 +23,26 @@ class HttpUtil {
   }
 
   HttpUtil._() {
-    // 初始化 Dio 实例
-    _dio = Dio(options)
-      
+    _dio = Dio(options);
+    
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient()
-        ..maxConnectionsPerHost = 5
-        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-      return client;
-    };
+    if (_dio.httpClientAdapter is IOHttpClientAdapter) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate = (client) {
+        client.maxConnectionsPerHost = 5;
+        client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+        return client;
+      };
+    }
   }
 
-  // GET 请求方法，返回原始响应内容
-  Future<String?> getRequest(String path,
+  Future<T?> getRequest<T>(String path,
       {Map<String, dynamic>? queryParameters,
       Options? options,
       CancelToken? cancelToken,
       ProgressCallback? onReceiveProgress,
       int retryCount = 2,
       Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response;
+    Response response;
     int currentAttempt = 0; // 当前重试次数
     Duration currentDelay = retryDelay; // 当前重试延迟
 
@@ -53,7 +52,6 @@ class HttpUtil {
           path,
           queryParameters: queryParameters,
           options: (options ?? Options()).copyWith(
-            responseType: ResponseType.plain, // 设置响应类型为plain文本，确保获取原始响应
             extra: {'attempt': currentAttempt},
             headers: HeadersConfig.generateHeaders(url: path),
           ),
@@ -61,10 +59,7 @@ class HttpUtil {
           onReceiveProgress: onReceiveProgress,
         );
 
-        if (response.data != null) {
-          return response.data.toString(); // 直接返回响应内容的字符串形式
-        }
-        return null;
+        return response.data;
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
@@ -93,7 +88,7 @@ class HttpUtil {
         url,
         savePath,
         options: Options(
-          receiveTimeout: const Duration(seconds: 60), // 下载超时时间设置为 60 秒
+          receiveTimeout: const Duration(seconds: 298), // 下载超时时间设置
           headers: headers, // 使用动态生成的 headers
         ),
         onReceiveProgress: (received, total) {
