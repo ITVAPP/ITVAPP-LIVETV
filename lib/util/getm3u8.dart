@@ -552,7 +552,7 @@ class GetM3U8 {
       LogUtil.i('开始初始化控制器');
 
       // 检查页面内容类型
-      final httpdata = await HttpUtil().getRequest<String>(url);
+      final httpdata = await HttpUtil().getRequest(url);
       if (httpdata == null) {
         LogUtil.e('HttpUtil请求失败，未获取到数据');
         _httpResponseContent = null;
@@ -561,8 +561,8 @@ class GetM3U8 {
       }
 
       // 存储响应内容并判断是否为HTML
-      _httpResponseContent = httpdata;
-      _isHtmlContent = httpdata.contains('<!DOCTYPE html>') || httpdata.contains('<html');
+      _httpResponseContent = httpdata.toString();
+      _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
       LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
 
       // 非HTML内容直接处理
