@@ -1272,44 +1272,43 @@ void _startUrlCheckTimer(Completer<String> completer) {
   }
 
 /// 处理发现的M3U8 URL
-  Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
- if (_m3u8Found || _isDisposed) {
-   LogUtil.i(
-     _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
-   );
-   return;
- }
- if (url.isEmpty) return;
- // 首先整理URL
- String cleanedUrl = _cleanUrl(url);
- if (!_isValidM3U8Url(cleanedUrl)) {
-   LogUtil.i('URL验证失败，继续等待新的URL');
-   return;
- }
- // 处理URL参数替换
- String finalUrl = cleanedUrl;
- if (fromParam != null && toParam != null) {
-   LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-   finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
- }
- // 没有点击操作的情况，保持原有逻辑
- if (clickText == null) {
-   _foundUrls.add(finalUrl);
-   _m3u8Found = true;
-   if (!completer.isCompleted) {
-     LogUtil.i('发现有效URL: $finalUrl');
-     completer.complete(finalUrl);
-     await dispose();
-   }
-   return;
- }
- // 有点击操作的情况
- if (!_isClickExecuted) {
-   // 点击未执行完成，先记录URL
-   _foundUrls.add(finalUrl);
-   LogUtil.i('点击操作未完成，记录URL: $finalUrl');
-   return;
- }
+Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
+  if (_m3u8Found || _isDisposed) {
+    LogUtil.i(
+      _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
+    );
+    return;
+  }
+  if (url.isEmpty) return;
+  
+  // 首先整理URL
+  String cleanedUrl = _cleanUrl(url);
+  if (!_isValidM3U8Url(cleanedUrl)) {
+    LogUtil.i('URL验证失败，继续等待新的URL');
+    return;
+  }
+  
+  // 处理URL参数替换
+  String finalUrl = cleanedUrl;
+  if (fromParam != null && toParam != null) {
+    LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
+    finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+  }
+
+  // 所有情况下都记录URL
+  _foundUrls.add(finalUrl);
+  
+  // 如果没有点击操作,立即完成
+  if (clickText == null) {
+    _m3u8Found = true;
+    if (!completer.isCompleted) {
+      LogUtil.i('发现有效URL: $finalUrl');
+      completer.complete(finalUrl);
+      await dispose();
+    }
+  } else {
+    LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待5秒计时结束');
+  }
 }
 
   /// 注入M3U8检测器
