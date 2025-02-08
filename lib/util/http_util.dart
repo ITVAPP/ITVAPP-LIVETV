@@ -35,7 +35,7 @@ class HttpUtil {
     }
   }
 
-Future<T?> getRequest<T>(String path,
+Future<String?> getRequest(String path,
     {Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
@@ -52,7 +52,7 @@ Future<T?> getRequest<T>(String path,
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
-          responseType: ResponseType.plain, // 强制使用 plain 类型，避免自动 JSON 解析
+          responseType: ResponseType.plain,  // 统一使用 plain 类型
           extra: {'attempt': currentAttempt},
           headers: HeadersConfig.generateHeaders(url: path),
         ),
@@ -60,7 +60,8 @@ Future<T?> getRequest<T>(String path,
         onReceiveProgress: onReceiveProgress,
       );
 
-      return response.data;
+      return response.data.toString();  // 统一返回字符串
+
     } on DioException catch (e, stackTrace) {
       currentAttempt++;
       LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
