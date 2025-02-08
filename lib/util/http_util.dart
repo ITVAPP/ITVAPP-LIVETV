@@ -35,24 +35,29 @@ class HttpUtil {
     }
   }
 
-Future<String?> getRequest(String path,
-    {Map<String, dynamic>? queryParameters,
-    Options? options,
-    CancelToken? cancelToken,
-    ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2)}) async {
+Future<T?> getRequest<T>(String path, {
+  Map<String, dynamic>? queryParameters,
+  Options? options,
+  CancelToken? cancelToken,
+  ProgressCallback? onReceiveProgress,
+  int retryCount = 2,
+  Duration retryDelay = const Duration(seconds: 2),
+}) async {
   Response response;
   int currentAttempt = 0;
   Duration currentDelay = retryDelay;
 
   while (currentAttempt < retryCount) {
     try {
+      // 获取泛型类型标记
+      Type typeOf = T;
+      
       response = await _dio.get(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
-          responseType: ResponseType.plain,  // 统一使用 plain 类型
+          // 只有显式指定String类型时才使用plain
+          responseType: typeOf == String ? ResponseType.plain : null,
           extra: {'attempt': currentAttempt},
           headers: HeadersConfig.generateHeaders(url: path),
         ),
@@ -60,7 +65,25 @@ Future<String?> getRequest(String path,
         onReceiveProgress: onReceiveProgress,
       );
 
-      return response.data.toString();  // 统一返回字符串
+      // 如果没有指定类型，直接返回原始数据无需处理
+      if (typeOf == dynamic) {
+        return response.data;
+      }
+
+      // 如果指定了类型，进行相应转换
+      if (T == String) {
+        return response.data.toString() as T;
+      } else if (response.data is String && T != String) {
+        try {
+          final jsonData = json.decode(response.data);
+          return jsonData as T;
+        } catch (e) {
+          LogUtil.e('JSON解析失败: $e');
+          return response.data as T;
+        }
+      }
+
+      return response.data as T;
 
     } on DioException catch (e, stackTrace) {
       currentAttempt++;
