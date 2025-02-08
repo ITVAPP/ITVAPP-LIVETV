@@ -50,14 +50,12 @@ Future<T?> getRequest<T>(String path, {
 
   while (currentAttempt < retryCount) {
     try {
-      // 获取泛型类型标记
       Type typeOf = T;
       
       response = await _dio.get(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
-          // 只有显式指定String类型时才使用plain
           responseType: typeOf == String ? ResponseType.plain : null,
           extra: {'attempt': currentAttempt},
           headers: HeadersConfig.generateHeaders(url: path),
@@ -66,24 +64,17 @@ Future<T?> getRequest<T>(String path, {
         onReceiveProgress: onReceiveProgress,
       );
 
-      // 如果没有指定类型，直接返回原始数据无需处理
+      // 如果没有指定类型(dynamic),直接返回原始数据
       if (typeOf == dynamic) {
         return response.data;
       }
 
-      // 如果指定了类型，进行相应转换
+      // 如果指定了String类型
       if (T == String) {
         return response.data.toString() as T;
-      } else if (response.data is String && T != String) {
-        try {
-          final jsonData = json.decode(response.data);
-          return jsonData as T;
-        } catch (e) {
-          LogUtil.e('JSON解析失败: $e');
-          return response.data as T;
-        }
       }
 
+      // 如果指定了其他类型,尝试类型转换
       return response.data as T;
 
     } on DioException catch (e, stackTrace) {
