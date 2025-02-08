@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
-import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
@@ -13,7 +12,7 @@ class HttpUtil {
 
   // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
   BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: 5), // 设置连接超时时间
+    connectTimeout: const Duration(seconds: 3), // 设置连接超时时间
     receiveTimeout: const Duration(seconds: 8), // 设置接收超时时间
   );
 
@@ -24,39 +23,42 @@ class HttpUtil {
   }
 
   HttpUtil._() {
-    _dio = Dio(options);
-    
+    // 初始化 Dio 实例并配置日志拦截器
+    _dio = Dio(options)
+      ..interceptors.add(LogInterceptor(
+        requestBody: true, // 日志中打印请求体
+        responseBody: true, // 日志中打印响应体
+        requestHeader: false, // 不打印请求头
+        responseHeader: false, // 不打印响应头
+      ));
+      
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
-    if (_dio.httpClientAdapter is IOHttpClientAdapter) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).onHttpClientCreate = (client) {
-        client.maxConnectionsPerHost = 5;
-        client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-        return client;
-      };
-    }
+    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      final client = HttpClient()
+        ..maxConnectionsPerHost = 5
+        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+      return client;
+    };
   }
 
-Future<T?> getRequest<T>(String path, {
-  Map<String, dynamic>? queryParameters,
-  Options? options,
-  CancelToken? cancelToken,
-  ProgressCallback? onReceiveProgress,
-  int retryCount = 2,
-  Duration retryDelay = const Duration(seconds: 2),
-}) async {
-  Response response;
-  int currentAttempt = 0;
-  Duration currentDelay = retryDelay;
+// GET 请求方法，确保返回 String? 时不会出错
+Future<T?> getRequest<T>(String path,
+    {Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2)}) async {
+  Response? response;
+  int currentAttempt = 0; // 当前重试次数
+  Duration currentDelay = retryDelay; // 当前重试延迟
 
   while (currentAttempt < retryCount) {
     try {
-      Type typeOf = T;
-      
-      response = await _dio.get(
+      response = await _dio.get<T>(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
-          responseType: typeOf == String ? ResponseType.plain : null,
           extra: {'attempt': currentAttempt},
           headers: HeadersConfig.generateHeaders(url: path),
         ),
@@ -64,19 +66,15 @@ Future<T?> getRequest<T>(String path, {
         onReceiveProgress: onReceiveProgress,
       );
 
-      // 如果没有指定类型(dynamic),直接返回原始数据
-      if (typeOf == dynamic) {
-        return response.data;
+      if (T == String && response.data is! String) {
+        LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
+        return null;
       }
 
-      // 如果指定了String类型
-      if (T == String) {
-        return response.data.toString() as T;
+      if (response.data != null) {
+        return response.data; // 成功返回数据
       }
-
-      // 如果指定了其他类型,尝试类型转换
-      return response.data as T;
-
+      return null;
     } on DioException catch (e, stackTrace) {
       currentAttempt++;
       LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
