@@ -55,12 +55,24 @@ Future<T?> getRequest<T>(String path,
 
   while (currentAttempt < retryCount) {
     try {
+      Map<String, String> headers;
+      if (currentAttempt == 0) {
+        // 第一次请求使用动态生成headers
+        headers = HeadersConfig.generateHeaders(url: path);
+      } else {
+        // 重试时添加 Content-Type
+        headers = {
+          ...HeadersConfig.generateHeaders(url: path),
+          'Content-Type': 'text/html'
+        };
+      }
+
       response = await _dio.get<T>(
         path,
         queryParameters: queryParameters,
         options: (options ?? Options()).copyWith(
           extra: {'attempt': currentAttempt},
-          headers: HeadersConfig.generateHeaders(url: path),
+          headers: headers,  // 使用动态生成的headers
         ),
         cancelToken: cancelToken,
         onReceiveProgress: onReceiveProgress,
