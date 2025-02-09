@@ -954,17 +954,29 @@ class GetM3U8 {
   
 /// 启动URL检查定时器
 void _startUrlCheckTimer(Completer<String> completer) {
-    Timer(Duration(seconds: 5), () async {
-      if (_foundUrls.isNotEmpty) {
-        _m3u8Found = true;
-        final lastUrl = _foundUrls.last;
-        LogUtil.i('5秒内未发现新URL，使用最后记录的URL: $lastUrl');
-        completer.complete(lastUrl);
-        await dispose();
+  Timer(Duration(seconds: 5), () async {
+    if (_foundUrls.isNotEmpty) {
+      _m3u8Found = true;
+      
+      String selectedUrl;
+      final urlsList = _foundUrls.toList(); // 转换为列表以便按索引访问
+      
+      if (clickIndex == 0 || clickIndex >= urlsList.length) {
+        // 如果 clickIndex 是 0 或大于可用的 URL 数量，使用最后一个
+        selectedUrl = urlsList.last;
+        LogUtil.i('使用最后发现的URL: $selectedUrl ${clickIndex >= urlsList.length ? "(clickIndex 超出范围)" : "(clickIndex = 0)"}');
       } else {
-        LogUtil.i('5秒内未发现新URL且无记录的URL，继续检测');
+        // 否则使用 clickIndex 指定的 URL
+        selectedUrl = urlsList[clickIndex];
+        LogUtil.i('使用指定索引的URL: $selectedUrl (clickIndex = $clickIndex)');
       }
-    });
+      
+      completer.complete(selectedUrl);
+      await dispose();
+    } else {
+      LogUtil.i('5秒内未发现任何URL');
+    }
+  });
 }
   
   /// 处理加载错误
