@@ -60,11 +60,10 @@ Future<T?> getRequest<T>(String path,
         // 第一次请求使用动态生成headers
         headers = HeadersConfig.generateHeaders(url: path);
       } else {
-        // 重试时添加 Content-Type
-        headers = {
-          ...HeadersConfig.generateHeaders(url: path),
-          'Content-Type': 'text/html'
-        };
+        // 重试时只使用 Content-Type
+          headers = {
+              'Content-Type': 'text/html'
+            };
       }
 
       response = await _dio.get<T>(
@@ -89,16 +88,22 @@ Future<T?> getRequest<T>(String path,
       return null;
     } on DioException catch (e, stackTrace) {
       currentAttempt++;
-      LogUtil.logError('第 $currentAttempt 次 GET 请求失败: $path', e, stackTrace);
+      LogUtil.logError(
+        '第 $currentAttempt 次 GET 请求失败: $path\n'
+        '响应状态码: ${e.response?.statusCode}\n'
+        '响应数据: ${e.response?.data}\n'
+        '响应头: ${e.response?.headers}',
+        e, 
+        stackTrace
+      );
 
       if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
         formatError(e);
         return null;
       }
 
-      await Future.delayed(currentDelay);
-      currentDelay *= 2;
-      LogUtil.i('等待 ${currentDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+      await Future.delayed(retryDelay);
+      LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
     }
   }
   return null;
