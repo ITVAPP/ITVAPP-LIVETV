@@ -16,7 +16,7 @@ class HeadersConfig {
  static String corsRulesString = 'itvapp.net@file.lcxw.cn@51742.hlsplay.aodianyun.com@pubmod.hntv.tv@tvlive.yntv.cn@jxtvcn.com.cn@hls-api.sztv.com.cn@sttv2-api.sztv.com.cn@yun-live.jxtvcn.com.cn@mapi.ahtv.cn@tytv-hls.sxtygdy.com';
 
  /// 在此列表中的域名将使用通用播放器请求头，格式: domain1@domain2@domain3
- static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top@cbg.cn';
+ static String excludeDomainsString = 'loulannews@chinamobile.com@hwapi.yunshicloud.com@live.nctv.top@cbg.cn@zztv.tv';
 
  /// 通用播放器请求头
  static const Map<String, String> _playerHeaders = {
