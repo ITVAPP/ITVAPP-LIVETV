@@ -546,24 +546,29 @@ class GetM3U8 {
     ''';
   }
   
-  /// 初始化WebViewController
+/// 初始化WebViewController
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
       LogUtil.i('开始初始化控制器');
 
       // 检查页面内容类型
-      final httpdata = await HttpUtil().getRequest(url);
-      if (httpdata == null) {
-        LogUtil.e('HttpUtil请求失败，未获取到数据');
+      try {
+        final httpdata = await HttpUtil().getRequest(url);
+        if (httpdata != null) {
+          // 存储响应内容并判断是否为HTML
+          _httpResponseContent = httpdata.toString();
+          _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
+          LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
+        } else {
+          LogUtil.e('HttpUtil请求失败，未获取到数据，将继续尝试WebView加载');
+          _httpResponseContent = null;
+          _isHtmlContent = true; // 默认当作HTML内容处理
+        }
+      } catch (e) {
+        LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
         _httpResponseContent = null;
-        completer.complete('ERROR');
-        return;
+        _isHtmlContent = true; // 默认当作HTML内容处理
       }
-
-      // 存储响应内容并判断是否为HTML
-      _httpResponseContent = httpdata.toString();
-      _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
-      LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
 
       // 非HTML内容直接处理
       if (!isHashRoute && !_isHtmlContent) {
