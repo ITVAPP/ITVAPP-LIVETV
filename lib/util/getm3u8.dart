@@ -10,20 +10,29 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// URL 处理工具类
 class UrlUtils {
-  /// 基础 URL 解码和清理
+	
+/// 基础 URL 解码和清理
 static String basicUrlClean(String url) {
+   // 判断是否是协议相对URL（以//开头）
+   bool isProtocolRelative = url.startsWith('//');
+   
+   // 如果是协议相对URL，先暂时替换掉开头的//
+   if (isProtocolRelative) {
+     url = "TEMP_PROTOCOL_SLASH" + url.substring(2);
+   }
+   
    // 去除末尾反斜杠
    if (url.endsWith('\\')) {
      url = url.substring(0, url.length - 1);
    }
    
-// 先处理JSON转义
-url = url
-  .replaceAll(r'\\\\', '\\')
-  .replaceAll(r'\\/', '/')
-  .replaceAll(r'\\"', '"')
-  .replaceAll(r'\/', '/')
-  .replaceAll(':\\[', ':[');
+   // 先处理JSON转义
+   url = url
+     .replaceAll(r'\\\\', '\\')
+     .replaceAll(r'\\/', '/')
+     .replaceAll(r'\\"', '"')
+     .replaceAll(r'\/', '/')
+     .replaceAll(':\\[', ':[');
      
    // URL 解码
    try {
@@ -42,8 +51,8 @@ url = url
      .replaceAll('&#47;', '/')
      .replaceAll('&lt;', '<')
      .replaceAll('&gt;', '>')
-     .replaceAll(RegExp(r'/{3,}'), '/') // 处理多余的斜杠
-     .replaceAll(RegExp(r'(?<!:)//'), '/'); // 保护协议中的双斜杠
+     .replaceAll(RegExp(r'/{3,}'), '/') // 处理3个及以上连续的斜杠
+     .replaceAll(RegExp(r'(?<!:)(?<!^)//'), '/'); // 处理路径中的双斜杠，但排除开头位置和冒号后的双斜杠
 
    // 处理 Unicode 转义序列
    url = url.replaceAllMapped(
@@ -64,6 +73,11 @@ url = url
      } catch (e) {
        LogUtil.i('URL解码失败，保持原样: $e');
      }
+   }
+
+   // 如果之前是协议相对URL，恢复开头的//
+   if (isProtocolRelative) {
+     url = "//" + url.substring("TEMP_PROTOCOL_SLASH".length);
    }
 
    return url;
