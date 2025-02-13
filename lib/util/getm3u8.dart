@@ -79,10 +79,6 @@ static String basicUrlClean(String url) {
 
     // 处理省略协议的完整 URL
     if (path.startsWith('//')) {
-      return '${baseUri.scheme}:$path';
-    }
-    
-    if (path.startsWith('//')) {
       // 移除路径开头的双斜杠，并强制添加协议头和单斜杠
       return '${baseUri.scheme}://${path.replaceFirst('//', '')}';
     }
