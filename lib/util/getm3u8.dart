@@ -394,7 +394,7 @@ class GetM3U8 {
     }
 
     // 提取目标格式 URL
-    final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
+    final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
     final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
     
     if (urlMatches.isNotEmpty) {
@@ -1506,7 +1506,7 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 使用正则表达式查找URL
-      final pattern = '''(?:https?://|//|/)[^'"\\s]*?\\.${_filePattern}[^'"\\s]*''';
+      final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
@@ -1524,47 +1524,32 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
   
   /// 处理正则匹配结果
 Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
- if (clickIndex == 0) {
-   final uniqueUrls = <String>{};
-   for (final match in matches) {
-     String url = match.group(0)!;
-     uniqueUrls.add(_cleanUrl(url));
-   }
+ final uniqueUrls = <String>{};
+ for (final match in matches) {
+   String url = match.group(0)!;
+   uniqueUrls.add(url); 
+ }
 
-   for (final url in uniqueUrls) {
-     if (_isValidM3U8Url(url)) {
-       String finalUrl = url;
-       if (fromParam != null && toParam != null) {
-         finalUrl = url.replaceAll(fromParam!, toParam!);
-       }
-       _foundUrls.add(finalUrl);
+ var index = 0;
+ for (final url in uniqueUrls) {
+   final cleanedUrl = _cleanUrl(url);
+   if (_isValidM3U8Url(cleanedUrl)) {
+     String finalUrl = cleanedUrl;
+     if (fromParam != null && toParam != null) {
+       finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+     }
+     _foundUrls.add(finalUrl);
+
+     if (clickIndex == 0) {
        _m3u8Found = true;
        LogUtil.i('页面内容中找到 $finalUrl');
        return finalUrl;
+     } else if (index == clickIndex) {
+       _m3u8Found = true;
+       LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
+       return finalUrl;
      }
-   }
- } else {
-   final uniqueUrls = <String>{};
-   for (final match in matches) {
-     String url = match.group(0)!;
-     uniqueUrls.add(_cleanUrl(url));
-   }
-
-   int index = 0;
-   for (final url in uniqueUrls) {
-     if (_isValidM3U8Url(url)) {
-       String finalUrl = url;
-       if (fromParam != null && toParam != null) {
-         finalUrl = url.replaceAll(fromParam!, toParam!);
-       }
-       _foundUrls.add(finalUrl);
-       if (index == clickIndex) {
-         _m3u8Found = true;
-         LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-         return finalUrl;
-       }
-       index++;
-     }
+     index++;
    }
  }
 
