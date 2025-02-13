@@ -29,8 +29,8 @@ static String basicUrlClean(String url) {
      
    // URL 解码
    try {
-     url = Uri.decodeComponent(url);  // 解码一次
-     url = Uri.decodeComponent(url);  // 解码第二次
+     url = Uri.decodeComponent(url); 
+     url = Uri.decodeComponent(url);
    } catch (e) {
      LogUtil.i('URL解码失败，保持原样: $e');
    }
@@ -102,13 +102,9 @@ class M3U8FilterRule {
     required this.requiredKeyword,
   });
 
-  /// 从字符串解析规则
-  /// 格式: domain|keyword
+  /// 从字符串解析规则，格式: domain|keyword
   factory M3U8FilterRule.fromString(String rule) {
     final parts = rule.split('|');
-    if (parts.length != 2) {
-      throw FormatException('无效的规则格式: $rule，正确格式: domain|keyword');
-    }
     return M3U8FilterRule(
       domain: parts[0].trim(),
       requiredKeyword: parts[1].trim(),
@@ -116,8 +112,7 @@ class M3U8FilterRule {
   }
 }
 
-/// M3U8地址获取类
-/// 用于从网页中提取M3U8视频流地址
+/// 地址获取类
 class GetM3U8 {
 	
   // 统一的协议正则模式
@@ -294,7 +289,7 @@ class GetM3U8 {
     caseSensitive: false
   );
 
-  /// 从URL中提取查询参数，支持hash路由和普通URL
+  /// 从URL中提取查询参数
   static Map<String, String> _extractQueryParams(String url) {
     try {
       final uri = Uri.parse(url);
@@ -362,9 +357,6 @@ class GetM3U8 {
       return Map.fromEntries(
         rulesString.split('@').map((rule) {
           final parts = rule.split('|');
-          if (parts.length != 2) {
-            throw FormatException('规则格式错误: $rule，正确格式: domain|fileType');
-          }
           return MapEntry(parts[0].trim(), parts[1].trim());
         }),
       );
@@ -1547,8 +1539,6 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
      index++;
    }
  }
-
- LogUtil.i('页面内容中未找到符合规则的地址，继续使用JS检测器');
  return null;
 }
 
