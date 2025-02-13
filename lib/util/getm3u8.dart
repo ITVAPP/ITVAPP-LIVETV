@@ -72,7 +72,7 @@ static String basicUrlClean(String url) {
   /// 构建完整 URL
   static String buildFullUrl(String path, Uri baseUri) {
     // 检查是否已是完整 URL
-    if (RegExp(r'^(?:https?|rtmp|rtsp|ftp|mms|thunder)://').hasMatch(path)) {
+    if (RegExp('^(?:${_protocolPattern})://').hasMatch(path)) {
       return path;
     }
 
@@ -227,7 +227,12 @@ class GetM3U8 {
   // 添加一个变量来跟踪当前URL的加载状态
   final Map<String, bool> _pageLoadedStatus = {};
   
-  static final _protocolRegex = RegExp(r'(?:https?|rtmp|rtsp|ftp|mms|thunder)://');
+  // 统一的协议正则模式
+  // static const _protocolPattern = r'(?:https?|rtmp|rtsp|ftp|mms|thunder)';
+  static const _protocolPattern = r'(?:https?)';
+  
+  // 用于检查协议的正则
+  static final _protocolRegex = RegExp('${_protocolPattern}://');
 
   /// 时间源配置
   static const List<Map<String, String>> TIME_APIS = [
@@ -382,7 +387,7 @@ class GetM3U8 {
     
     // 多个协议,尝试提取正确URL
     if (protocolMatches.length > 1) {
-      final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+      final pattern = '''(?:${_protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
       final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
       if (urlMatches.isNotEmpty) {
         return urlMatches.first.group(0)!;
@@ -1494,7 +1499,7 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 使用正则表达式查找URL
-      final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+      final pattern = '''(?:${_protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
