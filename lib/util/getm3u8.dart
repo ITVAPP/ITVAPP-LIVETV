@@ -394,7 +394,7 @@ class GetM3U8 {
     }
 
     // 提取目标格式 URL
-    final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+    final pattern = '''(?:https?://|//)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
     final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
     
     if (urlMatches.isNotEmpty) {
@@ -1506,7 +1506,7 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 使用正则表达式查找URL
-      final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+      final pattern = '''(?:https?://|//)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
