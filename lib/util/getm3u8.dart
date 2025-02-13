@@ -43,7 +43,8 @@ static String basicUrlClean(String url) {
      .replaceAll('&#47;', '/')
      .replaceAll('&lt;', '<')
      .replaceAll('&gt;', '>')
-     .replaceAll(RegExp(r'/{3,}'), '/'); 
+     .replaceAll(RegExp(r'/{3,}'), '/') // 处理3个及以上连续的斜杠
+     .replaceAll(RegExp(r'(?<![:"\'\\s=])//'), '/');
 
    // 处理 Unicode 转义序列
    url = url.replaceAllMapped(
@@ -79,6 +80,11 @@ static String basicUrlClean(String url) {
     // 处理省略协议的完整 URL
     if (path.startsWith('//')) {
       return '${baseUri.scheme}:$path';
+    }
+    
+    if (path.startsWith('//')) {
+      // 移除路径开头的双斜杠，并强制添加协议头和单斜杠
+      return '${baseUri.scheme}://${path.replaceFirst('//', '')}';
     }
 
     // 构建相对路径
