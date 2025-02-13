@@ -376,16 +376,17 @@ class GetM3U8 {
 
     // 使用单个正则表达式检查URL
     final protocolMatches = _protocolRegex.allMatches(cleanedUrl);
-    if (protocolMatches.length == 1 && protocolMatches.first.start == 0) {
+    if (protocolMatches.length == 1) {
       return cleanedUrl;
     }
-
-    // 提取目标格式 URL
-    final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
-    final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
     
-    if (urlMatches.isNotEmpty) {
-      return urlMatches.first.group(0)!;
+    // 多个协议,尝试提取正确URL
+    if (protocolMatches.length > 1) {
+      final pattern = '''(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+      final urlMatches = RegExp(pattern).allMatches(cleanedUrl);
+      if (urlMatches.isNotEmpty) {
+        return urlMatches.first.group(0)!;
+      }
     }
 
     // 构建完整 URL
