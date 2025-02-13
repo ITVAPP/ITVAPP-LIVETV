@@ -44,7 +44,7 @@ static String basicUrlClean(String url) {
      .replaceAll('&lt;', '<')
      .replaceAll('&gt;', '>')
      .replaceAll(RegExp(r'/{3,}'), '/') // 处理3个及以上连续的斜杠
-     .replaceAll(RegExp(r'[^:"\'=\s]//'), r'$&/');
+     .replaceAll(RegExp(r'(?<![:"\' =])//'), '/');
 
    // 处理 Unicode 转义序列
    url = url.replaceAllMapped(
