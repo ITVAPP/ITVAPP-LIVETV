@@ -10,6 +10,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// URL 处理工具类
 class UrlUtils {
+static const _protocolPattern = GetM3U8._protocolPattern;
 	
 /// 基础 URL 解码和清理
 static String basicUrlClean(String url) {
@@ -118,6 +119,14 @@ class M3U8FilterRule {
 /// M3U8地址获取类
 /// 用于从网页中提取M3U8视频流地址
 class GetM3U8 {
+	
+  // 统一的协议正则模式
+  // static const _protocolPattern = r'(?:https?|rtmp|rtsp|ftp|mms|thunder)';
+  static const _protocolPattern = r'(?:https?)';
+  
+  // 用于检查协议的正则
+  static final _protocolRegex = RegExp('${_protocolPattern}://');
+  
   /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
   static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range';
@@ -226,13 +235,6 @@ class GetM3U8 {
 
   // 添加一个变量来跟踪当前URL的加载状态
   final Map<String, bool> _pageLoadedStatus = {};
-  
-  // 统一的协议正则模式
-  // static const _protocolPattern = r'(?:https?|rtmp|rtsp|ftp|mms|thunder)';
-  static const _protocolPattern = r'(?:https?)';
-  
-  // 用于检查协议的正则
-  static final _protocolRegex = RegExp('${_protocolPattern}://');
 
   /// 时间源配置
   static const List<Map<String, String>> TIME_APIS = [
