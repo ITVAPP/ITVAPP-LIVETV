@@ -44,7 +44,7 @@ static String basicUrlClean(String url) {
      .replaceAll('&lt;', '<')
      .replaceAll('&gt;', '>')
      .replaceAll(RegExp(r'/{3,}'), '/') // 处理3个及以上连续的斜杠
-     .replaceAll(RegExp(r'(?<!:)(?<!^)(?<!TEMP_PROTOCOL_SLASH)//'), '/'); // 处理路径中的双斜杠，但排除开头位置、冒号后和临时标记后的双斜杠
+     .replaceAll(RegExp(r'(?<!:)(?<!^)(?<!\')(?<!")(?<!=)//'), '/');
 
    // 处理 Unicode 转义序列
    url = url.replaceAllMapped(
@@ -65,16 +65,6 @@ static String basicUrlClean(String url) {
      } catch (e) {
        LogUtil.i('URL解码失败，保持原样: $e');
      }
-   }
-
-   // 如果之前是协议相对URL，恢复开头的//
-   if (url.startsWith('//')) {
-     url = "TEMP_PROTOCOL_SLASH" + url.substring(2);
-   }
-   
-   // 如果之前是协议相对URL，恢复开头的//
-   if (url.startsWith("TEMP_PROTOCOL_SLASH")) {
-     url = "//" + url.substring("TEMP_PROTOCOL_SLASH".length);
    }
 
    return url;
