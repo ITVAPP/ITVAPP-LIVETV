@@ -176,17 +176,11 @@ class GetM3U8 {
   /// 检查次数统计
   int _checkCount = 0;
 
-  /// 重试延迟时间(秒)
-  static const List<int> RETRY_DELAYS = [1, 2, 3];
-
   /// 无效URL关键词
   static const List<String> INVALID_URL_PATTERNS = [
     'advertisement', 'analytics', 'tracker',
     'pixel', 'beacon', 'stats', 'log'
   ];
-
-  /// 已处理URL的最大缓存数量
-  static const int MAX_CACHE_SIZE = 88;
 
   /// 是否已释放资源
   bool _isDisposed = false;
@@ -426,8 +420,7 @@ static const String _CLEANUP_SCRIPT = '''
     }
   }
 
-  /// 解析特殊规则字符串
-  /// 返回 Map，其中键是域名，值是文件类型
+  /// 解析特殊规则字符串，返回 Map，其中键是域名，值是文件类型
   static Map<String, String> _parseSpecialRules(String rulesString) {
     if (rulesString.isEmpty) {
       return {};
@@ -1040,7 +1033,7 @@ static const String _CLEANUP_SCRIPT = '''
   
 /// 启动URL检查定时器
 void _startUrlCheckTimer(Completer<String> completer) {
-  Timer(Duration(seconds: 3), () async {
+  Timer(const Duration(milliseconds: 3800), () async {
     if (_foundUrls.isNotEmpty) {
       _m3u8Found = true;
       
@@ -1060,31 +1053,30 @@ void _startUrlCheckTimer(Completer<String> completer) {
       completer.complete(selectedUrl);
       await dispose();
     } else {
-      LogUtil.i('3秒内未发现任何URL');
+      LogUtil.i('未发现任何URL');
     }
   });
 }
   
-  /// 处理加载错误
-  Future<void> _handleLoadError(Completer<String> completer) async {
-    if (_retryCount < RETRY_DELAYS.length && !_isDisposed) {
-      final delaySeconds = RETRY_DELAYS[_retryCount];
-      _retryCount++;
-      LogUtil.i('尝试重试 ($_retryCount/${RETRY_DELAYS.length})，延迟${delaySeconds}秒');
-      await Future.delayed(Duration(seconds: delaySeconds));
-      if (!_isDisposed) {
-        // 重置页面加载处理标记和点击执行标记，允许新的重试重新执行所有操作
-        _isPageLoadProcessed = false;
-        _pageLoadedStatus.clear();  // 清理加载状态
-        _isClickExecuted = false;  // 重置点击状态，允许重试时重新点击
-        await _initController(completer, _filePattern);
-      }
-    } else if (!completer.isCompleted) {
-      LogUtil.e('达到最大重试次数或已释放资源');
-      completer.complete('ERROR');
-      await dispose();
+/// 处理加载错误
+Future<void> _handleLoadError(Completer<String> completer) async {
+  if (_retryCount < 2 && !_isDisposed) {
+    _retryCount++;
+    LogUtil.i('尝试重试 ($_retryCount/2)，延迟1秒');
+    await Future.delayed(const Duration(seconds: 1));
+    if (!_isDisposed) {
+      // 重置页面加载处理标记和点击执行标记
+      _isPageLoadProcessed = false;
+      _pageLoadedStatus.clear();  // 清理加载状态
+      _isClickExecuted = false;  // 重置点击状态，允许重试时重新点击
+      await _initController(completer, _filePattern);
     }
+  } else if (!completer.isCompleted) {
+    LogUtil.e('达到最大重试次数或已释放资源');
+    completer.complete('ERROR');
+    await dispose();
   }
+}
 
   /// 加载URL并设置headers
   Future<void> _loadUrlWithHeaders() async {
@@ -1165,12 +1157,6 @@ void _startUrlCheckTimer(Completer<String> completer) {
           });
         } catch (e, stack) {
           LogUtil.logError('定期检查执行出错', e, stack);
-        }
-
-        // 如果URL缓存过大，清理它
-        if (_foundUrls.length > MAX_CACHE_SIZE) {
-          _foundUrls.clear();
-          LogUtil.i('URL缓存达到上限，已清理');
         }
       },
     );
@@ -1310,7 +1296,7 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
       await dispose();
     }
   } else {
-    LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待5秒计时结束');
+    LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
   }
 }
 
@@ -1523,7 +1509,7 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
  return null;
 }
 
-  /// 准备M3U8检测器代码
+  /// 准备检测器代码
   String _prepareM3U8DetectorCode() {
     return '''
     (function() {
@@ -1533,7 +1519,6 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
 
       // 初始化状态
       const processedUrls = new Set();
-      const MAX_CACHE_SIZE = 88;
       const MAX_RECURSION_DEPTH = 3;
       let observer = null;
 
@@ -1543,11 +1528,6 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
           if (!url || typeof url !== 'string' || 
               depth > MAX_RECURSION_DEPTH || 
               processedUrls.has(url)) return;
-
-          // 缓存管理
-          if (processedUrls.size > MAX_CACHE_SIZE) {
-            processedUrls.clear();
-          }
 
           // URL标准化
           url = this.normalizeUrl(url);
@@ -1797,7 +1777,7 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
         // 初始扫描
         requestIdleCallback(() => {
           DOMScanner.scanPage(document);
-        }, { timeout: 2000 });
+        }, { timeout: 1000 });
       }
 
       // 初始化检测器
