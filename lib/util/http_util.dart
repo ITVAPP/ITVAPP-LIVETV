@@ -13,7 +13,7 @@ class HttpUtil {
   // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
   BaseOptions options = BaseOptions(
     connectTimeout: const Duration(seconds: 3), // 设置连接超时时间
-    receiveTimeout: const Duration(seconds: 8), // 设置接收超时时间
+    receiveTimeout: const Duration(seconds: 6), // 设置接收超时时间
   );
 
   CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
@@ -23,19 +23,14 @@ class HttpUtil {
   }
 
   HttpUtil._() {
-    // 初始化 Dio 实例并配置日志拦截器
+    // 初始化 Dio 实例
     _dio = Dio(options)
-      ..interceptors.add(LogInterceptor(
-        requestBody: true, // 日志中打印请求体
-        responseBody: true, // 日志中打印响应体
-        requestHeader: false, // 不打印请求头
-        responseHeader: false, // 不打印响应头
-      ));
       
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
     (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
       final client = HttpClient()
         ..maxConnectionsPerHost = 5
+        ..autoUncompress = true
         ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
       return client;
     };
