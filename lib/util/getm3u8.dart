@@ -12,7 +12,6 @@ class UrlUtils {
 
   /// 基础 URL 解码和清理
   static String basicUrlClean(String url) {
-    // 修改代码开始于第10行 - 统一转义字符处理优化
     // 合并转义字符正则表达式
     final escapeRegex = RegExp(r'\\\\(\\|/|")'); // 匹配双反斜杠后跟特殊字符
     // 合并HTML实体映射表
@@ -30,7 +29,7 @@ class UrlUtils {
       url = url.substring(0, url.length - 1);
     }
 
-    // 统一转义字符处理 - 性能优化点
+    // 统一转义字符处理
     url = url.replaceAllMapped(escapeRegex, (match) {
       return match.group(1)!; // 提取第二个反斜杠或特殊字符
     }).replaceAll(r'\/', '/') // 单独处理JavaScript转义斜杠
@@ -40,7 +39,7 @@ class UrlUtils {
           return htmlEntities[entity] ?? m.group(0)!;
         });
 
-    // 统一URL解码流程 - 结构优化
+    // 统一URL解码流程
     void decodeUrl() {
       try {
         url = Uri.decodeComponent(url);
@@ -61,7 +60,7 @@ class UrlUtils {
       .replaceAll(RegExp(r'/{3,}'), '/') // 处理3+连续斜杠
       .replaceAll(RegExp(r'\s*\\s*$'), ''); // 保留末尾空格清理
 
-    // Unicode处理优化 - 保持原有逻辑
+    // Unicode处理优化
     url = url.replaceAllMapped(
       RegExp(r'\\u([0-9a-fA-F]{4})'),
       (match) => _parseUnicode(match.group(1)),
