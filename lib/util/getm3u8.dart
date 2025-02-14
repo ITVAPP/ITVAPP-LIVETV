@@ -10,65 +10,75 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// URL 处理工具类
 class UrlUtils {
-static const _protocolPattern = GetM3U8._protocolPattern;
-	
-/// 基础 URL 解码和清理
-static String basicUrlClean(String url) {
-   // 去除末尾反斜杠
-   if (url.endsWith('\\')) {
-     url = url.substring(0, url.length - 1);
-   }
-   
-   // 先处理JSON转义
-   url = url
-     .replaceAll(r'\\\\', '\\')
-     .replaceAll(r'\\/', '/')
-     .replaceAll(r'\\"', '"')
-     .replaceAll(r'\/', '/')
-     .replaceAll(':\\[', ':[');
-     
-   // URL 解码
-   try {
-     url = Uri.decodeComponent(url); 
-     url = Uri.decodeComponent(url);
-   } catch (e) {
-     LogUtil.i('URL解码失败，保持原样: $e');
-   }
-   
-   // 基本字符清理、转义字符和HTML实体处理
-   url = url.trim()
-     .replaceAll(r'\s*\\s*$', '')
-     .replaceAll('&amp;', '&')
-     .replaceAll('&quot;', '"')
-     .replaceAll('&#x2F;', '/')
-     .replaceAll('&#47;', '/')
-     .replaceAll('&lt;', '<')
-     .replaceAll('&gt;', '>')
-     .replaceAll(RegExp(r'/{3,}'), '/'); // 处理3个及以上连续的斜杠
+  static const _protocolPattern = GetM3U8._protocolPattern;
 
-   // 处理 Unicode 转义序列
-   url = url.replaceAllMapped(
-     RegExp(r'\\u([0-9a-fA-F]{4})'), 
-     (match) {
-       try {
-         return String.fromCharCode(int.parse(match.group(1)!, radix: 16));
-       } catch (e) {
-         return match.group(0)!;
-       }
-     }
-   );
+  /// 基础 URL 解码和清理
+  static String basicUrlClean(String url) {
+    // 修改代码开始于第10行 - 统一转义字符处理优化
+    // 合并转义字符正则表达式
+    final escapeRegex = RegExp(r'\\\\(\\|/|")'); // 匹配双反斜杠后跟特殊字符
+    // 合并HTML实体映射表
+    const htmlEntities = {
+      'amp': '&', 
+      'quot': '"', 
+      '#x2F': '/', 
+      '#47': '/',  
+      'lt': '<', 
+      'gt': '>' 
+    };
 
-   // 处理 URL 编码
-   if (url.contains('%')) {
-     try {
-       url = Uri.decodeComponent(url);
-     } catch (e) {
-       LogUtil.i('URL解码失败，保持原样: $e');
-     }
-   }
+    // 去除末尾反斜杠
+    if (url.endsWith('\\')) {
+      url = url.substring(0, url.length - 1);
+    }
 
-   return url;
-}
+    // 统一转义字符处理 - 性能优化点
+    url = url.replaceAllMapped(escapeRegex, (match) {
+      return match.group(1)!; // 提取第二个反斜杠或特殊字符
+    }).replaceAll(r'\/', '/') // 单独处理JavaScript转义斜杠
+        .replaceAllMapped(RegExp(r'&(#?[a-z0-9]+);'), (m) {
+          // 统一HTML实体解码处理
+          final entity = m.group(1)!;
+          return htmlEntities[entity] ?? m.group(0)!;
+        });
+
+    // 统一URL解码流程 - 结构优化
+    void decodeUrl() {
+      try {
+        url = Uri.decodeComponent(url);
+      } catch (e) {
+        LogUtil.i('URL解码失败，保持原样: $e');
+      }
+    }
+    
+    // 分层解码策略
+    decodeUrl(); // 第一层解码
+    if (url.contains('%')) {
+      decodeUrl(); // 第二层解码
+    }
+
+    // 统一多余斜杠处理
+    url = url
+      .trim()
+      .replaceAll(RegExp(r'/{3,}'), '/') // 处理3+连续斜杠
+      .replaceAll(RegExp(r'\s*\\s*$'), ''); // 保留末尾空格清理
+
+    // Unicode处理优化 - 保持原有逻辑
+    url = url.replaceAllMapped(
+      RegExp(r'\\u([0-9a-fA-F]{4})'),
+      (match) => _parseUnicode(match.group(1)),
+    );
+
+    return url;
+  }
+
+  static String _parseUnicode(String? hex) {
+    try {
+      return String.fromCharCode(int.parse(hex!, radix: 16));
+    } catch (e) {
+      return '\\u$hex';
+    }
+  }
 
   /// 构建完整 URL
   static String buildFullUrl(String path, Uri baseUri) {
@@ -759,7 +769,7 @@ class GetM3U8 {
 
             // 处理点击操作
             if (!_isClickExecuted && clickText != null) {
-              await Future.delayed(const Duration(milliseconds: 1000));
+              await Future.delayed(const Duration(milliseconds: 500));
               if (!_isDisposed) {
     final clickResult = await _executeClick();
     if (clickResult) {
@@ -960,7 +970,7 @@ class GetM3U8 {
   
 /// 启动URL检查定时器
 void _startUrlCheckTimer(Completer<String> completer) {
-  Timer(Duration(seconds: 5), () async {
+  Timer(Duration(seconds: 3), () async {
     if (_foundUrls.isNotEmpty) {
       _m3u8Found = true;
       
@@ -980,7 +990,7 @@ void _startUrlCheckTimer(Completer<String> completer) {
       completer.complete(selectedUrl);
       await dispose();
     } else {
-      LogUtil.i('5秒内未发现任何URL');
+      LogUtil.i('3秒内未发现任何URL');
     }
   });
 }
