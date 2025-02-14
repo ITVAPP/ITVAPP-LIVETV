@@ -396,7 +396,7 @@ class ScriptInjector {
   /// 获取脚本内容
   static String getScriptContent(String key) {
     if (!_scriptCache.containsKey(key)) {
-      LogUtil.w('未找到脚本: $key');
+      LogUtil.i('未找到脚本: $key');
       return '';
     }
     return _scriptCache[key]!;
