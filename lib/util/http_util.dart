@@ -24,85 +24,87 @@ class HttpUtil {
 
   HttpUtil._() {
     // 初始化 Dio 实例
-    _dio = Dio(options)
-      
+    _dio = Dio(options);
+    
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
-    (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-      final client = HttpClient()
-        ..maxConnectionsPerHost = 5
-        ..autoUncompress = true
-        ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-      return client;
-    };
-  }
-
-// GET 请求方法，确保返回 String? 时不会出错
-Future<T?> getRequest<T>(String path,
-    {Map<String, dynamic>? queryParameters,
-    Options? options,
-    CancelToken? cancelToken,
-    ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2)}) async {
-  Response? response;
-  int currentAttempt = 0; // 当前重试次数
-  Duration currentDelay = retryDelay; // 当前重试延迟
-
-  while (currentAttempt < retryCount) {
-    try {
-      Map<String, String> headers;
-      if (currentAttempt == 0) {
-        // 第一次请求使用动态生成headers
-        headers = HeadersConfig.generateHeaders(url: path);
-      } else {
-        // 重试时只使用 Content-Type
-          headers = {
-              'Content-Type': 'text/html'
-            };
-      }
-
-      response = await _dio.get<T>(
-        path,
-        queryParameters: queryParameters,
-        options: (options ?? Options()).copyWith(
-          extra: {'attempt': currentAttempt},
-          headers: headers,  // 使用动态生成的headers
-        ),
-        cancelToken: cancelToken,
-        onReceiveProgress: onReceiveProgress,
-      );
-
-      if (T == String && response.data is! String) {
-        LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
-        return null;
-      }
-
-      if (response.data != null) {
-        return response.data; // 成功返回数据
-      }
-      return null;
-    } on DioException catch (e, stackTrace) {
-      currentAttempt++;
-      LogUtil.logError(
-        '第 $currentAttempt 次 GET 请求失败: $path\n'
-        '响应状态码: ${e.response?.statusCode}\n'
-        '响应数据: ${e.response?.data}\n'
-        '响应头: ${e.response?.headers}',
-        e, 
-        stackTrace
-      );
-
-      if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-        formatError(e);
-        return null;
-      }
-
-      await Future.delayed(retryDelay);
-      LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+    if (_dio.httpClientAdapter is IOHttpClientAdapter) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient()
+          ..maxConnectionsPerHost = 5
+          ..autoUncompress = true
+          ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+        return client;
+      };
     }
   }
-  return null;
-}
+
+  // GET 请求方法，确保返回 String? 时不会出错
+  Future<T?> getRequest<T>(String path,
+      {Map<String, dynamic>? queryParameters,
+      Options? options,
+      CancelToken? cancelToken,
+      ProgressCallback? onReceiveProgress,
+      int retryCount = 2,
+      Duration retryDelay = const Duration(seconds: 2)}) async {
+    Response? response;
+    int currentAttempt = 0; // 当前重试次数
+    Duration currentDelay = retryDelay; // 当前重试延迟
+
+    while (currentAttempt < retryCount) {
+      try {
+        Map<String, String> headers;
+        if (currentAttempt == 0) {
+          // 第一次请求使用动态生成headers
+          headers = HeadersConfig.generateHeaders(url: path);
+        } else {
+          // 重试时只使用 Content-Type
+            headers = {
+                'Content-Type': 'text/html'
+              };
+        }
+
+        response = await _dio.get<T>(
+          path,
+          queryParameters: queryParameters,
+          options: (options ?? Options()).copyWith(
+            extra: {'attempt': currentAttempt},
+            headers: headers,  // 使用动态生成的headers
+          ),
+          cancelToken: cancelToken,
+          onReceiveProgress: onReceiveProgress,
+        );
+
+        if (T == String && response.data is! String) {
+          LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
+          return null;
+        }
+
+        if (response.data != null) {
+          return response.data; // 成功返回数据
+        }
+        return null;
+      } on DioException catch (e, stackTrace) {
+        currentAttempt++;
+        LogUtil.logError(
+          '第 $currentAttempt 次 GET 请求失败: $path\n'
+          '响应状态码: ${e.response?.statusCode}\n'
+          '响应数据: ${e.response?.data}\n'
+          '响应头: ${e.response?.headers}',
+          e, 
+          stackTrace
+        );
+
+        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+          formatError(e);
+          return null;
+        }
+
+        await Future.delayed(retryDelay);
+        LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+      }
+    }
+    return null;
+  }
 
   // 文件下载方法，支持显示下载进度
   Future<int?> downloadFile(String url, String savePath,
