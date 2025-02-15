@@ -1757,12 +1757,12 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: [
-            'src', 'href', 'data-src', 'currentSrc',
-            `data-${_filePattern}`,
-            `${_filePattern}-url`,
-            `data-${_filePattern}-url`
-          ]
+          // attributeFilter: [
+           //  'src', 'href', 'data-src', 'currentSrc', 'stream',
+           //  `data-${_filePattern}`,
+           //  `${_filePattern}-url`,
+           //  `data-${_filePattern}-url`
+         //  ]
         });
 
         // URL 变化处理
