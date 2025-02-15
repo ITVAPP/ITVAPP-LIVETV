@@ -633,29 +633,15 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
         LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
         
-        // [修改] 如果是 HTML 内容,先进行内容检查
+        // 如果是 HTML 内容,先进行内容检查
         if (_isHtmlContent) {
-          String contentToCheck = _httpResponseContent!;
-          if (contentToCheck.length > 38888) {
-            // 按块处理大内容
-            final chunks = [];
-            for (int i = 0; i < contentToCheck.length; i += 38888) {
-              final chunk = contentToCheck.substring(i, min(i + 38888, contentToCheck.length));
-              if (chunk.contains('.' + filePattern)) {
-                chunks.add(chunk);
-              }
-            }
-            if (chunks.isNotEmpty) {
-              // 只检查包含目标文件类型的内容块
-              final result = await _checkPageContent();
-              if (result != null) {
-                completer.complete(result);
-                return;
-              }
-            }
-          } else {
-            // 小文件直接检查
-            final result = await _checkPageContent();
+          // 只检查前38888字节
+          String initialContent = _httpResponseContent!.length > 38888 
+              ? _httpResponseContent!.substring(0, 38888)
+              : _httpResponseContent!;
+              
+          if (initialContent.contains('.' + filePattern)) {  // 快速预检
+            final result = await _checkPageContent(); 
             if (result != null) {
               completer.complete(result);
               return;
@@ -772,7 +758,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
             LogUtil.e('检查重定向URL失败: $e');
           }
 
-          // 原有的导航逻辑
+          // 导航逻辑
           LogUtil.i('页面导航请求: ${request.url}');
           final uri = Uri.parse(request.url);
           if (uri == null) {
@@ -794,7 +780,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
               return NavigationDecision.prevent;
             }
           } catch (e) {
-            // 如果获取扩展名失败，继续处理
+            // 获取扩展名失败，跳过扩展名检查
           }
 
           // 目标资源检查
@@ -872,10 +858,10 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
             }
           }
 
-          // [修改] 首次加载处理
+          // 首次加载处理
           if (!_isPageLoadProcessed) {
             _isPageLoadProcessed = true;
-            // 直接开始动态监听,不再执行 _checkPageContent
+            // 开始动态监听
             if (!_isDisposed && !_m3u8Found) {
               _setupPeriodicCheck();
             }
@@ -1385,118 +1371,85 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     return completer.future;
   }
 
-  /// 检查页面内容中的M3U8地址
-  Future<String?> _checkPageContent() async {
-    if (!_isControllerReady() || _m3u8Found || _isDisposed) {
-      LogUtil.i(
-        !_isControllerReady()
-          ? 'WebViewController 未初始化，无法检查页面内容'
-          : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
-        tag: !_isControllerReady() ? 'ERROR' : 'INFO'
-      );
-      return null;
-    }
-    
-    // 添加点击操作检查
-    if (clickText != null && !_isClickExecuted) {
-      LogUtil.i('点击操作未完成，跳过页面内容检查');
-      return null;
-    }
+/// 检查页面内容中的M3U8地址
+Future<String?> _checkPageContent() async {
+  if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+    LogUtil.i(
+      !_isControllerReady()
+        ? 'WebViewController 未初始化，无法检查页面内容'
+        : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
+      tag: !_isControllerReady() ? 'ERROR' : 'INFO'
+    );
+    return null;
+  }
+  
+  if (clickText != null && !_isClickExecuted) {
+    LogUtil.i('点击操作未完成，跳过页面内容检查');
+    return null;
+  }
 
-    try {
-      String? sampleResult;
+  try {
+    String? sampleResult;
 
-      // 如果是非 HTML 页面，直接使用 HttpUtil 获取的数据
-      if (!isHashRoute && !_isHtmlContent) {
-        if (_httpResponseContent == null) {
-          LogUtil.e('非 HTML 页面数据为空，跳过检测');
-          return null;
-        }
-
-        // 性能优化1: 使用更高效的字符串搜索
-        String pattern = '.' + _filePattern;
-        int firstPos = _httpResponseContent!.indexOf(pattern);
-        if (firstPos == -1) {
-          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
-          return null;
-        }
-        // 如果内容长度小于5000，直接使用完整内容，无需截取
-        if (_httpResponseContent!.length < 5000) {
-          sampleResult = _httpResponseContent;
-        } else {
-          // 性能优化2: 只处理目标区域的内容，减少内存使用
-          int lastPos = _httpResponseContent!.lastIndexOf(pattern);
-          int start = (firstPos - 100).clamp(0, _httpResponseContent!.length);
-          int end = (lastPos + pattern.length + 100).clamp(0, _httpResponseContent!.length);
-          sampleResult = _httpResponseContent!.substring(start, end);
-        }
-      } else {
-        // HTML页面处理优化
-        final dynamic result = await _controller.runJavaScriptReturningResult('''
-          (function() {
-            const filePattern = "${RegExp.escape(_filePattern)}";
-            const pattern = '.' + filePattern;
-
-            // 性能优化3: 只获取必要的HTML内容
-            const videoElements = document.querySelectorAll('video, source, [type*="video"]');
-            let content = Array.from(videoElements).map(el => el.outerHTML).join('');
-
-            // 如果在视频元素中没找到，再检查完整HTML
-            if (!content.includes(pattern)) {
-              content = document.documentElement.innerHTML;
-            }
-
-            if (content.length > 38888) {
-              // 性能优化4: 大内容分块处理
-              const chunks = [];
-              for (let i = 0; i < content.length; i += 38888) {
-                const chunk = content.slice(i, i + 38888);
-                if (chunk.includes(pattern)) {
-                  chunks.push(chunk);
-                }
-              }
-              return chunks.length > 0 ? chunks.join('') : "NO_PATTERN";
-            }
-
-            return content.includes(pattern) ? content : "NO_PATTERN";
-          })();
-        ''');
-
-        // HTML页面特殊情况处理
-        if (result == "NO_PATTERN") {
-          LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
-          return null;
-        }
-
-        sampleResult = result as String?;
-      }
-
-      if (sampleResult == null) {
-        LogUtil.i('获取内容样本失败');
+    // 非 HTML 内容处理
+    if (!isHashRoute && !_isHtmlContent) {
+      if (_httpResponseContent == null) {
+        LogUtil.e('非 HTML 页面数据为空，跳过检测');
         return null;
       }
 
-      String sample = sampleResult.toString();
+      // 使用已经处理过的内容
+      sampleResult = _httpResponseContent;
+    } else {
+      // HTML页面处理 - 简化检查逻辑
+      final dynamic result = await _controller.runJavaScriptReturningResult('''
+        (function() {
+          const filePattern = "${RegExp.escape(_filePattern)}";
+          const pattern = '.' + filePattern;
 
-      // 对样本内容进行处理
-      sample = UrlUtils.basicUrlClean(sample);
+          // 优先检查视频元素
+          const videoElements = document.querySelectorAll('video, source, [type*="video"]');
+          let content = Array.from(videoElements).map(el => el.outerHTML).join('');
 
-      LogUtil.i('正在检测页面中的 $_filePattern 文件');
+          // 如果在视频元素中没找到，再检查完整HTML
+          if (!content.includes(pattern)) {
+            content = document.documentElement.innerHTML;
+          }
 
-      // 使用正则表达式查找URL
-      final pattern = '''(?:${_protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
-      final regex = RegExp(pattern, caseSensitive: false);
-      final matches = regex.allMatches(sample);
-      LogUtil.i('正则匹配到 ${matches.length} 个结果');
+          return content.includes(pattern) ? content : "NO_PATTERN";
+        })();
+      ''');
 
-      // 处理匹配结果
-      return await _processMatches(matches, sample);
+      if (result == "NO_PATTERN") {
+        LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
+        return null;
+      }
 
-    } catch (e, stackTrace) {
-      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+      sampleResult = result as String?;
+    }
+
+    if (sampleResult == null) {
+      LogUtil.i('获取内容样本失败');
       return null;
-    } 
-  }
+    }
+
+    String sample = UrlUtils.basicUrlClean(sampleResult.toString());
+    LogUtil.i('正在检测页面中的 $_filePattern 文件');
+
+    // 使用正则表达式查找URL
+    final pattern = '''(?:${_protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+    final regex = RegExp(pattern, caseSensitive: false);
+    final matches = regex.allMatches(sample);
+    LogUtil.i('正则匹配到 ${matches.length} 个结果');
+
+    // 处理匹配结果
+    return await _processMatches(matches, sample);
+
+  } catch (e, stackTrace) {
+    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+    return null;
+  } 
+}
   
   /// 处理正则匹配结果
 Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
