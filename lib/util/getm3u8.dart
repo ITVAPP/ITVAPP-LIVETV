@@ -1391,12 +1391,9 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
 
 /// 检查页面内容中的M3U8地址
 Future<String?> _checkPageContent() async {
-  if (!_isControllerReady() || _m3u8Found || _isDisposed) {
+  if (_m3u8Found || _isDisposed) {
     LogUtil.i(
-      !_isControllerReady()
-        ? 'WebViewController 未初始化，无法检查页面内容'
-        : '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}',
-      tag: !_isControllerReady() ? 'ERROR' : 'INFO'
+      '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}'
     );
     return null;
   }
@@ -1407,51 +1404,13 @@ Future<String?> _checkPageContent() async {
   }
 
   try {
-    String? sampleResult;
-
-    // 非 HTML 内容处理
-    if (!isHashRoute && !_isHtmlContent) {
-      if (_httpResponseContent == null) {
-        LogUtil.e('非 HTML 页面数据为空，跳过检测');
-        return null;
-      }
-
-      // 使用已经处理过的内容
-      sampleResult = _httpResponseContent;
-    } else {
-      // HTML页面处理 - 简化检查逻辑
-      final dynamic result = await _controller.runJavaScriptReturningResult('''
-        (function() {
-          const filePattern = "${RegExp.escape(_filePattern)}";
-          const pattern = '.' + filePattern;
-
-          // 优先检查视频元素
-          const videoElements = document.querySelectorAll('video, source, [type*="video"]');
-          let content = Array.from(videoElements).map(el => el.outerHTML).join('');
-
-          // 如果在视频元素中没找到，再检查完整HTML
-          if (!content.includes(pattern)) {
-            content = document.documentElement.innerHTML;
-          }
-
-          return content.includes(pattern) ? content : "NO_PATTERN";
-        })();
-      ''');
-
-      if (result == "NO_PATTERN") {
-        LogUtil.i('页面内容不包含.$_filePattern，跳过检测');
-        return null;
-      }
-
-      sampleResult = result as String?;
-    }
-
-    if (sampleResult == null) {
-      LogUtil.i('获取内容样本失败');
+    // 使用已经处理过的HTTP响应内容
+    if (_httpResponseContent == null) {
+      LogUtil.e('页面内容为空，跳过检测');
       return null;
     }
 
-    String sample = UrlUtils.basicUrlClean(sampleResult.toString());
+    String sample = UrlUtils.basicUrlClean(_httpResponseContent!);
     LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
     // 使用正则表达式查找URL
