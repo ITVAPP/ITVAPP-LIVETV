@@ -620,267 +620,290 @@ static const String _CLEANUP_SCRIPT = '''
   }
   
 /// 初始化WebViewController
-  Future<void> _initController(Completer<String> completer, String filePattern) async {
-    try {
-      LogUtil.i('开始初始化控制器');
+Future<void> _initController(Completer<String> completer, String filePattern) async {
+  try {
+    LogUtil.i('开始初始化控制器');
 
-      // 检查页面内容类型
-      try {
-        final httpdata = await HttpUtil().getRequest(url);
-        if (httpdata != null) {
-          // 存储响应内容并判断是否为HTML
-          _httpResponseContent = httpdata.toString();
-          _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
-          LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
-        } else {
-          LogUtil.e('HttpUtil请求失败，未获取到数据，将继续尝试WebView加载');
-          _httpResponseContent = null;
-          _isHtmlContent = true; // 默认当作HTML内容处理
+    // 检查页面内容类型
+    try {
+      final httpdata = await HttpUtil().getRequest(url);
+      if (httpdata != null) {
+        // 存储响应内容并判断是否为HTML
+        _httpResponseContent = httpdata.toString();
+        _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
+        LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
+        
+        // [修改] 如果是 HTML 内容,先进行内容检查
+        if (_isHtmlContent) {
+          String contentToCheck = _httpResponseContent!;
+          if (contentToCheck.length > 38888) {
+            // 按块处理大内容
+            final chunks = [];
+            for (int i = 0; i < contentToCheck.length; i += 38888) {
+              final chunk = contentToCheck.substring(i, min(i + 38888, contentToCheck.length));
+              if (chunk.contains('.' + filePattern)) {
+                chunks.add(chunk);
+              }
+            }
+            if (chunks.isNotEmpty) {
+              // 只检查包含目标文件类型的内容块
+              final result = await _checkPageContent();
+              if (result != null) {
+                completer.complete(result);
+                return;
+              }
+            }
+          } else {
+            // 小文件直接检查
+            final result = await _checkPageContent();
+            if (result != null) {
+              completer.complete(result);
+              return;
+            }
+          }
+          // 标记已检查,避免 WebView 重复检查
+          _isPageLoadProcessed = true;
         }
-      } catch (e) {
-        LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
+      } else {
+        LogUtil.e('HttpUtil请求失败，未获取到数据，将继续尝试WebView加载');
         _httpResponseContent = null;
         _isHtmlContent = true; // 默认当作HTML内容处理
       }
+    } catch (e) {
+      LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
+      _httpResponseContent = null;
+      _isHtmlContent = true; // 默认当作HTML内容处理
+    }
 
-      // 非HTML内容直接处理
-      if (!isHashRoute && !_isHtmlContent) {
-        LogUtil.i('检测到非HTML内容，直接处理');
-        _isDetectorInjected = true;  // 标记为已注入，避免后续注入
-        _isControllerInitialized = true;
-        // 直接调用内容检查
-        final result = await _checkPageContent();
-        if (result != null) {
-          completer.complete(result);
-          return;
-        }
-        completer.complete('ERROR');
+    // 非HTML内容直接处理
+    if (!isHashRoute && !_isHtmlContent) {
+      LogUtil.i('检测到非HTML内容，直接处理');
+      _isDetectorInjected = true;  // 标记为已注入，避免后续注入
+      _isControllerInitialized = true;
+      // 直接调用内容检查
+      final result = await _checkPageContent();
+      if (result != null) {
+        completer.complete(result);
         return;
       }
+      completer.complete('ERROR');
+      return;
+    }
 
-      // 获取时间差并注入时间拦截器（对所有页面执行）
-      _cachedTimeOffset ??= await _getTimeOffset();
+    // 获取时间差并注入时间拦截器（对所有页面执行）
+    _cachedTimeOffset ??= await _getTimeOffset();
 
-      // 初始化 controller
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent);
+    // 初始化 controller
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent);
 
-      // 检查内容和准备脚本
-      final List<String> initScripts = [];
-      initScripts.add(_prepareTimeInterceptorCode());
+    // 检查内容和准备脚本
+    final List<String> initScripts = [];
+    initScripts.add(_prepareTimeInterceptorCode());
 
-      // 添加基础运行时脚本(优先注入)
-      initScripts.add('''
-        window._videoInit = false;
-        window._processedUrls = new Set();
-        window._m3u8Found = false;
-      ''');
+    // 添加基础运行时脚本(优先注入)
+    initScripts.add('''
+      window._videoInit = false;
+      window._processedUrls = new Set();
+      window._m3u8Found = false;
+    ''');
 
-      // M3U8检测器核心脚本
-      initScripts.add(_prepareM3U8DetectorCode());
+    // M3U8检测器核心脚本
+    initScripts.add(_prepareM3U8DetectorCode());
 
-      // 注册时间检查消息通道
-      _controller.addJavaScriptChannel(
-        'TimeCheck',
-        onMessageReceived: (JavaScriptMessage message) {
-          try {
-            final data = json.decode(message.message);
-            if (data['type'] == 'timeRequest') {
-              final now = DateTime.now();
-              final adjustedTime = now.add(Duration(milliseconds: _cachedTimeOffset ?? 0));
-              LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
-            }
-          } catch (e) {
-            LogUtil.e('处理时间检查消息失败: $e');
+    // 注册时间检查消息通道
+    _controller.addJavaScriptChannel(
+      'TimeCheck',
+      onMessageReceived: (JavaScriptMessage message) {
+        try {
+          final data = json.decode(message.message);
+          if (data['type'] == 'timeRequest') {
+            final now = DateTime.now();
+            final adjustedTime = now.add(Duration(milliseconds: _cachedTimeOffset ?? 0));
+            LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
+          }
+        } catch (e) {
+          LogUtil.e('处理时间检查消息失败: $e');
+        }
+      },
+    );
+
+    // 注册消息通道
+    _controller.addJavaScriptChannel(
+      'M3U8Detector',
+      onMessageReceived: (JavaScriptMessage message) {
+        try {
+          final data = json.decode(message.message);
+          if (data['type'] == 'init') {
+            _isDetectorInjected = true;
+          } else {
+            _handleM3U8Found(data['url'] ?? message.message, completer);
+          }
+        } catch (e) {
+          _handleM3U8Found(message.message, completer);
+        }
+      },
+    );
+
+    // 导航委托
+    _controller.setNavigationDelegate(
+      NavigationDelegate(
+        onPageStarted: (String url) async {
+          // 页面开始加载时注入检测器
+          for (final script in initScripts) {
+            await _controller.runJavaScript(script);
+            LogUtil.i('注入脚本成功');
           }
         },
-      );
-
-      // 注册消息通道
-      _controller.addJavaScriptChannel(
-        'M3U8Detector',
-        onMessageReceived: (JavaScriptMessage message) {
+        onNavigationRequest: (NavigationRequest request) async {
+          // 检查重定向时是否需要重新注入
           try {
-            final data = json.decode(message.message);
-            if (data['type'] == 'init') {
-              _isDetectorInjected = true;
-            } else {
-              _handleM3U8Found(data['url'] ?? message.message, completer);
-            }
-          } catch (e) {
-            _handleM3U8Found(message.message, completer);
-          }
-        },
-      );
-
-      // 导航委托
-      _controller.setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) async {
-            // 页面开始加载时注入检测器
-            for (final script in initScripts) {
-              await _controller.runJavaScript(script);
-              LogUtil.i('注入脚本成功');
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) async {
-            // 检查重定向时是否需要重新注入
-            try {
-              final currentUri = _parsedUri;
-              final newUri = Uri.parse(request.url);
-              if (currentUri.host != newUri.host) {
-                // 域名发生变化时重新注入所有脚本
-                for (final script in initScripts) {
-                  await _controller.runJavaScript(script);
-                }
-                LogUtil.i('重定向页面的拦截器代码已重新注入');
+            final currentUri = _parsedUri;
+            final newUri = Uri.parse(request.url);
+            if (currentUri.host != newUri.host) {
+              // 域名发生变化时重新注入所有脚本
+              for (final script in initScripts) {
+                await _controller.runJavaScript(script);
               }
-            } catch (e) {
-              LogUtil.e('检查重定向URL失败: $e');
+              LogUtil.i('重定向页面的拦截器代码已重新注入');
             }
+          } catch (e) {
+            LogUtil.e('检查重定向URL失败: $e');
+          }
 
-            // 原有的导航逻辑
-            LogUtil.i('页面导航请求: ${request.url}');
-            final uri = Uri.parse(request.url);
-            if (uri == null) {
-              LogUtil.i('无效的URL，阻止加载');
+          // 原有的导航逻辑
+          LogUtil.i('页面导航请求: ${request.url}');
+          final uri = Uri.parse(request.url);
+          if (uri == null) {
+            LogUtil.i('无效的URL，阻止加载');
+            return NavigationDecision.prevent;
+          }
+
+          // 资源检查逻辑
+          try {
+            final extension = uri.path.toLowerCase().split('.').last;
+            final blockedExtensions = [
+              'jpg', 'jpeg', 'png', 'gif', 'webp',
+              'css', 'woff', 'woff2', 'ttf', 'eot',
+              'ico', 'svg', 'mp3', 'wav',
+              'pdf', 'doc', 'docx', 'swf',
+            ];
+
+            if (blockedExtensions.contains(extension)) {
               return NavigationDecision.prevent;
             }
+          } catch (e) {
+            // 如果获取扩展名失败，继续处理
+          }
 
-            // 资源检查逻辑
-            try {
-              final extension = uri.path.toLowerCase().split('.').last;
-              final blockedExtensions = [
-                'jpg', 'jpeg', 'png', 'gif', 'webp',
-                'css', 'woff', 'woff2', 'ttf', 'eot',
-                'ico', 'svg', 'mp3', 'wav',
-                'pdf', 'doc', 'docx', 'swf',
-              ];
-
-              if (blockedExtensions.contains(extension)) {
-                return NavigationDecision.prevent;
-              }
-            } catch (e) {
-              // 如果获取扩展名失败，继续处理
+          // 目标资源检查
+          try {
+            final lowercasePath = uri.path.toLowerCase();
+            if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
+              _controller.runJavaScript(
+                'window.M3U8Detector?.postMessage(${json.encode({
+                  'type': 'url',
+                  'url': request.url,
+                  'source': 'navigation'
+                })});'
+              ).catchError((_) {});
+              return NavigationDecision.prevent;
             }
+          } catch (e) {
+            LogUtil.e('URL检查失败: $e');
+          }
 
-            // 目标资源检查
-            try {
-              final lowercasePath = uri.path.toLowerCase();
-              if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
-                _controller.runJavaScript(
-                  'window.M3U8Detector?.postMessage(${json.encode({
-                    'type': 'url',
-                    'url': request.url,
-                    'source': 'navigation'
-                  })});'
-                ).catchError((_) {});
-                return NavigationDecision.prevent;
-              }
-            } catch (e) {
-              LogUtil.e('URL检查失败: $e');
-            }
+          return NavigationDecision.navigate;
+        },
+        
+        onPageFinished: (String url) async {
+          // 检查此URL是否已经触发过页面加载完成
+          if (!isHashRoute && _pageLoadedStatus[url] == true) {
+            LogUtil.i('本页面已经加载完成，跳过重复处理');
+            return;
+          }
 
-            return NavigationDecision.navigate;
-          },
-          
-          onPageFinished: (String url) async {
-            // 检查此URL是否已经触发过页面加载完成
-            if (!isHashRoute && _pageLoadedStatus[url] == true) {
-              LogUtil.i('本页面已经加载完成，跳过重复处理');
-              return;
-            }
+          // 标记该URL已处理
+          _pageLoadedStatus[url] = true;
+          LogUtil.i('页面加载完成: $url');
 
-            // 标记该URL已处理
-            _pageLoadedStatus[url] = true;
-            LogUtil.i('页面加载完成: $url');
+          // 基础状态检查
+          if (_isDisposed || _isClickExecuted) {
+            LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
+            return;
+          }
 
-            // 基础状态检查
-            if (_isDisposed || _isClickExecuted) {
-              LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
-              return;
-            }
+          // 处理hash路由
+          try {
+            if (isHashRoute) {
+              final currentUri = _parsedUri;
+              String mapKey = currentUri.toString();
+              _pageLoadedStatus.clear();
+              _pageLoadedStatus[mapKey] = true;
 
-            // 处理hash路由
-            try {
-              if (isHashRoute) {
-                final currentUri = _parsedUri;
-                String mapKey = currentUri.toString();
-                _pageLoadedStatus.clear();
-                _pageLoadedStatus[mapKey] = true;
+              int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
+              currentTriggers++;
 
-                int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
-                currentTriggers++;
-
-                if (currentTriggers > 2) {
-                  LogUtil.i('hash路由触发超过2次，跳过处理');
-                  return;
-                }
-
-                _hashFirstLoadMap[mapKey] = currentTriggers;
-
-                if (currentTriggers == 1) {
-                  LogUtil.i('检测到hash路由首次加载，等待第二次加载');
-                  return;
-                }
-              }
-            } catch (e) {
-              LogUtil.e('解析URL失败: $e');
-            }
-
-            // 处理点击操作
-            if (!_isClickExecuted && clickText != null) {
-              await Future.delayed(const Duration(milliseconds: 500));
-              if (!_isDisposed) {
-    final clickResult = await _executeClick();
-    if (clickResult) {
-      _startUrlCheckTimer(completer);
-    }
-              }
-            }
-
-            // 首次加载处理
-            if (!_isPageLoadProcessed) {
-              _isPageLoadProcessed = true;
-
-              final m3u8Url = await _checkPageContent();
-              if (m3u8Url != null && !completer.isCompleted) {
-                _m3u8Found = true;
-                completer.complete(m3u8Url);
-                await dispose();
+              if (currentTriggers > 2) {
+                LogUtil.i('hash路由触发超过2次，跳过处理');
                 return;
               }
 
-              // 检测器已在页面加载前注入，只需要启动定期检查
-              if (!_isDisposed && !_m3u8Found) {
-                _setupPeriodicCheck();
+              _hashFirstLoadMap[mapKey] = currentTriggers;
+
+              if (currentTriggers == 1) {
+                LogUtil.i('检测到hash路由首次加载，等待第二次加载');
+                return;
               }
             }
-          },
-          onWebResourceError: (WebResourceError error) async {
-            // 忽略被阻止资源的错误，忽略 SSL 错误，继续加载
-            if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
-              LogUtil.i('资源被阻止加载: ${error.description}');
-              return;
+          } catch (e) {
+            LogUtil.e('解析URL失败: $e');
+          }
+
+          // 处理点击操作
+          if (!_isClickExecuted && clickText != null) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            if (!_isDisposed) {
+              final clickResult = await _executeClick();
+              if (clickResult) {
+                _startUrlCheckTimer(completer);
+              }
             }
-            LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-            await _handleLoadError(completer);
-          },
-        ),
-      );
+          }
 
-      // 初始化完成
-      _isControllerInitialized = true;
-      await _loadUrlWithHeaders();
-      LogUtil.i('WebViewController初始化完成');
+          // [修改] 首次加载处理
+          if (!_isPageLoadProcessed) {
+            _isPageLoadProcessed = true;
+            // 直接开始动态监听,不再执行 _checkPageContent
+            if (!_isDisposed && !_m3u8Found) {
+              _setupPeriodicCheck();
+            }
+          }
+        },
+        onWebResourceError: (WebResourceError error) async {
+          // 忽略被阻止资源的错误，忽略 SSL 错误，继续加载
+          if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
+            LogUtil.i('资源被阻止加载: ${error.description}');
+            return;
+          }
+          LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+          await _handleLoadError(completer);
+        },
+      ),
+    );
 
-    } catch (e, stackTrace) {
-      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-      _isControllerInitialized = false;
-      await _handleLoadError(completer);
-    }
+    // 初始化完成
+    _isControllerInitialized = true;
+    await _loadUrlWithHeaders();
+    LogUtil.i('WebViewController初始化完成');
+
+  } catch (e, stackTrace) {
+    LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+    _isControllerInitialized = false;
+    await _handleLoadError(completer);
   }
+}
 
   /// 点击操作执行
   Future<bool> _executeClick() async {
@@ -1620,17 +1643,9 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
         processedElements: new Set(),
 
         scanAttributes(element) {
-          const attributes = [
-            'src', 'data-src', 'href',
-            'data-${_filePattern}',
-            '${_filePattern}-url',
-            'data-video-url'
-          ];
-
-          attributes.forEach(attr => {
-            const value = element.getAttribute(attr);
-            if (value) VideoUrlProcessor.processUrl(value, 0);
-          });
+          for (const attr of element.attributes) {
+            if (attr.value) VideoUrlProcessor.processUrl(attr.value, 0);
+          }
         },
 
         scanMediaElement(element) {
@@ -1756,13 +1771,7 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
         observer.observe(document.documentElement, {
           childList: true,
           subtree: true,
-          attributes: true,
-          // attributeFilter: [
-           //  'src', 'href', 'data-src', 'currentSrc', 'stream',
-           //  `data-${_filePattern}`,
-           //  `${_filePattern}-url`,
-           //  `data-${_filePattern}-url`
-         //  ]
+          attributes: true
         });
 
         // URL 变化处理
