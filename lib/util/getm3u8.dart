@@ -196,19 +196,22 @@ class GetM3U8 {
   /// 标记点击是否已执行
   bool _isClickExecuted = false;
 
-  // 初始化状态标记
+  /// 初始化状态标记
   bool _isControllerInitialized = false;
 
   /// 当前检测的文件类型
   String _filePattern = 'm3u8';  // 默认为 m3u8
 
-  // 跟踪首次hash加载
+  /// 跟踪首次hash加载
   static final Map<String, int> _hashFirstLoadMap = {};
 
+  /// 标记URL是否使用了hash路由（#）导航方式
   bool isHashRoute = false;
 
+  /// 是否为HTML格式
   bool _isHtmlContent = false;
 
+  /// 存储HTTP请求的原始响应内容
   String? _httpResponseContent;
 
   /// 缓存的时间差值(毫秒)
@@ -485,7 +488,7 @@ static const String _CLEANUP_SCRIPT = '''
   Future<DateTime?> _getNetworkTime(String url) async {
     final response = await HttpUtil().getRequest<String>(
       url,
-      retryCount: 1, // 减少重试次数，因为我们有多个备选API
+      retryCount: 1,
     );
 
     if (response == null) return null;
@@ -635,10 +638,25 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
         
         // 如果是 HTML 内容,先进行内容检查
         if (_isHtmlContent) {
-          // 只检查前38888字节
-          String initialContent = _httpResponseContent!.length > 38888 
-              ? _httpResponseContent!.substring(0, 38888)
-              : _httpResponseContent!;
+          // 查找所有style标签的位置
+          String content = _httpResponseContent!;
+          int styleEndIndex = -1;
+          final styleEndMatches = RegExp(r'</style>', caseSensitive: false).allMatches(content);
+          if (styleEndMatches.isNotEmpty) {
+            // 获取最后一个style标签的结束位置
+            styleEndIndex = styleEndMatches.last.end;
+          }
+          
+          // 确定检查内容
+          String initialContent;
+          if (styleEndIndex > 0) {
+            final startIndex = styleEndIndex;
+            final endIndex = startIndex + 38888 > content.length ? content.length : startIndex + 38888;
+            initialContent = content.substring(startIndex, endIndex);
+          } else {
+            // 如果没找到style标签，则从头开始取38888字节
+            initialContent = content.length > 38888 ? content.substring(0, 38888) : content;
+          }
               
           if (initialContent.contains('.' + filePattern)) {  // 快速预检
             final result = await _checkPageContent(); 
