@@ -1,0 +1,75 @@
+/// HTTP请求Headers配置规则，包含Referer映射、CORS规则和排除域名
+class HeaderRules {
+  const HeaderRules._();
+
+  /// 域名到Referer的映射规则，格式：域名(关键字)|Referer，每行一条规则
+  static const String rulesString = '''
+googlevideo|www.youtube.com
+tcdn.itouchtv.cn|www.gdtv.cn
+lanosso.com|lanzoux.com
+wwentua.com|lanzoux.com
+btime.com|www.btime.com
+kksmg.com|live.kankanews.com
+iqilu|v.iqilu.com
+cditvcn|www.cditv.cn
+candocloud.cn|www.cditv.cn
+hwapi.yntv.net|cloudxyapi.yntv.net
+tvlive.yntv.cn|www.yntv.cn
+api.yntv.ynradio.com|www.ynradio.cn
+i0834.cn|www.ls666.com
+dzxw.net|www.dzrm.cn
+zyrb.com.cn|www.sczytv.com
+ningxiahuangheyun.com|www.nxtv.com.cn
+quklive.com|www.qukanvideo.com
+yuexitv|www.yuexitv.com
+ahsxrm|www.ahsxrm.cn
+liangtv.cn|tv.gxtv.cn
+gxtv.cn|www.gxtv.cn
+lcxw.cn|www.lcxw.cn
+sxtygdy.com|www.sxtygdy.com
+sxrtv.com|www.sxrtv.com
+tv_radio_47447|live.lzgd.com.cn
+51742.hlsplay.aodianyun.com|www.yltvb.com
+pubmod.hntv.tv|static.hntv.tv
+tvcdn.stream3.hndt.com|static.hntv.tv
+jiujiang|www.jjntv.cn
+sztv.com.cn|www.sztv.com.cn
+jxtvcn.com.cn|www.jxntv.cn
+ahtv.cn|www.ahtv.cn
+cloudvdn.com|*.jstv.com
+hoolo.tv|tv.hoolo.tv
+cztv.com|www.cztv.com
+cztvcloud.com|www.cztv.com
+wuxue-|m.hbwuxue.com
+luotian-|m-api.cjyun.org/v2
+jiangling-|m-jiangling.cjyun.org
+songzi-|m-songzi.cjyun.org
+cjyun.org|app.cjyun.org.cn
+cjy.hbtv.com.cn|news.hbtv.com.cn''';
+
+  /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
+  static const String corsRulesString = '''
+itvapp.net
+file.lcxw.cn
+51742.hlsplay.aodianyun.com
+pubmod.hntv.tv
+tvlive.yntv.cn
+jxtvcn.com.cn
+hls-api.sztv.com.cn
+sttv2-api.sztv.com.cn
+yun-live.jxtvcn.com.cn
+mapi.ahtv.cn
+tytv-hls.sxtygdy.com
+mapi.hoolo.tv
+cjyun.org
+cjy.hbtv.com.cn''';
+
+  /// 使用通用播放器请求头的域名列表，每行一个域名
+  static const String excludeDomainsString = '''
+loulannews
+chinamobile.com
+hwapi.yunshicloud.com
+live.nctv.top
+cbg.cn
+zztv.tv''';
+}
