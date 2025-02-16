@@ -684,9 +684,9 @@ Future<void> _disposePlayer() async {
 }
 
 /// 释放 StreamUrl 实例
-void _disposeStreamUrl() {
+Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
-      _streamUrl!.dispose();
+      await _streamUrl!.dispose();
       _streamUrl = null;
     }
 }
