@@ -52,7 +52,7 @@ class S {
 
   String get loading {
     return Intl.message(
-      '正在加载频道...',
+      '正在加载...',
       name: 'loading',
       desc: '',
       args: [],
