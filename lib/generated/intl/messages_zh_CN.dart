@@ -51,7 +51,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "latestVersion": MessageLookupByLibrary.simpleMessage("已是最新版本"),
         "lineIndex": m0,
         "lineToast": m1,
-        "loading": MessageLookupByLibrary.simpleMessage("正在加载频道..."),
+        "loading": MessageLookupByLibrary.simpleMessage("正在加载..."),
         "netBadResponse": m2,
         "netCancel": MessageLookupByLibrary.simpleMessage("请求取消"),
         "netReceiveTimeout": MessageLookupByLibrary.simpleMessage("响应超时"),
