@@ -60,7 +60,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "You are on the latest version"),
         "lineIndex": m0,
         "lineToast": m1,
-        "loading": MessageLookupByLibrary.simpleMessage("Loading channels..."),
+        "loading": MessageLookupByLibrary.simpleMessage("Loading..."),
         "netBadResponse": m2,
         "netCancel": MessageLookupByLibrary.simpleMessage("Request Cancelled"),
         "netReceiveTimeout":
