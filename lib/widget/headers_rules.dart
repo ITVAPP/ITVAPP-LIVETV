@@ -44,6 +44,8 @@ wuxue-|m.hbwuxue.com
 luotian-|m-api.cjyun.org/v2
 jiangling-|m-jiangling.cjyun.org
 songzi-|m-songzi.cjyun.org
+ezhou-|m-ezhou.cjyun.org
+wufeng-|m-wufeng.cjyun.org
 cjyun.org|app.cjyun.org.cn
 cjy.hbtv.com.cn|news.hbtv.com.cn''';
 
@@ -71,5 +73,8 @@ chinamobile.com
 hwapi.yunshicloud.com
 live.nctv.top
 cbg.cn
+jingzhou-
+gucheng-
+yangxin-
 zztv.tv''';
 }
