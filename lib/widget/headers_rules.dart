@@ -46,6 +46,7 @@ jiangling-|m-jiangling.cjyun.org
 songzi-|m-songzi.cjyun.org
 ezhou-|m-ezhou.cjyun.org
 wufeng-|m-wufeng.cjyun.org
+gucheng-|wap.guchengnews.com
 cjyun.org|app.cjyun.org.cn
 cjy.hbtv.com.cn|news.hbtv.com.cn''';
 
@@ -74,7 +75,7 @@ hwapi.yunshicloud.com
 live.nctv.top
 cbg.cn
 jingzhou-
-gucheng-
+gongan-
 yangxin-
 zztv.tv''';
 }
