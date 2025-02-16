@@ -137,7 +137,6 @@ bool _checkIsAudioStream(String? url) {
 // 判断是否是HLS流
 bool _isHlsStream(String? url) {
   if (url == null || url.isEmpty) return false;
-  // 组合所有格式检查
   return !([..._videoFormats, ..._audioFormats].any(url.toLowerCase().contains));
 }
   
@@ -153,16 +152,28 @@ Future<void> _playVideo() async {
     
     // 设置初始状态
     setState(() {
-        toastString = '${_currentChannel!.title} - $sourceName';
+        toastString = '${_currentChannel!.title} - $sourceName  ${S.current.loading}';
         isPlaying = false;     // 重置播放状态
         isBuffering = false;   // 重置缓冲状态
     });
 
     try {
+        // 添加超时保护机制
+        int waitAttempts = 0;
+        final maxWaitAttempts = 5; // 最多等待5次
+        
         // 等待之前的切换操作完成
-        while (_isSwitchingChannel) {
-            LogUtil.i('等待上一次的播放器处理完成后再开始播放');
+        while (_isSwitchingChannel && waitAttempts < maxWaitAttempts) {
+            LogUtil.i('等待上一次的播放器处理完成后再开始播放: 尝试 ${waitAttempts + 1}/$maxWaitAttempts');
             await Future.delayed(const Duration(milliseconds: 1000));
+            waitAttempts++;
+        }
+        
+        // 如果等待超时，强制重置状态
+        if (_isSwitchingChannel && waitAttempts >= maxWaitAttempts) {
+            LogUtil.e('等待切换超时，强制重置状态');
+            _isSwitchingChannel = false;
+            await _disposePlayer(); // 确保清理旧的播放器资源
         }
         
         // 准备开始切换到新的播放源
@@ -175,6 +186,9 @@ Future<void> _playVideo() async {
         // 添加短暂延迟确保资源完全释放
         await Future.delayed(const Duration(milliseconds: 500));
         
+        // 如果在等待期间组件被销毁，直接返回
+        if (!mounted) return;
+        
         // 解析URL
         String url = _currentChannel!.urls![_sourceIndex].toString();
         _streamUrl = StreamUrl(url); 
@@ -184,6 +198,7 @@ Future<void> _playVideo() async {
         if (parsedUrl == 'ERROR') {  // 如果解析返回错误就不需要重试
             setState(() {
                 toastString = S.current.vpnplayError;
+                _isSwitchingChannel = false; // 确保重置状态
             });
             return;
         }
@@ -236,9 +251,11 @@ Future<void> _playVideo() async {
         LogUtil.logError('播放出错', e, stackTrace);
         _handleSourceSwitching();
     } finally {
+        if (mounted) {
             setState(() {
                 _isSwitchingChannel = false;  // 确保切换状态被重置
             });
+        }
     }
 }
 
@@ -360,8 +377,7 @@ Future<void> handleFinishedEvent() async {
       oldController: _playerController,
     );
   } else if (_isHlsStream(_currentPlayUrl)) {
-    // HLS 流意外结束，需要重试
-    LogUtil.e('HLS流意外结束');
+    // HLS 流意外结束，重试
     _retryPlayback();
   } else {
     await _handleNoMoreSources();
