@@ -236,11 +236,9 @@ Future<void> _playVideo() async {
         LogUtil.logError('播放出错', e, stackTrace);
         _handleSourceSwitching();
     } finally {
-        if (mounted) {
             setState(() {
                 _isSwitchingChannel = false;  // 确保切换状态被重置
             });
-        }
     }
 }
 
