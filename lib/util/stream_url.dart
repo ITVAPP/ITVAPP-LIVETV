@@ -117,16 +117,20 @@ class StreamUrl {
     }
   }
   
-void dispose() {
+Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
     
+    // 给 completer 一个错误完成信号
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
+    // 等待所有请求完成
+    await _completer?.future.catchError((_) {});
+
     // 安全释放资源
-    LogUtil.safeExecute(() {
+    await LogUtil.safeExecute(() async {
       try {
         yt.close();
       } catch (e, stackTrace) {
@@ -139,7 +143,7 @@ void dispose() {
         LogUtil.logError('释放 HTTP 客户端时发生错误', e, stackTrace);
       }
     }, '关闭资源时发生错误');
-  }
+}
 
   /// 判断是否包含"getm3u8"
   bool isGetM3U8Url(String url) {
