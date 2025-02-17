@@ -49,7 +49,8 @@ wufeng-|m-wufeng.cjyun.org
 gucheng-|wap.guchengnews.com
 cjyun.org|app.cjyun.org.cn
 cjy.hbtv.com.cn|news.hbtv.com.cn
-liveplay-srs.voc.com.cn|xhncloud.voc.com.cn''';
+liveplay-srs.voc.com.cn|xhncloud.voc.com.cn
+mapi.ldntv.cn|www.ldntv.cn''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
   static const String corsRulesString = '''
