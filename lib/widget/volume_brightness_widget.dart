@@ -12,10 +12,10 @@ class VolumeBrightnessWidget extends StatefulWidget {
 }
 
 class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with SingleTickerProviderStateMixin {
-  double _volume = 0.5;  // 音量初始值，范围 0.0 - 1.0
-  double _brightness = 0.5;  // 屏幕亮度初始值，范围 0.0 - 1.0
-  int _volumeLevel = 5;  // 音量的初始级别（10级制，0到10）
-  int _brightnessLevel = 5;  // 亮度的初始级别（10级制，0到10）
+  double _volume = 0.6;  // 音量初始值，范围 0.0 - 1.0
+  double _brightness = 0.6;  // 屏幕亮度初始值，范围 0.0 - 1.0
+  int _volumeLevel = 6;  // 音量的初始级别（10级制，0到10）
+  int _brightnessLevel = 6;  // 亮度的初始级别（10级制，0到10）
   final int _maxLevel = 10;  // 最大级别为10级
   final int _minLevel = 0;  // 最低级别为0
 
@@ -47,18 +47,18 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
       _brightness = (await ScreenBrightness().current).clamp(0.0, 1.0);
       _brightnessLevel = (_brightness * _maxLevel).round();
     } catch (e) {
-      _brightness = 0.5;  // 获取失败时使用默认亮度
-      _brightnessLevel = 5;
+      _brightness = 0.6;  // 获取失败时使用默认亮度
+      _brightnessLevel = 6;
       LogUtil.e('读取亮度时发生错误：$e');
     }
 
     try {
       // 获取当前音量并转换为10级制
-      _volume = ((await FlutterVolumeController.getVolume()) ?? 0.5).clamp(0.0, 1.0) as double;
+      _volume = ((await FlutterVolumeController.getVolume()) ?? 0.6).clamp(0.0, 1.0) as double;
       _volumeLevel = (_volume * _maxLevel).round();
     } catch (e) {
-      _volume = 0.5;  // 获取失败时使用默认音量
-      _volumeLevel = 5;
+      _volume = 0.6;  // 获取失败时使用默认音量
+      _volumeLevel = 6;
       LogUtil.e('读取音量时发生错误：$e');
     }
 
