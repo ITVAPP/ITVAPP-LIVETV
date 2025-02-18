@@ -58,6 +58,7 @@ class BetterPlayerConfig {
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
+    double volume = 0.6, // 默认音量参数为60%
   }) {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
@@ -67,6 +68,7 @@ class BetterPlayerConfig {
       autoDispose: false, // 自动释放资源
       expandToFill: true, // 填充剩余空间
       handleLifecycle: true, // 生命周期管理
+      volume: volume,  // 默认音量设置
       // 错误界面构建器（此处使用背景图片）
       errorBuilder: (_, __) => _backgroundImage,
       // 设置播放器占位图片
