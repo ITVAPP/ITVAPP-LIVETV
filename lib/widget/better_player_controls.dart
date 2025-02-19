@@ -68,7 +68,6 @@ class BetterPlayerConfig {
       autoDispose: false, // 自动释放资源
       expandToFill: true, // 填充剩余空间
       handleLifecycle: true, // 生命周期管理
-      volume: volume,  // 默认音量设置
       // 错误界面构建器（此处使用背景图片）
       errorBuilder: (_, __) => _backgroundImage,
       // 设置播放器占位图片
@@ -76,6 +75,7 @@ class BetterPlayerConfig {
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false,  // 不显示控制器
+        initialVolume: volume,
       ),
       // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
