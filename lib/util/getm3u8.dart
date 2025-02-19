@@ -137,7 +137,7 @@ class GetM3U8 {
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
 
   /// 动态关键词规则字符串，符合规则使用getm3u8diy来解析
-  static String dynamicKeywordsString = 'sztv123@hntv123';
+  static String dynamicKeywordsString = 'jinan@gansu';
 
   /// 目标URL
   final String url;
