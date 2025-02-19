@@ -26,11 +26,12 @@ class GansuParser {
   static Future<String> parse(String url) async {
     try {
       final uri = Uri.parse(url);
-      final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
+      var clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
+      // 如果索引无效,使用0(甘肃卫视)
       if (!CHANNEL_LIST.containsKey(clickIndex)) {
-        LogUtil.i('无效的频道索引: $clickIndex');
-        return 'ERROR';
+        LogUtil.i('无效的频道索引: $clickIndex, 使用默认频道(甘肃卫视)');
+        clickIndex = 0;
       }
 
       final channelInfo = CHANNEL_LIST[clickIndex]!;
@@ -38,7 +39,6 @@ class GansuParser {
       final channelName = channelInfo[1];
 
       LogUtil.i('正在解析频道: $channelName');
-
       final expires = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 1800;
       final rand = _generateRandomString(32);
       
