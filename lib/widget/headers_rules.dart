@@ -79,5 +79,7 @@ cbg.cn
 jingzhou-
 gongan-
 yangxin-
-zztv.tv''';
+zztv.tv
+dspull.ijntv.cn
+hlss.gstv.com.cn''';
 }
