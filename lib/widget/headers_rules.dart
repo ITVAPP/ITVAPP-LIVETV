@@ -38,6 +38,7 @@ jxtvcn.com.cn|www.jxntv.cn
 ahtv.cn|www.ahtv.cn
 cloudvdn.com|*.jstv.com
 hoolo.tv|tv.hoolo.tv
+liveplus.lzr.com.cn|www.lzr.com.cn
 cztv.com|www.cztv.com
 cztvcloud.com|www.cztv.com
 wuxue-|m.hbwuxue.com
