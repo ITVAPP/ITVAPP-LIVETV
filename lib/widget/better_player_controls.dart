@@ -21,9 +21,9 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
-     // 使用 HeadersConfig 生成默认 headers
+    // 使用 HeadersConfig 生成默认 headers
     final defaultHeaders = HeadersConfig.generateHeaders(url: url);
-  
+
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
@@ -75,7 +75,6 @@ class BetterPlayerConfig {
       // 配置控制栏行为
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false,  // 不显示控制器
-        initialVolume: volume,
       ),
       // 全屏后允许的设备方向
       deviceOrientationsAfterFullScreen: [
