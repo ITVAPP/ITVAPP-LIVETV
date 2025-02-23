@@ -36,6 +36,7 @@ jiujiang|www.jjntv.cn
 sztv.com.cn|www.sztv.com.cn
 jxtvcn.com.cn|www.jxntv.cn
 ahtv.cn|www.ahtv.cn
+zjcn-live-play|api.chinaaudiovisual.cn
 cloudvdn.com|*.jstv.com
 hoolo.tv|tv.hoolo.tv
 liveplus.lzr.com.cn|www.lzr.com.cn
