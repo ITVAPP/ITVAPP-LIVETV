@@ -16,13 +16,13 @@ import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
-import 'generated/l10n.dart';
-import 'live_home_page.dart';
-import 'splash_screen.dart';
-import 'router_keys.dart';
-import 'setting/setting_beautify_page.dart';
-import 'setting/setting_log_page.dart';
-import 'setting/setting_page.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/live_home_page.dart';
+import 'package:itvapp_live_tv/splash_screen.dart';
+import 'package:itvapp_live_tv/router_keys.dart';
+import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
+import 'package:itvapp_live_tv/setting/setting_log_page.dart';
+import 'package:itvapp_live_tv/setting/setting_page.dart';
 
 // 添加应用常量类
 class AppConstants {
