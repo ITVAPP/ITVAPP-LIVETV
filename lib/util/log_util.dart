@@ -17,13 +17,13 @@ class LogUtil {
   // 内存存储相关
   static final List<String> _memoryLogs = [];
   static final List<String> _newLogsBuffer = [];
-  static const int _writeThreshold = 5;  // 累积5条日志才写入本地
-  static const String _logFileName = 'ITVAPP_LIVETV_logs.txt';  // 日志文件名
-  static String? _logFilePath;  // 缓存日志文件路径
+  static const int _writeThreshold = 5; // 累积5条日志才写入本地
+  static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
+  static String? _logFilePath; // 缓存日志文件路径
 
   // 弹窗相关属性
   static bool _showOverlay = false; // 控制是否显示弹窗
-  static OverlayEntry? _overlayEntry;  // 修改为单个 OverlayEntry
+  static OverlayEntry? _overlayEntry; // 修改为单个 OverlayEntry
   static final List<String> _debugMessages = [];
   static Timer? _timer;
   static const int _messageDisplayDuration = 3;
@@ -31,8 +31,8 @@ class LogUtil {
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
-      _memoryLogs.clear();  // 初始化时先清空内存
-      _newLogsBuffer.clear();  // 初始化时先清空缓冲区
+      _memoryLogs.clear(); // 初始化时先清空内存
+      _newLogsBuffer.clear(); // 初始化时先清空缓冲区
 
       final filePath = await _getLogFilePath();
       final file = File(filePath);
@@ -44,12 +44,12 @@ class LogUtil {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
           developer.log('日志文件超过大小限制，执行清理');
-          await clearLogs(isAuto: true);  // 修改为命名参数
-        } 
+          await clearLogs(isAuto: true); // 修改为命名参数
+        }
       }
     } catch (e) {
       developer.log('日志初始化失败: $e');
-      await clearLogs(isAuto: true);  // 修改为命名参数
+      await clearLogs(isAuto: true); // 修改为命名参数
     }
   }
 
@@ -111,21 +111,20 @@ class LogUtil {
     if (!debugMode || object == null) return;
     try {
       String time = DateTime.now().toString();
-      String fileInfo = _getFileAndLine();
 
-      String objectStr = object?.toString()
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r')
-        .replaceAll('|', '\\|')
-        .replaceAll('[', '\\[')
-        .replaceAll(']', '\\]')
-        ?? 'null';
+      String objectStr = object.toString()
+          .replaceAll('\n', '\\n')
+          .replaceAll('\r', '\\r')
+          .replaceAll('|', '\\|')
+          .replaceAll('[', '\\[')
+          .replaceAll(']', '\\]')
+          ?? 'null';
 
       if (objectStr.length > _maxSingleLogLength) {
         objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
       }
 
-      String logMessage = '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
+      String logMessage = '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr}';
 
       // 添加到内存和缓冲区（新日志在前）
       _memoryLogs.insert(0, logMessage);
@@ -138,12 +137,11 @@ class LogUtil {
       developer.log(logMessage);
       if (_showOverlay) {
         String displayMessage = objectStr
-          .replaceAll('\\n', '\n')
-          .replaceAll('\\r', '\r')
-          .replaceAll('\\|', '|')
-          .replaceAll('\\[', '[')
-          .replaceAll('\\]', ']');
-
+            .replaceAll('\\n', '\n')
+            .replaceAll('\\r', '\r')
+            .replaceAll('\\|', '|')
+            .replaceAll('\\[', '[')
+            .replaceAll('\\]', ']');
         _showDebugMessage('[${level}] $displayMessage');
       }
     } catch (e) {
@@ -164,7 +162,6 @@ class LogUtil {
       final file = File(filePath);
 
       await file.writeAsString(_memoryLogs.join('\n') + '\n');
-
     } catch (e) {
       developer.log('写入日志文件失败: $e');
       _newLogsBuffer.insertAll(0, logsToWrite);
@@ -173,62 +170,46 @@ class LogUtil {
     }
   }
 
-// 显示调试消息
-static void _showDebugMessage(String message) {
-  // 解析日志消息为指定格式
-  String displayMessage = message;
-  if (message.contains('|')) {
-    final parts = message.split('|').map((s) => s.trim()).toList();
-    final headers = parts[0].split(']')
-        .map((s) => s.trim().replaceAll('[', ''))
-        .where((s) => s.isNotEmpty)
-        .toList();
-    
-    String timeAndLevel = '${headers[0]}\n';  // 时间
-    String content = parts[1];  // 消息内容
-    String fileInfo = parts[2];  // 文件信息
-    
-    displayMessage = '$timeAndLevel$content\n$fileInfo';
-  }
-
-  _debugMessages.insert(0, displayMessage);
-  if (_debugMessages.length > 6) {
-    _debugMessages.removeLast();
-  }
-  _hideOverlay();
-  final overlayState = _findOverlayState();
-  if (overlayState != null) {
-    _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: 20.0,
-        right: 20.0,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 300.0),
-            padding: const EdgeInsets.all(8.0),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: _debugMessages.map((msg) => Text(
-                msg,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                softWrap: true,
-                maxLines: null,
-                overflow: TextOverflow.visible,  // 修改这里从 TextOverlay 到 TextOverflow
-              )).toList(),
+  // 显示调试消息
+  static void _showDebugMessage(String message) {
+    _debugMessages.insert(0, message);
+    if (_debugMessages.length > 6) {
+      _debugMessages.removeLast();
+    }
+    _hideOverlay();
+    final overlayState = _findOverlayState();
+    if (overlayState != null) {
+      _overlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          bottom: 20.0,
+          right: 20.0,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 300.0),
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _debugMessages.map((msg) => Text(
+                  msg,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  softWrap: true,
+                  maxLines: null,
+                  overflow: TextOverflow.visible,
+                )).toList(),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    overlayState.insert(_overlayEntry!);
-    _startAutoHideTimer();
+      );
+      overlayState.insert(_overlayEntry!);
+      _startAutoHideTimer();
+    }
   }
-}
 
   // NavigatorObserver实例
   static final navigatorObserver = NavigatorObserver();
@@ -246,8 +227,7 @@ static void _showDebugMessage(String message) {
       OverlayState? overlayState;
       void visitor(Element element) {
         if (overlayState != null) return;
-        if (element is StatefulElement &&
-            element.state is OverlayState) {
+        if (element is StatefulElement && element.state is OverlayState) {
           overlayState = element.state as OverlayState;
           return;
         }
@@ -261,7 +241,7 @@ static void _showDebugMessage(String message) {
       return null;
     }
   }
-  
+
   // 隐藏弹窗
   static void _hideOverlay() {
     _overlayEntry?.remove();
@@ -300,7 +280,7 @@ static void _showDebugMessage(String message) {
       return;
     }
 
-    await _log('e', '错误: $message\n错误详情: $error\n堆栈信息: ${_processStackTrace(stackTrace)}', _defTag);
+    await _log('e', '错误: $message\n错误详情: $error\n堆栈信息: $stackTrace', _defTag);
   }
 
   // 安全执行函数
@@ -317,42 +297,8 @@ static void _showDebugMessage(String message) {
     }
   }
 
-  // 获取文件名和行号
-  static String _getFileAndLine() {
-    try {
-      final frames = StackTrace.current.toString().split('\n');
-      for (int i = 2; i < frames.length; i++) {
-        final frame = frames[i];
-        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
-        if (match != null && !frame.contains('log_util.dart')) {
-          return '${match.group(1)}:${match.group(2)}';
-        }
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-    return 'Unknown';
-  }
-
-  // 处理堆栈信息
-  static String _processStackTrace(StackTrace stackTrace) {
-    try {
-      final frames = stackTrace.toString().split('\n');
-      for (int i = 2; i < frames.length; i++) {
-        final frame = frames[i];
-        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
-        if (match != null && !frame.contains('log_util.dart')) {
-          return '${match.group(1)}:${match.group(2)}';
-        }
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-    return 'Unknown';
-  }
-
   // 获取所有日志
-  static List<Map<String, String>> getLogs() {  // 修改返回类型
+  static List<Map<String, String>> getLogs() {
     try {
       return _memoryLogs.map((logStr) {
         final parts = logStr.split('|').map((s) => s.trim()).toList();
@@ -365,8 +311,7 @@ static void _showDebugMessage(String message) {
           'time': headers[0],
           'level': headers[1],
           'tag': headers[2],
-          'message': '${parts[1]}\n${parts[2]}',
-          'fileInfo': parts[2]
+          'message': parts[1],
         };
       }).toList();
     } catch (e) {
@@ -376,33 +321,32 @@ static void _showDebugMessage(String message) {
   }
 
   // 按级别获取日志
-  static List<Map<String, String>> getLogsByLevel(String level) {  // 修改返回类型
+  static List<Map<String, String>> getLogsByLevel(String level) {
     try {
       final levelPattern = RegExp(r'\[' + level + r'\]');
       return _memoryLogs
           .where((log) => levelPattern.hasMatch(log))
           .map((logStr) {
-        final parts = logStr.split('|').map((s) => s.trim()).toList();
-        final headers = parts[0].split(']')
-            .map((s) => s.trim().replaceAll('[', ''))
-            .where((s) => s.isNotEmpty)
-            .toList();
-        
-        return {
-          'time': headers[0],
-          'level': headers[1],
-          'tag': headers[2],
-          'message': '${parts[1]}\n${parts[2]}',
-          'fileInfo': parts[2]
-        };
-      }).toList();
+            final parts = logStr.split('|').map((s) => s.trim()).toList();
+            final headers = parts[0].split(']')
+                .map((s) => s.trim().replaceAll('[', ''))
+                .where((s) => s.isNotEmpty)
+                .toList();
+            
+            return {
+              'time': headers[0],
+              'level': headers[1],
+              'tag': headers[2],
+              'message': parts[1],
+            };
+          }).toList();
     } catch (e) {
       developer.log('按级别获取日志失败: $e');
       return [];
     }
   }
 
-// 清理日志
+  // 清理日志
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
     if (_isOperating) return;
     _isOperating = true;
