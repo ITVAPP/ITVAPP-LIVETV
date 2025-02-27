@@ -110,4 +110,51 @@ class EnvUtil {
     return 'https://api.github.com/repos/aiyakuaile/easy_tv_live/releases/latest';
   }
 
+  // 判断是否启用硬件加速
+  static Future<bool> isHardwareAccelerationEnabled() async {
+    try {
+      LogUtil.d('开始检测是否支持硬件加速');
+      final deviceInfo = DeviceInfoPlugin();
+
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        // Android 7.0 对应 API 24
+        final isAndroid7OrAbove = androidInfo.version.sdkInt >= 24;
+        LogUtil.d('Android SDK 版本: ${androidInfo.version.sdkInt}, 是否支持硬件加速: $isAndroid7OrAbove');
+        return isAndroid7OrAbove;
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        // 检查是否为 iPhone 6 或以上 (型号从 iPhone7,2 开始)
+        final deviceModel = iosInfo.utsname.machine ?? '';
+        final isIPhone6OrAbove = deviceModel.contains('iPhone') && 
+            _parseIPhoneModelNumber(deviceModel) >= 7;
+        LogUtil.d('iOS 设备型号: $deviceModel, 是否支持硬件加速: $isIPhone6OrAbove');
+        return isIPhone6OrAbove;
+      }
+
+      LogUtil.d('非 Android 或 iOS 设备，默认不支持硬件加速');
+      return false; // 其他平台默认返回 false
+    } on PlatformException catch (e) {
+      LogUtil.e('检测硬件加速支持发生 PlatformException: ${e.message}');
+      return false; // 出现平台异常时返回 false
+    } catch (e) {
+      LogUtil.e('检测硬件加速支持发生未知错误: ${e.toString()}');
+      return false; // 处理其他异常，默认返回 false
+    }
+  }
+
+  // 辅助方法：解析 iPhone 型号编号 (如 "iPhone7,2" 返回 7)
+  static int _parseIPhoneModelNumber(String model) {
+    try {
+      if (model.contains('iPhone')) {
+        final parts = model.split('iPhone')[1].split(',');
+        final majorVersion = int.tryParse(parts[0]) ?? 0;
+        return majorVersion;
+      }
+      return 0;
+    } catch (e) {
+      LogUtil.e('解析 iPhone 型号失败: $model');
+      return 0;
+    }
+  }
 }
