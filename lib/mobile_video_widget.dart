@@ -139,13 +139,14 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     
     // 初始化操作按钮列表
     _appBarIcons = [
-      IconButton(
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        icon: const Icon(Icons.add, size: 24),
-        onPressed: _handleAddPressed,
-      ),
-      const SizedBox(width: 8),
+      // 暂时注释掉用户自己添加播放列表的功能
+      // IconButton(
+      //   padding: EdgeInsets.zero,
+      //   visualDensity: VisualDensity.compact,
+      //   icon: const Icon(Icons.add, size: 24),
+      //   onPressed: _handleAddPressed,
+      // ),
+      // const SizedBox(width: 8),
       IconButton(
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
