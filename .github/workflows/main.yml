@@ -28,7 +28,7 @@ jobs:
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 的 APK
         run: |
-          flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info --extra-gen-snapshot-options=--no-obfuscate-package=package:.*
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -36,7 +36,7 @@ jobs:
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 的 APK
         run: |
-          flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info --extra-gen-snapshot-options=--no-obfuscate-package=package:.*
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
