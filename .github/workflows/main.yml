@@ -1,51 +1,51 @@
 name: ITVAPP-LIVETV APP
 on:
- push:
-   tags:
-     - '*'  # 当推送标签时触发构建
- workflow_dispatch:  # 支持手动触发
+  push:
+    tags:
+      - '*'  # 当推送标签时触发构建
+  workflow_dispatch:  # 支持手动触发
 jobs:
- build_android:
-   runs-on: ubuntu-latest  # 使用 Ubuntu 环境
-   steps:
-     - uses: actions/checkout@v4  # 检出代码
-     - uses: actions/setup-java@v3  # 设置 Java 环境
-       with:
-         distribution: 'zulu'
-         java-version: '17'
-     - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
-       with:
-         flutter-version: '3.24.0'  # 使用最新稳定版本
-         channel: 'stable'
-     - run: flutter pub get  # 获取项目依赖
-     - name: Add namespace to better_player  # 添加 namespace
-       run: |
-         sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
-     - name: Create apk directory in root  # 创建存放APK文件的目录
-       run: mkdir -p apk
-     - name: Decode keystore  # 解码密钥库文件
-       run: |
-         echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
-     - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 的 APK
-       run: |
-         flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi
-         mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-       env:
-         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-         KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-     - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 的 APK
-       run: |
-         flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi
-         mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-       env:
-         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-         KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-     - name: Upload Android artifacts  # 上传生成的APK文件作为构建产物
-       uses: actions/upload-artifact@v4
-       with:
-         name: android-artifacts
-         path: |
-           apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-           apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
+  build_android:
+    runs-on: ubuntu-latest  # 使用 Ubuntu 环境
+    steps:
+      - uses: actions/checkout@v4  # 检出代码
+      - uses: actions/setup-java@v3  # 设置 Java 环境
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
+        with:
+          flutter-version: '3.24.0'  # 使用最新稳定版本
+          channel: 'stable'
+      - run: flutter pub get  # 获取项目依赖
+      - name: Add namespace to better_player  # 添加 namespace
+        run: |
+          sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
+      - name: Create apk directory in root  # 创建存放APK文件的目录
+        run: mkdir -p apk
+      - name: Decode keystore  # 解码密钥库文件
+        run: |
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
+      - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 的 APK
+        run: |
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+      - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 的 APK
+        run: |
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+      - name: Upload Android artifacts  # 上传生成的APK文件作为构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: |
+            apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
+            apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
