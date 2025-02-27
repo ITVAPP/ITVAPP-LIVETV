@@ -15,8 +15,16 @@ class BetterPlayerConfig {
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
 
+  // 缓存硬件加速支持信息
+  static bool? _isHardwareAccelerationSupportedCache;
+
   /// 判断设备是否支持硬件加速
   static Future<bool> _isHardwareAccelerationSupported() async {
+    // 如果缓存已有结果，直接返回
+    if (_isHardwareAccelerationSupportedCache != null) {
+      return _isHardwareAccelerationSupportedCache!;
+    }
+
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     bool hardwareAcceleration = true;
 
@@ -26,9 +34,11 @@ class BetterPlayerConfig {
       hardwareAcceleration = androidInfo.version.sdkInt >= 24;
     } else if (Platform.isIOS) {
       IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      hardwareAcceleration = iosInfo.model != 'iPhone 6';
+      hardwareAcceleration = iosInfo.model != 'iPhone 6'; // iPhone 6不支持硬件加速
     }
 
+    // 缓存硬件加速支持信息
+    _isHardwareAccelerationSupportedCache = hardwareAcceleration;
     return hardwareAcceleration;
   }
 
