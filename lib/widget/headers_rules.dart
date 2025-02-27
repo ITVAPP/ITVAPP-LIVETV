@@ -84,5 +84,6 @@ gongan-
 yangxin-
 zztv.tv
 dspull.ijntv.cn
-hlss.gstv.com.cn''';
+hlss.gstv.com.cn
+gbtv-rtmp.zjwtv.com''';
 }
