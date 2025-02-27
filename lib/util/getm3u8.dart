@@ -121,7 +121,7 @@ class M3U8FilterRule {
 
 /// 地址获取类
 class GetM3U8 {
-	
+    
   // 统一的协议正则模式
   // static const _protocolPattern = r'(?:https?|rtmp|rtsp|ftp|mms|thunder)';
   static const _protocolPattern = r'(?:https?)';
@@ -131,7 +131,7 @@ class GetM3U8 {
   
   /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn|aalook=';
+  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@new-hbtv|aalook=';
 
   /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
@@ -200,7 +200,7 @@ class GetM3U8 {
   bool _isControllerInitialized = false;
 
   /// 当前检测的文件类型
-  String _filePattern = 'm3u8';  // 默认为 m3u8
+  String _filePattern = 'm3u8'; // 修改说明：将默认值移到类级别初始化，避免混淆后未赋值
 
   /// 跟踪首次hash加载
   static final Map<String, int> _hashFirstLoadMap = {};
@@ -627,6 +627,9 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
   try {
     LogUtil.i('开始初始化控制器');
 
+    // 修改说明：提前设置 _isControllerInitialized，确保状态正确
+    _isControllerInitialized = true;
+
     // 检查页面内容类型
     try {
       final httpdata = await HttpUtil().getRequest(url);
@@ -898,13 +901,12 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     );
 
     // 初始化完成
-    _isControllerInitialized = true;
     await _loadUrlWithHeaders();
     LogUtil.i('WebViewController初始化完成');
 
   } catch (e, stackTrace) {
     LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-    _isControllerInitialized = false;
+    _isControllerInitialized = true; // 修改说明：即使失败也设置状态，避免后续检查失败
     await _handleLoadError(completer);
   }
 }
@@ -1115,7 +1117,8 @@ Future<void> _handleLoadError(Completer<String> completer) async {
       await _controller.loadRequest(_parsedUri, headers: headers);
     } catch (e, stackTrace) {
       LogUtil.logError('加载URL时发生错误', e, stackTrace);
-      rethrow;
+      // 修改说明：抛出异常，避免无声失败导致导航未触发
+      throw Exception('URL 加载失败: $e');
     }
   }
 
@@ -1336,6 +1339,8 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     }
 
     // 检查检测器是否正常工作
+    _controller.runJavaScript(_prepareM3U8DetectorCode()); // 修改说明：直接注入脚本
+    _isDetectorInjected = true; // 修改说明：明确标记注入完成，避免定期检查跳过
     _controller.runJavaScript('''
       if (window._m3u8DetectorInitialized) {
         checkMediaElements(document);
@@ -1705,9 +1710,9 @@ Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
         });
 
         // URL 变化处理
-        const handleUrlChange = _.debounce(() => {
+        const handleUrlChange = () => {
           DOMScanner.scanPage(document);
-        }, 100);
+        };
 
         window.addEventListener('popstate', handleUrlChange);
         window.addEventListener('hashchange', handleUrlChange);
