@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 
 /// 播放器配置工具类
 class BetterPlayerConfig {
@@ -14,33 +12,6 @@ class BetterPlayerConfig {
     gaplessPlayback: true,  // 防止图片加载时闪烁
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
-
-  // 缓存硬件加速支持信息
-  static bool? _isHardwareAccelerationSupportedCache;
-
-  /// 判断设备是否支持硬件加速
-  static Future<bool> _isHardwareAccelerationSupported() async {
-    // 如果缓存已有结果，直接返回
-    if (_isHardwareAccelerationSupportedCache != null) {
-      return _isHardwareAccelerationSupportedCache!;
-    }
-
-    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    bool hardwareAcceleration = true;
-
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      // Android 7.0 及以上支持硬件加速
-      hardwareAcceleration = androidInfo.version.sdkInt >= 24;
-    } else if (Platform.isIOS) {
-      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-      hardwareAcceleration = iosInfo.model != 'iPhone 6'; // iPhone 6不支持硬件加速
-    }
-
-    // 缓存硬件加速支持信息
-    _isHardwareAccelerationSupportedCache = hardwareAcceleration;
-    return hardwareAcceleration;
-  }
 
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
@@ -84,14 +55,11 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器基本配置
-  static Future<BetterPlayerConfiguration> createPlayerConfig({
+  static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
     double volume = 0.6, // 默认音量参数为60%
-  }) async {
-    // 判断是否支持硬件加速
-    bool isHardwareAccelerationSupported = await _isHardwareAccelerationSupported();
-
+  }) {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
       autoPlay: false, // 自动播放
@@ -116,7 +84,6 @@ class BetterPlayerConfig {
       ],
       // 事件监听器
       eventListener: eventListener,
-      hardwareAcceleration: isHardwareAccelerationSupported, // 动态开启硬件加速
     );
   }
 }
