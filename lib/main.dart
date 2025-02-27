@@ -30,6 +30,7 @@ class AppConstants {
   static const Duration screenCheckDuration = Duration(milliseconds: 500);
   static const Size defaultWindowSize = Size(414, 414 * 16 / 9);
   static const Size minimumWindowSize = Size(300, 300 * 9 / 16);
+  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
 }
 
 // 应用程序的入口函数，使用 async 关键字以确保异步操作可以在启动时完成
@@ -58,6 +59,23 @@ void main() async {
   // 如果当前环境不是移动端
   if (!EnvUtil.isMobile) {
     await _initializeDesktop();
+  }
+
+  // 硬件加速检测和缓存逻辑
+  try {
+    // 检查缓存中是否已有硬件加速状态
+    bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey);
+    if (isHardwareEnabled == null) {
+      // 如果缓存中没有值，则检测并存入缓存
+      isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled();
+      await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled);
+      LogUtil.d('首次检测硬件加速支持，结果: $isHardwareEnabled，已存入缓存');
+    } else {
+      LogUtil.d('从缓存读取硬件加速状态: $isHardwareEnabled');
+    }
+  } catch (e) {
+    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}');
+    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时缓存默认值
   }
 
   // 运行应用，并使用 MultiProvider 进行全局状态管理
