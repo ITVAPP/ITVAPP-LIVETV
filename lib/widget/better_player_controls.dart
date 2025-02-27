@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 /// 播放器配置工具类
 class BetterPlayerConfig {
@@ -12,6 +14,23 @@ class BetterPlayerConfig {
     gaplessPlayback: true,  // 防止图片加载时闪烁
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
+
+  /// 判断设备是否支持硬件加速
+  static Future<bool> _isHardwareAccelerationSupported() async {
+    DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    bool hardwareAcceleration = true;
+
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      // Android 7.0 及以上支持硬件加速
+      hardwareAcceleration = androidInfo.version.sdkInt >= 24;
+    } else if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      hardwareAcceleration = iosInfo.model != 'iPhone 6';
+    }
+
+    return hardwareAcceleration;
+  }
 
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
@@ -55,11 +74,14 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器基本配置
-  static BetterPlayerConfiguration createPlayerConfig({
+  static Future<BetterPlayerConfiguration> createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
     double volume = 0.6, // 默认音量参数为60%
-  }) {
+  }) async {
+    // 判断是否支持硬件加速
+    bool isHardwareAccelerationSupported = await _isHardwareAccelerationSupported();
+
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
       autoPlay: false, // 自动播放
@@ -84,6 +106,7 @@ class BetterPlayerConfig {
       ],
       // 事件监听器
       eventListener: eventListener,
+      hardwareAcceleration: isHardwareAccelerationSupported, // 动态开启硬件加速
     );
   }
 }
