@@ -139,6 +139,9 @@ class GetM3U8 {
   /// 动态关键词规则字符串，符合规则使用getm3u8diy来解析
   static String dynamicKeywordsString = 'jinan@gansu@zhanjiang';
 
+  /// 允许加载的资源模式字符串，用@分隔
+  static const String allowedResourcePatternsString = 'r.png?t=perf@logo.jpg@video.mp4';
+
   /// 目标URL
   final String url;
 
@@ -438,6 +441,19 @@ static const String _CLEANUP_SCRIPT = '''
     } catch (e) {
       LogUtil.e('解析特殊规则字符串失败: $e');
       return {};
+    }
+  }
+
+  /// 解析允许的资源模式
+  static List<String> _parseAllowedPatterns(String patternsString) {
+    if (patternsString.isEmpty) {
+      return [];
+    }
+    try {
+      return patternsString.split('@').map((pattern) => pattern.trim()).toList();
+    } catch (e) {
+      LogUtil.e('解析允许的资源模式失败: $e');
+      return [];
     }
   }
 
@@ -753,6 +769,9 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       },
     );
 
+    // 解析允许的资源模式
+    final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
+
     // 导航委托
     _controller.setNavigationDelegate(
       NavigationDelegate(
@@ -797,11 +816,19 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
               'pdf', 'doc', 'docx', 'swf',
             ];
 
+            // 检查是否在阻止列表中
             if (blockedExtensions.contains(extension)) {
-              return NavigationDecision.prevent;
+              // 检查是否匹配允许的模式
+              if (allowedPatterns.any((pattern) => request.url.contains(pattern))) {
+                LogUtil.i('允许加载匹配模式的资源: ${request.url}');
+                return NavigationDecision.navigate; // 允许加载匹配的资源
+              }
+              LogUtil.i('阻止加载资源: ${request.url} (扩展名: $extension)');
+              return NavigationDecision.prevent; // 阻止其他被屏蔽的资源
             }
           } catch (e) {
             // 获取扩展名失败，跳过扩展名检查
+            LogUtil.e('提取扩展名失败: $e');
           }
 
           // 目标资源检查
