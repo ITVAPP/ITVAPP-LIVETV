@@ -1,7 +1,7 @@
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/getapp/jinan.dart';
 import 'package:itvapp_live_tv/util/getapp/gansu.dart';
-import 'package:itvapp_live_tv/util/getapp/zhanjiang_parser.dart';
+import 'package:itvapp_live_tv/util/getapp/zhanjiang.dart';
 
 /// m3u8地址解析器
 class GetM3u8Diy {
