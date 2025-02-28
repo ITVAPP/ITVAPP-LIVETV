@@ -131,7 +131,7 @@ class GetM3U8 {
   
   /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
   /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
+  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@news.hbtv.com.cn|aalook=';
 
   /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
@@ -160,8 +160,8 @@ class GetM3U8 {
   /// 超时时间(秒)
   final int timeoutSeconds;
 
-  /// WebView控制器 - 修改：从 late 改为 nullable
-  WebViewController? _controller;
+  /// WebView控制器
+  late WebViewController _controller;
 
   /// 是否已找到M3U8
   bool _m3u8Found = false;
@@ -638,15 +638,12 @@ static const String _CLEANUP_SCRIPT = '''
     ''';
   }
   
-/// 初始化WebViewController - 修改：确保 _controller 始终被赋值
+/// 初始化WebViewController
 Future<void> _initController(Completer<String> completer, String filePattern) async {
   try {
     LogUtil.i('开始初始化控制器');
 
-    // 修改：立即赋值 _controller，避免未初始化
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(HeadersConfig.userAgent);
+    // 修改说明：提前设置 _isControllerInitialized，确保状态正确
     _isControllerInitialized = true;
 
     // 检查页面内容类型
@@ -719,7 +716,12 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     // 获取时间差并注入时间拦截器（对所有页面执行）
     _cachedTimeOffset ??= await _getTimeOffset();
 
-    // 初始化 controller - 已在上方赋值，此处配置
+    // 初始化 controller
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent);
+
+    // 检查内容和准备脚本
     final List<String> initScripts = [];
     initScripts.add(_prepareTimeInterceptorCode());
 
@@ -734,7 +736,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     initScripts.add(_prepareM3U8DetectorCode());
 
     // 注册时间检查消息通道
-    _controller!.addJavaScriptChannel(
+    _controller.addJavaScriptChannel(
       'TimeCheck',
       onMessageReceived: (JavaScriptMessage message) {
         try {
@@ -751,7 +753,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     );
 
     // 注册消息通道
-    _controller!.addJavaScriptChannel(
+    _controller.addJavaScriptChannel(
       'M3U8Detector',
       onMessageReceived: (JavaScriptMessage message) {
         try {
@@ -771,12 +773,12 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
 
     // 导航委托
-    _controller!.setNavigationDelegate(
+    _controller.setNavigationDelegate(
       NavigationDelegate(
         onPageStarted: (String url) async {
           // 页面开始加载时注入检测器
           for (final script in initScripts) {
-            await _controller!.runJavaScript(script);
+            await _controller.runJavaScript(script);
             LogUtil.i('注入脚本成功');
           }
         },
@@ -788,7 +790,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
             if (currentUri.host != newUri.host) {
               // 域名发生变化时重新注入所有脚本
               for (final script in initScripts) {
-                await _controller!.runJavaScript(script);
+                await _controller.runJavaScript(script);
               }
               LogUtil.i('重定向页面的拦截器代码已重新注入');
             }
@@ -833,7 +835,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
           try {
             final lowercasePath = uri.path.toLowerCase();
             if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
-              _controller!.runJavaScript(
+              _controller.runJavaScript(
                 'window.M3U8Detector?.postMessage(${json.encode({
                   'type': 'url',
                   'url': request.url,
@@ -1068,7 +1070,7 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
 
     try {
       // 执行点击操作
-      await _controller!.runJavaScript(jsCode);
+      await _controller.runJavaScript(jsCode);
       
       // 设置点击完成标记
       _isClickExecuted = true;
@@ -1139,7 +1141,7 @@ Future<void> _handleLoadError(Completer<String> completer) async {
     }
     try {
       final headers = HeadersConfig.generateHeaders(url: url);
-      await _controller!.loadRequest(_parsedUri, headers: headers);
+      await _controller.loadRequest(_parsedUri, headers: headers);
     } catch (e, stackTrace) {
       LogUtil.logError('加载URL时发生错误', e, stackTrace);
       // 修改说明：抛出异常，避免无声失败导致导航未触发
@@ -1147,10 +1149,10 @@ Future<void> _handleLoadError(Completer<String> completer) async {
     }
   }
 
-  /// 检查控制器是否准备就绪 - 修改：适配 nullable _controller
+  /// 检查控制器是否准备就绪
   bool _isControllerReady() {
-    if (!_isControllerInitialized || _isDisposed || _controller == null) {
-      LogUtil.i('Controller 未初始化、已释放或为空，操作跳过');
+    if (!_isControllerInitialized || _isDisposed) {
+      LogUtil.i('Controller 未初始化或资源已释放，操作跳过');
       return false;
     }
     return true;
@@ -1201,7 +1203,7 @@ Future<void> _handleLoadError(Completer<String> completer) async {
           }
 
           // 调用JS端的扫描函数
-          await _controller!.runJavaScript('''
+          await _controller.runJavaScript('''
             if (window._m3u8DetectorInitialized) {
                 checkMediaElements(document);
                 efficientDOMScan();
@@ -1230,45 +1232,44 @@ Future<void> _handleLoadError(Completer<String> completer) async {
     });
   }
   
-/// 释放资源 - 修改：适配 nullable _controller
+/// 释放资源
 Future<void> dispose() async {
-  if (_isDisposed) {
-    LogUtil.i('资源已释放，跳过重复释放');
-    return;
-  }
-  _isDisposed = true;
+ if (_isDisposed) {
+   LogUtil.i('资源已释放，跳过重复释放');
+   return;
+ }
+ _isDisposed = true;
 
-  // 清理 URL 相关资源
-  _hashFirstLoadMap.remove(Uri.parse(url).toString());
-  _periodicCheckTimer?.cancel();
-  _periodicCheckTimer = null;
+ // 清理 URL 相关资源
+ _hashFirstLoadMap.remove(Uri.parse(url).toString());
+ _periodicCheckTimer?.cancel();
+ _periodicCheckTimer = null;
 
-  // 清理 WebView 资源 
-  if (_isControllerInitialized && _isHtmlContent && _controller != null) {
-    try {
-      await _controller!.runJavaScript(_CLEANUP_SCRIPT);
-      await _controller!.clearCache();
-      LogUtil.i('WebView资源清理完成');
-    } catch (e, stack) {
-      LogUtil.logError('释放资源时发生错误', e, stack);
-    }
-  } else {
-    LogUtil.i(_isHtmlContent ? '_controller 未初始化或为空，跳过释放资源' : '非HTML内容，跳过WebView资源清理');
-  }
+ // 清理 WebView 资源 
+ if (_isControllerInitialized && _isHtmlContent) {
+   try {
+     await _controller.runJavaScript(_CLEANUP_SCRIPT);
+     await _controller.clearCache();
+     LogUtil.i('WebView资源清理完成');
+   } catch (e, stack) {
+     LogUtil.logError('释放资源时发生错误', e, stack);
+   }
+ } else {
+   LogUtil.i(_isHtmlContent ? '_controller 未初始化，跳过释放资源' : '非HTML内容，跳过WebView资源清理');
+ }
 
-  // 重置状态
-  _resetControllerState();
-  _foundUrls.clear();
-  _pageLoadedStatus.clear();
-  _httpResponseContent = null;
-  _controller = null; // 显式置空
-  _m3u8Found = false;
-  _isDetectorInjected = false;
-  _isControllerInitialized = false;
-  _isPageLoadProcessed = false;
-  _isClickExecuted = false;
+ // 重置状态
+ _resetControllerState();
+ _foundUrls.clear();
+ _pageLoadedStatus.clear();
+ _httpResponseContent = null;
+ _m3u8Found = false;
+ _isDetectorInjected = false;
+ _isControllerInitialized = false;
+ _isPageLoadProcessed = false;
+ _isClickExecuted = false;
 
-  LogUtil.i('资源释放完成');
+ LogUtil.i('资源释放完成');
 }
   
   /// 验证M3U8 URL是否有效
@@ -1365,9 +1366,9 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     }
 
     // 检查检测器是否正常工作
-    _controller!.runJavaScript(_prepareM3U8DetectorCode()); // 修改说明：直接注入脚本
+    _controller.runJavaScript(_prepareM3U8DetectorCode()); // 修改说明：直接注入脚本
     _isDetectorInjected = true; // 修改说明：明确标记注入完成，避免定期检查跳过
-    _controller!.runJavaScript('''
+    _controller.runJavaScript('''
       if (window._m3u8DetectorInitialized) {
         checkMediaElements(document);
         efficientDOMScan();
