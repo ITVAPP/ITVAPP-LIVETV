@@ -1,7 +1,7 @@
-name: Generate pubspec.lock
+name: Generate-pubspec.lock
 
 # 需要有仓库的写入权限：
-# 点击 Settings > Actions > General > Workflow permissions ：
+# 点击 Settings > Actions > General > Workflow permissions
 # 选择 Read and write permissions（默认可能是 “Read repository contents permission”）。
 # 选择读取和写入权限（默认可能是“读取仓库内容权限”）。
 # 点击 Save 保存更改。
@@ -19,18 +19,29 @@ jobs:
   update-pubspec-lock:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4  # 检出代码
+      - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-      - name: Get dependencies and update pubspec.lock
+      - name: Get dependencies and update pubspec.lock  # 获取最新依赖并更新 pubspec.lock，添加详细调试信息
         run: |
+          echo "Running flutter pub upgrade..."
           flutter pub upgrade > pub_get_log.txt 2>&1 || { echo "flutter pub upgrade failed"; cat pub_get_log.txt; exit 1; }
           [ -f pubspec.lock ] || { echo "pubspec.lock not generated"; exit 1; }
-      - name: Stage pubspec.lock
-        run: git add pubspec.lock
-      - name: Commit and push pubspec.lock
+          echo "pubspec.lock generated successfully. Content preview:"
+          head -n 20 pubspec.lock  # 输出前20行，便于检查内容
+      - name: Check for changes in pubspec.lock  # 检查 pubspec.lock 是否有实际变化
+        run: |
+          echo "Checking for changes in pubspec.lock..."
+          git diff --exit-code pubspec.lock || { echo "pubspec.lock has changes"; exit 0; }
+          echo "No changes detected in pubspec.lock"
+      - name: Stage pubspec.lock  # 将 pubspec.lock 添加到暂存区，带调试输出
+        run: |
+          echo "Staging pubspec.lock..."
+          git add pubspec.lock
+          git status  # 显示暂存区状态，便于确认是否成功暂存
+      - name: Commit and push pubspec.lock  # 使用 github-push-action 提交和推送更改
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
