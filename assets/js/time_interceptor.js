@@ -1,4 +1,4 @@
-// 北京时间注入脚本
+// 准确的北京时间注入
 (function() {
   if (window._timeInterceptorInitialized) return;
   window._timeInterceptorInitialized = true;
