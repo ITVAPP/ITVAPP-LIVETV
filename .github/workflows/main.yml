@@ -24,8 +24,8 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
-      # 混淆 JS 和 M3U8 文件
-      - name: Obfuscate JS and M3U8 files
+      # 混淆 JS 和 M3U 文件
+      - name: Obfuscate JS and M3U files
         run: |
           npm install -g javascript-obfuscator base64-cli  # 安装 JS 混淆工具和 Base64 编码工具
           # 混淆 JS 文件
@@ -33,21 +33,21 @@ jobs:
           javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
           javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
           javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
-          # 混淆 M3U8 文件
-          if [ -f assets/playlist.m3u8 ]; then
-            echo "Obfuscating M3U8 file..."
+          # 混淆 M3U 文件
+          if [ -f assets/playlists.m3u ]; then
+            echo "Obfuscating M3U file..."
             while IFS= read -r line; do
               if [[ "$line" =~ ^http ]]; then
-                echo "OBF_$(echo -n "$line" | base64)" >> assets/playlist.m3u8.obf
+                echo "OBF_$(echo -n "$line" | base64)" >> assets/playlists.m3u.obf
               else
-                echo "$line" >> assets/playlist.m3u8.obf
+                echo "$line" >> assets/playlists.m3u.obf
               fi
-            done < assets/playlist.m3u8
-            mv assets/playlist.m3u8.obf assets/playlist.m3u8
+            done < assets/playlists.m3u
+            mv assets/playlists.m3u.obf assets/playlist.m3u
           else
-            echo "No playlist.m3u8 found in assets/"
+            echo "No playlists.m3u found in assets/"
           fi
-        # 混淆 JS 文件并将 M3U8 文件中的 URL 行编码为 Base64
+        # 混淆 JS 文件并将 M3U 文件中的 URL 行编码为 Base64
 
       - name: Create apk directory in root  # 在项目根目录创建 APK 存放目录
         run: mkdir -p apk
