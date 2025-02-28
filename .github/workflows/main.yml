@@ -2,31 +2,41 @@ name: ITVAPP-LIVETV APP
 on:
   push:
     tags:
-      - '*'  # 当推送标签时触发构建
-  workflow_dispatch:  # 支持手动触发
+      - '*'
+  workflow_dispatch:
 jobs:
   build_android:
-    runs-on: ubuntu-latest  # 使用 Ubuntu 环境
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # 检出代码
-      - uses: actions/setup-java@v3  # 设置 Java 环境
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
-      - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'  # 使用最新稳定版本
+          flutter-version: '3.24.0'
           channel: 'stable'
-      - run: flutter pub get  # 获取项目依赖
-      - name: Add namespace to better_player  # 添加 namespace
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Commit updated pubspec.lock
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add pubspec.lock
+          git diff --staged --quiet || git commit -m "Update pubspec.lock from CI [${{ github.run_id }}]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Add namespace to better_player
         run: |
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
-      - name: Create apk directory in root  # 创建存放APK文件的目录
+      - name: Create apk directory
         run: mkdir -p apk
-      - name: Decode keystore  # 解码密钥库文件
+      - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
-      - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 的 APK
+      - name: Build APK for armeabi-v7a
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
@@ -34,7 +44,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-      - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 的 APK
+      - name: Build APK for arm64-v8a
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
@@ -42,7 +52,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-      - name: Upload Android artifacts  # 上传生成的APK文件作为构建产物
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-artifacts
