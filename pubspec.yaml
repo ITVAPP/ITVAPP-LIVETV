@@ -55,10 +55,11 @@ flutter:
   uses-material-design: true  # 是否启用Material Design。一般保持为true。
   generate: true
 
-  assets:  # 资源文件路径，可根据项目实际情况添加其他资源路径。
-    - assets/images/
-    - assets/js/
-    - assets/playlists.m3u
+# 资源文件路径，可根据项目实际情况添加其他资源路径。
+assets:
+  - assets/images/
+  - assets/js/
+  - assets/playlists.m3u
 
 flutter_intl:
   enabled: true  # 是否启用Flutter的国际化支持。
