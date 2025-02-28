@@ -1,6 +1,6 @@
 name: Generate pubspec.lock
 
-# 需要有仓库的写入权限
+# 需要有仓库的写入权限：
 # 点击 Settings > Actions > General > Workflow permissions ：
 # 选择 Read and write permissions（默认可能是 “Read repository contents permission”）。
 # 选择读取和写入权限（默认可能是“读取仓库内容权限”）。
