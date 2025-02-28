@@ -208,7 +208,7 @@ class UrlUtils {
     final protocolMatches = SharedConstants.protocolRegex.allMatches(url);
     if (protocolMatches.length == 1) return url;
     if (protocolMatches.length > 1) {
-      final pattern = '(?: $ {SharedConstants.protocolPattern}://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$filePattern[^\'"\\s,()<>{}\\[\\]]*';
+      final pattern = '(?:${SharedConstants.protocolPattern}://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$filePattern[^\'"\\s,()<>{}\\[\\]]*';
       final match = RegExp(pattern).firstMatch(url);
       if (match != null) return match.group(0)!;
     }
@@ -225,12 +225,12 @@ class UrlUtils {
     // 处理省略协议的完整 URL
     if (path.startsWith('//')) {
       // 移除路径开头的双斜杠，并强制添加协议头和单斜杠
-      return ' $ {baseUri.scheme}:// $ {path.replaceFirst('//', '')}';
+      return '${baseUri.scheme}://${path.replaceFirst('//', '')}';
     }
 
     // 构建相对路径
     String cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    return ' $ {baseUri.scheme}:// $ {baseUri.host}/$cleanPath';
+    return '${baseUri.scheme}://${baseUri.host}/$cleanPath';
   }
 }
 
@@ -613,7 +613,7 @@ class GetM3U8 {
           // 存储响应内容并判断是否为HTML
           _httpResponseContent = httpdata.toString();
           _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
-          LogUtil.i('HTTP响应内容类型:  $ {_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容:  $ _httpResponseContent');
+          LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
           
           // 如果是 HTML 内容,先进行内容检查
           if (_isHtmlContent) {
@@ -699,7 +699,7 @@ class GetM3U8 {
             if (data['type'] == 'timeRequest') {
               final now = DateTime.now();
               final adjustedTime = now.add(Duration(milliseconds: TimeManager._cachedTimeOffset ?? 0));
-              LogUtil.i('检测到时间请求:  $ {data['method']}，返回时间： $ adjustedTime');
+              LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
             }
           } catch (e) {
             LogUtil.e('处理时间检查消息失败: $e');
@@ -778,7 +778,7 @@ class GetM3U8 {
                   LogUtil.i('允许加载匹配模式的资源: ${request.url}');
                                     return NavigationDecision.navigate; // 允许加载匹配的资源
                 }
-                LogUtil.i('阻止加载资源:  $ {request.url} (扩展名:  $ extension)');
+                LogUtil.i('阻止加载资源: ${request.url} (扩展名: $extension)');
                 return NavigationDecision.prevent; // 阻止其他被屏蔽的资源
               }
             } catch (e) {
@@ -876,7 +876,7 @@ class GetM3U8 {
               LogUtil.i('资源被阻止加载: ${error.description}');
               return;
             }
-            LogUtil.e('WebView加载错误:  $ {error.description}, 错误码:  $ {error.errorCode}');
+            LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
             await _handleLoadError(completer);
           },
         ),
@@ -907,7 +907,7 @@ class GetM3U8 {
       return false;
     }
 
-    LogUtil.i('开始执行点击操作，文本:  $ clickText, 索引:  $ clickIndex');
+    LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
     
     // 点击操作的 JavaScript 代码
     final jsCode = '''
@@ -1053,11 +1053,11 @@ class GetM3U8 {
         if (clickIndex == 0 || clickIndex >= urlsList.length) {
           // 如果 clickIndex 是 0 或大于可用的 URL 数量，使用最后一个
           selectedUrl = urlsList.last;
-          LogUtil.i('使用最后发现的URL:  $ selectedUrl  $ {clickIndex >= urlsList.length ? "(clickIndex 超出范围)" : "(clickIndex = 0)"}');
+          LogUtil.i('使用最后发现的URL: $selectedUrl ${clickIndex >= urlsList.length ? "(clickIndex 超出范围)" : "(clickIndex = 0)"}');
         } else {
           // 否则使用 clickIndex 指定的 URL
           selectedUrl = urlsList[clickIndex];
-          LogUtil.i('使用指定索引的URL:  $ selectedUrl (clickIndex =  $ clickIndex)');
+          LogUtil.i('使用指定索引的URL: $selectedUrl (clickIndex = $clickIndex)');
         }
         
         completer.complete(selectedUrl);
@@ -1370,7 +1370,7 @@ class GetM3U8 {
       
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
-      final pattern = '(?: $ {SharedConstants.protocolPattern}://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$_filePattern[^\'"\\s,()<>{}\\[\\]]*';
+      final pattern = '(?:${SharedConstants.protocolPattern}://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$_filePattern[^\'"\\s,()<>{}\\[\\]]*';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
