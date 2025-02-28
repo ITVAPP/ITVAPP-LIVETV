@@ -8,49 +8,36 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// URL 处理工具类
 class UrlUtils {
+  static const _protocolPattern = r'(?:https?)'; // 协议模式
+  static final _protocolRegex = RegExp('$_protocolPattern://'); // 检查协议的正则
+  static final _escapeRegex = RegExp(r'\\\\(\\|/|")'); // 转义字符正则
+  static const _htmlEntities = {
+    'amp': '&', 
+    'quot': '"', 
+    '#x2F': '/', 
+    '#47': '/',  
+    'lt': '<', 
+    'gt': '>' 
+  }; // HTML实体映射表
+
   /// 基础 URL 解码和清理
   static String basicUrlClean(String url, {Uri? baseUri, String filePattern = 'm3u8'}) {
-    // 合并转义字符正则表达式
-    final escapeRegex = RegExp(r'\\\\(\\|/|")'); // 匹配双反斜杠后跟特殊字符
-    // 合并HTML实体映射表
-    const htmlEntities = {
-      'amp': '&', 
-      'quot': '"', 
-      '#x2F': '/', 
-      '#47': '/',  
-      'lt': '<', 
-      'gt': '>' 
-    };
-
     // 去除末尾反斜杠
     if (url.endsWith('\\')) {
       url = url.substring(0, url.length - 1);
     }
 
     // 统一转义字符处理
-    url = url.replaceAllMapped(escapeRegex, (match) {
+    url = url.replaceAllMapped(_escapeRegex, (match) {
       return match.group(1)!; // 提取第二个反斜杠或特殊字符
     }).replaceAll(r'\/', '/') // 单独处理JavaScript转义斜杠
         .replaceAllMapped(RegExp(r'&(#?[a-z0-9]+);'), (m) {
           // 统一HTML实体解码处理
           final entity = m.group(1)!;
-          return htmlEntities[entity] ?? m.group(0)!;
+          return _htmlEntities[entity] ?? m.group(0)!;
         });
 
-    // 统一URL解码流程
-    void decodeUrl() {
-      try {
-        url = Uri.decodeComponent(url);
-      } catch (e) {
-        LogUtil.i('URL解码失败，保持原样: $e');
-      }
-    }
-    
-    // 分层解码策略
-    decodeUrl(); // 第一层解码
-    if (url.contains('%')) {
-      decodeUrl(); // 第二层解码
-    }
+    url = _decodeUrl(url); // 调用抽取的解码方法
 
     // 统一多余斜杠处理
     url = url
@@ -70,12 +57,29 @@ class UrlUtils {
       },
     );
 
-    // 检查协议并构建完整 URL（原 _cleanUrl 逻辑合并）
-    final protocolRegex = RegExp('${GetM3U8._protocolPattern}://');
-    final protocolMatches = protocolRegex.allMatches(url);
+    // 提取构建完整 URL 的逻辑为独立方法
+    return _finalizeUrl(url, baseUri, filePattern);
+  }
+
+  // 解码方法
+  static String _decodeUrl(String url) {
+    try {
+      url = Uri.decodeComponent(url);
+      if (url.contains('%')) {
+        url = Uri.decodeComponent(url); // 第二层解码
+      }
+    } catch (e) {
+      LogUtil.i('URL解码失败，保持原样: $e');
+    }
+    return url;
+  }
+
+  // 处理协议和构建完整 URL
+  static String _finalizeUrl(String url, Uri? baseUri, String filePattern) {
+    final protocolMatches = _protocolRegex.allMatches(url);
     if (protocolMatches.length == 1) return url;
     if (protocolMatches.length > 1) {
-      final pattern = '(?:${GetM3U8._protocolPattern}://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$filePattern[^\'"\\s,()<>{}\\[\\]]*';
+      final pattern = '(?:$_protocolPattern://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$filePattern[^\'"\\s,()<>{}\\[\\]]*';
       final match = RegExp(pattern).firstMatch(url);
       if (match != null) return match.group(0)!;
     }
@@ -363,14 +367,7 @@ static const String _CLEANUP_SCRIPT = '''
       LogUtil.e('解析URL失败: $e');
       isHashRoute = false;
     }
-
-    // 记录提取到的参数
-    if (fromParam != null && toParam != null) {
-      LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
-    }
-    if (clickText != null) {
-      LogUtil.i('检测到点击配置: text=$clickText, index=$clickIndex');
-    }
+    _logParams();
   }
 
   /// 无效URL检查的正则表达式
@@ -404,17 +401,15 @@ static const String _CLEANUP_SCRIPT = '''
     }
   }
 
-  /// 解析规则字符串
-  static List<M3U8FilterRule> _parseRules(String rulesString) {
+  static List<T> _parseRules<T>(String rulesString, {T Function(String)? parser}) {
     if (rulesString.isEmpty) {
       return [];
     }
-
     try {
       return rulesString
           .split('@')
           .where((rule) => rule.isNotEmpty)
-          .map((rule) => M3U8FilterRule.fromString(rule))
+          .map(parser ?? (rule) => M3U8FilterRule.fromString(rule) as T)
           .toList();
     } catch (e) {
       LogUtil.e('解析规则字符串失败: $e');
@@ -424,48 +419,22 @@ static const String _CLEANUP_SCRIPT = '''
 
   /// 解析动态关键词规则
   static Set<String> _parseKeywords(String keywordsString) {
-    if (keywordsString.isEmpty) {
-      return {};
-    }
-
-    try {
-      return keywordsString.split('@').map((keyword) => keyword.trim()).toSet();
-    } catch (e) {
-      LogUtil.e('解析动态关键词规则失败: $e');
-      return {};
-    }
+    return _parseRules(keywordsString, parser: (k) => k.trim()).toSet();
   }
 
   /// 解析特殊规则字符串，返回 Map，其中键是域名，值是文件类型
   static Map<String, String> _parseSpecialRules(String rulesString) {
-    if (rulesString.isEmpty) {
-      return {};
-    }
-
-    try {
-      return Map.fromEntries(
-        rulesString.split('@').map((rule) {
-          final parts = rule.split('|');
-          return MapEntry(parts[0].trim(), parts[1].trim());
-        }),
-      );
-    } catch (e) {
-      LogUtil.e('解析特殊规则字符串失败: $e');
-      return {};
-    }
+    return Map.fromEntries(
+      _parseRules(rulesString, parser: (rule) {
+        final parts = rule.split('|');
+        return MapEntry(parts[0].trim(), parts[1].trim());
+      }),
+    );
   }
 
   /// 解析允许的资源模式
   static List<String> _parseAllowedPatterns(String patternsString) {
-    if (patternsString.isEmpty) {
-      return [];
-    }
-    try {
-      return patternsString.split('@').map((pattern) => pattern.trim()).toList();
-    } catch (e) {
-      LogUtil.e('解析允许的资源模式失败: $e');
-      return [];
-    }
+    return _parseRules(patternsString, parser: (p) => p.trim());
   }
   
   /// 获取时间差（毫秒）
@@ -1426,6 +1395,7 @@ Future<String?> _checkPageContent() async {
     }
 
     String sample = UrlUtils.basicUrlClean(_httpResponseContent!, baseUri: _parsedUri, filePattern: _filePattern);
+    
     LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
     final pattern = '(?:$_protocolPattern://|//|/)[^\'"\\s,()<>{}\\[\\]]*?\\.$_filePattern[^\'"\\s,()<>{}\\[\\]]*';
@@ -1437,6 +1407,7 @@ Future<String?> _checkPageContent() async {
     var index = 0;
     for (final url in uniqueUrls) {
       final cleanedUrl = UrlUtils.basicUrlClean(url, baseUri: _parsedUri, filePattern: _filePattern);
+      
       if (_isValidM3U8Url(cleanedUrl)) {
         String finalUrl = fromParam != null && toParam != null ? cleanedUrl.replaceAll(fromParam!, toParam!) : cleanedUrl;
         _foundUrls.add(finalUrl);
@@ -1456,14 +1427,10 @@ Future<String?> _checkPageContent() async {
   } 
 }
   
-  /// 处理正则匹配结果（已移除，逻辑合并到 _checkPageContent）
-  // Future<String?> _processMatches(Iterable<Match> matches, String sample) async {...}
-
   /// 准备检测器代码
   String _prepareM3U8DetectorCode() {
     return '''
     (function() {
-      // 避免重复初始化
       if (window._m3u8DetectorInitialized) return;
       window._m3u8DetectorInitialized = true;
 
@@ -1730,6 +1697,15 @@ Future<String?> _checkPageContent() async {
       };
     })();
     ''';
+  }
+
+  void _logParams() {
+    if (fromParam != null && toParam != null) {
+      LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
+    }
+    if (clickText != null) {
+      LogUtil.i('检测到点击配置: text=$clickText, index=$clickIndex');
+    }
   }
 }
 
