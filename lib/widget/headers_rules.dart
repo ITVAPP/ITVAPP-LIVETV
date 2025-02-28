@@ -58,6 +58,8 @@ hengnan_tv|wap.hnxrmt.com
 zixin_tv|zixing-wap.rednet.cn
 chaling-telev|wap.clnews.cn
 liveplay-yongshun|yongshun-wap.rednet.cn
+146_f067fe|xhncloud.voc.com.cn
+live.ngcz.tv|www.ngcz.tv
 zjwtv.com|app.zjwtv.com''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
@@ -90,6 +92,5 @@ yangxin-
 zztv.tv
 dspull.ijntv.cn
 hlss.gstv.com.cn
-live.ngcz.tv
 gbtv-rtmp.zjwtv.com''';
 }
