@@ -2,14 +2,14 @@ name: Generate-pubspec.lock
 
 # 需要有仓库的写入权限：
 # 点击 Settings > Actions > General > Workflow permissions
-# 选择 Read and write permissions（默认可能是 "Read repository contents permission"）
-# 选择读取和写入权限（默认可能是"读取仓库内容权限"）
+# 选择 Read and write permissions（默认可能是 “Read repository contents permission”）。
+# 选择读取和写入权限（默认可能是“读取仓库内容权限”）。
 # 点击 Save 保存更改。
 
 on:
   push:
     branches:
-      - main  # 根据仓库主分支调整
+      - main  # 根据你的仓库主分支调整
   workflow_dispatch:  # 支持手动触发
 
 permissions:
@@ -20,32 +20,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4  # 检出代码
-      
       - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-      
-      - name: Update pubspec.lock  # 更新 pubspec.lock 文件
+      - name: Update pubspec.lock  # 更新 pubspec.lock，基于现有 pubspec.yaml，添加详细调试信息
         run: |
           echo "Running flutter pub upgrade..."
           flutter pub upgrade > pub_get_log.txt 2>&1 || { echo "flutter pub upgrade failed"; cat pub_get_log.txt; exit 1; }
           [ -f pubspec.lock ] || { echo "pubspec.lock not generated"; exit 1; }
           echo "pubspec.lock generated successfully. Content preview:"
-          head -n 20 pubspec.lock  # 输出前20行，便于检查生成的内容是否正确
-      
-      - name: Stage and commit pubspec.lock  # 将 pubspec.lock 添加到 Git 暂存区并提交
+          head -n 20 pubspec.lock  # 输出前20行，便于检查内容
+      - name: Stage and commit pubspec.lock  # 将 pubspec.lock 添加到暂存区并提交
         run: |
           echo "Staging pubspec.lock..."
           git add pubspec.lock
-          git status  # 显示暂存区状态，便于确认文件是否成功暂存
+          git status  # 显示暂存区状态，便于确认是否成功暂存
           echo "Configuring git identity..."
-          git config --local user.name "ITVAPP"
-          git config --local user.email "actions@itvapp.net"
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
           git commit -m "Update pubspec.lock from CI [${{ github.run_id }}]" || echo "Nothing to commit"
-      
-      - name: Push pubspec.lock  # 将更改推送到远程仓库
+      - name: Push pubspec.lock  # 使用 github-push-action 推送更改
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main  # 目标分支，根据仓库实际情况调整
+          branch: main  # 目标分支，根据仓库实际情况替换
