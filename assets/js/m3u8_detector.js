@@ -1,4 +1,4 @@
-// assets/js/m3u8_detector.js
+// 流媒体地址检测注入
 (function() {
   // 避免重复初始化
   if (window._m3u8DetectorInitialized) return;
