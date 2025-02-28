@@ -24,8 +24,9 @@ jobs:
         with:
           flutter-version: '3.24.0'  # 使用最新稳定版本
           channel: 'stable'
-      - name: Get dependencies  # 获取项目依赖并生成或更新 pubspec.lock
-        run: flutter pub get
+      - name: Get dependencies  # 获取项目依赖并生成或更新 pubspec.lock，添加日志和错误检查
+        run: |
+          flutter pub get > pub_get_log.txt 2>&1 || { echo "flutter pub get failed"; cat pub_get_log.txt; exit 1; }
       - name: Stage pubspec.lock  # 将 pubspec.lock 添加到暂存区
         run: git add pubspec.lock
       - name: Commit and push pubspec.lock  # 使用 github-push-action 提交和推送更改
