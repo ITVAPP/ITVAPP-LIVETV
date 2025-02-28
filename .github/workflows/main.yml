@@ -3,69 +3,60 @@ name: ITVAPP-LIVETV APP
 on:
   push:
     tags:
-      - '*'  # 当推送标签时触发构建
-  workflow_dispatch:  # 支持手动触发
+      - '*'  # 当推送任何标签时触发工作流程
+  workflow_dispatch:  # 支持通过 GitHub 界面手动触发工作流程
 
 jobs:
   build_android:
-    runs-on: ubuntu-latest  # 使用 Ubuntu 环境
-
+    runs-on: ubuntu-latest  # 使用 Ubuntu 最新版本作为构建环境
     steps:
-      - uses: actions/checkout@v4  # 检出代码
-      - uses: actions/setup-java@v3  # 设置 Java 环境
+      - uses: actions/checkout@v4  # 检出当前仓库的代码到工作目录
+      
+      - uses: actions/setup-java@v3  # 设置 Java 开发环境
         with:
-          distribution: 'zulu'  # 使用 Zulu 发行版的 Java 环境
-          java-version: '17'  # 设置 Java 版本为 17
-      - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
+          distribution: 'zulu'  # 使用 Zulu OpenJDK 发行版
+          java-version: '17'  # 指定 Java 17 版本
+      
+      - uses: subosito/flutter-action@v2  # 设置 Flutter 开发环境
         with:
-          flutter-version: '3.24.0'  # 使用 Flutter 的最新稳定版本
-          channel: 'stable'  # 使用 stable 渠道版本
-      - run: flutter pub get  # 获取项目依赖
-
-      - name: Add namespace to better_player  # 添加 namespace 到 better_player 插件配置
+          flutter-version: '3.24.0'  # 指定 Flutter 版本为 3.24.0
+          channel: 'stable'  # 使用稳定版本渠道
+      
+      - run: flutter pub get  # 获取项目中定义的所有依赖包
+      
+      - name: Add namespace to better_player  # 为 better_player 插件添加命名空间以兼容 Android Gradle 插件
         run: |
-          sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
-          # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
-
-      - name: Create apk directory in root  # 在项目根目录创建 APK 存放目录
+          sed -i '/android {/a\ namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
+      
+      - name: Create apk directory in root  # 在项目根目录创建存放 APK 文件的目录
         run: mkdir -p apk
-        # 该步骤创建了一个用于存放生成的 APK 文件的目录
-
-      - name: Decode keystore  # 解码密钥库文件并保存到指定路径
+      
+      - name: Decode keystore  # 从 GitHub Secrets 解码 Android 签名密钥库文件
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
-          # 将存储在 GitHub Secrets 中的密钥库文件进行解码并保存到 android/app 目录下
-
-      - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
+      
+      - name: Build APK for armeabi-v7a  # 构建针对 32 位 ARM 处理器架构的 APK
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
-          # 使用 flutter 命令构建 APK，针对 armeabi-v7a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-          # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
-
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 别名密码
-
-      - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库文件的密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥的别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥的密码
+      
+      - name: Build APK for arm64-v8a  # 构建针对 64 位 ARM 处理器架构的 APK
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
-          # 使用 flutter 命令构建 APK，针对 arm64-v8a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-          # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
-
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 别名密码
-
-      - name: Upload Android artifacts  # 上传构建生成的 APK 文件作为构建产物
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库文件的密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥的别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥的密码
+      
+      - name: Upload Android artifacts  # 将生成的 APK 文件上传为 GitHub Actions 构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts  # 构建产物名称
-          path: |
+          name: android-artifacts  # 构建产物的名称
+          path: |  # 指定要上传的文件路径，包含两种架构的 APK
             apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-            # 上传 armeabi-v7a 架构的 APK 文件
             apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-            # 上传 arm64-v8a 架构的 APK 文件
