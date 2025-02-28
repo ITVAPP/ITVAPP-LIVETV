@@ -1,0 +1,38 @@
+name: Generate pubspec.lock
+
+# 需要有仓库的写入权限
+# 点击 Settings > Actions > General > Workflow permissions ：
+# 选择 Read and write permissions（默认可能是 “Read repository contents permission”）。
+# 选择读取和写入权限（默认可能是“读取仓库内容权限”）。
+# 点击 Save 保存更改。
+
+on:
+  push:
+    branches:
+      - main  # 根据你的仓库主分支调整
+  workflow_dispatch:  # 支持手动触发
+
+permissions:
+  contents: write  # 授予写权限以推送更改
+
+jobs:
+  update-pubspec-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      - name: Get dependencies and update pubspec.lock
+        run: |
+          flutter pub upgrade > pub_get_log.txt 2>&1 || { echo "flutter pub upgrade failed"; cat pub_get_log.txt; exit 1; }
+          [ -f pubspec.lock ] || { echo "pubspec.lock not generated"; exit 1; }
+      - name: Stage pubspec.lock
+        run: git add pubspec.lock
+      - name: Commit and push pubspec.lock
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main  # 目标分支，根据仓库实际情况替换
+          commit_message: "Update pubspec.lock from CI [${{ github.run_id }}]"
