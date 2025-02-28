@@ -9,7 +9,7 @@ name: Generate-pubspec.lock
 on:
   push:
     branches:
-      - main  # 根据仓库主分支调整
+      - main  # 根据你的仓库主分支调整
   workflow_dispatch:  # 支持手动触发
 
 permissions:
@@ -36,6 +36,9 @@ jobs:
           echo "Staging pubspec.lock..."
           git add pubspec.lock
           git status  # 显示暂存区状态，便于确认是否成功暂存
+          echo "Configuring git identity..."
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
           git commit -m "Update pubspec.lock from CI [${{ github.run_id }}]" || echo "Nothing to commit"
       - name: Push pubspec.lock  # 使用 github-push-action 推送更改
         uses: ad-m/github-push-action@master
