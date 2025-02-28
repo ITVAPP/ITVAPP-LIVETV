@@ -24,6 +24,31 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
+      # 混淆 JS 和 M3U8 文件
+      - name: Obfuscate JS and M3U8 files
+        run: |
+          npm install -g javascript-obfuscator base64-cli  # 安装 JS 混淆工具和 Base64 编码工具
+          # 混淆 JS 文件
+          javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
+          javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
+          javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
+          javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
+          # 混淆 M3U8 文件
+          if [ -f assets/playlist.m3u8 ]; then
+            echo "Obfuscating M3U8 file..."
+            while IFS= read -r line; do
+              if [[ "$line" =~ ^http ]]; then
+                echo "OBF_$(echo -n "$line" | base64)" >> assets/playlist.m3u8.obf
+              else
+                echo "$line" >> assets/playlist.m3u8.obf
+              fi
+            done < assets/playlist.m3u8
+            mv assets/playlist.m3u8.obf assets/playlist.m3u8
+          else
+            echo "No playlist.m3u8 found in assets/"
+          fi
+        # 混淆 JS 文件并将 M3U8 文件中的 URL 行编码为 Base64
+
       - name: Create apk directory in root  # 在项目根目录创建 APK 存放目录
         run: mkdir -p apk
         # 该步骤创建了一个用于存放生成的 APK 文件的目录
@@ -39,7 +64,6 @@ jobs:
           # 使用 flutter 命令构建 APK，针对 armeabi-v7a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
           # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
-
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
@@ -51,7 +75,6 @@ jobs:
           # 使用 flutter 命令构建 APK，针对 arm64-v8a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
           # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
-
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
