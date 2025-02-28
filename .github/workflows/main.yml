@@ -35,10 +35,11 @@ jobs:
 
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
         run: |
-          flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info --verbose
-          # 使用 flutter 命令构建 APK，针对 armeabi-v7a 平台，开启代码混淆和调试信息拆分，添加 --verbose 输出详细日志
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
+          # 使用 flutter 命令构建 APK，针对 armeabi-v7a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
           # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
+
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
@@ -46,10 +47,11 @@ jobs:
 
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
         run: |
-          flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info --verbose
-          # 使用 flutter 命令构建 APK，针对 arm64-v8a 平台，开启代码混淆和调试信息拆分，添加 --verbose 输出详细日志
+          flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
+          # 使用 flutter 命令构建 APK，针对 arm64-v8a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
           # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
+
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
