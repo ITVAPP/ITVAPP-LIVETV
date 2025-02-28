@@ -9,7 +9,7 @@ name: Generate-pubspec.lock
 on:
   push:
     branches:
-      - main  # 根据你的仓库主分支调整
+      - main  # 根据仓库主分支调整
   workflow_dispatch:  # 支持手动触发
 
 permissions:
@@ -52,11 +52,11 @@ jobs:
           git status  
           # 显示暂存区状态，便于确认是否成功暂存
           echo "Configuring git identity..."  
-          # 配置 Git 用户身份
-          git config --local user.name "GitHub Actions"  
-          # 设置本地 Git 用户名
-          git config --local user.email "actions@github.com"  
-          # 设置本地 Git 邮箱
+          # 配置用户身份
+          git config --local user.name "ITVAPP"  
+          # 设置用户名
+          git config --local user.email "actions@itvapp.net"  
+          # 设置邮箱
           git commit -m "Update pubspec.lock from CI [${{ github.run_id }}]" || echo "Nothing to commit"  
           # 提交更改，如果没有文件更改则输出提示
       
