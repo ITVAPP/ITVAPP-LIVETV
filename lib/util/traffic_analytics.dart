@@ -66,13 +66,13 @@ class TrafficAnalytics {
 
     final apiList = [
       {
-        'url': 'https://api.vvhan.com/api/ipInfo',
+        'url': 'https://whois.pconline.com.cn/ipJson.jsp?ip=&json=true', 
         'parseData': (data) => {
-              'ip': data['ip'] ?? 'Unknown IP',
-              'country': data['info']?['country'] ?? 'Unknown Country',
-              'region': data['info']?['prov'] ?? 'Unknown Region',
-              'city': data['info']?['city'] ?? 'Unknown City',
-            }
+          'ip': data['ip'] ?? 'Unknown IP',
+          'region': data['pro'] ?? 'Unknown Region',
+          'country': data['region'] ?? '中国',
+          'city': data['city'] ?? 'Unknown City',
+        }
       },
       {
         'url': 'https://ip.useragentinfo.com/json',
