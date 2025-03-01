@@ -52,8 +52,8 @@ class M3uUtil {
         final String assetM3uData = await rootBundle.loadString('assets/playlists.m3u');
         parsedData = await _parseM3u(assetM3uData);
 
-        // 检查 assets 数据是否有效
-        if (parsedData == null || parsedData.playList == null) {
+        // 检查 assets 数据是否有效（与旧版一致，仅检查 playList 是否为 null）
+        if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       } else {
@@ -66,13 +66,12 @@ class M3uUtil {
           parsedData = await _parseM3u(m3uData);
         }
 
-        // 检查是否成功解析数据
-        if (parsedData == null || parsedData.playList == null) {
+        // 检查是否成功解析数据（与旧版一致，仅检查 playList 是否为 null）
+        if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       }
 
-      // 修正字符串插值语法，去除多余空格
       LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 获取或创建本地收藏列表
@@ -82,12 +81,8 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
-      // 修改：恢复旧版的类型转换方式，确保类型匹配
-      parsedData.playList = _insertFavoritePlaylistFirst(
-          parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>?,
-          favoritePlaylist);
-
-      // 修正字符串插值语法，去除多余空格
+      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
+      
       LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地（仅在远程获取成功时更新订阅时间）
@@ -116,7 +111,7 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的空收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, 
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
         },
       );
       LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}\n创建的收藏列表: ${favoritePlaylist.playList}');
@@ -124,40 +119,33 @@ class M3uUtil {
     } else {
       // 如果本地已有缓存数据，将其转换为 PlaylistModel 对象
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      if (favoritePlaylist.playList is! Map<String, Map<String, Map<String, PlayModel>>> && favoritePlaylist.playList != null) {
-        final Map<String, dynamic> rawMap = favoritePlaylist.playList as Map<String, dynamic>;
-        favoritePlaylist.playList = rawMap.map(
-          (key, value) => MapEntry(
-            key,
-            (value as Map<String, dynamic>).map(
-              (k, v) => MapEntry(k, v as Map<String, PlayModel>),
-            ),
-          ),
-        );
-      }
+      // 添加 null 检查，与旧版一致
+      favoritePlaylist.playList ??= {};
       LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
     }
   }
 
   /// 将收藏列表插入为播放列表的第一个分类
-  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
-      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
-      PlaylistModel favoritePlaylist) {
+  static Map _insertFavoritePlaylistFirst(Map? originalPlaylist, PlaylistModel favoritePlaylist) { // 修改为 Map，与旧版一致
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey] ?? <String, Map<String, PlayModel>>{};
+
+    // 与旧版一致，添加 null 检查
+    originalPlaylist ??= {};
 
     // 如果原始播放列表中已有同名的收藏列表，使用本地收藏列表替换它
-    if (originalPlaylist?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoriteCategory;
+    if (originalPlaylist[Config.myFavoriteKey] != null) {
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     }
     // 检查并确保即使为空也能插入收藏分类
-    else if (favoriteCategory.isNotEmpty) {
-      updatedPlaylist[Config.myFavoriteKey] = favoriteCategory;
+    else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+    } else {
+      updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{}; // 默认空结构，与旧版一致
     }
 
     // 将其余分类添加到新播放列表中（除收藏分类外的所有分类）
-    originalPlaylist?.forEach((key, value) {
+    originalPlaylist.forEach((key, value) {
       if (key != Config.myFavoriteKey) {
         updatedPlaylist[key] = value;
       }
@@ -191,9 +179,8 @@ class M3uUtil {
   }
 
   /// 更新收藏列表中的频道播放地址
-  static void _updateFavoriteChannels(
-      PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
-    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
+  static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
+    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey]; 
     if (favoriteCategory == null) return;
 
     // 构建远程播放列表的 ID 到 URL 的映射表，提高查找效率
@@ -311,9 +298,9 @@ class M3uUtil {
   static Future<String?> _fetchM3uData(String url) async {
     try {
       return await _retryRequest<String>(
-          () async => await HttpUtil().getRequest(url).timeout(
-                Duration(seconds: 8), // 单个请求的超时时间
-              ));
+        () async => await HttpUtil().getRequest(url).timeout(
+          Duration(seconds: 8), // 单个请求的超时时间
+        ));
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
       return null;
@@ -324,7 +311,7 @@ class M3uUtil {
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     try {
       PlaylistModel mergedPlaylist = PlaylistModel();
-      mergedPlaylist.playList = <String, Map<String, Map<String, PlayModel>>>{};
+      mergedPlaylist.playList = {};
 
       // 使用ID映射表记录已合并的频道，避免重复处理
       Map<String, PlayModel> mergedChannelsById = {};
@@ -332,11 +319,9 @@ class M3uUtil {
       // 遍历所有播放列表进行合并
       for (PlaylistModel playlist in playlists) {
         playlist.playList?.forEach((category, groups) {
-          mergedPlaylist.playList![category] ??= <String, Map<String, PlayModel>>{};
-
+          mergedPlaylist.playList![category] ??= {};
           groups.forEach((groupTitle, channels) {
             mergedPlaylist.playList![category]![groupTitle] ??= {};
-
             channels.forEach((channelName, channelModel) {
               // 使用频道ID作为唯一标识
               if (channelModel.id != null && channelModel.id!.isNotEmpty) {
@@ -394,8 +379,7 @@ class M3uUtil {
     try {
       // 按行分割M3U文件内容
       final lines = m3u.split(RegExp(r'\r?\n'));
-      final playListModel = PlaylistModel()
-        ..playList = <String, Map<String, Map<String, PlayModel>>>{};
+      final playListModel = PlaylistModel()..playList = {};
       String currentCategory = Config.allChannelsKey; // 默认分类
       String tempGroupTitle = '';
       String tempChannelName = '';
@@ -480,9 +464,9 @@ class M3uUtil {
     final tempChannelName = lineList.last;
 
     // 获取或创建分类、分组和频道的嵌套结构
-    Map<String, Map<String, PlayModel>> categoryMap = model.playList?[currentCategory] ?? <String, Map<String, PlayModel>>{};
-    Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? <String, PlayModel>{};
-    PlayModel channel = groupMap[tempChannelName] ??
+    model.playList![currentCategory] ??= {};
+    model.playList![currentCategory]![tempGroupTitle] ??= {};
+    PlayModel channel = model.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??
         PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
     // 处理后续行中的直播链接
@@ -491,17 +475,13 @@ class M3uUtil {
       // 直接下一行是链接
       channel.urls ??= [];
       if (lines[index + 1].isNotEmpty) channel.urls!.add(lines[index + 1]);
-      groupMap[tempChannelName] = channel;
-      categoryMap[tempGroupTitle] = groupMap;
-      model.playList![currentCategory] = categoryMap;
+      model.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
       nextIndex = index + 1;
     } else if (index + 2 < lines.length && isLiveLink(lines[index + 2])) {
       // 下下行是链接（有些M3U格式会在中间插入空行）
       channel.urls ??= [];
       if (lines[index + 2].isNotEmpty) channel.urls!.add(lines[index + 2]);
-      groupMap[tempChannelName] = channel;
-      categoryMap[tempGroupTitle] = groupMap;
-      model.playList![currentCategory] = categoryMap;
+      model.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
       nextIndex = index + 2;
     }
 
@@ -513,14 +493,12 @@ class M3uUtil {
       String tempGroupTitle, String tempChannelName) {
     if (line.isNotEmpty) {
       // 确保URLs列表已初始化
-      model.playList?[currentCategory] ??= <String, Map<String, PlayModel>>{};
-      model.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
-      model.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??= PlayModel(
-        id: '',
-        group: tempGroupTitle,
-        title: tempChannelName,
-        urls: [],
-      );
+      model.playList![currentCategory] ??= {};
+      model.playList![currentCategory]![tempGroupTitle] ??= {};
+      model.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??=
+          PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
+      model.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls ??= [];
+      // 添加链接到URLs列表
       model.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
     }
   }
