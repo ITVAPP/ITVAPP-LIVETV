@@ -1,36 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; 
-import 'package:itvapp_live_tv/provider/theme_provider.dart'; 
-import 'package:itvapp_live_tv/util/log_util.dart'; 
-import 'package:itvapp_live_tv/util/dialog_util.dart'; 
-import 'package:itvapp_live_tv/util/m3u_util.dart'; 
-import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/dialog_util.dart';
+import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
-import 'generated/l10n.dart';
-import 'live_home_page.dart';
+import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/live_home_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-  
+
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
   late Future<M3uResult> _m3uDataFuture; // 用于存储异步获取的 M3U 数据结果
-  M3uResult? result;  // 用于捕获异常时访问
-  int _retryCount = 0;  // 记录重试次数
-  String _message = '';  // 用于显示当前提示信息
-  final FocusNode _retryButtonFocusNode = FocusNode(); // 控制重试按钮焦点的节点
+  M3uResult? result; // 用于捕获异常时访问
+  String _message = ''; // 用于显示当前提示信息
 
-  bool isDebugMode = false;  // 调试模式开关，false 代表关闭，true 代表开启
+  bool isDebugMode = false; // 调试模式开关，false 代表关闭，true 代表开启
 
   // 缓存资源路径和样式，避免重复创建
   static const String _portraitImage = 'assets/images/launch_image.png';
   static const String _landscapeImage = 'assets/images/launch_image_land.png';
   static const Color _primaryColor = Color(0xFFEB144C);
-  
-  // 缓存通用按钮样式
+
+  // 缓存通用按钮样式（不再使用，但保留定义以保持代码完整性）
   static final ButtonStyle _retryButtonStyle = ElevatedButton.styleFrom(
     backgroundColor: const Color(0xFFEB144C),
     foregroundColor: Colors.white,
@@ -48,8 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _retryButtonFocusNode.dispose(); // 释放 FocusNode 资源
-    super.dispose();
+    super.dispose(); // 移除 _retryButtonFocusNode.dispose()，因为不再需要
   }
 
   // 初始化应用的方法
@@ -61,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen> {
         });
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
-      LogUtil.logError('初始化应用时发生错误', error, stackTrace);  // 记录错误日志
+      LogUtil.logError('初始化应用时发生错误', error, stackTrace); // 记录错误日志
     }
   }
 
@@ -72,26 +69,23 @@ class _SplashScreenState extends State<SplashScreen> {
         _message = S.current.getm3udata; // 更新当前操作信息为正在获取
       });
 
-      result = await M3uUtil.getDefaultM3uData(onRetry: (attempt) {
+      result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) { // 修改为接受两个参数
         setState(() {
-          _retryCount = attempt; // 更新重试次数
-          _message = S.current.getm3udataerror;  // 更新重试时的提示信息
+          _message = '${S.current.getm3udata} (自动重试第 $attempt 次，剩余 $remaining 次)';
         });
-        LogUtil.e('获取 M3U 数据失败，开始重试'); // 记录重试日志
+        LogUtil.e('获取 M3U 数据失败，自动重试第 $attempt 次，剩余 $remaining 次');
       });
 
       if (result?.data != null) {
-        return result!;  // 成功则返回 M3uResult 的数据
+        return result!; // 成功则返回 M3uResult 的数据
       } else {
         setState(() {
-          _retryCount++; // 增加重试次数
-          _message = S.current.getm3udataerror; // 显示错误提示信息
+          _message = S.current.getm3udataerror; // 自动重试失败后显示错误信息
         });
-        return M3uResult(errorMessage: result?.errorMessage);  // 返回携带错误信息的结果
+        return M3uResult(errorMessage: result?.errorMessage);
       }
     } catch (e, stackTrace) {
       setState(() {
-        _retryCount++;  // 更新重试次数
         _message = S.current.getm3udataerror; // 更新错误信息
       });
       LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace); // 记录捕获到的异常日志
@@ -106,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         title: S.current.logtitle,
         content: 'showlog', // 显示日志内容
-        isCopyButton: true,  // 是否显示复制按钮
+        isCopyButton: true, // 是否显示复制按钮
       );
     }
   }
@@ -158,21 +152,13 @@ class _SplashScreenState extends State<SplashScreen> {
     if (snapshot.connectionState == ConnectionState.waiting) {
       // 异步操作正在进行中
       return _buildMessageUI(
-        _retryCount == 0 
-            ? '${S.current.loading}'  // 初次加载时显示加载中信息
-            : _message, // 否则显示错误或重试信息
+        _message.isEmpty ? '${S.current.loading}' : _message, // 显示动态消息
         isLoading: true,
       );
     } else if (snapshot.hasError || (snapshot.hasData && snapshot.data?.data == null)) {
       // 加载过程出错或返回数据为空
       LogUtil.e('加载 M3U 数据时发生错误或数据为空'); // 输出错误日志
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // 在帧结束后自动设置焦点到重试按钮
-        FocusScope.of(context).requestFocus(_retryButtonFocusNode);
-      });
-      
-      return _buildMessageUI(S.current.getDefaultError, showRetryButton: true); // 显示默认错误信息和重试按钮
+      return _buildMessageUI(_message); // 显示错误信息
     } else if (snapshot.hasData && snapshot.data?.data != null) {
       // 数据加载成功且不为空
       Future.delayed(Duration(seconds: 1), () async {
@@ -184,9 +170,9 @@ class _SplashScreenState extends State<SplashScreen> {
             context,
             false, // 是否弹窗显示
             false, // 是否强制更新
-            false  // 是否可取消
+            false // 是否可取消
           );
-          
+
           if (mounted) {
             await Future.delayed(Duration(seconds: 2)); // 添加额外延迟
             _navigateToHome(snapshot.data!.data!); // 跳转到主页面
@@ -205,12 +191,12 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     } else {
       // 其他不可预期情况下的处理
-      return _buildMessageUI(S.current.getDefaultError, showRetryButton: true);
+      return _buildMessageUI(S.current.getDefaultError);
     }
   }
 
   // 构建加载动画和提示 UI 的方法
-  Widget _buildMessageUI(String message, {bool isLoading = false, bool showRetryButton = false}) {
+  Widget _buildMessageUI(String message, {bool isLoading = false}) { // 移除 showRetryButton 参数
     // 用于显示加载过程或错误提示界面
     return Align(
       alignment: Alignment.bottomCenter,
@@ -237,26 +223,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               textAlign: TextAlign.center, // 设置文本居中
             ),
-            if (showRetryButton) ...[
-              // 如果需要显示重试按钮
-              const SizedBox(height: 15),
-              ElevatedButton(
-                focusNode: _retryButtonFocusNode,
-                style: _retryButtonStyle,
-                onPressed: () {
-                  LogUtil.safeExecute(() {
-                    setState(() {
-                      _retryCount = 0; // 重置重试计数
-                      _m3uDataFuture = _fetchData(); // 重新获取数据
-                    });
-                  }, '重试获取 M3U 数据时发生错误');
-                },
-                child: Text(
-                  S.current.refresh, // 刷新按钮文本
-                  style: const TextStyle(fontSize: 18),
-                ),
-              ),
-            ],
           ],
         ),
       ),
