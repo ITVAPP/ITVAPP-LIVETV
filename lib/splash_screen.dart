@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 用于捕获异常时访问
   String _message = ''; // 用于显示当前提示信息
 
-  bool isDebugMode = true; // 调试模式开关，false 代表关闭，true 代表开启
+  bool isDebugMode = false; // 调试模式开关，false 代表关闭，true 代表开启
 
   // 缓存资源路径和样式，避免重复创建
   static const String _portraitImage = 'assets/images/launch_image.png';
