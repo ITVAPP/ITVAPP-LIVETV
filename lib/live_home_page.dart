@@ -457,7 +457,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryTimer = Timer(const Duration(seconds: 2), () async {
         if (!mounted || _isRetrying || _isSwitchingChannel || _isDisposing) {
           setState(() => _isRetrying = false);
-          LogUtil.w('重试被阻断，条件：mounted=$mounted, isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
+          LogUtil.i('重试被阻断，条件：mounted=$mounted, isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           return;
         }
         await _playVideo();
