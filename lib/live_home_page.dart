@@ -185,7 +185,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 使用局部变量解析URL，避免类成员冗余
       String url = _currentChannel!.urls![_sourceIndex].toString();
-      LogUtil.i('原始地址：$url');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       _currentPlayUrl = parsedUrl;
       
@@ -448,7 +447,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _cleanupTimers();
 
     if (_retryCount < defaultMaxRetries) {
-      LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}, 重试前 sourceIndex：$_sourceIndex，地址：${_currentChannel!.urls![_sourceIndex]}');
       setState(() {
         _isRetrying = true;
         _retryCount++;
@@ -459,6 +457,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryTimer = Timer(const Duration(seconds: 2), () async {
         if (!mounted || _isRetrying || _isSwitchingChannel || _isDisposing) {
           setState(() => _isRetrying = false);
+          LogUtil.w('重试被阻断，条件：mounted=$mounted, isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           return;
         }
         await _playVideo();
@@ -491,7 +490,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     final nextUrl = _getNextVideoUrl();
     if (nextUrl == null) {
-      _handleNoMoreSources(); // 修复：原为 _handleSourceSwitching()，改为 _handleNoMoreSources()
+      _handleNoMoreSources(); 
       return;
     }
 
