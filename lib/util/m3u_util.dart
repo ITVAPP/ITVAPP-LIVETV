@@ -373,106 +373,165 @@ class M3uUtil {
   }
 
   /// 解析 M3U 文件并转换为 PlaylistModel 格式
-  static PlaylistModel _parseM3u(String m3u) {
+  static Future<PlaylistModel> _parseM3u(String m3u) async {
     try {
+      // 处理不同的换行符，支持 \r\n 和 \n
       final lines = m3u.split(RegExp(r'\r?\n'));
       final playListModel = PlaylistModel();
       playListModel.playList = <String, Map<String, Map<String, PlayModel>>>{};
-      String currentCategory = Config.allChannelsKey;
-      bool hasCategory = false;
-      String tempGroupTitle = '';
-      String tempChannelName = '';
+
+      String currentCategory = Config.allChannelsKey; // 初始化分类为默认 "所有频道"
+      bool hasCategory = false; // 标记是否有 #CATEGORY 行
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
+        String tempGroupTitle = '';
+        String tempChannelName = '';
+
         for (int i = 0; i < lines.length; i++) {
-          String line = lines[i].trim();
-          if (line.isEmpty) continue;
+          String line = lines[i];
 
           if (line.startsWith('#EXTM3U')) {
-            final params = line.replaceAll('"', '').split(' ');
-            for (var param in params) {
-              if (param.startsWith('x-tvg-url=')) {
-                final tvgUrl = param.substring(10);
-                if (tvgUrl.isNotEmpty) playListModel.epgUrl = tvgUrl;
-                break;
-              }
+            List<String> params = line.replaceAll('"', '').split(' ');
+            final tvgUrl = params
+                .firstWhere((element) => element.startsWith('x-tvg-url'),
+                    orElse: () => '')
+                .split('=')
+                .last;
+            if (tvgUrl.isNotEmpty) {
+              playListModel.epgUrl = tvgUrl; // 获取EPG URL
             }
           } else if (line.startsWith('#CATEGORY:')) {
-            currentCategory = line.substring(10).trim();
+            // 识别 #CATEGORY: 标签并提取分类，标记 hasCategory 为 true
+            currentCategory = line.replaceFirst('#CATEGORY:', '').trim();
             hasCategory = true;
-            if (currentCategory.isEmpty) currentCategory = Config.allChannelsKey;
+            if (currentCategory.isEmpty) {
+              currentCategory = Config.allChannelsKey; // 如果为空则回归默认分类
+            }
           } else if (line.startsWith('#EXTINF:')) {
-            if (line.startsWith('#EXTINF:-1,')) line = line.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
+            if (line.startsWith('#EXTINF:-1,')) {
+              line = line.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
+            }
             final lineList = line.split(',');
-            final params = lineList.first.replaceAll('"', '').split(' ');
-            String groupTitle = S.current.defaultText;
-            String tvgLogo = '';
-            String tvgId = '';
-            String tvgName = '';
+            List<String> params = lineList.first.replaceAll('"', '').split(' ');
 
-            for (var param in params) {
-              if (param.startsWith('group-title=')) groupTitle = param.substring(12);
-              else if (param.startsWith('tvg-logo=')) tvgLogo = param.substring(9);
-              else if (param.startsWith('tvg-id=')) tvgId = param.substring(7);
-              else if (param.startsWith('tvg-name=')) tvgName = param.substring(9);
+            final groupStr = params.firstWhere(
+                (element) => element.startsWith('group-title='),
+                orElse: () =>
+                    'group-title=${S.current.defaultText}'); // 组名称
+            if (groupStr.isNotEmpty && groupStr.contains('=')) {
+              tempGroupTitle = groupStr.split('=').last;
             }
 
-            if (tvgId.isEmpty && tvgName.isNotEmpty) tvgId = tvgName;
-            if (tvgId.isEmpty) continue;
-            if (!hasCategory) currentCategory = Config.allChannelsKey;
-
-            tempGroupTitle = groupTitle;
-            tempChannelName = lineList.last;
-
-            playListModel.playList![currentCategory] ??= {};
-            playListModel.playList![currentCategory]![tempGroupTitle] ??= {};
-            PlayModel channel = playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??
-                PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
-
-            if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
-              channel.urls ??= [];
-              final nextLine = lines[i + 1].trim();
-              if (nextLine.isNotEmpty) channel.urls!.add(nextLine);
-              playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
-              i += 1;
-            } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
-              channel.urls ??= [];
-              final nextLine = lines[i + 2].trim();
-              if (nextLine.isNotEmpty) channel.urls!.add(nextLine);
-              playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
-              i += 2;
+            String tvgLogo = params.firstWhere(
+                (element) => element.startsWith('tvg-logo='),
+                orElse: () => '');
+            if (tvgLogo.isNotEmpty && tvgLogo.contains('=')) {
+              tvgLogo = tvgLogo.split('=').last;
             }
-            hasCategory = false;
+
+            // 确保 tvg-id 或 tvg-name 必须存在
+            String tvgId = params.firstWhere(
+                (element) => element.startsWith('tvg-id='),
+                orElse: () => '');
+            String tvgName = params.firstWhere(
+                (element) => element.startsWith('tvg-name='),
+                orElse: () => '');
+
+            if (tvgId.isEmpty && tvgName.isNotEmpty) {
+              // 如果 tvg-id 为空且有 tvg-name，用 tvg-name 代替 tvg-id
+              tvgId = tvgName.split('=').last;
+            } else if (tvgId.isNotEmpty) {
+              // 否则使用 tvg-id
+              tvgId = tvgId.split('=').last;
+            }
+
+            // 如果 tvg-id 和 tvg-name 都为空，跳过此频道
+            if (tvgId.isEmpty) {
+              continue;
+            }
+
+            // 确保在没有 #CATEGORY 时，currentCategory 始终是 '所有频道'
+            if (!hasCategory) {
+              currentCategory = Config.allChannelsKey;
+            }
+
+            if (groupStr.isNotEmpty) {
+              tempGroupTitle = groupStr.split('=').last;
+              tempChannelName = lineList.last;
+
+              Map<String, Map<String, PlayModel>> categoryMap =
+                  playListModel.playList?[currentCategory] ?? {};
+              Map<String, PlayModel> groupMap =
+                  categoryMap[tempGroupTitle] ?? {};
+              PlayModel channel = groupMap[tempChannelName] ??
+                  PlayModel(
+                      id: tvgId,
+                      group: tempGroupTitle,
+                      logo: tvgLogo,
+                      title: tempChannelName,
+                      urls: []);
+
+              // 检查索引越界问题，避免 lines[i + 1] 或 lines[i + 2] 越界
+              if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
+                channel.urls ??= [];
+                if (lines[i + 1].isNotEmpty) {
+                  channel.urls!.add(lines[i + 1]);
+                }
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![currentCategory] = categoryMap;
+                i += 1;
+              } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
+                channel.urls ??= [];
+                if (lines[i + 2].isNotEmpty) {
+                  channel.urls!.add(lines[i + 2].toString());
+                }
+                groupMap[tempChannelName] = channel;
+                categoryMap[tempGroupTitle] = groupMap;
+                playListModel.playList![currentCategory] = categoryMap;
+                i += 2;
+              }
+              hasCategory = false;
+            }
           } else if (isLiveLink(line)) {
-            playListModel.playList![currentCategory] ??= {};
-            playListModel.playList![currentCategory]![tempGroupTitle] ??= {};
-            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??=
-                PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
-            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls ??= [];
-            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
+            playListModel.playList?[currentCategory]?[tempGroupTitle]
+                    ?[tempChannelName]
+                ?.urls ??= [];
+            if (line.isNotEmpty) {
+              playListModel.playList![currentCategory]![tempGroupTitle]!
+                  [tempChannelName]!.urls!.add(line);
+            }
           }
         }
       } else {
+        // 处理非标准M3U文件
         String tempGroup = S.current.defaultText;
         for (int i = 0; i < lines.length; i++) {
-          final line = lines[i].trim();
-          if (line.isEmpty) continue;
-          
+          final line = lines[i];
           final lineList = line.split(',');
           if (lineList.length >= 2) {
             final groupTitle = lineList[0];
             final channelLink = lineList[1];
             if (isLiveLink(channelLink)) {
-              playListModel.playList![tempGroup] ??= {};
-              playListModel.playList![tempGroup]![groupTitle] ??= {};
-              final channel = playListModel.playList![tempGroup]![groupTitle]![groupTitle] ??
-                  PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
+              Map<String, Map<String, PlayModel>> categoryMap =
+                  playListModel.playList?[tempGroup] ?? {};
+              Map<String, PlayModel> groupMap = categoryMap[groupTitle] ?? {};
+              final channel = groupMap[groupTitle] ??
+                  PlayModel(
+                      group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
               channel.urls ??= [];
-              if (channelLink.isNotEmpty) channel.urls!.add(channelLink);
-              playListModel.playList![tempGroup]![groupTitle]![groupTitle] = channel;
+              if (channelLink.isNotEmpty) {
+                channel.urls!.add(channelLink);
+              }
+              groupMap[groupTitle] = channel;
+              categoryMap[groupTitle] = groupMap;
+              playListModel.playList![tempGroup] = categoryMap;
             } else {
-              tempGroup = groupTitle.isEmpty ? '${S.current.defaultText}${i + 1}' : groupTitle;
-              playListModel.playList![tempGroup] ??= <String, Map<String, PlayModel>>{};
+              tempGroup =
+                  groupTitle == '' ? '${S.current.defaultText}${i + 1}' : groupTitle;
+              if (playListModel.playList![tempGroup] == null) {
+                playListModel.playList![tempGroup] = <String, Map<String, PlayModel>>{};
+              }
             }
           }
         }
