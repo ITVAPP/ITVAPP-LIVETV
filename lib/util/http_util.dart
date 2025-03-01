@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class HttpUtil {
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
@@ -58,9 +58,9 @@ class HttpUtil {
           headers = HeadersConfig.generateHeaders(url: path);
         } else {
           // 重试时只使用 Content-Type
-            headers = {
-                'Content-Type': 'text/html'
-              };
+          headers = {
+            'Content-Type': 'text/html'
+          };
         }
 
         response = await _dio.get<T>(
@@ -87,6 +87,78 @@ class HttpUtil {
         currentAttempt++;
         LogUtil.logError(
           '第 $currentAttempt 次 GET 请求失败: $path\n'
+          '响应状态码: ${e.response?.statusCode}\n'
+          '响应数据: ${e.response?.data}\n'
+          '响应头: ${e.response?.headers}',
+          e, 
+          stackTrace
+        );
+
+        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+          formatError(e);
+          return null;
+        }
+
+        await Future.delayed(retryDelay);
+        LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
+      }
+    }
+    return null;
+  }
+
+  // POST 请求方法，支持重试机制
+  Future<T?> postRequest<T>(String path,
+      {dynamic data,
+      Map<String, dynamic>? queryParameters,
+      Options? options,
+      CancelToken? cancelToken,
+      ProgressCallback? onSendProgress,
+      ProgressCallback? onReceiveProgress,
+      int retryCount = 2,
+      Duration retryDelay = const Duration(seconds: 2)}) async {
+    Response? response;
+    int currentAttempt = 0; // 当前重试次数
+    Duration currentDelay = retryDelay; // 当前重试延迟
+
+    while (currentAttempt < retryCount) {
+      try {
+        Map<String, String> headers;
+        if (currentAttempt == 0) {
+          // 第一次请求使用动态生成headers
+          headers = HeadersConfig.generateHeaders(url: path);
+        } else {
+          // 重试时只使用 Content-Type
+          headers = {
+            'Content-Type': 'application/json' // POST 默认使用 JSON
+          };
+        }
+
+        response = await _dio.post<T>(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: (options ?? Options()).copyWith(
+            extra: {'attempt': currentAttempt},
+            headers: headers,  // 使用动态生成的headers
+          ),
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress,
+          onReceiveProgress: onReceiveProgress,
+        );
+
+        if (T == String && response.data is! String) {
+          LogUtil.e('POST 请求返回的数据不是 String，转换失败: ${response.data}');
+          return null;
+        }
+
+        if (response.data != null) {
+          return response.data; // 成功返回数据
+        }
+        return null;
+      } on DioException catch (e, stackTrace) {
+        currentAttempt++;
+        LogUtil.logError(
+          '第 $currentAttempt 次 POST 请求失败: $path\n'
           '响应状态码: ${e.response?.statusCode}\n'
           '响应数据: ${e.response?.data}\n'
           '响应头: ${e.response?.headers}',
