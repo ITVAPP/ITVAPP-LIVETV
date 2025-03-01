@@ -1,43 +1,63 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:device_info_plus/device_info_plus.dart'; 
-import 'package:provider/provider.dart'; 
-import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:sp_util/sp_util.dart';
-import 'log_util.dart';
-import '../config.dart';
+import 'package:provider/provider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:itvapp_live_tv/config.dart';
+import 'package:itvapp_live_tv/provider/language_provider.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
 
 class TrafficAnalytics {
   final String hostname = Config.hostname;
-  final String packagename = Config.packagename;  
-  final String appversion = Config.version; 
+  final String packagename = Config.packagename;
+  final String appversion = Config.version;
   final String umamiUrl = 'https://ws.itvapp.net/api/send';
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
   final int maxRetries = 3;
 
-  // 用于缓存设备信息，避免重复获取
+  // 用于缓存设备信息和 User-Agent，避免重复获取
   String? _cachedDeviceInfo;
-  
-  // 用于缓存IP地址和地理位置信息，避免重复请求
+  String? _cachedUserAgent;
+  // 用于缓存IP地址和地理位置信息
   Map<String, dynamic>? _cachedIpData;
 
-  // 新增: SP存储的key
+  // SP存储的key和缓存有效期常量
   static const String SP_KEY_LOCATION = 'user_location_info';
+  static const int CACHE_EXPIRY_HOURS = 48;
+  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // 预计算缓存过期时间（毫秒）
 
-  /// 获取用户的IP地址和地理位置信息，逐个尝试多个API
+  // 检查缓存是否过期
+  bool _isCacheExpired(int timestamp) {
+    final currentTime = DateTime.now().millisecondsSinceEpoch;
+    return currentTime > (timestamp + CACHE_EXPIRY_MS);
+  }
+
+  /// 重置缓存，用于网络切换等场景
+  void resetCache() {
+    _cachedIpData = null;
+    _cachedDeviceInfo = null;
+    _cachedUserAgent = null;
+    LogUtil.i('已重置流量分析缓存');
+  }
+
+  /// 获取用户的IP地址和地理位置信息，使用并行请求优化
   Future<Map<String, dynamic>> getUserIpAndLocation() async {
     if (_cachedIpData != null) {
-      return _cachedIpData!;  // 如果缓存存在，直接返回缓存的数据
+      return _cachedIpData!; // 返回缓存数据
     }
 
-    // 新增: 尝试从SP中读取保存的数据
+    // 从SP中读取缓存
     String? savedLocation = SpUtil.getString(SP_KEY_LOCATION);
     if (savedLocation != null && savedLocation.isNotEmpty) {
       try {
-        _cachedIpData = json.decode(savedLocation);
-        return _cachedIpData!;
+        Map<String, dynamic> cachedData = jsonDecode(savedLocation);
+        int? timestamp = cachedData['timestamp'];
+        if (timestamp != null && !_isCacheExpired(timestamp)) {
+          _cachedIpData = cachedData['location'];
+          return _cachedIpData!;
+        }
       } catch (e) {
         LogUtil.e('解析保存的位置信息失败: $e');
       }
@@ -46,89 +66,89 @@ class TrafficAnalytics {
     final apiList = [
       {
         'url': 'https://api.vvhan.com/api/ipInfo',
-        'parseData': (data) {
-          return {
-            'ip': data['ip'] ?? 'Unknown IP',
-            'country': data['info']?['country'] ?? 'Unknown Country',  // 加强 null 检查
-            'region': data['info']?['prov'] ?? 'Unknown Region',
-            'city': data['info']?['city'] ?? 'Unknown City',
-          };
-        }
+        'parseData': (data) => {
+              'ip': data['ip'] ?? 'Unknown IP',
+              'country': data['info']?['country'] ?? 'Unknown Country',
+              'region': data['info']?['prov'] ?? 'Unknown Region',
+              'city': data['info']?['city'] ?? 'Unknown City',
+            }
       },
       {
         'url': 'https://ip.useragentinfo.com/json',
-        'parseData': (data) {
-          return {
-            'ip': data['ip'] ?? 'Unknown IP',
-            'country': data['country'] ?? 'Unknown Country',
-            'region': data['province'] ?? 'Unknown Region',
-            'city': data['city'] ?? 'Unknown City',
-          };
-        }
+        'parseData': (data) => {
+              'ip': data['ip'] ?? 'Unknown IP',
+              'country': data['country'] ?? 'Unknown Country',
+              'region': data['province'] ?? 'Unknown Region',
+              'city': data['city'] ?? 'Unknown City',
+            }
       },
       {
         'url': 'https://open.saintic.com/ip/rest',
-        'parseData': (data) {
-          return {
-            'ip': data['data']?['ip'] ?? 'Unknown IP',
-            'country': data['data']?['country'] ?? 'Unknown Country',
-            'region': data['data']?['province'] ?? 'Unknown Region',
-            'city': data['data']?['city'] ?? 'Unknown City',
-          };
-        }
+        'parseData': (data) => {
+              'ip': data['data']?['ip'] ?? 'Unknown IP',
+              'country': data['data']?['country'] ?? 'Unknown Country',
+              'region': data['data']?['province'] ?? 'Unknown Region',
+              'city': data['data']?['city'] ?? 'Unknown City',
+            }
       },
       {
         'url': 'http://ip-api.com/json',
-        'parseData': (data) {
-          return {
-            'ip': data['query'] ?? 'Unknown IP',
-            'country': data['country'] ?? 'Unknown Country',
-            'region': data['regionName'] ?? 'Unknown Region',
-            'city': data['city'] ?? 'Unknown City',
-            'lat': data['lat'] ?? null,  // null 检查
-            'lon': data['lon'] ?? null,
-          };
-        }
+        'parseData': (data) => {
+              'ip': data['query'] ?? 'Unknown IP',
+              'country': data['country'] ?? 'Unknown Country',
+              'region': data['regionName'] ?? 'Unknown Region',
+              'city': data['city'] ?? 'Unknown City',
+              'lat': data['lat'],
+              'lon': data['lon'],
+            }
       }
     ];
 
-    for (var api in apiList) {
+    // 并行请求所有API，选择第一个成功的响应
+    final futures = apiList.map((api) async {
       try {
-        // 设置超时限制，防止请求卡住
-        final response = await http.get(Uri.parse(api['url'] as String)).timeout(Duration(seconds: 5));
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          _cachedIpData = (api['parseData'] as dynamic Function(dynamic))(data);
-          
-          // 新增: 保存到SP中
-          try {
-            await SpUtil.putString(SP_KEY_LOCATION, json.encode(_cachedIpData));
-          } catch (e) {
-            LogUtil.e('保存位置信息失败: $e');
-          }
-          
-          return _cachedIpData!;
-        } else {
-          LogUtil.e('API请求失败: ${api['url']} 状态码: ${response.statusCode}');
+        final responseData = await HttpUtil().getRequest<String>(
+          api['url'] as String,
+          options: Options(receiveTimeout: const Duration(seconds: 5)),
+          cancelToken: CancelToken(),
+        );
+        if (responseData != null) {
+          final data = jsonDecode(responseData);
+          return (api['parseData'] as dynamic Function(dynamic))(data);
         }
       } catch (e, stackTrace) {
         LogUtil.logError('请求 ${api['url']} 失败', e, stackTrace);
       }
-    }
+      return null;
+    }).toList();
 
-    throw Exception('所有API请求失败，无法获取IP和地理位置信息');
+    final results = await Future.wait(futures);
+    for (var result in results) {
+      if (result != null) {
+        _cachedIpData = result;
+        final saveData = {
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'location': _cachedIpData,
+        };
+        await SpUtil.putString(SP_KEY_LOCATION, jsonEncode(saveData));
+        return _cachedIpData!;
+      }
+    }
+    // 如果所有API失败，返回默认值
+    _cachedIpData = {'ip': 'Unknown IP', 'country': 'Unknown', 'region': 'Unknown', 'city': 'Unknown'};
+    return _cachedIpData!;
   }
 
-  /// 新增: 获取保存的位置信息的字符串形式
+  /// 获取保存的位置信息的字符串形式
   String getLocationString() {
     String? savedLocation = SpUtil.getString(SP_KEY_LOCATION);
     if (savedLocation != null && savedLocation.isNotEmpty) {
       try {
-        Map<String, dynamic> locationData = json.decode(savedLocation);
+        Map<String, dynamic> locationData = jsonDecode(savedLocation);
         return 'IP: ${locationData['ip']}\n'
-               '国家: ${locationData['country']}\n'
-               '地区: ${locationData['region']}\n'
-               '城市: ${locationData['city']}';
+            '国家: ${locationData['country']}\n'
+            '地区: ${locationData['region']}\n'
+            '城市: ${locationData['city']}';
       } catch (e) {
         LogUtil.e('解析位置信息失败: $e');
       }
@@ -142,75 +162,62 @@ class TrafficAnalytics {
     return '${size.width.toInt()}x${size.height.toInt()}';
   }
 
-  /// 获取设备信息（详细的设备型号、系统版本等）
-  Future<String> getDeviceInfo() async {
-    if (_cachedDeviceInfo != null) {
-      return _cachedDeviceInfo!;  // 如果缓存不为空，直接返回
-    }
+  /// 获取设备信息和User-Agent
+  Future<String> getDeviceInfo({bool userAgent = false}) async {
+    if (userAgent && _cachedUserAgent != null) return _cachedUserAgent!;
+    if (!userAgent && _cachedDeviceInfo != null) return _cachedDeviceInfo!;
 
     final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
     if (Platform.isAndroid) {
       AndroidDeviceInfo androidInfo = await deviceInfoPlugin.androidInfo;
       _cachedDeviceInfo = '${androidInfo.model} (${androidInfo.version.release})';
+      _cachedUserAgent = '$packagename/$appversion (Android; ${androidInfo.version.release})';
     } else if (Platform.isIOS) {
       IosDeviceInfo iosInfo = await deviceInfoPlugin.iosInfo;
       _cachedDeviceInfo = '${iosInfo.utsname.machine} (${iosInfo.systemVersion})';
+      _cachedUserAgent = '$packagename/$appversion (iOS; ${iosInfo.systemVersion})';
     } else {
       _cachedDeviceInfo = Platform.operatingSystem;
+      _cachedUserAgent = '$packagename/$appversion (Unknown Platform)';
     }
-    return _cachedDeviceInfo!;
+    return userAgent ? _cachedUserAgent! : _cachedDeviceInfo!;
   }
 
-  /// 发送页面访问统计数据到 Umami，带重试机制
+  /// 发送页面访问统计数据到 Umami
   Future<void> sendPageView(BuildContext context, String referrer, {String? additionalPath}) async {
     final String screenSize = getScreenSize(context);
-    final String deviceInfo = await getDeviceInfo();  // 使用 getDeviceInfo 方法
+    final String deviceInfo = await getDeviceInfo();
+    final String userAgent = await getDeviceInfo(userAgent: true);
 
-    // 获取当前页面的路由名作为 URL
     String url = ModalRoute.of(context)?.settings.name ?? '';
-
-    // 如果有 additionalPath，则将其追加到 URL 中
     if (additionalPath != null && additionalPath.isNotEmpty) {
       url += "/$additionalPath";
     }
 
-    // 动态生成 User-Agent，包含应用版本信息和应用名称
-    String userAgent;
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await DeviceInfoPlugin().androidInfo;
-      userAgent = '$packagename/$appversion (Android; ${androidInfo.version.release})';  
-    } else if (Platform.isIOS) {
-      IosDeviceInfo iosInfo = await DeviceInfoPlugin().iosInfo;
-      userAgent = '$packagename/$appversion (iOS; ${iosInfo.systemVersion})'; 
-    } else {
-      userAgent = '$packagename/$appversion (Unknown Platform)'; 
-    }
-
-    // 获取当前语言设置
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en';  // 使用当前设置的语言
+    final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en';
 
     try {
       final Map<String, dynamic> ipData = await getUserIpAndLocation();
+      final locationString = '${ipData['city']}, ${ipData['region']}, ${ipData['country']}';
 
-      // 构造要发送的统计数据
       final Map<String, dynamic> payload = {
-        'payload': {  // 调整为嵌套结构
+        'payload': {
           'type': 'event',
           'website': websiteId,
-          'url': url,  // 当前页面 URL
-          'referrer': referrer,  // 来源位置
-          'hostname': hostname,  // 使用 Config 中的 hostname
-          'language': currentLanguage, 
+          'url': url,
+          'referrer': referrer,
+          'hostname': hostname,
+          'language': currentLanguage,
           'screen': screenSize,
           'ip': ipData['ip'],
-          'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
+          'location': locationString,
           'device': deviceInfo,
           'data': {
             'device_info': deviceInfo,
             'screen_size': screenSize,
             'ip': ipData['ip'],
-            'location': '${ipData['city']}, ${ipData['region']}, ${ipData['country']}',
+            'location': locationString,
             'lat': ipData['lat'],
             'lon': ipData['lon'],
           }
@@ -218,45 +225,43 @@ class TrafficAnalytics {
         'type': 'event',
       };
 
-      // 发送请求时设置 User-Agent
       await _sendWithRetry(payload, userAgent);
-
     } catch (error, stackTrace) {
-      LogUtil.logError('获取用户 IP 或发送页面访问数据时发生错误', error, stackTrace);
+      LogUtil.logError('发送页面访问数据时发生错误', error, stackTrace);
     }
   }
 
-  /// 带重试机制的发送方法，使用指数退避策略进行优化
+  /// 带重试机制的发送方法，设置最大延迟
   Future<void> _sendWithRetry(Map<String, dynamic> payload, String userAgent) async {
     int attempt = 0;
     bool success = false;
-    int delayInSeconds = 2;  // 初始重试延迟
+    int delayInSeconds = 2;
+    const int maxDelayInSeconds = 10;
 
     while (attempt < maxRetries && !success) {
       attempt++;
       try {
-        final response = await http.post(
-          Uri.parse(umamiUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': userAgent,
-          },
-          body: jsonEncode(payload),
+        final response = await HttpUtil().postRequest<String>(
+          umamiUrl,
+          data: jsonEncode(payload),
+          options: Options(
+            headers: {'Content-Type': 'application/json', 'User-Agent': userAgent},
+            receiveTimeout: const Duration(seconds: 5),
+          ),
+          cancelToken: CancelToken(),
         );
 
-        if (response.statusCode == 200) {
+        if (response != null) {
           LogUtil.i('页面访问统计数据发送成功');
           success = true;
-        } else {
-          LogUtil.e('页面访问统计数据发送失败: ${response.statusCode}');
         }
       } catch (error, stackTrace) {
-        LogUtil.logError('发送数据时发生错误，正在进行第 $attempt 次重试', error, stackTrace);
+        LogUtil.logError('发送数据时发生错误，第 $attempt 次重试', error, stackTrace);
       }
 
       if (!success && attempt < maxRetries) {
+        delayInSeconds = delayInSeconds * 2 > maxDelayInSeconds ? maxDelayInSeconds : delayInSeconds * 2;
         await Future.delayed(Duration(seconds: delayInSeconds));
-        delayInSeconds *= 2;  // 指数级增加延迟时间
       }
     }
 
