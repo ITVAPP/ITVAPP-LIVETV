@@ -52,7 +52,6 @@ class M3uUtil {
         final String assetM3uData = await rootBundle.loadString('assets/playlists.m3u');
         parsedData = await _parseM3u(assetM3uData);
 
-        // 检查 assets 数据是否有效（与旧版一致，仅检查 playList 是否为 null）
         if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
@@ -66,7 +65,6 @@ class M3uUtil {
           parsedData = await _parseM3u(m3uData);
         }
 
-        // 检查是否成功解析数据（与旧版一致，仅检查 playList 是否为 null）
         if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
@@ -121,7 +119,6 @@ class M3uUtil {
     } else {
       // 如果本地已有缓存数据，将其转换为 PlaylistModel 对象
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      // 添加 null 检查，与旧版一致
       favoritePlaylist.playList ??= {};
       LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
@@ -129,12 +126,14 @@ class M3uUtil {
   }
 
   /// 将收藏列表插入为播放列表的第一个分类
-  static Map _insertFavoritePlaylistFirst(Map? originalPlaylist, PlaylistModel favoritePlaylist) { // 修改为 Map，与旧版一致
+  /// 修改说明：将返回类型从 `Map` 改为 `Map<String, Map<String, Map<String, PlayModel>>>`，并指定输入参数类型，
+  /// 以匹配 `PlaylistModel.playList` 的类型，避免类型不匹配错误
+  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
+      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
+      PlaylistModel favoritePlaylist) {
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
 
-    // 与旧版一致，添加 null 检查
     originalPlaylist ??= {};
-
     // 如果原始播放列表中已有同名的收藏列表，使用本地收藏列表替换它
     if (originalPlaylist[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
@@ -143,7 +142,7 @@ class M3uUtil {
     else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     } else {
-      updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{}; // 默认空结构，与旧版一致
+      updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{}; 
     }
 
     // 将其余分类添加到新播放列表中（除收藏分类外的所有分类）
