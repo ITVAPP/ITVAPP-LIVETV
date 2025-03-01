@@ -72,6 +72,7 @@ class M3uUtil {
         }
       }
 
+      // 修正字符串插值语法，去除多余空格
       LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 获取或创建本地收藏列表
@@ -81,8 +82,12 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
-      
+      // 修改：恢复旧版的类型转换方式，确保类型匹配
+      parsedData.playList = _insertFavoritePlaylistFirst(
+          parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>?,
+          favoritePlaylist);
+
+      // 修正字符串插值语法，去除多余空格
       LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地（仅在远程获取成功时更新订阅时间）
