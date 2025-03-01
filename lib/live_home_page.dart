@@ -455,9 +455,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       
       _retryTimer = Timer(const Duration(seconds: 2), () async {
-        if (!mounted || _isRetrying || _isSwitchingChannel || _isDisposing) {
+        if (!mounted || _isSwitchingChannel || _isDisposing) {
+          LogUtil.w('重试被阻断，条件：mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           setState(() => _isRetrying = false);
-          LogUtil.i('重试被阻断，条件：mounted=$mounted, isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           return;
         }
         await _playVideo();
@@ -494,7 +494,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    // 合并状态更新为一次调用
+    // 状态更新
     setState(() {
       _sourceIndex++;
       _isRetrying = false;
