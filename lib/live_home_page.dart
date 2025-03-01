@@ -480,7 +480,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     final nextUrl = _getNextVideoUrl();
     if (nextUrl == null) {
-      _handleNoMoreSources();
+      _handleNoMoreSources(); // 修复：原为 _handleSourceSwitching()，改为 _handleNoMoreSources()
       return;
     }
 
@@ -712,7 +712,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     if (widget.m3uData.playList == null || widget.m3uData.playList!.isEmpty) {
       LogUtil.e('传入的播放列表无效');
-      setState(() => toastString = S.current.invalidPlaylist);
+      setState(() => toastString = S.current.getDefaultError);
       return;
     }
 
@@ -722,7 +722,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _handlePlaylist();
     } catch (e, stackTrace) {
       LogUtil.logError('加载播放列表时出错', e, stackTrace);
-      setState(() => toastString = S.current.loadPlaylistFailed);
+      setState(() => toastString = S.current.parseError);
     }
   }
 
@@ -762,18 +762,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (categoryData is Map<String, Map<String, PlayModel>>) {
           for (final groupEntry in categoryData.entries) {
             final channelMap = groupEntry.value;
-            final validChannel = channelMap.values.firstWhere(
-              (channel) => channel?.urls != null && channel!.urls!.isNotEmpty,
-              orElse: () => null,
-            );
-            if (validChannel != null) return validChannel;
+            for (final channel in channelMap.values) {
+              if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+                return channel;
+              }
+            }
           }
         } else if (categoryData is Map<String, PlayModel>) {
-          final validChannel = categoryData.values.firstWhere(
-            (channel) => channel?.urls != null && channel!.urls!.isNotEmpty,
-            orElse: () => null,
-          );
-          if (validChannel != null) return validChannel;
+          for (final channel in categoryData.values) {
+            if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+              return channel;
+            }
+          }
         }
       }
     } catch (e, stackTrace) {
@@ -861,6 +861,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  // 使用 _videoMap，避免从本地读取
+  Future<void> _parseData() async {
+    try {
+      if (_videoMap == null || _videoMap!.playList == null || _videoMap!.playList!.isEmpty) {
+        LogUtil.e('当前 _videoMap 无效');
+        setState(() => toastString = S.current.getDefaultError);
+        return;
+      }
+      _sourceIndex = 0;
+      await _handlePlaylist();
+    } catch (e, stackTrace) {
+      LogUtil.logError('处理播放列表时出错', e, stackTrace);
+      setState(() => toastString = S.current.parseError);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
@@ -875,7 +891,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isBuffering: isBuffering,
         isPlaying: isPlaying,
         aspectRatio: aspectRatio,
-        onChangeSubSource: null, 
+        onChangeSubSource: _parseData,
         changeChannelSources: _changeChannelSources,
         toggleFavorite: toggleFavorite,
         isChannelFavorite: isChannelFavorite,
@@ -900,7 +916,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               isBuffering: isBuffering,
               isPlaying: isPlaying,
               aspectRatio: aspectRatio,
-              onChangeSubSource: null, 
+              onChangeSubSource: _parseData,
               drawChild: ChannelDrawerPage(
                 key: _drawerRefreshKey,
                 refreshKey: _drawerRefreshKey,
