@@ -27,16 +27,14 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
-      # 混淆 JS 和 M3U 文件
+      # 混淆 JS 和 M3U 文件，使用本地工具，保持原始路径
       - name: Obfuscate JS and M3U files
         run: |
-          npm install -g javascript-obfuscator base64-cli  # 安装 JS 混淆工具和 Base64 编码工具
-          # 混淆 JS 文件
-          javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
-          javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
-          javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
-          javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
-          # 混淆 M3U 文件
+          npm install javascript-obfuscator base64-cli  # 本地安装工具，避免全局 PATH 污染
+          ./node_modules/.bin/javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
+          ./node_modules/.bin/javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
+          ./node_modules/.bin/javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
+          ./node_modules/.bin/javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
           if [ -f "assets/$PLAYLIST_FILE" ]; then
             echo "Obfuscating M3U file..."
             while IFS= read -r line; do
