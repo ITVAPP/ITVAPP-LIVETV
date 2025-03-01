@@ -81,7 +81,9 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
+      parsedData.playList = _insertFavoritePlaylistFirst(
+          parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>,
+          favoritePlaylist);
       
       LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
