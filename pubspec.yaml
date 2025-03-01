@@ -54,12 +54,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true  # 是否启用Material Design。一般保持为true。
   generate: true
-
-# 资源文件路径，可根据项目实际情况添加其他资源路径。
-assets:
-  - assets/images/
-  - assets/js/
-  - assets/playlists.m3u
+  assets:  # 修改部分：将 assets 缩进到 flutter 下，保持 2 个空格
+    - assets/images/
+    - assets/js/
+    - assets/playlists.m3u
 
 flutter_intl:
   enabled: true  # 是否启用Flutter的国际化支持。
