@@ -38,14 +38,20 @@ class HttpUtil {
     }
   }
 
-  // GET 请求方法，确保返回 String? 时不会出错
-  Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
+  // 提取的核心请求逻辑，处理 GET 和 POST 请求
+  Future<R?> _performRequest<R>({
+    required String method,
+    required String path,
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2),
+    required R? Function(Response response) onSuccess, // 成功时的回调，决定返回值
+  }) async {
     Response? response;
     int currentAttempt = 0; // 当前重试次数
     Duration currentDelay = retryDelay; // 当前重试延迟
@@ -59,39 +65,45 @@ class HttpUtil {
         } else {
           // 重试时只使用 Content-Type
           headers = {
-            'Content-Type': 'text/html'
+            'Content-Type': method.toUpperCase() == 'POST' ? 'application/json' : 'text/html'
           };
         }
 
-        response = await _dio.get<T>(
-          path,
-          queryParameters: queryParameters,
-          options: (options ?? Options()).copyWith(
-            extra: {'attempt': currentAttempt},
-            headers: headers,  // 使用动态生成的headers
-          ),
-          cancelToken: cancelToken,
-          onReceiveProgress: onReceiveProgress,
+        // 合并传入的 options 和默认配置
+        final requestOptions = (options ?? Options()).copyWith(
+          extra: {'attempt': currentAttempt},
+          headers: headers,
         );
 
-        if (T == String && response.data is! String) {
-          LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
-          return null;
-        }
+        // 根据方法执行 GET 或 POST 请求
+        response = await (method.toUpperCase() == 'POST'
+            ? _dio.post(
+                path,
+                data: data,
+                queryParameters: queryParameters,
+                options: requestOptions,
+                cancelToken: cancelToken,
+                onSendProgress: onSendProgress,
+                onReceiveProgress: onReceiveProgress,
+              )
+            : _dio.get(
+                path,
+                queryParameters: queryParameters,
+                options: requestOptions,
+                cancelToken: cancelToken,
+                onReceiveProgress: onReceiveProgress,
+              ));
 
-        if (response.data != null) {
-          return response.data; // 成功返回数据
-        }
-        return null;
+        return onSuccess(response); // 调用成功回调处理响应
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError(
-          '第 $currentAttempt 次 GET 请求失败: $path\n'
+          '第 $currentAttempt 次 $method 请求失败: $path\n'
           '响应状态码: ${e.response?.statusCode}\n'
           '响应数据: ${e.response?.data}\n'
           '响应头: ${e.response?.headers}',
-          e, 
-          stackTrace
+          e,
+          stackTrace,
         );
 
         if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
@@ -106,7 +118,55 @@ class HttpUtil {
     return null;
   }
 
-  // POST 请求方法，支持重试机制
+  // GET 请求方法，确保返回 String? 时不会出错（原有方法）
+  Future<T?> getRequest<T>(String path,
+      {Map<String, dynamic>? queryParameters,
+      Options? options,
+      CancelToken? cancelToken,
+      ProgressCallback? onReceiveProgress,
+      int retryCount = 2,
+      Duration retryDelay = const Duration(seconds: 2)}) async {
+    return _performRequest<T>(
+      method: 'GET',
+      path: path,
+      queryParameters: queryParameters,
+      options: options,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+      onSuccess: (response) {
+        if (T == String && response.data is! String) {
+          LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
+          return null;
+        }
+        return response.data != null ? response.data as T : null;
+      },
+    );
+  }
+
+  // 新增 GET 请求方法，返回完整的 Response 对象
+  Future<Response?> getRequestWithResponse(String path,
+      {Map<String, dynamic>? queryParameters,
+      Options? options,
+      CancelToken? cancelToken,
+      ProgressCallback? onReceiveProgress,
+      int retryCount = 2,
+      Duration retryDelay = const Duration(seconds: 2)}) async {
+    return _performRequest<Response>(
+      method: 'GET',
+      path: path,
+      queryParameters: queryParameters,
+      options: options,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+      onSuccess: (response) => response, // 直接返回 Response
+    );
+  }
+
+  // POST 请求方法，支持重试机制（原有方法）
   Future<T?> postRequest<T>(String path,
       {dynamic data,
       Map<String, dynamic>? queryParameters,
@@ -116,66 +176,50 @@ class HttpUtil {
       ProgressCallback? onReceiveProgress,
       int retryCount = 2,
       Duration retryDelay = const Duration(seconds: 2)}) async {
-    Response? response;
-    int currentAttempt = 0; // 当前重试次数
-    Duration currentDelay = retryDelay; // 当前重试延迟
-
-    while (currentAttempt < retryCount) {
-      try {
-        Map<String, String> headers;
-        if (currentAttempt == 0) {
-          // 第一次请求使用动态生成headers
-          headers = HeadersConfig.generateHeaders(url: path);
-        } else {
-          // 重试时只使用 Content-Type
-          headers = {
-            'Content-Type': 'application/json' // POST 默认使用 JSON
-          };
-        }
-
-        response = await _dio.post<T>(
-          path,
-          data: data,
-          queryParameters: queryParameters,
-          options: (options ?? Options()).copyWith(
-            extra: {'attempt': currentAttempt},
-            headers: headers,  // 使用动态生成的headers
-          ),
-          cancelToken: cancelToken,
-          onSendProgress: onSendProgress,
-          onReceiveProgress: onReceiveProgress,
-        );
-
+    return _performRequest<T>(
+      method: 'POST',
+      path: path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+      onSuccess: (response) {
         if (T == String && response.data is! String) {
           LogUtil.e('POST 请求返回的数据不是 String，转换失败: ${response.data}');
           return null;
         }
+        return response.data != null ? response.data as T : null;
+      },
+    );
+  }
 
-        if (response.data != null) {
-          return response.data; // 成功返回数据
-        }
-        return null;
-      } on DioException catch (e, stackTrace) {
-        currentAttempt++;
-        LogUtil.logError(
-          '第 $currentAttempt 次 POST 请求失败: $path\n'
-          '响应状态码: ${e.response?.statusCode}\n'
-          '响应数据: ${e.response?.data}\n'
-          '响应头: ${e.response?.headers}',
-          e, 
-          stackTrace
-        );
-
-        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
-          formatError(e);
-          return null;
-        }
-
-        await Future.delayed(retryDelay);
-        LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
-      }
-    }
-    return null;
+  // 新增 POST 请求方法，返回完整的 Response 对象
+  Future<Response?> postRequestWithResponse(String path,
+      {dynamic data,
+      Map<String, dynamic>? queryParameters,
+      Options? options,
+      CancelToken? cancelToken,
+      ProgressCallback? onSendProgress,
+      ProgressCallback? onReceiveProgress,
+      int retryCount = 2,
+      Duration retryDelay = const Duration(seconds: 2)}) async {
+    return _performRequest<Response>(
+      method: 'POST',
+      path: path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+      onSuccess: (response) => response, // 直接返回 Response
+    );
   }
 
   // 文件下载方法，支持显示下载进度
