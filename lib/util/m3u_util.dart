@@ -72,7 +72,8 @@ class M3uUtil {
         }
       }
 
-      LogUtil.i('解析后的播放列表内容:  $ {parsedData.playList}\n解析后的播放列表类型:  $ {parsedData.playList.runtimeType}');
+      // 修正字符串插值语法，去除多余空格
+      LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 获取或创建本地收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
@@ -85,7 +86,8 @@ class M3uUtil {
           parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>,
           favoritePlaylist);
 
-      LogUtil.i('合并收藏后的播放列表类型:  $ {parsedData.playList.runtimeType}\n合并收藏后的播放列表内容:  $ {parsedData.playList}');
+      // 修正字符串插值语法，去除多余空格
+      LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地（仅在远程获取成功时更新订阅时间）
       if (!m3uData.isEmpty) {
@@ -116,12 +118,14 @@ class M3uUtil {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
         },
       );
-      LogUtil.i('创建的收藏列表类型:  $ {favoritePlaylist.playList.runtimeType}\n创建的收藏列表:  $ {favoritePlaylist.playList}');
+      // 修正字符串插值语法，去除多余空格
+      LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}\n创建的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，将其转换为 PlaylistModel 对象
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      LogUtil.i('缓存的收藏列表:  $ {favoriteData}\n解析后的收藏列表:  $ {favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
+      // 修正字符串插值语法，去除多余空格
+      LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
     }
   }
@@ -135,7 +139,7 @@ class M3uUtil {
     // 如果原始播放列表中已有同名的收藏列表，使用本地收藏列表替换它
     if (originalPlaylist?[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
-    } 
+    }
     // 检查并确保即使为空也能插入收藏分类
     else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
       updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
@@ -256,7 +260,8 @@ class M3uUtil {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
       // 添加时间参数以避免缓存
       final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
-      final urlWithTimeParam = ' $ defaultM3u?time= $ timeParam';
+      // 修正字符串插值语法，去除多余空格
+      final urlWithTimeParam = '$defaultM3u?time=$timeParam';
       final res = await HttpUtil().getRequest(urlWithTimeParam);
       return res ?? '';
     } catch (e, stackTrace) {
