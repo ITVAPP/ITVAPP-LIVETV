@@ -131,6 +131,8 @@ class TrafficAnalytics {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
           'location': _cachedIpData,
         };
+        // 在缓存到本地时记录地理信息到日志
+        LogUtil.i('缓存用户地理信息到本地: IP=${result['ip']}, Location=${result['city']}, ${result['region']}, ${result['country']}');
         await SpUtil.putString(SP_KEY_LOCATION, jsonEncode(saveData));
         return _cachedIpData!;
       }
@@ -247,7 +249,7 @@ class TrafficAnalytics {
           data: jsonEncode(payload),
           options: Options(
             headers: {'Content-Type': 'application/json', 'User-Agent': userAgent},
-            receiveTimeout: const Duration(seconds: 5),
+            receiveTimeout: const Duration(seconds: 10),
           ),
           cancelToken: CancelToken(),
         );
@@ -255,19 +257,18 @@ class TrafficAnalytics {
         if (response != null) {
           LogUtil.i('页面访问统计数据发送成功');
           success = true;
+        } else {
+          throw Exception('响应数据为空');
         }
       } catch (error, stackTrace) {
         LogUtil.logError('发送数据时发生错误，第 $attempt 次重试', error, stackTrace);
-      }
-
-      if (!success && attempt < maxRetries) {
+        if (attempt >= maxRetries) {
+          LogUtil.e('达到最大重试次数，发送失败');
+          return; // 达到最大重试次数后退出
+        }
         delayInSeconds = delayInSeconds * 2 > maxDelayInSeconds ? maxDelayInSeconds : delayInSeconds * 2;
         await Future.delayed(Duration(seconds: delayInSeconds));
       }
-    }
-
-    if (!success) {
-      LogUtil.e('达到最大重试次数，发送失败');
     }
   }
 }
