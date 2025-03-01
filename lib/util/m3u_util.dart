@@ -16,7 +16,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 class M3uResult {
   final PlaylistModel? data;
   final String? errorMessage;
-  final ErrorType? errorType; // 新增错误类型字段
+  final ErrorType? errorType;
 
   M3uResult({this.data, this.errorMessage, this.errorType});
 }
@@ -72,7 +72,6 @@ class M3uUtil {
         }
       }
 
-      // 修正字符串插值语法，去除多余空格
       LogUtil.i('解析后的播放列表内容: ${parsedData.playList}\n解析后的播放列表类型: ${parsedData.playList.runtimeType}');
 
       // 获取或创建本地收藏列表
@@ -82,11 +81,8 @@ class M3uUtil {
       await updateFavoriteChannelsWithRemoteData(parsedData, favoritePlaylist);
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
-      parsedData.playList = _insertFavoritePlaylistFirst(
-          parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>,
-          favoritePlaylist);
+      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
 
-      // 修正字符串插值语法，去除多余空格
       LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地（仅在远程获取成功时更新订阅时间）
@@ -118,13 +114,19 @@ class M3uUtil {
           Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
         },
       );
-      // 修正字符串插值语法，去除多余空格
       LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}\n创建的收藏列表: ${favoritePlaylist.playList}');
       return favoritePlaylist;
     } else {
       // 如果本地已有缓存数据，将其转换为 PlaylistModel 对象
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      // 修正字符串插值语法，去除多余空格
+      // 检查并确保 playList 类型正确
+      if (favoritePlaylist.playList is Map<String, dynamic> && favoritePlaylist.playList != null) {
+        favoritePlaylist.playList = {
+          Config.myFavoriteKey: (favoritePlaylist.playList![Config.myFavoriteKey] as Map<String, dynamic>?)?.map(
+                (key, value) => MapEntry(key, value as Map<String, PlayModel>),
+              ) ?? <String, Map<String, PlayModel>>{},
+        };
+      }
       LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
     }
@@ -136,13 +138,16 @@ class M3uUtil {
       PlaylistModel favoritePlaylist) {
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
 
+    // 直接使用 favoritePlaylist.playList 的值，确保类型安全
+    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey] ?? <String, Map<String, PlayModel>>{};
+
     // 如果原始播放列表中已有同名的收藏列表，使用本地收藏列表替换它
     if (originalPlaylist?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+      updatedPlaylist[Config.myFavoriteKey] = favoriteCategory;
     }
     // 检查并确保即使为空也能插入收藏分类
-    else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+    else if (favoriteCategory.isNotEmpty) {
+      updatedPlaylist[Config.myFavoriteKey] = favoriteCategory;
     }
 
     // 将其余分类添加到新播放列表中（除收藏分类外的所有分类）
@@ -260,7 +265,6 @@ class M3uUtil {
       final defaultM3u = EnvUtil.videoDefaultChannelHost();
       // 添加时间参数以避免缓存
       final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
-      // 修正字符串插值语法，去除多余空格
       final urlWithTimeParam = '$defaultM3u?time=$timeParam';
       final res = await HttpUtil().getRequest(urlWithTimeParam);
       return res ?? '';
