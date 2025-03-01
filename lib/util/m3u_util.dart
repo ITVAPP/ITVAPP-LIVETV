@@ -82,7 +82,7 @@ class M3uUtil {
 
       // 将收藏列表加入到播放列表中，并设置为第一个分类
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, favoritePlaylist);
-
+      
       LogUtil.i('合并收藏后的播放列表类型: ${parsedData.playList.runtimeType}\n合并收藏后的播放列表内容: ${parsedData.playList}');
 
       // 保存新订阅数据到本地（仅在远程获取成功时更新订阅时间）
@@ -111,7 +111,7 @@ class M3uUtil {
       // 如果没有缓存数据，创建一个新的空收藏列表
       PlaylistModel favoritePlaylist = PlaylistModel(
         playList: {
-          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 确保结构和播放列表一致
+          Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, 
         },
       );
       LogUtil.i('创建的收藏列表类型: ${favoritePlaylist.playList.runtimeType}\n创建的收藏列表: ${favoritePlaylist.playList}');
@@ -119,13 +119,16 @@ class M3uUtil {
     } else {
       // 如果本地已有缓存数据，将其转换为 PlaylistModel 对象
       PlaylistModel favoritePlaylist = PlaylistModel.fromString(favoriteData);
-      // 检查并确保 playList 类型正确
-      if (favoritePlaylist.playList is Map<String, dynamic> && favoritePlaylist.playList != null) {
-        favoritePlaylist.playList = {
-          Config.myFavoriteKey: (favoritePlaylist.playList![Config.myFavoriteKey] as Map<String, dynamic>?)?.map(
-                (key, value) => MapEntry(key, value as Map<String, PlayModel>),
-              ) ?? <String, Map<String, PlayModel>>{},
-        };
+      if (favoritePlaylist.playList is! Map<String, Map<String, Map<String, PlayModel>>> && favoritePlaylist.playList != null) {
+        final Map<String, dynamic> rawMap = favoritePlaylist.playList as Map<String, dynamic>;
+        favoritePlaylist.playList = rawMap.map(
+          (key, value) => MapEntry(
+            key,
+            (value as Map<String, dynamic>).map(
+              (k, v) => MapEntry(k, v as Map<String, PlayModel>),
+            ),
+          ),
+        );
       }
       LogUtil.i('缓存的收藏列表: ${favoriteData}\n解析后的收藏列表: ${favoritePlaylist}\n解析后的收藏列表类型: ${favoritePlaylist.playList.runtimeType}');
       return favoritePlaylist;
@@ -137,8 +140,6 @@ class M3uUtil {
       Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist,
       PlaylistModel favoritePlaylist) {
     final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-
-    // 直接使用 favoritePlaylist.playList 的值，确保类型安全
     final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey] ?? <String, Map<String, PlayModel>>{};
 
     // 如果原始播放列表中已有同名的收藏列表，使用本地收藏列表替换它
@@ -318,7 +319,7 @@ class M3uUtil {
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     try {
       PlaylistModel mergedPlaylist = PlaylistModel();
-      mergedPlaylist.playList = {};
+      mergedPlaylist.playList = <String, Map<String, Map<String, PlayModel>>>{};
 
       // 使用ID映射表记录已合并的频道，避免重复处理
       Map<String, PlayModel> mergedChannelsById = {};
@@ -326,8 +327,7 @@ class M3uUtil {
       // 遍历所有播放列表进行合并
       for (PlaylistModel playlist in playlists) {
         playlist.playList?.forEach((category, groups) {
-          mergedPlaylist.playList ??= {};
-          mergedPlaylist.playList![category] ??= {};
+          mergedPlaylist.playList![category] ??= <String, Map<String, PlayModel>>{};
 
           groups.forEach((groupTitle, channels) {
             mergedPlaylist.playList![category]![groupTitle] ??= {};
@@ -389,7 +389,8 @@ class M3uUtil {
     try {
       // 按行分割M3U文件内容
       final lines = m3u.split(RegExp(r'\r?\n'));
-      final playListModel = PlaylistModel()..playList = {};
+      final playListModel = PlaylistModel()
+        ..playList = <String, Map<String, Map<String, PlayModel>>>{};
       String currentCategory = Config.allChannelsKey; // 默认分类
       String tempGroupTitle = '';
       String tempChannelName = '';
@@ -474,8 +475,8 @@ class M3uUtil {
     final tempChannelName = lineList.last;
 
     // 获取或创建分类、分组和频道的嵌套结构
-    Map<String, Map<String, PlayModel>> categoryMap = model.playList?[currentCategory] ?? {};
-    Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? {};
+    Map<String, Map<String, PlayModel>> categoryMap = model.playList?[currentCategory] ?? <String, Map<String, PlayModel>>{};
+    Map<String, PlayModel> groupMap = categoryMap[tempGroupTitle] ?? <String, PlayModel>{};
     PlayModel channel = groupMap[tempChannelName] ??
         PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
@@ -507,8 +508,14 @@ class M3uUtil {
       String tempGroupTitle, String tempChannelName) {
     if (line.isNotEmpty) {
       // 确保URLs列表已初始化
-      model.playList?[currentCategory]?[tempGroupTitle]?[tempChannelName]?.urls ??= [];
-      // 添加链接到URLs列表
+      model.playList?[currentCategory] ??= <String, Map<String, PlayModel>>{};
+      model.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
+      model.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??= PlayModel(
+        id: '',
+        group: tempGroupTitle,
+        title: tempChannelName,
+        urls: [],
+      );
       model.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
     }
   }
