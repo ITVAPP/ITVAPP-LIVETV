@@ -145,28 +145,38 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
     
-    // 合并状态更新为一次调用
     setState(() {
       toastString = '${_currentChannel!.title} - $sourceName  ${S.current.loading}';
       isPlaying = false;
       isBuffering = false;
-      _isSwitchingChannel = true; // 将切换状态提前设置，避免竞态问题
     });
 
     try {
-      int waitAttempts = 0;
-      final maxWaitAttempts = 5;
-      while (_isSwitchingChannel && waitAttempts < maxWaitAttempts) {
-        LogUtil.i('等待上一次的播放器处理完成后再开始播放: 尝试 ${waitAttempts + 1}/$maxWaitAttempts');
-        await Future.delayed(const Duration(milliseconds: 1000));
-        waitAttempts++;
+      // 检查上一次播放是否完成
+      if (_playerController != null && _isSwitchingChannel) {
+        int waitAttempts = 0;
+        final maxWaitAttempts = 3;
+        while (_isSwitchingChannel && waitAttempts < maxWaitAttempts) {
+          // 提前退出条件，检查播放器是否已停止或清理
+          if (_playerController == null || !(_playerController!.isPlaying() ?? false)) {
+            LogUtil.i('旧播放器已停止或清理，提前退出等待');
+            break;
+          }
+          LogUtil.i('等待上一次播放器清理: 尝试 ${waitAttempts + 1}/$maxWaitAttempts');
+          await Future.delayed(const Duration(milliseconds: 1000));
+          waitAttempts++;
+        }
+        
+        // 超时后强制清理并重置状态
+        if (_isSwitchingChannel && waitAttempts >= maxWaitAttempts) {
+          LogUtil.e('等待超时，强制清理旧播放器');
+          await _cleanupController(_playerController);
+          _isSwitchingChannel = false; // 确保超时后状态重置
+        }
       }
       
-      if (_isSwitchingChannel && waitAttempts >= maxWaitAttempts) {
-        LogUtil.e('等待切换超时，强制重置状态');
-        _isSwitchingChannel = false;
-        await _cleanupController(_playerController); // 直接调用合并后的清理方法
-      }
+      // 在清理旧播放器前标记切换状态
+      setState(() => _isSwitchingChannel = true);
       
       // 清理旧播放器
       await _cleanupController(_playerController);
@@ -175,6 +185,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 使用局部变量解析URL，避免类成员冗余
       String url = _currentChannel!.urls![_sourceIndex].toString();
+      LogUtil.i('原始地址：$url');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       _currentPlayUrl = parsedUrl;
       
@@ -437,7 +448,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _cleanupTimers();
 
     if (_retryCount < defaultMaxRetries) {
-      LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}');
+      LogUtil.i('开始重试：${_retryCount}/${defaultMaxRetries}, 重试前 sourceIndex：$_sourceIndex，地址：${_currentChannel!.urls![_sourceIndex]}');
       setState(() {
         _isRetrying = true;
         _retryCount++;
