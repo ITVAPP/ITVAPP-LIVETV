@@ -173,9 +173,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _timeoutActive = false;
       });
 
-      // 设置默认音量为 0.6
-      await _playerController?.setVolume(0.6);
-      LogUtil.i('设置播放器音量为 0.6');
+      // 设置默认音量为 0.8
+      await _playerController?.setVolume(0.8);
+      LogUtil.i('设置播放器音量为 0.8');
 
       await _playerController?.play();
       LogUtil.i('开始播放: $parsedUrl');
@@ -311,6 +311,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           final bool isHls = _isHlsStream(_currentPlayUrl);
           if (!isHls && duration.inSeconds > 0) {
             final remainingTime = duration - position;
+            LogUtil.i('position: $position，duration: $duration，remainingTime: $remainingTime');	
             if (remainingTime.inSeconds <= 20) {
               final nextUrl = _getNextVideoUrl();
               if (nextUrl != null && nextUrl != _nextVideoUrl) {
