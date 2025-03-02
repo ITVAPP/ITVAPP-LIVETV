@@ -37,7 +37,7 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 30)}) {
+  StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 36)}) {
     // 在构造函数中处理 URL
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
@@ -224,7 +224,6 @@ class StreamUrl {
       
       // 优先尝试获取 HLS 流
       if (manifest.hls.isNotEmpty) {
-        // 获取所有HLS视频流并记录详细信息
         final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
         LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
         
