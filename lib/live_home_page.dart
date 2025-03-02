@@ -519,7 +519,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // === 修改部分开始：优化切换到预加载播放器方法 ===
   void _switchToPreloadedPlayer(BetterPlayerController oldController) async {
     if (_nextPlayerController == null) {
-      LogUtil.w('预加载播放器未准备好，无法切换');
+      LogUtil.i('预加载播放器未准备好，无法切换');
       return;
     }
 
@@ -653,7 +653,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('重新解析完成，直接切换到新播放器');
         _switchToPreloadedPlayer(_playerController!);
       } else {
-        LogUtil.w('预加载未完成，无法切换');
+        LogUtil.i('预加载未完成，无法切换');
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析出错', e, stackTrace);
