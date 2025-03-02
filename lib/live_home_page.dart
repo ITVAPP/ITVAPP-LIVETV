@@ -31,7 +31,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 主页面
 class LiveHomePage extends StatefulWidget {
-  final PlaylistModel m3uData; // 接收上个页面的 PlaylistModel 数据
+  final PlaylistModel m3uData;
   const LiveHomePage({super.key, required this.m3uData});
 
   @override
@@ -39,95 +39,44 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-  // 超时重试次数
   static const int defaultMaxRetries = 1;
-  
-  // 超时检测的时间
   static const int defaultTimeoutSeconds = 32;
 
-  // === 修改部分开始：新增缓冲区监控相关变量 ===
-  Timer? _bufferMonitorTimer; // 定时器，用于定期检查缓冲区状态
-  Duration? _lastBufferedPosition; // 上次记录的缓冲区位置
-  int _bufferStallCount = 0; // 缓冲区无增长的连续检查次数计数器
-  static const int bufferStallThreshold = 5; // 缓冲区无增长阈值（5次检查 = 10秒）
+  // === 修改部分开始：新增 HLS 缓冲区剩余时间监控变量 ===
+  List<int> _recentRemainingBuffers = []; // 记录最近 3 次 HLS 缓冲区剩余时间
+  bool _isParsing = false; // 解析状态标志，避免重复解析
+  Duration? _lastBufferedPosition; // 上次缓冲区位置，用于日志记录
   // === 修改部分结束 ===
 
-  // 重试相关的状态管理
   bool _isRetrying = false;
   Timer? _retryTimer;
-  
-  // 存储加载状态的提示文字
   String toastString = S.current.loading;
-
-  // 视频播放列表的数据模型
   PlaylistModel? _videoMap;
-
-  // 当前播放的频道数据模型
   PlayModel? _currentChannel;
-
-  // 当前选中的视频源索引
   int _sourceIndex = 0;
-
-  // 视频播放器控制器
   BetterPlayerController? _playerController;
-  
-  // 预加载控制器
   BetterPlayerController? _nextPlayerController;
-
-  // 是否处于缓冲状态
   bool isBuffering = false;
-
-  // 是否正在播放
   bool isPlaying = false;
-
-  // 视频的宽高比
   double aspectRatio = 1.78;
-
-  // 标记侧边抽屉（频道选择）是否打开
   bool _drawerIsOpen = false;
-
-  // 重试次数计数器
   int _retryCount = 0;
-
-  // 等待超时检测
   bool _timeoutActive = false;
-
-  // 是否处于释放状态
   bool _isDisposing = false;
-
-  // 切换时的竞态条件
   bool _isSwitchingChannel = false;
-
-  // 标记是否需要更新宽高比
   bool _shouldUpdateAspectRatio = true;
-
-  // 声明变量，存储 StreamUrl 类的实例
   StreamUrl? _streamUrl;
-
-  // 当前播放URL
   String? _currentPlayUrl;
-
-  // 下一个视频地址
   String? _nextVideoUrl;
 
-  // 收藏列表相关
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
-  
-  // 抽屉刷新键
   ValueKey<int>? _drawerRefreshKey;
-
-  // 流量统计
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
-
-  // 音频检测状态
   bool _isAudio = false;
-
-  // 计时器，用于检测连续播放60秒
   Timer? _playDurationTimer;
 
-  // 将音频流检查提取为独立方法
   bool _checkIsAudioStream(String? url) {
     if (url == null || url.isEmpty) return false;
     const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
@@ -136,7 +85,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
   }
 
-  // 将HLS流检查提取为独立方法
   bool _isHlsStream(String? url) {
     if (url == null || url.isEmpty) return false;
     const formats = [
@@ -145,13 +93,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     ];
     return !formats.any(url.toLowerCase().contains);
   }
-  
-  /// 播放前解析频道的视频源 
+
   Future<void> _playVideo() async {
     if (_currentChannel == null) return;
-    
+
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
-    
+
     setState(() {
       toastString = '${_currentChannel!.title} - $sourceName  ${S.current.loading}';
       isPlaying = false;
@@ -159,12 +106,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
 
     try {
-      // 检查上一次播放是否完成
       if (_playerController != null && _isSwitchingChannel) {
         int waitAttempts = 0;
         final maxWaitAttempts = 3;
         while (_isSwitchingChannel && waitAttempts < maxWaitAttempts) {
-          // 提前退出条件，检查播放器是否已停止或清理
           if (_playerController == null || !(_playerController!.isPlaying() ?? false)) {
             LogUtil.i('旧播放器已停止或清理，提前退出等待');
             break;
@@ -173,29 +118,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
           await Future.delayed(const Duration(milliseconds: 1000));
           waitAttempts++;
         }
-        
-        // 超时后强制清理并重置状态
         if (_isSwitchingChannel && waitAttempts >= maxWaitAttempts) {
           LogUtil.e('等待超时，强制清理旧播放器');
           await _cleanupController(_playerController);
-          _isSwitchingChannel = false; // 确保超时后状态重置
+          _isSwitchingChannel = false;
         }
       }
-      
-      // 在清理旧播放器前标记切换状态
+
       setState(() => _isSwitchingChannel = true);
-      
-      // 清理旧播放器
+
       await _cleanupController(_playerController);
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      
-      // 使用局部变量解析URL，避免类成员冗余
+
       String url = _currentChannel!.urls![_sourceIndex].toString();
+      LogUtil.i('开始解析播放地址: $url');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       _currentPlayUrl = parsedUrl;
-      
+
       if (parsedUrl == 'ERROR') {
+        LogUtil.e('播放地址解析失败: $url');
         setState(() {
           toastString = S.current.vpnplayError;
           _isSwitchingChannel = false;
@@ -205,32 +147,28 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       bool isDirectAudio = _checkIsAudioStream(parsedUrl);
       setState(() => _isAudio = isDirectAudio);
-      
+
       final bool isHls = _isHlsStream(parsedUrl);
-      LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为hls流：$isHls');
+      LogUtil.i('准备播放：$parsedUrl ,音频：$isDirectAudio ,是否为HLS流：$isHls');
 
       final dataSource = BetterPlayerConfig.createDataSource(url: parsedUrl, isHls: isHls);
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
         eventListener: _videoListener,
         isHls: isHls,
       );
-      
+
       BetterPlayerController newController = BetterPlayerController(betterPlayerConfiguration);
 
-      try {
-        await newController.setupDataSource(dataSource);
-      } catch (e, stackTrace) {
-        LogUtil.logError('初始化出错', e, stackTrace);
-        _handleSourceSwitching();
-        return; 
-      }
-      
+      await newController.setupDataSource(dataSource);
+      LogUtil.i('播放器数据源设置完成: $parsedUrl');
+
       setState(() {
         _playerController = newController;
         _timeoutActive = false;
       });
-      
+
       await _playerController?.play();
+      LogUtil.i('开始播放: $parsedUrl');
     } catch (e, stackTrace) {
       LogUtil.logError('播放出错', e, stackTrace);
       _handleSourceSwitching();
@@ -241,8 +179,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // === 修改部分开始：更新播放器监听方法以结合 HLS 失效和非 HLS 播放完毕切换 ===
-  /// 播放器监听方法
+  // === 修改部分开始：优化播放器监听方法 ===
   void _videoListener(BetterPlayerEvent event) {
     if (!mounted || _playerController == null || _isDisposing) return;
 
@@ -255,17 +192,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
               aspectRatio = newAspectRatio;
               _shouldUpdateAspectRatio = false;
             });
+            LogUtil.i('播放器初始化完成，更新宽高比为: $newAspectRatio');
           }
         }
         break;
 
       case BetterPlayerEventType.exception:
-        if (_isRetrying || !_isSwitchingChannel) {
-          final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
-          LogUtil.e('监听到播放器错误：$errorMessage');
-          _playDurationTimer?.cancel();
-          _retryPlayback();
+        if (_isParsing) {
+          LogUtil.i('正在解析中，忽略异常: ${event.parameters?["error"] ?? "Unknown error"}');
+          return;
         }
+        final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
+        LogUtil.e('监听到播放器错误: $errorMessage');
+        _playDurationTimer?.cancel();
+        _retryPlayback();
         break;
 
       case BetterPlayerEventType.bufferingStart:
@@ -275,14 +215,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = S.current.loading;
         });
         _startTimeoutCheck();
-        _startBufferMonitor(); // 启动缓冲区监控，主要用于 HLS 流
         break;
 
       case BetterPlayerEventType.bufferingUpdate:
         final buffered = event.parameters?["bufferedPosition"] as Duration?;
         if (buffered != null) {
           _lastBufferedPosition = buffered;
-          _bufferStallCount = 0; // 缓冲区更新时重置计数器
+          LogUtil.i('缓冲区更新: $buffered');
         }
         break;
 
@@ -293,7 +232,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = 'HIDE_CONTAINER';
         });
         _cleanupTimers();
-        _stopBufferMonitor(); // 停止缓冲区监控
         break;
 
       case BetterPlayerEventType.play:
@@ -305,6 +243,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             }
           });
           _startPlayDurationTimer();
+          LogUtil.i('播放开始');
         }
         break;
 
@@ -315,6 +254,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             toastString = S.current.playpause;
           });
           _playDurationTimer?.cancel();
+          LogUtil.i('播放暂停');
         }
         break;
 
@@ -324,23 +264,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (position != null && duration != null) {
           final bool isHls = _isHlsStream(_currentPlayUrl);
           if (!isHls && duration.inSeconds > 0) {
-            // 非 HLS 流：播放接近结束时预加载下一源
+            // 非 HLS 流：提前 20 秒预加载，剩余 3 秒切换
             final remainingTime = duration - position;
-            if (remainingTime.inSeconds <= 15) {
+            if (remainingTime.inSeconds <= 20) {
               final nextUrl = _getNextVideoUrl();
               if (nextUrl != null && nextUrl != _nextVideoUrl) {
                 _nextVideoUrl = nextUrl;
+                LogUtil.i('非 HLS 剩余时间少于 20 秒，开始预加载下一源: $nextUrl');
                 _preloadNextVideo(nextUrl);
               }
             }
-          } else if (isHls && _nextPlayerController != null) {
-            // HLS 流：缓冲区剩余时间少于3秒时切换
+            if (remainingTime.inSeconds <= 3 && _nextPlayerController != null) {
+              LogUtil.i('非 HLS 剩余时间少于 3 秒，切换到预加载播放器');
+              _switchToPreloadedPlayer(_playerController!);
+            }
+          } else if (isHls) {
+            // HLS 流：检查缓冲区剩余时间，连续减少至 20 秒触发重新解析
             final bufferedPosition = _playerController?.videoPlayerController?.value.buffered?.last.end;
             if (bufferedPosition != null) {
               final remainingBuffer = bufferedPosition - position;
-              if (remainingBuffer.inSeconds <= 3) {
-                LogUtil.i('HLS 缓冲区剩余少于3秒，切换到预加载播放器');
-                _switchToPreloadedPlayer(_playerController!);
+              int remainingSec = remainingBuffer.inSeconds;
+              _recentRemainingBuffers.add(remainingSec);
+              if (_recentRemainingBuffers.length > 3) _recentRemainingBuffers.removeAt(0);
+              LogUtil.i('HLS 当前缓冲区剩余时间: $remainingSec 秒，最近记录: $_recentRemainingBuffers');
+              if (_recentRemainingBuffers.length == 3 &&
+                  _recentRemainingBuffers[0] > _recentRemainingBuffers[1] &&
+                  _recentRemainingBuffers[1] > _recentRemainingBuffers[2] &&
+                  remainingSec <= 20) {
+                LogUtil.i('HLS 缓冲区连续减少且剩余 ≤ 20 秒，触发重新解析');
+                _reparseAndSwitch();
               }
             }
           }
@@ -348,7 +300,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.finished:
-        handleFinishedEvent();
+        if (!_isHlsStream(_currentPlayUrl) && _nextPlayerController != null && _nextVideoUrl != null) {
+          LogUtil.i('非 HLS 播放结束，切换到预加载播放器');
+          _handleSourceSwitching(isFromFinished: true, oldController: _playerController);
+        } else if (_isHlsStream(_currentPlayUrl)) {
+          LogUtil.i('HLS 流异常结束，尝试重试播放');
+          _retryPlayback();
+        } else {
+          LogUtil.i('无更多源可播放');
+          _handleNoMoreSources();
+        }
         break;
 
       default:
@@ -360,7 +321,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   // === 修改部分结束 ===
 
-  /// 启动播放时长计时器
   void _startPlayDurationTimer() {
     _playDurationTimer?.cancel();
     _playDurationTimer = Timer(const Duration(seconds: 60), () {
@@ -373,7 +333,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  /// 处理播放结束事件
   Future<void> handleFinishedEvent() async {
     if (!_isHlsStream(_currentPlayUrl) && _nextPlayerController != null && _nextVideoUrl != null) {
       _handleSourceSwitching(isFromFinished: true, oldController: _playerController);
@@ -384,18 +343,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // === 修改部分开始：更新预加载方法以适应两种情况 ===
-  /// 预加载方法
+  // === 修改部分开始：优化预加载方法 ===
   Future<void> _preloadNextVideo(String url) async {
     if (_isDisposing || _isSwitchingChannel) return;
     _cleanupPreload();
-    
+
     try {
+      LogUtil.i('开始预加载视频: $url');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       if (parsedUrl == 'ERROR') {
-        LogUtil.e('预加载解析URL失败');
+        LogUtil.e('预加载解析URL失败: $url');
         return;
       }
+      LogUtil.i('预加载解析完成: $parsedUrl');
 
       final nextSource = BetterPlayerConfig.createDataSource(
         isHls: _isHlsStream(parsedUrl),
@@ -408,18 +368,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
 
       final preloadController = BetterPlayerController(betterPlayerConfiguration);
-
       await preloadController.setupDataSource(nextSource);
-      
+      LogUtil.i('预加载数据源设置完成: $parsedUrl');
+
       _nextPlayerController = preloadController;
       _nextVideoUrl = url;
     } catch (e, stackTrace) {
-      LogUtil.logError('预加载异常', e, stackTrace);
+      LogUtil.logError('预加载异常: $url', e, stackTrace);
     }
   }
   // === 修改部分结束 ===
 
-  /// 预加载控制器的事件监听
   void _setupNextPlayerListener(BetterPlayerEvent event) {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.setupDataSource:
@@ -434,56 +393,56 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
     }
   }
-        
-  /// 清理预加载资源
+
   void _cleanupPreload() {
     _nextPlayerController?.dispose();
     _nextPlayerController = null;
     _nextVideoUrl = null;
+    LogUtil.i('清理预加载资源完成');
   }
 
-  /// 超时检测方法
   void _startTimeoutCheck() {
     if (_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) return;
-    
+
     _timeoutActive = true;
-    
+
     Timer(Duration(seconds: defaultTimeoutSeconds), () {
       if (!mounted || !_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
         _timeoutActive = false;
         return;
       }
-      
+
       if (_playerController?.videoPlayerController == null) {
         LogUtil.e('超时检查：播放器控制器无效');
         _handleSourceSwitching();
         _timeoutActive = false;
         return;
       }
-      
+
       if (isBuffering) {
         LogUtil.e('缓冲超时，切换下一个源');
         _handleSourceSwitching();
       }
-      
+
       _timeoutActive = false;
     });
   }
 
-  /// 重试播放方法，用于重新尝试播放失败的视频（修改部分）
   void _retryPlayback() {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
-    
+
     _cleanupTimers();
 
     if (_retryCount < defaultMaxRetries) {
       setState(() {
         _isRetrying = true;
         _retryCount++;
-        isBuffering = false; 
+        isBuffering = false;
         toastString = S.current.retryplay;
       });
-      
+
+      LogUtil.i('尝试第 ${_retryCount} 次重试播放');
+
       _retryTimer = Timer(const Duration(seconds: 2), () async {
         if (!mounted || _isSwitchingChannel || _isDisposing) {
           LogUtil.i('重试被阻断，条件：mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
@@ -494,7 +453,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (mounted) {
           setState(() {
             _isRetrying = false;
-            // 检查播放器状态
             if (_playerController?.isPlaying() ?? false) {
               isPlaying = true;
               _startPlayDurationTimer();
@@ -503,11 +461,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
       });
     } else {
+      LogUtil.i('重试次数达到上限，切换到下一源');
       _handleSourceSwitching();
     }
   }
 
-  /// 获取下一个视频地址，返回 null 表示没有更多源
   String? _getNextVideoUrl() {
     final List<String>? urls = _currentChannel?.urls;
     if (urls == null || urls.isEmpty) return null;
@@ -516,19 +474,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return urls[nextSourceIndex];
   }
 
-  /// 视频源切换的核心逻辑
   void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
     if (_isRetrying || _isDisposing) return;
-    
+
     _cleanupTimers();
-    
+
     final nextUrl = _getNextVideoUrl();
     if (nextUrl == null) {
-      _handleNoMoreSources(); 
+      LogUtil.i('无更多视频源可切换');
+      _handleNoMoreSources();
       return;
     }
 
-    // 状态更新
     setState(() {
       _sourceIndex++;
       _isRetrying = false;
@@ -538,14 +495,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
 
     if (isFromFinished && oldController != null && _nextPlayerController != null) {
-      // 非 HLS 流播放完毕时直接切换
+      LogUtil.i('非 HLS 播放完毕，直接切换到预加载播放器');
       _switchToPreloadedPlayer(oldController);
     } else {
+      LogUtil.i('切换到下一源: $nextUrl');
       _startNewSourceTimer();
     }
   }
 
-  /// 处理没有更多源的情况
   Future<void> _handleNoMoreSources() async {
     setState(() {
       toastString = S.current.playError;
@@ -556,78 +513,94 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryCount = 0;
     });
     await _cleanupController(_playerController);
+    LogUtil.i('无更多源，播放结束');
   }
 
-  // === 修改部分开始：更新切换到预加载播放器方法以保持播放位置 ===
-  /// 切换到预加载的播放器
+  // === 修改部分开始：优化切换到预加载播放器方法 ===
   void _switchToPreloadedPlayer(BetterPlayerController oldController) async {
-    if (_nextPlayerController == null) return;
+    if (_nextPlayerController == null) {
+      LogUtil.w('预加载播放器未准备好，无法切换');
+      return;
+    }
 
+    LogUtil.i('开始切换到预加载播放器，当前URL: $_currentPlayUrl -> $_nextVideoUrl');
     setState(() {
-      _playerController = _nextPlayerController;
-      _nextPlayerController = null;
-      _currentPlayUrl = _nextVideoUrl;
-      _nextVideoUrl = null;
-      _shouldUpdateAspectRatio = true;
+      toastString = S.current.loading; // 显示加载提示
     });
 
     try {
+      await oldController.pause();
+      oldController.videoPlayerController?.setVolume(0); // 静音减少中断感
+      await Future.delayed(const Duration(milliseconds: 300)); // 延迟销毁旧播放器
+
+      setState(() {
+        _playerController = _nextPlayerController;
+        _nextPlayerController = null;
+        _currentPlayUrl = _nextVideoUrl;
+        _nextVideoUrl = null;
+        _shouldUpdateAspectRatio = true;
+        _recentRemainingBuffers.clear(); // 重置 HLS 缓冲记录
+      });
+
       _playerController?.addEventsListener(_videoListener);
       final currentPosition = oldController.videoPlayerController?.value.position ?? Duration.zero;
-      await _playerController?.seekTo(currentPosition); // 保持当前播放位置
+      LogUtil.i('切换播放器，保持位置: $currentPosition');
+      await _playerController?.seekTo(currentPosition);
       await _playerController?.play();
+
+      oldController.dispose();
+      LogUtil.i('切换到新播放器完成，隐藏加载提示');
+      setState(() => toastString = 'HIDE_CONTAINER');
     } catch (e, stackTrace) {
-      LogUtil.logError('切换到预加载视频时出错', e, stackTrace);
+      LogUtil.logError('切换到预加载播放器出错', e, stackTrace);
       _handleSourceSwitching();
     }
-    
-    oldController.dispose();
   }
   // === 修改部分结束 ===
 
-  /// 启动新源的计时器
   void _startNewSourceTimer() {
     _cleanupTimers();
-    
+
     _retryTimer = Timer(const Duration(seconds: 2), () async {
       if (!mounted || _isSwitchingChannel) return;
       await _playVideo();
     });
   }
 
-  // === 修改部分开始：更新清理控制器方法以包含缓冲区监控清理 ===
-  /// 清理控制器资源（合并原 _disposePlayer 和 _cleanupPreload 的逻辑）
+  // === 修改部分开始：优化清理控制器方法 ===
   Future<void> _cleanupController(BetterPlayerController? controller) async {
     if (controller == null) return;
-    
+
     _isDisposing = true;
-    
+
     try {
+      LogUtil.i('开始清理播放器控制器');
       setState(() {
         _cleanupTimers();
-        _stopBufferMonitor(); // 清理缓冲区监控定时器
         _isAudio = false;
         _playerController = null;
+        _recentRemainingBuffers.clear(); // 清理 HLS 缓冲记录
       });
-      
+
       controller.removeEventsListener(_videoListener);
       if (controller.isPlaying() ?? false) {
         await controller.pause();
         controller.videoPlayerController?.setVolume(0);
         await Future.delayed(const Duration(milliseconds: 300));
       }
-      
+
       if (_streamUrl != null) {
         await _streamUrl!.dispose();
         _streamUrl = null;
       }
-      
+
       controller.videoPlayerController?.dispose();
       await Future.delayed(const Duration(milliseconds: 300));
       controller.dispose();
-      _nextPlayerController?.dispose(); // 同时清理预加载控制器
+      _nextPlayerController?.dispose();
       _nextPlayerController = null;
       _nextVideoUrl = null;
+      LogUtil.i('播放器控制器清理完成');
     } catch (e, stackTrace) {
       LogUtil.logError('释放播放器资源时出错', e, stackTrace);
     } finally {
@@ -638,7 +611,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   // === 修改部分结束 ===
 
-  /// 释放 StreamUrl 实例
   Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
       await _streamUrl!.dispose();
@@ -646,7 +618,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 清理所有计时器
   void _cleanupTimers() {
     _retryTimer?.cancel();
     _retryTimer = null;
@@ -655,66 +626,49 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false;
   }
 
-  // === 修改部分开始：新增缓冲区监控方法和重新解析切换方法 ===
-  /// 启动缓冲区监控（仅用于 HLS 流）
-  void _startBufferMonitor() {
-    _bufferMonitorTimer?.cancel();
-    _bufferMonitorTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || !_isHlsStream(_currentPlayUrl)) {
-        timer.cancel();
-        return;
-      }
-      final currentBuffered = _playerController?.videoPlayerController?.value.buffered?.last.end;
-      if (currentBuffered != null && _lastBufferedPosition != null) {
-        if (currentBuffered == _lastBufferedPosition) {
-          _bufferStallCount++;
-          if (_bufferStallCount >= bufferStallThreshold) {
-            LogUtil.e('HLS 缓冲区 ${bufferStallThreshold * 2} 秒内无增长，疑似地址失效');
-            _reparseAndSwitch();
-            timer.cancel();
-          }
-        } else {
-          _bufferStallCount = 0; // 缓冲区增长时重置计数器
-        }
-      }
-      _lastBufferedPosition = currentBuffered ?? _lastBufferedPosition;
-    });
-  }
-
-  /// 停止缓冲区监控
-  void _stopBufferMonitor() {
-    _bufferMonitorTimer?.cancel();
-    _bufferMonitorTimer = null;
-    _bufferStallCount = 0;
-  }
-
-  /// 重新解析当前源地址并切换（用于 HLS 流）
+  // === 修改部分开始：优化重新解析方法 ===
   Future<void> _reparseAndSwitch() async {
-    if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
+    if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
+      LogUtil.i('重新解析被阻止，当前状态: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
+      return;
+    }
+
+    _isParsing = true;
     setState(() => _isRetrying = true);
+    LogUtil.i('HLS 开始重新解析当前源');
+
     try {
       String url = _currentChannel!.urls![_sourceIndex].toString();
+      LogUtil.i('重新解析地址: $url');
       String newParsedUrl = await StreamUrl(url).getStreamUrl();
       if (newParsedUrl == 'ERROR') {
-        LogUtil.e('重新解析地址失败');
+        LogUtil.e('重新解析地址失败: $url');
         _handleSourceSwitching();
         return;
       }
       _currentPlayUrl = newParsedUrl;
-      await _preloadNextVideo(newParsedUrl); // 预加载新解析的地址
+      LogUtil.i('重新解析成功，新地址: $newParsedUrl');
+      await _preloadNextVideo(newParsedUrl);
+      if (_nextPlayerController != null && mounted) {
+        LogUtil.i('重新解析完成，直接切换到新播放器');
+        _switchToPreloadedPlayer(_playerController!);
+      } else {
+        LogUtil.w('预加载未完成，无法切换');
+      }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析出错', e, stackTrace);
       _handleSourceSwitching();
     } finally {
-      setState(() => _isRetrying = false);
+      _isParsing = false;
+      if (mounted) setState(() => _isRetrying = false);
+      LogUtil.i('重新解析流程结束');
     }
   }
   // === 修改部分结束 ===
 
-  /// 处理频道切换操作
   Future<void> _onTapChannel(PlayModel? model) async {
     if (model == null) return;
-    
+
     try {
       setState(() {
         isBuffering = false;
@@ -726,9 +680,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _retryCount = 0;
         _shouldUpdateAspectRatio = true;
       });
-      
+
       await _playVideo();
-      
+
       if (Config.Analytics) {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
@@ -736,17 +690,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.logError('切换频道失败', e, stackTrace);
       setState(() => toastString = S.current.playError);
       await _cleanupController(_playerController);
-    } 
+    }
   }
 
-  /// 切换视频源方法（手动按钮切换）
   Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources?.isEmpty ?? true) {
       LogUtil.e('未找到有效的视频源');
       return;
     }
-    
+
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
     if (selectedIndex != null && _sourceIndex != selectedIndex) {
       setState(() {
@@ -758,11 +711,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 处理返回按键逻辑，返回值为 true 表示退出应用，false 表示不退出
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       setState(() => _drawerIsOpen = false);
-      return false; 
+      return false;
     }
 
     bool wasPlaying = _playerController?.isPlaying() ?? false;
@@ -773,7 +725,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return shouldExit;
   }
 
-  /// 初始化方法
   @override
   void initState() {
     super.initState();
@@ -782,7 +733,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _extractFavoriteList();
   }
 
-  /// 清理所有资源
   @override
   void dispose() {
     _cleanupTimers();
@@ -794,15 +744,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
     super.dispose();
   }
 
-  /// 发送页面访问统计数据
   Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
     if (channelName != null && channelName.isNotEmpty) {
       try {
         bool? isFirstInstall = SpUtil.getBool('is_first_install');
         bool isTV = context.watch<ThemeProvider>().isTV;
-        
+
         String deviceType = isTV ? "TV" : "Other";
-        
+
         if (isFirstInstall == null) {
           await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: deviceType);
           await SpUtil.putBool('is_first_install', true);
@@ -815,15 +764,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 异步加载视频数据
   Future<void> _loadData() async {
-    setState(() { 
+    setState(() {
       _isRetrying = false;
       _cleanupTimers();
       _retryCount = 0;
       _isAudio = false;
     });
-    
+
     if (widget.m3uData.playList == null || widget.m3uData.playList!.isEmpty) {
       LogUtil.e('传入的播放列表无效');
       setState(() => toastString = S.current.getDefaultError);
@@ -840,18 +788,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 处理播放列表
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
 
       if (_currentChannel != null) {
         if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
-        
+
         setState(() {
           _retryCount = 0;
           _timeoutActive = false;
-          _playVideo(); 
+          _playVideo();
         });
       } else {
         setState(() {
@@ -868,7 +815,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 从播放列表中动态提取第一个有效频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     try {
       for (final categoryEntry in playList.entries) {
@@ -896,7 +842,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return null;
   }
 
-  /// 从传递的播放列表中提取"我的收藏"部分
   void _extractFavoriteList() {
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
@@ -905,29 +850,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 获取当前频道的分组名字
   String getGroupName(String channelId) => _currentChannel?.group ?? '';
-
-  // 获取当前频道名字
   String getChannelName(String channelId) => _currentChannel?.title ?? '';
-
-  // 获取线路名称
   String _getSourceDisplayName(String url, int index) {
     if (url.contains('\$')) return url.split('\$')[1].trim();
     return S.current.lineIndex(index + 1);
   }
-
-  // 获取当前频道的播放地址列表
   List<String> getPlayUrls(String channelId) => _currentChannel?.urls ?? [];
-
-  // 检查当前频道是否已收藏
   bool isChannelFavorite(String channelId) {
     String groupName = getGroupName(channelId);
     String channelName = getChannelName(channelId);
     return favoriteList[Config.myFavoriteKey]?[groupName]?.containsKey(channelName) ?? false;
   }
 
-  // 添加或取消收藏
   void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
@@ -975,7 +910,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 使用 _videoMap，避免从本地读取
   Future<void> _parseData() async {
     try {
       if (_videoMap == null || _videoMap!.playList == null || _videoMap!.playList!.isEmpty) {
@@ -1042,7 +976,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               ),
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
-              currentChannelLogo: _currentChannel?.logo ?? '', 
+              currentChannelLogo: _currentChannel?.logo ?? '',
               currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
               isChannelFavorite: isChannelFavorite,
               isAudio: _isAudio,
