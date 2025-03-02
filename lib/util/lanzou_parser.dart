@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 缓存条目类
 class CacheEntry {
@@ -49,20 +50,19 @@ class LanzouParser {
   /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
   static Future<String?> _getFinalUrl(String url) async {
     int retryCount = 0;
-    final httpUtil = HttpUtil(); // 使用 HttpUtil 单例
     while (retryCount < maxRetries) {
       try {
-        // 发送 HEAD 请求，禁用自动重定向，使用新方法获取完整 Response
-        final response = await httpUtil.getRequestWithResponse(
+        final response = await HttpUtil().getRequestWithResponse(
           url,
           options: Options(
-            method: 'HEAD', // 指定 HEAD 方法
-            followRedirects: false, // 禁用自动跟随重定向
-            headers: HeadersConfig.generateHeaders(url: url), // 使用动态生成的 headers
-            receiveTimeout: requestTimeout, // 设置接收超时时间
+            method: 'HEAD',
+            headers: HeadersConfig.generateHeaders(url: url),
+            followRedirects: false,
+            connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+            receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
           ),
-        );
-
+        ).timeout(requestTimeout); // 添加超时处理
+        
         if (response != null) {
           if (response.statusCode == 302 || response.statusCode == 301) {
             final redirectUrl = response.headers.value('location');
@@ -71,12 +71,10 @@ class LanzouParser {
               return redirectUrl;
             }
           } else if (response.statusCode == 200) {
-            LogUtil.i('HEAD 请求成功，无重定向，返回原始 URL: $url');
             return url;
           }
+          
           LogUtil.i('未获取到重定向URL，状态码: ${response.statusCode}');
-        } else {
-          LogUtil.i('HEAD 请求未返回有效响应');
         }
       } catch (e, stack) {
         LogUtil.logError('获取最终URL时发生错误', e, stack);
@@ -202,40 +200,37 @@ class LanzouParser {
     String? body,
   }) async {
     int retryCount = 0;
-    final httpUtil = HttpUtil(); // 使用 HttpUtil 单例
     while (retryCount < maxRetries) {
       try {
         final headers = HeadersConfig.generateHeaders(url: url);
-        
         if (method.toUpperCase() == 'POST') {
           headers['Content-Type'] = 'application/x-www-form-urlencoded';
-          // 发送 POST 请求
-          final response = await httpUtil.postRequest<String>(
-            url,
-            data: body,
-            options: Options(
-              headers: headers,
-              receiveTimeout: requestTimeout, // 设置接收超时时间
-            ),
-          );
-          if (response != null) {
-            return response;
-          }
-          LogUtil.i('HTTP POST 请求失败，返回 null');
-        } else {
-          // 发送 GET 请求
-          final response = await httpUtil.getRequest<String>(
-            url,
-            options: Options(
-              headers: headers,
-              receiveTimeout: requestTimeout, // 设置接收超时时间
-            ),
-          );
-          if (response != null) {
-            return response;
-          }
-          LogUtil.i('HTTP GET 请求失败，返回 null');
         }
+
+        final response = method.toUpperCase() == 'POST'
+            ? await HttpUtil().postRequestWithResponse(
+                url,
+                data: body,
+                options: Options(
+                  headers: headers,
+                  connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+                  receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
+                ),
+              ).timeout(requestTimeout)
+            : await HttpUtil().getRequestWithResponse(
+                url,
+                options: Options(
+                  headers: headers,
+                  connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+                  receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
+                ),
+              ).timeout(requestTimeout);
+
+        if (response != null && response.statusCode == 200) {
+          return response.data as String;
+        }
+        
+        LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
       } catch (e) {
         LogUtil.e('HTTP请求异常: $e');
         if (++retryCount < maxRetries) {
