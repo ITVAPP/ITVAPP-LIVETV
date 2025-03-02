@@ -305,7 +305,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               }
               final remainingBuffer = bufferedPosition - position;
               if (positionIncreasing && bufferStalled && remainingBuffer.inSeconds < 8) {
-                LogUtil.w('HLS 当前位置连续 5 次增加且剩余缓冲 < 8 秒，触发提前解析');
+                LogUtil.i('HLS 当前位置连续 5 次增加且剩余缓冲 < 8 秒，触发提前解析');
                 _reparseAndSwitch();
               }
             }
@@ -363,7 +363,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   Future<void> _preloadNextVideo(String url) async {
     if (_isDisposing || _isSwitchingChannel || _playerController == null) {
-      LogUtil.w('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}');
+      LogUtil.i('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}');
       return;
     }
 
@@ -577,7 +577,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
-        LogUtil.w('新地址与当前地址相同，切换下一源');
+        LogUtil.i('新地址与当前地址相同，切换下一源');
         _handleSourceSwitching();
         return;
       }
@@ -611,7 +611,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await _playerController!.setupDataSource(newSource);
         LogUtil.i('切换到新数据源: $newParsedUrl');
       } else {
-        LogUtil.w('播放器控制器为空，无法切换');
+        LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
       }
     } catch (e, stackTrace) {
