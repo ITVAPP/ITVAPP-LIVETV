@@ -58,7 +58,6 @@ class BetterPlayerConfig {
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
-    double volume = 0.6, // 默认音量参数为60%
   }) {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
@@ -84,7 +83,6 @@ class BetterPlayerConfig {
       ],
       // 事件监听器
       eventListener: eventListener,
-      initialVolume: volume, // 设置默认音量
     );
   }
 }
