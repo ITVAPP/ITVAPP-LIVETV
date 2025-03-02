@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 import 'package:itvapp_live_tv/util/getm3u8.dart';
@@ -511,8 +513,8 @@ class StreamUrl {
           receiveTimeout: const Duration(seconds: 12), // 下载超时
         ),
       ).timeout(timeout);
-      
-      if (firstResp != null && firstResp.statusCode >= 300 && firstResp.statusCode < 400) {
+
+      if (firstResp != null && firstResp!.statusCode >= 300 && firstResp!.statusCode < 400) {
         final location = firstResp.headers.value('location');
         if (location != null && location.isNotEmpty) {
           final redirectUri = Uri.parse(url).resolve(location);
