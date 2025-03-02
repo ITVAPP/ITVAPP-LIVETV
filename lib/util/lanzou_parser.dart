@@ -58,8 +58,10 @@ class LanzouParser {
             method: 'HEAD', // 使用 HEAD 方法
             followRedirects: false, // 不自动跟随重定向
             headers: HeadersConfig.generateHeaders(url: url),
-            connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
-            receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+            extra: {
+              'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
+              'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+            },
           ),
         ).timeout(requestTimeout);  // 添加超时处理
         
@@ -213,16 +215,20 @@ class LanzouParser {
                 data: body,
                 options: Options(
                   headers: headers,
-                  connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
-                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+                  extra: {
+                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
+                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+                  },
                 ),
               )
             : await HttpUtil().getRequestWithResponse(
                 url,
                 options: Options(
                   headers: headers,
-                  connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
-                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+                  extra: {
+                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
+                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+                  },
                 ),
               );
 
