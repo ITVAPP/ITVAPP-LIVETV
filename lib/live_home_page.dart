@@ -230,7 +230,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final lastBuffered = _bufferedHistory[2]['buffered'] as Duration;
         final timeDiff = (_bufferedHistory[2]['timestamp'] as int) - (_bufferedHistory[0]['timestamp'] as int);
         if (timeDiff >= 15000 && firstBuffered == lastBuffered) {
-          LogUtil.w('HLS 缓冲区 15 秒无增长，触发重新解析');
+          LogUtil.i('HLS 缓冲区 15 秒无增长，触发重新解析');
           _reparseAndSwitch();
         }
       }
@@ -245,7 +245,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       if (remainingBuffer.inSeconds <= 5 && _preCachedUrl != null) {
         LogUtil.i('非 HLS 剩余时间少于 5 秒，切换到预缓存地址: $_preCachedUrl');
-        _playerController?.setDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false));
+        _playerController?.setupDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false));
       }
     }
   }
@@ -277,7 +277,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_preCachedUrl != null) {
           LogUtil.i('异常触发，切换到预缓存地址: $_preCachedUrl');
           final bool isHls = _isHlsStream(_preCachedUrl);
-          _playerController?.setDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: isHls));
+          _playerController?.setupDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: isHls));
         } else {
           _retryPlayback();
         }
@@ -333,7 +333,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.finished:
         if (!_isHlsStream(_currentPlayUrl) && _preCachedUrl != null) {
           LogUtil.i('非 HLS 播放结束，切换到预缓存地址: $_preCachedUrl');
-          _playerController?.setDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false));
+          _playerController?.setupDataSource(BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false));
         } else if (_isHlsStream(_currentPlayUrl)) {
           LogUtil.i('HLS 流异常结束，重试播放');
           _retryPlayback();
@@ -365,7 +365,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   Future<void> _preloadNextVideo(String url) async {
     if (_isDisposing || _isSwitchingChannel || _playerController == null) {
-      LogUtil.w('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}');
+      LogUtil.i('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}');
       return;
     }
 
@@ -581,7 +581,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
-        LogUtil.w('新地址与当前地址相同，切换下一源');
+        LogUtil.i('新地址与当前地址相同，切换下一源');
         _handleSourceSwitching();
         return;
       }
@@ -597,10 +597,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await _playerController!.preCache(newSource);
         LogUtil.i('预缓存完成: $newParsedUrl');
         _preCachedUrl = newParsedUrl;
-        await _playerController!.setDataSource(newSource);
+        await _playerController!.setupDataSource(newSource);
         LogUtil.i('切换到新数据源: $newParsedUrl');
       } else {
-        LogUtil.w('播放器控制器为空，无法切换');
+        LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
       }
     } catch (e, stackTrace) {
