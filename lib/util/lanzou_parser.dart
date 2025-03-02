@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 缓存条目类
 class CacheEntry {
@@ -55,13 +54,13 @@ class LanzouParser {
         final response = await HttpUtil().getRequestWithResponse(
           url,
           options: Options(
-            method: 'HEAD',
+            method: 'HEAD', // 使用 HEAD 方法
+            followRedirects: false, // 不自动跟随重定向
             headers: HeadersConfig.generateHeaders(url: url),
-            followRedirects: false,
-            connectTimeout: const Duration(seconds: 5), // 自定义连接超时
-            receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
+            connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
+            receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
           ),
-        ).timeout(requestTimeout); // 添加超时处理
+        ).timeout(requestTimeout);  // 添加超时处理
         
         if (response != null) {
           if (response.statusCode == 302 || response.statusCode == 301) {
@@ -213,21 +212,21 @@ class LanzouParser {
                 data: body,
                 options: Options(
                   headers: headers,
-                  connectTimeout: const Duration(seconds: 5), // 自定义连接超时
-                  receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
+                  connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
+                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
                 ),
-              ).timeout(requestTimeout)
+              )
             : await HttpUtil().getRequestWithResponse(
                 url,
                 options: Options(
                   headers: headers,
-                  connectTimeout: const Duration(seconds: 5), // 自定义连接超时
-                  receiveTimeout: const Duration(seconds: 8), // 自定义接收超时
+                  connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
+                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
                 ),
-              ).timeout(requestTimeout);
+              );
 
-        if (response != null && response.statusCode == 200) {
-          return response.data as String;
+        if (response?.statusCode == 200) {
+          return response?.data.toString();
         }
         
         LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
