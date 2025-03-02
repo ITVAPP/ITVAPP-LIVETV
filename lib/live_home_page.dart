@@ -234,9 +234,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 播放器监听方法
+  /// 播放器监听方法（修改部分）
   void _videoListener(BetterPlayerEvent event) {
-    if (!mounted || _playerController == null || _isDisposing || _isRetrying) return;
+    // 修改：移除 _isRetrying 从全局条件中，确保重试时的播放事件可以处理
+    if (!mounted || _playerController == null || _isDisposing) return;
 
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
@@ -252,7 +253,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.exception:
-        if (!_isSwitchingChannel) {
+        // 修改：在异常事件中保留 _isRetrying 检查，避免重试期间重复处理旧异常
+        if (_isRetrying || !_isSwitchingChannel) {
           final errorMessage = event.parameters?["error"]?.toString() ?? "Unknown error";
           LogUtil.e('监听到播放器错误：$errorMessage');
           _playDurationTimer?.cancel();
@@ -440,7 +442,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  /// 重试播放方法，用于重新尝试播放失败的视频
+  /// 重试播放方法，用于重新尝试播放失败的视频（修改部分）
   void _retryPlayback() {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
     
@@ -464,7 +466,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (mounted) {
           setState(() {
             _isRetrying = false;
-            if (isPlaying) _startPlayDurationTimer();
+            // 检查播放器状态
+            if (_playerController?.isPlaying() ?? false) {
+              isPlaying = true;
+              _startPlayDurationTimer();
+            }
           });
         }
       });
