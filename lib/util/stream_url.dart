@@ -398,8 +398,8 @@ class StreamUrl {
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      // 使用 HttpUtil 发送 GET 请求
-      final response = await _httpUtil.getRequest<String>(
+      // 使用 HttpUtil 发送 GET 请求，返回完整 Response
+      final response = await _httpUtil.getRequestWithResponse(
         youtubeUrl,
         options: Options(
           headers: _getRequestHeaders(), // 使用动态生成的 headers
@@ -408,8 +408,8 @@ class StreamUrl {
 
       if (_isDisposed) return null;
 
-      if (response != null) {
-        final match = hlsManifestRegex.firstMatch(response);
+      if (response != null && response.statusCode == 200) {
+        final match = hlsManifestRegex.firstMatch(response.data);
         
         if (match != null) {
           final indexM3u8Url = match.group(1);
@@ -431,8 +431,8 @@ class StreamUrl {
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      // 使用 HttpUtil 发送 GET 请求
-      final response = await _httpUtil.getRequest<String>(
+      // 使用 HttpUtil 发送 GET 请求，返回完整 Response
+      final response = await _httpUtil.getRequestWithResponse(
         indexM3u8Url,
         options: Options(
           headers: _getRequestHeaders(), // 使用动态生成的 headers
@@ -441,8 +441,8 @@ class StreamUrl {
 
       if (_isDisposed) return null;
 
-      if (response != null) {
-        final lines = response.split('\n');
+      if (response != null && response.statusCode == 200) {
+        final lines = response.data.split('\n');
         final length = lines.length;  // 缓存长度避免重复访问
         final qualityUrls = <String, String>{};
 
@@ -498,27 +498,37 @@ class StreamUrl {
     const timeout = Duration(seconds: 5);
     
     try {
-      // 第一次请求，禁用自动重定向（通过不跟随重定向的方式实现）
-      final firstResponse = await _httpUtil.getRequest<String>(
+      // 第一次请求，禁用自动重定向，使用新方法获取完整 Response
+      final firstResponse = await _httpUtil.getRequestWithResponse(
         url,
         options: Options(
           followRedirects: false, // 禁用 Dio 的自动重定向
           headers: _getRequestHeaders(),
+          receiveTimeout: timeout, // 设置超时时间
         ),
       );
 
       if (firstResponse != null) {
-        // 假设 Dio 未处理重定向，状态码在 300-399 之间时需要手动处理
-        // 但 Dio 的 followRedirects=false 需要配合响应头解析
-        // 这里假设我们通过日志或额外检查确认是否为重定向
-        LogUtil.i('第一次请求返回: $firstResponse');
-        // 由于 Dio 返回的是 body 而非完整的 Response 对象，我们无法直接获取状态码和 headers
-        // 这里需要调整逻辑，假设未重定向直接返回原始 URL，重定向逻辑需优化
-        return url; // 临时返回原 URL，后续可优化
+        if (firstResponse.statusCode >= 300 && firstResponse.statusCode < 400) {
+          final redirectUrl = firstResponse.headers.value('location');
+          if (redirectUrl != null) {
+            final redirectUri = Uri.parse(url).resolve(redirectUrl);
+            LogUtil.i('检测到重定向，目标URL: $redirectUri');
+            // 第二次请求确认最终地址
+            final secondResponse = await _httpUtil.getRequestWithResponse(
+              redirectUri.toString(),
+              options: Options(
+                headers: _getRequestHeaders(),
+                receiveTimeout: timeout,
+              ),
+            );
+            return secondResponse?.requestOptions.uri.toString() ?? redirectUri.toString();
+          }
+        }
+        LogUtil.i('未检测到重定向，返回原始URL: $url');
+        return url;
       }
-
-      // 如果需要更精确的重定向检查，可以使用 Dio 的原始 Response 对象
-      // 但当前 HttpUtil 的 getRequest 返回的是 data，需调整 HttpUtil 或直接使用 Dio
+      LogUtil.i('首次请求无响应，返回原始URL');
       return url;
     } catch (e) {
       LogUtil.e('URL检查失败: $e');
