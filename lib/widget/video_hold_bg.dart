@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
@@ -10,8 +9,9 @@ import 'package:sp_util/sp_util.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'music_bars.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/widget/music_bars.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 背景图片状态管理类
 /// - 此类封装了背景图片的相关状态，比如当前图片索引、动画状态、是否启用Bing背景等
@@ -135,10 +135,10 @@ class _ChannelLogoState extends State<ChannelLogo> {
         }
       }
 
-      // 2. 从网络加载
-      final response = await http.get(Uri.parse(widget.logoUrl!));
-      if (response.statusCode == 200) {
-        final Uint8List imageData = response.bodyBytes;
+      // 2. 从网络加载，使用 HttpUtil 替换 http
+      final response = await HttpUtil().getRequestWithResponse(widget.logoUrl!);
+      if (response != null && response.statusCode == 200) {
+        final Uint8List imageData = response.data as Uint8List; // HttpUtil 返回的 response.data 已经是 Uint8List
         await SpUtil.putString(cacheKey, base64.encode(imageData)); // 将数据存入缓存
         return imageData;
       }
