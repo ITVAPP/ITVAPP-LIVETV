@@ -130,7 +130,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _cleanupController(_playerController);
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) {
-        LogUtil.w('组件已卸载，停止播放流程');
+        LogUtil.i('组件已卸载，停止播放流程');
         return;
       }
 
@@ -222,11 +222,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
           _recentRemainingBuffers[0] > _recentRemainingBuffers[1] &&
           _recentRemainingBuffers[1] > _recentRemainingBuffers[2] &&
           remainingSec <= 10) {
-        LogUtil.w('HLS 缓冲区连续 3 次减少且剩余 ≤ 10 秒，触发重新解析');
+        LogUtil.i('HLS 缓冲区连续 3 次减少且剩余 ≤ 10 秒，触发重新解析');
         _reparseAndSwitch();
       }
     } else {
-      LogUtil.w('HLS 检查异常 - 缓冲区位置 $bufferedPosition 小于播放位置 $position');
+      LogUtil.i('HLS 检查异常 - 缓冲区位置 $bufferedPosition 小于播放位置 $position');
     }
   }
 
@@ -527,7 +527,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   void _switchToPreloadedPlayer(BetterPlayerController oldController) async {
     if (_nextPlayerController == null) {
-      LogUtil.w('预加载播放器未准备好');
+      LogUtil.i('预加载播放器未准备好');
       return;
     }
 
@@ -647,7 +647,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
-        LogUtil.w('新地址与当前地址相同，切换下一源');
+        LogUtil.i('新地址与当前地址相同，切换下一源');
         _handleSourceSwitching();
         return;
       }
@@ -658,7 +658,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('重新解析完成，切换新播放器');
         _switchToPreloadedPlayer(_playerController!);
       } else {
-        LogUtil.w('预加载未完成，无法切换');
+        LogUtil.i('预加载未完成，无法切换');
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
