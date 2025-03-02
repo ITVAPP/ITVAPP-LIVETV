@@ -282,30 +282,40 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
           // 记录缓冲区历史
           final timestamp = DateTime.now().millisecondsSinceEpoch;
-          _bufferedHistory.add({'buffered': bufferedPosition, 'position': position, 'timestamp': timestamp});
+          _bufferedHistory.add({
+            'buffered': bufferedPosition,
+            'position': position,
+            'timestamp': timestamp,
+            'remainingBuffer': bufferedPosition - position,
+          });
           if (_bufferedHistory.length > 5) _bufferedHistory.removeAt(0); // 保留最近 5 次历史（约 5 秒）
 
           if (isHls) {
             // HLS 检查逻辑
             LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $bufferedPosition, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
-            if (_bufferedHistory.length == 5) {
-              bool positionIncreasing = true;
+            if (_bufferedHistory.length == 5 && bufferedPosition.inSeconds > 2) { // 缓冲区末尾 > 2 秒
+              int positionIncreaseCount = 0;
               bool bufferStalled = true;
+              int remainingBufferLowCount = 0;
+
               for (int i = 1; i < _bufferedHistory.length; i++) {
                 final prev = _bufferedHistory[i - 1];
                 final curr = _bufferedHistory[i];
-                if (curr['position'] <= prev['position']) {
-                  positionIncreasing = false;
-                  break;
+                if (curr['position'] > prev['position']) {
+                  positionIncreaseCount++;
                 }
-                if (curr['buffered'] != prev['buffered']) {
+                if ((curr['buffered'] as Duration) - (prev['buffered'] as Duration) >= const Duration(milliseconds: 100)) {
                   bufferStalled = false;
                   break;
                 }
+                if ((curr['remainingBuffer'] as Duration).inSeconds < 8) {
+                  remainingBufferLowCount++;
+                }
               }
+
               final remainingBuffer = bufferedPosition - position;
-              if (positionIncreasing && bufferStalled && remainingBuffer.inSeconds < 8) {
-                LogUtil.i('HLS 当前位置连续 5 次增加且剩余缓冲 < 8 秒，触发提前解析');
+              if (positionIncreaseCount >= 3 && bufferStalled && remainingBufferLowCount >= 3 && remainingBuffer.inSeconds > 0 && remainingBuffer.inSeconds < 8) {
+                LogUtil.i('HLS 当前位置 5 次中至少 3 次增加，缓冲区停滞且剩余缓冲连续 3 次 < 8 秒，触发提前解析');
                 _reparseAndSwitch();
               }
             }
