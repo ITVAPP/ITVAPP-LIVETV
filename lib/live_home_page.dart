@@ -154,16 +154,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final bool isHls = _isHlsStream(parsedUrl);
       LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $isHls');
 
-      final dataSource = BetterPlayerConfig.createDataSource(url: parsedUrl, isHls: isHls);
+      final dataSource = BetterPlayerConfig.createDataSource(
+        url: parsedUrl,
+        isHls: isHls,
+      );
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
         eventListener: _videoListener,
         isHls: isHls,
-        bufferingConfiguration: BetterPlayerBufferingConfiguration(
-          minBufferMs: 20000, // 20 秒
-          maxBufferMs: 120000, // 120 秒
-          bufferForPlaybackMs: 2500,
-          bufferForPlaybackAfterRebufferMs: 5000,
-        ),
       );
 
       BetterPlayerController newController = BetterPlayerController(betterPlayerConfiguration);
