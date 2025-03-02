@@ -35,12 +35,12 @@ class BetterPlayerConfig {
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
         showNotification: false,
       ),
-      // 缓冲配置
+      // 缓冲配置移至此处
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 10000, // 最小缓冲时间，单位毫秒（10秒）
-        maxBufferMs: 60000, // 最大缓冲时间，单位毫秒（60秒）
-        bufferForPlaybackMs: 5000, // 播放前的最小缓冲时间，单位毫秒（5秒）
-        bufferForPlaybackAfterRebufferMs: 5000, // 重缓冲后的最小播放缓冲时间
+        minBufferMs: 20000, // 20 秒
+        maxBufferMs: 120000, // 120 秒
+        bufferForPlaybackMs: 2500,
+        bufferForPlaybackAfterRebufferMs: 5000,
       ),
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
@@ -84,6 +84,7 @@ class BetterPlayerConfig {
       ],
       // 事件监听器
       eventListener: eventListener,
+      initialVolume: volume, // 设置默认音量
     );
   }
 }
