@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 import 'package:itvapp_live_tv/util/getm3u8.dart';
-import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/widget/headers.dart';
 
 class StreamUrl {
   late final String url;
   final YoutubeExplode yt = YoutubeExplode(); 
+  final HttpUtil _httpUtil = HttpUtil(); // 使用 HttpUtil 单例
   bool _isDisposed = false; 
   Completer<void>? _completer; 
   final Duration timeoutDuration;
@@ -71,7 +71,7 @@ class StreamUrl {
         // 检查是否需要处理重定向
         if (needsRedirectCheck(url, rulesString)) {
           LogUtil.i('URL包含重定向规则关键字，检查重定向');
-          return await checkRedirection(url);
+          return await checkRedirection(url); // 修改为使用 HttpUtil 的方法
         }
         return url;
       }
@@ -135,6 +135,8 @@ class StreamUrl {
       } catch (e, stackTrace) {
         LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
       }
+
+      // HttpUtil 是单例，无需手动关闭
     }, '关闭资源时发生错误');
   }
 
@@ -401,18 +403,18 @@ class StreamUrl {
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      final response = await HttpUtil().getRequestWithResponse(
+      final response = await _httpUtil.getRequestWithResponse(
         youtubeUrl,
         options: Options(
           headers: _getRequestHeaders(),
-          connectTimeout: const Duration(seconds: 5), // 自定义连接超时
-          receiveTimeout: const Duration(seconds: 12), // 自定义接收超时
+          connectTimeout: const Duration(seconds: 5),  // 连接超时
+          receiveTimeout: const Duration(seconds: 12), // 下载超时
         ),
-      ).timeout(timeoutDuration);
-      if (_isDisposed) return null;
+      ).timeout(timeoutDuration); // 保留外部超时控制
+      if (_isDisposed || response == null) return null;
 
-      if (response != null && response.statusCode == 200) {
-        final match = hlsManifestRegex.firstMatch(response.data as String);
+      if (response.statusCode == 200) {
+        final match = hlsManifestRegex.firstMatch(response.data.toString());
         
         if (match != null) {
           final indexM3u8Url = match.group(1);
@@ -434,12 +436,17 @@ class StreamUrl {
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      final response = await HttpUtil().getRequestWithResponse(indexM3u8Url)
-          .timeout(timeoutDuration);
-      if (_isDisposed) return null;
+      final response = await _httpUtil.getRequestWithResponse(
+        indexM3u8Url,
+        options: Options(
+          connectTimeout: const Duration(seconds: 5),  // 连接超时
+          receiveTimeout: const Duration(seconds: 12), // 下载超时
+        ),
+      ).timeout(timeoutDuration); // 保留外部超时控制
+      if (_isDisposed || response == null) return null;
 
-      if (response != null && response.statusCode == 200) {
-        final lines = (response.data as String).split('\n');
+      if (response.statusCode == 200) {
+        final lines = response.data.toString().split('\n');
         final length = lines.length;  // 缓存长度避免重复访问
         final qualityUrls = <String, String>{};
 
@@ -491,29 +498,33 @@ class StreamUrl {
 
   // 检查并处理URL重定向
   Future<String> checkRedirection(String url) async {
-    // 设置固定超时时间为 5 秒
-    const timeout = Duration(seconds: 5);
+    // 设置固定超时时间为 5 秒连接超时和12秒接收超时
+    const timeout = Duration(seconds: 18); // 外部超时
     
     try {
       // 第一次请求，禁用自动重定向
-      final firstResp = await HttpUtil().getRequestWithResponse(
+      final firstResp = await _httpUtil.getRequestWithResponse(
         url,
         options: Options(
-          followRedirects: false,
-          connectTimeout: const Duration(seconds: 5), // 自定义连接超时
-          receiveTimeout: const Duration(seconds: 12), // 自定义接收超时
+          followRedirects: false, // 禁用 Dio 默认重定向
+          connectTimeout: const Duration(seconds: 5),  // 连接超时
+          receiveTimeout: const Duration(seconds: 12), // 下载超时
         ),
       ).timeout(timeout);
       
-      // 如果 3xx
       if (firstResp != null && firstResp.statusCode >= 300 && firstResp.statusCode < 400) {
         final location = firstResp.headers.value('location');
         if (location != null && location.isNotEmpty) {
           final redirectUri = Uri.parse(url).resolve(location);
           // 第二次请求
-          final secondResp = await HttpUtil().getRequestWithResponse(redirectUri)
-              .timeout(timeout);
-          // 最终拿到重定向后的 URL
+          final secondResp = await _httpUtil.getRequestWithResponse(
+            redirectUri.toString(),
+            options: Options(
+              connectTimeout: const Duration(seconds: 5),  // 连接超时
+              receiveTimeout: const Duration(seconds: 12), // 下载超时
+            ),
+          ).timeout(timeout);
+          // 最终拿到最终的 URL
           return secondResp?.requestOptions.uri.toString() ?? redirectUri.toString();
         }
       }
