@@ -69,15 +69,25 @@ class HttpUtil {
           };
         }
 
-        // 合并传入的 options 和默认配置
+        // 从 options.extra 中提取超时设置（如果提供），否则使用默认值
+        final connectTimeout = options?.extra?['connectTimeout'] as Duration? ?? this.options.connectTimeout;
+        final receiveTimeout = options?.extra?['receiveTimeout'] as Duration? ?? this.options.receiveTimeout;
+
+        // 创建临时的请求选项，合并超时设置
         final requestOptions = (options ?? Options()).copyWith(
-          extra: {'attempt': currentAttempt},
+          extra: {'attempt': currentAttempt, 'connectTimeout': connectTimeout, 'receiveTimeout': receiveTimeout},
           headers: headers,
         );
 
+        // 创建一个临时的 Dio 实例，应用动态超时设置
+        final tempDio = Dio(BaseOptions(
+          connectTimeout: connectTimeout,
+          receiveTimeout: receiveTimeout,
+        ));
+
         // 根据方法执行 GET 或 POST 请求
         response = await (method.toUpperCase() == 'POST'
-            ? _dio.post(
+            ? tempDio.post(
                 path,
                 data: data,
                 queryParameters: queryParameters,
@@ -86,7 +96,7 @@ class HttpUtil {
                 onSendProgress: onSendProgress,
                 onReceiveProgress: onReceiveProgress,
               )
-            : _dio.get(
+            : tempDio.get(
                 path,
                 queryParameters: queryParameters,
                 options: requestOptions,
