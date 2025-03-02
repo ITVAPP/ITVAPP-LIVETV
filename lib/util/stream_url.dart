@@ -409,8 +409,10 @@ class StreamUrl {
         youtubeUrl,
         options: Options(
           headers: _getRequestHeaders(),
-          connectTimeout: const Duration(seconds: 5),  // 连接超时
-          receiveTimeout: const Duration(seconds: 12), // 下载超时
+          extra: {
+            'connectTimeout': const Duration(seconds: 5),  // 连接超时
+            'receiveTimeout': const Duration(seconds: 12), // 下载超时
+          },
         ),
       ).timeout(timeoutDuration); // 保留外部超时控制
       if (_isDisposed || response == null) return null;
@@ -441,8 +443,10 @@ class StreamUrl {
       final response = await _httpUtil.getRequestWithResponse(
         indexM3u8Url,
         options: Options(
-          connectTimeout: const Duration(seconds: 5),  // 连接超时
-          receiveTimeout: const Duration(seconds: 12), // 下载超时
+          extra: {
+            'connectTimeout': const Duration(seconds: 5),  // 连接超时
+            'receiveTimeout': const Duration(seconds: 12), // 下载超时
+          },
         ),
       ).timeout(timeoutDuration); // 保留外部超时控制
       if (_isDisposed || response == null) return null;
@@ -509,12 +513,14 @@ class StreamUrl {
         url,
         options: Options(
           followRedirects: false, // 禁用 Dio 默认重定向
-          connectTimeout: const Duration(seconds: 5),  // 连接超时
-          receiveTimeout: const Duration(seconds: 12), // 下载超时
+          extra: {
+            'connectTimeout': const Duration(seconds: 5),  // 连接超时
+            'receiveTimeout': const Duration(seconds: 12), // 下载超时
+          },
         ),
       ).timeout(timeout);
 
-      if (firstResp != null && firstResp!.statusCode >= 300 && firstResp!.statusCode < 400) {
+      if (firstResp != null && firstResp.statusCode != null && firstResp.statusCode! >= 300 && firstResp.statusCode! < 400) {
         final location = firstResp.headers.value('location');
         if (location != null && location.isNotEmpty) {
           final redirectUri = Uri.parse(url).resolve(location);
@@ -522,8 +528,10 @@ class StreamUrl {
           final secondResp = await _httpUtil.getRequestWithResponse(
             redirectUri.toString(),
             options: Options(
-              connectTimeout: const Duration(seconds: 5),  // 连接超时
-              receiveTimeout: const Duration(seconds: 12), // 下载超时
+              extra: {
+                'connectTimeout': const Duration(seconds: 5),  // 连接超时
+                'receiveTimeout': const Duration(seconds: 12), // 下载超时
+              },
             ),
           ).timeout(timeout);
           // 最终拿到最终的 URL
