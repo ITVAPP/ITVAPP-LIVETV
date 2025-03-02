@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-/// 播放器配置工具类
 class BetterPlayerConfig {
   // 定义常量背景图片Widget
   static const _backgroundImage = Image(
