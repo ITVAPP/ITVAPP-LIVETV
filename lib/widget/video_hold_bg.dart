@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../provider/theme_provider.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
@@ -135,8 +136,14 @@ class _ChannelLogoState extends State<ChannelLogo> {
         }
       }
 
-      // 2. 从网络加载，使用 HttpUtil 替换 http
-      final response = await HttpUtil().getRequestWithResponse(widget.logoUrl!);
+      // 2. 从网络加载，使用 HttpUtil 替换 http，并设置自定义超时
+      final response = await HttpUtil().getRequestWithResponse(
+        widget.logoUrl!,
+        options: Options(
+          connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+          receiveTimeout: const Duration(seconds: 18), // 自定义接收超时
+        ),
+      );
       if (response != null && response.statusCode == 200) {
         final Uint8List imageData = response.data as Uint8List; // HttpUtil 返回的 response.data 已经是 Uint8List
         await SpUtil.putString(cacheKey, base64.encode(imageData)); // 将数据存入缓存
