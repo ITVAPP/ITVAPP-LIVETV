@@ -1,18 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 import 'package:itvapp_live_tv/util/getm3u8.dart';
-import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
 
 class StreamUrl {
   late final String url;
   final YoutubeExplode yt = YoutubeExplode(); 
-  final HttpUtil _httpUtil = HttpUtil(); // 使用 HttpUtil 替代 http.Client
   bool _isDisposed = false; 
   Completer<void>? _completer; 
   final Duration timeoutDuration;
@@ -37,7 +36,7 @@ class StreamUrl {
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
   StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 30)}) {
-    // 在构造函数中处理 URL，去掉 $ 后面的部分并 trim
+    // 在构造函数中处理 URL
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
   
@@ -46,10 +45,10 @@ class StreamUrl {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
     try {
-      // 检查是否为 GetM3U8 URL
-      if (isGetM3U8Url(url)) {
-        final m3u8Url = await _handleGetM3U8Url(url);
-        return m3u8Url;
+      // 检查是否为GetM3U8 URL
+       if (isGetM3U8Url(url)) {
+         final m3u8Url = await _handleGetM3U8Url(url);
+           return m3u8Url;
       }
       
       // 判断是否为蓝奏云链接，若是则解析蓝奏云链接
@@ -88,7 +87,7 @@ class StreamUrl {
         }
         LogUtil.e('首次获取视频流失败，准备重试');
       } catch (e) {
-        LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
+          LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
       }
       
       // 等待一秒后再次尝试获取视频流
@@ -102,9 +101,10 @@ class StreamUrl {
         LogUtil.e('重试获取视频流失败');
         return 'ERROR';
       } catch (retryError) {
-        LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
+          LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
         return 'ERROR';
       }
+      
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';
@@ -116,7 +116,6 @@ class StreamUrl {
     }
   }
   
-  // 释放资源
   Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
@@ -144,7 +143,7 @@ class StreamUrl {
     return url.toLowerCase().contains('getm3u8');
   }
   
-  /// 判断是否包含"lanzou"
+  /// 否则判断是否包含"lanzou"
   bool isLZUrl(String url) {
     // 如果包含分隔符，直接返回false
     if (url.contains('|')) {
@@ -190,6 +189,7 @@ class StreamUrl {
         return 'ERROR';
       }
       return result;
+
     } catch (e, stackTrace) {
       LogUtil.logError('GetM3U8处理失败', e, stackTrace);
       return 'ERROR';
@@ -300,12 +300,12 @@ class StreamUrl {
             final resolution = selectedVideoStream.videoResolution;
             final width = resolution.width;
             final height = resolution.height;
-            
+             
             final combinedM3u8 = '#EXTM3U\n'
                 '#EXT-X-VERSION:3\n'
                 '#EXT-X-STREAM-INF:BANDWIDTH=${selectedVideoStream.bitrate.bitsPerSecond},'
                 'RESOLUTION=${width}x$height,'
-                'CODECS="$codecs",'  // 使用从视频流提取的编解码器信息
+                'CODECS="$codecs",'  // 使用从视频流提取的编解码器信息（已含音频流编码），因为音频流没有提供编码信息
                 'AUDIO="audio_group"\n'
                 '$videoUrl\n'
                 '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
@@ -315,6 +315,7 @@ class StreamUrl {
             LogUtil.i('成功保存m3u8文件到: $filePath');
             
             return filePath;
+            
           } catch (e, stackTrace) {
             LogUtil.logError('保存m3u8文件失败', e, stackTrace);
             return 'ERROR';
@@ -336,6 +337,7 @@ class StreamUrl {
       
       LogUtil.e('未找到任何符合条件的流');
       return 'ERROR';
+      
     } catch (e, stackTrace) {
       LogUtil.logError('获取视频流时发生错误', e, stackTrace);
       return 'ERROR';
@@ -370,6 +372,7 @@ class StreamUrl {
       
       LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
       return streamInfo;
+
     } catch (e, stackTrace) {
       LogUtil.logError('选择混合流时发生错误', e, stackTrace);
       return null;
@@ -398,18 +401,18 @@ class StreamUrl {
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      // 使用 HttpUtil 发送 GET 请求，返回完整 Response
-      final response = await _httpUtil.getRequestWithResponse(
+      final response = await HttpUtil().getRequestWithResponse(
         youtubeUrl,
         options: Options(
-          headers: _getRequestHeaders(), // 使用动态生成的 headers
+          headers: _getRequestHeaders(),
+          connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+          receiveTimeout: const Duration(seconds: 12), // 自定义接收超时
         ),
-      );
-
+      ).timeout(timeoutDuration);
       if (_isDisposed) return null;
 
       if (response != null && response.statusCode == 200) {
-        final match = hlsManifestRegex.firstMatch(response.data);
+        final match = hlsManifestRegex.firstMatch(response.data as String);
         
         if (match != null) {
           final indexM3u8Url = match.group(1);
@@ -431,18 +434,12 @@ class StreamUrl {
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isDisposed) return null;
     try {
-      // 使用 HttpUtil 发送 GET 请求，返回完整 Response
-      final response = await _httpUtil.getRequestWithResponse(
-        indexM3u8Url,
-        options: Options(
-          headers: _getRequestHeaders(), // 使用动态生成的 headers
-        ),
-      );
-
+      final response = await HttpUtil().getRequestWithResponse(indexM3u8Url)
+          .timeout(timeoutDuration);
       if (_isDisposed) return null;
 
       if (response != null && response.statusCode == 200) {
-        final lines = response.data.split('\n');
+        final lines = (response.data as String).split('\n');
         final length = lines.length;  // 缓存长度避免重复访问
         final qualityUrls = <String, String>{};
 
@@ -492,43 +489,35 @@ class StreamUrl {
     return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
   }
 
-  // 检查并处理URL重定向，使用 HttpUtil
+  // 检查并处理URL重定向
   Future<String> checkRedirection(String url) async {
     // 设置固定超时时间为 5 秒
     const timeout = Duration(seconds: 5);
     
     try {
-      // 第一次请求，禁用自动重定向，使用新方法获取完整 Response
-      final firstResponse = await _httpUtil.getRequestWithResponse(
+      // 第一次请求，禁用自动重定向
+      final firstResp = await HttpUtil().getRequestWithResponse(
         url,
         options: Options(
-          followRedirects: false, // 禁用 Dio 的自动重定向
-          headers: _getRequestHeaders(),
-          receiveTimeout: timeout, // 设置超时时间
+          followRedirects: false,
+          connectTimeout: const Duration(seconds: 5), // 自定义连接超时
+          receiveTimeout: const Duration(seconds: 12), // 自定义接收超时
         ),
-      );
-
-      if (firstResponse != null) {
-        if (firstResponse.statusCode >= 300 && firstResponse.statusCode < 400) {
-          final redirectUrl = firstResponse.headers.value('location');
-          if (redirectUrl != null) {
-            final redirectUri = Uri.parse(url).resolve(redirectUrl);
-            LogUtil.i('检测到重定向，目标URL: $redirectUri');
-            // 第二次请求确认最终地址
-            final secondResponse = await _httpUtil.getRequestWithResponse(
-              redirectUri.toString(),
-              options: Options(
-                headers: _getRequestHeaders(),
-                receiveTimeout: timeout,
-              ),
-            );
-            return secondResponse?.requestOptions.uri.toString() ?? redirectUri.toString();
-          }
+      ).timeout(timeout);
+      
+      // 如果 3xx
+      if (firstResp != null && firstResp.statusCode >= 300 && firstResp.statusCode < 400) {
+        final location = firstResp.headers.value('location');
+        if (location != null && location.isNotEmpty) {
+          final redirectUri = Uri.parse(url).resolve(location);
+          // 第二次请求
+          final secondResp = await HttpUtil().getRequestWithResponse(redirectUri)
+              .timeout(timeout);
+          // 最终拿到重定向后的 URL
+          return secondResp?.requestOptions.uri.toString() ?? redirectUri.toString();
         }
-        LogUtil.i('未检测到重定向，返回原始URL: $url');
-        return url;
       }
-      LogUtil.i('首次请求无响应，返回原始URL');
+      // 没有跳转，就直接返回原始地址
       return url;
     } catch (e) {
       LogUtil.e('URL检查失败: $e');
