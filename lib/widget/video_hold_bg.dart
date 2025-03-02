@@ -140,8 +140,10 @@ class _ChannelLogoState extends State<ChannelLogo> {
       final response = await HttpUtil().getRequestWithResponse(
         widget.logoUrl!,
         options: Options(
-          connectTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
-          receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+          extra: {
+            'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
+            'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+          },
         ),
       );
 
