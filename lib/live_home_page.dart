@@ -46,7 +46,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   List<Map<String, dynamic>> _bufferedHistory = []; // 记录 bufferedPosition 和时间戳，用于 HLS 和非 HLS
   String? _preCachedUrl; // 预缓存的地址
   bool _isParsing = false; // 解析状态标志
-  DateTime? _lastReparseTime; // 记录最近一次重新解析的时间，用于冷却期
 
   bool _isRetrying = false;
   Timer? _retryTimer;
@@ -291,7 +290,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           });
           if (_bufferedHistory.length > 5) _bufferedHistory.removeAt(0); // 保留最近 5 次历史（约 5 秒）
 
-          if (isHls) {
+          if (isHls && !_isParsing) { // 提前检查 _isParsing，减少调用尝试
             // HLS 检查逻辑
             LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $bufferedPosition, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
             if (_bufferedHistory.length == 5 && bufferedPosition.inSeconds > 2) { // 缓冲区末尾 > 2 秒
@@ -316,13 +315,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
               final remainingBuffer = bufferedPosition - position;
               if (positionIncreaseCount >= 3 && bufferStalled && remainingBufferLowCount >= 3 && remainingBuffer.inSeconds > 0 && remainingBuffer.inSeconds < 8) {
-                if (_lastReparseTime == null || DateTime.now().difference(_lastReparseTime!) > const Duration(seconds: 5)) {
-                  LogUtil.i('HLS 当前位置 5 次中至少 3 次增加，缓冲区停滞且剩余缓冲连续 3 次 < 8 秒，触发提前解析');
-                  _reparseAndSwitch();
-                  _lastReparseTime = DateTime.now();
-                } else {
-                  LogUtil.i('冷却期内，跳过触发');
-                }
+                LogUtil.i('HLS 当前位置 5 次中至少 3 次增加，缓冲区停滞且剩余缓冲连续 3 次 < 8 秒，触发提前解析');
+                _reparseAndSwitch();
               }
             }
           } else if (duration.inSeconds > 0) {
