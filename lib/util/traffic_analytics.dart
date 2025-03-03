@@ -119,7 +119,7 @@ class TrafficAnalytics {
             try {
               parsedData = jsonDecode(responseData); // 尝试解析为 JSON
             } catch (e) {
-              LogUtil.w('响应数据是字符串但不是 JSON: $responseData');
+              LogUtil.i('响应数据是字符串但不是 JSON: $responseData');
               return null; // 如果字符串不是 JSON，返回 null
             }
           } else if (responseData is Map<String, dynamic>) {
@@ -129,11 +129,11 @@ class TrafficAnalytics {
             if (responseData.isNotEmpty && responseData[0] is Map<String, dynamic>) {
               parsedData = responseData[0];
             } else {
-              LogUtil.w('响应数据是数组但内容不符合预期: $responseData');
+              LogUtil.i('响应数据是数组但内容不符合预期: $responseData');
               return null;
             }
           } else {
-            LogUtil.w('不支持的响应数据类型: $responseData');
+            LogUtil.i('不支持的响应数据类型: $responseData');
             return null; // 其他类型暂不处理
           }
 
