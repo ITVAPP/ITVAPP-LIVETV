@@ -46,6 +46,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   List<Map<String, dynamic>> _bufferedHistory = []; // 记录 bufferedPosition 和时间戳，用于 HLS 和非 HLS
   String? _preCachedUrl; // 预缓存的地址
   bool _isParsing = false; // 解析状态标志
+  DateTime? _lastReparseTime; // 记录最近一次重新解析的时间，用于冷却期
 
   bool _isRetrying = false;
   Timer? _retryTimer;
@@ -315,8 +316,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
               final remainingBuffer = bufferedPosition - position;
               if (positionIncreaseCount >= 3 && bufferStalled && remainingBufferLowCount >= 3 && remainingBuffer.inSeconds > 0 && remainingBuffer.inSeconds < 8) {
-                LogUtil.i('HLS 当前位置 5 次中至少 3 次增加，缓冲区停滞且剩余缓冲连续 3 次 < 8 秒，触发提前解析');
-                _reparseAndSwitch();
+                if (_lastReparseTime == null || DateTime.now().difference(_lastReparseTime!) > const Duration(seconds: 5)) {
+                  LogUtil.i('HLS 当前位置 5 次中至少 3 次增加，缓冲区停滞且剩余缓冲连续 3 次 < 8 秒，触发提前解析');
+                  _reparseAndSwitch();
+                  _lastReparseTime = DateTime.now();
+                } else {
+                  LogUtil.i('冷却期内，跳过触发');
+                }
               }
             }
           } else if (duration.inSeconds > 0) {
@@ -619,7 +625,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('预缓存完成: $newParsedUrl');
         _preCachedUrl = newParsedUrl;
         await _playerController!.setupDataSource(newSource);
-        LogUtil.i('切换到新数据源: $newParsedUrl');
+        await _playerController!.play(); // 确保切换后自动播放
+        LogUtil.i('切换到新数据源并开始播放: $newParsedUrl');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
