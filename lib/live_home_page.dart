@@ -278,7 +278,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.progress:
-        if (_progressEnabled) { // 仅在启用时执行
+        if (_progressEnabled && isPlaying) { // 仅在启用时执行
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
           if (position != null && duration != null) {
