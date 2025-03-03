@@ -66,13 +66,13 @@ class TrafficAnalytics {
 
     final apiList = [
       {
-        'url': 'https://whois.pconline.com.cn/ipJson.jsp?ip=&json=true', 
+        'url': 'https://whois.pconline.com.cn/ipJson.jsp?ip=&json=true',
         'parseData': (data) => {
-          'ip': data['ip'] ?? 'Unknown IP',
-          'region': data['pro'] ?? 'Unknown Region',
-          'country': data['region'] ?? '中国',
-          'city': data['city'] ?? 'Unknown City',
-        }
+              'ip': data['ip'] ?? 'Unknown IP',
+              'region': data['pro'] ?? 'Unknown Region',
+              'country': data['region'] ?? '中国',
+              'city': data['city'] ?? 'Unknown City',
+            }
       },
       {
         'url': 'https://ip.useragentinfo.com/json',
@@ -114,8 +114,36 @@ class TrafficAnalytics {
           cancelToken: CancelToken(),
         );
         if (responseData != null) {
-          final data = jsonDecode(responseData);
-          return (api['parseData'] as dynamic Function(dynamic))(data);
+          dynamic parsedData;
+          if (responseData is String) {
+            try {
+              parsedData = jsonDecode(responseData); // 尝试解析为 JSON
+            } catch (e) {
+              LogUtil.w('响应数据是字符串但不是 JSON: $responseData');
+              return null; // 如果字符串不是 JSON，返回 null
+            }
+          } else if (responseData is Map<String, dynamic>) {
+            parsedData = responseData; // 直接使用 Map
+          } else if (responseData is List<dynamic>) {
+            // 如果返回的是数组，取第一个元素（根据需求调整）
+            if (responseData.isNotEmpty && responseData[0] is Map<String, dynamic>) {
+              parsedData = responseData[0];
+            } else {
+              LogUtil.w('响应数据是数组但内容不符合预期: $responseData');
+              return null;
+            }
+          } else {
+            LogUtil.w('不支持的响应数据类型: $responseData');
+            return null; // 其他类型暂不处理
+          }
+
+          // 确保 parsedData 是 Map<String, dynamic> 后再调用 parseData
+          if (parsedData is Map<String, dynamic>) {
+            return (api['parseData'] as dynamic Function(dynamic))(parsedData);
+          } else {
+            LogUtil.e('解析后的数据不是 Map<String, dynamic>: $parsedData');
+            return null;
+          }
         }
       } catch (e, stackTrace) {
         LogUtil.logError('请求 ${api['url']} 失败', e, stackTrace);
@@ -248,14 +276,13 @@ class TrafficAnalytics {
           umamiUrl,
           data: jsonEncode(payload),
           options: Options(
-            headers: {'Content-Type': 'application/json', 'User-Agent': userAgent},
             receiveTimeout: const Duration(seconds: 10),
           ),
           cancelToken: CancelToken(),
         );
 
         if (response != null) {
-          LogUtil.i('页面访问统计数据发送成功');
+          LogUtil.i('页面访问统计数据发送成功，尝试次数: $attempt');
           success = true;
         } else {
           throw Exception('响应数据为空');
@@ -263,10 +290,11 @@ class TrafficAnalytics {
       } catch (error, stackTrace) {
         LogUtil.logError('发送数据时发生错误，第 $attempt 次重试', error, stackTrace);
         if (attempt >= maxRetries) {
-          LogUtil.e('达到最大重试次数，发送失败');
+          LogUtil.e('达到最大重试次数 ($maxRetries)，发送失败，最终错误: $error');
           return; // 达到最大重试次数后退出
         }
         delayInSeconds = delayInSeconds * 2 > maxDelayInSeconds ? maxDelayInSeconds : delayInSeconds * 2;
+        LogUtil.i('等待 $delayInSeconds 秒后进行第 ${attempt + 1} 次重试');
         await Future.delayed(Duration(seconds: delayInSeconds));
       }
     }
