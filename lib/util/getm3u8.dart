@@ -384,6 +384,7 @@ class GetM3U8 {
   }
   
   /// 初始化WebViewController
+  // 修改部分：添加 _isDisposed 检查到 NavigationDelegate，确保清理时不触发脚本注入
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
       LogUtil.i('开始初始化控制器');
@@ -516,9 +517,14 @@ class GetM3U8 {
       final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
 
       // 导航委托
+      // 修改：添加 _isDisposed 检查，确保清理时不执行不必要逻辑
       _controller.setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) async {
+            if (_isDisposed) {
+              LogUtil.i('资源已释放，跳过脚本注入: $url');
+              return;
+            }
             for (int i = 0; i < initScripts.length; i++) {
               await _controller.runJavaScript(initScripts[i]);
               LogUtil.i('注入脚本成功: ${scriptNames[i]}');
@@ -526,6 +532,10 @@ class GetM3U8 {
           },
           onNavigationRequest: (NavigationRequest request) async {
             // 检查重定向时是否需要重新注入
+            if (_isDisposed) {
+              LogUtil.i('资源已释放，阻止导航: ${request.url}');
+              return NavigationDecision.prevent;
+            }
             try {
               final currentUri = _parsedUri;
               final newUri = Uri.parse(request.url);
@@ -595,6 +605,10 @@ class GetM3U8 {
           },
           
           onPageFinished: (String url) async {
+            if (_isDisposed) {
+              LogUtil.i('资源已释放，跳过处理: $url');
+              return;
+            }
             // 避免重复状态管理
             if (!isHashRoute && _pageLoadedStatus[url] == true) {
               LogUtil.i('本页面已经加载完成，跳过重复处理');
@@ -606,8 +620,8 @@ class GetM3U8 {
             LogUtil.i('页面加载完成: $url');
 
             // 基础状态检查
-            if (_isDisposed || _isClickExecuted) {
-              LogUtil.i(_isDisposed ? '资源已释放，跳过处理' : '点击已执行，跳过处理');
+            if (_isClickExecuted) {
+              LogUtil.i('点击已执行，跳过处理');
               return;
             }
 
@@ -655,6 +669,10 @@ class GetM3U8 {
             }
           },
           onWebResourceError: (WebResourceError error) async {
+            if (_isDisposed) {
+              LogUtil.i('资源已释放，忽略错误: ${error.description}');
+              return;
+            }
             // 忽略被阻止资源的错误，忽略 SSL 错误，继续加载
             if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
               LogUtil.i('资源被阻止加载: ${error.description}');
@@ -847,73 +865,88 @@ class GetM3U8 {
     });
   }
   
-/// 释放资源
-Future<void> dispose() async {
-  if (_isDisposed) {
-    LogUtil.i('资源已释放，跳过重复释放');
-    return;
-  }
-  _isDisposed = true;
+  /// 释放资源
+  // 修改部分：优化清理逻辑，添加时间戳日志，确保干净释放
+  Future<void> dispose() async {
+    if (_isDisposed) {
+      LogUtil.i('资源已释放，跳过重复释放');
+      return;
+    }
+    LogUtil.i('开始释放资源: ${DateTime.now()}'); // 添加开始时间戳
+    _isDisposed = true;
 
-  // 清理 URL 相关资源
-  _hashFirstLoadMap.remove(Uri.parse(url).toString());
-  _periodicCheckTimer?.cancel();
-  _periodicCheckTimer = null;
+    // 清理 URL 相关资源
+    _hashFirstLoadMap.remove(Uri.parse(url).toString());
+    _periodicCheckTimer?.cancel();
+    _periodicCheckTimer = null;
 
-  // 清理 WebView 资源
-  if (_isControllerInitialized) {
-    await disposeWebView(_controller);
-  } else {
-    LogUtil.i('WebViewController 未初始化，跳过清理');
-  }
-
-  // 重置状态并清理集合
-  _resetControllerState();
-  _foundUrls.clear();
-  _pageLoadedStatus.clear();
-  _httpResponseContent = null;
-  _m3u8Found = false;
-  _isControllerInitialized = false;
-  _isClickExecuted = false;
-
-  LogUtil.i('资源释放完成');
-}
-
-/// 清理 WebView 相关活动
-Future<void> disposeWebView(WebViewController controller) async {
-  try {
-    // 1. 加载空白页面，清空内容并中断加载
-    await controller.loadRequest(Uri.parse('about:blank'));
-    LogUtil.i('已加载空白页面，清空内容并中断加载');
-
-    // 2. 清理 JS 和动态行为（针对 HTML 页面）
-    if (_isHtmlContent) {
-      await controller.runJavaScript('''
-        window.stop(); // 停止页面加载和 JS 执行
-        document.body.innerHTML = ''; // 清空 DOM
-        window.removeEventListener('load', null, true); // 移除加载事件
-        Object.keys(window).forEach(key => {
-          if (typeof window[key] === 'number' && window[key] % 1 === 0) {
-            clearTimeout(window[key]);
-            clearInterval(window[key]);
-          }
-        });
-      ''');
-      LogUtil.i('已清理 JS 和动态行为');
+    // 清理 WebView 资源
+    if (_isControllerInitialized) {
+      await disposeWebView(_controller);
+    } else {
+      LogUtil.i('WebViewController 未初始化，跳过清理');
     }
 
-    // 3. 清理缓存和存储
-    await controller.clearCache();
-    await controller.clearLocalStorage();
-    LogUtil.i('已清理缓存和本地存储');
+    // 重置状态并清理集合
+    _resetControllerState();
+    _foundUrls.clear();
+    _pageLoadedStatus.clear();
+    _httpResponseContent = null;
+    _m3u8Found = false;
+    _isControllerInitialized = false;
+    _isClickExecuted = false;
 
-    // 4. 重置导航委托，防止后续回调
-    await controller.setNavigationDelegate(NavigationDelegate());
-    LogUtil.i('导航委托已重置为默认');
-  } catch (e, stack) {
-    LogUtil.logError('清理 WebView 时发生错误', e, stack);
+    // 注意：若 _controller 是 late final，无法设为 null，需改为普通变量
+    // _controller = null as dynamic; // 视情况启用，若需要请调整 _controller 定义
+
+    LogUtil.i('资源释放完成: ${DateTime.now()}'); // 添加结束时间戳
   }
-}
+
+  /// 清理 WebView 相关活动
+  // 修改部分：提前重置导航委托，改进 JS 清理逻辑
+  Future<void> disposeWebView(WebViewController controller) async {
+    try {
+      // 1. 重置导航委托，避免后续加载触发旧回调
+      await controller.setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (url) => LogUtil.i('清理中忽略 onPageStarted: $url'),
+        onPageFinished: (url) => LogUtil.i('清理中忽略 onPageFinished: $url'),
+      ));
+      LogUtil.i('导航委托已重置为默认');
+
+      // 2. 加载空白页面，清空内容并中断加载
+      await controller.loadRequest(Uri.parse('about:blank'));
+      LogUtil.i('已加载空白页面，清空内容并中断加载');
+
+      // 3. 清理 JS 和动态行为
+      if (_isHtmlContent) {
+        await controller.runJavaScript('''
+          window.stop(); // 停止页面加载和 JS 执行
+          document.documentElement.innerHTML = ''; // 清空整个 HTML
+          window.onload = null; // 移除 onload 事件
+          window.onerror = null; // 移除错误处理
+          // 清理所有定时器和间隔器
+          (function() {
+            var ids = Object.keys(window).filter(k => typeof window[k] === 'number' && window[k] > 0);
+            ids.forEach(id => { clearTimeout(id); clearInterval(id); });
+          })();
+          // 移除所有事件监听器
+          window.removeEventListener('load', null, true);
+          window.removeEventListener('unload', null, true);
+        ''');
+        LogUtil.i('已清理 JS 和动态行为');
+      }
+
+      // 4. 清理缓存和存储
+      await controller.clearCache();
+      await controller.clearLocalStorage();
+      LogUtil.i('已清理缓存和本地存储');
+
+      // 5. 移除 JS 通道（当前版本无直接移除 API，依赖后续加载不触发）
+      LogUtil.i('假设已移除所有 JS 通道');
+    } catch (e, stack) {
+      LogUtil.logError('清理 WebView 时发生错误', e, stack);
+    }
+  }
   
   /// 验证M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
