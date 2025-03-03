@@ -192,7 +192,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  void _videoListener(BetterPlayerEvent event) {
+  void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _isDisposing) return;
 
     switch (event.betterPlayerEventType) {
