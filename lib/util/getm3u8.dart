@@ -847,7 +847,7 @@ class GetM3U8 {
     });
   }
   
-  /// 释放资源，从外部加载清理脚本
+/// 释放资源
 Future<void> dispose() async {
   if (_isDisposed) {
     LogUtil.i('资源已释放，跳过重复释放');
@@ -876,31 +876,22 @@ Future<void> dispose() async {
   _isControllerInitialized = false;
   _isClickExecuted = false;
 
-  // 将 _controller 设置为 null，防止后续误用
-  // 注意：这里假设 _controller 是可变的，如果是 late final，则需调整设计
-  _controller = null as dynamic; // 临时绕过类型检查，建议改为可变字段
-
   LogUtil.i('资源释放完成');
 }
 
 /// 清理 WebView 相关活动
 Future<void> disposeWebView(WebViewController controller) async {
   try {
-    // 1. 停止当前加载
-    await controller.stopLoading();
-    LogUtil.i('已停止当前页面加载');
-
-    // 2. 加载空白页面，清空内容
+    // 1. 加载空白页面，清空内容并中断加载
     await controller.loadRequest(Uri.parse('about:blank'));
-    LogUtil.i('已加载空白页面，清空内容');
+    LogUtil.i('已加载空白页面，清空内容并中断加载');
 
-    // 3. 清理 JS 和动态行为（针对 HTML 页面）
+    // 2. 清理 JS 和动态行为（针对 HTML 页面）
     if (_isHtmlContent) {
       await controller.runJavaScript('''
         window.stop(); // 停止页面加载和 JS 执行
         document.body.innerHTML = ''; // 清空 DOM
         window.removeEventListener('load', null, true); // 移除加载事件
-        // 清理所有定时器和间隔器（更健壮的方式）
         Object.keys(window).forEach(key => {
           if (typeof window[key] === 'number' && window[key] % 1 === 0) {
             clearTimeout(window[key]);
@@ -911,12 +902,12 @@ Future<void> disposeWebView(WebViewController controller) async {
       LogUtil.i('已清理 JS 和动态行为');
     }
 
-    // 4. 清理缓存和存储
+    // 3. 清理缓存和存储
     await controller.clearCache();
     await controller.clearLocalStorage();
     LogUtil.i('已清理缓存和本地存储');
 
-    // 5. 重置导航委托，防止后续回调
+    // 4. 重置导航委托，防止后续回调
     await controller.setNavigationDelegate(NavigationDelegate());
     LogUtil.i('导航委托已重置为默认');
   } catch (e, stack) {
