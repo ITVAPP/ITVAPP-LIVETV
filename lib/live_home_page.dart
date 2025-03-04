@@ -295,6 +295,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (_isHls && !_isParsing) {
               // HLS 检查逻辑
               final remainingTime = duration - position;
+              LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $bufferedPosition, duration: $duration, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
               // 检查剩余时间 ≤ 2 秒且有预缓存地址
               if (_preCachedUrl != null && remainingTime.inSeconds <= 2) {
                 LogUtil.i('HLS 剩余时间少于 2 秒，切换到预缓存地址: $_preCachedUrl');
