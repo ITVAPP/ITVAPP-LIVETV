@@ -110,11 +110,11 @@ class HttpUtil {
         // 提取超时设置，提供默认值以避免 null 问题
         final connectTimeout = _getTimeout(
           options?.extra?['connectTimeout'] as Duration?,
-          options?.connectTimeout ?? const Duration(seconds: 3), // 使用默认值
+          _dio.options.connectTimeout, // 从 BaseOptions 获取默认值
         );
         final receiveTimeout = _getTimeout(
           options?.extra?['receiveTimeout'] as Duration?,
-          options?.receiveTimeout ?? const Duration(seconds: 8), // 使用默认值
+          _dio.options.receiveTimeout, // 从 BaseOptions 获取默认值
         );
 
         // 更新 Dio 配置，而不是创建新实例
