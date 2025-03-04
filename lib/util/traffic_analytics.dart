@@ -117,6 +117,7 @@ class TrafficAnalytics {
           dynamic parsedData;
           if (responseData is String) {
             try {
+              LogUtil.i('响应数据: $responseData');
               parsedData = jsonDecode(responseData); // 尝试解析为 JSON
             } catch (e) {
               LogUtil.i('响应数据是字符串但不是 JSON: $responseData');
