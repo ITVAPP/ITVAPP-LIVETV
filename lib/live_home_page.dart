@@ -57,6 +57,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap;
   PlayModel? _currentChannel;
   int _sourceIndex = 0;
+  int _lastProgressTime = 0; 
   BetterPlayerController? _playerController;
   bool isBuffering = false;
   bool isPlaying = false;
@@ -69,7 +70,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _shouldUpdateAspectRatio = true;
   StreamUrl? _streamUrl;
   String? _currentPlayUrl;
-
   bool _progressEnabled = false;
   bool _isHls = false;
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -301,6 +301,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       case BetterPlayerEventType.progress:
         if (_progressEnabled && isPlaying) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now - _lastProgressTime < 1000) break; // 修改监控为 1 秒频率控制
+          _lastProgressTime = now;
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
           if (position != null && duration != null && _lastBufferedPosition != null && _lastBufferedTime != null) {
@@ -846,7 +849,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = 'UNKNOWN';
           _isRetrying = false;
         });
-      
+      }
     } else {
       setState(() {
         _currentChannel = null;
