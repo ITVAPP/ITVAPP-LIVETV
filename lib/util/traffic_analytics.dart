@@ -16,7 +16,7 @@ class TrafficAnalytics {
   final String appversion = Config.version;
   final String umamiUrl = 'https://ws.itvapp.net/api/send';
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
-  static const int REQUEST_TIMEOUT_SECONDS = 5; // 定义请求超时时间为常量
+  static const int REQUEST_TIMEOUT_SECONDS = 6; // 定义请求超时时间为常量
 
   // 用于缓存设备信息和 User-Agent，避免重复获取
   String? _cachedDeviceInfo;
@@ -196,7 +196,7 @@ class TrafficAnalytics {
     return userAgent ? _cachedUserAgent! : _cachedDeviceInfo!;
   }
 
-  /// 发送页面访问统计数据到 Umami，无重试机制
+  /// 发送页面访问统计数据到 Umami
   Future<void> sendPageView(BuildContext context, String referrer, {String? additionalPath}) async {
     final String screenSize = getScreenSize(context);
     final String deviceInfo = await getDeviceInfo();
@@ -238,7 +238,7 @@ class TrafficAnalytics {
         'type': 'event',
       };
 
-      // 直接发送，无重试机制
+      // 直接发送
       final response = await HttpUtil().postRequest<String>(
         umamiUrl,
         data: jsonEncode(payload),
