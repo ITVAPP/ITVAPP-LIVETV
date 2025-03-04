@@ -384,7 +384,6 @@ class GetM3U8 {
   }
   
   /// 初始化WebViewController
-  // 修改部分：添加 _isDisposed 检查到 NavigationDelegate，确保清理时不触发脚本注入
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
       LogUtil.i('开始初始化控制器');
@@ -403,7 +402,6 @@ class GetM3U8 {
           
           // 如果是 HTML 内容,先进行内容检查
           if (_isHtmlContent) {
-            // 查找所有style标签的位置
             String content = _httpResponseContent!;
             int styleEndIndex = -1;
             final styleEndMatches = RegExp(r'</style>', caseSensitive: false).allMatches(content);
@@ -467,14 +465,14 @@ class GetM3U8 {
       // 检查内容和准备脚本
       final List<String> initScripts = [];
       final timeInterceptorCode = await _prepareTimeInterceptorCode();
-      initScripts.add(timeInterceptorCode); // 脚本1: 时间拦截器
+      initScripts.add(timeInterceptorCode); 
       initScripts.add('''
         window._videoInit = false;
         window._processedUrls = new Set();
         window._m3u8Found = false;
-      '''); // 脚本2: 基础运行时脚本
+      '''); 
       final m3u8DetectorCode = await _prepareM3U8DetectorCode();
-      initScripts.add(m3u8DetectorCode); // 脚本3: M3U8检测器脚本
+      initScripts.add(m3u8DetectorCode); 
 
       // 定义脚本名称映射，便于日志记录
       final scriptNames = [
@@ -517,7 +515,6 @@ class GetM3U8 {
       final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
 
       // 导航委托
-      // 修改：添加 _isDisposed 检查，确保清理时不执行不必要逻辑
       _controller.setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) async {
@@ -866,7 +863,6 @@ class GetM3U8 {
   }
   
   /// 释放资源
-  // 修改部分：优化清理逻辑，添加时间戳日志，确保干净释放
   Future<void> dispose() async {
     if (_isDisposed) {
       LogUtil.i('资源已释放，跳过重复释放');
@@ -895,15 +891,10 @@ class GetM3U8 {
     _m3u8Found = false;
     _isControllerInitialized = false;
     _isClickExecuted = false;
-
-    // 注意：若 _controller 是 late final，无法设为 null，需改为普通变量
-    // _controller = null as dynamic; // 视情况启用，若需要请调整 _controller 定义
-
     LogUtil.i('资源释放完成: ${DateTime.now()}'); // 添加结束时间戳
   }
 
   /// 清理 WebView 相关活动
-  // 修改部分：提前重置导航委托，改进 JS 清理逻辑
   Future<void> disposeWebView(WebViewController controller) async {
     try {
       // 1. 重置导航委托，避免后续加载触发旧回调
@@ -940,9 +931,6 @@ class GetM3U8 {
       await controller.clearCache();
       await controller.clearLocalStorage();
       LogUtil.i('已清理缓存和本地存储');
-
-      // 5. 移除 JS 通道（当前版本无直接移除 API，依赖后续加载不触发）
-      LogUtil.i('假设已移除所有 JS 通道');
     } catch (e, stack) {
       LogUtil.logError('清理 WebView 时发生错误', e, stack);
     }
