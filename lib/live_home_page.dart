@@ -264,29 +264,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
 case BetterPlayerEventType.bufferingUpdate:
   final bufferedData = event.parameters?["buffered"];
-  LogUtil.i('原始缓冲数据: ${event.parameters}');
+  // 记录完整的 event.parameters
+  LogUtil.i('bufferingUpdate 事件完整数据: ${event.parameters}');
+  // 记录 bufferedData 的值和类型
+  LogUtil.i('buffered 数据: $bufferedData (类型: ${bufferedData.runtimeType})');
   if (bufferedData != null) {
     if (bufferedData is Duration) {
-      // 如果是单一的 Duration
       _lastBufferedPosition = bufferedData;
       _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
       LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
-    } else if (bufferedData is List<dynamic>) {
-      // 如果是 List<DurationRange>，类似于官方代码
-      final bufferedRanges = bufferedData.map((range) {
-        if (range is DurationRange) return range;
-        return null;
-      }).whereType<DurationRange>().toList();
-      if (bufferedRanges.isNotEmpty) {
-        _lastBufferedPosition = bufferedRanges.last.end; // 取最后一个范围的结束位置
-        _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-        LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
-      }
     } else {
-      LogUtil.w('未知的缓冲区数据类型: $bufferedData');
+      // 如果类型未知，记录详细信息
+      LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
     }
   } else {
-    LogUtil.w('缓冲区数据为空');
+    LogUtil.i('缓冲区数据为空');
   }
   break;
 
