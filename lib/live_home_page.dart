@@ -58,7 +58,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlayModel? _currentChannel;
   int _sourceIndex = 0;
   BetterPlayerController? _playerController;
-  BetterPlayerController? _nextPlayerController;
   bool isBuffering = false;
   bool isPlaying = false;
   double aspectRatio = 1.78;
@@ -70,7 +69,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _shouldUpdateAspectRatio = true;
   StreamUrl? _streamUrl;
   String? _currentPlayUrl;
-  String? _nextVideoUrl;
 
   bool _progressEnabled = false;
   bool _isHls = false;
@@ -104,7 +102,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 播放视频，包含初始化和切换逻辑
   Future<void> _playVideo() async {
-    if (_currentChannel == null) return;
+    // 添加空检查以防止 _currentChannel 为 null 时崩溃
+    if (_currentChannel == null) return; // 避免空指针异常
 
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
     LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName');
@@ -119,9 +118,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
 
     try {
+      // 如果已有控制器，先暂停并重用，避免重复创建
       if (_playerController != null) {
         await _playerController!.pause();
-        await _cleanupController(_playerController);
       }
 
       await Future.delayed(const Duration(milliseconds: 500));
@@ -139,9 +138,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.e('地址解析失败: $url');
         setState(() {
           toastString = S.current.vpnplayError;
-          _isSwitchingChannel = false;
         });
-        return;
+        throw Exception('地址解析失败'); // 抛出异常以触发切换逻辑
       }
 
       bool isDirectAudio = _checkIsAudioStream(parsedUrl);
@@ -160,40 +158,44 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isHls: isHls,
       );
 
-      BetterPlayerController? tempController;
-      try {
-        tempController = BetterPlayerController(betterPlayerConfiguration);
-        await tempController.setupDataSource(dataSource);
-        LogUtil.i('播放器数据源设置完成: $parsedUrl');
-        setState(() {
-          _playerController = tempController;
-          _timeoutActive = false;
-        });
-        await _playerController?.play();
-        LogUtil.i('开始播放: $parsedUrl');
-      } catch (e) {
-        tempController?.dispose();
-        throw e;
+      // 重用播放器控制器，避免重复创建
+      if (_playerController == null) {
+        _playerController = BetterPlayerController(betterPlayerConfiguration);
       }
+      await _playerController!.setupDataSource(dataSource);
+      LogUtil.i('播放器数据源设置完成: $parsedUrl');
+      setState(() {
+        _timeoutActive = false;
+      });
+      await _playerController!.play();
+      LogUtil.i('开始播放: $parsedUrl');
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
       _handleSourceSwitching();
     } finally {
       if (mounted) {
-        setState(() => _isSwitchingChannel = false);
+        setState(() {
+          _isSwitchingChannel = false;
+          // 重置其他状态，确保一致性
+          if (_playerController == null) {
+            isBuffering = false;
+            isPlaying = false;
+          }
+        });
+        // 处理最新的切换请求
         if (_pendingSwitch != null) {
           final nextRequest = _pendingSwitch!;
           _currentChannel = nextRequest['channel'] as PlayModel?;
           _sourceIndex = nextRequest['sourceIndex'] as int;
-          _pendingSwitch = null; // 处理完成后清空
+          _pendingSwitch = null; // 清空请求
           LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
-          Future.microtask(() => _playVideo()); // 异步调度，避免递归
+          Future.microtask(() => _playVideo()); // 直接播放最新请求
         }
       }
     }
   }
 
-  // 将切换请求加入队列
+  /// 将切换请求加入队列，只保留最新请求
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     if (channel == null) return;
 
@@ -255,7 +257,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.bufferingUpdate:
-        final buffered = event.parameters?["bufferedPosition"] as Duration?;
+        final buffered = event.parameters?["buffered"] as Duration?;
         LogUtil.i('缓冲区变化: $buffered');
         if (buffered != null) {
           _lastBufferedPosition = buffered;
@@ -502,7 +504,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       LogUtil.i('重试播放: 第 $_retryCount 次');
 
-      _retryTimer = Timer(const Duration(seconds: 2), () async {
+      _retryTimer = Timer(Duration(seconds: defaultTimeoutSeconds), () async {
         if (!mounted || _isSwitchingChannel || _isDisposing) {
           LogUtil.i('重试中断: mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           setState(() => _isRetrying = false);
@@ -522,8 +524,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   String? _getNextVideoUrl() {
-    final List<String>? urls = _currentChannel?.urls;
-    if (urls == null || urls.isEmpty) return null;
+    // 添加空检查以防止 _currentChannel 或 urls 为 null
+    if (_currentChannel == null || _currentChannel!.urls == null) return null;
+    final List<String> urls = _currentChannel!.urls!;
+    if (urls.isEmpty) return null;
     final nextSourceIndex = _sourceIndex + 1;
     if (nextSourceIndex >= urls.length) return null;
     return urls[nextSourceIndex];
@@ -590,17 +594,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await controller.setVolume(0);
       }
 
-      await _disposeStreamUrl();
       controller.videoPlayerController?.dispose();
       controller.dispose();
 
-      // 清理下一播放器
-      _nextPlayerController?.dispose();
-      _nextPlayerController = null;
-      _nextVideoUrl = null;
-
       setState(() {
-        _playerController = null;
+        if (controller == _playerController) {
+          _playerController = null;
+        }
         _progressEnabled = false;
         _isAudio = false;
         _bufferedHistory.clear();
@@ -775,11 +775,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _extractFavoriteList();
   }
 
+  /// 清理所有资源，确保无内存泄漏
   @override
   void dispose() {
     _isDisposing = true;
-    _cleanupController(_playerController);
-    _pendingSwitch = null; // 清理最新请求
+    _cleanupController(_playerController); // 清理主播放器
+    _disposeStreamUrl(); // 清理流地址
+    _pendingSwitch = null; // 清理切换队列
     super.dispose();
   }
 
@@ -844,7 +846,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = 'UNKNOWN';
           _isRetrying = false;
         });
-      }
+      
     } else {
       setState(() {
         _currentChannel = null;
