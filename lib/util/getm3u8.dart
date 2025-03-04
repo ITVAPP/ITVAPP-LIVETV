@@ -10,6 +10,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 /// URL 处理工具类
 class UrlUtils {
   static const _protocolPattern = r'(?:https?)';
+  // 将正则表达式提升为静态常量
   static final _escapeRegex = RegExp(r'\\(\|/|")'); // 匹配双反斜杠后跟特殊字符
   static final _multiSlashRegex = RegExp(r'/{3,}'); // 处理3+连续斜杠
   static final _htmlEntityRegex = RegExp(r'&(#?[a-z0-9]+);'); // HTML实体匹配
@@ -52,14 +53,14 @@ class UrlUtils {
     decodeUrl(); // 第一层解码
     if (url.contains('%')) decodeUrl(); // 仅在必要时进行第二层解码
 
-    return url; 
+    return url;
   }
 
   static String _parseUnicode(String? hex) {
     try {
       return String.fromCharCode(int.parse(hex!, radix: 16));
     } catch (e) {
-      return '\u$hex';
+      return hex ?? '';
     }
   }
 
@@ -111,7 +112,7 @@ class M3U8FilterRule {
 
 /// 地址获取类
 class GetM3U8 {
-  // 将无效URL关键词的正则表达式提升为类级别，避免重复创建
+  // 无效URL关键词的正则表达式
   static final _invalidPatternRegex = RegExp(
     'advertisement|analytics|tracker|pixel|beacon|stats|log',
     caseSensitive: false,
@@ -369,7 +370,9 @@ class GetM3U8 {
   /// 初始化WebViewController
   Future<void> _initController(Completer<String> completer, String filePattern) async {
     try {
-      // 开始初始化控制器
+      LogUtil.i('开始初始化控制器');
+
+      // 设置 _isControllerInitialized，确保状态正确
       _isControllerInitialized = true;
 
       // 检查页面内容类型
@@ -455,7 +458,7 @@ window._m3u8Found = false;
       final m3u8DetectorCode = await _prepareM3U8DetectorCode();
       initScripts.add(m3u8DetectorCode);
 
-      // 定义脚本名称映射
+      // 定义脚本名称映射，便于日志记录
       final scriptNames = [
         '时间拦截器脚本 (time_interceptor.js)',
         '点击处理脚本 (click_handler.js)',
@@ -558,6 +561,7 @@ window._m3u8Found = false;
                 return NavigationDecision.prevent; // 阻止其他被屏蔽的资源
               }
             } catch (e) {
+              // 获取扩展名失败，跳过扩展名检查
               LogUtil.e('提取扩展名失败: $e');
             }
 
@@ -565,12 +569,12 @@ window._m3u8Found = false;
             try {
               final lowercasePath = uri.path.toLowerCase();
               if (lowercasePath.contains('.' + filePattern.toLowerCase())) {
-                controller.runJavaScript(
+                _controller.runJavaScript(
                   'window.M3U8Detector?.postMessage(${json.encode({
-                        'type': 'url',
-                        'url': request.url,
-                        'source': 'navigation'
-                      })});'
+                    'type': 'url',
+                    'url': request.url,
+                    'source': 'navigation'
+                  })});'
                 ).catchError(() {});
                 return NavigationDecision.prevent;
               }
@@ -1063,7 +1067,7 @@ window.removeEventListener('unload', null, true);
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 使用正则表达式查找URL
-      final pattern = '''(?:${UrlUtils._protocolPattern}://|//|/)[^'"\s,()<>{}\$ \ ]*?\\.${_filePattern}[^'"\s,()<>{}\ \ \$]*'''; 
+      final pattern = '''(?:${UrlUtils._protocolPattern}://|//|/)[^'"\s,()<>{}\$ \ ]*?\\.${_filePattern}[^'"\s,()<>{}\ \ \$]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
