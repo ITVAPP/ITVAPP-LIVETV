@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
@@ -128,14 +129,16 @@ class HttpUtil {
     return null;
   }
 
-  // GET 请求方法，确保返回 String? 时不会出错（原有方法）
+  // 修改部分：GET 请求方法，支持返回 String 和自定义解析
   Future<T?> getRequest<T>(String path,
       {Map<String, dynamic>? queryParameters,
       Options? options,
       CancelToken? cancelToken,
       ProgressCallback? onReceiveProgress,
       int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
+      Duration retryDelay = const Duration(seconds: 2),
+      T? Function(dynamic data)? parseData, // 新增：自定义解析函数
+  }) async {
     return _performRequest<T>(
       method: 'GET',
       path: path,
@@ -146,16 +149,43 @@ class HttpUtil {
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) {
-        if (T == String && response.data is! String) {
-          LogUtil.e('请求返回的数据不是 String，转换失败: ${response.data}');
+        final data = response.data;
+        if (data == null) return null;
+
+        // 新增：如果提供了自定义解析函数，优先使用
+        if (parseData != null) {
+          try {
+            return parseData(data);
+          } catch (e, stackTrace) {
+            LogUtil.logError('自定义解析失败: $data', e, stackTrace);
+            return null;
+          }
+        }
+
+        // 修改：当 T 为 String 时，自动处理 JSON 转换为字符串
+        if (T == String) {
+          if (data is String) {
+            return data as T; // 直接返回字符串
+          } else if (data is Map || data is List) {
+            return jsonEncode(data) as T; // 将 JSON 转换为字符串
+          } else {
+            LogUtil.e('无法将数据转换为 String: $data');
+            return null;
+          }
+        }
+
+        // 其他类型直接尝试转换
+        try {
+          return data is T ? data : null;
+        } catch (e) {
+          LogUtil.e('类型转换失败: $data 无法转换为 $T');
           return null;
         }
-        return response.data != null ? response.data as T : null;
       },
     );
   }
 
-  // 新增 GET 请求方法，返回完整的 Response 对象
+  // 新增 GET 请求方法，返回完整的 Response 对象（未修改）
   Future<Response?> getRequestWithResponse(String path,
       {Map<String, dynamic>? queryParameters,
       Options? options,
@@ -176,7 +206,7 @@ class HttpUtil {
     );
   }
 
-  // POST 请求方法，支持重试机制（原有方法）
+  // 修改部分：POST 请求方法，支持返回 String 和自定义解析
   Future<T?> postRequest<T>(String path,
       {dynamic data,
       Map<String, dynamic>? queryParameters,
@@ -185,7 +215,9 @@ class HttpUtil {
       ProgressCallback? onSendProgress,
       ProgressCallback? onReceiveProgress,
       int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
+      Duration retryDelay = const Duration(seconds: 2),
+      T? Function(dynamic data)? parseData, // 新增：自定义解析函数
+  }) async {
     return _performRequest<T>(
       method: 'POST',
       path: path,
@@ -198,16 +230,43 @@ class HttpUtil {
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) {
-        if (T == String && response.data is! String) {
-          LogUtil.e('POST 请求返回的数据不是 String，转换失败: ${response.data}');
+        final data = response.data;
+        if (data == null) return null;
+
+        // 新增：如果提供了自定义解析函数，优先使用
+        if (parseData != null) {
+          try {
+            return parseData(data);
+          } catch (e, stackTrace) {
+            LogUtil.logError('自定义解析失败: $data', e, stackTrace);
+            return null;
+          }
+        }
+
+        // 修改：当 T 为 String 时，自动处理 JSON 转换为字符串
+        if (T == String) {
+          if (data is String) {
+            return data as T; // 直接返回字符串
+          } else if (data is Map || data is List) {
+            return jsonEncode(data) as T; // 将 JSON 转换为字符串
+          } else {
+            LogUtil.e('无法将数据转换为 String: $data');
+            return null;
+          }
+        }
+
+        // 其他类型直接尝试转换
+        try {
+          return data is T ? data : null;
+        } catch (e) {
+          LogUtil.e('类型转换失败: $data 无法转换为 $T');
           return null;
         }
-        return response.data != null ? response.data as T : null;
       },
     );
   }
 
-  // 新增 POST 请求方法，返回完整的 Response 对象
+  // 新增 POST 请求方法，返回完整的 Response 对象（未修改）
   Future<Response?> postRequestWithResponse(String path,
       {dynamic data,
       Map<String, dynamic>? queryParameters,
@@ -232,7 +291,7 @@ class HttpUtil {
     );
   }
 
-  // 文件下载方法，支持显示下载进度
+  // 文件下载方法，支持显示下载进度（未修改）
   Future<int?> downloadFile(String url, String savePath,
       {ValueChanged<double>? progressCallback}) async {
     try {
@@ -267,7 +326,7 @@ class HttpUtil {
   }
 }
 
-// 统一处理 Dio 请求的异常
+// 统一处理 Dio 请求的异常（未修改）
 void formatError(DioException e) {
   LogUtil.safeExecute(() {
     // 根据异常类型返回对应的本地化错误信息
