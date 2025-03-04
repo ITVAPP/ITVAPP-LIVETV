@@ -121,6 +121,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 如果已有控制器，先暂停并重用，避免重复创建
       if (_playerController != null) {
         await _playerController!.pause();
+        await _cleanupController(_playerController);
       }
 
       await Future.delayed(const Duration(milliseconds: 500));
@@ -138,8 +139,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.e('地址解析失败: $url');
         setState(() {
           toastString = S.current.vpnplayError;
+          _isSwitchingChannel = false;
         });
-        throw Exception('地址解析失败'); // 抛出异常以触发切换逻辑
+        return;
       }
 
       bool isDirectAudio = _checkIsAudioStream(parsedUrl);
@@ -158,17 +160,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isHls: isHls,
       );
 
-      // 重用播放器控制器，避免重复创建
-      if (_playerController == null) {
-        _playerController = BetterPlayerController(betterPlayerConfiguration);
+      BetterPlayerController? tempController;
+      try {
+        tempController = BetterPlayerController(betterPlayerConfiguration);
+        await tempController.setupDataSource(dataSource);
+        LogUtil.i('播放器数据源设置完成: $parsedUrl');
+        setState(() {
+          _playerController = tempController;
+          _timeoutActive = false;
+        });
+        await _playerController?.play();
+        LogUtil.i('开始播放: $parsedUrl');
+      } catch (e) {
+        tempController?.dispose();
+        throw e;
       }
-      await _playerController!.setupDataSource(dataSource);
-      LogUtil.i('播放器数据源设置完成: $parsedUrl');
-      setState(() {
-        _timeoutActive = false;
-      });
-      await _playerController!.play();
-      LogUtil.i('开始播放: $parsedUrl');
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
       _handleSourceSwitching();
@@ -187,15 +193,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
           final nextRequest = _pendingSwitch!;
           _currentChannel = nextRequest['channel'] as PlayModel?;
           _sourceIndex = nextRequest['sourceIndex'] as int;
-          _pendingSwitch = null; // 清空请求
+          _pendingSwitch = null; // 处理完成后清空
           LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
-          Future.microtask(() => _playVideo()); // 直接播放最新请求
+          Future.microtask(() => _playVideo()); // 异步调度，避免递归
         }
       }
     }
   }
 
-  /// 将切换请求加入队列，只保留最新请求
+  // 将切换请求加入队列
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     if (channel == null) return;
 
@@ -256,15 +262,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _startTimeoutCheck();
         break;
 
-      case BetterPlayerEventType.bufferingUpdate:
-        final buffered = event.parameters?["buffered"] as Duration?;
-        LogUtil.i('缓冲区变化: $buffered');
-        if (buffered != null) {
-          _lastBufferedPosition = buffered;
-          _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-          LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
-        }
-        break;
+case BetterPlayerEventType.bufferingUpdate:
+  final bufferedData = event.parameters?["buffered"];
+  LogUtil.i('原始缓冲数据: ${event.parameters}');
+  if (bufferedData != null) {
+    if (bufferedData is Duration) {
+      // 如果是单一的 Duration
+      _lastBufferedPosition = bufferedData;
+      _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
+      LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
+    } else if (bufferedData is List<dynamic>) {
+      // 如果是 List<DurationRange>，类似于官方代码
+      final bufferedRanges = bufferedData.map((range) {
+        if (range is DurationRange) return range;
+        return null;
+      }).whereType<DurationRange>().toList();
+      if (bufferedRanges.isNotEmpty) {
+        _lastBufferedPosition = bufferedRanges.last.end; // 取最后一个范围的结束位置
+        _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
+        LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
+      }
+    } else {
+      LogUtil.w('未知的缓冲区数据类型: $bufferedData');
+    }
+  } else {
+    LogUtil.w('缓冲区数据为空');
+  }
+  break;
 
       case BetterPlayerEventType.bufferingEnd:
         LogUtil.i('缓冲结束');
@@ -507,7 +531,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       LogUtil.i('重试播放: 第 $_retryCount 次');
 
-      _retryTimer = Timer(Duration(seconds: defaultTimeoutSeconds), () async {
+      _retryTimer = Timer(const Duration(seconds: 2), () async {
         if (!mounted || _isSwitchingChannel || _isDisposing) {
           LogUtil.i('重试中断: mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
           setState(() => _isRetrying = false);
@@ -597,13 +621,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await controller.setVolume(0);
       }
 
+      await _disposeStreamUrl();
       controller.videoPlayerController?.dispose();
       controller.dispose();
 
       setState(() {
-        if (controller == _playerController) {
-          _playerController = null;
-        }
+        _playerController = null;
         _progressEnabled = false;
         _isAudio = false;
         _bufferedHistory.clear();
