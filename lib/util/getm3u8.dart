@@ -880,10 +880,7 @@ efficientDOMScan();
   Future<void> disposeWebView(WebViewController controller) async {
     try {
       // 1. 重置导航委托，避免后续加载触发旧回调
-      await controller.setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) => LogUtil.i('清理中忽略 onPageStarted: $url'),
-        onPageFinished: (url) => LogUtil.i('清理中忽略 onPageFinished: $url'),
-      ));
+      await controller.setNavigationDelegate(NavigationDelegate());
       LogUtil.i('导航委托已重置为默认');
 
       // 2. 加载空白页面，清空内容并中断加载
@@ -964,9 +961,6 @@ window.removeEventListener('unload', null, true);
   /// 处理发现的M3U8 URL
   Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
     if (_m3u8Found || _isDisposed || url == null || url.isEmpty) {
-      LogUtil.i(
-        _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放或URL为空'
-      );
       return;
     }
 
