@@ -278,12 +278,12 @@ void _videoListener(BetterPlayerEvent event) async {
               _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
               LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
             } catch (e) {
-              LogUtil.w('无法解析缓冲对象: $lastBuffer, 错误: $e');
+              LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
               // 即使解析失败，也更新时间戳，确保 progress 不使用过旧的时间
               _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
             }
           } else {
-            LogUtil.w('缓冲区列表为空');
+            LogUtil.i('缓冲区列表为空');
             // 保持 _lastBufferedPosition 不变，只更新时间戳
             _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
           }
@@ -292,12 +292,12 @@ void _videoListener(BetterPlayerEvent event) async {
           _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
           LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
         } else {
-          LogUtil.w('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
+          LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
           // 对于未知类型，更新时间戳但不修改 _lastBufferedPosition
           _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
         }
       } else {
-        LogUtil.w('缓冲区数据为空');
+        LogUtil.i('缓冲区数据为空');
         // 如果数据为空，更新时间戳但保持 _lastBufferedPosition 不变
         _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
       }
@@ -432,10 +432,10 @@ void _videoListener(BetterPlayerEvent event) async {
               }
             }
           } else {
-            LogUtil.w('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
+            LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
           }
         } else {
-          LogUtil.w('Progress 数据不完整: position=$position, duration=$duration');
+          LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
         }
       }
       break;
