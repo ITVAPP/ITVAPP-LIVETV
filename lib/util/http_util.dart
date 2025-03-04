@@ -37,11 +37,11 @@ class HttpUtil {
     }
   }
 
-  // 超时设置的工具函数
-  Duration _getTimeout(Duration? customTimeout, Duration defaultTimeout) {
+  // 超时设置的工具函数，修改为支持 nullable 默认值
+  Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
-        : defaultTimeout;
+        : defaultTimeout ?? const Duration(seconds: 3); // 提供最终默认值
   }
 
   // 提取类型处理的公共函数，减少重复逻辑
@@ -110,11 +110,11 @@ class HttpUtil {
         // 提取超时设置，提供默认值以避免 null 问题
         final connectTimeout = _getTimeout(
           options?.extra?['connectTimeout'] as Duration?,
-          _dio.options.connectTimeout, // 从 BaseOptions 获取默认值
+          _dio.options.connectTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
         );
         final receiveTimeout = _getTimeout(
           options?.extra?['receiveTimeout'] as Duration?,
-          _dio.options.receiveTimeout, // 从 BaseOptions 获取默认值
+          _dio.options.receiveTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
         );
 
         // 更新 Dio 配置，而不是创建新实例
