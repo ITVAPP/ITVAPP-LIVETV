@@ -84,15 +84,6 @@ class TrafficAnalytics {
 
     final apiList = [
       {
-        'url': 'https://whois.pconline.com.cn/ipJson.jsp?ip=&json=true',
-        'parseData': (data) => {
-              'ip': data['ip'] ?? 'Unknown IP',
-              'region': data['pro'] ?? 'Unknown Region',
-              'country': data['region'] ?? '中国',
-              'city': data['city'] ?? 'Unknown City',
-            }
-      },
-      {
         'url': 'https://ip.useragentinfo.com/json',
         'parseData': (data) => {
               'ip': data['ip'] ?? 'Unknown IP',
