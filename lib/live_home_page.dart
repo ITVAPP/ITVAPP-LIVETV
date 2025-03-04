@@ -57,7 +57,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap;
   PlayModel? _currentChannel;
   int _sourceIndex = 0;
-  int _lastProgressTime = 0;
+  int _lastProgressTime = 0; 
   BetterPlayerController? _playerController;
   bool isBuffering = false;
   bool isPlaying = false;
@@ -118,15 +118,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
 
     try {
-      // 如果已有控制器，暂停并重用
-      if (_playerController != null) {
+      // 如果控制器为空，则创建新实例；否则重用现有控制器
+      if (_playerController == null) {
+        final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
+          eventListener: _videoListener,
+          isHls: false, // 初始值，动态更新
+        );
+        _playerController = BetterPlayerController(betterPlayerConfiguration);
+        LogUtil.i('创建新的播放器控制器');
+      } else {
         await _playerController!.pause();
-        // 重置部分状态，但不 dispose
+        // 重置缓冲相关状态，确保新数据源的缓冲数据准确
         _bufferedHistory.clear();
         _lastBufferedPosition = null;
         _lastBufferedTime = null;
-        _preCachedUrl = null;
-        _isParsing = false;
         LogUtil.i('暂停现有播放器，准备重用');
       }
 
@@ -162,7 +167,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isHls: isHls,
       );
 
-      // 重用现有控制器，更新数据源
+      // 更新数据源，重用控制器
       await _playerController!.setupDataSource(dataSource);
       LogUtil.i('播放器数据源设置完成: $parsedUrl');
       setState(() {
@@ -172,6 +177,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('开始播放: $parsedUrl');
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
+      // 如果播放失败，清理控制器并置空，确保下次重新创建
+      await _cleanupController(_playerController);
+      _playerController = null;
       _handleSourceSwitching();
     } finally {
       if (mounted) {
@@ -371,7 +379,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     LogUtil.i('HLS 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
                   }
                   _preCachedUrl = null; // 清理已使用的预缓存地址
-                }
+                } 
                 // 缓冲停滞检查
                 else if (_bufferedHistory.length == 5 && _lastBufferedPosition!.inSeconds > 2) {
                   int positionIncreaseCount = 0;
@@ -607,8 +615,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _isRetrying = false;
       _retryCount = 0;
     });
-    // 不立即清理控制器，仅暂停
-    await _playerController?.pause();
+    // 不清理控制器，仅暂停现有播放器
+    if (_playerController != null) {
+      await _playerController!.pause();
+    }
     LogUtil.i('播放结束，无更多源');
   }
 
@@ -640,7 +650,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       controller.dispose();
 
       setState(() {
-        _playerController = null; // 只在 dispose 时置空
+        _playerController = null;
         _progressEnabled = false;
         _isAudio = false;
         _bufferedHistory.clear();
@@ -813,14 +823,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     _loadData();
     _extractFavoriteList();
-
-    // 初始化播放器控制器，只创建一次
-    final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-      eventListener: _videoListener,
-      isHls: false, // 初始值，之后动态更新
-    );
-    _playerController = BetterPlayerController(betterPlayerConfiguration);
-    LogUtil.i('播放器控制器初始化完成');
   }
 
   /// 清理所有资源，确保无内存泄漏
