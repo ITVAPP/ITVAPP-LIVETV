@@ -13,20 +13,18 @@ class HttpUtil {
 
   // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
   BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: 3), // 设置连接超时时间
-    receiveTimeout: const Duration(seconds: 8), // 设置接收超时时间
+    connectTimeout: const Duration(seconds: 3), // 设置默认连接超时时间
+    receiveTimeout: const Duration(seconds: 8), // 设置默认接收超时时间
   );
 
-  CancelToken cancelToken = CancelToken(); // 用于取消请求的令牌
+  CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌
 
-  factory HttpUtil() {
-    return _instance;
-  }
+  factory HttpUtil() => _instance;
 
   HttpUtil._() {
     // 初始化 Dio 实例
     _dio = Dio(options);
-    
+
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
     if (_dio.httpClientAdapter is IOHttpClientAdapter) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
@@ -39,7 +37,49 @@ class HttpUtil {
     }
   }
 
-  // 提取的核心请求逻辑，处理 GET 和 POST 请求
+  // 超时设置的工具函数
+  Duration _getTimeout(Duration? customTimeout, Duration defaultTimeout) {
+    return customTimeout != null && customTimeout.inMilliseconds > 0
+        ? customTimeout
+        : defaultTimeout;
+  }
+
+  // 提取类型处理的公共函数，减少重复逻辑
+  T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
+    if (data == null) return null;
+
+    // 如果数据是字符串，去除前后的空格和换行符
+    if (data is String) data = data.trim();
+
+    // 如果提供了自定义解析函数，优先使用
+    if (parseData != null) {
+      try {
+        return parseData(data);
+      } catch (e, stackTrace) {
+        LogUtil.logError('自定义解析失败: $data', e, stackTrace);
+        return null;
+      }
+    }
+
+    // 处理 String 类型
+    if (T == String) {
+      if (data is String) return data as T;
+      if (data is Map || data is List) return jsonEncode(data) as T;
+      if (data is int || data is double || data is bool) return data.toString() as T;
+      LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})');
+      return null;
+    }
+
+    // 其他类型直接尝试转换
+    try {
+      return data is T ? data as T : null;
+    } catch (e) {
+      LogUtil.e('类型转换失败: $data 无法转换为 $T');
+      return null;
+    }
+  }
+
+  // 核心请求逻辑，处理 GET 和 POST 请求
   Future<R?> _performRequest<R>({
     required String method,
     required String path,
@@ -51,61 +91,54 @@ class HttpUtil {
     ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
-    required R? Function(Response response) onSuccess, // 成功时的回调，决定返回值
+    required R? Function(Response response) onSuccess,
   }) async {
     Response? response;
-    int currentAttempt = 0; // 当前重试次数
-    Duration currentDelay = retryDelay; // 当前重试延迟
+    int currentAttempt = 0;
+    Map<String, String>? cachedHeaders; // 缓存第一次生成的 headers
 
     while (currentAttempt < retryCount) {
       try {
-        Map<String, String> headers;
-        if (currentAttempt == 0) {
-          // 第一次请求使用动态生成headers
-          headers = HeadersConfig.generateHeaders(url: path);
-        } else {
-          // 重试时只使用 Content-Type
-          headers = {
-            'Content-Type': method.toUpperCase() == 'POST' ? 'application/json' : 'text/html'
-          };
-        }
+        // 生成或复用 headers
+        final headers = cachedHeaders ??=
+            currentAttempt == 0 ? HeadersConfig.generateHeaders(url: path) : {
+                  'Content-Type': method.toUpperCase() == 'POST'
+                      ? 'application/json'
+                      : 'text/html'
+                };
 
-        // 从 options.extra 中提取超时设置（如果提供），否则使用默认值
-        final connectTimeout = options?.extra?['connectTimeout'] as Duration? ?? this.options.connectTimeout;
-        final receiveTimeout = options?.extra?['receiveTimeout'] as Duration? ?? this.options.receiveTimeout;
+        // 提取超时设置
+        final connectTimeout =
+            _getTimeout(options?.extra?['connectTimeout'] as Duration?, options.connectTimeout);
+        final receiveTimeout =
+            _getTimeout(options?.extra?['receiveTimeout'] as Duration?, options.receiveTimeout);
 
-        // 创建临时的请求选项，合并超时设置
-        final requestOptions = (options ?? Options()).copyWith(
-          extra: {'attempt': currentAttempt, 'connectTimeout': connectTimeout, 'receiveTimeout': receiveTimeout},
-          headers: headers,
-        );
+        // 更新 Dio 配置，而不是创建新实例
+        _dio.options
+          ..connectTimeout = connectTimeout
+          ..receiveTimeout = receiveTimeout
+          ..headers = headers;
 
-        // 创建一个临时的 Dio 实例，应用动态超时设置
-        final tempDio = Dio(BaseOptions(
-          connectTimeout: connectTimeout,
-          receiveTimeout: receiveTimeout,
-        ));
-
-        // 根据方法执行 GET 或 POST 请求
+        // 执行请求，使用全局 cancelToken 或传入的 cancelToken
         response = await (method.toUpperCase() == 'POST'
-            ? tempDio.post(
+            ? _dio.post(
                 path,
                 data: data,
                 queryParameters: queryParameters,
-                options: requestOptions,
-                cancelToken: cancelToken,
+                options: options,
+                cancelToken: cancelToken ?? this.cancelToken,
                 onSendProgress: onSendProgress,
                 onReceiveProgress: onReceiveProgress,
               )
-            : tempDio.get(
+            : _dio.get(
                 path,
                 queryParameters: queryParameters,
-                options: requestOptions,
-                cancelToken: cancelToken,
+                options: options,
+                cancelToken: cancelToken ?? this.cancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
 
-        return onSuccess(response); // 调用成功回调处理响应
+        return onSuccess(response);
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError(
@@ -129,15 +162,16 @@ class HttpUtil {
     return null;
   }
 
-  // GET 请求方法，增强类型处理
-  Future<T?> getRequest<T>(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2),
-      T? Function(dynamic data)? parseData, // 自定义解析函数
+  // GET 请求方法
+  Future<T?> getRequest<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2),
+    T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
       method: 'GET',
@@ -148,53 +182,20 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) {
-        final data = response.data;
-        if (data == null) return null;
-
-        // 如果提供了自定义解析函数，优先使用
-        if (parseData != null) {
-          try {
-            return parseData(data);
-          } catch (e, stackTrace) {
-            LogUtil.logError('自定义解析失败: $data', e, stackTrace);
-            return null;
-          }
-        }
-
-        // 当 T 为 String 时，增强类型处理
-        if (T == String) {
-          if (data is String) {
-            return data as T; // 直接返回字符串
-          } else if (data is Map || data is List) {
-            return jsonEncode(data) as T; // 将 JSON 转换为字符串
-          } else if (data is int || data is double || data is bool) {
-            return data.toString() as T; // 将基本类型转换为字符串
-          } else {
-            LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})');
-            return null;
-          }
-        }
-
-        // 其他类型直接尝试转换
-        try {
-          return data is T ? data as T : null;
-        } catch (e) {
-          LogUtil.e('类型转换失败: $data 无法转换为 $T');
-          return null;
-        }
-      },
+      onSuccess: (response) => _parseResponseData<T>(response.data, parseData: parseData),
     );
   }
 
-  // GET 请求方法，返回完整的 Response 对象
-  Future<Response?> getRequestWithResponse(String path,
-      {Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
+  // GET 请求方法，返回完整 Response
+  Future<Response?> getRequestWithResponse(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2),
+  }) async {
     return _performRequest<Response>(
       method: 'GET',
       path: path,
@@ -204,21 +205,25 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) => response,
+      onSuccess: (response) {
+        if (response.data is String) response.data = response.data.trim();
+        return response;
+      },
     );
   }
 
-  // POST 请求方法，增强类型处理
-  Future<T?> postRequest<T>(String path,
-      {dynamic data,
-      Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onSendProgress,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2),
-      T? Function(dynamic data)? parseData, // 自定义解析函数
+  // POST 请求方法
+  Future<T?> postRequest<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2),
+    T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
       method: 'POST',
@@ -231,55 +236,22 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) {
-        final data = response.data;
-        if (data == null) return null;
-
-        // 如果提供了自定义解析函数，优先使用
-        if (parseData != null) {
-          try {
-            return parseData(data);
-          } catch (e, stackTrace) {
-            LogUtil.logError('自定义解析失败: $data', e, stackTrace);
-            return null;
-          }
-        }
-
-        // 当 T 为 String 时，增强类型处理
-        if (T == String) {
-          if (data is String) {
-            return data as T; // 直接返回字符串
-          } else if (data is Map || data is List) {
-            return jsonEncode(data) as T; // 将 JSON 转换为字符串
-          } else if (data is int || data is double || data is bool) {
-            return data.toString() as T; // 将基本类型转换为字符串
-          } else {
-            LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})');
-            return null;
-          }
-        }
-
-        // 其他类型直接尝试转换
-        try {
-          return data is T ? data as T : null;
-        } catch (e) {
-          LogUtil.e('类型转换失败: $data 无法转换为 $T');
-          return null;
-        }
-      },
+      onSuccess: (response) => _parseResponseData<T>(response.data, parseData: parseData),
     );
   }
 
-  // POST 请求方法，返回完整的 Response 对象
-  Future<Response?> postRequestWithResponse(String path,
-      {dynamic data,
-      Map<String, dynamic>? queryParameters,
-      Options? options,
-      CancelToken? cancelToken,
-      ProgressCallback? onSendProgress,
-      ProgressCallback? onReceiveProgress,
-      int retryCount = 2,
-      Duration retryDelay = const Duration(seconds: 2)}) async {
+  // POST 请求方法，返回完整 Response
+  Future<Response?> postRequestWithResponse(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = 2,
+    Duration retryDelay = const Duration(seconds: 2),
+  }) async {
     return _performRequest<Response>(
       method: 'POST',
       path: path,
@@ -291,41 +263,45 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) => response,
+      onSuccess: (response) {
+        if (response.data is String) response.data = response.data.trim();
+        return response;
+      },
     );
   }
 
-  // 文件下载方法，支持显示下载进度
-  Future<int?> downloadFile(String url, String savePath,
-      {ValueChanged<double>? progressCallback}) async {
+  // 文件下载方法
+  Future<int?> downloadFile(
+    String url,
+    String savePath, {
+    ValueChanged<double>? progressCallback,
+  }) async {
     try {
-      // 动态生成请求头
       final headers = HeadersConfig.generateHeaders(url: url);
-
       final response = await _dio.download(
         url,
         savePath,
         options: Options(
-          receiveTimeout: const Duration(seconds: 298), // 下载超时时间设置
-          headers: headers, // 使用动态生成的 headers
+          receiveTimeout: const Duration(seconds: 298),
+          headers: headers,
         ),
         onReceiveProgress: (received, total) {
-          if (total <= 0) return; // 避免除以零的错误
-          progressCallback?.call(received / total); // 回调下载进度
+          if (total > 0) progressCallback?.call(received / total);
         },
       );
 
       if (response.statusCode != 200) {
         throw DioException(
-            requestOptions: response.requestOptions,
-            error: '状态码: ${response.statusCode}');
+          requestOptions: response.requestOptions,
+          error: '状态码: ${response.statusCode}',
+        );
       }
 
-      LogUtil.i('文件下载成功: $url, 保存路径: $savePath'); // 下载成功日志
+      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
       return response.statusCode;
     } on DioException catch (e, stackTrace) {
-      LogUtil.logError('文件下载失败: $url', e, stackTrace); // 下载失败日志
-      return 500; // 返回错误状态码
+      LogUtil.logError('文件下载失败: $url', e, stackTrace);
+      return 500;
     }
   }
 }
@@ -333,17 +309,14 @@ class HttpUtil {
 // 统一处理 Dio 请求的异常
 void formatError(DioException e) {
   LogUtil.safeExecute(() {
-    // 根据异常类型返回对应的本地化错误信息
     final message = switch (e.type) {
       DioExceptionType.connectionTimeout => S.current.netTimeOut,
       DioExceptionType.sendTimeout => S.current.netSendTimeout,
       DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
-      DioExceptionType.badResponse => S.current.netBadResponse(
-          e.response?.statusCode ?? ''),
+      DioExceptionType.badResponse => S.current.netBadResponse(e.response?.statusCode ?? ''),
       DioExceptionType.cancel => S.current.netCancel,
       _ => e.message.toString()
     };
-
-    LogUtil.v(message); // 打印详细的错误信息
-  }, '处理 DioException 错误时发生异常'); // 捕获处理异常中的异常
+    LogUtil.v(message);
+  }, '处理 DioException 错误时发生异常');
 }
