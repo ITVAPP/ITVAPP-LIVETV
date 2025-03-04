@@ -57,7 +57,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap; // 视频映射
   PlayModel? _currentChannel; // 当前频道
   int _sourceIndex = 0; // 当前源索引
-  int _lastProgressTime = 0; // 上次进度时间
   BetterPlayerController? _playerController; // 播放器控制器
   bool isBuffering = false; // 是否正在缓冲
   bool isPlaying = false; // 是否正在播放
@@ -218,9 +217,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
 void _videoListener(BetterPlayerEvent event) async {
   if (!mounted || _playerController == null || _isDisposing) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (_lastProgressTime != 0 && now - _lastProgressTime < 1000) return;
-    _lastProgressTime = now;
 
   switch (event.betterPlayerEventType) {
     case BetterPlayerEventType.initialized:
