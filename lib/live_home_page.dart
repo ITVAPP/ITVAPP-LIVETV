@@ -272,7 +272,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
               try {
                 _lastBufferedPosition = lastBuffer.end as Duration; 
                 _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-                LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
+                // 调试才开启下面日志
+                // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
               } catch (e) {
                 LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
                 // 即使解析失败，也更新时间戳，确保 progress 不使用过旧的时间
@@ -354,7 +355,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
               if (_isHls && !_isParsing) {
                 // HLS 检查逻辑
                 final remainingTime = duration - position;
-                LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
+                // 调试才开启下面日志
+                // LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
 
                 // 检查剩余时间 ≤ 2 秒且有预缓存地址
                 if (_preCachedUrl != null && remainingTime.inSeconds <= 2) {
@@ -391,8 +393,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
                   if (positionIncreaseCount == 5 && 
                       remainingBufferLowCount >= 3 && 
-                      timeSinceLastUpdate > 10) {
-                    LogUtil.i('触发重新解析: 位置增加 5 次，剩余缓冲 < 10s 至少 3 次，最后缓冲更新距今 > 10s');
+                      timeSinceLastUpdate > 7) {
+                    LogUtil.i('触发重新解析: 位置增加 5 次，剩余缓冲 < 10s 至少 3 次，最后缓冲更新距今 > 7s');
                     _reparseAndSwitch();
                   }
                 }
@@ -422,7 +424,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
               }
             } else {
-              LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
+              // 调试才开启下面日志
+              // LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
             }
           } else {
             LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
@@ -465,9 +468,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _playDurationTimer?.cancel();
     _playDurationTimer = Timer(const Duration(seconds: 60), () {
       if (mounted && !_isRetrying && !_isSwitchingChannel && !_isDisposing) {
-        LogUtil.i('播放 60 秒，重置重试次数并启用 progress 监听');
+        // 检查是否满足启用 _progressEnabled 的条件
+        bool shouldEnableProgress = false;
+        if (_isHls) {
+          // HLS 流：URL 包含 "timelimit" 时启用
+          if (_currentPlayUrl != null && _currentPlayUrl!.toLowerCase().contains('timelimit')) {
+            shouldEnableProgress = true;
+          }
+        } else {
+          // 非 HLS 流：有下一个源地址时启用
+          if (_getNextVideoUrl() != null) {
+            shouldEnableProgress = true;
+          }
+        }
+
+        if (shouldEnableProgress) {
+          LogUtil.i('播放 60 秒，且满足条件，启用 progress 监听');
+          _progressEnabled = true;
+        } else {
+          LogUtil.i('播放 60 秒，但未满足条件，不启用 progress 监听');
+        }
         _retryCount = 0;
-        _progressEnabled = true;
         _playDurationTimer = null;
       }
     });
