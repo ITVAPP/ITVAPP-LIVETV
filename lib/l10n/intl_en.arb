@@ -86,7 +86,7 @@
   "refresh": "Refresh",
   "noEPG": "No program info",
   "logtitle": "Logs",
-  "SwitchTitle": "Log Recording",
+  "switchTitle": "Log Recording",
   "logSubtitle": "Enable logs only for debugging",
   "filterAll": "All",
   "filterVerbose": "Verbose",
