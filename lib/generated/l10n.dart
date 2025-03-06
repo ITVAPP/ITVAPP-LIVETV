@@ -89,7 +89,7 @@ class S {
 
   String get playReconnect {
     return Intl.message(
-      '出错了，尝试重新连接...',
+      '重试连接',
       name: 'playReconnect',
       desc: '',
       args: [],
@@ -547,10 +547,10 @@ class S {
     );
   }
 
-  String get SwitchTitle {
+  String get switchTitle {
     return Intl.message(
       '记录日志',
-      name: 'SwitchTitle',
+      name: 'switchTitle',
       desc: '',
       args: [],
     );
