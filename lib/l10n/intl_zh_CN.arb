@@ -15,7 +15,7 @@
       "line": {}
     }
   },
-  "playReconnect": "出错了，尝试重新连接...",
+  "playReconnect": "重试连接",
   "lineIndex": "线路{index}",
   "@lineIndex": {
     "placeholders": {
