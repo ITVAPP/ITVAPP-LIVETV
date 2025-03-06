@@ -40,19 +40,24 @@ jobs:
           # 检查是否已存在 l10n.yaml 文件，如果不存在则创建
           if [ ! -f "l10n.yaml" ]; then
             echo "Creating l10n.yaml file"
-            cat > l10n.yaml << EOL
+            cat > l10n.yaml << 'EOL' || { echo "Failed to create l10n.yaml"; exit 1; }  # 修改：添加错误检查，使用 'EOL' 避免变量替换
             arb-dir: lib/l10n
             template-arb-file: intl_en.arb
             output-localization-file: app_localizations.dart
           EOL
+            echo "Successfully created l10n.yaml"  # 修改：添加成功确认
+          else
+            echo "l10n.yaml already exists"  # 修改：添加已存在时的提示
           fi
           # 创建 lib/l10n 目录（如果不存在）
-          mkdir -p lib/l10n
+          mkdir -p lib/l10n || { echo "Failed to create lib/l10n directory"; exit 1; }  # 修改：添加错误检查
+          echo "Successfully ensured lib/l10n directory"  # 修改：添加成功确认
           
           # 初始化 .arb 文件，仅在不存在时创建，并添加基本的 @@locale 字段
-          [ ! -f lib/l10n/intl_en.arb ] && echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb
-          [ ! -f lib/l10n/intl_zh_CN.arb ] && echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb
-          [ ! -f lib/l10n/intl_zh_TW.arb ] && echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb
+          [ ! -f lib/l10n/intl_en.arb ] && echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb || { echo "Failed to create lib/l10n/intl_en.arb"; exit 1; }  # 修改：添加错误检查
+          [ ! -f lib/l10n/intl_zh_CN.arb ] && echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb || { echo "Failed to create lib/l10n/intl_zh_CN.arb"; exit 1; }  # 修改：添加错误检查
+          [ ! -f lib/l10n/intl_zh_TW.arb ] && echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb || { echo "Failed to create lib/l10n/intl_zh_TW.arb"; exit 1; }  # 修改：添加错误检查
+          echo "Successfully ensured .arb files"  # 修改：添加成功确认
       
       - name: Generate localization files  
         # 生成国际化文件
