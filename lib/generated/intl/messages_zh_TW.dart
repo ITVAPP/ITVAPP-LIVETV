@@ -64,7 +64,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "pasterContent":
             MessageLookupByLibrary.simpleMessage("複製訂閱源後，回到此頁面可自動新增訂閱源"),
         "playError": MessageLookupByLibrary.simpleMessage("此頻道暫時無法播放，請等待修復"),
-        "playReconnect": MessageLookupByLibrary.simpleMessage("出錯了，嘗試重新連線..."),
+        "playReconnect": MessageLookupByLibrary.simpleMessage("重試連線"),
         "portrait": MessageLookupByLibrary.simpleMessage("豎屏模式"),
         "pushAddress": m4,
         "refresh": MessageLookupByLibrary.simpleMessage("重新整理"),
@@ -89,7 +89,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "netSendTimeout": MessageLookupByLibrary.simpleMessage("請求超時"),
         "errorLoadingPage": MessageLookupByLibrary.simpleMessage("載入頁面出錯"),
         "logtitle": MessageLookupByLibrary.simpleMessage("日誌檢視器"),
-        "SwitchTitle": MessageLookupByLibrary.simpleMessage("記錄日誌"),
+        "switchTitle": MessageLookupByLibrary.simpleMessage("記錄日誌"),
         "logSubtitle": MessageLookupByLibrary.simpleMessage(
             "如非開發人員，無需開啟日誌開關"),
         "filterAll": MessageLookupByLibrary.simpleMessage("所有"),
