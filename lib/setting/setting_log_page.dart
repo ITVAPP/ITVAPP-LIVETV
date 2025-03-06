@@ -150,7 +150,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                             focusNode: _focusNodes[0], // 为开关分配焦点节点
                             child: SwitchListTile(
                               title: Text(
-                                S.of(context).SwitchTitle,
+                                S.of(context).switchTitle,
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                               ),
                               subtitle: Text(
