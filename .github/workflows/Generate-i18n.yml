@@ -1,0 +1,93 @@
+name: Generate-i18n-files
+# 需要有仓库的写入权限：
+# 点击 Settings > Actions > General > Workflow permissions
+# 选择 Read and write permissions
+# 选择读取和写入权限（默认可能是"读取仓库内容权限"）
+# 点击 Save 保存更改
+on:
+  workflow_dispatch:  # 仅支持手动触发
+permissions:
+  contents: write  # 授予写权限以推送更改
+jobs:
+  generate-i18n:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  
+      
+      - uses: subosito/flutter-action@v2  
+        # 设置 Flutter 环境
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      
+      - name: Setup i18n environment  
+        # 设置国际化环境
+        run: |
+          echo "Setting up i18n environment..."
+          # 确保 intl 包已经安装
+          flutter pub add intl
+          # 确保 flutter_localizations 包已经安装在 pubspec.yaml 中
+          if ! grep -q "flutter_localizations:" pubspec.yaml; then
+            echo "Adding flutter_localizations dependency to pubspec.yaml"
+            sed -i '/dependencies:/a \ \ flutter_localizations:\n \ \ \ \ sdk: flutter' pubspec.yaml
+          fi
+          # 运行 flutter pub get 以确保所有依赖都已安装
+          flutter pub get
+      
+      - name: Create or update l10n config  
+        # 创建或更新国际化配置文件
+        run: |
+          # 检查是否已存在 l10n.yaml 文件，如果不存在则创建
+          if [ ! -f "l10n.yaml" ]; then
+            echo "Creating l10n.yaml file"
+            cat > l10n.yaml << EOL
+            arb-dir: lib/l10n
+            template-arb-file: intl_en.arb
+            output-localization-file: app_localizations.dart
+          EOL
+          fi
+          # 创建 lib/l10n 目录（如果不存在）
+          mkdir -p lib/l10n
+          
+          # 初始化 .arb 文件，仅在不存在时创建，并添加基本的 @@locale 字段
+          [ ! -f lib/l10n/intl_en.arb ] && echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb
+          [ ! -f lib/l10n/intl_zh_CN.arb ] && echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb
+          [ ! -f lib/l10n/intl_zh_TW.arb ] && echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb
+      
+      - name: Generate localization files  
+        # 生成国际化文件
+        run: |
+          echo "Generating internationalization files..."
+          # 运行 flutter gen-l10n 生成国际化代码，如果失败则退出并提示
+          flutter gen-l10n || { echo "Failed to generate i18n files"; exit 1; }
+          # 检查生成结果
+          echo "Internationalization files generated successfully. Files:"
+          ls -la .dart_tool/flutter_gen/gen_l10n/
+      
+      - name: Stage and commit changes  
+        # 将国际化文件添加到暂存区并提交
+        run: |
+          echo "Staging changes..."  
+          # 输出提示信息，表示正在暂存文件
+          git add pubspec.yaml lib/l10n/ .dart_tool/flutter_gen/gen_l10n/ l10n.yaml
+          # 将文件添加到暂存区
+          git status  
+          # 显示暂存区状态，便于确认是否成功暂存
+          echo "Configuring git identity..."  
+          # 配置用户身份
+          git config --local user.name "ITVAPP"  
+          # 设置用户名
+          git config --local user.email "actions@itvapp.net"  
+          # 设置邮箱
+          git commit -m "Update i18n files from CI [${{ github.run_id }}]" || echo "Nothing to commit"  
+          # 提交更改，如果没有文件更改则输出提示
+      
+      - name: Push changes  
+        # 使用 github-push-action 推送更改
+        uses: ad-m/github-push-action@master  
+        # 使用 GitHub 推送 Action 进行推送
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}  
+          # 使用 GitHub token 进行认证
+          branch: main  
+          # 目标分支，根据仓库实际情况替换
