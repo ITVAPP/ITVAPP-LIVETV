@@ -86,7 +86,7 @@
   "refresh": "重新整理",
   "noEPG": "暂无節目資訊",
   "logtitle": "日誌檢視器",
-  "SwitchTitle": "記錄日誌",
+  "switchTitle": "記錄日誌",
   "logSubtitle": "如非開發人員，無需開啟日誌開關",
   "filterAll": "所有",
   "filterVerbose": "詳細",
