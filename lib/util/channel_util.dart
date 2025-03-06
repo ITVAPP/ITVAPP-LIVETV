@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 缓存按钮样式
 final Map<String, ButtonStyle> _styleCache = {};
@@ -121,8 +121,8 @@ Widget buildSourceButtons(
           FocusNode focusNode = focusNodes[index]; // 获取当前按钮的焦点节点
           bool isSelected = currentSourceIndex == index; // 判断按钮是否为当前选中项
 
-          // 获取显示名称
-          String displayName = _getLineDisplayName(sources[index], index);
+          // 如果是当前选中项，显示 "重试"，否则显示线路名称
+          String displayName = isSelected ? S.current.playReconnect : _getLineDisplayName(sources[index], index);
 
           // 监听焦点变化，当按钮获得焦点时更新 focusedIndex
           focusNode.addListener(() {
@@ -140,13 +140,11 @@ Widget buildSourceButtons(
                 selectedColor: selectedColor, // 选中时的颜色
                 unselectedColor: unselectedColor, // 未选中时的颜色
               ),
-              onPressed: isSelected
-                  ? null // 如果当前已选中，按钮不可点击
-                  : () {
-                      Navigator.pop(context, index); // 返回选中的索引并关闭弹窗
-                    },
+              onPressed: () {
+                Navigator.pop(context, index); // 返回选中的索引并关闭弹窗
+              }, 
               child: Text(
-                displayName, // 使用解析后的显示名称
+                displayName, // 使用动态显示名称
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
