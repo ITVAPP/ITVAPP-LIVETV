@@ -25,14 +25,14 @@ jobs:
         run: |
           echo "Setting up i18n environment..."
           # 确保 intl 包已经安装
-          flutter pub add intl || { echo "Failed to add intl package"; exit 1; }  # 修改：添加错误检查
+          flutter pub add intl
           # 确保 flutter_localizations 包已经安装在 pubspec.yaml 中
           if ! grep -q "flutter_localizations:" pubspec.yaml; then
             echo "Adding flutter_localizations dependency to pubspec.yaml"
             sed -i '/dependencies:/a \ \ flutter_localizations:\n \ \ \ \ sdk: flutter' pubspec.yaml
           fi
           # 运行 flutter pub get 以确保所有依赖都已安装
-          flutter pub get || { echo "Failed to run flutter pub get"; exit 1; }  # 修改：添加错误检查
+          flutter pub get
       
       - name: Create or update l10n config  
         # 创建或更新国际化配置文件
@@ -41,40 +41,70 @@ jobs:
           if [ ! -f "l10n.yaml" ]; then
             echo "Creating l10n.yaml file"
             cat > l10n.yaml << 'EOL' || { echo "Failed to create l10n.yaml"; exit 1; }  # 修改：添加错误检查，使用 'EOL' 避免变量替换
-            arb-dir: lib/l10n
-            template-arb-file: intl_en.arb
-            output-localization-file: app_localizations.dart
+          arb-dir: lib/l10n
+          template-arb-file: intl_en.arb
+          output-localization-file: app_localizations.dart
           EOL
             echo "Successfully created l10n.yaml"  # 修改：添加成功确认
           else
             echo "l10n.yaml already exists"  # 修改：添加已存在时的提示
           fi
+
           # 创建 lib/l10n 目录（如果不存在）
           mkdir -p lib/l10n || { echo "Failed to create lib/l10n directory"; exit 1; }  # 修改：添加错误检查
           echo "Successfully ensured lib/l10n directory"  # 修改：添加成功确认
-          
-          # 初始化 .arb 文件，仅在不存在时创建，并添加基本的 @@locale 字段
-          [ ! -f lib/l10n/intl_en.arb ] && echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb || { echo "Failed to create lib/l10n/intl_en.arb"; exit 1; }  # 修改：添加错误检查
-          [ ! -f lib/l10n/intl_zh_CN.arb ] && echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb || { echo "Failed to create lib/l10n/intl_zh_CN.arb"; exit 1; }  # 修改：添加错误检查
-          [ ! -f lib/l10n/intl_zh_TW.arb ] && echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb || { echo "Failed to create lib/l10n/intl_zh_TW.arb"; exit 1; }  # 修改：添加错误检查
+
+          # 输出当前工作目录以确认路径
+          echo "Current working directory: $(pwd)"  # 修改：添加路径调试信息
+
+          # 初始化 intl_en.arb 文件
+          if [ ! -f lib/l10n/intl_en.arb ]; then
+            echo "Creating lib/l10n/intl_en.arb"
+            echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb || { echo "Failed to create lib/l10n/intl_en.arb"; exit 1; }  # 修改：分离条件和写入，添加详细错误检查
+            echo "Successfully created lib/l10n/intl_en.arb"  # 修改：添加成功确认
+          else
+            echo "lib/l10n/intl_en.arb already exists"  # 修改：添加已存在时的提示
+          fi
+
+          # 初始化 intl_zh_CN.arb 文件
+          if [ ! -f lib/l10n/intl_zh_CN.arb ]; then
+            echo "Creating lib/l10n/intl_zh_CN.arb"
+            echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb || { echo "Failed to create lib/l10n/intl_zh_CN.arb"; exit 1; }  # 修改：分离条件和写入，添加详细错误检查
+            echo "Successfully created lib/l10n/intl_zh_CN.arb"  # 修改：添加成功确认
+          else
+            echo "lib/l10n/intl_zh_CN.arb already exists"  # 修改：添加已存在时的提示
+          fi
+
+          # 初始化 intl_zh_TW.arb 文件
+          if [ ! -f lib/l10n/intl_zh_TW.arb ]; then
+            echo "Creating lib/l10n/intl_zh_TW.arb"
+            echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb || { echo "Failed to create lib/l10n/intl_zh_TW.arb"; exit 1; }  # 修改：分离条件和写入，添加详细错误检查
+            echo "Successfully created lib/l10n/intl_zh_TW.arb"  # 修改：添加成功确认
+          else
+            echo "lib/l10n/intl_zh_TW.arb already exists"  # 修改：添加已存在时的提示
+          fi
+
           echo "Successfully ensured .arb files"  # 修改：添加成功确认
+        shell: /usr/bin/bash -e {0}  # 未修改：保留原始 shell 配置
+        env:
+          FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.24.0-x64  # 未修改：保留原始环境变量
+          PUB_CACHE: /home/runner/.pub-cache  # 未修改：保留原始环境变量
       
       - name: Generate localization files  
         # 生成国际化文件
         run: |
           echo "Generating internationalization files..."
           # 运行 flutter gen-l10n 生成国际化代码，如果失败则退出并提示
-          flutter gen-l10n --verbose || { echo "Failed to generate i18n files"; exit 1; }  # 修改：添加 --verbose 提高调试信息
+          flutter gen-l10n
           # 检查生成结果
           echo "Internationalization files generated successfully. Files:"
-          ls -la lib/l10n/  # 修改：列出 lib/l10n 目录内容，便于检查
-          ls -la .dart_tool/flutter_gen/gen_l10n/  # 修改：保留原始检查并确保路径正确
+          ls -la .dart_tool/flutter_gen/gen_l10n/
       
       - name: Stage and commit changes  
         run: |
           echo "Staging changes..."  
           # 输出提示信息，表示正在暂存文件
-          git add pubspec.yaml lib/l10n/ l10n.yaml  # 修改：移除 .dart_tool/flutter_gen/gen_l10n/，避免提交生成文件
+          git add pubspec.yaml lib/l10n/ .dart_tool/flutter_gen/gen_l10n/ l10n.yaml
           # 将文件添加到暂存区
           git status  
           # 显示暂存区状态，便于确认是否成功暂存
@@ -84,12 +114,8 @@ jobs:
           # 设置用户名
           git config --local user.email "actions@itvapp.net"  
           # 设置邮箱
-          if git diff --staged --quiet; then  # 修改：添加条件检查，避免无更改时失败
-            echo "Nothing to commit"
-          else
-            git commit -m "Update i18n files from CI [${{ github.run_id }}]"
-            git push  # 修改：直接推送，避免依赖额外的 Action
-          fi
+          git commit -m "Update i18n files from CI [${{ github.run_id }}]" || echo "Nothing to commit"  
+          # 提交更改，如果没有文件更改则输出提示
       
       - name: Push changes  
         # 使用 github-push-action 推送更改
