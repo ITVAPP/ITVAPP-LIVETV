@@ -95,17 +95,11 @@ class HttpUtil {
   }) async {
     Response? response;
     int currentAttempt = 0;
-    Map<String, String>? cachedHeaders; // 缓存第一次生成的 headers
 
     while (currentAttempt < retryCount) {
       try {
-        // 生成或复用 headers
-        final headers = cachedHeaders ??=
-            currentAttempt == 0 ? HeadersConfig.generateHeaders(url: path) : {
-                  'Content-Type': method.toUpperCase() == 'POST'
-                      ? 'application/json'
-                      : 'text/html'
-                };
+        // 每次都重新生成 headers
+        final headers = HeadersConfig.generateHeaders(url: path);
 
         // 提取超时设置，提供默认值以避免 null 问题
         final connectTimeout = _getTimeout(
