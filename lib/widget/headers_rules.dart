@@ -94,5 +94,6 @@ yangxin-
 zztv.tv
 dspull.ijntv.cn
 hlss.gstv.com.cn
+kankanlive.com
 gbtv-rtmp.zjwtv.com''';
 }
