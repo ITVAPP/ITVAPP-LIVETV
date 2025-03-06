@@ -65,7 +65,6 @@ jobs:
           ls -la .dart_tool/flutter_gen/gen_l10n/
       
       - name: Stage and commit changes  
-        # 将国际化文件添加到暂存区并提交
         run: |
           echo "Staging changes..."  
           # 输出提示信息，表示正在暂存文件
