@@ -86,7 +86,7 @@
   "refresh": "刷新",
   "noEPG": "暂无节目信息",
   "logtitle": "日志查看器",
-  "SwitchTitle": "记录日志",
+  "switchTitle": "记录日志",
   "logSubtitle": "如非开发人员，无需打开日志开关",
   "filterAll": "所有",
   "filterVerbose": "详细",
