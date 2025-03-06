@@ -64,7 +64,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "pasterContent":
             MessageLookupByLibrary.simpleMessage("复制订阅源后，回到此页面可自动添加订阅源"),
         "playError": MessageLookupByLibrary.simpleMessage("此频道暂时无法播放，请等待修复"),
-        "playReconnect": MessageLookupByLibrary.simpleMessage("出错了，尝试重新连接..."),
+        "playReconnect": MessageLookupByLibrary.simpleMessage("重试连接"),
         "portrait": MessageLookupByLibrary.simpleMessage("竖屏模式"),
         "pushAddress": m4,
         "refresh": MessageLookupByLibrary.simpleMessage("刷新"),
@@ -89,7 +89,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "netSendTimeout": MessageLookupByLibrary.simpleMessage("请求超时"),
         "errorLoadingPage": MessageLookupByLibrary.simpleMessage("加载页面出错"),
         "logtitle": MessageLookupByLibrary.simpleMessage("日志查看器"),
-        "SwitchTitle": MessageLookupByLibrary.simpleMessage("记录日志"),
+        "switchTitle": MessageLookupByLibrary.simpleMessage("记录日志"),
         "logSubtitle": MessageLookupByLibrary.simpleMessage(
             "如非开发人员，无需打开日志开关"),
         "filterAll": MessageLookupByLibrary.simpleMessage("所有"),
