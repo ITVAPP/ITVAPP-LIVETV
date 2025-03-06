@@ -790,6 +790,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  // 允许当前源点击后重试
   Future<void> _changeChannelSources() async {
     List<String>? sources = _currentChannel?.urls;
     if (sources?.isEmpty ?? true) {
@@ -798,13 +799,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
-    if (selectedIndex != null && _sourceIndex != selectedIndex) {
+    if (selectedIndex != null) {
       setState(() {
         _sourceIndex = selectedIndex;
         _isRetrying = false;
         _retryCount = 0;
       });
-      await _queueSwitchChannel(_currentChannel, _sourceIndex);
+      await _queueSwitchChannel(_currentChannel, _sourceIndex); // 无论是否相同都触发播放
     }
   }
 
