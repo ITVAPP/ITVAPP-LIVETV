@@ -24,30 +24,32 @@ class JinanParser {
         return 'ERROR';
       }
 
-      // 检查是否有足够的频道
-      if (clickIndex >= channels.length) {
-        LogUtil.i('点击索引超出范围: $clickIndex >= ${channels.length}');
-        return 'ERROR';
-      }
-
-      // 获取指定频道的节目列表
-      final channelId = channels[clickIndex]['id'];
-      final programs = await _getProgramList(channelId);
+      // 如果 clickIndex 超出范围，使用第一个频道
+      final channel = (clickIndex >= channels.length) ? channels[0] : channels[clickIndex];
       
-      if (programs.isEmpty) {
-        LogUtil.i('获取节目列表失败');
+      final playUrls = channel['push_play_urls'] as List<dynamic>?;
+
+      if (playUrls == null || playUrls.isEmpty) {
+        LogUtil.i('播放地址列表为空');
         return 'ERROR';
       }
 
-      // 返回直播流地址
-      final playUrl = programs[0]['playUrl'];
-      if (playUrl == null || playUrl.isEmpty) {
-        LogUtil.i('播放地址为空');
+      // 查找 m3u8 地址
+      String? m3u8Url;
+      for (var url in playUrls) {
+        if (url is String && url.endsWith('.m3u8')) {
+          m3u8Url = url;
+          break;
+        }
+      }
+
+      if (m3u8Url == null) {
+        LogUtil.i('未找到 m3u8 地址');
         return 'ERROR';
       }
 
-      LogUtil.i('成功获取播放地址: $playUrl');
-      return playUrl;
+      LogUtil.i('成功获取 m3u8 播放地址: $m3u8Url');
+      return m3u8Url;
     } catch (e) {
       LogUtil.i('解析济南电视台直播流失败: $e');
       return 'ERROR';
@@ -67,12 +69,9 @@ class JinanParser {
 
     try {
       final data = result['data'];
-      if (data == null) return [];
+      if (data == null || data is! List) return [];
       
-      final records = data['records'];
-      if (records is! List) return [];
-
-      return records;
+      return data; // 直接返回 data，而不是 data['records']
     } catch (e) {
       LogUtil.i('解析频道列表失败: $e');
       return [];
