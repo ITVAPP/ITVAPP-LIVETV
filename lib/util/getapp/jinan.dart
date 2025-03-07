@@ -34,17 +34,18 @@ class JinanParser {
         return 'ERROR';
       }
 
-      // 查找 m3u8 地址
-      String? m3u8Url;
-      for (var url in playUrls) {
-        if (url is String && url.endsWith('.m3u8')) {
-          m3u8Url = url;
-          break;
-        }
+      // 添加日志，打印 playUrls 内容
+      LogUtil.i('push_play_urls: $playUrls');
+
+      // 直接取第三个地址（索引 2），因为它是 m3u8
+      if (playUrls.length < 3) {
+        LogUtil.i('播放地址列表长度不足，无法获取 m3u8');
+        return 'ERROR';
       }
 
-      if (m3u8Url == null) {
-        LogUtil.i('未找到 m3u8 地址');
+      final m3u8Url = playUrls[2] as String;
+      if (m3u8Url.isEmpty || !m3u8Url.endsWith('.m3u8')) {
+        LogUtil.i('第三个地址不是 m3u8: $m3u8Url');
         return 'ERROR';
       }
 
@@ -147,9 +148,12 @@ class JinanParser {
         ),
       );
 
+      // 修改部分开始
       if (response != null) {
+        LogUtil.i('API 响应内容: $response'); // 添加日志记录响应内容
         return json.decode(response);
       }
+      // 修改部分结束
     } catch (e) {
       LogUtil.i('请求失败: $e');
     }
