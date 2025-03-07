@@ -98,8 +98,10 @@ class HttpUtil {
 
     while (currentAttempt < retryCount) {
       try {
-        // 每次都重新生成 headers
-        final headers = HeadersConfig.generateHeaders(url: path);
+        // 修改部分：如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
+        final headers = options?.headers != null && options!.headers!.isNotEmpty
+            ? options.headers!
+            : HeadersConfig.generateHeaders(url: path);
 
         // 提取超时设置，提供默认值以避免 null 问题
         final connectTimeout = _getTimeout(
