@@ -1061,7 +1061,6 @@ window.removeEventListener('unload', null, true);
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
       // 使用正则表达式查找URL
-      // final pattern = '''(?:${UrlUtils._protocolPattern}://|//|/)[^'"\s,()<>{}\$ \ ]*?\\.${_filePattern}[^'"\s,()<>{}\ \ \$]*''';
       final pattern = '''(?:${UrlUtils._protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
       final regex = RegExp(pattern, caseSensitive: false);
       final matches = regex.allMatches(sample);
