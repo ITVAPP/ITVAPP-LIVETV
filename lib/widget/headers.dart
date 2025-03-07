@@ -13,8 +13,6 @@ class HeadersConfig {
 
   /// 通用播放器请求头，用于视频播放器和流媒体服务
   static const Map<String, String> _playerHeaders = {
-    'Accept': '*/*',
-    'Accept-Language': '*',
     'Connection': 'keep-alive',
     'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
     'Pragma': 'no-cache',
@@ -152,8 +150,13 @@ class HeadersConfig {
   }) {
     try {
       if (_isExcludedDomain(url)) {
-        LogUtil.i('生成播放器通用主机头：$_playerHeaders');
-        return _playerHeaders;
+        final host = _extractHost(url);
+        final playerHeadersWithHost = {
+          ..._playerHeaders,
+          if (host.isNotEmpty) 'Host': host, // 动态添加 Host
+        };
+        LogUtil.i('生成播放器通用主机头：$playerHeadersWithHost');
+        return playerHeadersWithHost;
       }
 
       final encodedUrl = Uri.encodeFull(url);
