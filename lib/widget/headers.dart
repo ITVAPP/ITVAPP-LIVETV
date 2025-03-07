@@ -13,6 +13,9 @@ class HeadersConfig {
 
   /// 通用播放器请求头，用于视频播放器和流媒体服务
   static const Map<String, String> _playerHeaders = {
+    'Accept': '*/*',
+    'Accept-Language': '*',
+    'Connection': 'keep-alive',
     'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
     'Pragma': 'no-cache',
   };
