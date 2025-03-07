@@ -23,7 +23,11 @@ class BetterPlayerConfig {
     // 使用 HeadersConfig 生成默认 headers
     final defaultHeaders = HeadersConfig.generateHeaders(url: url);
 
-    return BetterPlayerDataSource(
+    // 合并 defaultHeaders 和传入的 headers
+    final mergedHeaders = {...defaultHeaders, ...?headers};
+
+    // 提取公共的 BetterPlayerDataSource 配置
+    final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
       liveStream: isHls, // 根据 URL 判断是否为直播流
@@ -48,9 +52,23 @@ class BetterPlayerConfig {
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
-      // 请求头设置，提供默认 User-Agent
-      headers: {...defaultHeaders, ...?headers},
     );
+
+    // 根据 mergedHeaders 是否为空返回实例
+    return mergedHeaders.isNotEmpty
+        ? BetterPlayerDataSource(
+            baseDataSource.type,
+            baseDataSource.url,
+            liveStream: baseDataSource.liveStream,
+            useAsmsTracks: baseDataSource.useAsmsTracks,
+            useAsmsAudioTracks: baseDataSource.useAsmsAudioTracks,
+            useAsmsSubtitles: baseDataSource.useAsmsSubtitles,
+            notificationConfiguration: baseDataSource.notificationConfiguration,
+            bufferingConfiguration: baseDataSource.bufferingConfiguration,
+            cacheConfiguration: baseDataSource.cacheConfiguration,
+            headers: mergedHeaders, // 包含 headers
+          )
+        : baseDataSource; // 不包含 headers，直接使用基础配置
   }
 
   /// 创建播放器基本配置
