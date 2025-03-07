@@ -12,7 +12,10 @@ class HeadersConfig {
   static const String userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36 OPR/114.0.0.0';
 
   /// 通用播放器请求头，用于视频播放器和流媒体服务
-  static const Map<String, String> _playerHeaders = {};
+  static const Map<String, String> _playerHeaders = {
+    'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13) ExoPlayerLib/2.18.7',  // 标准的安卓系统 User-Agent
+    'Pragma': 'no-cache',
+  };
 
   /// 基础请求头，用于标准HTTP请求
   static const Map<String, String> _baseHeaders = {
