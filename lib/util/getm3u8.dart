@@ -388,10 +388,10 @@ class GetM3U8 {
           if (_isHtmlContent) {
             String content = _httpResponseContent!;
             int styleEndIndex = -1;
-            final styleEndMatches = RegExp(r'</style>', caseSensitive: false).allMatches(content);
-            if (styleEndMatches.isNotEmpty) {
-              // 获取最后一个style标签的结束位置
-              styleEndIndex = styleEndMatches.last.end;
+            final styleEndMatch = RegExp(r'</style>', caseSensitive: false).firstMatch(content);
+            if (styleEndMatch != null) {
+              // 获取第一个style标签的结束位置
+              styleEndIndex = styleEndMatch.end;
             }
 
             // 确定检查内容
@@ -1082,7 +1082,7 @@ window.removeEventListener('unload', null, true);
       uniqueUrls.add(url);
     }
 
-    var index = 0;
+    final validUrls = <String>[]; // 存储有效URL
     for (final url in uniqueUrls) {
       final cleanedUrl = _cleanUrl(url);
       if (_isValidM3U8Url(cleanedUrl)) {
@@ -1090,21 +1090,24 @@ window.removeEventListener('unload', null, true);
         if (fromParam != null && toParam != null) {
           finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
         }
-        _foundUrls.add(finalUrl);
-
-        if (clickIndex == 0) {
-          _m3u8Found = true;
-          LogUtil.i('页面内容中找到 $finalUrl');
-          return finalUrl;
-        } else if (index == clickIndex) {
-          _m3u8Found = true;
-          LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-          return finalUrl;
-        }
-        index++;
+        validUrls.add(finalUrl); // 添加到有效URL列表
       }
     }
-    return null;
+
+    if (validUrls.isEmpty) {
+      return null; // 无有效URL
+    }
+
+    // 如果 clickIndex 在范围内，返回对应URL；否则返回第一个
+    if (clickIndex >= 0 && clickIndex < validUrls.length) {
+      _m3u8Found = true;
+      LogUtil.i('找到目标URL(index=$clickIndex): ${validUrls[clickIndex]}');
+      return validUrls[clickIndex];
+    } else {
+      _m3u8Found = true;
+      LogUtil.i('clickIndex=$clickIndex 超出范围(共${validUrls.length}个地址)，返回第一个地址: ${validUrls[0]}');
+      return validUrls[0];
+    }
   }
 
   /// 准备M3U8检测器代码，从外部加载
