@@ -49,8 +49,9 @@ class JinanParser {
       final trimmedM3u8Url = m3u8Url.trim(); // 修剪字符串
       LogUtil.i('修剪后的 m3u8Url: "$trimmedM3u8Url"'); // 打印修剪后内容
 
-      if (trimmedM3u8Url.isEmpty || !trimmedM3u8Url.endsWith('.m3u8')) {
-        LogUtil.i('第三个地址不是 m3u8: $trimmedM3u8Url');
+      // 修改检查逻辑，使用 contains 替代 endsWith
+      if (trimmedM3u8Url.isEmpty || !trimmedM3u8Url.contains('.m3u8')) {
+        LogUtil.i('地址不包含 m3u8: $trimmedM3u8Url');
         return 'ERROR';
       }
 
