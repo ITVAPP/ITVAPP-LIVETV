@@ -13,6 +13,7 @@ class JinanParser {
 
   /// 解析济南电视台直播流地址
   static Future<String> parse(String url) async {
+    // 修改部分开始
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
@@ -44,17 +45,22 @@ class JinanParser {
       }
 
       final m3u8Url = playUrls[2] as String;
-      if (m3u8Url.isEmpty || !m3u8Url.endsWith('.m3u8')) {
-        LogUtil.i('第三个地址不是 m3u8: $m3u8Url');
+      LogUtil.i('原始 m3u8Url: "$m3u8Url"'); // 打印原始内容
+      final trimmedM3u8Url = m3u8Url.trim(); // 修剪字符串
+      LogUtil.i('修剪后的 m3u8Url: "$trimmedM3u8Url"'); // 打印修剪后内容
+
+      if (trimmedM3u8Url.isEmpty || !trimmedM3u8Url.endsWith('.m3u8')) {
+        LogUtil.i('第三个地址不是 m3u8: $trimmedM3u8Url');
         return 'ERROR';
       }
 
-      LogUtil.i('成功获取 m3u8 播放地址: $m3u8Url');
-      return m3u8Url;
+      LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
+      return trimmedM3u8Url;
     } catch (e) {
       LogUtil.i('解析济南电视台直播流失败: $e');
       return 'ERROR';
     }
+    // 修改部分结束
   }
 
   /// 获取频道列表
@@ -148,12 +154,10 @@ class JinanParser {
         ),
       );
 
-      // 修改部分开始
       if (response != null) {
         LogUtil.i('API 响应内容: $response'); // 添加日志记录响应内容
         return json.decode(response);
       }
-      // 修改部分结束
     } catch (e) {
       LogUtil.i('请求失败: $e');
     }
