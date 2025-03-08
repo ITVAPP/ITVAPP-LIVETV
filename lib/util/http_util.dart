@@ -56,9 +56,18 @@ class HttpUtil {
       return response;
     }
 
+    final bytes = response.data as List<int>;
+    
+    // 添加空内容判断逻辑
+    if (bytes.isEmpty) {
+      LogUtil.v('响应内容为空字节数组，跳过解码处理');
+      // 对于空内容，将其设置为空字符串，避免后续处理
+      response.data = '';
+      return response;
+    }
+
     final contentEncoding = response.headers.value('content-encoding')?.toLowerCase() ?? '';
     final contentType = response.headers.value('content-type')?.toLowerCase() ?? '';
-    final bytes = response.data as List<int>;
 
     // 处理 Brotli 压缩的内容
     if (contentEncoding.contains('br')) {
@@ -83,9 +92,20 @@ class HttpUtil {
 
   // 内容解码逻辑
   dynamic _decodeContent(List<int> bytes, String contentType) {
-    final text = utf8.decode(bytes);
+    // 添加空内容判断
+    if (bytes.isEmpty) {
+      LogUtil.v('_decodeContent: 内容为空，返回空字符串');
+      return '';
+    }
+    
+    final text = utf8.decode(bytes, allowMalformed: true);
     if (contentType.contains('json')) {
       try {
+        // 添加空字符串判断
+        if (text.isEmpty) {
+          LogUtil.v('JSON内容为空字符串，返回空对象');
+          return contentType.contains('array') ? [] : {};
+        }
         return jsonDecode(text);
       } catch (e) {
         LogUtil.e('JSON 解析失败: $e');
@@ -97,10 +117,21 @@ class HttpUtil {
 
   // 回退解码逻辑，处理非 Brotli 或解压失败的情况
   dynamic _decodeFallback(List<int> bytes, String contentType) {
+    // 添加空内容判断
+    if (bytes.isEmpty) {
+      LogUtil.v('_decodeFallback: 内容为空，返回空字符串');
+      return '';
+    }
+    
     try {
-      final text = utf8.decode(bytes);
+      final text = utf8.decode(bytes, allowMalformed: true);
       if (contentType.contains('json')) {
         try {
+          // 添加空字符串判断
+          if (text.isEmpty) {
+            LogUtil.v('JSON内容为空字符串，返回空对象');
+            return contentType.contains('array') ? [] : {};
+          }
           return jsonDecode(text);
         } catch (e) {
           LogUtil.e('JSON 解析失败: $e');
@@ -121,10 +152,24 @@ class HttpUtil {
 
   // 提取类型处理的公共函数，减少重复逻辑
   T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
+    // 添加null检查
     if (data == null) return null;
-
+    
+    // 添加空数组和空字符串检查
+    if (data is List && data.isEmpty) {
+      LogUtil.v('_parseResponseData: 数据为空数组');
+      return null;
+    }
+    
     // 如果数据是字符串，去除前后的空格和换行符
-    if (data is String) data = data.trim();
+    if (data is String) {
+      data = data.trim();
+      // 检查空字符串
+      if (data.isEmpty) {
+        LogUtil.v('_parseResponseData: 数据为空字符串');
+        return null;
+      }
+    }
 
     // 如果提供了自定义解析函数，优先使用
     if (parseData != null) {
