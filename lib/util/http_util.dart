@@ -364,7 +364,7 @@ class HttpUtil {
 
   // 统一日志管理
   static void _logInfo(String message) => LogUtil.i(message);
-  static void _logWarning(String message) => LogUtil.w(message);
+  static void _logWarning(String message) => LogUtil.i(message);
   static void _logError(String message, dynamic error, StackTrace? stackTrace) =>
       LogUtil.logError(message, error, stackTrace);
 }
