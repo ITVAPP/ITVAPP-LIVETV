@@ -44,10 +44,13 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  StreamUrl(String inputUrl, {this.timeoutDuration = const Duration(seconds: 36)}) {
-    this.timeoutDuration = timeoutDuration == const Duration(seconds: 36) ? DEFAULT_TIMEOUT : timeoutDuration;
-    url = inputUrl.contains('$') ? inputUrl.split('$')[0].trim() : inputUrl;
+  // 修改代码开始
+  // 修复 $ 转义问题，并使用初始化列表设置 timeoutDuration
+  StreamUrl(String inputUrl, {Duration timeoutDuration = const Duration(seconds: 36)})
+      : timeoutDuration = timeoutDuration == const Duration(seconds: 36) ? DEFAULT_TIMEOUT : timeoutDuration {
+    url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
+  // 修改代码结束
 
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
