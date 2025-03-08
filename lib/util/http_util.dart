@@ -100,12 +100,14 @@ class HttpUtil {
             : HeadersConfig.generateHeaders(url: path);
 
         final uri = Uri.parse(path).replace(queryParameters: queryParameters);
-        final timeout = _getTimeout(
-          options?.extra?['receiveTimeout'] as Duration?,
-          receiveTimeout,
-        );
+        // 修改部分：支持 receiveTimeout 和 sendTimeout（使用 connectTimeout 替代）
+        final receiveTimeoutValue = _getTimeout(options?.receiveTimeout, receiveTimeout);
+        final connectTimeoutValue = _getTimeout(options?.sendTimeout, connectTimeout);
 
-        // 修改部分：支持 HEAD 方法
+        // 修改部分：支持 followRedirects（http.Client 默认跟随重定向，需手动处理禁用）
+        final followRedirects = options?.followRedirects ?? true;
+
+        // 根据 followRedirects 和 method 处理请求
         switch (method.toUpperCase()) {
           case 'POST':
             response = await _client
@@ -114,7 +116,7 @@ class HttpUtil {
                   headers: headers.cast<String, String>(),
                   body: data is String ? data : jsonEncode(data),
                 )
-                .timeout(timeout);
+                .timeout(receiveTimeoutValue); // 只支持 receiveTimeout
             break;
           case 'HEAD':
             response = await _client
@@ -122,7 +124,7 @@ class HttpUtil {
                   uri,
                   headers: headers.cast<String, String>(),
                 )
-                .timeout(timeout);
+                .timeout(receiveTimeoutValue);
             break;
           default: // 默认 GET
             response = await _client
@@ -130,8 +132,21 @@ class HttpUtil {
                   uri,
                   headers: headers.cast<String, String>(),
                 )
-                .timeout(timeout);
+                .timeout(receiveTimeoutValue);
             break;
+        }
+
+        // 修改部分：手动处理不跟随重定向
+        if (!followRedirects && response.statusCode >= 300 && response.statusCode < 400) {
+          final location = response.headers['location'];
+          if (location != null) {
+            return onSuccess(Response(
+              data: response.body,
+              statusCode: response.statusCode,
+              headers: response.headers,
+              requestOptions: RequestOptions(path: location), // 返回重定向位置
+            ));
+          }
         }
 
         return onSuccess(_convertHttpResponse(response));
@@ -167,7 +182,7 @@ class HttpUtil {
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
-      method: options?.method ?? 'GET', // 修改部分：从 options 中获取 method
+      method: options?.method ?? 'GET',
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -188,7 +203,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: options?.method ?? 'GET', // 修改部分：从 options 中获取 method
+      method: options?.method ?? 'GET',
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -214,7 +229,7 @@ class HttpUtil {
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
-      method: options?.method ?? 'POST', // 修改部分：从 options 中获取 method
+      method: options?.method ?? 'POST',
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -237,7 +252,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: options?.method ?? 'POST', // 修改部分：从 options 中获取 method
+      method: options?.method ?? 'POST',
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -315,9 +330,20 @@ class Response {
 class Options {
   Map<String, dynamic>? headers;
   Map<String, dynamic>? extra;
-  String? method; // 修改部分：添加 method 参数支持 HEAD
+  String? method;
+  // 修改部分：添加 receiveTimeout、sendTimeout 和 followRedirects
+  Duration? receiveTimeout;
+  Duration? sendTimeout;
+  bool? followRedirects;
 
-  Options({this.headers, this.extra, this.method});
+  Options({
+    this.headers,
+    this.extra,
+    this.method,
+    this.receiveTimeout,
+    this.sendTimeout,
+    this.followRedirects,
+  });
 }
 
 class RequestOptions {
