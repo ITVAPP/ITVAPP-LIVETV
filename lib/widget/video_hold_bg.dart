@@ -136,17 +136,18 @@ class _ChannelLogoState extends State<ChannelLogo> {
       }
 
       // 2. 从网络加载
-      final response = await HttpUtil().getRequestWithResponse(
-        widget.logoUrl!,
+      final response = await HttpUtil().request(
+        method: 'GET',
+        path: widget.logoUrl!,
         options: Options(
-          extra: {
-            'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-            'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
-          },
+          sendTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
+          receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+          responseType: ResponseType.bytes, // 确保返回字节数据
         ),
+        onSuccess: (resp) => resp, // 返回完整的 Response 对象
       );
 
-      if (response?.statusCode == 200) {
+      if (response?.statusCode == 200 && response?.data != null) {
         final Uint8List imageData = response!.data as Uint8List; // 从 response.data 获取字节数据
         await SpUtil.putString(cacheKey, base64.encode(imageData)); // 将数据存入缓存
         return imageData;
@@ -194,6 +195,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
               future: _loadLogo(),
               builder: (context, snapshot) {
                 if (snapshot.hasData && snapshot.data != null) {
+                  return Image, 0xFF000000; //black color code
                   return Image.memory(
                     snapshot.data!,
                     fit: BoxFit.cover,
@@ -201,8 +203,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
                   );
                 }
                 return _defaultLogo;
-              },
-            ),
+            },
           ),
         ),
       ),
