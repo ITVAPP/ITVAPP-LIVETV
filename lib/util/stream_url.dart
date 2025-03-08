@@ -9,6 +9,7 @@ import 'package:itvapp_live_tv/util/lanzou_parser.dart';
 import 'package:itvapp_live_tv/util/getm3u8.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'dart:io' show GZipCodec; // 引入 GZipCodec 用于解压
 
 class StreamUrl {
   late final String url;
@@ -51,8 +52,8 @@ class StreamUrl {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
   // 修改代码结束
-
-  // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
+  
+    // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
     if (_isDisposed) return 'ERROR';
     _completer = Completer<void>();
@@ -130,7 +131,102 @@ class StreamUrl {
     _completer = null;
   }
 
-  Future<void> dispose() async {
+  // 获取 YouTube 直播的 m3u8 清单地址（修改后的版本）
+  Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
+    if (_isDisposed) {
+      LogUtil.i('对象已释放，无法获取 M3U8 URL');
+      return null;
+    }
+    LogUtil.i('开始获取 HLS 清单地址，URL: $youtubeUrl，发送 GET 请求获取直播页面内容');
+    try {
+      // 修改部分：设置 ResponseType.bytes 获取原始字节数据
+      final response = await _httpUtil.getRequestWithResponse(
+        youtubeUrl,
+        options: Options(
+          extra: {
+            'connectTimeout': CONNECT_TIMEOUT,
+            'receiveTimeout': RECEIVE_TIMEOUT,
+          },
+          responseType: ResponseType.bytes, // 获取字节流而不是直接转为字符串
+        ),
+      ).timeout(timeoutDuration);
+
+      if (_isDisposed) {
+        LogUtil.i('对象已释放，停止处理响应');
+        return null;
+      }
+      if (response == null) {
+        LogUtil.e('HTTP 请求返回空响应');
+        return null;
+      }
+
+      LogUtil.i('收到响应，状态码: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        // 获取响应头中的 Content-Encoding
+        final contentEncoding = response.headers.value('content-encoding')?.toLowerCase();
+        LogUtil.i('Content-Encoding: $contentEncoding');
+
+        // 处理响应数据
+        String responseData;
+        final rawData = response.data as List<int>; // 字节数据
+        LogUtil.i('原始字节数据长度: ${rawData.length}');
+
+        // 检查是否为 GZIP 压缩数据
+        if (contentEncoding == 'gzip') {
+          try {
+            final decompressedBytes = GZipCodec().decode(rawData);
+            responseData = utf8.decode(decompressedBytes);
+            LogUtil.i('解压后数据长度: ${responseData.length} 字符');
+          } catch (e, stackTrace) {
+            LogUtil.logError('GZIP 解压失败', e, stackTrace);
+            return null;
+          }
+        } else {
+          // 未压缩，直接解码为 UTF-8 字符串
+          responseData = utf8.decode(rawData);
+          LogUtil.i('未压缩数据长度: ${responseData.length} 字符');
+        }
+
+        // 记录返回的页面内容（限制长度，避免日志过长）
+        LogUtil.d(
+            '直播页面内容（前1000字符）: ${responseData.length > 1000 ? responseData.substring(0, 1000) : responseData}');
+
+        LogUtil.i('开始解析页面内容以提取 hlsManifestUrl');
+        final match = hlsManifestRegex.firstMatch(responseData);
+
+        if (match != null) {
+          final indexM3u8Url = match.group(1);
+          if (indexM3u8Url != null) {
+            LogUtil.i('成功提取 hlsManifestUrl: $indexM3u8Url，开始解析质量并选择直播流地址');
+            final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
+            if (qualityUrl != null) {
+              LogUtil.i('成功选择质量直播流地址: $qualityUrl');
+              return qualityUrl;
+            } else {
+              LogUtil.e('未能从清单中选择有效的质量直播流地址');
+              return null;
+            }
+          } else {
+            LogUtil.e('hlsManifestUrl 提取结果为空');
+            return null;
+          }
+        } else {
+          LogUtil.e('未在页面内容中匹配到 hlsManifestUrl');
+          return null;
+        }
+      } else {
+        LogUtil.e('HTTP 请求失败，状态码: ${response.statusCode}');
+        return null;
+      }
+    } catch (e, stackTrace) {
+      if (!_isDisposed) {
+        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
+      }
+      return null;
+    }
+  }
+  
+    Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
 
@@ -187,6 +283,29 @@ class StreamUrl {
     }
   }
 
+  // 获取 YouTube 直播流的 URL
+  Future<String> _getYouTubeLiveStreamUrl() async {
+    if (_isDisposed) {
+      LogUtil.i('对象已释放，无法获取直播流');
+      return 'ERROR';
+    }
+    LogUtil.i('开始获取 YouTube 直播流，URL: $url');
+    try {
+      final m3u8Url = await _getYouTubeM3U8Url(url, resolutionMap.keys.toList());
+      if (m3u8Url != null) {
+        LogUtil.i('成功获取直播流地址: $m3u8Url');
+        return m3u8Url;
+      }
+      LogUtil.e('未能获取到有效的直播流地址');
+      return 'ERROR';
+    } catch (e, stackTrace) {
+      if (!_isDisposed) {
+        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
+      }
+      return 'ERROR';
+    }
+  }
+
   // 监听网页获取 m3u8 的 URL
   Future<String> _handleGetM3U8Url(String url) async {
     if (_isDisposed) return 'ERROR';
@@ -214,8 +333,8 @@ class StreamUrl {
       }
     }
   }
-
-  // 获取普通 YouTube 视频的流媒体 URL
+  
+    // 获取普通 YouTube 视频的流媒体 URL
   Future<String> _getYouTubeVideoUrl() async {
     if (_isDisposed) return 'ERROR';
     try {
@@ -401,99 +520,8 @@ url: ${audioStream.url}''');
       return null;
     }
   }
-
-  // 获取 YouTube 直播流的 URL
-  Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_isDisposed) {
-      LogUtil.i('对象已释放，无法获取直播流');
-      return 'ERROR';
-    }
-    LogUtil.i('开始获取 YouTube 直播流，URL: $url');
-    try {
-      final m3u8Url = await _getYouTubeM3U8Url(url, resolutionMap.keys.toList());
-      if (m3u8Url != null) {
-        LogUtil.i('成功获取直播流地址: $m3u8Url');
-        return m3u8Url;
-      }
-      LogUtil.e('未能获取到有效的直播流地址');
-      return 'ERROR';
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
-      }
-      return 'ERROR';
-    }
-  }
-
-  // 获取 YouTube 直播的 m3u8 清单地址
-  Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isDisposed) {
-      LogUtil.i('对象已释放，无法获取 M3U8 URL');
-      return null;
-    }
-    LogUtil.i('开始获取 HLS 清单地址，URL: $youtubeUrl，发送 GET 请求获取直播页面内容');
-    try {
-      final response = await _httpUtil.getRequestWithResponse(
-        youtubeUrl,
-        options: Options(
-          extra: {
-            'connectTimeout': CONNECT_TIMEOUT,
-            'receiveTimeout': RECEIVE_TIMEOUT,
-          },
-        ),
-      ).timeout(timeoutDuration);
-      if (_isDisposed) {
-        LogUtil.i('对象已释放，停止处理响应');
-        return null;
-      }
-      if (response == null) {
-        LogUtil.e('HTTP 请求返回空响应');
-        return null;
-      }
-
-      LogUtil.i('收到响应，状态码: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        // 记录返回的页面内容（限制长度，避免日志过长）
-        String responseData = response.data.toString();
-        LogUtil.d(
-            '直播页面内容（前1000字符）: ${responseData.length > 1000 ? responseData.substring(0, 1000) : responseData}');
-
-        LogUtil.i('开始解析页面内容以提取 hlsManifestUrl');
-        final match = hlsManifestRegex.firstMatch(responseData);
-
-        if (match != null) {
-          final indexM3u8Url = match.group(1);
-          if (indexM3u8Url != null) {
-            LogUtil.i('成功提取 hlsManifestUrl: $indexM3u8Url，开始解析质量并选择直播流地址');
-            final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
-            if (qualityUrl != null) {
-              LogUtil.i('成功选择质量直播流地址: $qualityUrl');
-              return qualityUrl;
-            } else {
-              LogUtil.e('未能从清单中选择有效的质量直播流地址');
-              return null;
-            }
-          } else {
-            LogUtil.e('hlsManifestUrl 提取结果为空');
-            return null;
-          }
-        } else {
-          LogUtil.e('未在页面内容中匹配到 hlsManifestUrl');
-          return null;
-        }
-      } else {
-        LogUtil.e('HTTP 请求失败，状态码: ${response.statusCode}');
-        return null;
-      }
-    } catch (e, stackTrace) {
-      if (!_isDisposed) {
-        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
-      }
-      return null;
-    }
-  }
-
-  // 从 m3u8 清单中选择指定质量的流地址
+  
+    // 从 m3u8 清单中选择指定质量的流地址
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isDisposed) {
       LogUtil.i('对象已释放，无法获取质量 M3U8 URL');
@@ -633,4 +661,4 @@ url: ${audioStream.url}''');
       return url;
     }
   }
-}
+} // 类结束符
