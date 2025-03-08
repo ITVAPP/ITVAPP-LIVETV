@@ -191,10 +191,15 @@ class HttpUtil {
           _dio.options.receiveTimeout,
         );
 
-        // 使用局部选项配置，避免影响全局 _dio
+        // 临时修改 BaseOptions 的超时设置
+        final originalBaseOptions = _dio.options; // 保存原始 BaseOptions
+        _dio.options = _dio.options.copyWith(
+          connectTimeout: connectTimeout, // 设置动态连接超时
+          receiveTimeout: receiveTimeout, // 设置动态接收超时
+        );
+
+        // 使用局部选项配置，避免影响全局 _dio，仅处理 headers 等每请求设置
         final requestOptions = options.copyWith(
-          connectTimeout: connectTimeout,
-          receiveTimeout: receiveTimeout,
           headers: headers,
         );
 
@@ -216,6 +221,9 @@ class HttpUtil {
                 cancelToken: cancelToken ?? this.cancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
+
+        // 恢复原始的 BaseOptions 设置
+        _dio.options = originalBaseOptions;
 
         // 处理响应内容，包括 Brotli 解压缩和类型转换
         response = _processResponse(response);
