@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 class StreamUrl {
   late final String url;
   final YoutubeExplode yt = YoutubeExplode();
-  final HttpUtil _httpUtil = HttpUtil(); // 使用 HttpUtil 单例，无需释放
+  final HttpUtil _httpUtil = HttpUtil();
   bool _isDisposed = false;
   Completer<void>? _completer;
   final Duration timeoutDuration;
@@ -432,14 +432,14 @@ url: ${audioStream.url}''');
     }
     LogUtil.i('开始获取 HLS 清单地址，URL: $youtubeUrl，发送 GET 请求获取直播页面内容');
     try {
-      final response = await _httpUtil.getRequestWithResponse(
-        youtubeUrl,
+      final response = await _httpUtil.request(
+        method: 'GET',
+        path: youtubeUrl,
         options: Options(
-          extra: {
-            'connectTimeout': CONNECT_TIMEOUT,
-            'receiveTimeout': RECEIVE_TIMEOUT,
-          },
+          sendTimeout: CONNECT_TIMEOUT,
+          receiveTimeout: RECEIVE_TIMEOUT,
         ),
+        onSuccess: (resp) => resp, // 返回完整的 Response 对象
       ).timeout(timeoutDuration);
       if (_isDisposed) {
         LogUtil.i('对象已释放，停止处理响应');
@@ -501,14 +501,14 @@ url: ${audioStream.url}''');
     LogUtil.i(
         '开始解析 HLS 清单以选择质量，URL: $indexM3u8Url，首选分辨率顺序: $preferredQualities，发送 GET 请求获取 HLS 清单内容');
     try {
-      final response = await _httpUtil.getRequestWithResponse(
-        indexM3u8Url,
+      final response = await _httpUtil.request(
+        method: 'GET',
+        path: indexM3u8Url,
         options: Options(
-          extra: {
-            'connectTimeout': CONNECT_TIMEOUT,
-            'receiveTimeout': RECEIVE_TIMEOUT,
-          },
+          sendTimeout: CONNECT_TIMEOUT,
+          receiveTimeout: RECEIVE_TIMEOUT,
         ),
+        onSuccess: (resp) => resp, // 返回完整的 Response 对象
       ).timeout(timeoutDuration);
       if (_isDisposed) {
         LogUtil.i('对象已释放，停止处理响应');
@@ -593,36 +593,36 @@ url: ${audioStream.url}''');
   Future<String> checkRedirection(String url) async {
     try {
       // 第一次请求，禁用自动重定向
-      final firstResp = await _httpUtil.getRequestWithResponse(
-        url,
+      final firstResp = await _httpUtil.request(
+        method: 'GET',
+        path: url,
         options: Options(
-          followRedirects: false, // 禁用 Dio 默认重定向
-          extra: {
-            'connectTimeout': CONNECT_TIMEOUT,
-            'receiveTimeout': RECEIVE_TIMEOUT,
-          },
+          followRedirects: false, // 禁用自动重定向
+          sendTimeout: CONNECT_TIMEOUT,
+          receiveTimeout: RECEIVE_TIMEOUT,
         ),
+        onSuccess: (resp) => resp, // 返回完整的 Response 对象
       ).timeout(REDIRECT_TIMEOUT);
 
       if (firstResp != null &&
           firstResp.statusCode != null &&
           firstResp.statusCode! >= 300 &&
           firstResp.statusCode! < 400) {
-        final location = firstResp.headers.value('location');
+        final location = firstResp.headers['location'];
         if (location != null && location.isNotEmpty) {
           final redirectUri = Uri.parse(url).resolve(location);
           // 第二次请求
-          final secondResp = await _httpUtil.getRequestWithResponse(
-            redirectUri.toString(),
+          final secondResp = await _httpUtil.request(
+            method: 'GET',
+            path: redirectUri.toString(),
             options: Options(
-              extra: {
-                'connectTimeout': CONNECT_TIMEOUT,
-                'receiveTimeout': RECEIVE_TIMEOUT,
-              },
+              sendTimeout: CONNECT_TIMEOUT,
+              receiveTimeout: RECEIVE_TIMEOUT,
             ),
+            onSuccess: (resp) => resp, // 返回完整的 Response 对象
           ).timeout(REDIRECT_TIMEOUT);
           // 最终拿到最终的 URL
-          return secondResp?.requestOptions.uri.toString() ?? redirectUri.toString();
+          return secondResp?.requestOptions.path ?? redirectUri.toString();
         }
       }
       // 没有跳转，就直接返回原始地址
