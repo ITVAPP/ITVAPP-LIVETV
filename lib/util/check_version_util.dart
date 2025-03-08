@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import 'package:sp_util/sp_util.dart';
-import 'env_util.dart';
-import 'http_util.dart';
-import 'log_util.dart';
-import 'dialog_util.dart'; 
-import '../config.dart'; 
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/dialog_util.dart'; 
+import 'package:itvapp_live_tv/config.dart'; 
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class CheckVersionUtil {
   static const version = Config.version;  // 当前应用版本号
@@ -68,7 +68,10 @@ class CheckVersionUtil {
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
     if (latestVersionEntity != null) return latestVersionEntity;  // 如果已有版本信息，则直接返回
     try {
-      final res = await HttpUtil().getRequest(versionHost);  // 发送网络请求检查最新版本
+      final res = await HttpUtil().getRequest(
+        versionHost,
+        options: Options(receiveTimeout: const Duration(seconds: 10)), // 可选：添加超时
+      );  // 发送网络请求检查最新版本
       if (res != null) {
         final latestVersion = res['tag_name'] as String?;  // 获取最新版本号
         final latestMsg = res['body'] as String?;  // 获取最新版本的更新日志
@@ -101,7 +104,7 @@ class CheckVersionUtil {
   }
 
   // 检查版本并弹出提示
-  static checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true, bool isManual = false]) async {
+  static Future<void> checkVersion(BuildContext context, [bool isShowLoading = true, bool isShowLatestToast = true, bool isManual = false]) async {
     try {
       // 如果是自动检查并且一天内已经提示过，则不再弹窗
       if (!isManual && !await shouldShowPrompt()) {
@@ -127,7 +130,7 @@ class CheckVersionUtil {
   }
 
   // 在浏览器中打开指定 URL
-  static launchBrowserUrl(String url) async {
+  static Future<void> launchBrowserUrl(String url) async {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);  // 使用外部浏览器打开链接
     } catch (e, stackTrace) {
