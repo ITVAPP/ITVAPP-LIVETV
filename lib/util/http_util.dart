@@ -1,57 +1,48 @@
 import 'dart:io';
-import 'package:dio/io.dart';
-import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class HttpUtil {
-  static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
-  late final Dio _dio; // 使用 Dio 进行 HTTP 请求
+  static final HttpUtil _instance = HttpUtil._(); // 单例模式
+  final http.Client _client = http.Client(); // http 客户端
 
-  // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
-  BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: 3), // 设置默认连接超时时间
-    receiveTimeout: const Duration(seconds: 8), // 设置默认接收超时时间
-  );
+  // 默认超时时间
+  Duration connectTimeout = const Duration(seconds: 3);
+  Duration receiveTimeout = const Duration(seconds: 8);
 
-  CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌
+  CancelToken cancelToken = CancelToken(); // 模拟 CancelToken
 
   factory HttpUtil() => _instance;
 
   HttpUtil._() {
-    // 初始化 Dio 实例
-    _dio = Dio(options);
-
-    // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
-    if (_dio.httpClientAdapter is IOHttpClientAdapter) {
-      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
-        final client = HttpClient()
-          ..maxConnectionsPerHost = 5
-          ..autoUncompress = true
-          ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-        return client;
-      };
-    }
+    // 配置 HttpClient
+    HttpOverrides.global = _HttpOverrides();
   }
 
-  // 超时设置的工具函数，修改为支持 nullable 默认值
+  // 配置底层 HttpClient
+  static void configureHttpClient(HttpClient client) {
+    client.maxConnectionsPerHost = 5;
+    client.autoUncompress = true; // 自动解压 gzip、deflate、br
+    client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+
+  // 超时设置工具函数
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
-        : defaultTimeout ?? const Duration(seconds: 3); // 提供最终默认值
+        : defaultTimeout ?? const Duration(seconds: 3);
   }
 
-  // 提取类型处理的公共函数，减少重复逻辑
+  // 类型解析函数
   T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
     if (data == null) return null;
 
-    // 如果数据是字符串，去除前后的空格和换行符
     if (data is String) data = data.trim();
 
-    // 如果提供了自定义解析函数，优先使用
     if (parseData != null) {
       try {
         return parseData(data);
@@ -61,7 +52,6 @@ class HttpUtil {
       }
     }
 
-    // 处理 String 类型
     if (T == String) {
       if (data is String) return data as T;
       if (data is Map || data is List) return jsonEncode(data) as T;
@@ -70,7 +60,6 @@ class HttpUtil {
       return null;
     }
 
-    // 其他类型直接尝试转换
     try {
       return data is T ? data as T : null;
     } catch (e) {
@@ -79,7 +68,16 @@ class HttpUtil {
     }
   }
 
-  // 核心请求逻辑，处理 GET 和 POST 请求
+  static Response _convertHttpResponse(http.Response response) {
+    return Response(
+      data: response.body,
+      statusCode: response.statusCode,
+      headers: response.headers,
+      requestOptions: RequestOptions(path: response.request?.url.toString() ?? ''),
+    );
+  }
+
+  // 核心请求逻辑，使用 http 包
   Future<R?> _performRequest<R>({
     required String method,
     required String path,
@@ -93,64 +91,49 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
     required R? Function(Response response) onSuccess,
   }) async {
-    Response? response;
+    http.Response? response;
     int currentAttempt = 0;
 
     while (currentAttempt < retryCount) {
       try {
-        // 修改部分：如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
         final headers = options?.headers != null && options!.headers!.isNotEmpty
             ? options.headers!
             : HeadersConfig.generateHeaders(url: path);
 
-        // 提取超时设置，提供默认值以避免 null 问题
-        final connectTimeout = _getTimeout(
-          options?.extra?['connectTimeout'] as Duration?,
-          _dio.options.connectTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
-        );
-        final receiveTimeout = _getTimeout(
+        final uri = Uri.parse(path).replace(queryParameters: queryParameters);
+        final timeout = _getTimeout(
           options?.extra?['receiveTimeout'] as Duration?,
-          _dio.options.receiveTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
+          receiveTimeout,
         );
 
-        // 更新 Dio 配置，而不是创建新实例
-        _dio.options
-          ..connectTimeout = connectTimeout
-          ..receiveTimeout = receiveTimeout
-          ..headers = headers;
-
-        // 执行请求，使用全局 cancelToken 或传入的 cancelToken
-        response = await (method.toUpperCase() == 'POST'
-            ? _dio.post(
-                path,
-                data: data,
-                queryParameters: queryParameters,
-                options: options,
-                cancelToken: cancelToken ?? this.cancelToken,
-                onSendProgress: onSendProgress,
-                onReceiveProgress: onReceiveProgress,
+        if (method.toUpperCase() == 'POST') {
+          response = await _client
+              .post(
+                uri,
+                headers: headers.cast<String, String>(),
+                body: data is String ? data : jsonEncode(data),
               )
-            : _dio.get(
-                path,
-                queryParameters: queryParameters,
-                options: options,
-                cancelToken: cancelToken ?? this.cancelToken,
-                onReceiveProgress: onReceiveProgress,
-              ));
+              .timeout(timeout);
+        } else {
+          response = await _client
+              .get(
+                uri,
+                headers: headers.cast<String, String>(),
+              )
+              .timeout(timeout);
+        }
 
-        return onSuccess(response);
-      } on DioException catch (e, stackTrace) {
+        return onSuccess(_convertHttpResponse(response));
+      } catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError(
           '第 $currentAttempt 次 $method 请求失败: $path\n'
-          '响应状态码: ${e.response?.statusCode}\n'
-          '响应数据: ${e.response?.data}\n'
-          '响应头: ${e.response?.headers}',
+          '错误详情: $e',
           e,
           stackTrace,
         );
 
-        if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
+        if (currentAttempt >= retryCount || (e is HttpCancelException)) {
           formatError(e);
           return null;
         }
@@ -278,45 +261,110 @@ class HttpUtil {
   }) async {
     try {
       final headers = HeadersConfig.generateHeaders(url: url);
-      final response = await _dio.download(
-        url,
-        savePath,
-        options: Options(
-          receiveTimeout: const Duration(seconds: 298),
-          headers: headers,
-        ),
-        onReceiveProgress: (received, total) {
-          if (total > 0) progressCallback?.call(received / total);
-        },
-      );
+      final request = http.StreamedRequest('GET', Uri.parse(url));
+      headers.forEach((key, value) => request.headers[key] = value);
 
+      final response = await _client.send(request);
       if (response.statusCode != 200) {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          error: '状态码: ${response.statusCode}',
-        );
+        throw Exception('状态码: ${response.statusCode}');
       }
 
-      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
+      final total = response.contentLength ?? 0;
+      int received = 0;
+      final sink = File(savePath).openWrite();
+
+      await response.stream.listen(
+        (chunk) {
+          received += chunk.length;
+          sink.add(chunk);
+          if (total > 0) progressCallback?.call(received / total);
+        },
+        onDone: () async {
+          await sink.close();
+          LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
+        },
+        onError: (e) async {
+          await sink.close();
+          throw e;
+        },
+        cancelOnError: true,
+      ).asFuture();
+
       return response.statusCode;
-    } on DioException catch (e, stackTrace) {
+    } catch (e, stackTrace) {
       LogUtil.logError('文件下载失败: $url', e, stackTrace);
       return 500;
     }
   }
 }
 
-// 统一处理 Dio 请求的异常
-void formatError(DioException e) {
+// 简化的 Response 类，使用 http 的 headers
+class Response {
+  dynamic data;
+  int? statusCode;
+  Map<String, String> headers; // 直接使用 http 的 headers 类型
+  RequestOptions requestOptions;
+
+  Response({
+    required this.data,
+    required this.statusCode,
+    required this.headers,
+    required this.requestOptions,
+  });
+}
+
+class Options {
+  Map<String, dynamic>? headers;
+  Map<String, dynamic>? extra;
+
+  Options({this.headers, this.extra});
+}
+
+class RequestOptions {
+  String path;
+
+  RequestOptions({required this.path});
+}
+
+class CancelToken {
+  bool _isCancelled = false;
+
+  void cancel([String? reason]) {
+    _isCancelled = true;
+    throw HttpCancelException(reason ?? 'Request cancelled');
+  }
+
+  bool get isCancelled => _isCancelled;
+}
+
+// 自定义异常类
+class HttpCancelException implements Exception {
+  final String message;
+
+  HttpCancelException(this.message);
+
+  @override
+  String toString() => 'HttpCancelException: $message';
+}
+
+// 自定义 HttpOverrides 配置 HttpClient
+class _HttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    HttpUtil.configureHttpClient(client);
+    return client;
+  }
+}
+
+// 统一处理 HTTP 请求的异常
+void formatError(dynamic e) {
   LogUtil.safeExecute(() {
-    final message = switch (e.type) {
-      DioExceptionType.connectionTimeout => S.current.netTimeOut,
-      DioExceptionType.sendTimeout => S.current.netSendTimeout,
-      DioExceptionType.receiveTimeout => S.current.netReceiveTimeout,
-      DioExceptionType.badResponse => S.current.netBadResponse(e.response?.statusCode ?? ''),
-      DioExceptionType.cancel => S.current.netCancel,
-      _ => e.message.toString()
+    final message = switch (e.runtimeType) {
+      TimeoutException => S.current.netTimeOut,
+      HttpCancelException => S.current.netCancel,
+      _ => e.toString(),
     };
     LogUtil.v(message);
-  }, '处理 DioException 错误时发生异常');
+  }, '处理 HTTP 错误时发生异常');
 }
