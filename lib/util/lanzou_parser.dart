@@ -51,22 +51,22 @@ class LanzouParser {
     int retryCount = 0;
     while (retryCount < maxRetries) {
       try {
-        final response = await HttpUtil().getRequestWithResponse(
-          url,
+        final response = await HttpUtil().request(
+          method: 'HEAD',
+          path: url,
           options: Options(
             method: 'HEAD', // 使用 HEAD 方法
             followRedirects: false, // 不自动跟随重定向
             headers: HeadersConfig.generateHeaders(url: url),
-            extra: {
-              'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-              'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
-            },
+            sendTimeout: const Duration(seconds: 5),  // 连接超时 5 秒
+            receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
           ),
-        ).timeout(requestTimeout);  // 添加超时处理
+          onSuccess: (resp) => resp, // 返回原始 Response 对象
+        ).timeout(requestTimeout); // 添加超时处理
         
         if (response != null) {
           if (response.statusCode == 302 || response.statusCode == 301) {
-            final redirectUrl = response.headers.value('location');
+            final redirectUrl = response.headers['location'];
             if (redirectUrl != null) {
               LogUtil.i('获取到重定向URL: $redirectUrl');
               return redirectUrl;
@@ -209,33 +209,31 @@ class LanzouParser {
         }
 
         final response = method.toUpperCase() == 'POST'
-            ? await HttpUtil().postRequestWithResponse(
-                url,
+            ? await HttpUtil().post<String>(
+                path: url,
                 data: body,
                 options: Options(
                   headers: headers,
-                  extra: {
-                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
-                  },
+                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+                  sendTimeout: const Duration(seconds: 5),     // 连接超时 5 秒
                 ),
+                parseData: (data) => data as String, // 确保响应作为字符串处理
               )
-            : await HttpUtil().getRequestWithResponse(
-                url,
+            : await HttpUtil().get<String>(
+                path: url,
                 options: Options(
                   headers: headers,
-                  extra: {
-                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
-                  },
+                  receiveTimeout: const Duration(seconds: 12), // 下载超时 12 秒
+                  sendTimeout: const Duration(seconds: 5),     // 连接超时 5 秒
                 ),
+                parseData: (data) => data as String, // 确保响应作为字符串处理
               );
 
-        if (response?.statusCode == 200) {
-          return response?.data.toString();
+        if (response != null) {
+          return response; // 返回解析后的字符串响应
         }
         
-        LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
+        LogUtil.i('HTTP请求失败，返回null');
       } catch (e) {
         LogUtil.e('HTTP请求异常: $e');
         if (++retryCount < maxRetries) {
