@@ -13,7 +13,7 @@ class HttpUtil {
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
-  // 初始化 Dio 的基础配置，这里主要设置超时时间，headers 在具体请求时动态生成
+  // 初始化 Dio 的基础配置，headers在具体请求时动态生成
   BaseOptions options = BaseOptions(
     connectTimeout: const Duration(seconds: 3), // 设置默认连接超时时间
     receiveTimeout: const Duration(seconds: 8), // 设置默认接收超时时间
@@ -23,9 +23,13 @@ class HttpUtil {
 
   factory HttpUtil() => _instance;
 
+  // 构造函数
   HttpUtil._() {
-    // 初始化 Dio 实例
-    _dio = Dio(options);
+    _dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 3), // 默认连接超时
+      receiveTimeout: const Duration(seconds: 8), // 默认接收超时
+      responseType: ResponseType.bytes, // 统一使用字节响应类型，避免重复设置
+    ));
 
     // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
     if (_dio.httpClientAdapter is IOHttpClientAdapter) {
@@ -39,74 +43,80 @@ class HttpUtil {
     }
   }
 
-  // 超时设置的工具函数，修改为支持 nullable 默认值
+  // 超时设置的工具函数
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
         : defaultTimeout ?? const Duration(seconds: 3); // 提供最终默认值
   }
 
-  // 处理响应内容的公共方法，统一处理Brotli压缩和不同类型的内容
   Response _processResponse(Response response) {
+    // 如果响应数据不是字节数组，说明已经处理过，直接返回
+    if (!(response.data is List<int>)) {
+      return response;
+    }
+
     final contentEncoding = response.headers.value('content-encoding')?.toLowerCase() ?? '';
     final contentType = response.headers.value('content-type')?.toLowerCase() ?? '';
-    
-    // 处理Brotli压缩的内容
-    if (contentEncoding.contains('br') && response.data is List<int>) {
+    final bytes = response.data as List<int>;
+
+    // 处理 Brotli 压缩的内容
+    if (contentEncoding.contains('br')) {
       try {
-        // 解压缩Brotli内容
-        final decodedBytes = brotliDecode(Uint8List.fromList(response.data));
-        
-        // 根据Content-Type决定如何处理解码后的内容
-        if (contentType.contains('json')) {
-          // JSON内容
-          final jsonString = utf8.decode(decodedBytes);
-          try {
-            response.data = jsonDecode(jsonString);
-            LogUtil.i('成功解码Brotli压缩的JSON内容');
-          } catch (e) {
-            // JSON解析失败，保留为字符串
-            response.data = jsonString;
-            LogUtil.e('JSON解析失败: $e');
-          }
-        } else {
-          // 默认作为文本处理（HTML等）
-          response.data = utf8.decode(decodedBytes);
-          LogUtil.i('成功解码Brotli压缩的HTML/文本内容');
-        }
+        final decodedBytes = brotliDecode(Uint8List.fromList(bytes));
+        response.data = _decodeContent(decodedBytes, contentType); // 提取解码逻辑
+        LogUtil.i('成功解码 Brotli 压缩内容');
       } catch (e, stackTrace) {
-        LogUtil.logError('Brotli解压缩失败', e, stackTrace);
+        LogUtil.logError('Brotli 解压缩失败', e, stackTrace);
+        response.data = _decodeFallback(bytes, contentType); // 回退解码
       }
-    } else if (response.data is List<int>) {
-      // 处理非Brotli压缩的字节数据
+    } else {
+      response.data = _decodeFallback(bytes, contentType); // 非 Brotli 内容解码
+    }
+
+    // 统一处理字符串 trim，避免重复代码
+    if (response.data is String) {
+      response.data = (response.data as String).trim();
+    }
+    return response;
+  }
+
+  // 内容解码逻辑
+  dynamic _decodeContent(List<int> bytes, String contentType) {
+    final text = utf8.decode(bytes);
+    if (contentType.contains('json')) {
       try {
-        final decodedString = utf8.decode(response.data);
-        
-        // 同样根据Content-Type处理
-        if (contentType.contains('json')) {
-          try {
-            response.data = jsonDecode(decodedString);
-          } catch (e) {
-            response.data = decodedString;
-            LogUtil.e('JSON解析失败: $e');
-          }
-        } else {
-          response.data = decodedString;
-        }
+        return jsonDecode(text);
       } catch (e) {
-        LogUtil.e('UTF-8解码失败，尝试其他编码: $e');
-        try {
-          response.data = latin1.decode(response.data);
-        } catch (e) {
-          LogUtil.e('所有解码尝试均失败: $e');
-        }
+        LogUtil.e('JSON 解析失败: $e');
+        return text;
       }
     }
-    
-    // 如果数据是字符串，去除前后的空格和换行符
-    if (response.data is String) response.data = response.data.trim();
-    
-    return response;
+    return text;
+  }
+
+  // 回退解码逻辑，处理非 Brotli 或解压失败的情况
+  dynamic _decodeFallback(List<int> bytes, String contentType) {
+    try {
+      final text = utf8.decode(bytes);
+      if (contentType.contains('json')) {
+        try {
+          return jsonDecode(text);
+        } catch (e) {
+          LogUtil.e('JSON 解析失败: $e');
+          return text;
+        }
+      }
+      return text;
+    } catch (e) {
+      LogUtil.e('UTF-8 解码失败，尝试其他编码: $e');
+      try {
+        return latin1.decode(bytes);
+      } catch (e) {
+        LogUtil.e('所有解码尝试均失败: $e');
+        return bytes; // 保留原始字节数据
+      }
+    }
   }
 
   // 提取类型处理的公共函数，减少重复逻辑
@@ -139,14 +149,14 @@ class HttpUtil {
     try {
       return data is T ? data as T : null;
     } catch (e) {
-      LogUtil.e('类型转换失败: $data 无法转换为 $T');
+      LogUtil.e('类型转换失败: $data无法转换为 $T');
       return null;
     }
   }
 
-  // 核心请求逻辑，处理 GET 和 POST 请求
+  // 合并 GET 和 POST 请求逻辑，使用布尔值区分请求类型
   Future<R?> _performRequest<R>({
-    required String method,
+    required bool isPost, // 使用布尔值替代 method 字符串，简化逻辑
     required String path,
     Map<String, dynamic>? queryParameters,
     dynamic data,
@@ -161,40 +171,40 @@ class HttpUtil {
     Response? response;
     int currentAttempt = 0;
 
-    // 确保所有请求使用ResponseType.bytes
+    // 确保所有请求使用 ResponseType.bytes，避免重复设置
     options = options ?? Options();
-    options.responseType = ResponseType.bytes;
 
     while (currentAttempt < retryCount) {
       try {
         // 如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
-        final headers = options?.headers != null && options!.headers!.isNotEmpty
+        final headers = options.headers != null && options.headers!.isNotEmpty
             ? options.headers!
             : HeadersConfig.generateHeaders(url: path);
 
-        // 提取超时设置，提供默认值以避免 null 问题
+        // 提取超时设置，使用局部配置副本，避免修改全局 _dio.options
         final connectTimeout = _getTimeout(
-          options?.extra?['connectTimeout'] as Duration?,
-          _dio.options.connectTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
+          options.extra?['connectTimeout'] as Duration?,
+          _dio.options.connectTimeout,
         );
         final receiveTimeout = _getTimeout(
-          options?.extra?['receiveTimeout'] as Duration?,
-          _dio.options.receiveTimeout, // 从 BaseOptions 获取默认值，类型是 Duration?
+          options.extra?['receiveTimeout'] as Duration?,
+          _dio.options.receiveTimeout,
         );
 
-        // 更新 Dio 配置，而不是创建新实例
-        _dio.options
-          ..connectTimeout = connectTimeout
-          ..receiveTimeout = receiveTimeout
-          ..headers = headers;
+        // 使用局部选项配置，避免影响全局 _dio
+        final requestOptions = options.copyWith(
+          connectTimeout: connectTimeout,
+          receiveTimeout: receiveTimeout,
+          headers: headers,
+        );
 
         // 执行请求，使用全局 cancelToken 或传入的 cancelToken
-        response = await (method.toUpperCase() == 'POST'
+        response = await (isPost
             ? _dio.post(
                 path,
                 data: data,
                 queryParameters: queryParameters,
-                options: options,
+                options: requestOptions,
                 cancelToken: cancelToken ?? this.cancelToken,
                 onSendProgress: onSendProgress,
                 onReceiveProgress: onReceiveProgress,
@@ -202,19 +212,18 @@ class HttpUtil {
             : _dio.get(
                 path,
                 queryParameters: queryParameters,
-                options: options,
+                options: requestOptions,
                 cancelToken: cancelToken ?? this.cancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
 
-        // 处理响应内容，包括Brotli解压缩和类型转换
+        // 处理响应内容，包括 Brotli 解压缩和类型转换
         response = _processResponse(response);
-        
         return onSuccess(response);
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError(
-          '第 $currentAttempt 次 $method 请求失败: $path\n'
+          '第 $currentAttempt 次${isPost ? 'POST' : 'GET'} 请求失败: $path\n'
           '响应状态码: ${e.response?.statusCode}\n'
           '响应数据: ${e.response?.data}\n'
           '响应头: ${e.response?.headers}',
@@ -246,7 +255,7 @@ class HttpUtil {
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
-      method: 'GET',
+      isPost: false,
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -269,7 +278,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: 'GET',
+      isPost: false,
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -294,8 +303,9 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
     T? Function(dynamic data)? parseData,
   }) async {
+    // 调用合并后的 _performRequest 方法，传入 isPost: true
     return _performRequest<T>(
-      method: 'POST',
+      isPost: true,
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -322,7 +332,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: 'POST',
+      isPost: true,
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -363,7 +373,7 @@ class HttpUtil {
         );
       }
 
-      LogUtil.i('文件下载成功: $url, 保存路径: $savePath');
+      LogUtil.i('文件下载成功: $url,保存路径: $savePath');
       return response.statusCode;
     } on DioException catch (e, stackTrace) {
       LogUtil.logError('文件下载失败: $url', e, stackTrace);
