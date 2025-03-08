@@ -1,9 +1,8 @@
-import 'package:dio/dio.dart';
+import 'package:xml/xml.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:xml/xml.dart';
 
 /// channel_name : "CCTV1"
 /// date : ""
