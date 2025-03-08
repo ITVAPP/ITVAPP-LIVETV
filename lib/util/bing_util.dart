@@ -48,7 +48,7 @@ class BingUtil {
 
       if (urls.isNotEmpty) {
         bingImgUrls = urls;
-        await _cacheUrls(urls);
+        _cacheUrls(urls);
       } else {
         LogUtil.e('未能获取到 Bing 图片 URLs');
       }
@@ -85,10 +85,7 @@ class BingUtil {
       final baseUrl = 'https://bing.biturl.top/?resolution=1366&format=json&index=$idx';
       final url = channelId != null ? '$baseUrl&channelId=$channelId' : baseUrl;
       
-      final res = await HttpUtil().getRequest(
-        url,
-        options: Options(receiveTimeout: const Duration(seconds: 10)), // 可选：添加超时
-      );
+      final res = await HttpUtil().getRequest(url);
       return res?['url']?.isNotEmpty ?? false ? res['url'] : null;
     } catch (e) {
       if (retryCount < _maxRetries) {
