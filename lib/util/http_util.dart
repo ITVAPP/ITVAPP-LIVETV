@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
-import 'dart:convert';
+import 'package:brotli/brotli.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
@@ -42,6 +44,69 @@ class HttpUtil {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
         : defaultTimeout ?? const Duration(seconds: 3); // 提供最终默认值
+  }
+
+  // 处理响应内容的公共方法，统一处理Brotli压缩和不同类型的内容
+  Response _processResponse(Response response) {
+    final contentEncoding = response.headers.value('content-encoding')?.toLowerCase() ?? '';
+    final contentType = response.headers.value('content-type')?.toLowerCase() ?? '';
+    
+    // 处理Brotli压缩的内容
+    if (contentEncoding.contains('br') && response.data is List<int>) {
+      try {
+        // 解压缩Brotli内容
+        final decodedBytes = brotliDecode(Uint8List.fromList(response.data));
+        
+        // 根据Content-Type决定如何处理解码后的内容
+        if (contentType.contains('json')) {
+          // JSON内容
+          final jsonString = utf8.decode(decodedBytes);
+          try {
+            response.data = jsonDecode(jsonString);
+            LogUtil.i('成功解码Brotli压缩的JSON内容');
+          } catch (e) {
+            // JSON解析失败，保留为字符串
+            response.data = jsonString;
+            LogUtil.e('JSON解析失败: $e');
+          }
+        } else {
+          // 默认作为文本处理（HTML等）
+          response.data = utf8.decode(decodedBytes);
+          LogUtil.i('成功解码Brotli压缩的HTML/文本内容');
+        }
+      } catch (e, stackTrace) {
+        LogUtil.logError('Brotli解压缩失败', e, stackTrace);
+      }
+    } else if (response.data is List<int>) {
+      // 处理非Brotli压缩的字节数据
+      try {
+        final decodedString = utf8.decode(response.data);
+        
+        // 同样根据Content-Type处理
+        if (contentType.contains('json')) {
+          try {
+            response.data = jsonDecode(decodedString);
+          } catch (e) {
+            response.data = decodedString;
+            LogUtil.e('JSON解析失败: $e');
+          }
+        } else {
+          response.data = decodedString;
+        }
+      } catch (e) {
+        LogUtil.e('UTF-8解码失败，尝试其他编码: $e');
+        try {
+          response.data = latin1.decode(response.data);
+        } catch (e) {
+          LogUtil.e('所有解码尝试均失败: $e');
+        }
+      }
+    }
+    
+    // 如果数据是字符串，去除前后的空格和换行符
+    if (response.data is String) response.data = response.data.trim();
+    
+    return response;
   }
 
   // 提取类型处理的公共函数，减少重复逻辑
@@ -96,9 +161,13 @@ class HttpUtil {
     Response? response;
     int currentAttempt = 0;
 
+    // 确保所有请求使用ResponseType.bytes
+    options = options ?? Options();
+    options.responseType = ResponseType.bytes;
+
     while (currentAttempt < retryCount) {
       try {
-        // 修改部分：如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
+        // 如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
         final headers = options?.headers != null && options!.headers!.isNotEmpty
             ? options.headers!
             : HeadersConfig.generateHeaders(url: path);
@@ -138,6 +207,9 @@ class HttpUtil {
                 onReceiveProgress: onReceiveProgress,
               ));
 
+        // 处理响应内容，包括Brotli解压缩和类型转换
+        response = _processResponse(response);
+        
         return onSuccess(response);
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
@@ -205,10 +277,7 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) {
-        if (response.data is String) response.data = response.data.trim();
-        return response;
-      },
+      onSuccess: (response) => response,
     );
   }
 
@@ -263,10 +332,7 @@ class HttpUtil {
       onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
-      onSuccess: (response) {
-        if (response.data is String) response.data = response.data.trim();
-        return response;
-      },
+      onSuccess: (response) => response,
     );
   }
 
