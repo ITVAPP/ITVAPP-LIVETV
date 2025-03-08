@@ -94,5 +94,6 @@ zztv.tv
 dspull.ijntv.cn
 hlss.gstv.com.cn
 kankanlive.com
+yumentv.cn
 gbtv-rtmp.zjwtv.com''';
 }
