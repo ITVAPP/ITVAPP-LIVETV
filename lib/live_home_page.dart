@@ -136,7 +136,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('解析前地址: $_originalUrl');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       _currentPlayUrl = parsedUrl; // 设置当前播放地址
-      LogUtil.i('解析后地址: $_currentPlayUrl');
+      _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+      LogUtil.i('解析后地址: $_currentPlayUrl, HLS: $_isHls');
 
       if (parsedUrl == 'ERROR') {
         LogUtil.e('地址解析失败: $url');
@@ -150,17 +151,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
       bool isDirectAudio = _checkIsAudioStream(parsedUrl);
       setState(() => _isAudio = isDirectAudio);
 
-      final bool isHls = _isHlsStream(parsedUrl);
-      _isHls = isHls;
-      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $isHls');
+      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $_isHls');
 
       final dataSource = BetterPlayerConfig.createDataSource(
         url: parsedUrl,
-        isHls: isHls,
+        isHls: _isHls,
       );
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
         eventListener: _videoListener,
-        isHls: isHls,
+        isHls: _isHls,
       );
 
       BetterPlayerController? tempController;
@@ -242,6 +241,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "Unknown error"}');
         if (_preCachedUrl != null) {
           LogUtil.i('异常触发，切换到预缓存地址: $_preCachedUrl');
+          _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
+          _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+          LogUtil.i('更新当前播放地址: $_currentPlayUrl, HLS: $_isHls');
           final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHls);
           await _playerController?.preCache(newSource);
           LogUtil.i('预缓存新数据源完成: $_preCachedUrl');
@@ -252,8 +254,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           } else {
             LogUtil.i('异常切换后保持暂停状态: $_preCachedUrl');
           }
-          _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
-          _preCachedUrl = null; // 清空预缓存地址
+          _preCachedUrl = null;
         } else {
           _retryPlayback();
         }
@@ -367,6 +368,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 // 检查剩余时间 ≤ 2 秒且有预缓存地址
                 if (_preCachedUrl != null && remainingTime.inSeconds <= 2) {
                   LogUtil.i('HLS 剩余时间少于 2 秒，切换到预缓存地址: $_preCachedUrl');
+                  _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
+                  _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+                  LogUtil.i('更新当前播放地址: $_currentPlayUrl, HLS: $_isHls');
                   final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHls);
                   // 预缓存新数据源（若未完成）
                   await _playerController?.preCache(newSource);
@@ -378,8 +382,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   } else {
                     LogUtil.i('HLS 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
                   }
-                  _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
-                  _preCachedUrl = null; // 清空预缓存地址
+                  _preCachedUrl = null; // 清理已使用的预缓存地址
                 }
                 // 新增触发重新解析条件
                 else if (_bufferedHistory.length >= 6) { // 需要 6 条记录来检查 5 次增量
@@ -417,7 +420,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
                 if (remainingTime.inSeconds <= 2 && _preCachedUrl != null) {
                   LogUtil.i('非 HLS 剩余时间少于 2 秒，切换到预缓存地址: $_preCachedUrl');
-                  final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false);
+                  _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
+                  _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+                  LogUtil.i('更新当前播放地址: $_currentPlayUrl, HLS: $_isHls');
+                  final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHls);
                   await _playerController?.preCache(newSource);
                   LogUtil.i('非 HLS 预缓存新数据源完成: $_preCachedUrl');
                   await _playerController?.setupDataSource(newSource);
@@ -427,8 +433,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   } else {
                     LogUtil.i('非 HLS 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
                   }
-                  _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
-                  _preCachedUrl = null; // 清空预缓存地址
+                  _preCachedUrl = null;
                 }
               }
             } else {
@@ -444,7 +449,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.finished:
         if (!_isHls && _preCachedUrl != null) {
           LogUtil.i('非 HLS 播放结束，切换到预缓存地址: $_preCachedUrl');
-          final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: false);
+          _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
+          _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+          LogUtil.i('更新当前播放地址: $_currentPlayUrl, HLS: $_isHls');
+          final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHls);
           await _playerController?.preCache(newSource);
           LogUtil.i('非 HLS 预缓存新数据源完成: $_preCachedUrl');
           await _playerController?.setupDataSource(newSource);
@@ -454,8 +462,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           } else {
             LogUtil.i('非 HLS 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
           }
-          _currentPlayUrl = _preCachedUrl; // 更新当前播放地址
-          _preCachedUrl = null; // 清空预缓存地址
+          _preCachedUrl = null;
         } else if (_isHls) {
           LogUtil.i('HLS 流异常结束，重试播放');
           _retryPlayback();
@@ -481,6 +488,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         bool shouldEnableProgress = false;
         if (_isHls) {
           // HLS 流：检查解析前的地址是否包含 "timelimit"
+          LogUtil.i('HLS 流检查 - 解析前地址: $_originalUrl');
           if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
             shouldEnableProgress = true;
           }
@@ -667,6 +675,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playerController = null;
         _progressEnabled = false;
         _isAudio = false;
+        _isHls = false; // 重置 _isHls
         _bufferedHistory.clear();
         _preCachedUrl = null;
         _lastBufferedPosition = null;
@@ -734,7 +743,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
 
       _currentPlayUrl = newParsedUrl; // 更新当前播放地址
-      LogUtil.i('解析后地址: $_currentPlayUrl');
+      _isHls = _isHlsStream(_currentPlayUrl); // 同步更新 _isHls
+      LogUtil.i('解析后地址: $_currentPlayUrl, HLS: $_isHls');
 
       final newSource = BetterPlayerConfig.createDataSource(
         isHls: _isHls,
@@ -743,7 +753,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       if (_playerController != null) {
         await _playerController!.preCache(newSource);
-        _preCachedUrl = newParsedUrl; // 设置预缓存地址
+        _preCachedUrl = newParsedUrl;
         LogUtil.i('预缓存地址: $_preCachedUrl');
         _progressEnabled = false;
         _playDurationTimer?.cancel();
@@ -752,11 +762,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (isPlaying) {
           await _playerController!.play();
           LogUtil.i('切换到新数据源并开始播放: $newParsedUrl');
-          _preCachedUrl = null; // 使用后清空
+          _preCachedUrl = null;
           _startPlayDurationTimer();
         } else {
           LogUtil.i('切换到新数据源但保持暂停状态: $newParsedUrl');
-          _preCachedUrl = null; // 使用后清空
+          _preCachedUrl = null;
         }
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
