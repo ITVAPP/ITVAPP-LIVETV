@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async'; // 修改部分：添加导入以支持 TimeoutException
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
@@ -85,8 +86,6 @@ class HttpUtil {
     dynamic data,
     Options? options,
     CancelToken? cancelToken,
-    ProgressCallback? onSendProgress,
-    ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
     required R? Function(Response response) onSuccess,
@@ -151,7 +150,6 @@ class HttpUtil {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-    ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
     T? Function(dynamic data)? parseData,
@@ -162,7 +160,6 @@ class HttpUtil {
       queryParameters: queryParameters,
       options: options,
       cancelToken: cancelToken,
-      onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) => _parseResponseData<T>(response.data, parseData: parseData),
@@ -175,7 +172,6 @@ class HttpUtil {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-    ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
@@ -185,7 +181,6 @@ class HttpUtil {
       queryParameters: queryParameters,
       options: options,
       cancelToken: cancelToken,
-      onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) {
@@ -202,8 +197,6 @@ class HttpUtil {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-    ProgressCallback? onSendProgress,
-    ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
     T? Function(dynamic data)? parseData,
@@ -215,8 +208,6 @@ class HttpUtil {
       queryParameters: queryParameters,
       options: options,
       cancelToken: cancelToken,
-      onSendProgress: onSendProgress,
-      onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) => _parseResponseData<T>(response.data, parseData: parseData),
@@ -230,8 +221,6 @@ class HttpUtil {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-    ProgressCallback? onSendProgress,
-    ProgressCallback? onReceiveProgress,
     int retryCount = 2,
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
@@ -242,8 +231,6 @@ class HttpUtil {
       queryParameters: queryParameters,
       options: options,
       cancelToken: cancelToken,
-      onSendProgress: onSendProgress,
-      onReceiveProgress: onReceiveProgress,
       retryCount: retryCount,
       retryDelay: retryDelay,
       onSuccess: (response) {
