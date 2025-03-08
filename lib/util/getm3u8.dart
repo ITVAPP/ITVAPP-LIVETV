@@ -129,7 +129,7 @@ class GetM3U8 {
   static String dynamicKeywordsString = 'jinan@gansu@zhanjiang';
 
   /// 允许加载的资源模式字符串，用@分隔
-  static const String allowedResourcePatternsString = 'r.png?t=perf';
+  static const String allowedResourcePatternsString = 'r.png?t=';
 
   /// 目标URL
   final String url;
