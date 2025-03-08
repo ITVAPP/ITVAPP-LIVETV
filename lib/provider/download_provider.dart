@@ -46,10 +46,16 @@ class DownloadProvider extends ChangeNotifier {
       final savePath = '${dir.path}/apk/${url.split('/').last}';
       LogUtil.v('APK 保存路径: $savePath');
 
+      // 创建目录（如果不存在）
+      final apkDir = Directory('${dir.path}/apk');
+      if (!await apkDir.exists()) {
+        await apkDir.create(recursive: true);
+      }
+
       // 开始下载文件，并设置下载进度回调
       final downloadCode = await HttpUtil().downloadFile(
-        url,
-        savePath,
+        url: url,
+        savePath: savePath,
         progressCallback: (double currentProgress) {
           try {
             _progress = currentProgress; // 更新下载进度
@@ -58,27 +64,39 @@ class DownloadProvider extends ChangeNotifier {
             LogUtil.logError('更新下载进度时发生错误', e, stackTrace);
           }
         },
+        timeout: const Duration(minutes: 2), // 设置合理的超时时间
       );
 
-      // 检查下载是否成功
-      if (downloadCode == 200) {
-        LogUtil.v('APK 文件下载完成，开始安装: $savePath');
-        // 下载成功后开始安装 APK 文件
-        await ApkInstaller.installApk(filePath: savePath);
-      } else {
-        LogUtil.e('下载 APK 文件失败，错误码: $downloadCode');
-        _isDownloading = false; // 设置下载状态为未下载
-        notifyListeners(); // 通知监听者状态更新
+      // 根据下载状态码处理结果
+      switch (downloadCode) {
+        case 200:
+          LogUtil.v('APK 文件下载完成，开始安装: $savePath');
+          // 下载成功后开始安装 APK 文件
+          await ApkInstaller.installApk(filePath: savePath);
+          LogUtil.v('APK 安装完成: $savePath');
+          break;
+        case 408:
+          LogUtil.e('下载 APK 文件超时: $url');
+          throw Exception('下载超时，请检查网络连接');
+        case 499:
+          LogUtil.v('下载 APK 文件已取消: $url');
+          break; // 下载被取消，不抛出异常
+        default:
+          LogUtil.e('下载 APK 文件失败，状态码: $downloadCode');
+          throw Exception('下载失败，状态码: $downloadCode');
       }
     } catch (e, stackTrace) {
       // 捕获下载或安装过程中可能发生的错误并记录日志
-      LogUtil.logError('下载或安装 APK 时发生错误', e, stackTrace);
-      _isDownloading = false; // 设置下载状态为未下载
-      notifyListeners(); // 通知监听者状态更新
+      LogUtil.logError('下载或安装 APK 时发生错误: $url', e, stackTrace);
+      if (e is! HttpCancelException) {
+        // 除了取消异常外，其他异常都抛出以便上层处理
+        rethrow;
+      }
     } finally {
       // 重置下载状态，释放当前 URL
       _isDownloading = false;
       _currentUrl = null;
+      _progress = 0.0; // 重置进度
       notifyListeners(); // 通知监听者状态更新
     }
   }
