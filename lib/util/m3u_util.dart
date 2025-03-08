@@ -257,10 +257,7 @@ class M3uUtil {
       // 添加时间参数以避免缓存
       final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
       final urlWithTimeParam = '$defaultM3u?time=$timeParam';
-      final res = await HttpUtil().getRequest(
-        urlWithTimeParam,
-        options: Options(receiveTimeout: const Duration(seconds: 10)), // 可选：添加超时
-      );
+      final res = await HttpUtil().getRequest(urlWithTimeParam);
       return res ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
@@ -299,10 +296,7 @@ class M3uUtil {
   static Future<String?> _fetchM3uData(String url) async {
     try {
       return await _retryRequest<String>(
-        () async => await HttpUtil().getRequest(
-          url,
-          options: Options(receiveTimeout: const Duration(seconds: 8)), // 可选：添加超时
-        ).timeout(
+        () async => await HttpUtil().getRequest(url).timeout(
           Duration(seconds: 8), // 单个请求的超时时间
         ));
     } catch (e, stackTrace) {
