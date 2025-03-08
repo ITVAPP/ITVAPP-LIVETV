@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:xml/xml.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
@@ -63,46 +64,32 @@ class EpgUtil {
       return null;
     }
     
-    try {
-      final epgRes = await HttpUtil().getRequest(
-        'https://epg.v1.mk/json?ch=$channel&date=$date',
-        cancelToken: cancelToken,
-        options: Options(receiveTimeout: const Duration(seconds: 10)), // 可选：添加超时
-      );
-      if (epgRes != null) {
-        if (channel.contains(epgRes['channel_name'])) {
-          final epg = EpgModel.fromJson(epgRes);
-          _EPGMap[channelKey] = epg;
-          return epg;
-        }
+    final epgRes = await HttpUtil().getRequest(
+      'https://epg.v1.mk/json?ch=$channel&date=$date',
+      cancelToken: cancelToken,  // 传递 cancelToken 用于取消网络请求
+    );
+    if (epgRes != null) {
+      if (channel.contains(epgRes['channel_name'])) {
+        final epg = EpgModel.fromJson(epgRes);
+        _EPGMap[channelKey] = epg;
+        return epg;
       }
-      return null;
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取EPG数据失败', e, stackTrace);
-      return null;
     }
+    return null;
   }
 
   // 加载EPG XML文件
-  static Future<void> loadEPGXML(String url) async {
+  static loadEPGXML(String url) async {
     int index = 0;
     final uStr = url.replaceAll('/h', ',h');
     final urlLink = uStr.split(',');
     XmlDocument? tempXmlDocument;
     while (tempXmlDocument == null && index < urlLink.length) {
-      try {
-        final res = await HttpUtil().getRequest(
-          urlLink[index],
-          options: Options(receiveTimeout: const Duration(seconds: 15)), // 可选：添加超时
-        );
-        if (res != null) {
-          tempXmlDocument = XmlDocument.parse(res.toString());
-        } else {
-          tempXmlDocument = null;
-          index += 1;
-        }
-      } catch (e, stackTrace) {
-        LogUtil.logError('加载EPG XML失败: ${urlLink[index]}', e, stackTrace);
+      final res = await HttpUtil().getRequest(urlLink[index]);
+      if (res != null) {
+        tempXmlDocument = XmlDocument.parse(res.toString());
+      } else {
+        tempXmlDocument = null;
         index += 1;
       }
     }
