@@ -491,7 +491,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         if (_isHls) {
             if (_originalUrl == null) {
-                LogUtil.w('HLS 流检查 - _originalUrl 为 null');
+                LogUtil.i('HLS 流检查 - _originalUrl 为 null');
             } else {
                 LogUtil.i('HLS 流检查 - 解析前地址: $_originalUrl');
                 if (_originalUrl!.toLowerCase().contains('timelimit')) {
