@@ -77,7 +77,6 @@ mapi.ahtv.cn
 tytv-hls.sxtygdy.com
 mapi.hoolo.tv
 liveplus.lzr.com.cn
-iptv.huuc.edu.cn
 cjyun.org
 cjy.hbtv.com.cn''';
 
@@ -94,7 +93,6 @@ yangxin-
 zztv.tv
 dspull.ijntv.cn
 hlss.gstv.com.cn
-iptv.huuc.edu.cn
 kankanlive.com
 gbtv-rtmp.zjwtv.com''';
 }
