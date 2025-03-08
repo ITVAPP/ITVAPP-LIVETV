@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:itvapp_live_tv/widget/headers.dart'; 
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class HttpUtil {
@@ -105,21 +105,33 @@ class HttpUtil {
           receiveTimeout,
         );
 
-        if (method.toUpperCase() == 'POST') {
-          response = await _client
-              .post(
-                uri,
-                headers: headers.cast<String, String>(),
-                body: data is String ? data : jsonEncode(data),
-              )
-              .timeout(timeout);
-        } else {
-          response = await _client
-              .get(
-                uri,
-                headers: headers.cast<String, String>(),
-              )
-              .timeout(timeout);
+        // 修改部分：支持 HEAD 方法
+        switch (method.toUpperCase()) {
+          case 'POST':
+            response = await _client
+                .post(
+                  uri,
+                  headers: headers.cast<String, String>(),
+                  body: data is String ? data : jsonEncode(data),
+                )
+                .timeout(timeout);
+            break;
+          case 'HEAD':
+            response = await _client
+                .head(
+                  uri,
+                  headers: headers.cast<String, String>(),
+                )
+                .timeout(timeout);
+            break;
+          default: // 默认 GET
+            response = await _client
+                .get(
+                  uri,
+                  headers: headers.cast<String, String>(),
+                )
+                .timeout(timeout);
+            break;
         }
 
         return onSuccess(_convertHttpResponse(response));
@@ -155,7 +167,7 @@ class HttpUtil {
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
-      method: 'GET',
+      method: options?.method ?? 'GET', // 修改部分：从 options 中获取 method
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -176,7 +188,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: 'GET',
+      method: options?.method ?? 'GET', // 修改部分：从 options 中获取 method
       path: path,
       queryParameters: queryParameters,
       options: options,
@@ -202,7 +214,7 @@ class HttpUtil {
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
-      method: 'POST',
+      method: options?.method ?? 'POST', // 修改部分：从 options 中获取 method
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -225,7 +237,7 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     return _performRequest<Response>(
-      method: 'POST',
+      method: options?.method ?? 'POST', // 修改部分：从 options 中获取 method
       path: path,
       data: data,
       queryParameters: queryParameters,
@@ -240,7 +252,7 @@ class HttpUtil {
     );
   }
 
-  // 文件下载方法
+  // 文件下载方法（保持不变）
   Future<int?> downloadFile(
     String url,
     String savePath, {
@@ -303,8 +315,9 @@ class Response {
 class Options {
   Map<String, dynamic>? headers;
   Map<String, dynamic>? extra;
+  String? method; // 修改部分：添加 method 参数支持 HEAD
 
-  Options({this.headers, this.extra});
+  Options({this.headers, this.extra, this.method});
 }
 
 class RequestOptions {
