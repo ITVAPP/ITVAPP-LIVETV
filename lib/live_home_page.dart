@@ -143,7 +143,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       String url = _currentChannel!.urls![_sourceIndex].toString();
       _originalUrl = url; // 设置解析前地址
-      LogUtil.i('解析前地址: $_originalUrl');
       String parsedUrl = await StreamUrl(url).getStreamUrl();
       _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl 和 _isHls
 
@@ -222,7 +221,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } else {
       _currentChannel = channel;
       _sourceIndex = sourceIndex;
-      _originalUrl = _currentChannel!.urls![_sourceIndex]; // 设置解析前地址
+      _originalUrl = _currentChannel!.urls![_sourceIndex];
       LogUtil.i('切换频道/源 - 解析前地址: $_originalUrl');
       await _playVideo();
     }
@@ -317,7 +316,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.bufferingEnd:
-        LogUtil.i('缓冲结束');
         setState(() {
           isBuffering = false;
           toastString = 'HIDE_CONTAINER';
@@ -335,7 +333,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           if (_playDurationTimer == null || !_playDurationTimer!.isActive) {
             _startPlayDurationTimer();
           }
-          LogUtil.i('播放开始');
         }
         break;
 
@@ -670,7 +667,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isDisposing = true;
     try {
-      LogUtil.i('开始清理播放器');
       _cleanupTimers();
       controller.removeEventsListener(_videoListener);
 
@@ -746,8 +742,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           ? _playerController!.videoPlayerController!.value.buffered!.last.end
           : position;
       final remainingBuffer = bufferedPosition - position;
-      if (remainingBuffer.inSeconds > 7) {
-        LogUtil.i('网络恢复，剩余缓冲 > 7 秒，取消预加载');
+      if (remainingBuffer.inSeconds > 6) {
+        LogUtil.i('网络恢复，剩余缓冲 > 6 秒，取消预加载');
         _preCachedUrl = null;
         _isParsing = false;
         setState(() => _isRetrying = false);
@@ -834,7 +830,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _isRetrying = false;
         _retryCount = 0;
       });
-      await _queueSwitchChannel(_currentChannel, _sourceIndex); // 无论是否相同都触发播放
+      await _queueSwitchChannel(_currentChannel, _sourceIndex); 
     }
   }
 
