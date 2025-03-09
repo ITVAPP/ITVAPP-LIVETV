@@ -740,8 +740,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           ? _playerController!.videoPlayerController!.value.buffered!.last.end
           : position;
       final remainingBuffer = bufferedPosition - position;
-      if (remainingBuffer.inSeconds > 9) {
-        LogUtil.i('网络恢复，剩余缓冲 > 9 秒，取消预加载');
+      if (remainingBuffer.inSeconds > 7) {
+        LogUtil.i('网络恢复，剩余缓冲 > 7 秒，取消预加载');
         _preCachedUrl = null;
         _isParsing = false;
         setState(() => _isRetrying = false);
