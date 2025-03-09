@@ -402,15 +402,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     if (curr['position'] > prev['position']) {
                       positionIncreaseCount++;
                     }
-                    if ((curr['remainingBuffer'] as Duration).inSeconds < 10) {
+                    if ((curr['remainingBuffer'] as Duration).inSeconds < 8) {
                       remainingBufferLowCount++;
                     }
                   }
 
                   if (positionIncreaseCount == 5 && 
                       remainingBufferLowCount >= 3 && 
-                      timeSinceLastUpdate > 7) {
-                    LogUtil.i('触发重新解析: 位置增加 5 次，剩余缓冲 < 10s 至少 3 次，最后缓冲更新距今 > 7s');
+                      timeSinceLastUpdate > 5) {
+                    LogUtil.i('触发重新解析: 位置增加 5 次，剩余缓冲 < 8s 至少 3 次，最后缓冲更新距今 > 5s');
                     _reparseAndSwitch();
                   }
                 }
