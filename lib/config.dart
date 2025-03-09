@@ -34,4 +34,7 @@ class Config {
 
   /// 默认字体
   static const String defaultFontFamily = 'system';
+
+  /// M3U 文件 URL 的 XOR 加密密钥
+  static const String m3uXorKey = 'itvapp-livetv-secret-2025'; // 自定义密钥
 }
