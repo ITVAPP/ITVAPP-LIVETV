@@ -271,7 +271,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           if (isPlaying) {
             await _playerController?.play();
             LogUtil.i('异常切换后开始播放: $_currentPlayUrl');
-            _progressEnabled = false; // 修改：显式重置 _progressEnabled
+            _progressEnabled = false; // 重置 _progressEnabled
             _startPlayDurationTimer(); // 重新开始计时
           } else {
             LogUtil.i('异常切换后保持暂停状态: $_currentPlayUrl');
@@ -319,12 +319,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
           } else {
             LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
-            // 对于未知类型，更新时间戳但不修改 _lastBufferedPosition
+            // 对于未知类型，更新时间戳
             _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
           }
         } else {
           LogUtil.i('缓冲区数据为空');
-          // 如果数据为空，更新时间戳但保持 _lastBufferedPosition 不变
+          // 如果数据为空，更新时间戳
           _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
          }
         }
@@ -397,7 +397,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   if (isPlaying) {
                     await _playerController?.play();
                     LogUtil.i('HLS 切换到预缓存地址并开始播放: $_currentPlayUrl');
-                    _progressEnabled = false; // 修改：显式重置 _progressEnabled
+                    _progressEnabled = false; // 重置 _progressEnabled
                     _startPlayDurationTimer(); // 重新开始计时
                   } else {
                     LogUtil.i('HLS 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
@@ -448,7 +448,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   if (isPlaying) {
                     await _playerController?.play();
                     LogUtil.i('非 HLS 切换到预缓存地址并开始播放: $_currentPlayUrl');
-                    _progressEnabled = false; // 修改：显式重置 _progressEnabled
+                    _progressEnabled = false; // 重置 _progressEnabled
                     _startPlayDurationTimer(); // 重新开始计时
                   } else {
                     LogUtil.i('非 HLS 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
@@ -477,8 +477,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           if (isPlaying) {
             await _playerController?.play();
             LogUtil.i('非 HLS 切换到预缓存地址并开始播放: $_currentPlayUrl');
-            _progressEnabled = false; // 修改：显式重置 _progressEnabled
-            _startPlayDurationTimer(); // 修改：添加重新开始计时
+            _progressEnabled = false; // 重置 _progressEnabled
+            _startPlayDurationTimer(); // 添加重新开始计时
           } else {
             LogUtil.i('非 HLS 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
           }
