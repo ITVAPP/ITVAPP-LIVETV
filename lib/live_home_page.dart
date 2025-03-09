@@ -186,7 +186,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         throw e;
       }
     } catch (e, stackTrace) {
-      tempController?.dispose(); // 确保临时控制器释放
       LogUtil.logError('播放失败', e, stackTrace);
       _handleSourceSwitching();
     } finally {
