@@ -41,7 +41,7 @@ class BetterPlayerConfig {
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 3000, // 3 秒
-        maxBufferMs: 15000, // 30 秒
+        maxBufferMs: 20000, // 20 秒
         bufferForPlaybackMs: 2500,
         bufferForPlaybackAfterRebufferMs: 3000,
       ),
