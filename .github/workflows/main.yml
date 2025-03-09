@@ -16,6 +16,9 @@ jobs:
         with:
           distribution: 'zulu'  # 使用 Zulu 发行版的 Java 环境
           java-version: '17'  # 设置 Java 版本为 17
+      - uses: actions/setup-node@v3  # 添加 Node.js 环境，用于 XOR 加密
+        with:
+          node-version: '16'  # 使用 Node.js 16
       - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
         with:
           flutter-version: '3.24.0'  # 使用 Flutter 的最新稳定版本
@@ -27,24 +30,34 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
-      # 混淆 JS 和 M3U 文件，使用本地工具，保持原始路径
       - name: Obfuscate JS and M3U files
         run: |
-          npm install javascript-obfuscator base64-cli  # 本地安装工具，避免全局 PATH 污染
+          npm install javascript-obfuscator  # 安装 JS 混淆工具
           ./node_modules/.bin/javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
           ./node_modules/.bin/javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
           ./node_modules/.bin/javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
           ./node_modules/.bin/javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
           if [ -f "assets/$PLAYLIST_FILE" ]; then
-            echo "Obfuscating M3U file..."
-            while IFS= read -r line; do
-              if [[ "$line" =~ ^http ]]; then
-                echo "OBF_$(echo -n "$line" | base64)" >> "assets/$PLAYLIST_FILE.obf"
-              else
-                echo "$line" >> "assets/$PLAYLIST_FILE.obf"
-              fi
-            done < "assets/$PLAYLIST_FILE"
-            mv "assets/$PLAYLIST_FILE.obf" "assets/$PLAYLIST_FILE"
+            echo "Obfuscating M3U file with XOR..."
+            node -e '
+              const fs = require("fs");
+              const input = fs.readFileSync("assets/'"$PLAYLIST_FILE"'", "utf8").split("\n");
+              const key = "itvapp-livetv-secret-2025"; // 与 config.dart 中的 m3uXorKey 一致
+              let output = [];
+              for (let line of input) {
+                if (line.match(/^http/)) {
+                  let encrypted = "";
+                  for (let i = 0; i < line.length; i++) {
+                    encrypted += String.fromCharCode(line.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+                  }
+                  encrypted = Buffer.from(encrypted, "binary").toString("base64");
+                  output.push("XOR_" + encrypted);
+                } else {
+                  output.push(line);
+                }
+              }
+              fs.writeFileSync("assets/'"$PLAYLIST_FILE"'", output.join("\n"));
+            '
           else
             echo "No $PLAYLIST_FILE found in assets/"
           fi
@@ -60,31 +73,25 @@ jobs:
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
-          # 使用 flutter 命令构建 APK，针对 armeabi-v7a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-          # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 别名密码
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
         run: |
           flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
-          # 使用 flutter 命令构建 APK，针对 arm64-v8a 平台，开启代码混淆和调试信息拆分
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-          # 将生成的 APK 文件移动到 apk 目录并重命名为带有标签名称的文件
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 密码
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 使用 GitHub Secrets 中的 keystore 别名
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 使用 GitHub Secrets 中的 keystore 别名密码
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
       - name: Upload Android artifacts  # 上传构建生成的 APK 文件作为构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts  # 构建产物名称
+          name: android-artifacts
           path: |
             apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-            # 上传 armeabi-v7a 架构的 APK 文件
             apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-            # 上传 arm64-v8a 架构的 APK 文件
