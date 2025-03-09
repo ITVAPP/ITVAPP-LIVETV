@@ -40,17 +40,17 @@ class BetterPlayerConfig {
       ),
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 10000, // 10 秒
-        maxBufferMs: 60000, // 60 秒
+        minBufferMs: 3000, // 3 秒
+        maxBufferMs: 15000, // 30 秒
         bufferForPlaybackMs: 2500,
-        bufferForPlaybackAfterRebufferMs: 5000,
+        bufferForPlaybackAfterRebufferMs: 3000,
       ),
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
         preCacheSize: 10 * 1024 * 1024, // 预缓存大小（10MB）
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
-        maxCacheFileSize: 100 * 1024 * 1024, // 单个缓存文件大小限制（100MB）
+        maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
     );
 
