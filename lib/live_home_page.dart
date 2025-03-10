@@ -26,9 +26,9 @@ import 'package:itvapp_live_tv/util/traffic_analytics.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
+import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
-import 'package:itvapp_live_tv/ad_manager.dart';
 
 /// 主页面
 class LiveHomePage extends StatefulWidget {
