@@ -3,6 +3,7 @@ import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 // 广告数据模型
 class AdData {
@@ -36,10 +37,6 @@ class AdData {
 
 // 广告管理类
 class AdManager {
-  static const String _adApiUrl = 'https://your-api.com/ads'; // API 占位符
-  static const String _textAdCountKey = 'text_ad_shown_count';
-  static const String _videoAdCountKey = 'video_ad_shown_count';
-
   AdData? _adData; // 广告数据
   int _textAdShownCount = 0; // 文字广告已显示次数
   int _videoAdShownCount = 0; // 视频广告已显示次数
@@ -53,27 +50,52 @@ class AdManager {
   // 初始化显示次数
   Future<void> _initCounts() async {
     await SpUtil.getInstance(); // 初始化 SpUtil
-    _textAdShownCount = SpUtil.getInt(_textAdCountKey, defValue: 0)!;
-    _videoAdShownCount = SpUtil.getInt(_videoAdCountKey, defValue: 0)!;
+    _textAdShownCount = SpUtil.getInt(Config.textAdCountKey, defValue: 0)!;
+    _videoAdShownCount = SpUtil.getInt(Config.videoAdCountKey, defValue: 0)!;
   }
 
   // 加载广告数据
+  // 示例 API 返回格式：
+  // {
+  //   "text_ad": {
+  //     "content": "欢迎体验我们的产品！",
+  //     "enabled": true,
+  //     "display_count": 3
+  //   },
+  //   "video_ad": {
+  //     "url": "https://example.com/ad_video.m3u8",
+  //     "enabled": true,
+  //     "display_count": 1
+  //   }
+  // }
   Future<void> loadAdData() async {
     try {
       final response = await HttpUtil.instance.getRequest(
-        _adApiUrl,
-        parseData: (data) => AdData.fromJson(data),
+        Config.adApiUrl,
+        parseData: (data) {
+          // 检查返回数据是否为 Map 类型
+          if (data is! Map<String, dynamic>) {
+            LogUtil.e('广告数据格式不正确，期望 JSON 对象，实际为: $data');
+            return null; // 格式错误时返回 null，视为没有广告
+          }
+          // 检查关键字段是否存在
+          if (!data.containsKey('text_ad') || !data.containsKey('video_ad')) {
+            LogUtil.e('广告数据缺少必要字段: text_ad 或 video_ad');
+            return null; // 缺少字段时返回 null，视为没有广告
+          }
+          return AdData.fromJson(data);
+        },
       );
       if (response != null) {
         _adData = response;
-        LogUtil.i('广告数据加载成功: $_adApiUrl');
+        LogUtil.i('广告数据加载成功: ${Config.adApiUrl}');
       } else {
         _adData = null;
-        LogUtil.e('广告数据加载失败，返回 null');
+        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
       }
     } catch (e) {
       LogUtil.e('加载广告数据失败: $e');
-      _adData = null; // API 连接错误时不显示广告
+      _adData = null; // 网络错误时置为 null，视为没有广告
     }
   }
 
@@ -119,7 +141,7 @@ class AdManager {
       LogUtil.i('视频广告播放完成');
       _cleanupAdController();
       _videoAdShownCount++;
-      SpUtil.putInt(_videoAdCountKey, _videoAdShownCount);
+      SpUtil.putInt(Config.videoAdCountKey, _videoAdShownCount);
     }
   }
 
@@ -141,7 +163,7 @@ class AdManager {
     if (_adData != null && _adData!.textAdEnabled && _textAdShownCount < _adData!.textAdDisplayCount) {
       _showTextAd = true;
       _textAdShownCount++;
-      SpUtil.putInt(_textAdCountKey, _textAdShownCount);
+      SpUtil.putInt(Config.textAdCountKey, _textAdShownCount);
     }
   }
 
