@@ -44,13 +44,11 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  // 修改代码开始
-  // 修复 $ 转义问题，并使用初始化列表设置 timeoutDuration
+  // 初始化列表设置
   StreamUrl(String inputUrl, {Duration timeoutDuration = const Duration(seconds: 36)})
       : timeoutDuration = timeoutDuration == const Duration(seconds: 36) ? DEFAULT_TIMEOUT : timeoutDuration {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
-  // 修改代码结束
 
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
@@ -80,11 +78,6 @@ class StreamUrl {
 
       // 检查 URL 是否为 YouTube 链接
       if (!isYTUrl(url)) {
-        // 检查是否需要处理重定向
-        if (needsRedirectCheck(url, rulesString)) {
-          LogUtil.i('URL包含重定向规则关键字，检查重定向');
-          return await checkRedirection(url);
-        }
         return url;
       }
 
@@ -453,32 +446,47 @@ url: ${audioStream.url}''');
 
       LogUtil.i('收到响应，状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
-        // 记录返回的页面内容（限制长度，避免日志过长）
         String responseData = response.data.toString();
-        LogUtil.d(
-            '直播页面内容（前1000字符）: ${responseData.length > 1000 ? responseData.substring(0, 1000) : responseData}');
-
         LogUtil.i('开始解析页面内容以提取 hlsManifestUrl');
-        final match = hlsManifestRegex.firstMatch(responseData);
+        // 查找最后一个 </style>，排除其前内容
+        const styleEndMarker = '</style>';
+        int lastStyleEnd = responseData.lastIndexOf(styleEndMarker);
+        if (lastStyleEnd != -1) {
+          // 从最后一个 </style> 之后开始查找
+          responseData = responseData.substring(lastStyleEnd + styleEndMarker.length);
+          LogUtil.i('找到最后一个 </style>，从其后开始查找 hlsManifestUrl');
+        } else {
+          LogUtil.i('未找到 </style>，使用完整响应数据');
+        }
 
-        if (match != null) {
-          final indexM3u8Url = match.group(1);
-          if (indexM3u8Url != null) {
-            LogUtil.i('成功提取 hlsManifestUrl: $indexM3u8Url，开始解析质量并选择直播流地址');
-            final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
-            if (qualityUrl != null) {
-              LogUtil.i('成功选择质量直播流地址: $qualityUrl');
-              return qualityUrl;
-            } else {
-              LogUtil.e('未能从清单中选择有效的质量直播流地址');
-              return null;
-            }
+        // 使用 indexOf 替代正则表达式
+        const marker = '"hlsManifestUrl":"';
+        final start = responseData.indexOf(marker);
+        if (start == -1) {
+          LogUtil.e('未在页面内容中匹配到 hlsManifestUrl');
+          return null;
+        }
+
+        final urlStart = start + marker.length;
+        final urlEnd = responseData.indexOf('"', urlStart);
+        if (urlEnd == -1) {
+          LogUtil.e('hlsManifestUrl 提取结果为空');
+          return null;
+        }
+
+        final indexM3u8Url = responseData.substring(urlStart, urlEnd);
+        if (indexM3u8Url.endsWith('.m3u8')) {
+          LogUtil.i('成功提取 hlsManifestUrl: $indexM3u8Url，开始解析质量并选择直播流地址');
+          final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
+          if (qualityUrl != null) {
+            LogUtil.i('成功选择质量直播流地址: $qualityUrl');
+            return qualityUrl;
           } else {
-            LogUtil.e('hlsManifestUrl 提取结果为空');
+            LogUtil.e('未能从清单中选择有效的质量直播流地址');
             return null;
           }
         } else {
-          LogUtil.e('未在页面内容中匹配到 hlsManifestUrl');
+          LogUtil.e('hlsManifestUrl 提取结果无效');
           return null;
         }
       } else {
@@ -588,49 +596,5 @@ url: ${audioStream.url}''');
   bool needsRedirectCheck(String url, String rulesString) {
     final rules = rulesString.split('@');
     return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
-  }
-
-  // 检查并处理URL重定向
-  Future<String> checkRedirection(String url) async {
-    try {
-      // 第一次请求，禁用自动重定向
-      final firstResp = await _httpUtil.getRequestWithResponse(
-        url,
-        options: Options(
-          followRedirects: false, // 禁用 Dio 默认重定向
-          extra: {
-            'connectTimeout': CONNECT_TIMEOUT,
-            'receiveTimeout': RECEIVE_TIMEOUT,
-          },
-        ),
-      ).timeout(REDIRECT_TIMEOUT);
-
-      if (firstResp != null &&
-          firstResp.statusCode != null &&
-          firstResp.statusCode! >= 300 &&
-          firstResp.statusCode! < 400) {
-        final location = firstResp.headers.value('location');
-        if (location != null && location.isNotEmpty) {
-          final redirectUri = Uri.parse(url).resolve(location);
-          // 第二次请求
-          final secondResp = await _httpUtil.getRequestWithResponse(
-            redirectUri.toString(),
-            options: Options(
-              extra: {
-                'connectTimeout': CONNECT_TIMEOUT,
-                'receiveTimeout': RECEIVE_TIMEOUT,
-              },
-            ),
-          ).timeout(REDIRECT_TIMEOUT);
-          // 最终拿到最终的 URL
-          return secondResp?.requestOptions.uri.toString() ?? redirectUri.toString();
-        }
-      }
-      // 没有跳转，就直接返回原始地址
-      return url;
-    } catch (e) {
-      LogUtil.e('URL检查失败: $e');
-      return url;
-    }
   }
 }
