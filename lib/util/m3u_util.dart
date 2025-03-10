@@ -48,9 +48,10 @@ class M3uUtil {
       if (m3uData.isEmpty) {
         LogUtil.logError('获取远程播放列表失败，尝试加载 assets 中的 playlists.m3u', 'm3uData为空');
 
-        // 从 assets 中加载 playlists.m3u
-        final String assetM3uData = await rootBundle.loadString('assets/playlists.m3u');
-        parsedData = await _parseM3u(assetM3uData);
+        // 从 assets 中加载 playlists.m3u 并解密
+        final String encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
+        final String decryptedM3uData = _decodeEntireFile(encryptedM3uData);
+        parsedData = await _parseM3u(decryptedM3uData);
 
         if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
@@ -100,6 +101,24 @@ class M3uUtil {
     } catch (e, stackTrace) {
       LogUtil.logError('获取播放列表时出错', e, stackTrace);
       return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.networkError);
+    }
+  }
+
+  /// 解密 M3U 文件
+  static String _decodeEntireFile(String encryptedContent) {
+    try {
+      // 先进行 base64 解码
+      String xorStr = utf8.decode(base64Decode(encryptedContent));
+      String decrypted = "";
+      // 使用 XOR 解密文件内容
+      for (int i = 0; i < xorStr.length; i++) {
+        decrypted += String.fromCharCode(
+            xorStr.codeUnitAt(i) ^ Config.m3uXorKey.codeUnitAt(i % Config.m3uXorKey.length));
+      }
+      return decrypted;
+    } catch (e, stackTrace) {
+      LogUtil.logError('解密 M3U 文件失败', e, stackTrace);
+      return encryptedContent; // 解密失败时返回原文
     }
   }
 
