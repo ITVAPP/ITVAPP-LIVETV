@@ -585,7 +585,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                   ),
 
                   // 滚动文字广告，位置距离顶部 30
-                  if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null)
+                  if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
                     Positioned(
                       top: 30.0, // TV 端固定距离顶部 30
                       left: 0,
