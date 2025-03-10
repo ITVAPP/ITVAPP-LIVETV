@@ -50,8 +50,9 @@ class VideoPlayerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        // 增加 null 检查，避免强制解包导致的运行时异常，提升代码安全性
         if (controller != null &&
-            (controller!.isVideoInitialized() ?? false) && // Fixed nullable bool
+            controller!.isVideoInitialized() == true &&
             !isAudio)
           // 如果控制器已初始化并且不是音频模式，则显示视频
           Center(
@@ -170,6 +171,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.initState();
     // 检查并显示帮助
     _checkAndShowHelp();
+    // 文字广告动画初始化
+    widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
   }
 
   // 检查并显示帮助的方法
@@ -192,11 +195,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     bool? showPlay,
     bool? showDatePosition,
   }) {
-    _iconStateNotifier.value = _iconStateNotifier.value.copyWith(
-      showPause: showPause,
-      showPlay: showPlay,
-      showDatePosition: showDatePosition,
-    );
+    // 避免在组件销毁后更新状态，提升代码安全性
+    if (mounted) {
+      _iconStateNotifier.value = _iconStateNotifier.value.copyWith(
+        showPause: showPause,
+        showPlay: showPlay,
+        showDatePosition: showDatePosition,
+      );
+    }
   }
 
   // 启动暂停图标显示的定时器，在3秒后自动隐藏暂停图标
@@ -406,10 +412,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         }
         break;
       case LogicalKeyboardKey.audioVolumeUp:
-        // 音量控制 + 键
+        LogUtil.logInfo('音量增加键被按下，但未实现功能');
         break;
       case LogicalKeyboardKey.audioVolumeDown:
-        // 音量控制 - 键
+        LogUtil.logInfo('音量减少键被按下，但未实现功能');
         break;
       case LogicalKeyboardKey.f5:
         break;
@@ -451,6 +457,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerNavigationState!.deactivateFocusManagement();
       _drawerNavigationState = null;
     }
+    // 释放 adManager 中的动画资源，确保资源清理完整
+    widget.adManager.disposeTextAdAnimation();
     super.dispose();
   }
 
@@ -530,24 +538,21 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       ),
                     ),
 
-                  // 使用 ValueListenableBuilder 监听图标状态
+                  // 使用 ValueListenableBuilder 限制重建范围，仅影响图标相关组件，提升 UI 渲染性能
                   ValueListenableBuilder<IconState>(
                     valueListenable: _iconStateNotifier,
                     builder: (context, iconState, child) {
                       return Stack(
                         children: [
-                          if (iconState.showPause) _buildPauseIcon(),
-
+                          if (iconState.showPause) _buildControlIcon(icon: Icons.pause),
                           // 处理视频初始化和播放状态的检查
                           if ((widget.controller != null &&
                                   (widget.controller!.isVideoInitialized() ?? false) &&
                                   !(widget.controller!.isPlaying() ?? false) &&
                                   !_drawerIsOpen) ||
                               iconState.showPlay)
-                            _buildPlayIcon(),
-
+                            _buildControlIcon(icon: Icons.play_arrow),
                           if (iconState.showDatePosition) const DatePositionWidget(),
-
                           if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
                         ],
                       );
@@ -584,6 +589,36 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
+
+                  // 滚动文字广告，位置距离顶部 30
+                  if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null)
+                    Positioned(
+                      top: 30.0, // TV 端固定距离顶部 30
+                      left: 0,
+                      right: 0,
+                      child: AnimatedBuilder(
+                        animation: widget.adManager.getTextAdAnimation()!,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
+                            child: Text(
+                              widget.adManager.getAdData()!.textAdContent!, // 确保有内容时才显示
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(1.0, 1.0),
+                                    blurRadius: 0.0,
+                                    color: Colors.black,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                 ],
               ),
             ),
