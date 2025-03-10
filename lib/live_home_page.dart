@@ -28,6 +28,7 @@ import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/ad_manager.dart';
 
 /// 主页面
 class LiveHomePage extends StatefulWidget {
@@ -94,6 +95,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isAudio = false; // 是否是音频流
   Timer? _playDurationTimer; // 播放持续时间计时器
   Timer? _timeoutTimer; // 缓冲超时的计时器
+  late AdManager _adManager; // 新增：广告管理实例
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -159,12 +161,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 播放视频，包含初始化和切换逻辑
-  Future<void> _playVideo() async {
+  Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
     // 添加空检查以防止 _currentChannel 为 null 时崩溃
     if (_currentChannel == null) return; // 避免空指针异常
 
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
-    LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName');
+    LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
 
     _cleanupTimers(); // 清理计时器
     setState(() {
@@ -191,6 +193,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
 
     try {
+      // 仅在初次播放频道时触发广告
+      if (!isRetry && !isSourceSwitch) {
+        await _adManager.playVideoAd();
+        _adManager.reset(); // 仅在此处触发文字广告检查
+      }
+
       // 如果已有控制器，先暂停并重用，避免重复创建
       if (_playerController != null) {
         await _playerController!.pause();
@@ -604,7 +612,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           setState(() => _isRetrying = false);
           return;
         }
-        await _playVideo();
+        await _playVideo(isRetry: true); // 标记为重试
         if (mounted) {
           setState(() {
             _isRetrying = false;
@@ -669,7 +677,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _cleanupTimers();
     _retryTimer = Timer(const Duration(seconds: retryDelaySeconds), () async {
       if (!mounted || _isSwitchingChannel) return;
-      await _playVideo();
+      await _playVideo(isSourceSwitch: true); // 标记为切换源
     });
   }
 
@@ -879,6 +887,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   @override
   void initState() {
     super.initState();
+    _adManager = AdManager(); // 初始化 AdManager
+    _adManager.loadAdData(); // 加载广告数据
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     _loadData();
     _extractFavoriteList();
@@ -897,6 +907,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _playDurationTimer = null;
     _timeoutTimer?.cancel(); // 清理超时计时器
     _timeoutTimer = null; // 重置为 null
+    _adManager.dispose(); // 清理广告资源
     super.dispose();
   }
 
@@ -1103,6 +1114,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         currentChannelLogo: _currentChannel?.logo ?? '',
         currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
         isAudio: _isAudio,
+        adManager: _adManager, // 传递 AdManager 给 TvPage
       );
     }
 
@@ -1136,11 +1148,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
               currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
               isChannelFavorite: isChannelFavorite,
               isAudio: _isAudio,
+              adManager: _adManager, // 传递 AdManager 给 MobileVideoWidget
             ),
           );
         },
         landscape: (context) {
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+          SystemChrome.setEnabledifetimeUIMode(SystemUiMode.immersiveSticky);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
             child: Stack(
@@ -1164,6 +1177,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           isLandscape: true,
                           isAudio: _isAudio,
                           onToggleDrawer: () => setState(() => _drawerIsOpen = !_drawerIsOpen),
+                          adManager: _adManager, // 传递 AdManager 给 TableVideoWidget
                         ),
                 ),
                 Offstage(
