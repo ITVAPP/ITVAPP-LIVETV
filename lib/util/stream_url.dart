@@ -20,10 +20,14 @@ class StreamUrl {
 
   // 定义常量
   static const String ERROR_RESULT = 'ERROR';
-  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 36);
-  static const Duration CONNECT_TIMEOUT = Duration(seconds: 5);
+  /// 默认任务超时时间（单位：秒），用于设置获取流地址的总体超时限制
+  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 32);
+  /// HTTP 连接超时时间（单位：秒），用于限制建立连接的最大等待时间
+  static const Duration CONNECT_TIMEOUT = Duration(seconds: 3);
+  /// HTTP 数据接收超时时间（单位：秒），用于限制接收响应的最大等待时间
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12);
-  static const Duration REDIRECT_TIMEOUT = Duration(seconds: 18);
+  /// 重试任务之间的延迟时间（单位：秒），用于在首次获取流失败后等待一段时间再重试
+  static const Duration RETRY_DELAY = Duration(seconds: 1);
 
   // 预定义视频分辨率映射表，用于提高性能
   static final Map<String, (int, int)> resolutionMap = {
@@ -44,9 +48,9 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF');
 
-  // 初始化列表设置
-  StreamUrl(String inputUrl, {Duration timeoutDuration = const Duration(seconds: 36)})
-      : timeoutDuration = timeoutDuration == const Duration(seconds: 36) ? DEFAULT_TIMEOUT : timeoutDuration {
+  /// 构造函数，初始化 StreamUrl 实例
+  StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT})
+      : timeoutDuration = timeoutDuration {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
   }
 
@@ -90,7 +94,6 @@ class StreamUrl {
       LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
       return 'ERROR';
     } finally {
-      // 安全完成 Completer，避免重复完成
       _completeSafely();
     }
   }
@@ -105,7 +108,7 @@ class StreamUrl {
       LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
     }
 
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(RETRY_DELAY);
     try {
       final result = await task().timeout(timeoutDuration);
       return result != ERROR_RESULT ? result : ERROR_RESULT;
@@ -217,7 +220,6 @@ class StreamUrl {
       var manifest = await yt.videos.streams.getManifest(video.id);
       LogUtil.i('''
 ======= Manifest 流信息 =======
-
 HLS流数量: ${manifest.hls.length}
 混合流数量: ${manifest.muxed.length} ===============================''');
       LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
