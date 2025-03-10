@@ -124,7 +124,7 @@
   "newfavoriteerror": "Failed to add to favorites",
   "getm3udata": "Fetching data...",
   "getm3udataerror": "Failed to fetch data...",
-  "myfavorite": "My Favorites",
+  "myfavorite": "Favorites",
   "addToFavorites": "Add to Favorites",
   "removeFromFavorites": "Remove from Favorites",
   "allchannels": "Other Channels",
