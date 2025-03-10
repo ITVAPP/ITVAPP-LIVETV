@@ -196,7 +196,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 仅在初次播放频道时触发广告
       if (!isRetry && !isSourceSwitch) {
         await _adManager.playVideoAd();
-        _adManager.reset(); // 仅在此处触发文字广告检查
+        // 等待视频广告播放完成（如果有视频广告）
+        if (_adManager.getAdController() != null) {
+          await _adManager.getAdController()!.videoPlayerController!.stateStream.firstWhere(
+            (state) => state.isCompleted == true,
+            orElse: () => _adManager.getAdController()!.videoPlayerController!.value,
+          );
+          LogUtil.i('视频广告播放完成，准备播放频道');
+        }
+        _adManager.reset(); // 检查并可能显示文字广告
       }
 
       // 如果已有控制器，先暂停并重用，避免重复创建
@@ -328,7 +336,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.bufferingStart:
-        LogUtil.i('开始缓冲');
         setState(() {
           isBuffering = true;
           toastString = S.current.loading;
