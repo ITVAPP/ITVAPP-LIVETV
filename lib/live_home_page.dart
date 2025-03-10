@@ -281,26 +281,40 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.exception:
-        LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "Unknown error"}');
+        LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "Unknown error"}, 当前URL: $_currentPlayUrl, 原始URL: $_originalUrl');
         if (_preCachedUrl != null) {
-          LogUtil.i('异常触发，切换到预缓存地址: $_preCachedUrl');
-          _updatePlayUrl(_preCachedUrl!);
-          final newSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
-          await _playerController?.preCache(newSource);
-          LogUtil.i('预缓存新数据源完成: $_currentPlayUrl');
-          await _playerController?.setupDataSource(newSource);
-          if (isPlaying) {
-            await _playerController?.play();
-            LogUtil.i('异常切换后开始播放: $_currentPlayUrl');
-            _progressEnabled = false; // 重置 _progressEnabled
-            _startPlayDurationTimer(); // 重新开始计时
+          if (_preCachedUrl == _currentPlayUrl) {
+            LogUtil.i('预缓存地址与当前地址相同，进入重新解析');
+            _preCachedUrl = null;
+            await _disposePreCacheStreamUrl();
+            _reparseAndSwitch(); // 预加载失败，直接重新解析
           } else {
-            LogUtil.i('异常切换后保持暂停状态: $_currentPlayUrl');
+            LogUtil.i('异常触发，尝试切换到预缓存地址: $_preCachedUrl');
+            final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHls);
+            try {
+              await _playerController?.preCache(newSource);
+              LogUtil.i('预缓存新数据源完成: $_preCachedUrl');
+              _updatePlayUrl(_preCachedUrl!);
+              await _playerController?.setupDataSource(newSource);
+              if (isPlaying) {
+                await _playerController?.play();
+                LogUtil.i('切换到预缓存地址并开始播放: $_currentPlayUrl');
+                _progressEnabled = false;
+                _startPlayDurationTimer();
+              } else {
+                LogUtil.i('切换到预缓存地址但保持暂停: $_currentPlayUrl');
+              }
+              _preCachedUrl = null;
+              await _disposePreCacheStreamUrl();
+            } catch (e) {
+              LogUtil.e('预缓存失败: $_preCachedUrl，进入重新解析');
+              _preCachedUrl = null;
+              await _disposePreCacheStreamUrl();
+              _reparseAndSwitch(); // 预加载失败，直接重新解析
+            }
           }
-          _preCachedUrl = null;
-          await _disposePreCacheStreamUrl(); // 释放预缓存实例
         } else {
-          _retryPlayback();
+          _retryPlayback(); // 无预缓存地址时，使用现有重试逻辑
         }
         break;
 
@@ -570,9 +584,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _disposePreCacheStreamUrl(); // 先释放旧的预缓存实例
       _preCacheStreamUrl = StreamUrl(url); // 保存预缓存实例（修改）
       String parsedUrl = await _preCacheStreamUrl!.getStreamUrl(); // 使用保存的实例（修改）
-      if (parsedUrl == 'ERROR') {
-        LogUtil.e('预加载解析失败: $url');
-        await _disposePreCacheStreamUrl(); // 解析失败时释放
+      if (parsedUrl == 'ERROR' || parsedUrl == _currentPlayUrl) {
+        LogUtil.e('预加载地址无效或与当前地址相同: $parsedUrl');
+        await _disposePreCacheStreamUrl(); // 解析失败或重复时释放
         return;
       }
       _preCachedUrl = parsedUrl; // 设置预缓存地址，不影响 _currentPlayUrl 和 _isHls
@@ -781,15 +795,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _disposeStreamUrl(); // 先释放旧实例
       _streamUrl = StreamUrl(url); // 保存新实例（修改）
       String newParsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例（修改）
-      if (newParsedUrl == 'ERROR') {
-        LogUtil.e('重新解析失败: $url');
-        await _disposeStreamUrl(); // 解析失败时释放
-        _handleSourceSwitching();
-        return;
-      }
-      if (newParsedUrl == _currentPlayUrl) {
-        LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeStreamUrl(); // 无需切换时释放
+      if (newParsedUrl == 'ERROR' || newParsedUrl == _currentPlayUrl) {
+        LogUtil.i('重新解析失败或地址重复: $newParsedUrl');
+        await _disposeStreamUrl(); // 解析失败或重复时释放
+        _handleSourceSwitching(); // 复用现有切换逻辑
         return;
       }
 
