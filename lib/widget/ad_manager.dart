@@ -120,15 +120,7 @@ class AdManager {
       _adController = BetterPlayerController(adConfig);
       await _adController!.setupDataSource(adDataSource);
       await _adController!.play();
-
-      // 等待播放完成，确保资源在播放结束后释放
-      await _adController!.videoPlayerController!.stateStream.firstWhere(
-        (state) => state.isCompleted == true,
-        orElse: () => _adController!.videoPlayerController!.value,
-      );
-
-      // 清理资源
-      _cleanupAdController();
+      // 注意：不再使用 stateStream，依赖事件监听器处理播放完成
     } catch (e) {
       LogUtil.e('视频广告播放失败: $e');
       _cleanupAdController();
