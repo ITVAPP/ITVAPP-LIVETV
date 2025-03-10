@@ -1153,7 +1153,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           );
         },
         landscape: (context) {
-          SystemChrome.setEnabledifetimeUIMode(SystemUiMode.immersiveSticky);
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
           return WillPopScope(
             onWillPop: () => _handleBackPress(context),
             child: Stack(
