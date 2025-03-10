@@ -169,7 +169,7 @@ class AdManager with ChangeNotifier {
 
       // 等待广告播放完成或超时
       await adCompletion.future.timeout(const Duration(seconds: 36), onTimeout: () {
-        LogUtil.w('广告播放超时，默认结束');
+        LogUtil.i('广告播放超时，默认结束');
         _cleanupAdController();
         if (!adCompletion.isCompleted) {
           adCompletion.complete();
