@@ -59,18 +59,31 @@ class AdManager with ChangeNotifier {
 
   // 初始化文字广告滚动动画（需在 Widget 中调用）
   void initTextAdAnimation(TickerProvider vsync, double screenWidth) {
-    if (_textAdAnimationController == null) {
+    if (_textAdAnimationController == null && _adData?.textAdContent != null) { // 仅当有广告内容时初始化
       _textAdAnimationController = AnimationController(
         vsync: vsync,
         duration: const Duration(seconds: 10), // 滚动周期 10 秒，可调整
       )..repeat(); // 无限循环
 
       // 计算文字滚动的起始和结束位置
-      final textWidth = _calculateTextWidth(_adData?.textAdContent ?? '默认广告文字');
+      final textWidth = _calculateTextWidth(_adData!.textAdContent!); // 使用实际广告内容
       _textAdAnimation = Tween<double>(
         begin: screenWidth, // 从屏幕右侧开始
         end: -textWidth,   // 滚动到文字完全移出左侧
       ).animate(_textAdAnimationController!);
+    }
+  }
+
+  // 更新文字广告动画（用于屏幕宽度变化时）
+  void updateTextAdAnimation(double screenWidth) {
+    if (_textAdAnimationController != null && _adData?.textAdContent != null) {
+      final textWidth = _calculateTextWidth(_adData!.textAdContent!);
+      _textAdAnimation = Tween<double>(
+        begin: screenWidth,
+        end: -textWidth,
+      ).animate(_textAdAnimationController!);
+      _textAdAnimationController!.forward(from: 0); // 重置动画
+      notifyListeners();
     }
   }
 
