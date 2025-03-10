@@ -411,12 +411,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           await _handleSelectPress();
         }
         break;
-      case LogicalKeyboardKey.audioVolumeUp:
-        LogUtil.logInfo('音量增加键被按下，但未实现功能');
-        break;
-      case LogicalKeyboardKey.audioVolumeDown:
-        LogUtil.logInfo('音量减少键被按下，但未实现功能');
-        break;
       case LogicalKeyboardKey.f5:
         break;
       default:
@@ -458,7 +452,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerNavigationState = null;
     }
     // 释放 adManager 中的动画资源，确保资源清理完整
-    widget.adManager.disposeTextAdAnimation();
+    widget.adManager.dispose();
     super.dispose();
   }
 
