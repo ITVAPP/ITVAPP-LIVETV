@@ -115,7 +115,7 @@ class AdManager with ChangeNotifier {
   // }
   Future<void> loadAdData() async {
     try {
-      final response = await HttpUtil.instance.getRequest(
+      final response = await HttpUtil().getRequest(
         Config.adApiUrl,
         parseData: (data) {
           if (data is! Map<String, dynamic>) {
