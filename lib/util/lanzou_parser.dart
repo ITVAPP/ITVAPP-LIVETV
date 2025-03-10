@@ -24,6 +24,11 @@ class LanzouParser {
   static const int maxRetries = 2;  // 最大重试次数
   static const Duration requestTimeout = Duration(seconds: 8);  // 请求超时时间
   
+  // 定义统一的超时常量
+  static const Duration connectTimeout = Duration(seconds: 5);  // 连接超时时间
+  static const Duration receiveTimeout = Duration(seconds: 12); // 接收超时时间
+  static const int cacheMaxSize = 100; // 缓存最大条目数，防止内存占用过高
+
   // 缓存解析结果
   static final Map<String, CacheEntry> _urlCache = <String, CacheEntry>{};
 
@@ -33,12 +38,7 @@ class LanzouParser {
   static final RegExp _iframeRegex = RegExp(r'src="(\/fn\?[a-zA-Z\d_+/=]{16,})"'); // 匹配iframe链接
   static final RegExp _typeRegex = RegExp(r'[?&]type=([^&]+)'); // 匹配文件类型参数
   
-  // 预编译组合正则表达式，提高性能
-  static final RegExp _compiledRegexes = RegExp(
-    '${_pwdRegex.pattern}|${_lanzouUrlRegex.pattern}|${_iframeRegex.pattern}|${_typeRegex.pattern}',
-    multiLine: true
-  );
-
+  // 将sign正则表达式列表预编译为静态常量，避免重复创建，提高性能
   static final List<RegExp> _signRegexes = [
     RegExp(r"'sign':'([^']+)'"),
     RegExp(r'"sign":"([^"]+)"'),
@@ -48,10 +48,11 @@ class LanzouParser {
   ];
 
   /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
-  static Future<String?> _getFinalUrl(String url) async {
+  static Future<String?> _getFinalUrl(String url, {CancelToken? cancelToken}) async {
     int retryCount = 0;
     while (retryCount < maxRetries) {
       try {
+        // 使用统一的超时常量，替换重复的超时设置
         final response = await HttpUtil().getRequestWithResponse(
           url,
           options: Options(
@@ -59,10 +60,11 @@ class LanzouParser {
             followRedirects: false, // 不自动跟随重定向
             headers: HeadersConfig.generateHeaders(url: url),
             extra: {
-              'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-              'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+              'connectTimeout': connectTimeout,
+              'receiveTimeout': receiveTimeout,
             },
           ),
+          cancelToken: cancelToken,
         ).timeout(requestTimeout);  // 添加超时处理
         
         if (response != null) {
@@ -78,7 +80,25 @@ class LanzouParser {
           
           LogUtil.i('未获取到重定向URL，状态码: ${response.statusCode}');
         }
+
+        // 添加GET请求作为HEAD失败时的备用方案，提升兼容性
+        final getResponse = await HttpUtil().getRequestWithResponse(
+          url,
+          options: Options(
+            headers: HeadersConfig.generateHeaders(url: url),
+            extra: {'connectTimeout': connectTimeout, 'receiveTimeout': receiveTimeout},
+          ),
+          cancelToken: cancelToken,
+        ).timeout(requestTimeout);
+
+        if (getResponse?.statusCode == 200) return url;
+        LogUtil.i('未获取到重定向URL，状态码: ${getResponse?.statusCode}');
+
       } catch (e, stack) {
+        if (cancelToken?.isCancelled ?? false) {
+          LogUtil.i('请求被取消: $url');
+          return null;
+        }
         LogUtil.logError('获取最终URL时发生错误', e, stack);
         if (++retryCount < maxRetries) {
           await Future.delayed(Duration(seconds: retryCount * 2));  // 指数退避
@@ -97,13 +117,11 @@ class LanzouParser {
     final urlWithoutType = urlWithoutPwd.replaceAll(_typeRegex, '');
     final match = _lanzouUrlRegex.firstMatch(urlWithoutType);
     
+    // 优化字符串拼接，避免不必要的StringBuffer，直接使用字符串模板
     if (match != null && match.groupCount >= 1) {
-      buffer
-        ..write(baseUrl)
-        ..write('/')
-        ..write(match.group(1));
-      return buffer.toString();
+      return '$baseUrl/${match.group(1)}';
     }
+
     LogUtil.i('URL标准化失败，使用原始URL');
     return urlWithoutType;
   }
@@ -200,6 +218,7 @@ class LanzouParser {
     String method,
     String url, {
     String? body,
+    CancelToken? cancelToken, 
   }) async {
     int retryCount = 0;
     while (retryCount < maxRetries) {
@@ -209,6 +228,7 @@ class LanzouParser {
           headers['Content-Type'] = 'application/x-www-form-urlencoded';
         }
 
+        // 使用统一的超时常量，替换重复的超时设置
         final response = method.toUpperCase() == 'POST'
             ? await HttpUtil().postRequestWithResponse(
                 url,
@@ -216,20 +236,22 @@ class LanzouParser {
                 options: Options(
                   headers: headers,
                   extra: {
-                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+                    'connectTimeout': connectTimeout,
+                    'receiveTimeout': receiveTimeout,
                   },
                 ),
+                cancelToken: cancelToken, 
               )
             : await HttpUtil().getRequestWithResponse(
                 url,
                 options: Options(
                   headers: headers,
                   extra: {
-                    'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
-                    'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
+                    'connectTimeout': connectTimeout,
+                    'receiveTimeout': receiveTimeout,
                   },
                 ),
+                cancelToken: cancelToken, 
               );
 
         if (response?.statusCode == 200) {
@@ -238,6 +260,10 @@ class LanzouParser {
         
         LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
       } catch (e) {
+        if (cancelToken?.isCancelled ?? false) { 
+          LogUtil.i('请求被取消: $url');
+          return null;
+        }
         LogUtil.e('HTTP请求异常: $e');
         if (++retryCount < maxRetries) {
           await Future.delayed(Duration(seconds: retryCount * 2));
@@ -250,7 +276,14 @@ class LanzouParser {
   }
 
   /// 获取蓝奏云直链下载地址
-  static Future<String> getLanzouUrl(String url) async {
+  static Future<String> getLanzouUrl(String url, {CancelToken? cancelToken}) async {
+    // 添加缓存管理，清理过期条目并限制缓存大小
+    _urlCache.removeWhere((key, entry) => entry.isExpired);
+    if (_urlCache.length >= cacheMaxSize) {
+      _urlCache.remove(_urlCache.keys.first); // 移除最早的条目
+      LogUtil.i('缓存已满，移除最早的条目');
+    }
+
     // 检查缓存
     final cacheEntry = _urlCache[url];
     if (cacheEntry != null && !cacheEntry.isExpired) {
@@ -274,7 +307,7 @@ class LanzouParser {
 
       final standardUrl = _standardizeLanzouUrl(url);
       
-      final html = await _makeRequestWithRetry('GET', standardUrl);
+      final html = await _makeRequestWithRetry('GET', standardUrl, cancelToken: cancelToken);
       if (html == null) {
         LogUtil.e('获取页面内容失败');
         return errorResult;
@@ -288,9 +321,9 @@ class LanzouParser {
 
       String finalUrl;
       if (needsPwd && pwd != null) {
-        finalUrl = await _handlePasswordProtectedUrl(html, pwd, filename);
+        finalUrl = await _handlePasswordProtectedUrl(html, pwd, filename, cancelToken: cancelToken);
       } else {
-        finalUrl = await _handleNormalUrl(html, filename);
+        finalUrl = await _handleNormalUrl(html, filename, cancelToken: cancelToken);
       }
 
       // 缓存结果（24小时有效期）
@@ -304,6 +337,10 @@ class LanzouParser {
       return finalUrl;
 
     } catch (e, stack) {
+      if (cancelToken?.isCancelled ?? false) { 
+        LogUtil.i('解析被取消: $url');
+        return errorResult;
+      }
       LogUtil.logError('解析过程发生异常', e, stack);
       return errorResult;
     }
@@ -314,6 +351,7 @@ class LanzouParser {
     String html,
     String pwd,
     String? filename,
+    {CancelToken? cancelToken}
   ) async {
     var actionData = '';
     final oldData = RegExp(r"data\s*:\s*'([^']+)'").firstMatch(html)?.group(1);
@@ -334,7 +372,8 @@ class LanzouParser {
     final pwdResult = await _makeRequestWithRetry(
       'POST',
       '$baseUrl/ajaxm.php',
-      body: actionData
+      body: actionData,
+      cancelToken: cancelToken 
     );
     
     if (pwdResult == null || !pwdResult.contains('"zt":1')) {
@@ -350,7 +389,11 @@ class LanzouParser {
   }
 
   /// 处理普通URL
-  static Future<String> _handleNormalUrl(String html, String? filename) async {
+  static Future<String> _handleNormalUrl(
+    String html,
+    String? filename,
+    {CancelToken? cancelToken} 
+  ) async {
     final iframeMatch = _iframeRegex.firstMatch(html);
     if (iframeMatch == null) {
       LogUtil.e('未找到iframe链接');
@@ -361,7 +404,7 @@ class LanzouParser {
     final iframeUrl = '$baseUrl$iframePath';
     LogUtil.i('获取到iframe URL: $iframeUrl');
     
-    final iframeContent = await _makeRequestWithRetry('GET', iframeUrl);
+    final iframeContent = await _makeRequestWithRetry('GET', iframeUrl, cancelToken: cancelToken); 
     if (iframeContent == null) {
       LogUtil.e('获取iframe内容失败');
       return errorResult;
@@ -376,7 +419,8 @@ class LanzouParser {
     final ajaxResult = await _makeRequestWithRetry(
       'POST',
       '$baseUrl/ajaxm.php',
-      body: 'action=downprocess&sign=$sign&ves=1'
+      body: 'action=downprocess&sign=$sign&ves=1',
+      cancelToken: cancelToken
     );
     
     if (ajaxResult == null) {
