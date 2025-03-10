@@ -46,6 +46,7 @@ class AdManager with ChangeNotifier {
   BetterPlayerController? _adController; // 视频广告控制器
   AnimationController? _textAdAnimationController; // 文字广告滚动控制器
   Animation<double>? _textAdAnimation; // 文字广告滚动动画
+  Timer? _textAdDelayTimer; // 文字广告延迟计时器
 
   AdManager() {
     _initCounts();
@@ -133,6 +134,18 @@ class AdManager with ChangeNotifier {
       if (response != null) {
         _adData = response;
         LogUtil.i('广告数据加载成功: ${Config.adApiUrl}');
+
+        // 如果有文字广告，设置 5 分钟后显示
+        if (_adData!.textAdEnabled && _textAdShownCount < _adData!.textAdDisplayCount) {
+          _textAdDelayTimer?.cancel(); // 取消旧计时器
+          _textAdDelayTimer = Timer(const Duration(minutes: 5), () {
+            _showTextAd = true;
+            _textAdShownCount++;
+            SpUtil.putInt(Config.textAdCountKey, _textAdShownCount);
+            LogUtil.i('文字广告延迟 5 分钟后显示，当前次数: $_textAdShownCount / ${_adData!.textAdDisplayCount}');
+            notifyListeners();
+          });
+        }
       } else {
         _adData = null;
         LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
@@ -143,10 +156,16 @@ class AdManager with ChangeNotifier {
     }
   }
 
-  // 修改处：播放视频广告并等待其完成
+  // 判断是否需要播放视频广告
+  bool shouldPlayVideoAd() {
+    if (_adData == null) return false; // 无广告数据，直接返回 false
+    return _adData!.videoAdEnabled && _videoAdShownCount < _adData!.videoAdDisplayCount;
+  }
+
+  // 播放视频广告并等待其完成
   Future<void> playVideoAd() async {
-    if (_adData == null || !_adData!.videoAdEnabled || _videoAdShownCount >= _adData!.videoAdDisplayCount) {
-      LogUtil.i('广告未启用或已达上限，无需播放');
+    if (!shouldPlayVideoAd()) {
+      LogUtil.i('无需播放视频广告：无数据、未启用或已达上限');
       return;
     }
 
@@ -182,16 +201,18 @@ class AdManager with ChangeNotifier {
         adCompletion.completeError(e); // 如果失败，完成错误
       }
       rethrow; // 抛出异常给调用者处理
+    } finally {
+      _videoAdShownCount++; // 更新播放次数
+      SpUtil.putInt(Config.videoAdCountKey, _videoAdShownCount); // 持久化存储
+      LogUtil.i('广告播放次数更新: $_videoAdShownCount / ${_adData!.videoAdDisplayCount}');
     }
   }
 
-  // 修改处：调整 _videoAdEventListener，接受 Completer 参数
+  // 调整 _videoAdEventListener，接受 Completer 参数
   void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
     if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
       LogUtil.i('视频广告播放完成');
       _cleanupAdController();
-      _videoAdShownCount++;
-      SpUtil.putInt(Config.videoAdCountKey, _videoAdShownCount);
       if (!completer.isCompleted) {
         completer.complete(); // 完成 Future，表示广告播放结束
       }
@@ -201,23 +222,15 @@ class AdManager with ChangeNotifier {
   // 清理视频广告控制器
   void _cleanupAdController() {
     if (_adController != null) {
-      _adController!.dispose(); // 修改处：移除 removeEventsListener，因为 dispose 已清理事件
+      _adController!.dispose();
       _adController = null;
     }
   }
 
-  // 重置状态并检查是否显示文字广告
+  // 重置状态
   void reset() {
     _cleanupAdController();
-    _showTextAd = false;
-
-    // 检查文字广告是否需要显示
-    if (_adData != null && _adData!.textAdEnabled && _textAdShownCount < _adData!.textAdDisplayCount) {
-      _showTextAd = true;
-      _textAdShownCount++;
-      SpUtil.putInt(Config.textAdCountKey, _textAdShownCount);
-      notifyListeners(); // 通知 UI 更新
-    }
+    _showTextAd = false; // 仅清理状态，不触发文字广告显示
   }
 
   // 显式释放所有资源
@@ -225,6 +238,8 @@ class AdManager with ChangeNotifier {
     _cleanupAdController();
     _textAdAnimationController?.dispose();
     _textAdAnimationController = null;
+    _textAdDelayTimer?.cancel(); // 清理延迟计时器
+    _textAdDelayTimer = null;
     _showTextAd = false;
     _adData = null;
   }
