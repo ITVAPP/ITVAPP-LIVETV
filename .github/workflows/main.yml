@@ -38,25 +38,17 @@ jobs:
           ./node_modules/.bin/javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
           ./node_modules/.bin/javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
           if [ -f "assets/$PLAYLIST_FILE" ]; then
-            echo "Obfuscating M3U file with XOR..."
+            echo "Encrypting entire M3U file with XOR..."
             node -e '
               const fs = require("fs");
-              const input = fs.readFileSync("assets/'"$PLAYLIST_FILE"'", "utf8").split("\n");
-              const key = "itvapp-livetv-secret-2025"; // 与 config.dart 中的 m3uXorKey 一致
-              let output = [];
-              for (let line of input) {
-                if (line.match(/^http/)) {
-                  let encrypted = "";
-                  for (let i = 0; i < line.length; i++) {
-                    encrypted += String.fromCharCode(line.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-                  }
-                  encrypted = Buffer.from(encrypted, "binary").toString("base64");
-                  output.push("XOR_" + encrypted);
-                } else {
-                  output.push(line);
-                }
+              const content = fs.readFileSync("assets/'"$PLAYLIST_FILE"'", "utf8");
+              const key = "itvapp-livetv-secret-2025"; // 加密解密的密钥，与 config.dart 中的 m3uXorKey 一致
+              let encrypted = "";
+              for (let i = 0; i < content.length; i++) {
+                encrypted += String.fromCharCode(content.charCodeAt(i) ^ key.charCodeAt(i % key.length));
               }
-              fs.writeFileSync("assets/'"$PLAYLIST_FILE"'", output.join("\n"));
+              encrypted = Buffer.from(encrypted, "binary").toString("base64");
+              fs.writeFileSync("assets/'"$PLAYLIST_FILE"'", encrypted);
             '
           else
             echo "No $PLAYLIST_FILE found in assets/"
