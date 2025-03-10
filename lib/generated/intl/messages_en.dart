@@ -137,7 +137,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "getm3udata": MessageLookupByLibrary.simpleMessage("Fetching data..."),
         "getm3udataerror":
             MessageLookupByLibrary.simpleMessage("Failed to fetch data..."),
-        "myfavorite": MessageLookupByLibrary.simpleMessage("My Favorites"),
+        "myfavorite": MessageLookupByLibrary.simpleMessage("Favorites"),
         "addToFavorites": MessageLookupByLibrary.simpleMessage("Add to Favorites"),
         "removeFromFavorites":
             MessageLookupByLibrary.simpleMessage("Remove from Favorites"),
