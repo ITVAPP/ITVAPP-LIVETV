@@ -14,7 +14,6 @@ class StreamUrl {
   late final String url;
   final YoutubeExplode yt = YoutubeExplode();
   final HttpUtil _httpUtil = HttpUtil(); // 使用 HttpUtil 单例，无需释放
-  bool _isDisposed = false;
   Completer<void>? _completer;
   final Duration timeoutDuration;
   late final CancelToken _cancelToken; // 添加实例级的 CancelToken
@@ -58,7 +57,7 @@ class StreamUrl {
 
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
-    if (_isDisposed) return 'ERROR';
+    if (_cancelToken.isCancelled) return 'ERROR';
     _completer = Completer<void>();
     try {
       // 检查是否为GetM3U8 URL
@@ -74,7 +73,7 @@ class StreamUrl {
           return 'https://lz.qaiu.top/parser?url=$url';
         } else {
           // 使用本地解析器处理其他蓝奏云链接
-          final result = await LanzouParser.getLanzouUrl(url);
+          final result = await LanzouParser.getLanzouUrl(url, cancelToken: _cancelToken); // 传递 _cancelToken
           if (result != 'ERROR') {
             return result;
           }
@@ -134,22 +133,19 @@ class StreamUrl {
 
   // 安全完成 Completer
   void _completeSafely() {
-    if (!_isDisposed && _completer != null && !_completer!.isCompleted) {
+    if (_completer != null && !_completer!.isCompleted) {
       _completer!.complete();
     }
     _completer = null;
   }
 
-  // 修改后的 dispose 方法
+  // 释放资源，确保等待子任务完成
   Future<void> dispose() async {
-    if (_isDisposed) return;
-    _isDisposed = true;
-
-    // 完成未完成的 Completer
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
+    // 等待 Completer 完成，包括 GetM3U8 的任务
     await _completer?.future.catchError((e) {
       LogUtil.e('Completer 完成时发生错误: $e');
     });
@@ -204,14 +200,15 @@ class StreamUrl {
     }
   }
 
-  // 监听网页获取 m3u8 的 URL
+  // 监听网页获取 m3u8 的 URL，传递 _cancelToken
   Future<String> _handleGetM3U8Url(String url) async {
-    if (_isDisposed) return 'ERROR';
+    if (_cancelToken.isCancelled) return 'ERROR';
     GetM3U8? detector;
     try {
       detector = GetM3U8(
         url: url,
         timeoutSeconds: timeoutDuration.inSeconds,
+        cancelToken: _cancelToken, // 传递 StreamUrl 的 _cancelToken
       );
 
       final result = await detector.getUrl();
@@ -227,14 +224,14 @@ class StreamUrl {
     } finally {
       // 确保 detector 在初始化失败时也能被正确释放
       if (detector != null) {
-        await detector.dispose();
+        await detector.dispose(); // 等待 GetM3U8 释放资源
       }
     }
   }
 
   // 获取普通 YouTube 视频的流媒体 URL
   Future<String> _getYouTubeVideoUrl() async {
-    if (_isDisposed || _cancelToken.isCancelled) return 'ERROR';
+    if (_cancelToken.isCancelled) return 'ERROR';
     try {
       var video = await yt.videos.get(url);
       if (_cancelToken.isCancelled) {
@@ -426,7 +423,7 @@ url: ${audioStream.url}''');
 
   // 获取 YouTube 直播流的 URL
   Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_isDisposed) {
+    if (_cancelToken.isCancelled) {
       LogUtil.i('对象已释放，无法获取直播流');
       return 'ERROR';
     }
@@ -440,7 +437,7 @@ url: ${audioStream.url}''');
       LogUtil.e('未能获取到有效的直播流地址');
       return 'ERROR';
     } catch (e, stackTrace) {
-      if (!_isDisposed) {
+      if (!_cancelToken.isCancelled) {
         LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
       return 'ERROR';
@@ -449,7 +446,7 @@ url: ${audioStream.url}''');
 
   // 获取 YouTube 直播的 m3u8 清单地址
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isDisposed) {
+    if (_cancelToken.isCancelled) {
       LogUtil.i('对象已释放，无法获取 M3U8 URL');
       return null;
     }
@@ -465,7 +462,7 @@ url: ${audioStream.url}''');
         ),
         cancelToken: _cancelToken, 
       ).timeout(timeoutDuration);
-      if (_isDisposed) {
+      if (_cancelToken.isCancelled) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
       }
@@ -524,7 +521,7 @@ url: ${audioStream.url}''');
         return null;
       }
     } catch (e, stackTrace) {
-      if (!_isDisposed) {
+      if (!_cancelToken.isCancelled) { 
         LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
       }
       return null;
@@ -533,7 +530,7 @@ url: ${audioStream.url}''');
 
   // 从 m3u8 清单中选择指定质量的流地址
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_isDisposed) {
+    if (_cancelToken.isCancelled) { 
       LogUtil.i('对象已释放，无法获取质量 M3U8 URL');
       return null;
     }
@@ -548,9 +545,9 @@ url: ${audioStream.url}''');
             'receiveTimeout': RECEIVE_TIMEOUT,
           },
         ),
-        cancelToken: _cancelToken, // 使用实例级 CancelToken
+        cancelToken: _cancelToken, 
       ).timeout(timeoutDuration);
-      if (_isDisposed) {
+      if (_cancelToken.isCancelled) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
       }
@@ -577,7 +574,7 @@ url: ${audioStream.url}''');
               LogUtil.i('找到分辨率 ${quality}p 的流地址: ${qualityUrls[quality]}');
             }
           }
-          if (_isDisposed) {
+          if (_cancelToken.isCancelled) {
             LogUtil.i('对象已释放，停止解析清单');
             return null;
           }
@@ -606,7 +603,7 @@ url: ${audioStream.url}''');
         return null;
       }
     } catch (e, stackTrace) {
-      if (!_isDisposed) {
+      if (!_cancelToken.isCancelled) {
         LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
       }
       return null;
@@ -615,7 +612,7 @@ url: ${audioStream.url}''');
 
   // 从 m3u8 清单行提取视频质量信息
   String? _extractQuality(String extInfLine) {
-    if (_isDisposed) return null;
+    if (_cancelToken.isCancelled) return null; 
     final match = resolutionRegex.firstMatch(extInfLine);
     return match?.group(1);
   }
