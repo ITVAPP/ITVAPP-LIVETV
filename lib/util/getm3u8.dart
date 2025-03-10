@@ -19,6 +19,9 @@ class UrlUtils {
 
   /// 基础 URL 解码和清理
   static String basicUrlClean(String url) {
+    // 添加调试日志，记录原始输入
+    LogUtil.i('原始 URL: $url');
+
     // 去除末尾反斜杠
     if (url.endsWith(r'\')) {
       url = url.substring(0, url.length - 1);
@@ -39,20 +42,22 @@ class UrlUtils {
         .replaceAll(r'\/', '/') // 单独处理JavaScript转义斜杠
         .replaceAllMapped(_htmlEntityRegex, (m) => htmlEntities[m.group(1)] ?? m.group(0)!) // HTML实体替换
         .trim() // 清除首尾空格
-        .replaceAll(_multiSlashRegex, '/') // 处理3+连续斜杠
-        .replaceAllMapped(_unicodeRegex, (match) => _parseUnicode(match.group(1))); // Unicode处理
+        .replaceAll(_multiSlashRegex, '/'); // 处理3+连续斜杠
 
-    // URL解码流程
-    void decodeUrl() {
+    // 只处理明确的 Unicode 转义（如 \uCH71）
+    if (url.contains(r'\u')) {
+      url = url.replaceAllMapped(_unicodeRegex, (match) => _parseUnicode(match.group(1)));
+      LogUtil.i('Unicode 转换后: $url');
+    }
+
+    // 仅在必要时解码，且只解码一次
+    if (url.contains('%')) {
       try {
         url = Uri.decodeComponent(url);
       } catch (e) {
         LogUtil.i('URL解码失败，保持原样: $e');
       }
     }
-
-    decodeUrl(); // 第一层解码
-    if (url.contains('%')) decodeUrl(); // 仅在必要时进行第二层解码
 
     return url;
   }
