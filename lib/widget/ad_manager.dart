@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:better_player/better_player.dart';
@@ -142,13 +143,16 @@ class AdManager with ChangeNotifier {
     }
   }
 
-  // 播放视频广告
+  // 修改处：播放视频广告并等待其完成
   Future<void> playVideoAd() async {
     if (_adData == null || !_adData!.videoAdEnabled || _videoAdShownCount >= _adData!.videoAdDisplayCount) {
+      LogUtil.i('广告未启用或已达上限，无需播放');
       return;
     }
 
     LogUtil.i('开始播放视频广告: ${_adData!.videoAdUrl}');
+    Completer<void> adCompletion = Completer<void>(); // 创建 Completer 用于等待广告完成
+
     try {
       final adDataSource = BetterPlayerConfig.createDataSource(
         url: _adData!.videoAdUrl!,
@@ -156,33 +160,48 @@ class AdManager with ChangeNotifier {
       );
       final adConfig = BetterPlayerConfig.createPlayerConfig(
         isHls: _isHlsStream(_adData!.videoAdUrl),
-        eventListener: _videoAdEventListener,
+        eventListener: (event) => _videoAdEventListener(event, adCompletion), // 传递 Completer
       );
 
       _adController = BetterPlayerController(adConfig);
       await _adController!.setupDataSource(adDataSource);
       await _adController!.play();
+
+      // 等待广告播放完成或超时
+      await adCompletion.future.timeout(const Duration(seconds: 36), onTimeout: () {
+        LogUtil.w('广告播放超时，默认结束');
+        _cleanupAdController();
+        if (!adCompletion.isCompleted) {
+          adCompletion.complete();
+        }
+      });
     } catch (e) {
       LogUtil.e('视频广告播放失败: $e');
       _cleanupAdController();
+      if (!adCompletion.isCompleted) {
+        adCompletion.completeError(e); // 如果失败，完成错误
+      }
+      rethrow; // 抛出异常给调用者处理
     }
   }
 
-  // 视频广告事件监听器
-  void _videoAdEventListener(BetterPlayerEvent event) {
+  // 修改处：调整 _videoAdEventListener，接受 Completer 参数
+  void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
     if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
       LogUtil.i('视频广告播放完成');
       _cleanupAdController();
       _videoAdShownCount++;
       SpUtil.putInt(Config.videoAdCountKey, _videoAdShownCount);
+      if (!completer.isCompleted) {
+        completer.complete(); // 完成 Future，表示广告播放结束
+      }
     }
   }
 
   // 清理视频广告控制器
   void _cleanupAdController() {
     if (_adController != null) {
-      _adController!.removeEventsListener(_videoAdEventListener);
-      _adController!.dispose();
+      _adController!.dispose(); // 修改处：移除 removeEventsListener，因为 dispose 已清理事件
       _adController = null;
     }
   }
