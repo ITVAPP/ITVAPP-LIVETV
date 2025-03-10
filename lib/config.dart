@@ -37,4 +37,13 @@ class Config {
 
   /// M3U 文件 URL 的 XOR 加密密钥
   static const String m3uXorKey = 'itvapp-livetv-secret-2025'; // 自定义密钥
+
+  /// 广告 API 地址
+  static const String adApiUrl = 'https://your-api.com/ads';
+
+  /// 文字广告显示次数的本地缓存键
+  static const String textAdCountKey = 'text_ad_shown_count';
+
+  /// 视频广告显示次数的本地缓存键
+  static const String videoAdCountKey = 'video_ad_shown_count';
 }
