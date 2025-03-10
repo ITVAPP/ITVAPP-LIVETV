@@ -17,6 +17,7 @@ class StreamUrl {
   bool _isDisposed = false;
   Completer<void>? _completer;
   final Duration timeoutDuration;
+  late final CancelToken _cancelToken; // 添加实例级的 CancelToken
 
   // 定义常量
   static const String ERROR_RESULT = 'ERROR';
@@ -52,6 +53,7 @@ class StreamUrl {
   StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT})
       : timeoutDuration = timeoutDuration {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
+    _cancelToken = CancelToken(); // 初始化实例级的 CancelToken
   }
 
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
@@ -91,7 +93,11 @@ class StreamUrl {
       // 重试逻辑
       return await _retryTask(task);
     } catch (e, stackTrace) {
-      LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        LogUtil.i('解析任务被取消');
+      } else {
+        LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
+      }
       return 'ERROR';
     } finally {
       _completeSafely();
@@ -105,6 +111,10 @@ class StreamUrl {
       if (result != ERROR_RESULT) return result;
       LogUtil.e('首次获取视频流失败，准备重试');
     } catch (e) {
+      if (_cancelToken.isCancelled) {
+        LogUtil.i('首次任务被取消，不进行重试');
+        return ERROR_RESULT;
+      }
       LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
     }
 
@@ -113,6 +123,10 @@ class StreamUrl {
       final result = await task().timeout(timeoutDuration);
       return result != ERROR_RESULT ? result : ERROR_RESULT;
     } catch (retryError) {
+      if (_cancelToken.isCancelled) {
+        LogUtil.i('重试任务被取消');
+        return ERROR_RESULT;
+      }
       LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
       return ERROR_RESULT;
     }
@@ -126,11 +140,12 @@ class StreamUrl {
     _completer = null;
   }
 
+  // 修改后的 dispose 方法
   Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
 
-    // 资源释放逻辑，记录异常
+    // 完成未完成的 Completer
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
@@ -139,7 +154,13 @@ class StreamUrl {
       LogUtil.e('Completer 完成时发生错误: $e');
     });
 
-    // 安全释放资源
+    // 取消所有未完成的 HTTP 请求
+    await LogUtil.safeExecute(() async {
+      _cancelToken.cancel('StreamUrl disposed'); // 使用实例级 CancelToken
+      LogUtil.i('已取消所有未完成的 HTTP 请求');
+    }, '取消 HTTP 请求时发生错误');
+
+    // 释放 YoutubeExplode 实例
     await LogUtil.safeExecute(() async {
       try {
         yt.close();
@@ -213,11 +234,19 @@ class StreamUrl {
 
   // 获取普通 YouTube 视频的流媒体 URL
   Future<String> _getYouTubeVideoUrl() async {
-    if (_isDisposed) return 'ERROR';
+    if (_isDisposed || _cancelToken.isCancelled) return 'ERROR';
     try {
       var video = await yt.videos.get(url);
+      if (_cancelToken.isCancelled) {
+        LogUtil.i('解析视频信息后任务被取消');
+        return 'ERROR';
+      }
 
       var manifest = await yt.videos.streams.getManifest(video.id);
+      if (_cancelToken.isCancelled) {
+        LogUtil.i('解析流清单后任务被取消');
+        return 'ERROR';
+      }
       LogUtil.i('''
 ======= Manifest 流信息 =======
 HLS流数量: ${manifest.hls.length}
@@ -255,7 +284,6 @@ HLS流数量: ${manifest.hls.length}
 
             if (selectedVideoStream != null) {
               LogUtil.i('''找到 ${res}p 质量的视频流
-
 tag: ${selectedVideoStream.tag}
 qualityLabel: ${selectedVideoStream.qualityLabel}
 videoCodec: ${selectedVideoStream.videoCodec}
@@ -284,7 +312,6 @@ url: ${selectedVideoStream.url}''');
 
         if (audioStream != null) {
           LogUtil.i('''找到 HLS音频流
-
 bitrate: ${audioStream.bitrate.kiloBitsPerSecond} Kbps
 codec: ${audioStream.codec}
 container: ${audioStream.container}
@@ -436,6 +463,7 @@ url: ${audioStream.url}''');
             'receiveTimeout': RECEIVE_TIMEOUT,
           },
         ),
+        cancelToken: _cancelToken, 
       ).timeout(timeoutDuration);
       if (_isDisposed) {
         LogUtil.i('对象已释放，停止处理响应');
@@ -520,6 +548,7 @@ url: ${audioStream.url}''');
             'receiveTimeout': RECEIVE_TIMEOUT,
           },
         ),
+        cancelToken: _cancelToken, // 使用实例级 CancelToken
       ).timeout(timeoutDuration);
       if (_isDisposed) {
         LogUtil.i('对象已释放，停止处理响应');
@@ -532,14 +561,11 @@ url: ${audioStream.url}''');
 
       LogUtil.i('收到响应，状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
-        // 记录返回的清单内容（限制长度，避免日志过长）
         String responseData = response.data.toString();
         LogUtil.d(
-            'HLS 清单内容（前1000字符）: ${responseData.length > 1000 ? responseData.substring(0, 1000) : responseData}');
-
         LogUtil.i('开始解析 HLS 清单内容');
         final lines = responseData.split('\n');
-        final length = lines.length; // 缓存长度避免重复访问
+        final length = lines.length;
         final qualityUrls = <String, String>{};
 
         // 使用预编译正则表达式优化循环效率
