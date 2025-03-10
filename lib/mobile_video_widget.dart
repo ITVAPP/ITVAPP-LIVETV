@@ -7,7 +7,8 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/table_video_widget.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
-import 'generated/l10n.dart';
+import 'package:itvapp_live_tv/widget/ad_manager.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 创建 MobileVideoWidget 组件，用于在移动设备上显示视频内容
 class MobileVideoWidget extends StatefulWidget {
@@ -26,6 +27,7 @@ class MobileVideoWidget extends StatefulWidget {
   final String currentChannelLogo; // 当前频道LOGO
   final String currentChannelTitle; // 当前频道名称
   final bool isAudio; // 是否为音频模式
+  final AdManager adManager; // 新增 AdManager 参数
 
   // 构造函数
   const MobileVideoWidget({
@@ -41,6 +43,7 @@ class MobileVideoWidget extends StatefulWidget {
     required this.currentChannelId,
     required this.currentChannelLogo,
     required this.currentChannelTitle,
+    required this.adManager, // 添加必填参数
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
@@ -67,7 +70,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
   // 抽离回调方法，减少在build函数中重复生成不必要的新闭包
   Future<void> _handleAddPressed() async {
-    LogUtil.safeExecute(() async {
+    LogUtil.safeExecute (() async {
       if (!EnvUtil.isMobile) {
         // 隐藏标题栏（如果不是移动设备）
         windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
@@ -191,6 +194,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               currentChannelTitle: widget.currentChannelTitle,
               changeChannelSources: widget.changeChannelSources,
               isAudio: widget.isAudio,
+              adManager: widget.adManager, // 传递 AdManager 参数
             ),
           ),
           Flexible(
