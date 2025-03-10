@@ -195,15 +195,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       // 仅在初次播放频道时触发广告
       if (!isRetry && !isSourceSwitch) {
-        await _adManager.playVideoAd();
-        // 等待视频广告播放完成（如果有视频广告）
-        if (_adManager.getAdController() != null) {
-          await _adManager.getAdController()!.videoPlayerController!.stateStream.firstWhere(
-            (state) => state.isCompleted == true,
-            orElse: () => _adManager.getAdController()!.videoPlayerController!.value,
-          );
-          LogUtil.i('视频广告播放完成，准备播放频道');
-        }
+        await _adManager.playVideoAd(); // 修改处：等待广告播放完成
+        LogUtil.i('视频广告播放完成，准备播放频道');
         _adManager.reset(); // 检查并可能显示文字广告
       }
 
