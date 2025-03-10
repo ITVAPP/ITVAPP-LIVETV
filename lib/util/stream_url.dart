@@ -559,7 +559,6 @@ url: ${audioStream.url}''');
       LogUtil.i('收到响应，状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         String responseData = response.data.toString();
-        LogUtil.d(
         LogUtil.i('开始解析 HLS 清单内容');
         final lines = responseData.split('\n');
         final length = lines.length;
