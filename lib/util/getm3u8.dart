@@ -19,9 +19,6 @@ class UrlUtils {
 
   /// 基础 URL 解码和清理
   static String basicUrlClean(String url) {
-    // 添加调试日志，记录原始输入
-    LogUtil.i('原始 URL: $url');
-
     // 去除末尾反斜杠
     if (url.endsWith(r'\')) {
       url = url.substring(0, url.length - 1);
@@ -228,6 +225,9 @@ class GetM3U8 {
 
   /// 添加 CancelToken 用于取消 HTTP 请求
   final CancelToken? cancelToken;
+
+  /// 添加释放状态标志位
+  bool _isDisposed = false;
 
   /// 构造函数，新增 cancelToken 参数
   GetM3U8({
@@ -879,6 +879,11 @@ efficientDOMScan();
 
   /// 释放资源，增强取消能力
   Future<void> dispose() async {
+    if (_isDisposed) {
+      return;
+    }
+    _isDisposed = true;
+
     // 取消所有未完成的 HTTP 请求
     if (cancelToken != null && !cancelToken!.isCancelled) {
       cancelToken!.cancel('GetM3U8 disposed');
