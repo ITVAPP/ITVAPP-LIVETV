@@ -1251,15 +1251,15 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   final Map<K, V> _map = {};
   final int maximumSize;
   final bool Function(K, K) equals;
-  final int Function(K) hashCode;
+  final int Function(K) _hashCodeFn;
   final void Function(K, V)? onEvict;
 
   LinkedHashMap({
     required this.equals,
-    required this.hashCode,
+    required int Function(K) hashCode, 
     this.onEvict,
     this.maximumSize = 100,
-  });
+  }) : _hashCodeFn = hashCode;
 
   @override
   V? operator [](Object? key) => _map.containsKey(key) ? _map[key as K] : null;
@@ -1285,4 +1285,8 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
 
   @override
   bool containsKey(Object? key) => _map.containsKey(key);
+
+  // 实现 Object.hashCode 要求的方法，返回 int 类型
+  @override
+  int get hashCode => _map.hashCode; // 使用内部 Map 的 hashCode
 }
