@@ -197,6 +197,30 @@ class ScrollUtil {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
     final itemHeight = defaultMinHeight;
+    final currentOffset = controller.offset;
+    final itemTop = index * itemHeight;
+    final itemBottom = itemTop + itemHeight;
+    final viewTop = currentOffset;
+    final viewBottom = currentOffset + viewPortHeight;
+
+    double targetOffset;
+    if (itemTop < viewTop) {
+      targetOffset = itemTop; // 滚动到顶部对齐
+    } else if (itemBottom > viewBottom) {
+      targetOffset = itemBottom - viewPortHeight; // 滚动到底部对齐
+    } else {
+      return; // 无需滚动
+    }
+    controller.jumpTo(
+      targetOffset.clamp(0.0, maxScrollExtent),
+    );
+  }
+
+  // 新增：用于居中滚动的方法
+  static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
+    if (!controller.hasClients) return;
+    final maxScrollExtent = controller.position.maxScrollExtent;
+    final itemHeight = defaultMinHeight;
     final targetOffset = index * itemHeight - (viewPortHeight - itemHeight) / 2; // 居中计算
     controller.jumpTo(
       targetOffset.clamp(0.0, maxScrollExtent),
@@ -946,7 +970,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         } else {
           _isSystemAutoSelected = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: _channelIndex);
+            // 如果是当前播放频道，居中显示
+            ScrollUtil.scrollToCenter(_scrollController, _groupIndex, _viewPortHeight!);
+            ScrollUtil.scrollToCenter(_scrollChannelController, _channelIndex, _viewPortHeight!);
           });
         }
       }
@@ -983,14 +1009,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: _channelIndex);
+          // 如果是当前播放频道，居中显示
+          ScrollUtil.scrollToCenter(_scrollController, _groupIndex, _viewPortHeight!);
+          ScrollUtil.scrollToCenter(_scrollChannelController, _channelIndex, _viewPortHeight!);
         });
       } else {
         _channelIndex = 0;
         _isChannelAutoSelected = true;
         ScrollUtil.scrollToTop(_scrollChannelController);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: 0);
+          ScrollUtil.scrollToPosition(_scrollController, _groupIndex, _viewPortHeight!);
         });
       }
     });
