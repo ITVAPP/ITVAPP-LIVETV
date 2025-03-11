@@ -810,7 +810,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   void _initializeChannelData() {
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
-      _resetChannel removingData();
+      _resetChannelData();
       return;
     }
 
@@ -897,7 +897,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _values = [];
     _groupIndex = -1;
     _channelIndex = -1;
-    _selEPGIndexs = 0;
+    _selEPGIndex = 0;
   }
 
   void _reInitializeFocusListeners() {
@@ -1072,7 +1072,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         cacheName: 'ChannelDrawerPage',
         isVerticalGroup: true,
         initialIndex: 0,
-        onStateCreated: _handleTvKeyNavigationStateCreated, 
+        onStateCreated: _handleTvKeyNavigationStateCreated,
         child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
       );
     } else {
@@ -1213,7 +1213,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     return Container(
       key: _viewPortKey,
-      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left), // 修正语法错误
+      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left), 
       width: widget.isLandscape ? categoryWidth + groupWidth + channelListWidth + epgListWidth : MediaQuery.of(context).size.width,
       decoration: BoxDecoration(
         gradient: LinearGradient(
