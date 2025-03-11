@@ -13,36 +13,36 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-// 分割线样式 - 垂直分割线优化为更柔和的渐变效果（修改）
+// 分割线样式
 final verticalDivider = Container(
-  width: 1.5, // 修改：加粗至1.5，增强视觉效果
+  width: 1.5, 
   decoration: BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        Colors.white.withOpacity(0.05), // 修改：顶部更柔和
-        Colors.white.withOpacity(0.25), // 修改：中间高亮
-        Colors.white.withOpacity(0.05), // 修改：底部渐淡
+        Colors.white.withOpacity(0.05), 
+        Colors.white.withOpacity(0.25),
+        Colors.white.withOpacity(0.05),
       ],
     ),
   ),
 );
 
-// 水平分割线样式 - 添加微妙阴影和渐变（修改）
+// 水平分割线样式 - 添加微妙阴影和渐变
 final horizontalDivider = Container(
   height: 1,
   decoration: BoxDecoration(
     gradient: LinearGradient(
       colors: [
-        Colors.white.withOpacity(0.05), // 修改：渐变更柔和
-        Colors.white.withOpacity(0.15), // 修改：高亮部分调整
-        Colors.white.withOpacity(0.05), // 修改：渐变更柔和
+        Colors.white.withOpacity(0.05),
+        Colors.white.withOpacity(0.15),
+        Colors.white.withOpacity(0.05),
       ],
     ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.1), // 修改：添加微妙阴影
+        color: Colors.black.withOpacity(0.1), 
         blurRadius: 2,
         offset: Offset(0, 1),
       ),
@@ -50,47 +50,47 @@ final horizontalDivider = Container(
   ),
 );
 
-// 文字样式 - 优化字体大小和行高（修改）
+// 文字样式 - 优化字体大小和行高
 const defaultTextStyle = TextStyle(
-  fontSize: 16, // 修改：调整为16，更符合现代设计
-  height: 1.4, // 修改：增加行高，提升可读性
-  color: Colors.white, // 修改：默认白色文字
+  fontSize: 16, // 调整为16，更符合现代设计
+  height: 1.4, // 增加行高，提升可读性
+  color: Colors.white, // 默认白色文字
 );
 
-// 选中文字样式 - 添加阴影和动态效果（修改）
+// 选中文字样式 - 添加阴影和动态效果
 const selectedTextStyle = TextStyle(
-  fontWeight: FontWeight.w600, // 修改：更强的粗体效果
+  fontWeight: FontWeight.w600,
   color: Colors.white,
   shadows: [
     Shadow(
-      offset: Offset(0, 1), // 修改：调整阴影位置
-      blurRadius: 4.0, // 修改：增加模糊半径
-      color: Colors.black45, // 修改：阴影颜色更柔和
+      offset: Offset(0, 1),
+      blurRadius: 4.0,
+      color: Colors.black45,
     ),
   ],
 );
 
-// 最小高度 - 略微增加以适应现代设计（修改）
-const defaultMinHeight = 48.0; // 修改：从42.0增加到48.0
+// 最小高度
+const defaultMinHeight = 48.0; 
 
-// 背景色 - 使用更深的渐变背景（修改）
+// 背景色 - 使用更深的渐变背景
 final defaultBackgroundColor = LinearGradient(
   colors: [
-    Color(0xFF1A1A1A), // 修改：深灰色背景
-    Color(0xFF2C2C2C), // 修改：略浅的灰色
+    Color(0xFF1A1A1A), // 深灰色背景
+    Color(0xFF2C2C2C), // 略浅的灰色
   ],
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
 
-// padding设置 - 增加垂直间距（修改）
-const defaultPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0); // 修改：增加垂直间距
+// padding设置
+const defaultPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0); 
 
-// 装饰设置 - 优化选中和焦点颜色（修改）
-const Color selectedColor = Color(0xFFEB144C); // 保持不变：红色高亮
-const Color focusColor = Color(0xFFFFA726); // 修改：橙色焦点替代unselectedColor
+// 装饰设置
+const Color selectedColor = Color(0xFFEB144C); // 红色高亮
+const Color focusColor = Color(0xFFFFA726); // 橙色焦点
 
-// 构建列表项装饰 - 添加渐变和阴影（修改）
+// 构建列表项装饰 - 添加渐变和阴影
 BoxDecoration buildItemDecoration({
   bool isSelected = false,
   bool hasFocus = false,
@@ -102,14 +102,14 @@ BoxDecoration buildItemDecoration({
         ? (hasFocus
             ? LinearGradient(
                 colors: [
-                  focusColor.withOpacity(0.9), // 修改：使用渐变焦点颜色
+                  focusColor.withOpacity(0.9), // 使用渐变焦点颜色
                   focusColor.withOpacity(0.7),
                 ],
               )
             : (isSelected && !isSystemAutoSelected
                 ? LinearGradient(
                     colors: [
-                      selectedColor.withOpacity(0.9), // 修改：使用渐变选中颜色
+                      selectedColor.withOpacity(0.9), // 使用渐变选中颜色
                       selectedColor.withOpacity(0.7),
                     ],
                   )
@@ -117,22 +117,22 @@ BoxDecoration buildItemDecoration({
         : (isSelected && !isSystemAutoSelected
             ? LinearGradient(
                 colors: [
-                  selectedColor.withOpacity(0.9), // 修改：使用渐变选中颜色
+                  selectedColor.withOpacity(0.9), // 使用渐变选中颜色
                   selectedColor.withOpacity(0.7),
                 ],
               )
             : null),
     border: Border.all(
       color: hasFocus || (isSelected && !isSystemAutoSelected)
-          ? Colors.white.withOpacity(0.3) // 修改：边框颜色更柔和
+          ? Colors.white.withOpacity(0.3) // 边框颜色更柔和
           : Colors.transparent,
-      width: 1.5, // 修改：边框宽度增加
+      width: 1.5, // 边框宽度增加
     ),
-    borderRadius: BorderRadius.circular(8), // 修改：添加圆角
+    borderRadius: BorderRadius.circular(8), // 添加圆角
     boxShadow: hasFocus
         ? [
             BoxShadow(
-              color: focusColor.withOpacity(0.3), // 修改：焦点状态添加阴影
+              color: focusColor.withOpacity(0.3), // 焦点状态添加阴影
               blurRadius: 8,
               spreadRadius: 1,
             ),
@@ -217,7 +217,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数 - 添加动画效果（修改）
+// 通用列表项构建函数
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -246,7 +246,7 @@ Widget buildListItem({
         onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
         child: GestureDetector(
           onTap: onTap,
-          child: AnimatedContainer( // 修改：添加动画效果
+          child: AnimatedContainer( // 添加动画效果
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             constraints: BoxConstraints(minHeight: minHeight),
@@ -322,7 +322,7 @@ class _CategoryListState extends State<CategoryList> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 使用渐变背景
       child: Group(
         groupIndex: 0,
         child: Column(
@@ -379,9 +379,12 @@ class GroupList extends StatefulWidget {
 }
 
 class _GroupListState extends State<GroupList> {
+  late List<GlobalKey> _itemKeys;
+
   @override
   void initState() {
     super.initState();
+    _itemKeys = List.generate(widget.keys.length, (_) => GlobalKey());
     addFocusListeners(widget.startIndex, widget.keys.length, this);
   }
 
@@ -398,7 +401,7 @@ class _GroupListState extends State<GroupList> {
     }
 
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 使用渐变背景
       child: widget.keys.isEmpty && widget.isFavoriteCategory
           ? ListView(
               controller: widget.scrollController,
@@ -424,23 +427,33 @@ class _GroupListState extends State<GroupList> {
                 Group(
                   groupIndex: 1,
                   children: List.generate(widget.keys.length, (index) {
-                    return buildListItem(
-                      title: widget.keys[index],
-                      isSelected: widget.selectedGroupIndex == index,
-                      onTap: () => widget.onGroupTap(index),
-                      isCentered: false,
-                      isTV: widget.isTV,
-                      minHeight: defaultMinHeight,
-                      context: context,
-                      index: widget.startIndex + index,
-                      isLastItem: index == widget.keys.length - 1,
-                      isSystemAutoSelected: widget.isSystemAutoSelected,
+                    return Container(
+                      key: _itemKeys[index],
+                      child: buildListItem(
+                        title: widget.keys[index],
+                        isSelected: widget.selectedGroupIndex == index,
+                        onTap: () => widget.onGroupTap(index),
+                        isCentered: false,
+                        isTV: widget.isTV,
+                        minHeight: defaultMinHeight,
+                        context: context,
+                        index: widget.startIndex + index,
+                        isLastItem: index == widget.keys.length - 1,
+                        isSystemAutoSelected: widget.isSystemAutoSelected,
+                      ),
                     );
                   }),
                 ),
               ],
             ),
     );
+  }
+
+  BuildContext? getItemContext(int index) {
+    if (index >= 0 && index < _itemKeys.length) {
+      return _itemKeys[index].currentContext;
+    }
+    return null;
   }
 }
 
@@ -452,7 +465,7 @@ class ChannelList extends StatefulWidget {
   final String? selectedChannelName;
   final bool isTV;
   final int startIndex;
-  final bool isSystemAutoSelected; 
+  final bool isSystemAutoSelected;
 
   const ChannelList({
     super.key,
@@ -462,7 +475,7 @@ class ChannelList extends StatefulWidget {
     this.selectedChannelName,
     required this.isTV,
     this.startIndex = 0,
-    this.isSystemAutoSelected = false, 
+    this.isSystemAutoSelected = false,
   });
 
   @override
@@ -470,9 +483,12 @@ class ChannelList extends StatefulWidget {
 }
 
 class _ChannelListState extends State<ChannelList> {
+  late List<GlobalKey> _itemKeys;
+
   @override
   void initState() {
     super.initState();
+    _itemKeys = List.generate(widget.channels.length, (_) => GlobalKey()); 
     addFocusListeners(widget.startIndex, widget.channels.length, this);
 
     if (widget.isTV && widget.selectedChannelName != null) {
@@ -500,7 +516,7 @@ class _ChannelListState extends State<ChannelList> {
     }
 
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 使用渐变背景
       child: ListView(
         controller: widget.scrollController,
         children: [
@@ -511,17 +527,20 @@ class _ChannelListState extends State<ChannelList> {
                 final channelEntry = channelList[index];
                 final channelName = channelEntry.key;
                 final isSelect = widget.selectedChannelName == channelName;
-                return buildListItem(
-                  title: channelName,
-                  isSelected: !widget.isSystemAutoSelected && isSelect,
-                  onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                  isCentered: false,
-                  minHeight: defaultMinHeight,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == channelList.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
+                return Container(
+                  key: _itemKeys[index], // 为每个频道项添加 GlobalKey
+                  child: buildListItem(
+                    title: channelName,
+                    isSelected: !widget.isSystemAutoSelected && isSelect,
+                    onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                    isCentered: false,
+                    minHeight: defaultMinHeight,
+                    isTV: widget.isTV,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == channelList.length - 1,
+                    isSystemAutoSelected: widget.isSystemAutoSelected,
+                  ),
                 );
               }),
             ),
@@ -529,6 +548,14 @@ class _ChannelListState extends State<ChannelList> {
         ],
       ),
     );
+  }
+
+  // 获取指定索引的 BuildContext
+  BuildContext? getItemContext(int index) {
+    if (index >= 0 && index < _itemKeys.length) {
+      return _itemKeys[index].currentContext;
+    }
+    return null;
   }
 }
 
@@ -569,21 +596,21 @@ class _EPGListState extends State<EPGList> {
     }
 
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 使用渐变背景
       child: Column(
         children: [
           Container(
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 10), // 修改：调整内边距
+            padding: const EdgeInsets.only(left: 10), // 调整内边距
             decoration: BoxDecoration(
-              gradient: LinearGradient( // 修改：使用渐变背景
+              gradient: LinearGradient( // 使用渐变背景
                 colors: [
                   Colors.black.withOpacity(0.8),
                   Colors.black.withOpacity(0.6),
                 ],
               ),
-              borderRadius: BorderRadius.circular(8), // 修改：添加圆角
+              borderRadius: BorderRadius.circular(8), // 添加圆角
             ),
             child: Text(
               S.of(context).programListTitle,
@@ -675,6 +702,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _categoryStartIndex = 0;
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
+
+  final GlobalKey<_GroupListState> _groupListKey = GlobalKey<_GroupListState>();
+  final GlobalKey<_ChannelListState> _channelListKey = GlobalKey<_ChannelListState>();
 
   @override
   void initState() {
@@ -969,6 +999,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     } else {
       _initializeChannelData();
       _updateStateAndFocus(index, _groupIndex);
+      // 延迟滚动到新分组和频道的焦点位置
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToGroupItem(_groupIndex);
+        _scrollToChannelItem(_channelIndex); // 频道滚动
+      });
     }
   }
 
@@ -976,9 +1011,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _onGroupTap(int index) {
     if (_groupIndex == index) return;
     _updateStateAndFocus(_categoryIndex, index, resetChannel: true);
+    // 延迟滚动到新分组和频道的焦点位置
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToGroupItem(index);
+      _scrollToChannelItem(_channelIndex); // 频道滚动
+    });
   }
 
-  // 更新状态和焦点（新增：提取的公共逻辑）
+  // 更新状态和焦点
   void _updateStateAndFocus(int newCategoryIndex, int newGroupIndex, {bool resetChannel = false}) {
     setState(() {
       _categoryIndex = newCategoryIndex;
@@ -992,6 +1032,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tvKeyNavigationState?.releaseResources();
       _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: newCategoryIndex);
+      _tvKeyNavigationState?._cacheGroupFocusNodes(); // 更新 TvKeyNavigation 的分组缓存
       _reInitializeFocusListeners();
       _adjustScrollPositions();
     });
@@ -1015,6 +1056,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
+      _scrollToChannelItem(_channelIndex); // 频道滚动
     });
   }
 
@@ -1058,6 +1100,40 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double viewPortHeight = _viewPortHeight!;
     final double targetOffset = (index * defaultMinHeight - viewPortHeight * 0.5).clamp(0.0, maxScrollExtent);
     controller.animateTo(targetOffset, duration: const Duration(milliseconds: 200), curve: Curves.easeInOut);
+  }
+
+  // 滚动到指定分组项（如果不在可视范围内）
+  void _scrollToGroupItem(int index) {
+    if (_keys.isEmpty || index < 0 || index >= _keys.length) return;
+    final groupListState = _groupListKey.currentState;
+    if (groupListState == null) return;
+
+    final itemContext = groupListState.getItemContext(index);
+    if (itemContext != null && isOutOfView(itemContext)) {
+      Scrollable.ensureVisible(
+        itemContext,
+        alignment: 0.5, // 滚动到屏幕中间
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  // 滚动到指定频道项的方法
+  void _scrollToChannelItem(int index) {
+    if (_values.isEmpty || _groupIndex < 0 || _groupIndex >= _values.length || _values[_groupIndex].isEmpty) return;
+    final channelListState = _channelListKey.currentState;
+    if (channelListState == null) return;
+
+    final itemContext = channelListState.getItemContext(index);
+    if (itemContext != null && isOutOfView(itemContext)) {
+      Scrollable.ensureVisible(
+        itemContext,
+        alignment: 0.5, // 滚动到屏幕中间
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   // 加载EPG
@@ -1137,7 +1213,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 检查焦点列表是否正确，如果不正确则重建
   List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length + _keys.length + (_groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    int totalNodesExpected = _calculateTotalFocusNodes(); // 统一的计算逻辑
     _initializeFocusNodes(totalNodesExpected);
     return FocusManager.nodes;
   }
@@ -1167,6 +1243,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 分组列表
     groupListWidget = GroupList(
+      key: _groupListKey,
       keys: _keys,
       selectedGroupIndex: _groupIndex,
       onGroupTap: _onGroupTap,
@@ -1182,6 +1259,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
         currentFocusIndex += _keys.length; // 更新焦点索引
         channelListWidget = ChannelList(
+          key: _channelListKey, 
           channels: _values[_groupIndex],
           selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
           onChannelTap: _onChannelTap,
@@ -1212,7 +1290,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
-  // 构建抽屉视图 - 添加整体样式（修改）
+  // 构建抽屉视图 
   Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
     double categoryWidth = isPortrait ? 110 : 120; // 分类列表宽度
     double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;  // 设置分组列表宽度
@@ -1230,13 +1308,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
       decoration: BoxDecoration(
-        gradient: LinearGradient( // 修改：使用深灰色渐变
+        gradient: LinearGradient( // 使用深灰色渐变
           colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12), // 修改：添加圆角
-        boxShadow: [ // 修改：添加阴影
+        borderRadius: BorderRadius.circular(12), // 添加圆角
+        boxShadow: [ // 添加阴影
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
