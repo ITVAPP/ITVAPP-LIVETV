@@ -195,11 +195,11 @@ class ScrollUtil {
   
   static void scrollToPosition(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
-    const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
+    final itemHeight = defaultMinHeight;
     final currentOffset = controller.offset;
-    final itemTop = index * realItemHeight;
-    final itemBottom = itemTop + realItemHeight;
+    final itemTop = index * itemHeight;
+    final itemBottom = itemTop + itemHeight;
     final viewTop = currentOffset;
     final viewBottom = currentOffset + viewPortHeight;
 
@@ -216,15 +216,42 @@ class ScrollUtil {
     );
   }
 
-  // 用于居中滚动的方法
+  // 新增：用于居中滚动的方法
   static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
-    const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
-    final targetOffset = index * realItemHeight - (viewPortHeight - realItemHeight) / 2; // 居中计算
+    final itemHeight = defaultMinHeight;
+    final targetOffset = index * itemHeight - (viewPortHeight - itemHeight) / 2; // 居中计算
     controller.jumpTo(
       targetOffset.clamp(0.0, maxScrollExtent),
     );
+  }
+
+  // 新增：对齐两个列表的选中项
+  static void scrollToAlignItems({
+    required ScrollController groupController,
+    required ScrollController channelController,
+    required int groupIndex,
+    required int channelIndex,
+    required double viewPortHeight,
+  }) {
+    if (!groupController.hasClients || !channelController.hasClients) return;
+
+    const itemHeight = defaultMinHeight;
+
+    // 以分组列表为基准，计算目标偏移量
+    final groupTargetOffset = groupIndex * itemHeight;
+    final groupMaxScrollExtent = groupController.position.maxScrollExtent;
+    final clampedGroupOffset = groupTargetOffset.clamp(0.0, groupMaxScrollExtent);
+
+    // 调整频道列表偏移量，使频道项与分组项对齐
+    final channelTargetOffset = channelIndex * itemHeight;
+    final channelMaxScrollExtent = channelController.position.maxScrollExtent;
+    final clampedChannelOffset = channelTargetOffset.clamp(0.0, channelMaxScrollExtent);
+
+    // 滚动到对齐位置
+    groupController.jumpTo(clampedGroupOffset);
+    channelController.jumpTo(clampedChannelOffset);
   }
 }
 
@@ -970,9 +997,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         } else {
           _isSystemAutoSelected = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // 如果是当前播放频道，居中显示
-            ScrollUtil.scrollToCenter(_scrollController, _groupIndex, _viewPortHeight!);
-            ScrollUtil.scrollToCenter(_scrollChannelController, _channelIndex, _viewPortHeight!);
+            // 使用新的对齐方法，确保分组和频道项水平对齐
+            ScrollUtil.scrollToAlignItems(
+              groupController: _scrollController,
+              channelController: _scrollChannelController,
+              groupIndex: _groupIndex,
+              channelIndex: _channelIndex,
+              viewPortHeight: _viewPortHeight!,
+            );
           });
         }
       }
@@ -1009,23 +1041,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 顶部对齐 + 两个列表项高度（118.0）
-          const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
-          final baseOffset = _groupIndex * realItemHeight; // 顶部对齐
-          final targetOffset = baseOffset + (realItemHeight * 2); // 加两个项高度
-          final groupMaxScroll = _scrollController.position.maxScrollExtent;
-          final channelMaxScroll = _scrollChannelController.position.maxScrollExtent;
-          final clampedOffset = targetOffset.clamp(0.0, min(groupMaxScroll, channelMaxScroll)).toDouble(); // 转换为 double
-          _scrollController.jumpTo(clampedOffset);
-          _scrollChannelController.jumpTo(clampedOffset);
+          // 仅滚动频道列表，分组列表保持不动
+          ScrollUtil.scrollToPosition(_scrollChannelController, _channelIndex, _viewPortHeight!);
         });
       } else {
         _channelIndex = 0;
         _isChannelAutoSelected = true;
         ScrollUtil.scrollToTop(_scrollChannelController);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScrollUtil.scrollToPosition(_scrollController, _groupIndex, _viewPortHeight!);
-        });
+        // 分组列表不再滚动，保持当前位置
       }
     });
 
