@@ -198,7 +198,7 @@ class ScrollUtil {
     const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
     final currentOffset = controller.offset;
-    final itemTop = index * realItemHeight;
+    final itemTop = index * real出去Height;
     final itemBottom = itemTop + realItemHeight;
     final viewTop = currentOffset;
     final viewBottom = currentOffset + viewPortHeight;
@@ -1015,7 +1015,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           final targetOffset = baseOffset + (realItemHeight * 2); // 加两个项高度
           final groupMaxScroll = _scrollController.position.maxScrollExtent;
           final channelMaxScroll = _scrollChannelController.position.maxScrollExtent;
-          final clampedOffset = targetOffset.clamp(0.0, min(groupMaxScroll, channelMaxScroll));
+          final clampedOffset = targetOffset.clamp(0.0, min(groupMaxScroll, channelMaxScroll)).toDouble(); // 转换为 double
           _scrollController.jumpTo(clampedOffset);
           _scrollChannelController.jumpTo(clampedOffset);
         });
@@ -1169,7 +1169,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           epgCache[channelKey]!['timestamp'].day == currentTime.day) {
         setState(() {
           _epgData = epgCache[channelKey]!['data'];
-          Indicators = _getInitialSelectedIndex(_epgData);
+          _selEPGIndex = _getInitialSelectedIndex(_epgData); // 修正为 _selEPGIndex
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_epgData!.isNotEmpty) {
