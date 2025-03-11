@@ -135,29 +135,37 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     if (_preCachedUrl == _currentPlayUrl) {
-      LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，直接尝试下一源');
+      LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，尝试重新解析');
       _preCachedUrl = null;
       await _disposePreCacheStreamUrl();
-      _retryPlayback();
+      await _reparseAndSwitch();
       return;
     }
 
     LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
-    _updatePlayUrl(_preCachedUrl!);
+    _updatePlayUrl(_preCachedUrl!); // 在播放前更新，确保 _isHls 正确
     final newSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
-    await _playerController?.preCache(newSource);
-    LogUtil.i('$logDescription: 预缓存新数据源完成: $_currentPlayUrl');
-    await _playerController?.setupDataSource(newSource);
-    if (isPlaying) {
-      await _playerController?.play();
-      LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
-      _progressEnabled = false;
-      _startPlayDurationTimer();
-    } else {
-      LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
+
+    try {
+      await _playerController?.preCache(newSource);
+      LogUtil.i('$logDescription: 预缓存新数据源完成: $_currentPlayUrl');
+      await _playerController?.setupDataSource(newSource);
+      if (isPlaying) {
+        await _playerController?.play();
+        LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
+        _progressEnabled = false;
+        _startPlayDurationTimer();
+      } else {
+        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('$logDescription: 切换到预缓存地址失败', e, stackTrace);
+      _retryPlayback();
+      return;
+    } finally {
+      _preCachedUrl = null;
+      await _disposePreCacheStreamUrl();
     }
-    _preCachedUrl = null;
-    await _disposePreCacheStreamUrl();
   }
 
   /// 播放视频，包含初始化和切换逻辑
@@ -785,30 +793,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
 
-      _updatePlayUrl(newParsedUrl);
+      _preCachedUrl = newParsedUrl; // 只设置预缓存地址，不更新 _currentPlayUrl
+      LogUtil.i('预缓存地址: $_preCachedUrl');
 
       final newSource = BetterPlayerConfig.createDataSource(
-        isHls: _isHls,
+        isHls: _isHlsStream(newParsedUrl), // 使用新地址判断 HLS，不影响当前 _isHls
         url: newParsedUrl,
       );
 
       if (_playerController != null) {
         await _playerController!.preCache(newSource);
-        _preCachedUrl = newParsedUrl;
-        LogUtil.i('预缓存地址: $_preCachedUrl');
         _progressEnabled = false;
         _playDurationTimer?.cancel();
         _playDurationTimer = null;
-        await _playerController!.setupDataSource(newSource);
-        if (isPlaying) {
-          await _playerController!.play();
-          LogUtil.i('切换到新数据源并开始播放: $newParsedUrl');
-          _preCachedUrl = null;
-          _startPlayDurationTimer();
-        } else {
-          LogUtil.i('切换到新数据源但保持暂停状态: $newParsedUrl');
-          _preCachedUrl = null;
-        }
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
