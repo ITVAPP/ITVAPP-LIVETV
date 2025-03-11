@@ -198,7 +198,7 @@ class ScrollUtil {
     const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
     final currentOffset = controller.offset;
-    final itemTop = index * real出去Height;
+    final itemTop = index * realItemHeight;
     final itemBottom = itemTop + realItemHeight;
     final viewTop = currentOffset;
     final viewBottom = currentOffset + viewPortHeight;
@@ -216,7 +216,7 @@ class ScrollUtil {
     );
   }
 
-  // 新增：用于居中滚动的方法
+  // 用于居中滚动的方法
   static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
     const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
@@ -1169,7 +1169,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           epgCache[channelKey]!['timestamp'].day == currentTime.day) {
         setState(() {
           _epgData = epgCache[channelKey]!['data'];
-          _selEPGIndex = _getInitialSelectedIndex(_epgData); // 修正为 _selEPGIndex
+          _selEPGIndex = _getInitialSelectedIndex(_epgData);
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_epgData!.isNotEmpty) {
