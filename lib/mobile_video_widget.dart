@@ -27,9 +27,8 @@ class MobileVideoWidget extends StatefulWidget {
   final String currentChannelLogo; // 当前频道LOGO
   final String currentChannelTitle; // 当前频道名称
   final bool isAudio; // 是否为音频模式
-  final AdManager adManager; // 新增 AdManager 参数
+  final AdManager adManager; // 广告管理器
 
-  // 构造函数
   const MobileVideoWidget({
     Key? key,
     required this.controller,
@@ -43,11 +42,11 @@ class MobileVideoWidget extends StatefulWidget {
     required this.currentChannelId,
     required this.currentChannelLogo,
     required this.currentChannelTitle,
-    required this.adManager, // 添加必填参数
+    required this.adManager,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
-    this.isAudio = false, // 默认为视频模式
+    this.isAudio = false,
   }) : super(key: key);
 
   @override
@@ -55,105 +54,75 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  static const _appBarDivider = PreferredSize(
+  // AppBar 分割线，使用渐变效果和阴影
+  static final _appBarDivider = PreferredSize(
     preferredSize: Size.fromHeight(1),
-    child: DecoratedBox(
+    child: Container(
+      height: 1,
       decoration: BoxDecoration(
-        color: Color(0xFF424242),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+        ],
       ),
-      child: SizedBox(height: 0.5),
     ),
   );
 
-  // 抽离logo组件到非静态变量
-  late final Widget _appBarLogo;
-
-  // 抽离回调方法，减少在build函数中重复生成不必要的新闭包
-  Future<void> _handleAddPressed() async {
-    LogUtil.safeExecute (() async {
-      if (!EnvUtil.isMobile) {
-        // 隐藏标题栏（如果不是移动设备）
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-      }
-
-      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
-      if (wasPlaying) {
-        widget.controller?.pause(); // 当前播放中，则暂停播放以节省资源
-      }
-
-      await Navigator.of(context).pushNamed(RouterKeys.subScribe); // 推送至订阅页面
-
-      if (wasPlaying) {
-        widget.controller?.play(); // 返回时恢复播放
-      }
-
-      final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 获取缓存中的 m3u 数据
-      if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
-        widget.onChangeSubSource(); // 数据无效则触发数据源变更回调
-      }
-
-      if (!EnvUtil.isMobile) {
-        // 恢复标题栏显示（如果不是移动设备）
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-      }
-    }, '执行操作按钮发生错误'); // 错误记录日志
-  }
-
-  Future<void> _handleSettingsPressed() async {
-    LogUtil.safeExecute(() async {
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-      }
-
-      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
-      if (wasPlaying) {
-        widget.controller?.pause(); // 暂停播放
-      }
-
-      await Navigator.of(context).pushNamed(RouterKeys.setting); // 推送至设置页面
-
-      if (wasPlaying) {
-        widget.controller?.play(); // 恢复播放
-      }
-
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true); // 恢复标题栏
-      }
-    }, '执行操作设置按钮发生错误'); // 错误记录日志
-  }
-
-  // 延迟初始化变量，减少不必要的计算
-  late final List<Widget> _appBarIcons;
-  late final bool _isLandscape;
-  late final double _playerHeight;
+  late final Widget _appBarLogo; // AppBar 中的 Logo 组件
+  late final List<Widget> _appBarIcons; // AppBar 中的操作按钮列表
+  late double _playerHeight; // 播放器高度
+  late bool _isLandscape; // 是否为横屏模式
+  late double _cachedAspectRatio; // 缓存的视频宽高比
 
   @override
   void initState() {
     super.initState();
-    _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
-    _playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+    // 初始化静态变量
+    _isLandscape = widget.isLandscape ?? true;
+    _cachedAspectRatio = widget.aspectRatio;
 
-    // 初始化logo
-    _appBarLogo = Image.asset(
-      'assets/images/logo-2.png',
-      height: 36,
-      fit: BoxFit.contain,
+    // 初始化 Logo，添加阴影效果
+    _appBarLogo = Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Image.asset(
+        'assets/images/logo-2.png',
+        height: 36,
+        fit: BoxFit.contain,
+      ),
     );
-    
+
     // 初始化操作按钮列表
     _appBarIcons = [
       // 暂时注释掉用户自己添加播放列表的功能
       // IconButton(
       //   padding: EdgeInsets.zero,
       //   visualDensity: VisualDensity.compact,
-      //   icon: const Icon(Icons.add, size: 24),
+      //   icon: const Icon(Icons.add, size: 24, color: Colors.white), // 白色图标
       //   onPressed: _handleAddPressed,
       // ),
       // const SizedBox(width: 8),
       IconButton(
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        icon: const Icon(Icons.settings_outlined, size: 24),
+        icon: const Icon(Icons.settings_outlined, size: 24, color: Colors.white),
         onPressed: _handleSettingsPressed,
       ),
       const SizedBox(width: 8),
@@ -161,10 +130,69 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 计算播放器高度，确保适配不同设备
+    final screenWidth = MediaQuery.of(context).size.width;
+    _playerHeight = screenWidth / (EnvUtil.isMobile ? (16 / 9) : (21 / 9));
+    _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
+  }
+
+  @override
+  void didUpdateWidget(covariant MobileVideoWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 当控制器更新时，更新缓存的宽高比
+    if (oldWidget.controller != widget.controller) {
+      _cachedAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio;
+    }
+  }
+
+  // 处理导航的公共方法
+  Future<void> _handleNavigation(String route, VoidCallback onComplete) async {
+    LogUtil.safeExecute(() async {
+      if (!EnvUtil.isMobile) {
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+      }
+
+      final wasPlaying = widget.controller?.isPlaying() ?? false;
+      if (wasPlaying) {
+        widget.controller?.pause();
+      }
+
+      await Navigator.of(context).pushNamed(route);
+
+      if (wasPlaying) {
+        widget.controller?.play();
+      }
+
+      onComplete();
+
+      if (!EnvUtil.isMobile) {
+        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+      }
+    }, '执行导航操作发生错误');
+  }
+
+  // 处理添加按钮点击事件
+  Future<void> _handleAddPressed() async {
+    await _handleNavigation(RouterKeys.subScribe, () {
+      final m3uData = SpUtil.getString('m3u_cache', defValue: '');
+      if (m3uData.isEmpty || !isValidM3U(m3uData)) {
+        widget.onChangeSubSource();
+      }
+    });
+  }
+
+  // 处理设置按钮点击事件
+  Future<void> _handleSettingsPressed() async {
+    await _handleNavigation(RouterKeys.setting, () {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: 48.0,
         centerTitle: true,
@@ -172,6 +200,24 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
         title: _appBarLogo,
         bottom: _appBarDivider,
         actions: _appBarIcons,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                spreadRadius: 2,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -183,7 +229,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               controller: widget.controller,
               toastString: widget.toastString,
               isLandscape: _isLandscape,
-              aspectRatio: widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio,
+              aspectRatio: _cachedAspectRatio,
               isBuffering: widget.isBuffering,
               isPlaying: widget.isPlaying,
               drawerIsOpen: false,
@@ -194,21 +240,20 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               currentChannelTitle: widget.currentChannelTitle,
               changeChannelSources: widget.changeChannelSources,
               isAudio: widget.isAudio,
-              adManager: widget.adManager, // 传递 AdManager 参数
+              adManager: widget.adManager,
             ),
           ),
           Flexible(
-            // 如果提示信息为 'UNKNOWN', 显示空页面，并提供刷新回调
             child: widget.toastString == 'UNKNOWN'
                 ? EmptyPage(onRefresh: widget.onChangeSubSource)
-                : widget.drawChild, // 否则显示传入的自定义子组件
+                : widget.drawChild,
           ),
         ],
       ),
     );
   }
 
-  // 判断 m3u 数据是否有效，检查其是否包含 M3U 文件必要的标识符
+  // 判断 M3U 数据是否有效
   bool isValidM3U(String data) {
     return data.contains('#EXTM3U');
   }
