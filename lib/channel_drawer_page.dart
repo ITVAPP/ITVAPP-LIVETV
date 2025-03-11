@@ -195,11 +195,11 @@ class ScrollUtil {
   
   static void scrollToPosition(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
+    const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
-    final itemHeight = defaultMinHeight;
     final currentOffset = controller.offset;
-    final itemTop = index * itemHeight;
-    final itemBottom = itemTop + itemHeight;
+    final itemTop = index * realItemHeight;
+    final itemBottom = itemTop + realItemHeight;
     final viewTop = currentOffset;
     final viewBottom = currentOffset + viewPortHeight;
 
@@ -219,9 +219,9 @@ class ScrollUtil {
   // 新增：用于居中滚动的方法
   static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
+    const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
     final maxScrollExtent = controller.position.maxScrollExtent;
-    final itemHeight = defaultMinHeight;
-    final targetOffset = index * itemHeight - (viewPortHeight - itemHeight) / 2; // 居中计算
+    final targetOffset = index * realItemHeight - (viewPortHeight - realItemHeight) / 2; // 居中计算
     controller.jumpTo(
       targetOffset.clamp(0.0, maxScrollExtent),
     );
@@ -1009,9 +1009,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 如果是当前播放频道，居中显示
-          ScrollUtil.scrollToCenter(_scrollController, _groupIndex, _viewPortHeight!);
-          ScrollUtil.scrollToCenter(_scrollChannelController, _channelIndex, _viewPortHeight!);
+          // 顶部对齐 + 两个列表项高度（118.0）
+          const realItemHeight = 59.0; // 实际高度：42.0 + 16.0 + 1.0
+          final baseOffset = _groupIndex * realItemHeight; // 顶部对齐
+          final targetOffset = baseOffset + (realItemHeight * 2); // 加两个项高度
+          final groupMaxScroll = _scrollController.position.maxScrollExtent;
+          final channelMaxScroll = _scrollChannelController.position.maxScrollExtent;
+          final clampedOffset = targetOffset.clamp(0.0, min(groupMaxScroll, channelMaxScroll));
+          _scrollController.jumpTo(clampedOffset);
+          _scrollChannelController.jumpTo(clampedOffset);
         });
       } else {
         _channelIndex = 0;
@@ -1163,7 +1169,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           epgCache[channelKey]!['timestamp'].day == currentTime.day) {
         setState(() {
           _epgData = epgCache[channelKey]!['data'];
-          _selEPGIndex = _getInitialSelectedIndex(_epgData);
+          Indicators = _getInitialSelectedIndex(_epgData);
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_epgData!.isNotEmpty) {
