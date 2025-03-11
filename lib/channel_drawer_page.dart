@@ -810,7 +810,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   void _initializeChannelData() {
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
-      _resetChannelData();
+      _resetChannel removingData();
       return;
     }
 
@@ -897,7 +897,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _values = [];
     _groupIndex = -1;
     _channelIndex = -1;
-    _selEPGIndex = 0;
+    _selEPGIndexs = 0;
   }
 
   void _reInitializeFocusListeners() {
@@ -939,6 +939,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
         if (widget.playModel?.title == null || !_values[_groupIndex].containsKey(widget.playModel?.title)) {
           _isSystemAutoSelected = true;
+          _groupIndex = 0; // 重置到分组第一项
+          _channelIndex = 0; // 重置到频道第一项
           ScrollUtil.scrollToTop(_scrollController);
           ScrollUtil.scrollToTop(_scrollChannelController);
         } else {
@@ -987,6 +989,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = 0;
         _isChannelAutoSelected = true;
         ScrollUtil.scrollToTop(_scrollChannelController);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: 0);
+        });
       }
     });
 
@@ -1067,23 +1072,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         cacheName: 'ChannelDrawerPage',
         isVerticalGroup: true,
         initialIndex: 0,
-        onStateCreated: (TvKeyNavigationState state) {
-          _handleTvKeyNavigationStateCreated(state);
-          state.onFocusChanged = (int newIndex) {
-            if (newIndex < _categoryStartIndex || newIndex >= _channelStartIndex + _values[_groupIndex].length) return;
-            if (newIndex >= _groupStartIndex && newIndex < _channelStartIndex) {
-              setState(() {
-                _groupIndex = newIndex - _groupStartIndex;
-              });
-              _adjustScrollPositions(groupIndex: 0);
-            } else if (newIndex >= _channelStartIndex) {
-              setState(() {
-                _channelIndex = newIndex - _channelStartIndex;
-              });
-              _adjustScrollPositions(channelIndex: 0);
-            }
-          };
-        },
+        onStateCreated: _handleTvKeyNavigationStateCreated, 
         child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
       );
     } else {
