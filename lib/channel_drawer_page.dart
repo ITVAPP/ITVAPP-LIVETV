@@ -13,67 +13,84 @@ import 'entity/playlist_model.dart';
 import 'generated/l10n.dart';
 import 'config.dart';
 
-// 分割线样式 - 垂直分割线加粗且增加渐变效果
+// 分割线样式 - 垂直分割线优化为更柔和的渐变效果（修改）
 final verticalDivider = Container(
-  width: 1,
+  width: 1.5, // 修改：加粗至1.5，增强视觉效果
   decoration: BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        Colors.white.withOpacity(0.1),
-        Colors.white.withOpacity(0.2),
-        Colors.white.withOpacity(0.1),
+        Colors.white.withOpacity(0.05), // 修改：顶部更柔和
+        Colors.white.withOpacity(0.25), // 修改：中间高亮
+        Colors.white.withOpacity(0.05), // 修改：底部渐淡
       ],
     ),
   ),
 );
 
-// 水平分割线样式
+// 水平分割线样式 - 添加微妙阴影和渐变（修改）
 final horizontalDivider = Container(
   height: 1,
   decoration: BoxDecoration(
     gradient: LinearGradient(
       colors: [
-        Colors.white.withOpacity(0.08),
-        Colors.white.withOpacity(0.2),
-        Colors.white.withOpacity(0.08),
+        Colors.white.withOpacity(0.05), // 修改：渐变更柔和
+        Colors.white.withOpacity(0.15), // 修改：高亮部分调整
+        Colors.white.withOpacity(0.05), // 修改：渐变更柔和
       ],
     ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.1), // 修改：添加微妙阴影
+        blurRadius: 2,
+        offset: Offset(0, 1),
+      ),
+    ],
   ),
 );
 
-// 文字样式
+// 文字样式 - 优化字体大小和行高（修改）
 const defaultTextStyle = TextStyle(
-  fontSize: 17, // 字体大小
-  height: 1.3,  // 调整行高
+  fontSize: 16, // 修改：调整为16，更符合现代设计
+  height: 1.4, // 修改：增加行高，提升可读性
+  color: Colors.white, // 修改：默认白色文字
 );
 
+// 选中文字样式 - 添加阴影和动态效果（修改）
 const selectedTextStyle = TextStyle(
-  fontWeight: FontWeight.bold,
+  fontWeight: FontWeight.w600, // 修改：更强的粗体效果
   color: Colors.white,
   shadows: [
     Shadow(
-      offset: Offset(1.0, 1.0),
-      blurRadius: 3.0,
-      color: Colors.black54,
+      offset: Offset(0, 1), // 修改：调整阴影位置
+      blurRadius: 4.0, // 修改：增加模糊半径
+      color: Colors.black45, // 修改：阴影颜色更柔和
     ),
   ],
 );
 
-// 最小高度
-const defaultMinHeight = 42.0;
+// 最小高度 - 略微增加以适应现代设计（修改）
+const defaultMinHeight = 48.0; // 修改：从42.0增加到48.0
 
-// 背景色
-const defaultBackgroundColor = Colors.black54;
+// 背景色 - 使用更深的渐变背景（修改）
+final defaultBackgroundColor = LinearGradient(
+  colors: [
+    Color(0xFF1A1A1A), // 修改：深灰色背景
+    Color(0xFF2C2C2C), // 修改：略浅的灰色
+  ],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
 
-// padding设置
-const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
+// padding设置 - 增加垂直间距（修改）
+const defaultPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0); // 修改：增加垂直间距
 
-// 装饰设置
-const Color selectedColor = Color(0xFFEB144C); // 选中颜色
-const Color unselectedColor = Color(0xFFDFA02A); // 焦点颜色
+// 装饰设置 - 优化选中和焦点颜色（修改）
+const Color selectedColor = Color(0xFFEB144C); // 保持不变：红色高亮
+const Color focusColor = Color(0xFFFFA726); // 修改：橙色焦点替代unselectedColor
 
+// 构建列表项装饰 - 添加渐变和阴影（修改）
 BoxDecoration buildItemDecoration({
   bool isSelected = false,
   bool hasFocus = false,
@@ -81,39 +98,90 @@ BoxDecoration buildItemDecoration({
   bool isSystemAutoSelected = false,
 }) {
   return BoxDecoration(
-    color: isTV
+    gradient: isTV
         ? (hasFocus
-            ? unselectedColor.withOpacity(0.8)
-            : (isSelected && !isSystemAutoSelected ? selectedColor.withOpacity(0.9) : Colors.transparent))
-        : (isSelected && !isSystemAutoSelected ? selectedColor.withOpacity(0.9) : Colors.transparent),
+            ? LinearGradient(
+                colors: [
+                  focusColor.withOpacity(0.9), // 修改：使用渐变焦点颜色
+                  focusColor.withOpacity(0.7),
+                ],
+              )
+            : (isSelected && !isSystemAutoSelected
+                ? LinearGradient(
+                    colors: [
+                      selectedColor.withOpacity(0.9), // 修改：使用渐变选中颜色
+                      selectedColor.withOpacity(0.7),
+                    ],
+                  )
+                : null))
+        : (isSelected && !isSystemAutoSelected
+            ? LinearGradient(
+                colors: [
+                  selectedColor.withOpacity(0.9), // 修改：使用渐变选中颜色
+                  selectedColor.withOpacity(0.7),
+                ],
+              )
+            : null),
     border: Border.all(
-      color: (isSelected && !isSystemAutoSelected) || (isTV && hasFocus)
-          ? Colors.white.withOpacity(0.15)
+      color: hasFocus || (isSelected && !isSystemAutoSelected)
+          ? Colors.white.withOpacity(0.3) // 修改：边框颜色更柔和
           : Colors.transparent,
-      width: 1,
+      width: 1.5, // 修改：边框宽度增加
     ),
+    borderRadius: BorderRadius.circular(8), // 修改：添加圆角
+    boxShadow: hasFocus
+        ? [
+            BoxShadow(
+              color: focusColor.withOpacity(0.3), // 修改：焦点状态添加阴影
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ]
+        : [],
   );
 }
 
-// 用于管理所有 FocusNode 的列表和全局焦点状态
-List<FocusNode> _focusNodes = [];
-Map<int, bool> _focusStates = {};
+// 焦点管理类
+class FocusManager {
+  static List<FocusNode> nodes = [];
+  static Map<int, bool> states = {};
+
+  static void initialize(int count) {
+    if (nodes.length != count) {
+      if (nodes.length > count) {
+        for (var i = count; i < nodes.length; i++) {
+          nodes[i].dispose();
+        }
+        nodes.removeRange(count, nodes.length);
+        states.removeWhere((key, _) => key >= count);
+      } else {
+        nodes.addAll(List.generate(count - nodes.length, (index) => FocusNode()));
+      }
+    }
+  }
+
+  static void dispose() {
+    nodes.forEach((node) => node.dispose());
+    nodes.clear();
+    states.clear();
+  }
+}
 
 // 添加焦点监听逻辑的通用函数
 void addFocusListeners(int startIndex, int length, State state) {
-  if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+  if (startIndex < 0 || length <= 0 || startIndex + length > FocusManager.nodes.length) {
     return;
   }
   for (var i = 0; i < length; i++) {
-    _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
+    FocusManager.states[startIndex + i] = FocusManager.nodes[startIndex + i].hasFocus;
   }
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
-    _focusNodes[index].removeListener(() {});
-    _focusNodes[index].addListener(() {
-      final currentFocus = _focusNodes[index].hasFocus;
-      if (_focusStates[index] != currentFocus) {
-        _focusStates[index] = currentFocus;
+    FocusManager.nodes[index].removeListener(() {});
+    FocusManager.nodes[index].addListener(() {
+      final currentFocus = FocusManager.nodes[index].hasFocus;
+      if (FocusManager.states[index] != currentFocus) {
+        FocusManager.states[index] = currentFocus;
         state.setState(() {});
       }
     });
@@ -123,21 +191,14 @@ void addFocusListeners(int startIndex, int length, State state) {
 // 移除焦点监听逻辑的通用函数
 void removeFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
-    _focusNodes[startIndex + i].removeListener(() {});
-    _focusStates.remove(startIndex + i);
+    FocusManager.nodes[startIndex + i].removeListener(() {});
+    FocusManager.states.remove(startIndex + i);
   }
 }
 
 // 初始化 FocusNode 列表
 void _initializeFocusNodes(int totalCount) {
-  if (_focusNodes.length != totalCount) {
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    _focusNodes.clear();
-    _focusStates.clear();
-    _focusNodes = List.generate(totalCount, (index) => FocusNode());
-  }
+  FocusManager.initialize(totalCount);
 }
 
 // 判断是否超出可视区域函数
@@ -156,7 +217,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数
+// 通用列表项构建函数 - 添加动画效果（修改）
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -171,8 +232,8 @@ Widget buildListItem({
   bool isLastItem = false,
   bool isSystemAutoSelected = false,
 }) {
-  FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
-      ? _focusNodes[index]
+  FocusNode? focusNode = (index != null && index >= 0 && index < FocusManager.nodes.length)
+      ? FocusManager.nodes[index]
       : null;
 
   final hasFocus = focusNode?.hasFocus ?? false;
@@ -185,7 +246,9 @@ Widget buildListItem({
         onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
         child: GestureDetector(
           onTap: onTap,
-          child: Container(
+          child: AnimatedContainer( // 修改：添加动画效果
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
             constraints: BoxConstraints(minHeight: minHeight),
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
@@ -244,29 +307,22 @@ class CategoryList extends StatefulWidget {
 }
 
 class _CategoryListState extends State<CategoryList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    // 初始化本地焦点状态
-    for (var i = 0; i < widget.categories.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.categories.length, this);
   }
 
   @override
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.categories.length);
-    _localFocusStates.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: defaultBackgroundColor,
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
       child: Group(
         groupIndex: 0,
         child: Column(
@@ -323,22 +379,15 @@ class GroupList extends StatefulWidget {
 }
 
 class _GroupListState extends State<GroupList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    // 初始化本地焦点状态
-    for (var i = 0; i < widget.keys.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.keys.length, this);
   }
 
   @override
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.keys.length);
-    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -349,7 +398,7 @@ class _GroupListState extends State<GroupList> {
     }
 
     return Container(
-      color: defaultBackgroundColor,
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
       child: widget.keys.isEmpty && widget.isFavoriteCategory
           ? ListView(
               controller: widget.scrollController,
@@ -421,15 +470,9 @@ class ChannelList extends StatefulWidget {
 }
 
 class _ChannelListState extends State<ChannelList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    // 初始化本地焦点状态
-    for (var i = 0; i < widget.channels.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.channels.length, this);
 
     if (widget.isTV && widget.selectedChannelName != null) {
@@ -445,7 +488,6 @@ class _ChannelListState extends State<ChannelList> {
   @override
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.channels.length);
-    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -458,7 +500,7 @@ class _ChannelListState extends State<ChannelList> {
     }
 
     return Container(
-      color: defaultBackgroundColor,
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
       child: ListView(
         controller: widget.scrollController,
         children: [
@@ -527,16 +569,21 @@ class _EPGListState extends State<EPGList> {
     }
 
     return Container(
-      color: defaultBackgroundColor,
+      decoration: BoxDecoration(gradient: defaultBackgroundColor), // 修改：使用渐变背景
       child: Column(
         children: [
           Container(
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 10), // 修改：调整内边距
             decoration: BoxDecoration(
-              color: defaultBackgroundColor,
-              borderRadius: BorderRadius.circular(5),
+              gradient: LinearGradient( // 修改：使用渐变背景
+                colors: [
+                  Colors.black.withOpacity(0.8),
+                  Colors.black.withOpacity(0.6),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8), // 修改：添加圆角
             ),
             child: Text(
               S.of(context).programListTitle,
@@ -605,6 +652,7 @@ class ChannelDrawerPage extends StatefulWidget {
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
+  static const int _epgCacheLimit = 50; // 设置 EPG 缓存上限
   final ScrollController _scrollController = ScrollController();
   final ScrollController _scrollChannelController = ScrollController();
   final ItemScrollController _epgItemScrollController = ItemScrollController();
@@ -661,21 +709,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 统一的初始化方法
   void _initializeData() {
-    // 1. 初始化基础数据
+    // 初始化分类数据
     _initializeCategoryData();
+
+    // 初始化频道和分组数据
     _initializeChannelData();
 
-    // 2. 计算并初始化焦点节点
-    int totalFocusNodes = _calculateTotalFocusNodes();
-    _initializeFocusNodes(totalFocusNodes);
+    // 初始化焦点节点
+    _initializeFocusNodes(_calculateTotalFocusNodes());
 
-    // 3. 计算视图高度
-    _calculateViewportHeight();
-
-    // 4. 加载EPG数据（如果需要）
-    if (_shouldLoadEpg()) {
-      _loadEPGMsg(widget.playModel);
-    }
+    // 延迟执行布局相关操作
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calculateViewportHeight();
+      if (_shouldLoadEpg()) _loadEPGMsg(widget.playModel);
+    });
   }
 
   // 计算总焦点节点数
@@ -714,9 +761,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_scrollChannelController.hasClients) {
       _scrollChannelController.dispose();
     }
-    _focusNodes.forEach((node) => node.dispose());
-    _focusNodes.clear();
-    _focusStates.clear();
+    FocusManager.dispose(); // 使用封装类清理焦点资源
+    _tvKeyNavigationState?.releaseResources(); // 确保 TvKeyNavigationState 资源释放
+    _tvKeyNavigationState = null;
+    _clearEpgCacheIfNeeded(); // 清理 EPG 缓存
     super.dispose();
   }
 
@@ -809,12 +857,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     final selectedCategory = _categories[_categoryIndex];
-    final categoryMap = widget.videoMap?.playList[selectedCategory];
+    final categoryMap = widget.videoMap?.playList[selectedCategory] ?? {};
+    final keys = categoryMap.keys.toList();
+    final values = categoryMap.values.toList();
 
-    _keys = categoryMap.keys.toList();
-    _values = categoryMap.values.toList();
+    _keys = keys;
+    _values = values;
 
-    // 如果有位置信息，进行排序
     _sortByLocation();
 
     _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
@@ -839,18 +888,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     try {
       // 解析格式化的字符串
       List<String> lines = locationStr.split('\n');
-      String? region;
-      String? city;
+      String? region = lines.firstWhere((line) => line.startsWith('地区:'), orElse: () => '').substring(3).trim().toLowerCase();
+      String? city = lines.firstWhere((line) => line.startsWith('城市:'), orElse: () => '').substring(3).trim().toLowerCase();
 
-      for (String line in lines) {
-        if (line.startsWith('地区:')) {
-          region = line.substring(3).trim().toLowerCase();
-        } else if (line.startsWith('城市:')) {
-          city = line.substring(3).trim().toLowerCase();
-        }
-      }
-
-      if ((region?.isEmpty ?? true) && (city?.isEmpty ?? true)) return;
+      if (region.isEmpty && city.isEmpty) return;
 
       List<String> exactMatches = [];    // 城市匹配
       List<String> partialMatches = [];  // 地区匹配
@@ -858,11 +899,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
       for (String key in _keys) {
         String lowercaseKey = key.toLowerCase();
-        if (city != null && city.isNotEmpty &&
-            (lowercaseKey.contains(city) || city.contains(lowercaseKey))) {
+        if (city.isNotEmpty && (lowercaseKey.contains(city) || city.contains(lowercaseKey))) {
           exactMatches.add(key);
-        } else if (region != null && region.isNotEmpty &&
-                   (lowercaseKey.contains(region) || region.contains(lowercaseKey))) {
+        } else if (region.isNotEmpty && (lowercaseKey.contains(region) || region.contains(lowercaseKey))) {
           partialMatches.add(key);
         } else {
           otherGroups.add(key);
@@ -880,8 +919,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       _values = newValues;
 
-    } catch (e) {
-      LogUtil.e('解析位置信息失败: $e');
+    } catch (e, stackTrace) {
+      LogUtil.e('解析位置信息失败: $e\n堆栈: $stackTrace');
     }
   }
 
@@ -897,22 +936,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 重新初始化所有焦点监听器的方法
   void _reInitializeFocusListeners() {
-    for (var node in _focusNodes) {
-      node.removeListener(() {});
+    for (var i = 0; i < FocusManager.nodes.length; i++) {
+      if (FocusManager.nodes[i].hasListeners) {
+        FocusManager.nodes[i].removeListener(() {});
+      }
     }
 
-    // 添加新的监听器并检查焦点变化
-    addFocusListeners(0, _categories.length, this);
+    void addListeners(int start, int count) {
+      if (start + count > FocusManager.nodes.length) return;
+      addFocusListeners(start, count, this);
+    }
 
-    // 如果有分组，初始化分组的监听器
+    addListeners(0, _categories.length);
     if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this);
-      if (_values.isNotEmpty && _groupIndex >= 0) {
-        addFocusListeners(
-          _categories.length + _keys.length,
-          _values[_groupIndex].length,
-          this,
-        );
+      addListeners(_categories.length, _keys.length);
+      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+        addListeners(_categories.length + _keys.length, _values[_groupIndex].length);
       }
     }
   }
@@ -920,110 +959,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 切换分类时更新分组和频道
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
-    setState(() {
-      _categoryIndex = index; // 更新选中的分类索引
-      // 重置所有焦点状态
-      _focusStates.clear();
-      // 检查选中的分类是否有分组
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
-      if (categoryMap == null || categoryMap.isEmpty) {
-        _resetChannelData();
-        _isSystemAutoSelected = true; // 空分类时设置为系统自动选中
-        _initializeFocusNodes(_categories.length);
-        _updateStartIndexes(includeGroupsAndChannels: false);
-      } else {
-        // 分组不为空时，初始化频道数据
-        _initializeChannelData();
-        // 计算新分类下的总节点数，并初始化 FocusNode
-        int totalFocusNodes = _categories.length;
-
-        // 确保 _keys 不为空且 _values 有效时才添加其长度
-        if (_keys.isNotEmpty) {
-          totalFocusNodes += _keys.length;
-          // 确保 _groupIndex 有效且 _values[_groupIndex] 存在
-          if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-            totalFocusNodes += _values[_groupIndex].length;
-          }
-        }
-
-        _initializeFocusNodes(totalFocusNodes);
-        _updateStartIndexes(includeGroupsAndChannels: true);
-
-        // 判断是否是当前播放频道所在分类
-        if (widget.playModel?.title == null ||
-            !_values[_groupIndex].containsKey(widget.playModel?.title)) {
-          // 不是当前播放频道所在分类时，重置滚动位置
-          _isSystemAutoSelected = true; // 找不到当前播放频道时设置为系统自动选中
-          _scrollToTop(_scrollController);
-          _scrollToTop(_scrollChannelController);
-        } else {
-          // 是当前播放频道所在分类时，调整到正确位置
-          _isSystemAutoSelected = false; // 找到当前播放频道时取消系统自动选中
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _adjustScrollPositions();
-          });
-        }
-      }
-    });
-
-    // 重新初始化焦点系统
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-      }
-      _reInitializeFocusListeners();
-    });
+    final selectedCategory = _categories[index];
+    final categoryMap = widget.videoMap?.playList[selectedCategory];
+    if (categoryMap == null || categoryMap.isEmpty) {
+      _resetChannelData();
+      _updateStateAndFocus(index, -1);
+      _scrollToTop(_scrollController);
+      _scrollToTop(_scrollChannelController);
+    } else {
+      _initializeChannelData();
+      _updateStateAndFocus(index, _groupIndex);
+    }
   }
 
   // 切换分组时更新频道
   void _onGroupTap(int index) {
+    if (_groupIndex == index) return;
+    _updateStateAndFocus(_categoryIndex, index, resetChannel: true);
+  }
+
+  // 更新状态和焦点（新增：提取的公共逻辑）
+  void _updateStateAndFocus(int newCategoryIndex, int newGroupIndex, {bool resetChannel = false}) {
     setState(() {
-      _groupIndex = index;
-      _isSystemAutoSelected = false; // 用户点击，直接设置为 false
-
-      // 重置所有焦点状态
-      _focusStates.clear();
-      // 重新计算所需节点数，并初始化 FocusNode
-      int totalFocusNodes = _categories.length
-          + (_keys.isNotEmpty ? _keys.length : 0)
-          + (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
-      _initializeFocusNodes(totalFocusNodes);
-      // 重新分配索引
-      _updateStartIndexes(includeGroupsAndChannels: true);
-
-      // 判断是否是当前播放频道所在分组
-      if (widget.playModel?.group == _keys[index]) {
-        // 是当前播放频道所在分组，找到对应的频道索引
-        _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (_channelIndex == -1) {
-          _channelIndex = 0;
-        }
-
-        // 调整到正确位置
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _adjustScrollPositions();
-        });
-      } else {
-        // 不是当前播放频道所在分组，重置到第一个频道
-        _channelIndex = 0;
-        _isChannelAutoSelected = true;
-        _scrollToTop(_scrollChannelController);
-      }
+      _categoryIndex = newCategoryIndex;
+      _groupIndex = newGroupIndex;
+      if (resetChannel) _channelIndex = 0;
+      _isSystemAutoSelected = false;
+      FocusManager.states.clear();
+      _initializeFocusNodes(_calculateTotalFocusNodes());
+      _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty);
     });
-
-    // 状态更新后重新初始化焦点系统
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
-      }
-      // 重新初始化所有焦点监听器
+      _tvKeyNavigationState?.releaseResources();
+      _tvKeyNavigationState?.initializeFocusLogic(initialIndexOverride: newCategoryIndex);
       _reInitializeFocusListeners();
+      _adjustScrollPositions();
     });
   }
 
@@ -1080,21 +1050,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 根据索引调整滚动位置
   void _scrollToPosition(ScrollController controller, int index) {
-    if (!controller.hasClients) return;
+    if (!controller.hasClients || _viewPortHeight == null) {
+      LogUtil.i('滚动控制器未就绪或视口高度未初始化，跳过滚动');
+      return;
+    }
     final maxScrollExtent = controller.position.maxScrollExtent;
     final double viewPortHeight = _viewPortHeight!;
-    final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * 0.5;
-    controller.jumpTo(shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent);
+    final double targetOffset = (index * defaultMinHeight - viewPortHeight * 0.5).clamp(0.0, maxScrollExtent);
+    controller.animateTo(targetOffset, duration: const Duration(milliseconds: 200), curve: Curves.easeInOut);
   }
 
   // 加载EPG
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
-    if (isPortrait || playModel == null) return;
+    if (isPortrait || playModel == null || channelKey == null) return;
+    _clearEpgCacheIfNeeded(); // 在加载新数据前检查并清理缓存
     try {
       final currentTime = DateTime.now();
       // 检查缓存是否存在且未过期
-      if (channelKey != null &&
-          epgCache.containsKey(channelKey) &&
+      if (epgCache.containsKey(channelKey) &&
           epgCache[channelKey]!['timestamp'].day == currentTime.day) {
         setState(() {
           _epgData = epgCache[channelKey]!['data'];
@@ -1120,12 +1093,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _epgData = res.epgData!; // 更新节目单数据
         _selEPGIndex = selectedIndex;
       });
-      if (channelKey != null) {
-        epgCache[channelKey] = {
-          'data': res.epgData!,
-          'timestamp': currentTime,
-        };
-      }
+      epgCache[channelKey] = {
+        'data': res.epgData!,
+        'timestamp': currentTime,
+      };
       // 在节目单数据更新后滚动到当前选中的节目项
       if (_epgData!.isNotEmpty) {
         _epgItemScrollController.scrollTo(
@@ -1135,6 +1106,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
+    }
+  }
+
+  // 清理 EPG 缓存（新增：限制缓存大小）
+  void _clearEpgCacheIfNeeded() {
+    if (epgCache.length > _epgCacheLimit) {
+      final keysToRemove = epgCache.keys.take(epgCache.length - _epgCacheLimit).toList();
+      keysToRemove.forEach(epgCache.remove);
+      LogUtil.i('EPG 缓存超出限制，已清理 ${keysToRemove.length} 项');
     }
   }
 
@@ -1157,11 +1137,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 检查焦点列表是否正确，如果不正确则重建
   List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length + (_keys.isNotEmpty ? _keys.length : 0) + (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-    if (_focusNodes.length != totalNodesExpected) {
-      _initializeFocusNodes(totalNodesExpected);
-    }
-    return _focusNodes;
+    int totalNodesExpected = _categories.length + _keys.length + (_groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    _initializeFocusNodes(totalNodesExpected);
+    return FocusManager.nodes;
   }
 
   @override
@@ -1234,18 +1212,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
-  // 构建抽屉视图
+  // 构建抽屉视图 - 添加整体样式（修改）
   Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
-
     double categoryWidth = isPortrait ? 110 : 120; // 分类列表宽度
     double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;  // 设置分组列表宽度
-
-    // 设置频道列表宽度
     double channelListWidth = (groupListWidget != null && channelListWidget != null)
         ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160)
         : 0;
-
-    // 设置 EPG 列表宽度
     double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
         : 0;
@@ -1256,8 +1229,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.black, Colors.transparent]),
+      decoration: BoxDecoration(
+        gradient: LinearGradient( // 修改：使用深灰色渐变
+          colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12), // 修改：添加圆角
+        boxShadow: [ // 修改：添加阴影
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
