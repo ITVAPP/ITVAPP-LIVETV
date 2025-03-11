@@ -343,7 +343,7 @@ class GroupList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     this.isFavoriteCategory = false,
-  }) : isSystemAutoSelected = false;
+  });
 
   @override
   _GroupListState createState() => _GroupListState();
@@ -432,7 +432,7 @@ class ChannelList extends StatefulWidget {
     this.selectedChannelName,
     required this.isTV,
     this.startIndex = 0,
-  }) : isSystemAutoSelected = false;
+  });
 
   @override
   State<ChannelList> createState() => _ChannelListState();
@@ -603,6 +603,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final Function(PlayModel? newModel)? onTapChannel;
   final VoidCallback onCloseDrawer;
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
+  final Key? refreshKey; // 添加 refreshKey 参数
 
   const ChannelDrawerPage({
     super.key,
@@ -612,6 +613,7 @@ class ChannelDrawerPage extends StatefulWidget {
     this.isLandscape = true,
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
+    this.refreshKey, // 可选参数
   });
 
   @override
@@ -661,7 +663,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _initializeData();
+    // 当 refreshKey 变化时重新初始化
+    if (widget.refreshKey != oldWidget.refreshKey) {
+      _initializeData();
+      // 重置焦点管理
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_tvKeyNavigationState != null) {
+          _tvKeyNavigationState!.releaseResources();
+          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
+        }
+        _reInitializeFocusListeners();
+      });
+    }
   }
 
   // 统一的初始化方法
