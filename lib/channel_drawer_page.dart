@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:collection'; // 添加导入以支持 MapBase
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -609,11 +610,12 @@ class ChannelDrawerPage extends StatefulWidget {
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   // 使用 LinkedHashMap 实现容量限制的 epgCache
-  final Map<String, Map<String, dynamic>> epgCache = LinkedHashMap<String, Map<String, dynamic>>(
+  final LinkedHashMap<String, Map<String, dynamic>> epgCache = LinkedHashMap<String, Map<String, dynamic>>(
     equals: (a, b) => a == b,
     hashCode: (key) => key.hashCode,
     onEvict: (key, value) => LogUtil.d('EPG缓存移除: $key'),
-  )..maximumSize = 50; // 设置最大容量为 50
+    maximumSize: 50, // 设置最大容量为 50
+  );
 
   final ScrollController _scrollController = ScrollController();
   final ScrollController _scrollChannelController = ScrollController();
@@ -1244,7 +1246,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 }
 
-// 用于支持容量限制
+// 容量限制
 class LinkedHashMap<K, V> extends MapBase<K, V> {
   final Map<K, V> _map = {};
   final int maximumSize;
