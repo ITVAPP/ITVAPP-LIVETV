@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:collection'; // 添加导入以支持 MapBase
+import 'dart:collection'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -10,9 +10,9 @@ import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'entity/playlist_model.dart';
-import 'generated/l10n.dart';
-import 'config.dart';
+import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 // 是否在非 TV 模式下启用 TV 模式的焦点逻辑（用于调试）
 const bool enableFocusInNonTVMode = true; // 默认关闭
@@ -1262,7 +1262,7 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   });
 
   @override
-  V? operator [](K key) => _map[key];
+  V? operator [](Object? key) => _map.containsKey(key) ? _map[key as K] : null;
 
   @override
   void operator []=(K key, V value) {
