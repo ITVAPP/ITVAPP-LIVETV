@@ -143,7 +143,7 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 焦点管理工具类（保持不变）
+// 焦点管理工具类
 class FocusManager {
   static List<FocusNode> _focusNodes = [];
 
@@ -155,12 +155,27 @@ class FocusManager {
     }
   }
 
-  static void addFocusListeners(int startIndex, int length, State state) {
+  static void addFocusListeners(int startIndex, int length, State state, {ScrollController? scrollController, double? viewPortHeight}) {
     if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) return;
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
       _focusNodes[index].removeListener(() {});
-      _focusNodes[index].addListener(() => state.setState(() {}));
+      _focusNodes[index].addListener(() {
+        state.setState(() {});
+        if (scrollController != null && viewPortHeight != null && _focusNodes[index].hasFocus) {
+          final itemIndex = index - startIndex;
+          final currentOffset = scrollController.offset;
+          final itemTop = itemIndex * defaultMinHeight;
+          final itemBottom = itemTop + defaultMinHeight;
+          final viewTop = currentOffset;
+          final viewBottom = currentOffset + viewPortHeight;
+          if (itemTop < viewTop) {
+            ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
+          } else if (itemBottom > viewBottom) {
+            ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
+          }
+        }
+      });
     }
   }
 
@@ -181,9 +196,10 @@ class ScrollUtil {
   static void scrollToPosition(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
-    final shouldOffset = index * defaultMinHeight - viewPortHeight + defaultMinHeight * 0.5;
+    final itemHeight = defaultMinHeight;
+    final targetOffset = index * itemHeight - (viewPortHeight - itemHeight) / 2; // 居中计算
     controller.jumpTo(
-      shouldOffset < maxScrollExtent ? max(0.0, shouldOffset) : maxScrollExtent,
+      targetOffset.clamp(0.0, maxScrollExtent),
     );
   }
 }
@@ -350,7 +366,7 @@ class _GroupListState extends State<GroupList> {
   @override
   void initState() {
     super.initState();
-    FocusManager.addFocusListeners(widget.startIndex, widget.keys.length, this);
+    FocusManager.addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController, viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight);
   }
 
   @override
@@ -439,7 +455,7 @@ class _ChannelListState extends State<ChannelList> {
   @override
   void initState() {
     super.initState();
-    FocusManager.addFocusListeners(widget.startIndex, widget.channels.length, this);
+    FocusManager.addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController, viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight);
   }
 
   @override
@@ -887,14 +903,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _reInitializeFocusListeners() {
     FocusManager.addFocusListeners(0, _categories.length, this);
     if (_keys.isNotEmpty) {
-      FocusManager.addFocusListeners(_categories.length, _keys.length, this);
+      FocusManager.addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController, viewPortHeight: _viewPortHeight);
       if (_values.isNotEmpty && _groupIndex >= 0) {
-        FocusManager.addFocusListeners(_categories.length + _keys.length, _values[_groupIndex].length, this);
+        FocusManager.addFocusListeners(_categories.length + _keys.length, _values[_groupIndex].length, this, scrollController: _scrollChannelController, viewPortHeight: _viewPortHeight);
       }
     }
   }
 
-  // 切换分类时更新分组和频道
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     if (index < 0 || index >= _categories.length) {
@@ -929,7 +944,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         } else {
           _isSystemAutoSelected = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _adjustScrollPositions();
+            _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: _channelIndex);
           });
         }
       }
@@ -944,7 +959,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 切换分组时更新频道，添加输入验证
   void _onGroupTap(int index) {
     if (index < 0 || index >= _keys.length) {
       LogUtil.e('分组索引越界: index=$index, max=${_keys.length}');
@@ -967,7 +981,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _adjustScrollPositions();
+          _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: _channelIndex);
         });
       } else {
         _channelIndex = 0;
@@ -984,6 +998,97 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       _reInitializeFocusListeners();
     });
+  }
+
+  void _adjustScrollPositions({int? groupIndex, int? channelIndex}) {
+    if (_viewPortHeight == null || !_scrollController.hasClients || !_scrollChannelController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adjustScrollPositions(groupIndex: groupIndex, channelIndex: channelIndex));
+      return;
+    }
+    ScrollUtil.scrollToPosition(_scrollController, groupIndex ?? _groupIndex, _viewPortHeight!);
+    ScrollUtil.scrollToPosition(_scrollChannelController, channelIndex ?? _channelIndex, _viewPortHeight!);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isTV = context.read<ThemeProvider>().isTV;
+    bool useFocusNavigation = isTV || enableFocusInNonTVMode;
+
+    int currentFocusIndex = 0;
+
+    Widget categoryListWidget = CategoryList(
+      categories: _categories,
+      selectedCategoryIndex: _categoryIndex,
+      onCategoryTap: _onCategoryTap,
+      isTV: useFocusNavigation,
+      startIndex: currentFocusIndex,
+    );
+    currentFocusIndex += _categories.length;
+
+    Widget? groupListWidget;
+    Widget? channelListWidget;
+    Widget? epgListWidget;
+
+    groupListWidget = GroupList(
+      keys: _keys,
+      selectedGroupIndex: _groupIndex,
+      onGroupTap: _onGroupTap,
+      isTV: useFocusNavigation,
+      scrollController: _scrollController,
+      isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
+      startIndex: currentFocusIndex,
+    );
+
+    if (_keys.isNotEmpty) {
+      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+        currentFocusIndex += _keys.length;
+        channelListWidget = ChannelList(
+          channels: _values[_groupIndex],
+          selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
+          onChannelTap: _onChannelTap,
+          isTV: useFocusNavigation,
+          scrollController: _scrollChannelController,
+          startIndex: currentFocusIndex,
+        );
+
+        epgListWidget = EPGList(
+          epgData: _epgData,
+          selectedIndex: _selEPGIndex,
+          isTV: useFocusNavigation,
+          epgScrollController: _epgItemScrollController,
+          onCloseDrawer: widget.onCloseDrawer,
+        );
+      }
+    }
+
+    if (useFocusNavigation) {
+      return TvKeyNavigation(
+        focusNodes: _ensureCorrectFocusNodes(),
+        cacheName: 'ChannelDrawerPage',
+        isVerticalGroup: true,
+        initialIndex: 0,
+        onStateCreated: (TvKeyNavigationState state) {
+          _handleTvKeyNavigationStateCreated(state);
+          state.onFocusChanged = (int newIndex) {
+            if (newIndex < _categoryStartIndex || newIndex >= _channelStartIndex + _values[_groupIndex].length) return;
+            if (newIndex >= _groupStartIndex && newIndex < _channelStartIndex) {
+              setState(() {
+                _groupIndex = newIndex - _groupStartIndex;
+              });
+              _adjustScrollPositions(groupIndex: 0);
+            } else if (newIndex >= _channelStartIndex) {
+              setState(() {
+                _channelIndex = newIndex - _channelStartIndex;
+              });
+              _adjustScrollPositions(channelIndex: 0);
+            }
+          };
+        },
+        child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
+      );
+    } else {
+      return _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget);
+    }
   }
 
   // 切换频道，添加输入验证
@@ -1029,15 +1134,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
     _channelStartIndex = channelStartIndex;
-  }
-
-  void _adjustScrollPositions() {
-    if (_viewPortHeight == null || !_scrollController.hasClients || !_scrollChannelController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _adjustScrollPositions());
-      return;
-    }
-    ScrollUtil.scrollToPosition(_scrollController, _groupIndex, _viewPortHeight!);
-    ScrollUtil.scrollToPosition(_scrollChannelController, _channelIndex, _viewPortHeight!);
   }
 
   // 加载EPG，缓存过期检查，当日的日期内有效
@@ -1112,72 +1208,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       FocusManager.initializeFocusNodes(totalNodesExpected);
     }
     return FocusManager.getFocusNodes();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    bool isTV = context.read<ThemeProvider>().isTV;
-    bool useFocusNavigation = isTV || enableFocusInNonTVMode;
-
-    int currentFocusIndex = 0;
-
-    Widget categoryListWidget = CategoryList(
-      categories: _categories,
-      selectedCategoryIndex: _categoryIndex,
-      onCategoryTap: _onCategoryTap,
-      isTV: useFocusNavigation,
-      startIndex: currentFocusIndex,
-    );
-    currentFocusIndex += _categories.length;
-
-    Widget? groupListWidget;
-    Widget? channelListWidget;
-    Widget? epgListWidget;
-
-    groupListWidget = GroupList(
-      keys: _keys,
-      selectedGroupIndex: _groupIndex,
-      onGroupTap: _onGroupTap,
-      isTV: useFocusNavigation,
-      scrollController: _scrollController,
-      isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
-      startIndex: currentFocusIndex,
-    );
-
-    if (_keys.isNotEmpty) {
-      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        currentFocusIndex += _keys.length;
-        channelListWidget = ChannelList(
-          channels: _values[_groupIndex],
-          selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
-          onChannelTap: _onChannelTap,
-          isTV: useFocusNavigation,
-          scrollController: _scrollChannelController,
-          startIndex: currentFocusIndex,
-        );
-
-        epgListWidget = EPGList(
-          epgData: _epgData,
-          selectedIndex: _selEPGIndex,
-          isTV: useFocusNavigation,
-          epgScrollController: _epgItemScrollController,
-          onCloseDrawer: widget.onCloseDrawer,
-        );
-      }
-    }
-
-    if (useFocusNavigation) {
-      return TvKeyNavigation(
-        focusNodes: _ensureCorrectFocusNodes(),
-        cacheName: 'ChannelDrawerPage',
-        isVerticalGroup: true,
-        initialIndex: 0,
-        onStateCreated: _handleTvKeyNavigationStateCreated,
-        child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
-      );
-    } else {
-      return _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget);
-    }
   }
 
   Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
