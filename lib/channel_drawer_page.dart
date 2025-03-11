@@ -227,31 +227,52 @@ class ScrollUtil {
     );
   }
 
-  // 新增：对齐两个列表的选中项
+  // 新增：对齐两个列表的选中项，添加顶部偏移量
   static void scrollToAlignItems({
     required ScrollController groupController,
     required ScrollController channelController,
     required int groupIndex,
     required int channelIndex,
     required double viewPortHeight,
+    double topOffset = 118.0, // 默认距离顶部 118 像素
   }) {
     if (!groupController.hasClients || !channelController.hasClients) return;
 
     const itemHeight = defaultMinHeight;
 
-    // 以分组列表为基准，计算目标偏移量
-    final groupTargetOffset = groupIndex * itemHeight;
+    // 计算分组列表的目标偏移量，距离顶部 topOffset
+    final groupTargetOffset = groupIndex * itemHeight - topOffset;
     final groupMaxScrollExtent = groupController.position.maxScrollExtent;
     final clampedGroupOffset = groupTargetOffset.clamp(0.0, groupMaxScrollExtent);
 
-    // 调整频道列表偏移量，使频道项与分组项对齐
-    final channelTargetOffset = channelIndex * itemHeight;
+    // 计算频道列表的目标偏移量，距离顶部 topOffset
+    final channelTargetOffset = channelIndex * itemHeight - topOffset;
     final channelMaxScrollExtent = channelController.position.maxScrollExtent;
     final clampedChannelOffset = channelTargetOffset.clamp(0.0, channelMaxScrollExtent);
 
-    // 滚动到对齐位置
+    // 滚动到目标位置
     groupController.jumpTo(clampedGroupOffset);
     channelController.jumpTo(clampedChannelOffset);
+  }
+
+  // 新增：滚动单个列表到指定索引，带顶部偏移量
+  static void scrollToPositionWithOffset({
+    required ScrollController controller,
+    required int index,
+    required double viewPortHeight,
+    double topOffset = 118.0, // 默认距离顶部 118 像素
+  }) {
+    if (!controller.hasClients) return;
+
+    const itemHeight = defaultMinHeight;
+    final maxScrollExtent = controller.position.maxScrollExtent;
+
+    // 计算目标偏移量，距离顶部 topOffset
+    final targetOffset = index * itemHeight - topOffset;
+    final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+    // 滚动到目标位置
+    controller.jumpTo(clampedOffset);
   }
 }
 
@@ -997,16 +1018,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         } else {
           _isSystemAutoSelected = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // 使用新的对齐方法，确保分组和频道项水平对齐
+            // 使用新的对齐方法，滚动到距离顶部 118 像素的位置
             ScrollUtil.scrollToAlignItems(
               groupController: _scrollController,
               channelController: _scrollChannelController,
               groupIndex: _groupIndex,
               channelIndex: _channelIndex,
               viewPortHeight: _viewPortHeight!,
+              topOffset: 118.0, // 固定距离顶部 118 像素
             );
           });
         }
+
+
       }
     });
 
@@ -1041,8 +1065,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 仅滚动频道列表，分组列表保持不动
-          ScrollUtil.scrollToPosition(_scrollChannelController, _channelIndex, _viewPortHeight!);
+          // 仅滚动频道列表，滚动到距离顶部 118 像素的位置
+          ScrollUtil.scrollToPositionWithOffset(
+            controller: _scrollChannelController,
+            index: _channelIndex,
+            viewPortHeight: _viewPortHeight!,
+            topOffset: 118.0, // 固定距离顶部 118 像素
+          );
         });
       } else {
         _channelIndex = 0;
@@ -1106,7 +1135,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         currentFocusIndex += _keys.length;
         channelListWidget = ChannelList(
           channels: _values[_groupIndex],
-          selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
+          selectedChannelName: _values ReferenceError: _groupIndex is not defined[_groupIndex].keys.toList()[_channelIndex],
           onChannelTap: _onChannelTap,
           isTV: useFocusNavigation,
           scrollController: _scrollChannelController,
