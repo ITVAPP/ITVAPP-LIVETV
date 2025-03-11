@@ -1029,8 +1029,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             );
           });
         }
-
-
       }
     });
 
@@ -1077,7 +1075,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = 0;
         _isChannelAutoSelected = true;
         ScrollUtil.scrollToTop(_scrollChannelController);
-        // 分组列表不再滚动，保持当前位置
+        // 分组列表保持当前位置，不滚动
       }
     });
 
@@ -1135,7 +1133,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         currentFocusIndex += _keys.length;
         channelListWidget = ChannelList(
           channels: _values[_groupIndex],
-          selectedChannelName: _values ReferenceError: _groupIndex is not defined[_groupIndex].keys.toList()[_channelIndex],
+          selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
           onChannelTap: _onChannelTap,
           isTV: useFocusNavigation,
           scrollController: _scrollChannelController,
