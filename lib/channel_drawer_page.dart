@@ -1146,7 +1146,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _scrollToPosition(_scrollChannelController, _channelIndex);
   }
 
-  // 将滚动控制器滚动到指定位置
+  // 将滚动控制器滚动到指定位置（修改部分）
   void _scrollToPosition(ScrollController controller, int index) {
     // 如果控制器未绑定、视口高度未初始化或索引无效，则记录日志并返回
     if (!controller.hasClients || _viewPortHeight == null || index < 0) {
@@ -1155,7 +1155,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     final maxScrollExtent = controller.position.maxScrollExtent;
     final double viewPortHeight = _viewPortHeight!;
-    final double targetOffset = (index * defaultMinHeight - viewPortHeight * 0.5).clamp(0.0, maxScrollExtent);
+    // 使用实际项高 65.0（minHeight 48.0 + padding.vertical 16.0 + divider 1.0）
+    const double itemHeight = 65.0;
+    final double targetOffset = (index * itemHeight - viewPortHeight * 0.5).clamp(0.0, maxScrollExtent);
     controller.jumpTo(targetOffset);
   }
 
