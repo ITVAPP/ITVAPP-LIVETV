@@ -10,13 +10,23 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class HttpUtil {
+  // 常量定义
+  static const int defaultConnectTimeoutSeconds = 3; // 默认连接超时时间（秒）
+  static const int defaultReceiveTimeoutSeconds = 9; // 默认接收超时时间（秒）
+  static const int maxConnectionsPerHost = 5; // 每个主机的最大连接数
+  static const int defaultRetryCount = 2; // 默认重试次数
+  static const int defaultRetryDelaySeconds = 1; // 默认重试延迟时间（秒）
+  static const int downloadReceiveTimeoutSeconds = 298; // 文件下载的接收超时时间（秒）
+  static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
+  static const int successStatusCode = 200; // 成功的状态码
+
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
   // 初始化 Dio 的基础配置，headers在具体请求时动态生成
   BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: 3), // 设置默认连接超时时间
-    receiveTimeout: const Duration(seconds: 8), // 设置默认接收超时时间
+    connectTimeout: const Duration(seconds: defaultConnectTimeoutSeconds), // 设置默认连接超时时间
+    receiveTimeout: const Duration(seconds: defaultReceiveTimeoutSeconds), // 设置默认接收超时时间
   );
 
   CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌
@@ -26,8 +36,8 @@ class HttpUtil {
   // 构造函数
   HttpUtil._() {
     _dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 3), // 默认连接超时
-      receiveTimeout: const Duration(seconds: 8), // 默认接收超时
+      connectTimeout: const Duration(seconds: defaultConnectTimeoutSeconds), // 默认连接超时
+      receiveTimeout: const Duration(seconds: defaultReceiveTimeoutSeconds), // 默认接收超时
       responseType: ResponseType.bytes, // 统一使用字节响应类型，避免重复设置
     ));
 
@@ -35,7 +45,7 @@ class HttpUtil {
     if (_dio.httpClientAdapter is IOHttpClientAdapter) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient()
-          ..maxConnectionsPerHost = 5
+          ..maxConnectionsPerHost = maxConnectionsPerHost
           ..autoUncompress = true
           ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
         return client;
@@ -47,7 +57,7 @@ class HttpUtil {
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
-        : defaultTimeout ?? const Duration(seconds: 3); // 提供最终默认值
+        : defaultTimeout ?? const Duration(seconds: defaultConnectTimeoutSeconds); // 提供最终默认值
   }
 
   Response _processResponse(Response response) {
@@ -209,8 +219,8 @@ class HttpUtil {
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2),
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
     required R? Function(Response response) onSuccess,
   }) async {
     Response? response;
@@ -303,8 +313,8 @@ class HttpUtil {
     Options? options,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2),
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
     T? Function(dynamic data)? parseData,
   }) async {
     return _performRequest<T>(
@@ -327,8 +337,8 @@ class HttpUtil {
     Options? options,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2),
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
   }) async {
     return _performRequest<Response>(
       isPost: false,
@@ -352,8 +362,8 @@ class HttpUtil {
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2),
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
     T? Function(dynamic data)? parseData,
   }) async {
     // 调用合并后的 _performRequest 方法，传入 isPost: true
@@ -381,8 +391,8 @@ class HttpUtil {
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
-    int retryCount = 2,
-    Duration retryDelay = const Duration(seconds: 2),
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
   }) async {
     return _performRequest<Response>(
       isPost: true,
@@ -411,7 +421,7 @@ class HttpUtil {
         url,
         savePath,
         options: Options(
-          receiveTimeout: const Duration(seconds: 298),
+          receiveTimeout: const Duration(seconds: downloadReceiveTimeoutSeconds),
           headers: headers,
         ),
         onReceiveProgress: (received, total) {
@@ -419,7 +429,7 @@ class HttpUtil {
         },
       );
 
-      if (response.statusCode != 200) {
+      if (response.statusCode != successStatusCode) {
         throw DioException(
           requestOptions: response.requestOptions,
           error: '状态码: ${response.statusCode}',
@@ -430,7 +440,7 @@ class HttpUtil {
       return response.statusCode;
     } on DioException catch (e, stackTrace) {
       LogUtil.logError('文件下载失败: $url', e, stackTrace);
-      return 500;
+      return defaultFallbackStatusCode;
     }
   }
 }
