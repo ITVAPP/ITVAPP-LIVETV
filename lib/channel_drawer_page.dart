@@ -141,59 +141,51 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 焦点管理助手类
+// 修改部分开始：调整 FocusHelper 为静态焦点管理风格
 class FocusHelper {
   List<FocusNode> nodes;
   Map<int, bool> states = {};
 
   FocusHelper(this.nodes);
 
-  // 初始化或调整焦点节点数量
-  void adjustNodes(int count) {
-    // 如果传入的节点数小于0，直接返回，不执行任何操作
-    if (count < 0) return;
-    // 如果当前节点数大于目标数量，则移除多余的节点并清理相关资源
-    if (nodes.length > count) {
-      for (var i = count; i < nodes.length; i++) {
-        nodes[i].dispose();
+  // 初始化焦点节点，基于参考代码的静态管理逻辑
+  void initialize(int count) {
+    if (count < 0) return; // 边界检查
+    if (nodes.length != count) {
+      // 如果当前节点数量与目标不符，先清理所有现有节点
+      for (var node in nodes) {
+        node.dispose();
       }
-      nodes.removeRange(count, nodes.length);
-      states.removeWhere((key, _) => key >= count);
-    } 
-    // 如果当前节点数小于目标数量，则添加新的焦点节点
-    else if (nodes.length < count) {
-      nodes.addAll(List.generate(count - nodes.length, (_) => FocusNode()));
+      nodes.clear();
+      states.clear();
+      // 生成新的焦点节点列表
+      nodes = List.generate(count, (_) => FocusNode());
     }
   }
 
   // 添加焦点监听
   void addListeners(int startIndex, int length, State state) {
-    // 如果起始索引小于0、长度小于等于0或范围超出节点总数，则直接返回
     if (startIndex < 0 || length <= 0 || startIndex + length > nodes.length) return;
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
-      // 如果该节点尚未添加监听器，则为其添加监听
-      if (!nodes[index].hasListeners) {
-        states[index] = nodes[index].hasFocus;
-        nodes[index].addListener(() {
-          final currentFocus = nodes[index].hasFocus;
-          // 如果焦点状态发生变化，则更新状态并触发界面刷新
-          if (states[index] != currentFocus) {
-            states[index] = currentFocus;
-            state.setState(() {});
-          }
-        });
-      }
+      // 移除旧监听器并初始化状态
+      nodes[index].removeListener(() {});
+      states[index] = nodes[index].hasFocus;
+      nodes[index].addListener(() {
+        final currentFocus = nodes[index].hasFocus;
+        if (states[index] != currentFocus) {
+          states[index] = currentFocus;
+          state.setState(() {});
+        }
+      });
     }
   }
 
   // 移除焦点监听
   void removeListeners(int startIndex, int length) {
-    // 如果起始索引小于0、长度小于等于0或范围超出节点总数，则直接返回
     if (startIndex < 0 || length <= 0 || startIndex + length > nodes.length) return;
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
-      // 移除指定节点的监听器并清理状态
       nodes[index].removeListener(() {});
       states.remove(index);
     }
@@ -201,7 +193,6 @@ class FocusHelper {
 
   // 清理所有资源
   void dispose() {
-    // 遍历并释放所有焦点节点的资源
     for (var node in nodes) {
       node.dispose();
     }
@@ -209,24 +200,21 @@ class FocusHelper {
     states.clear();
   }
 }
+// 修改部分结束
 
 // 判断是否超出可视区域函数
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
-  // 如果渲染对象是 RenderBox 类型，则进行可视区域判断
   if (renderObject is RenderBox) {
     final ScrollableState? scrollableState = Scrollable.of(context);
-    // 如果存在可滚动状态，则计算对象是否在可视区域内
     if (scrollableState != null) {
       final ScrollPosition position = scrollableState.position;
       final double offset = position.pixels;
       final double viewportHeight = position.viewportDimension;
       final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-      // 如果对象位置超出可视区域顶部或底部，则返回 true
       return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
     }
   }
-  // 默认情况下返回 false，表示未超出可视区域
   return false;
 }
 
@@ -797,8 +785,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _initializeCategoryData();
     // 初始化频道数据
     _initializeChannelData();
-    // 调整焦点节点数量
-    _focusHelper.adjustNodes(_calculateTotalFocusNodes());
+    // 修改部分开始：使用静态焦点初始化替代动态调整
+    _focusHelper.initialize(_calculateTotalFocusNodes());
+    // 修改部分结束
     // 在界面构建完成后计算视口高度并加载EPG数据
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateViewportHeight();
@@ -1054,7 +1043,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
         _isSystemAutoSelected = true;
-        _focusHelper.adjustNodes(_categories.length);
+        // 修改部分开始：使用静态焦点初始化
+        _focusHelper.initialize(_categories.length);
+        // 修改部分结束
         _updateStartIndexes();
         _scrollToTop(_scrollController);
         _scrollToTop(_scrollChannelController);
@@ -1063,7 +1054,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       else {
         _initializeChannelData();
         _isSystemAutoSelected = false;
-        _focusHelper.adjustNodes(_calculateTotalFocusNodes());
+        // 修改部分开始：使用静态焦点初始化
+        _focusHelper.initialize(_calculateTotalFocusNodes());
+        // 修改部分结束
         _updateStartIndexes();
       }
     });
@@ -1085,7 +1078,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _isSystemAutoSelected = false;
       _channelIndex = 0;
       _isChannelAutoSelected = true;
-      _focusHelper.adjustNodes(_calculateTotalFocusNodes());
+      // 修改部分开始：使用静态焦点初始化
+      _focusHelper.initialize(_calculateTotalFocusNodes());
+      // 修改部分结束
       _updateStartIndexes();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
