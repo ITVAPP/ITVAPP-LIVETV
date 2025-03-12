@@ -93,6 +93,16 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 
+// 默认顶部偏移量
+const double defaultTopOffset = 112.0; // 默认滚动距离顶部的偏移量
+
+// 默认分类和分组宽度（频道宽度在竖屏自适应）
+const double categoryWidthPortrait = 110.0; // 竖屏分类宽度
+const double categoryWidthLandscape = 120.0; // 横屏分类宽度
+const double groupWidthPortrait = 120.0; // 竖屏分组宽度
+const double groupWidthLandscape = 130.0; // 横屏分组宽度
+const double channelWidthLandscape = 160.0; // 横屏频道宽度
+
 LinearGradient? getGradientForDecoration({
   required bool isTV,
   required bool hasFocus,
@@ -159,7 +169,7 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-static const double _itemHeight = defaultMinHeight + defaultPadding.vertical + 1; // 包括边距和分割线
+const double _itemHeight = defaultMinHeight + 16.0 + 1; // 包括边距（上下8.0）和分割线
 
 /// 焦点管理工具类，负责管理焦点节点的初始化、监听和清理
 class FocusManager {
@@ -253,7 +263,7 @@ class ScrollUtil {
     );
   }
 
-  // 新增：用于居中滚动的方法
+  // 用于居中滚动的方法
   static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
@@ -264,52 +274,57 @@ class ScrollUtil {
     );
   }
 
-  // 新增：对齐两个列表的选中项，添加顶部偏移量
+  // 抽象核心滚动逻辑
+  static void _scrollToOffset({
+    required ScrollController controller,
+    required int index,
+    required double viewPortHeight,
+    double topOffset = defaultTopOffset,
+  }) {
+    if (!controller.hasClients) return;
+    const itemHeight = defaultMinHeight;
+    final maxScrollExtent = controller.position.maxScrollExtent;
+    final targetOffset = index * itemHeight - topOffset;
+    final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
+    controller.jumpTo(clampedOffset);
+  }
+
+  // 对齐两个列表的选中项，添加顶部偏移量
   static void scrollToAlignItems({
     required ScrollController groupController,
     required ScrollController channelController,
     required int groupIndex,
     required int channelIndex,
     required double viewPortHeight,
-    double topOffset = 118.0, // 默认距离顶部 118 像素
+    double topOffset = defaultTopOffset, // 使用全局常量
   }) {
-    if (!groupController.hasClients || !channelController.hasClients) return;
-
-    const itemHeight = defaultMinHeight;
-
-    // 计算分组列表的目标偏移量，距离顶部 topOffset
-    final groupTargetOffset = groupIndex * itemHeight - topOffset;
-    final groupMaxScrollExtent = groupController.position.maxScrollExtent;
-    final clampedGroupOffset = groupTargetOffset.clamp(0.0, groupMaxScrollExtent);
-
-    // 计算频道列表的目标偏移量，距离顶部 topOffset
-    final channelTargetOffset = channelIndex * itemHeight - topOffset;
-    final channelMaxScrollExtent = channelController.position.maxScrollExtent;
-    final clampedChannelOffset = channelTargetOffset.clamp(0.0, channelMaxScrollExtent);
-
-    // 滚动到目标位置
-    groupController.jumpTo(clampedGroupOffset);
-    channelController.jumpTo(clampedChannelOffset);
+    _scrollToOffset(
+      controller: groupController,
+      index: groupIndex,
+      viewPortHeight: viewPortHeight,
+      topOffset: topOffset,
+    );
+    _scrollToOffset(
+      controller: channelController,
+      index: channelIndex,
+      viewPortHeight: viewPortHeight,
+      topOffset: topOffset,
+    );
   }
 
-  // 新增：滚动单个列表到指定索引，带顶部偏移量
+  // 滚动单个列表到指定索引，带顶部偏移量
   static void scrollToPositionWithOffset({
     required ScrollController controller,
     required int index,
     required double viewPortHeight,
-    double topOffset = 118.0, // 默认距离顶部 118 像素
+    double topOffset = defaultTopOffset, // 使用全局常量
   }) {
-    if (!controller.hasClients) return;
-
-    const itemHeight = defaultMinHeight;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-
-    // 计算目标偏移量，距离顶部 topOffset
-    final targetOffset = index * itemHeight - topOffset;
-    final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
-
-    // 滚动到目标位置
-    controller.jumpTo(clampedOffset);
+    _scrollToOffset(
+      controller: controller,
+      index: index,
+      viewPortHeight: viewPortHeight,
+      topOffset: topOffset,
+    );
   }
 }
 
@@ -1136,14 +1151,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         } else {
           _isSystemAutoSelected = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // 使用新的对齐方法，滚动到距离顶部 118 像素的位置
+            // 使用新的对齐方法，依赖默认的 topOffset
             ScrollUtil.scrollToAlignItems(
               groupController: _scrollController,
               channelController: _scrollChannelController,
               groupIndex: _groupIndex,
               channelIndex: _channelIndex,
               viewPortHeight: _viewPortHeight!,
-              topOffset: 118.0, // 固定距离顶部 118 像素
             );
           });
         }
@@ -1181,12 +1195,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 仅滚动频道列表，滚动到距离顶部 118 像素的位置
+          // 仅滚动频道列表，依赖默认的 topOffset
           ScrollUtil.scrollToPositionWithOffset(
             controller: _scrollChannelController,
             index: _channelIndex,
             viewPortHeight: _viewPortHeight!,
-            topOffset: 118.0, // 固定距离顶部 118 像素
           );
         });
       } else {
@@ -1405,11 +1418,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   Widget _buildOpenDrawer(bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
-    double categoryWidth = isPortrait ? 110 : 120;
-    double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;
+    double categoryWidth = isPortrait ? categoryWidthPortrait : categoryWidthLandscape;
+    double groupWidth = groupListWidget != null ? (isPortrait ? groupWidthPortrait : groupWidthLandscape) : 0;
 
     double channelListWidth = (groupListWidget != null && channelListWidget != null)
-        ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160)
+        ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : channelWidthLandscape)
         : 0;
 
     double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
@@ -1510,7 +1523,6 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   @override
   bool containsKey(Object? key) => _map.containsKey(key);
 
-  // 实现 Object.hashCode 要求的方法，返回 int 类型
   @override
-  int get hashCode => _map.hashCode; // 使用内部 Map 的 hashCode
+  int get hashCode => _map.hashCode;
 }
