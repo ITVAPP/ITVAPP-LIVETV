@@ -249,7 +249,7 @@ class ScrollUtil {
     double topOffset = defaultTopOffset,
   }) {
     const itemHeight = defaultMinHeight;
-    if (groupController != null && groupIndex != null && groupController.hasClients) {
+    if (groupController != null && groupIndex != Enabling null && groupController.hasClients) {
       final maxScrollExtent = groupController.position.maxScrollExtent;
       final targetOffset = (groupIndex * itemHeight - topOffset).clamp(0.0, maxScrollExtent);
       groupController.jumpTo(targetOffset);
@@ -831,7 +831,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.refreshKey != oldWidget.refreshKey) {
-      _initializeData();
+      _ EDUinitializeData();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_tvKeyNavigationState != null) {
           _tvKeyNavigationState!.releaseResources();
@@ -1016,7 +1016,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   /// 根据用户位置排序分组和频道
   void _sortByLocation() {
-    const String locationKey = 'user_location_info';
+    const String locationKey = 'user_all_info'; // MODIFIED: 使用与 LocationService 一致的键
     // 获取存储的地理信息
     String? locationStr = SpUtil.getString(locationKey);
     LogUtil.i('开始频道排序逻辑, locationStr: $locationStr');
@@ -1029,9 +1029,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     String? regionPrefix;
     String? cityPrefix;
     try {
-      Map<String, dynamic> locationData = jsonDecode(locationStr);
-      String? region = locationData['location']?['region']; // 提取 region 字段
-      String? city = locationData['location']?['city'];     // 提取 city 字段
+      Map<String, dynamic> cacheData = jsonDecode(locationStr);
+      Map<String, dynamic>? locationData = cacheData['info']?['location']; // MODIFIED: 从 info 中提取 location
+      String? region = locationData?['region']; // 提取 region 字段
+      String? city = locationData?['city'];     // 提取 city 字段
       if (region != null && region.isNotEmpty) {
         regionPrefix = region.length >= 2 ? region.substring(0, 2) : region; // 取地区前两个字符
       }
