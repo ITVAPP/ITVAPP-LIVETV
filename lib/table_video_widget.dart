@@ -481,8 +481,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                   onDoubleTap: uiState.drawerIsOpen
                       ? null
                       : () {
-                          LogUtil.safeExecute(() {
-                            widget.isPlaying ? widget.controller?.pause() : widget.controller?.play();
+                          LogUtil.safeExecute(() async {
+                            if (widget.isPlaying) {
+                              await widget.controller?.pause();
+                              widget.onUserPaused?.call();
+                            } else {
+                              if (widget.isHls) {
+                                widget.onRetry?.call();
+                              } else {
+                                await widget.controller?.play();
+                              }
+                            }
                           }, '双击播放/暂停发生错误');
                         },
                   child: Container(
