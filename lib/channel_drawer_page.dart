@@ -95,7 +95,7 @@ const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 
 // 默认顶部偏移量
-const double defaultTopOffset = 112.0; // 默认滚动距离顶部的偏移量
+const double defaultTopOffset = 100.0; // 默认滚动距离顶部的偏移量
 
 // 默认分类和分组宽度（频道宽度在竖屏自适应）
 const double categoryWidthPortrait = 110.0; // 竖屏分类宽度
