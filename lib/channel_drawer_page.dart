@@ -178,16 +178,27 @@ BoxDecoration buildItemDecoration({
 class FocusManager {
   static List<FocusNode> _focusNodes = [];
 
-  /// 初始化焦点节点，确保数量匹配并清理旧节点
+  /// 初始化或调整焦点节点数量，复用现有节点
   static void initializeFocusNodes(int totalCount) {
-    // 添加越界检查并清理旧监听器
     if (totalCount < 0) {
       LogUtil.e('焦点节点数量无效: $totalCount');
       return;
     }
     if (_focusNodes.length != totalCount) {
-      dispose(); // 清理旧节点和监听器
-      _focusNodes = List.generate(totalCount, (_) => FocusNode());
+      if (_focusNodes.length > totalCount) {
+        // 减少节点：移除多余的并清理
+        for (int i = _focusNodes.length - 1; i >= totalCount; i--) {
+          _focusNodes[i].removeListener(() {});
+          _focusNodes[i].dispose();
+        }
+        _focusNodes = _focusNodes.sublist(0, totalCount);
+      } else {
+        // 增加节点：追加新节点
+        _focusNodes.addAll(
+          List.generate(totalCount - _focusNodes.length, (_) => FocusNode()),
+        );
+      }
+      LogUtil.d('调整焦点节点数量: ${_focusNodes.length} -> $totalCount');
     }
   }
 
@@ -207,14 +218,16 @@ class FocusManager {
       final index = startIndex + i;
       _focusNodes[index].removeListener(() {});
       _focusNodes[index].addListener(() {
-        state.setState(() {});
-        if (scrollController != null && viewPortHeight != null && _focusNodes[index].hasFocus) {
-          final itemIndex = index - startIndex;
-          ScrollUtil.scrollToCurrentItem(
-            channelIndex: itemIndex,
-            channelController: scrollController,
-            viewPortHeight: viewPortHeight,
-          );
+        if (state.mounted) { // 添加 mounted 检查
+          state.setState(() {});
+          if (scrollController != null && viewPortHeight != null && _focusNodes[index].hasFocus) {
+            final itemIndex = index - startIndex;
+            ScrollUtil.scrollToCurrentItem(
+              channelIndex: itemIndex,
+              channelController: scrollController,
+              viewPortHeight: viewPortHeight,
+            );
+          }
         }
       });
     }
@@ -1151,7 +1164,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
         _isSystemAutoSelected = true;
-        FocusManager.initializeFocusNodes(_categories.length);
+        FocusManager.initializeFocusNodes(_categories.length); // 调整节点数量
         _updateStartIndexes(includeGroupsAndChannels: false);
       } else {
         _initializeChannelData();
@@ -1162,7 +1175,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             totalFocusNodes += _values[_groupIndex].length;
           }
         }
-        FocusManager.initializeFocusNodes(totalFocusNodes);
+        FocusManager.initializeFocusNodes(totalFocusNodes); // 调整节点数量
         _updateStartIndexes(includeGroupsAndChannels: true);
 
         if (widget.playModel?.title == null || !_values[_groupIndex].containsKey(widget.playModel?.title)) {
@@ -1208,7 +1221,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
         totalFocusNodes += _values[_groupIndex].length;
       }
-      FocusManager.initializeFocusNodes(totalFocusNodes);
+      FocusManager.initializeFocusNodes(totalFocusNodes); // 调整节点数量
       _updateStartIndexes(includeGroupsAndChannels: true);
 
       if (widget.playModel?.group == _keys[index]) {
