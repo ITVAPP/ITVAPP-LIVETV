@@ -103,6 +103,10 @@ const double groupWidthPortrait = 120.0; // 竖屏分组宽度
 const double groupWidthLandscape = 130.0; // 横屏分组宽度
 const double channelWidthLandscape = 160.0; // 横屏频道宽度
 
+// 缓存大小常量
+const int defaultCacheSize = 50; // 默认 LinkedHashMap 最大容量
+const int epgCacheSize = 30; // EPG 缓存最大容量
+
 LinearGradient? getGradientForDecoration({
   required bool isTV,
   required bool hasFocus,
@@ -825,9 +829,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 使用 LinkedHashMap 实现容量限制的 epgCache
   final LinkedHashMap<String, Map<String, dynamic>> epgCache = LinkedHashMap<String, Map<String, dynamic>>(
     equals: (a, b) => a == b,
-    keyHashCode: (key) => key.hashCode, // Modified: Renamed to keyHashCode
+    keyHashCode: (key) => key.hashCode,
     onEvict: (key, value) => LogUtil.d('EPG缓存移除: $key'),
-    maximumSize: 50, // 设置最大容量为 50
+    maximumSize: epgCacheSize, // Modified: Use extracted constant
   );
 
   final ScrollController _scrollController = ScrollController();
@@ -1500,7 +1504,7 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
     required this.equals,
     required this.keyHashCode, // Modified: Use renamed field
     this.onEvict,
-    this.maximumSize = 100,
+    this.maximumSize = defaultCacheSize, // Modified: Use extracted constant
   });
 
   @override
