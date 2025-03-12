@@ -14,7 +14,7 @@ class TrafficAnalytics {
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
 
   /// 发送页面访问统计数据到Umami
-  Future<void> sendPageView(BuildContext context, String referrer, {String? additionalPath}) async {
+  Future<void> sendPageView(BuildContext context, {String? referrer, String? additionalPath}) async { // 修改：将 referrer 改为可选参数
     try {
       // 从本地缓存读取用户数据
       String? cachedData = SpUtil.getString('user_all_info');
@@ -72,26 +72,28 @@ class TrafficAnalytics {
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
       final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en'; // 默认英语
 
-      // 构建上报数据主体
+      // 设置 referrer 的默认值
+      final String effectiveReferrer = referrer ?? 'livetv.itvapp.net';
+
+      // 修改：构建优化后的上报数据主体
       final Map<String, dynamic> payload = {
         'payload': {
           'type': 'event',
           'website': websiteId,
           'url': url,
-          'referrer': referrer,
+          'referrer': effectiveReferrer, // 使用传入的 referrer 或默认值
           'hostname': hostname,
           'language': currentLanguage,
           'screen': screenSize,
           'ip': locationData['ip'],
-          'location': locationString,
-          'device': deviceInfo,
+          'userAgent': userAgent, 
+          'country': locationData['country'] ?? 'Unknown Country', 
+          'region': locationData['region'] ?? 'Unknown Region',
+          'city': locationData['city'] ?? 'Unknown City',
+          'timestamp': (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString(),
           'data': {
-            'device_info': deviceInfo,
-            'screen_size': screenSize,
-            'ip': locationData['ip'],
-            'location': locationString,
-            'lat': locationData['lat'], // 纬度（可能为空）
-            'lon': locationData['lon'], // 经度（可能为空）
+            'device_info': deviceInfo, 
+            'location': locationString, 
           }
         },
         'type': 'event',
