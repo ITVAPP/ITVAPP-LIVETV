@@ -825,7 +825,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 使用 LinkedHashMap 实现容量限制的 epgCache
   final LinkedHashMap<String, Map<String, dynamic>> epgCache = LinkedHashMap<String, Map<String, dynamic>>(
     equals: (a, b) => a == b,
-    hashCode: (key) => key.hashCode, // Modified: Correctly passed as a field
+    keyHashCode: (key) => key.hashCode, // Modified: Renamed to keyHashCode
     onEvict: (key, value) => LogUtil.d('EPG缓存移除: $key'),
     maximumSize: 50, // 设置最大容量为 50
   );
@@ -1493,12 +1493,12 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   final Map<K, V> _map = {};
   final int maximumSize;
   final bool Function(K, K) equals;
-  final int Function(K) hashCode; // Modified: Define hashCode as a field
+  final int Function(K) keyHashCode; // Modified: Renamed to keyHashCode to avoid conflict
   final void Function(K, V)? onEvict;
 
   LinkedHashMap({
     required this.equals,
-    required this.hashCode, // Modified: Make hashCode a required field
+    required this.keyHashCode, // Modified: Use renamed field
     this.onEvict,
     this.maximumSize = 100,
   });
@@ -1529,5 +1529,5 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   bool containsKey(Object? key) => _map.containsKey(key);
 
   @override
-  int get hashCode => _map.hashCode;
+  int get hashCode => _map.hashCode; 
 }
