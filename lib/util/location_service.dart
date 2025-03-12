@@ -14,11 +14,11 @@ class LocationService {
 
   // 单一存储键和缓存有效期常量
   static const String SP_KEY_USER_INFO = 'user_all_info';
-  static const int CACHE_EXPIRY_HOURS = 48;
-  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-  static const int REQUEST_TIMEOUT_SECONDS = 6;
+  static const int CACHE_EXPIRY_HOURS = 48; // 缓存有效期（小时）
+  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // 缓存有效期（毫秒）
+  static const int REQUEST_TIMEOUT_SECONDS = 5; // 请求超时时间（秒）
 
-  // 检查缓存是否过期
+  /// 检查缓存是否过期
   bool _isCacheExpired(int timestamp) {
     return DateTime.now().millisecondsSinceEpoch > (timestamp + CACHE_EXPIRY_MS);
   }
@@ -70,7 +70,7 @@ class LocationService {
       }
     }
 
-    //缓存不存在或已过期，开始获取所有信息
+    // 缓存不存在或已过期，开始获取所有信息
     LogUtil.i('开始获取用户所有信息...');
     Map<String, dynamic> userInfo = {};
     try {
@@ -144,7 +144,8 @@ class LocationService {
       try {
         final responseData = await HttpUtil().getRequest<String>(
           api['url'] as String,
-          options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),cancelToken: CancelToken(),
+          options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),
+          cancelToken: CancelToken(),
         );
         
         if (responseData != null) {
