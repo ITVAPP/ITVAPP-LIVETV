@@ -349,23 +349,31 @@ class _LiveHomePageState extends State<LiveHomePage> {
           toastString = S.current.loading; // 显示“加载中”
         });
         
-        // 清理现有超时定时器，避免叠加
-        _timeoutTimer?.cancel();
-        _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
-          // 检查各种状态以避免不必要触发
-          if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
-            LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
-                'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
-                'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
-            return;
-          }
-          
-          // 检查播放器是否仍在缓冲且未播放
-          if (_playerController?.isPlaying() != true) {
-            LogUtil.e('缓冲超过设定的时间，触发重试');
-            _retryPlayback(); // 触发重试
-          }
-        });
+        // 仅在视频已开始播放后启用10秒缓冲超时
+        if (isPlaying) {
+          // 清理现有超时定时器，避免叠加
+          _timeoutTimer?.cancel();
+          _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
+            // 检查各种状态以避免不必要触发
+            if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
+              LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
+                  'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
+                  'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
+              return;
+            }
+            
+            // 检查播放器是否仍在缓冲且未播放
+            if (_playerController?.isPlaying() != true) {
+              LogUtil.e('播放中缓冲超过10秒，触发重试');
+              setState(() {
+                toastString = '缓冲超时，正在重试...'; // 更新提示
+              });
+              _retryPlayback(); // 触发重试
+            }
+          });
+        } else {
+          LogUtil.i('初始缓冲，不启用10秒超时');
+        }
         break;
 
       case BetterPlayerEventType.bufferingUpdate:
@@ -974,10 +982,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         String deviceType = isTV ? "TV" : "Other";
 
         if (isFirstInstall == null) {
-          await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: deviceType);
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
           await SpUtil.putBool('is_first_install', true);
         } else {
-          await _trafficAnalytics.sendPageView(context, "LiveHomePage", additionalPath: channelName);
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName);
         }
       } catch (e, stackTrace) {
         LogUtil.logError('发送流量统计失败', e, stackTrace);
