@@ -57,6 +57,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const double defaultAspectRatio = 1.78; // 视频播放器的初始宽高比（16:9），若未从播放器获取新值则使用此值
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
+  static const int bufferingStartSeconds = 10; // 缓冲超过计时器的时间就放弃加载，启用重试
 
   // 缓冲区检查相关变量
   List<Map<String, dynamic>> _bufferedHistory = [];
@@ -96,7 +97,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Timer? _playDurationTimer; // 播放持续时间计时器
   Timer? _timeoutTimer; // 缓冲超时的计时器
   late AdManager _adManager; // 广告管理实例
-  // 新增状态
   bool _isUserPaused = false; // 是否为用户触发的暂停
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
@@ -346,7 +346,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.bufferingStart:
         setState(() {
           isBuffering = true;
-          toastString = S.current.loading;
+          toastString = S.current.loading; // 显示“加载中”
+        });
+        
+        // 清理现有超时定时器，避免叠加
+        _timeoutTimer?.cancel();
+        _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
+          // 检查各种状态以避免不必要触发
+          if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
+            LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
+                'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
+                'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
+            return;
+          }
+          
+          // 检查播放器是否仍在缓冲且未播放
+          if (_playerController?.isPlaying() != true) {
+            LogUtil.e('缓冲超过设定的时间，触发重试');
+            _retryPlayback(); // 触发重试
+          }
         });
         break;
 
@@ -392,9 +410,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.bufferingEnd:
         setState(() {
           isBuffering = false;
-          toastString = 'HIDE_CONTAINER';
+          toastString = 'HIDE_CONTAINER'; // 隐藏提示
         });
-        _cleanupTimers();
+        _timeoutTimer?.cancel(); // 缓冲结束，取消超时定时器
+        _timeoutTimer = null;
+        _cleanupTimers(); // 清理其他定时器
         break;
 
       case BetterPlayerEventType.play:
@@ -406,6 +426,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _showPlayIcon = false; // 播放时隐藏播放图标
             _showPauseIconFromListener = false; // 隐藏暂停图标
           });
+          _timeoutTimer?.cancel(); // 播放开始，取消缓冲超时定时器
+          _timeoutTimer = null;
           if (_playDurationTimer == null || !_playDurationTimer!.isActive) {
             _startPlayDurationTimer();
           }
