@@ -234,9 +234,6 @@ class FocusManager {
 
 // 滚动工具类
 class ScrollUtil {
-  static const double defaultTopOffset = 112.0; // 默认滚动距离顶部的偏移量，保持不变
-  static const double defaultMinHeight = 42.0; // 保持不变
-
   // 滚动到顶部
   static void scrollToTop(ScrollController controller) {
     if (controller.hasClients) controller.jumpTo(0);
@@ -1020,9 +1017,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   /// 根据用户位置排序分组和频道
   void _sortByLocation() {
     const String locationKey = 'user_location_info';
-
     // 获取存储的地理信息
     String? locationStr = SpUtil.getString(locationKey);
+    LogUtil.i('开始频道排序逻辑, locationStr: $locationStr');
     if (locationStr == null || locationStr.isEmpty) {
       LogUtil.i('未找到地理信息，跳过排序');
       return;
