@@ -7,61 +7,72 @@ import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:itvapp_live_tv/util/location_service.dart';
 
 class TrafficAnalytics {
   final String hostname = Config.hostname;
   final String umamiUrl = 'https://ws.itvapp.net/api/send';
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
-  final LocationService _locationService = LocationService();
 
   /// 发送页面访问统计数据到Umami
   Future<void> sendPageView(BuildContext context, String referrer, {String? additionalPath}) async {
     try {
-      // 直接从SpUtil获取信息
-      String? screenSize = SpUtil.getString(LocationService.SP_KEY_SCREEN_SIZE);
-      String? deviceInfo = SpUtil.getString(LocationService.SP_KEY_DEVICE_INFO);
-      String? userAgent = SpUtil.getString(LocationService.SP_KEY_USER_AGENT);
-      String? locationData = SpUtil.getString(LocationService.SP_KEY_LOCATION);
-      
-      // 如果本地存储中没有，则通过LocationService获取并保存
-      if (screenSize == null || screenSize.isEmpty) {
-        screenSize = _locationService.getScreenSize(context);
-      }
-      if (deviceInfo == null || deviceInfo.isEmpty) {
-        deviceInfo = await _locationService.getDeviceInfo();
-      }
-      
-      if (userAgent == null || userAgent.isEmpty) {
-        userAgent = await _locationService.getDeviceInfo(userAgent: true);
-      }
-      // 解析位置信息
-      Map<String, dynamic>? ipData;
-      if (locationData != null && locationData.isNotEmpty) {
+      // 从本地缓存读取用户数据
+      String? cachedData = SpUtil.getString('user_all_info');
+      Map<String, dynamic> userInfo = {}; // 用于存储解析后的用户信息
+
+      // 解析缓存数据流程
+      if (cachedData != null && cachedData.isNotEmpty) {
         try {
-          Map<String, dynamic>? parsedData = jsonDecode(locationData);
-          if (parsedData != null && parsedData['location'] != null) {
-            ipData = parsedData['location'] as Map<String, dynamic>;
+          // 尝试解码JSON数据
+          Map<String, dynamic> parsedData = jsonDecode(cachedData);
+          if (parsedData['info'] is Map<String, dynamic>) {
+            // 验证数据结构有效性
+            userInfo = parsedData['info'] as Map<String, dynamic>;
+          } else {
+            // 数据结构异常处理
+            LogUtil.e('缓存数据中 "info" 字段格式不正确');
           }
         } catch (e) {
-          LogUtil.e('解析位置信息失败: $e');}
+          // JSON解析失败处理
+          LogUtil.e('解析缓存用户信息失败: $e');
+        }
+      } else {
+        // 无缓存数据时的处理
+        LogUtil.i('未找到用户信息缓存，使用默认值');
       }
-      // 如果本地没有位置信息或解析失败，则重新获取
-      if (ipData == null) {
-        ipData = await _locationService.getUserIpAndLocation();
-      }
-      final locationString = '${ipData['city'] ?? 'Unknown City'}, '
-          '${ipData['region'] ?? 'Unknown Region'}, '
-          '${ipData['country'] ?? 'Unknown Country'}';
 
+      // 从缓存数据提取字段，保持与LocationService默认值一致
+      String screenSize = userInfo['screenSize'] ?? 'Unknown Size'; // 屏幕尺寸默认值
+      String deviceInfo = userInfo['deviceInfo'] ?? 'Unknown Device'; // 设备信息默认值
+      String userAgent = userInfo['userAgent'] ?? '${Config.packagename}/${Config.version} (Unknown Platform)'; // UA默认值
+      
+      // 位置信息处理（兼容无效数据场景）
+      Map<String, dynamic> locationData = {};
+      if (userInfo['location'] != null && userInfo['location'] is Map<String, dynamic>) {
+        locationData = userInfo['location'] as Map<String, dynamic>;
+      } else {
+        // 位置数据无效时的默认配置
+        locationData = {
+          'ip': 'Unknown IP',
+          'city': 'Unknown City',
+          'region': 'Unknown Region',
+          'country': 'Unknown Country',
+        };
+      }
+      // 构建地理位置字符串
+      String locationString = '${locationData['city']}, ${locationData['region']}, ${locationData['country']}';
+
+      // 构造当前页面URL
       String url = ModalRoute.of(context)?.settings.name ?? '';
       if (additionalPath != null && additionalPath.isNotEmpty) {
-        url += "/$additionalPath";
+        url += "/$additionalPath"; // 拼接附加路径参数
       }
 
+      // 获取当前语言配置
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en';
+      final currentLanguage = languageProvider.currentLocale?.languageCode ?? 'en'; // 默认英语
 
+      // 构建上报数据主体
       final Map<String, dynamic> payload = {
         'payload': {
           'type': 'event',
@@ -71,35 +82,39 @@ class TrafficAnalytics {
           'hostname': hostname,
           'language': currentLanguage,
           'screen': screenSize,
-          'ip': ipData['ip'],
+          'ip': locationData['ip'],
           'location': locationString,
           'device': deviceInfo,
           'data': {
             'device_info': deviceInfo,
             'screen_size': screenSize,
-            'ip': ipData['ip'],
+            'ip': locationData['ip'],
             'location': locationString,
-            'lat': ipData['lat'],
-            'lon': ipData['lon'],}
+            'lat': locationData['lat'], // 纬度（可能为空）
+            'lon': locationData['lon'], // 经度（可能为空）
+          }
         },
         'type': 'event',
       };
 
+      // 发送HTTP请求
       final response = await HttpUtil().postRequest<String>(
         umamiUrl,
-        data: jsonEncode(payload),
+        data: jsonEncode(payload), // 数据序列化为JSON
         options: Options(
-          receiveTimeout: const Duration(seconds:10),
+          receiveTimeout: const Duration(seconds: 10), // 设置10秒接收超时
         ),
         cancelToken: CancelToken(),
       );
 
+      // 处理响应结果
       if (response != null) {
-        LogUtil.i('页面访问统计数据发送成功');
+        LogUtil.i('页面访问统计数据发送成功'); // 成功日志记录
       } else {
-        LogUtil.e('发送页面访问统计数据失败，响应为空');
+        LogUtil.e('发送页面访问统计数据失败，响应为空'); // 空响应错误处理
       }
     } catch (error, stackTrace) {
+      // 全局异常捕获
       LogUtil.logError('发送页面访问数据时发生错误', error, stackTrace);
     }
   }
