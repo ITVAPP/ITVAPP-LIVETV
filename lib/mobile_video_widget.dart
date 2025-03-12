@@ -27,7 +27,13 @@ class MobileVideoWidget extends StatefulWidget {
   final String currentChannelLogo; // 当前频道LOGO
   final String currentChannelTitle; // 当前频道名称
   final bool isAudio; // 是否为音频模式
-  final AdManager adManager; // 新增 AdManager 参数
+  final AdManager adManager; // AdManager 参数
+  // 新增参数，与 TableVideoWidget 保持一致
+  final bool showPlayIcon; // 播放图标状态
+  final bool showPauseIconFromListener; // 非用户触发的暂停图标状态
+  final bool isHls; // 是否为 HLS 流
+  final VoidCallback? onUserPaused; // 用户暂停回调
+  final VoidCallback? onRetry; // HLS 重试回调
 
   // 构造函数
   const MobileVideoWidget({
@@ -43,11 +49,16 @@ class MobileVideoWidget extends StatefulWidget {
     required this.currentChannelId,
     required this.currentChannelLogo,
     required this.currentChannelTitle,
-    required this.adManager, // 添加必填参数
+    required this.adManager,
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
-    this.isAudio = false, // 默认为视频模式
+    this.isAudio = false,
+    this.showPlayIcon = false, // 默认值
+    this.showPauseIconFromListener = false, // 默认值
+    this.isHls = false, // 默认值
+    this.onUserPaused,
+    this.onRetry,
   }) : super(key: key);
 
   @override
@@ -93,6 +104,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
       if (wasPlaying) {
         widget.controller?.pause(); // 当前播放中，则暂停播放以节省资源
+        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
       }
 
       await Navigator.of(context).pushNamed(RouterKeys.subScribe); // 推送至订阅页面
@@ -123,6 +135,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
       if (wasPlaying) {
         widget.controller?.pause(); // 暂停播放
+        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
       }
 
       await Navigator.of(context).pushNamed(RouterKeys.setting); // 推送至设置页面
@@ -238,7 +251,12 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               currentChannelTitle: widget.currentChannelTitle,
               changeChannelSources: widget.changeChannelSources,
               isAudio: widget.isAudio,
-              adManager: widget.adManager, // 传递 AdManager 参数
+              adManager: widget.adManager,
+              showPlayIcon: widget.showPlayIcon, // 新增：传递播放图标状态
+              showPauseIconFromListener: widget.showPauseIconFromListener, // 新增：传递暂停图标状态
+              isHls: widget.isHls, // 新增：传递 HLS 状态
+              onUserPaused: widget.onUserPaused, // 新增：用户暂停回调
+              onRetry: widget.onRetry, // 新增：HLS 重试回调
             ),
           ),
           Flexible(
