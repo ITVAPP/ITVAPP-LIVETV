@@ -118,7 +118,13 @@ class TvPage extends StatefulWidget {
   final String? currentChannelLogo;
   final String? currentChannelTitle;
   final bool isAudio;
-  final AdManager adManager; // 新增 AdManager 参数
+  final AdManager adManager;
+  // 新增参数，与 TableVideoWidget 保持一致
+  final bool showPlayIcon; // 从 LiveHomePage 接收播放图标状态
+  final bool showPauseIconFromListener; // 从 LiveHomePage 接收暂停图标状态
+  final bool isHls; // 是否为 HLS 流
+  final VoidCallback? onUserPaused; // 用户暂停回调
+  final VoidCallback? onRetry; // HLS 重试回调
 
   const TvPage({
     super.key,
@@ -139,7 +145,12 @@ class TvPage extends StatefulWidget {
     this.currentChannelLogo,
     this.currentChannelTitle,
     this.isAudio = false,
-    required this.adManager, // 添加必填参数
+    required this.adManager,
+    this.showPlayIcon = false, // 默认值
+    this.showPauseIconFromListener = false, // 默认值
+    this.isHls = false, // 默认值
+    this.onUserPaused,
+    this.onRetry,
   });
 
   @override
@@ -173,6 +184,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _checkAndShowHelp();
     // 文字广告动画初始化
     widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
+    // 初始化图标状态，根据传入的 props 更新
+    _updateIconState(
+      showPlay: widget.showPlayIcon,
+      showPause: widget.showPauseIconFromListener,
+    );
   }
 
   // 检查并显示帮助的方法
@@ -266,6 +282,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       if (wasPlaying) {
         await widget.controller?.pause();
         _updateIconState(showPlay: true); // 显示播放图标
+        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
       }
 
       bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
@@ -341,11 +358,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           showPause: false,
           showPlay: true,
         );
+        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
       }
     } else {
       // 如果当前未播放，则启动播放并隐藏播放图标
-      await controller.play();
-      _updateIconState(showPlay: false);
+      if (widget.isHls) {
+        widget.onRetry?.call(); // HLS 流调用重试
+      } else {
+        await controller.play();
+        _updateIconState(showPlay: false);
+      }
     }
 
     // 切换时间和收藏图标的显示状态
@@ -538,14 +560,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     builder: (context, iconState, child) {
                       return Stack(
                         children: [
-                          if (iconState.showPause) _buildControlIcon(icon: Icons.pause),
-                          // 处理视频初始化和播放状态的检查
-                          if ((widget.controller != null &&
-                                  (widget.controller!.isVideoInitialized() ?? false) &&
-                                  !(widget.controller!.isPlaying() ?? false) &&
-                                  !_drawerIsOpen) ||
-                              iconState.showPlay)
-                            _buildControlIcon(icon: Icons.play_arrow),
+                          // 显示暂停图标：优先使用从 LiveHomePage 传入的状态
+                          if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
+                          // 显示播放图标：优先使用从 LiveHomePage 传入的状态
+                          if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
                           if (iconState.showDatePosition) const DatePositionWidget(),
                           if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
                         ],
