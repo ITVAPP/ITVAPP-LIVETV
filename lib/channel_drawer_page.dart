@@ -328,7 +328,7 @@ Widget buildListItem({
 
   final hasFocus = focusNode?.hasFocus ?? false;
 
-  // 缓存合并后的文本样式，提升性能
+  // 缓存合并后的文本样式
   final textStyle = (isTV || enableFocusInNonTVMode)
       ? (hasFocus
           ? defaultTextStyle.merge(selectedTextStyle)
@@ -383,7 +383,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-/// 工具函数，优化 MouseRegion 的重绘调用
+/// 工具函数
 void setStateOrMarkNeedsBuild(BuildContext context) {
   if (context is StatefulElement && context.state.mounted) {
     (context as StatefulElement).state.setState(() {});
@@ -647,8 +647,8 @@ class _ChannelListState extends State<ChannelList> {
       oldWidget,
       widget,
       this,
-      widget.channels,
-      oldWidget.channels,
+      widget.channels.entries.toList(), // Modified: Convert Map to List
+      oldWidget.channels.entries.toList(), // Modified: Convert Map to List
       widget.startIndex,
       widget.scrollController,
       (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
@@ -825,7 +825,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 使用 LinkedHashMap 实现容量限制的 epgCache
   final LinkedHashMap<String, Map<String, dynamic>> epgCache = LinkedHashMap<String, Map<String, dynamic>>(
     equals: (a, b) => a == b,
-    hashCode: (key) => key.hashCode,
+    hashCode: (key) => key.hashCode, // Modified: Correctly passed as a field
     onEvict: (key, value) => LogUtil.d('EPG缓存移除: $key'),
     maximumSize: 50, // 设置最大容量为 50
   );
@@ -1221,7 +1221,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   void _adjustScrollPositions({int? groupIndex, int? channelIndex, int retryCount = 0, int maxRetries = 5}) {
     if (retryCount >= maxRetries) {
-      LogUtil.w('调整滚动位置达到最大重试次数，停止尝试');
+      LogUtil.i('调整滚动位置达到最大重试次数，停止尝试');
       return;
     }
     if (_viewPortHeight == null || !_scrollController.hasClients || !_scrollChannelController.hasClients) {
@@ -1493,10 +1493,12 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   final Map<K, V> _map = {};
   final int maximumSize;
   final bool Function(K, K) equals;
+  final int Function(K) hashCode; // Modified: Define hashCode as a field
   final void Function(K, V)? onEvict;
 
   LinkedHashMap({
     required this.equals,
+    required this.hashCode, // Modified: Make hashCode a required field
     this.onEvict,
     this.maximumSize = 100,
   });
