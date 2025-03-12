@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:collection'; 
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -74,7 +74,7 @@ const selectedTextStyle = TextStyle(
 );
 
 // 最小高度
-const double defaultMinHeight = 42.0; 
+const double defaultMinHeight = 42.0;
 
 // 背景色
 final defaultBackgroundColor = LinearGradient(
@@ -169,8 +169,6 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-const double _itemHeight = defaultMinHeight + 16.0 + 1; // 包括边距（上下8.0）和分割线
-
 /// 焦点管理工具类，负责管理焦点节点的初始化、监听和清理
 class FocusManager {
   static List<FocusNode> _focusNodes = [];
@@ -207,16 +205,7 @@ class FocusManager {
         state.setState(() {});
         if (scrollController != null && viewPortHeight != null && _focusNodes[index].hasFocus) {
           final itemIndex = index - startIndex;
-          final currentOffset = scrollController.offset;
-          final itemTop = itemIndex * defaultMinHeight;
-          final itemBottom = itemTop + defaultMinHeight;
-          final viewTop = currentOffset;
-          final viewBottom = currentOffset + viewPortHeight;
-          if (itemTop < viewTop) {
-            ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
-          } else if (itemBottom > viewBottom) {
-            ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
-          }
+          ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
         }
       });
     }
@@ -239,7 +228,7 @@ class ScrollUtil {
   static void scrollToTop(ScrollController controller) {
     if (controller.hasClients) controller.jumpTo(0);
   }
-  
+
   static void scrollToPosition(ScrollController controller, int index, double viewPortHeight) {
     if (!controller.hasClients) return;
     final maxScrollExtent = controller.position.maxScrollExtent;
@@ -258,17 +247,6 @@ class ScrollUtil {
     } else {
       return; // 无需滚动
     }
-    controller.jumpTo(
-      targetOffset.clamp(0.0, maxScrollExtent),
-    );
-  }
-
-  // 用于居中滚动的方法
-  static void scrollToCenter(ScrollController controller, int index, double viewPortHeight) {
-    if (!controller.hasClients) return;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-    final itemHeight = defaultMinHeight;
-    final targetOffset = index * itemHeight - (viewPortHeight - itemHeight) / 2; // 居中计算
     controller.jumpTo(
       targetOffset.clamp(0.0, maxScrollExtent),
     );
@@ -414,6 +392,27 @@ void setStateOrMarkNeedsBuild(BuildContext context) {
   }
 }
 
+void _updateFocusListenersIfDataChanged<T extends StatefulWidget>(
+  T oldWidget,
+  T widget,
+  State state,
+  List<dynamic> newData,
+  List<dynamic> oldData,
+  int startIndex,
+  ScrollController? scrollController,
+  double? viewPortHeight,
+) {
+  if (oldData != newData) {
+    FocusManager.addFocusListeners(
+      startIndex,
+      newData.length,
+      state,
+      scrollController: scrollController,
+      viewPortHeight: viewPortHeight,
+    );
+  }
+}
+
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -441,19 +440,23 @@ class _CategoryListState extends State<CategoryList> {
     FocusManager.addFocusListeners(widget.startIndex, widget.categories.length, this);
   }
 
-  // 添加 didUpdateWidget，支持数据变化时更新焦点
   @override
   void didUpdateWidget(covariant CategoryList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.categories != widget.categories) {
-      FocusManager.addFocusListeners(widget.startIndex, widget.categories.length, this);
-    }
+    _updateFocusListenersIfDataChanged(
+      oldWidget,
+      widget,
+      this,
+      widget.categories,
+      oldWidget.categories,
+      widget.startIndex,
+      null,
+      null,
+    );
   }
 
   @override
   void dispose() {
-    // 确保清理资源
-    FocusManager.dispose();
     super.dispose();
   }
 
@@ -526,25 +529,23 @@ class _GroupListState extends State<GroupList> {
     );
   }
 
-  // 添加 didUpdateWidget，支持数据变化时更新焦点
   @override
   void didUpdateWidget(covariant GroupList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.keys != widget.keys) {
-      FocusManager.addFocusListeners(
-        widget.startIndex,
-        widget.keys.length,
-        this,
-        scrollController: widget.scrollController,
-        viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
-      );
-    }
+    _updateFocusListenersIfDataChanged(
+      oldWidget,
+      widget,
+      this,
+      widget.keys,
+      oldWidget.keys,
+      widget.startIndex,
+      widget.scrollController,
+      (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
+    );
   }
 
   @override
   void dispose() {
-    // 确保清理资源
-    FocusManager.dispose();
     super.dispose();
   }
 
@@ -639,25 +640,23 @@ class _ChannelListState extends State<ChannelList> {
     );
   }
 
-  // 添加 didUpdateWidget，支持数据变化时更新焦点
   @override
   void didUpdateWidget(covariant ChannelList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.channels != widget.channels) {
-      FocusManager.addFocusListeners(
-        widget.startIndex,
-        widget.channels.length,
-        this,
-        scrollController: widget.scrollController,
-        viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
-      );
-    }
+    _updateFocusListenersIfDataChanged(
+      oldWidget,
+      widget,
+      this,
+      widget.channels,
+      oldWidget.channels,
+      widget.startIndex,
+      widget.scrollController,
+      (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
+    );
   }
 
   @override
   void dispose() {
-    // 确保清理资源
-    FocusManager.dispose();
     super.dispose();
   }
 
@@ -1020,7 +1019,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
     _keys = categoryMap.keys.toList();
-    _values = categoryMap.values.toList(); 
+    _values = categoryMap.values.toList();
 
     _sortByLocation();
 
@@ -1220,9 +1219,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  void _adjustScrollPositions({int? groupIndex, int? channelIndex}) {
+  void _adjustScrollPositions({int? groupIndex, int? channelIndex, int retryCount = 0, int maxRetries = 5}) {
+    if (retryCount >= maxRetries) {
+      LogUtil.w('调整滚动位置达到最大重试次数，停止尝试');
+      return;
+    }
     if (_viewPortHeight == null || !_scrollController.hasClients || !_scrollChannelController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _adjustScrollPositions(groupIndex: groupIndex, channelIndex: channelIndex));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adjustScrollPositions(
+            groupIndex: groupIndex,
+            channelIndex: channelIndex,
+            retryCount: retryCount + 1,
+            maxRetries: maxRetries,
+          ));
       return;
     }
     ScrollUtil.scrollToPosition(_scrollController, groupIndex ?? _groupIndex, _viewPortHeight!);
@@ -1327,12 +1335,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = 0;
     int groupStartIndex = categoryStartIndex + _categories.length;
-    int channelStartIndex = groupStartIndex + (_keys.isNotEmpty ? _keys.length : 0);
-
-    if (!includeGroupsAndChannels) {
-      groupStartIndex = categoryStartIndex + _categories.length;
-      channelStartIndex = groupStartIndex;
-    }
+    int channelStartIndex = includeGroupsAndChannels && _keys.isNotEmpty
+        ? groupStartIndex + _keys.length
+        : groupStartIndex; // 当不包括组和频道时，避免错误的偏移
 
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
@@ -1431,7 +1436,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     return Container(
       key: _viewPortKey,
-      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left), 
+      padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape ? categoryWidth + groupWidth + channelListWidth + epgListWidth : MediaQuery.of(context).size.width,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1488,15 +1493,13 @@ class LinkedHashMap<K, V> extends MapBase<K, V> {
   final Map<K, V> _map = {};
   final int maximumSize;
   final bool Function(K, K) equals;
-  final int Function(K) _hashCodeFn;
   final void Function(K, V)? onEvict;
 
   LinkedHashMap({
     required this.equals,
-    required int Function(K) hashCode, 
     this.onEvict,
     this.maximumSize = 100,
-  }) : _hashCodeFn = hashCode;
+  });
 
   @override
   V? operator [](Object? key) => _map.containsKey(key) ? _map[key as K] : null;
