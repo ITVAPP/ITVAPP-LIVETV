@@ -84,7 +84,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl; // 流地址
   StreamUrl? _preCacheStreamUrl; // 预缓存的 StreamUrl 实例
   String? _currentPlayUrl; // 当前播放的URL（解析后的地址）
-  String? _originalUrl; // 新增：解析前的原始地址
+  String? _originalUrl; // 解析前的原始地址
   bool _progressEnabled = false; // 进度是否启用
   bool _isHls = false; // 是否是HLS流
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
@@ -95,7 +95,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isAudio = false; // 是否是音频流
   Timer? _playDurationTimer; // 播放持续时间计时器
   Timer? _timeoutTimer; // 缓冲超时的计时器
-  late AdManager _adManager; // 新增：广告管理实例
+  late AdManager _adManager; // 广告管理实例
+  // 新增状态
+  bool _isUserPaused = false; // 是否为用户触发的暂停
+  bool _showPlayIcon = false; // 控制播放图标显示
+  bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -183,6 +187,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       isBuffering = false;
       _progressEnabled = false;
       _isSwitchingChannel = true; // 在清理前设置，保护整个过程
+      _isUserPaused = false; // 重置用户暂停状态
+      _showPlayIcon = false; // 重置播放图标状态
+      _showPauseIconFromListener = false; // 重置暂停图标状态
     });
 
     // 启动整个播放流程的超时计时
@@ -396,6 +403,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
             isPlaying = true;
             if (!isBuffering) toastString = 'HIDE_CONTAINER';
             _progressEnabled = false;
+            _showPlayIcon = false; // 播放时隐藏播放图标
+            _showPauseIconFromListener = false; // 隐藏暂停图标
           });
           if (_playDurationTimer == null || !_playDurationTimer!.isActive) {
             _startPlayDurationTimer();
@@ -408,8 +417,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
           setState(() {
             isPlaying = false;
             toastString = S.current.playpause;
+            if (_isUserPaused) {
+              _showPlayIcon = true; // 用户触发的暂停，显示播放图标
+              _showPauseIconFromListener = false;
+            } else {
+              _showPlayIcon = false; // 非用户触发的暂停，显示暂停图标
+              _showPauseIconFromListener = true;
+            }
           });
-          LogUtil.i('播放暂停');
+          LogUtil.i('播放暂停，用户触发: $_isUserPaused');
         }
         break;
 
@@ -611,6 +627,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _retryCount++;
         isBuffering = false;
         toastString = S.current.retryplay;
+        _showPlayIcon = false; // 重试时隐藏播放图标
+        _showPauseIconFromListener = false; // 重试时隐藏暂停图标
       });
       LogUtil.i('重试播放: 第 $_retryCount 次');
 
@@ -676,6 +694,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       isPlaying = false;
       _isRetrying = false;
       _retryCount = 0;
+      _showPlayIcon = false; // 无源时隐藏播放图标
+      _showPauseIconFromListener = false; // 无源时隐藏暂停图标
     });
     await _cleanupController(_playerController);
     LogUtil.i('播放结束，无更多源');
@@ -718,6 +738,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _lastBufferedPosition = null;
         _lastBufferedTime = null;
         _isParsing = false;
+        _isUserPaused = false; // 重置用户暂停状态
+        _showPlayIcon = false; // 重置播放图标状态
+        _showPauseIconFromListener = false; // 重置暂停图标状态
       });
       LogUtil.i('播放器清理完成');
     } catch (e, stackTrace) {
@@ -879,6 +902,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
     if (!shouldExit && wasPlaying && mounted) await _playerController?.play();
     return shouldExit;
+  }
+
+  // 处理用户暂停的回调
+  void _handleUserPaused() {
+    setState(() {
+      _isUserPaused = true;
+    });
+  }
+
+  // HLS 重试的回调
+  void _handleRetry() {
+    _retryPlayback();
   }
 
   @override
@@ -1146,6 +1181,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
               isChannelFavorite: isChannelFavorite,
               isAudio: _isAudio,
               adManager: _adManager, // 传递 AdManager 给 MobileVideoWidget
+              showPlayIcon: _showPlayIcon, // 传递播放图标状态
+              showPauseIconFromListener: _showPauseIconFromListener, // 传递暂停图标状态
+              isHls: _isHls, // 传递 HLS 状态
+              onUserPaused: _handleUserPaused, // 用户暂停回调
+              onRetry: _handleRetry, // HLS 重试回调
             ),
           );
         },
@@ -1174,7 +1214,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           isLandscape: true,
                           isAudio: _isAudio,
                           onToggleDrawer: () => setState(() => _drawerIsOpen = !_drawerIsOpen),
-                          adManager: _adManager, // 传递 AdManager 给 TableVideoWidget
+                          adManager: _adManager,
+                          showPlayIcon: _showPlayIcon, // 传递播放图标状态
+                          showPauseIconFromListener: _showPauseIconFromListener, // 传递暂停图标状态
+                          isHls: _isHls, // 传递 HLS 状态
+                          onUserPaused: _handleUserPaused, // 用户暂停回调
+                          onRetry: _handleRetry, // HLS 重试回调
                         ),
                 ),
                 Offstage(
