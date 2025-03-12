@@ -205,12 +205,16 @@ class FocusManager {
     }
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
-      _focusNodes[index].removeListener(() {}); // 移除旧监听器，避免重复
+      _focusNodes[index].removeListener(() {});
       _focusNodes[index].addListener(() {
         state.setState(() {});
         if (scrollController != null && viewPortHeight != null && _focusNodes[index].hasFocus) {
           final itemIndex = index - startIndex;
-          ScrollUtil.scrollToPosition(scrollController, itemIndex, viewPortHeight);
+          ScrollUtil.scrollToCurrentItem(
+            channelIndex: itemIndex,
+            channelController: scrollController,
+            viewPortHeight: viewPortHeight,
+          );
         }
       });
     }
@@ -990,7 +994,30 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_channelIndex == -1) _channelIndex = 0;
   }
 
-  /// 根据用户位置排序分组
+  /// 通用的地理位置前缀排序方法
+  List<T> _sortByGeoPrefix<T>({
+    required List<T> items,
+    required String? prefix,
+    required String Function(T) getName,
+  }) {
+    if (prefix == null || prefix.isEmpty) return items;
+
+    List<T> matchedItems = [];
+    List<T> otherItems = [];
+
+    for (T item in items) {
+      String name = getName(item);
+      if (name.contains(prefix)) {
+        matchedItems.add(item);
+      } else {
+        otherItems.add(item);
+      }
+    }
+
+    return [...matchedItems, ...otherItems];
+  }
+
+  /// 根据用户位置排序分组和频道
   void _sortByLocation() {
     const String locationKey = 'user_location_info';
 
@@ -998,49 +1025,57 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     String? locationStr = SpUtil.getString(locationKey);
     if (locationStr == null || locationStr.isEmpty) {
       LogUtil.i('未找到地理信息，跳过排序');
-      return; // 如果没有地理信息，则不排序
+      return;
     }
 
     // 解析 JSON 数据
     String? regionPrefix;
+    String? cityPrefix;
     try {
       Map<String, dynamic> locationData = jsonDecode(locationStr);
       String? region = locationData['location']?['region']; // 提取 region 字段
+      String? city = locationData['location']?['city'];     // 提取 city 字段
       if (region != null && region.isNotEmpty) {
-        regionPrefix = region.length >= 2 ? region.substring(0, 2) : region; // 取前两个字符
+        regionPrefix = region.length >= 2 ? region.substring(0, 2) : region; // 取地区前两个字符
+      }
+      if (city != null && city.isNotEmpty) {
+        cityPrefix = city.length >= 2 ? city.substring(0, 2) : city;         // 取城市前两个字符
       }
     } catch (e) {
       LogUtil.e('解析地理信息 JSON 失败: $e');
       return;
     }
 
-    // 如果没有找到地区信息，则不排序
-    if (regionPrefix == null || regionPrefix.isEmpty) {
-      LogUtil.i('地理信息中未找到地区，跳过排序');
+    // 如果没有有效的地区或城市信息，则不排序
+    if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
+      LogUtil.i('地理信息中未找到地区或城市，跳过排序');
       return;
     }
 
-    // 根据地区前缀排序
-    List<String> matchedGroups = [];
-    List<String> otherGroups = [];
-
-    for (String key in _keys) {
-      if (key.contains(regionPrefix)) {
-        matchedGroups.add(key); // 包含地区前缀的分组放前面
-      } else {
-        otherGroups.add(key); // 其他分组保持原顺序
-      }
-    }
-
-    // 更新 _keys
-    _keys = [...matchedGroups, ...otherGroups];
+    // 1. 对分组（_keys）排序，优先使用 regionPrefix
+    _keys = _sortByGeoPrefix<String>(
+      items: _keys,
+      prefix: regionPrefix,
+      getName: (key) => key,
+    );
 
     // 更新 _values 以匹配新的 _keys 顺序
     List<Map<String, PlayModel>> newValues = [];
     for (String key in _keys) {
       int oldIndex = widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList().indexOf(key) ?? -1;
       if (oldIndex != -1) {
-        newValues.add(_values[oldIndex]);
+        Map<String, PlayModel> channelMap = _values[oldIndex];
+        // 2. 对每个分组内的频道排序，优先使用 cityPrefix
+        List<String> sortedChannelKeys = _sortByGeoPrefix<String>(
+          items: channelMap.keys.toList(),
+          prefix: cityPrefix,
+          getName: (key) => key,
+        );
+        // 根据排序后的键重新构建频道映射
+        Map<String, PlayModel> sortedChannels = {
+          for (String channelKey in sortedChannelKeys) channelKey: channelMap[channelKey]!
+        };
+        newValues.add(sortedChannels);
       } else {
         LogUtil.e('位置排序时未找到键: $key');
       }
@@ -1048,7 +1083,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _values = newValues;
 
     // 记录排序结果以便调试
-    LogUtil.i('根据地区 "$regionPrefix" 排序完成: $_keys');
+    LogUtil.i('根据地区 "$regionPrefix" 和城市 "$cityPrefix" 排序完成: $_keys');
   }
 
   void _resetChannelData() {
