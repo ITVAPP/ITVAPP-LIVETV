@@ -62,6 +62,12 @@ class TableVideoWidget extends StatefulWidget {
   final VoidCallback? onToggleDrawer; // 切换抽屉状态的回调函数
   final bool isAudio; // 是否为音频播放模式
   final AdManager adManager; // 新增 AdManager 参数
+  // 新增参数
+  final bool showPlayIcon; // 从 LiveHomePage 传递，控制播放图标显示
+  final bool showPauseIconFromListener; // 从 LiveHomePage 传递，控制非用户触发的暂停图标显示
+  final VoidCallback? onUserPaused; // 回调通知 LiveHomePage 用户触发暂停
+  final VoidCallback? onRetry; // 回调通知 LiveHomePage 触发 HLS 重试
+  final bool isHls; // 是否为 HLS 流
 
   const TableVideoWidget({
     super.key,
@@ -76,10 +82,15 @@ class TableVideoWidget extends StatefulWidget {
     required this.currentChannelLogo,
     required this.currentChannelTitle,
     required this.adManager, // 添加必填参数
+    required this.showPlayIcon, // 新增必填参数
+    required this.showPauseIconFromListener, // 新增必填参数
+    required this.isHls, // 新增必填参数
     this.toastString,
     this.changeChannelSources,
     this.isLandscape = true,
     this.onToggleDrawer,
+    this.onUserPaused, // 可选回调
+    this.onRetry, // 可选回调
     this.isAudio = false,
   });
 
@@ -259,7 +270,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       if (!(_pauseIconTimer?.isActive ?? false)) {
         _updateUIState(
           showPauseIcon: true,
-          showPlayIcon: false,
         );
         _pauseIconTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) {
@@ -267,18 +277,20 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           }
         });
       } else {
-        // 暂停视频
+        // 暂停视频，只隐藏暂停图标，播放图标由 _videoListener 控制
         await widget.controller?.pause();
         _pauseIconTimer?.cancel();
-        _updateUIState(
-          showPauseIcon: false,
-          showPlayIcon: true,
-        );
+        _updateUIState(showPauseIcon: false);
+        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户触发暂停
       }
     } else {
-      // 播放视频
-      await widget.controller?.play();
-      _updateUIState(showPlayIcon: false);
+      // 暂停状态下恢复播放
+      if (widget.isHls) {
+        widget.onRetry?.call(); // HLS 触发重试
+      } else {
+        await widget.controller?.play();
+        _updateUIState(showPlayIcon: false); // 隐藏播放图标
+      }
     }
 
     // 切换菜单栏显示状态（横屏模式下）
@@ -480,16 +492,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       alignment: Alignment.center,
                       children: [
                         _buildVideoPlayer(_playerHeight!), // 使用缓存的播放器高度
-                        if ((widget.controller != null &&
-                                widget.controller!.isVideoInitialized() == true &&
-                                !(widget.controller!.isPlaying() ?? false) &&
-                                !uiState.drawerIsOpen) ||
-                            uiState.showPlayIcon)
+                        if (widget.showPlayIcon) // 修改：使用外部传递的 showPlayIcon
                           _buildControlIcon(
                             icon: Icons.play_arrow,
                             onTap: () => _handleSelectPress(),
                           ),
-                        if (uiState.showPauseIcon) _buildControlIcon(icon: Icons.pause),
+                        if (uiState.showPauseIcon || widget.showPauseIconFromListener) // 修改：添加外部控制的暂停图标
+                          _buildControlIcon(icon: Icons.pause),
                         if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                           Positioned(
                             left: 0,
