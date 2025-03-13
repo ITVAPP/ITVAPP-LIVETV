@@ -40,7 +40,6 @@ class LiveHomePage extends StatefulWidget {
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-  // 魔法常量
   static const int defaultMaxRetries = 1; // 默认最大重试次数，控制播放失败后尝试重新播放的最大次数
   static const int defaultTimeoutSeconds = 36; // 解析超时秒数，若超过此时间仍未完成，则视为解析失败
   static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用进度事件监听（progress）
@@ -394,7 +393,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
                 }
               } else {
-                LogUtil.i('缓冲区列表为空');
                 // 保持 _lastBufferedPosition 不变，只更新时间戳
                 _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
               }
@@ -646,10 +644,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  void _retryPlayback() {
+  void _retryPlayback({bool resetRetryCount = false}) {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
 
     _cleanupTimers();
+
+    if (resetRetryCount) {
+      setState(() {
+        _retryCount = 0; // 用户触发时重置重试次数
+      });
+    }
 
     if (_retryCount < defaultMaxRetries) {
       setState(() {
@@ -943,7 +947,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // HLS 重试的回调
   void _handleRetry() {
-    _retryPlayback();
+    _retryPlayback(resetRetryCount: true); // 用户触发重试，重置次数
   }
 
   @override
