@@ -173,7 +173,7 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-/// 焦点管理工具类，负责管理焦点节点的初始化、监听和清理
+/// 焦点管理工具类
 class FocusManager {
   static List<FocusNode> _focusNodes = [];
 
@@ -928,9 +928,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _reInitializeFocusListeners();
       });
     } else if (widget.refreshKey != oldWidget.refreshKey) {
-      // 收藏变化时，检查是否需要切换到“我的收藏”
-      if (widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
-        widget.onSwitchToFavorites!(); // 直接切换到“我的收藏”
+      bool isAddingFavorite = (widget.refreshKey?.value as int? ?? 0) & 1 == 1; // 提取添加标志
+      if (isAddingFavorite && widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
+      widget.onSwitchToFavorites!(); // 只有添加收藏时切换到“我的收藏”
       } else {
         _initializeChannelData(); // 非切换场景，仅刷新当前分类
         WidgetsBinding.instance.addPostFrameCallback((_) {
