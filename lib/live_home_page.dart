@@ -99,6 +99,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isUserPaused = false; // 是否为用户触发的暂停
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
+  BetterPlayerEventHandler? _eventHandler;
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -175,7 +176,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
     // 添加空检查以防止 _currentChannel 为 null 时崩溃
     if (_currentChannel == null) return; // 避免空指针异常
-
+    if (_eventHandler == null) {
+      LogUtil.e('事件处理器未初始化');
+      return;
+    }
+    
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
     LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
 
@@ -252,7 +257,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isHls: _isHls,
       );
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(
-        eventListener: _videoListener,
+        eventListener: _eventHandler!.videoListener,
         isHls: _isHls,
       );
 
@@ -313,242 +318,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _originalUrl = _currentChannel!.urls![_sourceIndex];
       LogUtil.i('切换频道/源 - 解析前地址: $_originalUrl');
       await _playVideo();
-    }
-  }
-
-  void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null || _isDisposing) return;
-
-    switch (event.betterPlayerEventType) {
-      case BetterPlayerEventType.initialized:
-        if (_shouldUpdateAspectRatio) {
-          final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? defaultAspectRatio;
-          if (aspectRatio != newAspectRatio) {
-            setState(() {
-              aspectRatio = newAspectRatio;
-              _shouldUpdateAspectRatio = false;
-            });
-            LogUtil.i('初始化完成，更新宽高比: $newAspectRatio');
-          }
-        }
-        break;
-
-      case BetterPlayerEventType.exception:
-        LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "Unknown error"}');
-        if (_preCachedUrl != null) {
-          await _switchToPreCachedUrl('异常触发');
-        } else {
-          _retryPlayback();
-        }
-        break;
-
-      case BetterPlayerEventType.bufferingStart:
-        setState(() {
-          isBuffering = true;
-          toastString = S.current.loading; // 显示“加载中”
-        });
-        
-        // 仅在视频已开始播放后启用10秒缓冲超时
-        if (isPlaying) {
-          // 清理现有超时定时器，避免叠加
-          _timeoutTimer?.cancel();
-          _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
-            // 检查各种状态以避免不必要触发
-            if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
-              LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
-                  'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
-                  'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
-              return;
-            }
-            
-            // 检查播放器是否仍在缓冲且未播放
-            if (_playerController?.isPlaying() != true) {
-              LogUtil.e('播放中缓冲超过10秒，触发重试');
-              _retryPlayback(resetRetryCount: true); // 重置重试次数后重试
-            }
-          });
-        } else {
-          LogUtil.i('初始缓冲，不启用10秒超时');
-        }
-        break;
-
-      case BetterPlayerEventType.bufferingUpdate:
-        if (_progressEnabled && isPlaying) { // 利用 _progressEnabled 控制监听
-          final bufferedData = event.parameters?["buffered"];
-          if (bufferedData != null) {
-            if (bufferedData is List<dynamic>) {
-              if (bufferedData.isNotEmpty) {
-                final lastBuffer = bufferedData.last; // 取最后一个元素
-                try {
-                  _lastBufferedPosition = lastBuffer.end as Duration;
-                  _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-                  // 调试才开启下面日志
-                  // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
-                } catch (e) {
-                  LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
-                  // 即使解析失败，也更新时间戳，确保 progress 不使用过旧的时间
-                  _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-                }
-              } else {
-                // 保持 _lastBufferedPosition 不变，只更新时间戳
-                _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-              }
-            } else if (bufferedData is Duration) {
-              _lastBufferedPosition = bufferedData;
-              _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-              LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
-            } else {
-              LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
-              // 对于未知类型，更新时间戳
-              _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-            }
-          } else {
-            LogUtil.i('缓冲区数据为空');
-            // 如果数据为空，更新时间戳
-            _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-          }
-        }
-        break;
-
-      case BetterPlayerEventType.bufferingEnd:
-        setState(() {
-          isBuffering = false;
-          toastString = 'HIDE_CONTAINER'; // 隐藏提示
-          if (!_isUserPaused) _showPauseIconFromListener = false;
-        });
-        _timeoutTimer?.cancel(); // 缓冲结束，取消超时定时器
-        _timeoutTimer = null;
-        _cleanupTimers(); // 清理其他定时器
-        break;
-
-      case BetterPlayerEventType.play:
-        if (!isPlaying) {
-          setState(() {
-            isPlaying = true;
-            if (!isBuffering) toastString = 'HIDE_CONTAINER';
-            _progressEnabled = false;
-            _showPlayIcon = false; // 播放时隐藏播放图标
-            _showPauseIconFromListener = false; // 隐藏暂停图标
-            _isUserPaused = false; // 播放时重置用户暂停状态
-          });
-          _timeoutTimer?.cancel(); // 播放开始，取消缓冲超时定时器
-          _timeoutTimer = null;
-          if (_playDurationTimer == null || !_playDurationTimer!.isActive) {
-            _startPlayDurationTimer();
-          }
-        }
-        break;
-
-      case BetterPlayerEventType.pause:
-        if (isPlaying) {
-          setState(() {
-            isPlaying = false;
-            toastString = S.current.playpause;
-            if (_isUserPaused) {
-              _showPlayIcon = true; // 用户触发的暂停，显示播放图标
-              _showPauseIconFromListener = false;
-            } else {
-              _showPlayIcon = false; // 非用户触发的暂停，显示暂停图标
-              _showPauseIconFromListener = true;
-            }
-          });
-          LogUtil.i('播放暂停，用户触发: $_isUserPaused');
-        }
-        break;
-
-      case BetterPlayerEventType.progress:
-        if (_progressEnabled && isPlaying) {
-          final position = event.parameters?["progress"] as Duration?;
-          final duration = event.parameters?["duration"] as Duration?;
-          if (position != null && duration != null) {
-            if (_lastBufferedPosition != null && _lastBufferedTime != null) {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
-              final timeSinceLastUpdate = (timestamp - _lastBufferedTime!) / 1000.0;
-              final remainingBuffer = _lastBufferedPosition! - position;
-
-              _bufferedHistory.add({
-                'buffered': _lastBufferedPosition!,
-                'position': position,
-                'timestamp': timestamp,
-                'remainingBuffer': remainingBuffer,
-              });
-              if (_bufferedHistory.length > bufferHistorySize) _bufferedHistory.removeAt(0); // 确保至少 bufferHistorySize 条记录以支持 positionIncreaseThreshold 次增量
-
-              if (_isHls && !_isParsing) {
-                // HLS 检查逻辑
-                final remainingTime = duration - position;
-                // 调试才开启下面日志
-                // LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
-
-                // 检查剩余时间 ≤ hlsSwitchThresholdSeconds 秒且有预缓存地址
-                if (_preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
-                  await _switchToPreCachedUrl('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒');
-                }
-                // 新增触发重新解析条件
-                else if (_bufferedHistory.length >= bufferHistorySize) { // 需要 bufferHistorySize 条记录来检查 positionIncreaseThreshold 次增量
-                  int positionIncreaseCount = 0;
-                  int remainingBufferLowCount = 0;
-
-                  // 检查最后 bufferHistorySize 条记录中的 positionIncreaseThreshold 个增量区间
-                  for (int i = _bufferedHistory.length - positionIncreaseThreshold; i < _bufferedHistory.length; i++) {
-                    final prev = _bufferedHistory[i - 1];
-                    final curr = _bufferedHistory[i];
-                    if (curr['position'] > prev['position']) {
-                      positionIncreaseCount++;
-                    }
-                    if ((curr['remainingBuffer'] as Duration).inSeconds < minRemainingBufferSeconds) {
-                      remainingBufferLowCount++;
-                    }
-                  }
-
-                  if (positionIncreaseCount == positionIncreaseThreshold &&
-                      remainingBufferLowCount >= lowBufferThresholdCount &&
-                      timeSinceLastUpdate > bufferUpdateTimeoutSeconds) {
-                    LogUtil.i('触发重新解析: 位置增加 $positionIncreaseThreshold 次，剩余缓冲 < $minRemainingBufferSeconds 至少 $lowBufferThresholdCount 次，最后缓冲更新距今 > $bufferUpdateTimeoutSeconds');
-                    _reparseAndSwitch();
-                  }
-                }
-              } else {
-                // 非 HLS 检查逻辑
-                final remainingTime = duration - position;
-                if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
-                  final nextUrl = _getNextVideoUrl();
-                  if (nextUrl != null && nextUrl != _preCachedUrl) {
-                    LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源: $nextUrl');
-                    _preloadNextVideo(nextUrl);
-                  }
-                }
-                if (remainingTime.inSeconds <= nonHlsSwitchThresholdSeconds && _preCachedUrl != null) {
-                  await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
-                }
-              }
-            } else {
-              // 调试才开启下面日志
-              // LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
-            }
-          } else {
-            LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
-          }
-        }
-        break;
-
-      case BetterPlayerEventType.finished:
-        if (!_isHls && _preCachedUrl != null) {
-          await _switchToPreCachedUrl('非 HLS 播放结束');
-        } else if (_isHls) {
-          LogUtil.i('HLS 流异常结束，重试播放');
-          _retryPlayback();
-        } else {
-          LogUtil.i('无更多源可播放');
-          _handleNoMoreSources();
-        }
-        break;
-
-      default:
-        if (event.betterPlayerEventType != BetterPlayerEventType.changedPlayerVisibility) {
-          LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
-        }
-        break;
     }
   }
 
@@ -749,7 +518,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _isDisposing = true;
     try {
       _cleanupTimers();
-      controller.removeEventsListener(_videoListener);
 
       if (controller.isPlaying() ?? false) {
         await controller.pause();
@@ -952,8 +720,58 @@ class _LiveHomePageState extends State<LiveHomePage> {
   @override
   void initState() {
     super.initState();
-    _adManager = AdManager(); // 初始化 AdManager
-    _adManager.loadAdData(); // 加载广告数据
+    _eventHandler = BetterPlayerEventHandler(
+      getPlayerController: () => _playerController,
+      mounted: () => mounted,
+      isHls: () => _isHls,
+      isPlaying: () => isPlaying,
+      isBuffering: () => isBuffering,
+      progressEnabled: () => _progressEnabled,
+      preCachedUrl: () => _preCachedUrl,
+      lastBufferedPosition: () => _lastBufferedPosition,
+      lastBufferedTime: () => _lastBufferedTime,
+      bufferedHistory: () => _bufferedHistory,
+      isDisposing: () => _isDisposing,
+      isSwitchingChannel: () => _isSwitchingChannel,
+      isRetrying: () => _isRetrying,
+      isParsing: () => _isParsing,
+      isUserPaused: () => _isUserPaused,
+      showPlayIcon: () => _showPlayIcon,
+      showPauseIconFromListener: () => _showPauseIconFromListener,
+      retryCount: () => _retryCount,
+      switchToPreCachedUrl: _switchToPreCachedUrl,
+      retryPlayback: _retryPlayback,
+      reparseAndSwitch: _reparseAndSwitch,
+      setState: (key, value) => setState(() {
+        switch (key) {
+          case 'isBuffering': isBuffering = value as bool; break;
+          case 'isPlaying': isPlaying = value as bool; break;
+          case 'toastString': toastString = value as String; break;
+          case 'lastBufferedPosition': _lastBufferedPosition = value as Duration?; break;
+          case 'lastBufferedTime': _lastBufferedTime = value as int?; break;
+          case 'progressEnabled': _progressEnabled = value as bool; break;
+          case 'showPlayIcon': _showPlayIcon = value as bool; break;
+          case 'showPauseIconFromListener': _showPauseIconFromListener = value as bool; break;
+          case 'isUserPaused': _isUserPaused = value as bool; break;
+          case 'retryCount': _retryCount = value as int; break;
+        }
+      }),
+      preloadNextVideo: _preloadNextVideo,
+      getNextVideoUrl: _getNextVideoUrl,
+      startPlayDurationTimer: _startPlayDurationTimer,
+      onAspectRatioUpdated: (newAspectRatio) {
+        if (_shouldUpdateAspectRatio && aspectRatio != newAspectRatio) {
+          setState(() {
+            aspectRatio = newAspectRatio;
+            _shouldUpdateAspectRatio = false;
+          });
+          LogUtil.i('初始化完成，更新宽高比: $newAspectRatio');
+        }
+      },
+      handleNoMoreSources: _handleNoMoreSources,
+    );
+    _adManager = AdManager();
+    _adManager.loadAdData();
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     _loadData();
     _extractFavoriteList();
@@ -973,6 +791,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutTimer?.cancel(); // 清理超时计时器
     _timeoutTimer = null; // 重置为 null
     _adManager.dispose(); // 清理广告资源
+    _eventHandler?.dispose();
+    _eventHandler = null;
     super.dispose();
   }
 
