@@ -207,16 +207,11 @@ class FocusManager {
     int length,
     State state, {
     ScrollController? scrollController,
+    ScrollController? groupController, // 新增：明确指定分组控制器
+    ScrollController? channelController, // 新增：明确指定频道控制器
     double? viewPortHeight,
     required String listType, // 新增：区分列表类型
   }) {
-    // 修改部分：确保焦点节点数量足够
-    int expectedTotal = startIndex + length;
-    if (_focusNodes.length < expectedTotal) {
-      FocusManager.initializeFocusNodes(expectedTotal);
-      LogUtil.d('动态调整焦点节点总数到: $expectedTotal');
-    }
-
     if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
       LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
       return;
@@ -226,28 +221,18 @@ class FocusManager {
       _focusNodes[index].removeListener(() {});
       _focusNodes[index].addListener(() {
         if (state.mounted && _focusNodes[index].hasFocus) {
-          // 修改部分：添加范围校验，确保隔离
-          if (listType == "group" && (index < startIndex || index >= startIndex + length)) {
-            LogUtil.e('分组焦点越界: index=$index, expected=$startIndex to ${startIndex + length - 1}');
-            return;
-          }
-          if (listType == "channel" && (index < startIndex || index >= startIndex + length)) {
-            LogUtil.e('频道焦点越界: index=$index, expected=$startIndex to ${startIndex + length - 1}');
-            return;
-          }
           state.setState(() {});
           if (scrollController != null && viewPortHeight != null) {
             final itemIndex = index - startIndex;
-            // 修改部分：添加日志验证
-            LogUtil.d('同步滚动: index=$index, listType=$listType, itemIndex=$itemIndex');
-            if (listType == "group") {
+            // 仅对当前列表类型触发滚动，确保隔离
+            if (listType == "group" && scrollController == groupController) {
               ScrollUtil.scrollToCurrentItem(
                 groupIndex: itemIndex,
                 groupController: scrollController,
                 viewPortHeight: viewPortHeight,
                 isSwitching: false,
               );
-            } else if (listType == "channel") {
+            } else if (listType == "channel" && scrollController == channelController) {
               ScrollUtil.scrollToCurrentItem(
                 channelIndex: itemIndex,
                 channelController: scrollController,
@@ -255,7 +240,7 @@ class FocusManager {
                 isSwitching: false,
               );
             }
-            // 分类列表不需要滚动，保持不动
+            // 分类列表不滚动
           }
         }
       });
@@ -291,6 +276,7 @@ class ScrollUtil {
     double topOffset = defaultTopOffset, // 默认 112.0
     bool isSwitching = false, // 是否为切换分类/分组场景
   }) {
+    LogUtil.d('滚动调用: groupIndex=$groupIndex, channelIndex=$channelIndex, isSwitching=$isSwitching');
     const itemHeight = defaultMinHeight;
 
     // 处理分组滚动
@@ -571,6 +557,7 @@ class _GroupListState extends State<GroupList> {
       widget.keys.length,
       this,
       scrollController: widget.scrollController,
+      groupController: widget.scrollController, // 指定分组控制器
       viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
       listType: "group", // 指定为分组列表
     );
@@ -684,6 +671,7 @@ class _ChannelListState extends State<ChannelList> {
       widget.channels.length,
       this,
       scrollController: widget.scrollController,
+      channelController: widget.scrollController, // 指定频道控制器
       viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
       listType: "channel", // 指定为频道列表
     );
@@ -1233,9 +1221,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   void _reInitializeFocusListeners() {
-    // 修改部分：动态调整焦点节点总数并重新绑定监听器
-    int totalFocusNodes = _calculateTotalFocusNodes();
-    FocusManager.initializeFocusNodes(totalFocusNodes);
     FocusManager.addFocusListeners(
       0,
       _categories.length,
@@ -1248,15 +1233,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _keys.length,
         this,
         scrollController: _scrollController,
+        groupController: _scrollController, // 指定分组控制器
         viewPortHeight: _viewPortHeight,
         listType: "group",
       );
-      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      if (_values.isNotEmpty && _groupIndex >= 0) {
         FocusManager.addFocusListeners(
           _categories.length + _keys.length,
           _values[_groupIndex].length,
           this,
           scrollController: _scrollChannelController,
+          channelController: _scrollChannelController, // 指定频道控制器
           viewPortHeight: _viewPortHeight,
           listType: "channel",
         );
@@ -1331,8 +1318,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _groupIndex = index;
       _isSystemAutoSelected = false;
 
-      int totalFocusNodes = _categories.length + (_keys.isNotEmpty ? _keys.length : 0);
-      if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      int totalFocusNodes = _categories.length + _keys.length;
+      if (_groupIndex >= 0 && _groupIndex < _values.length) {
         totalFocusNodes += _values[_groupIndex].length;
       }
       FocusManager.initializeFocusNodes(totalFocusNodes); // 调整节点数量
@@ -1340,15 +1327,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
       if (widget.playModel?.group == _keys[index]) {
         _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (_channelIndex == -1) {
-          _channelIndex = 0;
-        }
+        if (_channelIndex == -1) _channelIndex = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScrollUtil.scrollToCurrentItem(
             channelIndex: _channelIndex,
             channelController: _scrollChannelController,
             viewPortHeight: _viewPortHeight!,
-            isSwitching: true, // 切换场景
+            isSwitching: true, // 仅在切换分组时滚动频道
           );
         });
       } else {
