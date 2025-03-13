@@ -173,7 +173,7 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-/// 焦点管理工具类（修改部分）
+/// 焦点管理工具类
 class FocusManager {
   static List<FocusNode> _focusNodes = [];
 
@@ -201,7 +201,7 @@ class FocusManager {
     }
   }
 
-  /// 添加焦点监听器，优化重复调用并支持滚动（修改部分）
+  /// 添加焦点监听器，优化重复调用并支持滚动
   static void addFocusListeners(
     int startIndex,
     int length,
@@ -210,6 +210,13 @@ class FocusManager {
     double? viewPortHeight,
     required String listType, // 新增：区分列表类型
   }) {
+    // 修改部分：确保焦点节点数量足够
+    int expectedTotal = startIndex + length;
+    if (_focusNodes.length < expectedTotal) {
+      FocusManager.initializeFocusNodes(expectedTotal);
+      LogUtil.d('动态调整焦点节点总数到: $expectedTotal');
+    }
+
     if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
       LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
       return;
@@ -219,9 +226,20 @@ class FocusManager {
       _focusNodes[index].removeListener(() {});
       _focusNodes[index].addListener(() {
         if (state.mounted && _focusNodes[index].hasFocus) {
-          // 只滚动对应列表，不影响其他列表
+          // 修改部分：添加范围校验，确保隔离
+          if (listType == "group" && (index < startIndex || index >= startIndex + length)) {
+            LogUtil.e('分组焦点越界: index=$index, expected=$startIndex to ${startIndex + length - 1}');
+            return;
+          }
+          if (listType == "channel" && (index < startIndex || index >= startIndex + length)) {
+            LogUtil.e('频道焦点越界: index=$index, expected=$startIndex to ${startIndex + length - 1}');
+            return;
+          }
+          state.setState(() {});
           if (scrollController != null && viewPortHeight != null) {
             final itemIndex = index - startIndex;
+            // 修改部分：添加日志验证
+            LogUtil.d('同步滚动: index=$index, listType=$listType, itemIndex=$itemIndex');
             if (listType == "group") {
               ScrollUtil.scrollToCurrentItem(
                 groupIndex: itemIndex,
@@ -237,10 +255,8 @@ class FocusManager {
                 isSwitching: false,
               );
             }
-            // 分类列表没有滚动控制器，不执行滚动
+            // 分类列表不需要滚动，保持不动
           }
-          // 只更新自身状态，不触发父组件更新
-          state.setState(() {});
         }
       });
     }
@@ -330,7 +346,7 @@ class ScrollUtil {
 
 /// 构建通用列表项
 Widget buildListItem({
-  required String title,
+  required Строка title,
   required bool isSelected,
   required Function() onTap,
   required BuildContext context,
@@ -1217,6 +1233,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   void _reInitializeFocusListeners() {
+    // 修改部分：动态调整焦点节点总数并重新绑定监听器
+    int totalFocusNodes = _calculateTotalFocusNodes();
+    FocusManager.initializeFocusNodes(totalFocusNodes);
     FocusManager.addFocusListeners(
       0,
       _categories.length,
@@ -1232,7 +1251,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         viewPortHeight: _viewPortHeight,
         listType: "group",
       );
-      if (_values.isNotEmpty && _groupIndex >= 0) {
+      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
         FocusManager.addFocusListeners(
           _categories.length + _keys.length,
           _values[_groupIndex].length,
@@ -1303,7 +1322,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  /// 修改后的 _onGroupTap 方法（修改部分）
   void _onGroupTap(int index) {
     if (index < 0 || index >= _keys.length) {
       LogUtil.e('分组索引越界: index=$index, max=${_keys.length}');
@@ -1325,12 +1343,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         if (_channelIndex == -1) {
           _channelIndex = 0;
         }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScrollUtil.scrollToCurrentItem(
+            channelIndex: _channelIndex,
+            channelController: _scrollChannelController,
+            viewPortHeight: _viewPortHeight!,
+            isSwitching: true, // 切换场景
+          );
+        });
       } else {
         _channelIndex = 0;
         _isChannelAutoSelected = true;
+        ScrollUtil.scrollToTop(_scrollChannelController);
+        // 分组列表保持当前位置，不滚动
       }
-      // 仅在主动切换时调整滚动位置
-      _adjustScrollPositions(groupIndex: _groupIndex, channelIndex: _channelIndex);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1343,7 +1369,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  /// 修改后的 _adjustScrollPositions 方法（修改部分）
   void _adjustScrollPositions({int? groupIndex, int? channelIndex, int retryCount = 0, int maxRetries = 5}) {
     if (retryCount >= maxRetries) {
       LogUtil.i('调整滚动位置达到最大重试次数，停止尝试');
@@ -1358,23 +1383,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           ));
       return;
     }
-    // 只在明确指定时滚动，确保隔离
-    if (groupIndex != null) {
-      ScrollUtil.scrollToCurrentItem(
-        groupIndex: groupIndex,
-        groupController: _scrollController,
-        viewPortHeight: _viewPortHeight!,
-        isSwitching: true,
-      );
-    }
-    if (channelIndex != null) {
-      ScrollUtil.scrollToCurrentItem(
-        channelIndex: channelIndex,
-        channelController: _scrollChannelController,
-        viewPortHeight: _viewPortHeight!,
-        isSwitching: true,
-      );
-    }
+    ScrollUtil.scrollToCurrentItem(
+      groupIndex: groupIndex ?? _groupIndex,
+      channelIndex: channelIndex ?? _channelIndex,
+      groupController: _scrollController,
+      channelController: _scrollChannelController,
+      viewPortHeight: _viewPortHeight!,
+      isSwitching: true, // 初始化时视为切换场景
+    );
   }
 
   @override
