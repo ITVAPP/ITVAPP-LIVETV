@@ -56,7 +56,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const double defaultAspectRatio = 1.78; // 视频播放器的初始宽高比（16:9），若未从播放器获取新值则使用此值
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
-  static const int bufferingStartSeconds = 10; // 缓冲超过计时器的时间就放弃加载，启用重试
+  static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
 
   // 缓冲区检查相关变量
   List<Map<String, dynamic>> _bufferedHistory = [];
