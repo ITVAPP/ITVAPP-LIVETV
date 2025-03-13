@@ -201,7 +201,7 @@ class FocusManager {
     }
   }
 
-  /// 添加焦点监听器，优化重复调用并支持滚动
+  /// 添加焦点监听器，确保只绑定一次并支持滚动
   static void addFocusListeners(
     int startIndex,
     int length,
@@ -216,16 +216,23 @@ class FocusManager {
       LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
       return;
     }
+
+    // 添加日志记录所有节点索引范围
+    LogUtil.d('绑定焦点监听器: listType=$listType, startIndex=$startIndex, endIndex=${startIndex + length - 1}, totalNodes=${_focusNodes.length}');
+
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
+      // 先移除旧监听器，避免重复绑定
       _focusNodes[index].removeListener(() {});
+      // 添加新监听器
       _focusNodes[index].addListener(() {
         if (state.mounted && _focusNodes[index].hasFocus) {
+          LogUtil.d('焦点变化: 索引=$index, listType=$listType');
           state.setState(() {});
           if (scrollController != null && viewPortHeight != null) {
             final itemIndex = index - startIndex;
-            // 仅对当前列表类型触发滚动，确保隔离
             if (listType == "group" && scrollController == groupController) {
+              LogUtil.d('触发分组列表滚动: groupIndex=$itemIndex');
               ScrollUtil.scrollToCurrentItem(
                 groupIndex: itemIndex,
                 groupController: scrollController,
@@ -233,6 +240,7 @@ class FocusManager {
                 isSwitching: false,
               );
             } else if (listType == "channel" && scrollController == channelController) {
+              LogUtil.d('触发频道列表滚动: channelIndex=$itemIndex');
               ScrollUtil.scrollToCurrentItem(
                 channelIndex: itemIndex,
                 channelController: scrollController,
@@ -279,7 +287,7 @@ class ScrollUtil {
     LogUtil.d('滚动调用: groupIndex=$groupIndex, channelIndex=$channelIndex, isSwitching=$isSwitching');
     const itemHeight = defaultMinHeight;
 
-    // 处理分组滚动
+    // 仅滚动分组列表
     if (groupController != null && groupIndex != null && groupController.hasClients) {
       final maxScrollExtent = groupController.position.maxScrollExtent;
       double targetOffset;
@@ -303,10 +311,11 @@ class ScrollUtil {
           return;
         }
       }
+      LogUtil.d('滚动分组列表到: $targetOffset');
       groupController.jumpTo(targetOffset);
     }
 
-    // 处理频道滚动（逻辑相同）
+    // 仅滚动频道列表
     if (channelController != null && channelIndex != null && channelController.hasClients) {
       final maxScrollExtent = channelController.position.maxScrollExtent;
       double targetOffset;
@@ -325,6 +334,7 @@ class ScrollUtil {
           return;
         }
       }
+      LogUtil.d('滚动频道列表到: $targetOffset');
       channelController.jumpTo(targetOffset);
     }
   }
