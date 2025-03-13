@@ -1136,7 +1136,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('更新收藏列表: $_videoMap');
-        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch | (isAddingFavorite ? 1 : 0));
+        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch | (isAddingFavorite ? 1 : 0)));
       } catch (error) {
         CustomSnackBar.showSnackBar(context, S.current.newfavoriteerror, duration: Duration(seconds: snackBarDurationSeconds));
         LogUtil.logError('保存收藏失败', error);
@@ -1234,7 +1234,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 onTapChannel: _onTapChannel,
                 isLandscape: false,
                 onCloseDrawer: () => setState(() => _drawerIsOpen = false),
-                defaultCategory: Config.myFavoriteKey, // 默认选择“我的收藏”
                 onSwitchToFavorites: () {
                   final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
                   if (favoriteIndex != -1) {
@@ -1302,7 +1301,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
                       onCloseDrawer: () => setState(() => _drawerIsOpen = false),
-                      defaultCategory: Config.myFavoriteKey, // 默认选择“我的收藏”
                       onSwitchToFavorites: () {
                         final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
                         if (favoriteIndex != -1) {
