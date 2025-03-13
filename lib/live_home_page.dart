@@ -100,9 +100,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
 
-  // 添加对 ChannelDrawerPage 的引用
-  final GlobalKey<ChannelDrawerPageState> _drawerKey = GlobalKey<ChannelDrawerPageState>();
-
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
 
@@ -959,8 +956,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     _loadData();
     _extractFavoriteList();
-    // 初始化 _drawerRefreshKey
-    _drawerRefreshKey = ValueKey(0); // 设置初始值，避免 null
   }
 
   /// 清理所有资源
@@ -1141,11 +1136,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('更新收藏列表: $_videoMap');
-        // 添加收藏时切换到“我的收藏”，但不刷新整个抽屉
-        if (isAddingFavorite) {
-          _drawerKey.currentState?.switchToCategory(Config.myFavoriteKey);
-        }
-        // 取消收藏时不刷新抽屉，仅更新数据
+        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch | (isAddingFavorite ? 1 : 0)));
       } catch (error) {
         CustomSnackBar.showSnackBar(context, S.current.newfavoriteerror, duration: Duration(seconds: snackBarDurationSeconds));
         LogUtil.logError('保存收藏失败', error);
@@ -1236,7 +1227,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               aspectRatio: aspectRatio,
               onChangeSubSource: _parseData,
               drawChild: ChannelDrawerPage(
-                key: _drawerKey, // 使用新的 GlobalKey
+                key: _drawerRefreshKey,
                 refreshKey: _drawerRefreshKey,
                 videoMap: _videoMap,
                 playModel: _currentChannel,
@@ -1244,7 +1235,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 isLandscape: false,
                 onCloseDrawer: () => setState(() => _drawerIsOpen = false),
                 onSwitchToFavorites: () {
-                  _drawerKey.currentState?.switchToCategory(Config.myFavoriteKey);
+                  final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
+                  if (favoriteIndex != -1) {
+                    _onCategoryTap(favoriteIndex);
+                  }
                 },
               ),
               toggleFavorite: toggleFavorite,
@@ -1300,7 +1294,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   child: GestureDetector(
                     onTap: () => setState(() => _drawerIsOpen = false),
                     child: ChannelDrawerPage(
-                      key: _drawerKey, // 使用新的 GlobalKey
+                      key: _drawerRefreshKey,
                       refreshKey: _drawerRefreshKey,
                       videoMap: _videoMap,
                       playModel: _currentChannel,
@@ -1308,7 +1302,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       isLandscape: true,
                       onCloseDrawer: () => setState(() => _drawerIsOpen = false),
                       onSwitchToFavorites: () {
-                        _drawerKey.currentState?.switchToCategory(Config.myFavoriteKey);
+                        final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
+                        if (favoriteIndex != -1) {
+                          _onCategoryTap(favoriteIndex);
+                        }
                       },
                     ),
                   ),
