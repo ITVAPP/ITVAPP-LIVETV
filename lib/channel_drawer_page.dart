@@ -928,9 +928,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _reInitializeFocusListeners();
       });
     } else if (widget.refreshKey != oldWidget.refreshKey) {
-      bool isAddingFavorite = (widget.refreshKey?.value as int? ?? 0) & 1 == 1; // 提取添加标志
-      if (isAddingFavorite && widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
-      widget.onSwitchToFavorites!(); // 只有添加收藏时切换到“我的收藏”
+    // 收藏变化时，检查是否需要切换到“我的收藏”
+      bool isAddingFavorite = widget.refreshKey is ValueKey<int> && (widget.refreshKey as ValueKey<int>).value & 1 == 1;
+        if (isAddingFavorite && widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
+          widget.onSwitchToFavorites!(); // 只有添加收藏时切换到“我的收藏”
       } else {
         _initializeChannelData(); // 非切换场景，仅刷新当前分类
         WidgetsBinding.instance.addPostFrameCallback((_) {
