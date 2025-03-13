@@ -95,7 +95,7 @@ const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 
 // 默认顶部偏移量
-const double defaultTopOffset = 112.0; // 默认滚动距离顶部的偏移量
+const double defaultTopOffset = 100.0; // 默认滚动距离顶部的偏移量
 
 // 默认分类和分组宽度（频道宽度在竖屏自适应）
 const double categoryWidthPortrait = 110.0; // 竖屏分类宽度
@@ -809,11 +809,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 排序缓存和地理位置记录
-  Map<String, List<String>> _sortedKeysCache = {};
-  Map<String, List<Map<String, PlayModel>>> _sortedValuesCache = {};
-  String? _lastLocationStr; // 记录上次排序时的地理位置
-
   Timer? _epgDebounceTimer;
 
   @override
@@ -835,22 +830,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.videoMap != oldWidget.videoMap) {
-      // 数据源变化时重置缓存并重新排序
-      _sortedKeysCache.clear();
-      _sortedValuesCache.clear();
-      _lastLocationStr = null;
+    if (widget.refreshKey != oldWidget.refreshKey) {
       _initializeData();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_tvKeyNavigationState != null) {
-          _tvKeyNavigationState!.releaseResources();
-          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
-        }
-        _reInitializeFocusListeners();
-      });
-    } else if (widget.refreshKey != oldWidget.refreshKey) {
-      // 收藏变化时仅更新数据，不重新排序
-      _initializeChannelData();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_tvKeyNavigationState != null) {
           _tvKeyNavigationState!.releaseResources();
@@ -993,20 +974,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final selectedCategory = _categories[_categoryIndex];
     final categoryMap = widget.videoMap?.playList[selectedCategory];
 
-    _keys = categoryMap?.keys.toList() ?? [];
-    _values = categoryMap?.values.toList() ?? [];
+    _keys = categoryMap.keys.toList();
+    _values = categoryMap.values.toList();
 
-    // 检查是否已有排序缓存
-    if (_sortedKeysCache.containsKey(selectedCategory) &&
-        _sortedValuesCache.containsKey(selectedCategory)) {
-      _keys = List.from(_sortedKeysCache[selectedCategory]!);
-      _values = List.from(_sortedValuesCache[selectedCategory]!);
-      LogUtil.d('使用缓存排序结果: $selectedCategory');
-    } else {
-      _sortByLocation();
-      _sortedKeysCache[selectedCategory] = List.from(_keys);
-      _sortedValuesCache[selectedCategory] = List.from(_values);
-    }
+    _sortByLocation();
 
     _groupIndex = _keys.indexOf(widget.playModel?.group ?? '');
     _channelIndex = _groupIndex != -1
@@ -1043,7 +1014,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return [...matchedItems, ...otherItems];
   }
 
-  /// 根据用户位置排序分组和频道，仅在无缓存时调用
+  /// 根据用户位置排序分组和频道
   void _sortByLocation() {
     const String locationKey = 'user_all_info';
     // 获取存储的地理信息
@@ -1053,13 +1024,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       LogUtil.i('未找到地理信息，跳过排序');
       return;
     }
-
-    // 检查地理位置是否变化
-    if (_lastLocationStr == locationStr) {
-      LogUtil.d('地理位置未变化，跳过排序');
-      return;
-    }
-    _lastLocationStr = locationStr;
 
     // 解析 JSON 数据
     String? regionPrefix;
