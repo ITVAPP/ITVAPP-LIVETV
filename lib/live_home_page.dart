@@ -1096,7 +1096,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   void toggleFavorite(String channelId) async {
     bool isFavoriteChanged = false;
-    bool isAddingFavorite = false; 
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = getGroupName(actualChannelId);
     String channelName = getChannelName(actualChannelId);
@@ -1113,7 +1112,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       CustomSnackBar.showSnackBar(context, S.current.removefavorite, duration: Duration(seconds: snackBarDurationSeconds));
       isFavoriteChanged = true;
-      isAddingFavorite = false; // 标记为取消收藏
     } else {
       if (favoriteList[Config.myFavoriteKey]![groupName] == null) {
         favoriteList[Config.myFavoriteKey]![groupName] = {};
@@ -1128,7 +1126,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       favoriteList[Config.myFavoriteKey]![groupName]![channelName] = newFavorite;
       CustomSnackBar.showSnackBar(context, S.current.newfavorite, duration: Duration(seconds: snackBarDurationSeconds));
       isFavoriteChanged = true;
-      isAddingFavorite = true; // 标记为添加收藏
     }
 
     if (isFavoriteChanged) {
@@ -1136,7 +1133,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('更新收藏列表: $_videoMap');
-        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch | (isAddingFavorite ? 1 : 0)));
+        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch));
       } catch (error) {
         CustomSnackBar.showSnackBar(context, S.current.newfavoriteerror, duration: Duration(seconds: snackBarDurationSeconds));
         LogUtil.logError('保存收藏失败', error);
@@ -1156,32 +1153,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('处理播放列表失败', e, stackTrace);
       setState(() => toastString = S.current.parseError);
-    }
-  }
-
-  // 添加 _onCategoryTap 方法以支持 onSwitchToFavorites
-  void _onCategoryTap(int index) {
-    if (_videoMap?.playList == null) return;
-    final categories = _videoMap!.playList!.keys.toList();
-    if (index >= 0 && index < categories.length) {
-      String selectedCategory = categories[index];
-      PlayModel? firstChannel;
-      final categoryData = _videoMap!.playList![selectedCategory];
-      if (categoryData is Map<String, Map<String, PlayModel>>) {
-        for (final groupEntry in categoryData.entries) {
-          if (groupEntry.value.isNotEmpty) {
-            firstChannel = groupEntry.value.values.first;
-            break;
-          }
-        }
-      } else if (categoryData is Map<String, PlayModel>) {
-        if (categoryData.isNotEmpty) {
-          firstChannel = categoryData.values.first;
-        }
-      }
-      if (firstChannel != null) {
-        _onTapChannel(firstChannel);
-      }
     }
   }
 
@@ -1234,12 +1205,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 onTapChannel: _onTapChannel,
                 isLandscape: false,
                 onCloseDrawer: () => setState(() => _drawerIsOpen = false),
-                onSwitchToFavorites: () {
-                  final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
-                  if (favoriteIndex != -1) {
-                    _onCategoryTap(favoriteIndex);
-                  }
-                },
               ),
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
@@ -1301,12 +1266,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
                       onCloseDrawer: () => setState(() => _drawerIsOpen = false),
-                      onSwitchToFavorites: () {
-                        final favoriteIndex = _videoMap?.playList?.keys.toList().indexOf(Config.myFavoriteKey) ?? -1;
-                        if (favoriteIndex != -1) {
-                          _onCategoryTap(favoriteIndex);
-                        }
-                      },
                     ),
                   ),
                 ),
