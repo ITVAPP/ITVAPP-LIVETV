@@ -214,15 +214,18 @@ class FocusManager {
       LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
       return;
     }
+    // 移除旧监听器，确保隔离
     for (var i = 0; i < length; i++) {
       final index = startIndex + i;
       _focusNodes[index].removeListener(() {});
+    }
+    for (var i = 0; i < length; i++) {
+      final index = startIndex + i;
       _focusNodes[index].addListener(() {
         if (state.mounted && _focusNodes[index].hasFocus) {
           state.setState(() {});
           if (scrollController != null && viewPortHeight != null) {
             final itemIndex = index - startIndex;
-            // 根据列表类型隔离滚动
             if (listType == "group") {
               ScrollUtil.scrollToCurrentItem(
                 groupIndex: itemIndex,
@@ -238,7 +241,7 @@ class FocusManager {
                 isSwitching: false,
               );
             }
-            // 分类列表不需要滚动，保持不动
+            // 分类列表不滚动
           }
         }
       });
@@ -275,6 +278,7 @@ class ScrollUtil {
     bool isSwitching = false, // 是否为切换分类/分组场景
   }) {
     const itemHeight = defaultMinHeight;
+    const scrollThreshold = itemHeight * 2; // 提前两项触发底部对齐
 
     // 处理分组滚动
     if (groupController != null && groupIndex != null && groupController.hasClients) {
@@ -282,28 +286,23 @@ class ScrollUtil {
       double targetOffset;
 
       if (isSwitching) {
-        // 切换场景：滚动到顶部偏移 112.0
         targetOffset = (groupIndex * itemHeight - topOffset).clamp(0.0, maxScrollExtent);
       } else {
-        // 焦点移动场景
         final currentOffset = groupController.offset;
         final itemTop = groupIndex * itemHeight;
         final itemBottom = (groupIndex + 1) * itemHeight;
         if (itemTop < currentOffset) {
-          // 超出顶部，顶部对齐
-          targetOffset = itemTop.clamp(0.0, maxScrollExtent);
-        } else if (itemBottom > currentOffset + viewPortHeight) {
-          // 超出底部，底部对齐
-          targetOffset = (itemBottom - viewPortHeight).clamp(0.0, maxScrollExtent);
+          targetOffset = itemTop.clamp(0.0, maxScrollExtent); // 顶部对齐
+        } else if (itemBottom > currentOffset + viewPortHeight - scrollThreshold) {
+          targetOffset = (itemBottom - viewPortHeight).clamp(0.0, maxScrollExtent); // 底部对齐
         } else {
-          // 未超出视窗，不滚动
-          return;
+          return; // 未超出，不滚动
         }
       }
       groupController.jumpTo(targetOffset);
     }
 
-    // 处理频道滚动（逻辑相同）
+    // 处理频道滚动
     if (channelController != null && channelIndex != null && channelController.hasClients) {
       final maxScrollExtent = channelController.position.maxScrollExtent;
       double targetOffset;
@@ -315,11 +314,11 @@ class ScrollUtil {
         final itemTop = channelIndex * itemHeight;
         final itemBottom = (channelIndex + 1) * itemHeight;
         if (itemTop < currentOffset) {
-          targetOffset = itemTop.clamp(0.0, maxScrollExtent);
-        } else if (itemBottom > currentOffset + viewPortHeight) {
-          targetOffset = (itemBottom - viewPortHeight).clamp(0.0, maxScrollExtent);
+          targetOffset = itemTop.clamp(0.0, maxScrollExtent); // 顶部对齐
+        } else if (itemBottom > currentOffset + viewPortHeight - scrollThreshold) {
+          targetOffset = (itemBottom - viewPortHeight).clamp(0.0, maxScrollExtent); // 底部对齐
         } else {
-          return;
+          return; // 未超出，不滚动
         }
       }
       channelController.jumpTo(targetOffset);
@@ -927,21 +926,36 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         _reInitializeFocusListeners();
       });
-    } else if (widget.refreshKey != oldWidget.refreshKey) {
-    // 收藏变化时，检查是否需要切换到“我的收藏”
-      bool isAddingFavorite = widget.refreshKey is ValueKey<int> && (widget.refreshKey as ValueKey<int>).value & 1 == 1;
-        if (isAddingFavorite && widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
-          widget.onSwitchToFavorites!(); // 只有添加收藏时切换到“我的收藏”
-      } else {
-        _initializeChannelData(); // 非切换场景，仅刷新当前分类
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_tvKeyNavigationState != null) {
-            _tvKeyNavigationState!.releaseResources();
-            _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
-          }
-          _reInitializeFocusListeners();
-        });
-      }
+    }
+    // 修改部分：移除复杂的 refreshKey 处理逻辑，仅在必要时更新数据
+    else if (widget.refreshKey != oldWidget.refreshKey) {
+      _initializeChannelData(); // 仅更新当前分类数据，不强制切换
+    }
+  }
+
+  /// 新增方法：外部调用以切换分类
+  void switchToCategory(String categoryKey) {
+    final index = _categories.indexOf(categoryKey);
+    if (xAI != -1 && index != _categoryIndex) {
+      setState(() {
+        _categoryIndex = index;
+        _initializeChannelData(); // 使用最新的 widget.videoMap 更新数据
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_tvKeyNavigationState != null) {
+          _tvKeyNavigationState!.releaseResources();
+          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
+        }
+        _reInitializeFocusListeners();
+        ScrollUtil.scrollToCurrentItem(
+          groupIndex: _groupIndex,
+          channelIndex: _channelIndex,
+          groupController: _scrollController,
+          channelController: _scrollChannelController,
+          viewPortHeight: _viewPortHeight!,
+          isSwitching: true,
+        );
+      });
     }
   }
 
@@ -1216,6 +1230,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   void _reInitializeFocusListeners() {
+    // 清理所有旧监听器
+    for (var node in FocusManager.getFocusNodes()) {
+      node.removeListener(() {});
+    }
     FocusManager.addFocusListeners(
       0,
       _categories.length,
@@ -1279,7 +1297,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           ScrollUtil.scrollToTop(_scrollChannelController);
         } else {
           _isSystemAutoSelected = false;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrame splendidCallback((_) {
             ScrollUtil.scrollToCurrentItem(
               groupIndex: _groupIndex,
               channelIndex: _channelIndex,
