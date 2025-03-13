@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
-// import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // 已移除依赖
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -97,7 +96,7 @@ const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 // 默认顶部偏移量
 const double defaultTopOffset = 112.0; // 默认滚动距离顶部的偏移量
 
-// 默认分类和分组宽度（频道宽度在竖屏自适应）
+// 默认分类和分组宽度
 const double categoryWidthPortrait = 110.0; // 竖屏分类宽度
 const double categoryWidthLandscape = 120.0; // 横屏分类宽度
 const double groupWidthPortrait = 120.0; // 竖屏分组宽度
@@ -230,7 +229,6 @@ class FocusManager {
                 groupController: scrollController,
                 viewPortHeight: viewPortHeight,
                 isSwitching: false,
-                isUpDirection: _focusNodes[index].previousFocusNode != null && _focusNodes[index].previousFocusNode!.hasFocus,
               );
             } else if (listType == "channel") {
               ScrollUtil.scrollToCurrentItem(
@@ -238,7 +236,6 @@ class FocusManager {
                 channelController: scrollController,
                 viewPortHeight: viewPortHeight,
                 isSwitching: false,
-                isUpDirection: _focusNodes[index].previousFocusNode != null && _focusNodes[index].previousFocusNode!.hasFocus,
               );
             }
             // 分类列表不需要滚动，保持不动
@@ -276,7 +273,6 @@ class ScrollUtil {
     required double viewPortHeight,
     double topOffset = defaultTopOffset, // 默认 112.0
     bool isSwitching = false, // 是否为切换分类/分组场景
-    bool isUpDirection = false, // 焦点移动方向（仅焦点移动时有效）
   }) {
     const itemHeight = defaultMinHeight;
 
@@ -294,10 +290,10 @@ class ScrollUtil {
         final itemTop = groupIndex * itemHeight;
         final itemBottom = (groupIndex + 1) * itemHeight;
         if (itemTop < currentOffset) {
-          // 上移超出顶部，顶部对齐
+          // 超出顶部，顶部对齐
           targetOffset = itemTop.clamp(0.0, maxScrollExtent);
         } else if (itemBottom > currentOffset + viewPortHeight) {
-          // 下移超出底部，底部对齐
+          // 超出底部，底部对齐
           targetOffset = (itemBottom - viewPortHeight).clamp(0.0, maxScrollExtent);
         } else {
           // 未超出视窗，不滚动
@@ -842,6 +838,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final VoidCallback onCloseDrawer;
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
   final Key? refreshKey;
+  final VoidCallback? onSwitchToFavorites; // 新增：切换到收藏的回调
 
   const ChannelDrawerPage({
     super.key,
@@ -852,6 +849,7 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
+    this.onSwitchToFavorites, // 新增参数
   });
 
   @override
@@ -930,15 +928,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _reInitializeFocusListeners();
       });
     } else if (widget.refreshKey != oldWidget.refreshKey) {
-      // 收藏变化时仅更新数据，不重新排序
-      _initializeChannelData();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_tvKeyNavigationState != null) {
-          _tvKeyNavigationState!.releaseResources();
-          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
-        }
-        _reInitializeFocusListeners();
-      });
+      // 收藏变化时，检查是否需要切换到“我的收藏”
+      if (widget.onSwitchToFavorites != null && _categories.contains(Config.myFavoriteKey)) {
+        widget.onSwitchToFavorites!(); // 直接切换到“我的收藏”
+      } else {
+        _initializeChannelData(); // 非切换场景，仅刷新当前分类
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_tvKeyNavigationState != null) {
+            _tvKeyNavigationState!.releaseResources();
+            _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
+          }
+          _reInitializeFocusListeners();
+        });
+      }
     }
   }
 
