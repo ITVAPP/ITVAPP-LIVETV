@@ -103,3 +103,266 @@ class BetterPlayerConfig {
     );
   }
 }
+
+class BetterPlayerEventHandler {
+  final BetterPlayerController? Function() getPlayerController;
+  final bool Function() isHls;
+  final bool Function() isPlaying;
+  final bool Function() isBuffering;
+  final bool Function() progressEnabled;
+  final String? Function() preCachedUrl;
+  final Duration? Function() lastBufferedPosition;
+  final int? Function() lastBufferedTime;
+  final List<Map<String, dynamic>> Function() bufferedHistory;
+  final bool Function() isDisposing;
+  final bool Function() isSwitchingChannel;
+  final bool Function() isRetrying;
+  final bool Function() isParsing;
+  final bool Function() isUserPaused;
+  final bool Function() showPlayIcon;
+  final bool Function() showPauseIconFromListener;
+  final int Function() retryCount;
+  final Future<void> Function(String) switchToPreCachedUrl;
+  final void Function({bool resetRetryCount}) retryPlayback;
+  final Future<void> Function() reparseAndSwitch;
+  final void Function(String, dynamic) setState;
+  final Future<void> Function(String) preloadNextVideo;
+  final String? Function() getNextVideoUrl;
+  final void Function() startPlayDurationTimer;
+  final void Function(double) onAspectRatioUpdated;
+  final void Function() handleNoMoreSources;
+  final bool Function() mounted;
+
+  BetterPlayerEventHandler({
+    required this.getPlayerController,
+    required this.isHls,
+    required this.isPlaying,
+    required this.isBuffering,
+    required this.progressEnabled,
+    required this.preCachedUrl,
+    required this.lastBufferedPosition,
+    required this.lastBufferedTime,
+    required this.bufferedHistory,
+    required this.isDisposing,
+    required this.isSwitchingChannel,
+    required this.isRetrying,
+    required this.isParsing,
+    required this.isUserPaused,
+    required this.showPlayIcon,
+    required this.showPauseIconFromListener,
+    required this.retryCount,
+    required this.switchToPreCachedUrl,
+    required this.retryPlayback,
+    required this.reparseAndSwitch,
+    required this.setState,
+    required this.preloadNextVideo,
+    required this.getNextVideoUrl,
+    required this.startPlayDurationTimer,
+    required this.onAspectRatioUpdated,
+    required this.handleNoMoreSources,
+  });
+
+  static const int bufferHistorySize = 6;
+  static const int positionIncreaseThreshold = 5;
+  static const int lowBufferThresholdCount = 3;
+  static const int minRemainingBufferSeconds = 8;
+  static const int bufferUpdateTimeoutSeconds = 6;
+  static const int hlsSwitchThresholdSeconds = 3;
+  static const int nonHlsSwitchThresholdSeconds = 3;
+  static const int nonHlsPreloadThresholdSeconds = 20;
+  static const int bufferingStartSeconds = 15;
+
+  Timer? _bufferingTimeoutTimer;
+
+  void videoListener(BetterPlayerEvent event) {
+    if (isDisposing() || getPlayerController() == null || !mounted()) return;
+
+    switch (event.betterPlayerEventType) {
+      case BetterPlayerEventType.initialized:
+        final newAspectRatio = getPlayerController()?.videoPlayerController?.value.aspectRatio ?? 1.78;
+        onAspectRatioUpdated(newAspectRatio);
+        break;
+
+      case BetterPlayerEventType.exception:
+        LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "Unknown error"}');
+        if (preCachedUrl() != null) {
+          switchToPreCachedUrl('异常触发');
+        } else {
+          retryPlayback();
+        }
+        break;
+
+      case BetterPlayerEventType.bufferingStart:
+        setState('isBuffering', true);
+        setState('toastString', S.current.loading);
+        if (isPlaying()) {
+          _bufferingTimeoutTimer?.cancel();
+          _bufferingTimeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
+            if (!isBuffering() || isRetrying() || isSwitchingChannel() || isDisposing() || isParsing()) {
+              LogUtil.i('缓冲超时检查被阻止');
+              return;
+            }
+            if (getPlayerController()?.isPlaying() != true) {
+              LogUtil.e('播放中缓冲超过 $bufferingStartSeconds 秒，触发重试');
+              retryPlayback(resetRetryCount: true);
+            }
+          });
+        } else {
+          LogUtil.i('初始缓冲，不启用 $bufferingStartSeconds 秒超时');
+        }
+        break;
+
+      case BetterPlayerEventType.bufferingUpdate:
+        if (progressEnabled() && isPlaying()) {
+          final bufferedData = event.parameters?["buffered"];
+          if (bufferedData != null) {
+            if (bufferedData is List<dynamic> && bufferedData.isNotEmpty) {
+              final lastBuffer = bufferedData.last;
+              try {
+                setState('lastBufferedPosition', lastBuffer.end as Duration);
+                setState('lastBufferedTime', DateTime.now().millisecondsSinceEpoch);
+              } catch (e) {
+                LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
+                setState('lastBufferedTime', DateTime.now().millisecondsSinceEpoch);
+              }
+            } else if (bufferedData is Duration) {
+              setState('lastBufferedPosition', bufferedData);
+              setState('lastBufferedTime', DateTime.now().millisecondsSinceEpoch);
+              LogUtil.i('缓冲区更新: $bufferedData');
+            } else {
+              LogUtil.i('未知的缓冲区数据类型: $bufferedData');
+              setState('lastBufferedTime', DateTime.now().millisecondsSinceEpoch);
+            }
+          } else {
+            LogUtil.i('缓冲区数据为空');
+            setState('lastBufferedTime', DateTime.now().millisecondsSinceEpoch);
+          }
+        }
+        break;
+
+      case BetterPlayerEventType.bufferingEnd:
+        setState('isBuffering', false);
+        setState('toastString', 'HIDE_CONTAINER');
+        if (!isUserPaused()) setState('showPauseIconFromListener', false);
+        _bufferingTimeoutTimer?.cancel();
+        _bufferingTimeoutTimer = null;
+        break;
+
+      case BetterPlayerEventType.play:
+        if (!isPlaying()) {
+          setState('isPlaying', true);
+          if (!isBuffering()) setState('toastString', 'HIDE_CONTAINER');
+          setState('progressEnabled', false);
+          setState('showPlayIcon', false);
+          setState('showPauseIconFromListener', false);
+          setState('isUserPaused', false);
+          startPlayDurationTimer();
+          if (retryCount() > 0) setState('retryCount', 0);
+        }
+        break;
+
+      case BetterPlayerEventType.pause:
+        if (isPlaying()) {
+          setState('isPlaying', false);
+          setState('toastString', S.current.playpause);
+          if (isUserPaused()) {
+            setState('showPlayIcon', true);
+            setState('showPauseIconFromListener', false);
+          } else {
+            setState('showPlayIcon', false);
+            setState('showPauseIconFromListener', true);
+          }
+          LogUtil.i('播放暂停，用户触发: ${isUserPaused()}');
+        }
+        break;
+
+      case BetterPlayerEventType.progress:
+        if (progressEnabled() && isPlaying()) {
+          final position = event.parameters?["progress"] as Duration?;
+          final duration = event.parameters?["duration"] as Duration?;
+          if (position != null && duration != null) {
+            final lastPos = lastBufferedPosition();
+            final lastTime = lastBufferedTime();
+            if (lastPos != null && lastTime != null) {
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              final timeSinceLastUpdate = (timestamp - lastTime) / 1000.0;
+              final remainingBuffer = lastPos - position;
+
+              final history = bufferedHistory();
+              history.add({
+                'buffered': lastPos,
+                'position': position,
+                'timestamp': timestamp,
+                'remainingBuffer': remainingBuffer,
+              });
+              if (history.length > bufferHistorySize) history.removeAt(0);
+
+              if (isHls() && !isParsing()) {
+                final remainingTime = duration - position;
+                if (preCachedUrl() != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
+                  switchToPreCachedUrl('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒');
+                } else if (history.length >= bufferHistorySize) {
+                  int positionIncreaseCount = 0;
+                  int remainingBufferLowCount = 0;
+
+                  for (int i = history.length - positionIncreaseThreshold; i < history.length; i++) {
+                    final prev = history[i - 1];
+                    final curr = history[i];
+                    if (curr['position'] > prev['position']) positionIncreaseCount++;
+                    if ((curr['remainingBuffer'] as Duration).inSeconds < minRemainingBufferSeconds) remainingBufferLowCount++;
+                  }
+
+                  if (positionIncreaseCount == positionIncreaseThreshold &&
+                      remainingBufferLowCount >= lowBufferThresholdCount &&
+                      timeSinceLastUpdate > bufferUpdateTimeoutSeconds) {
+                    LogUtil.i('触发重新解析');
+                    reparseAndSwitch();
+                  }
+                }
+              } else {
+                final remainingTime = duration - position;
+                if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
+                  final nextUrl = getNextVideoUrl();
+                  if (nextUrl != null && nextUrl != preCachedUrl()) {
+                    LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源');
+                    preloadNextVideo(nextUrl);
+                  }
+                }
+                if (remainingTime.inSeconds <= nonHlsSwitchThresholdSeconds && preCachedUrl() != null) {
+                  switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
+                }
+              }
+            } else {
+              LogUtil.i('缓冲数据未准备好: lastPos=$lastPos, lastTime=$lastTime');
+            }
+          } else {
+            LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
+          }
+        }
+        break;
+
+      case BetterPlayerEventType.finished:
+        if (!isHls() && preCachedUrl() != null) {
+          switchToPreCachedUrl('非 HLS 播放结束');
+        } else if (isHls()) {
+          LogUtil.i('HLS 流异常结束，重试播放');
+          retryPlayback();
+        } else {
+          LogUtil.i('无更多源可播放');
+          handleNoMoreSources();
+        }
+        break;
+
+      default:
+        if (event.betterPlayerEventType != BetterPlayerEventType.changedPlayerVisibility) {
+          LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
+        }
+        break;
+    }
+  }
+
+  void dispose() {
+    _bufferingTimeoutTimer?.cancel();
+    _bufferingTimeoutTimer = null;
+  }
+}
