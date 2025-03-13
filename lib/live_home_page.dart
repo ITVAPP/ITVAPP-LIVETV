@@ -228,8 +228,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       String url = _currentChannel!.urls![_sourceIndex].toString();
       _originalUrl = url; // 设置解析前地址
-      _streamUrl = StreamUrl(url); // 保存 StreamUrl 实例（修改）
-      String parsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例（修改）
+      _streamUrl = StreamUrl(url); // 保存 StreamUrl 实例
+      String parsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
       _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl 和 _isHls
 
       if (parsedUrl == 'ERROR') {
@@ -364,10 +364,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             // 检查播放器是否仍在缓冲且未播放
             if (_playerController?.isPlaying() != true) {
               LogUtil.e('播放中缓冲超过10秒，触发重试');
-              setState(() {
-                toastString = '缓冲超时，正在重试...'; // 更新提示
-              });
-              _retryPlayback(); // 触发重试
+              _retryPlayback(resetRetryCount: true); // 重置重试次数后重试
             }
           });
         } else {
@@ -417,6 +414,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           isBuffering = false;
           toastString = 'HIDE_CONTAINER'; // 隐藏提示
+          if (!_isUserPaused) _showPauseIconFromListener = false;
         });
         _timeoutTimer?.cancel(); // 缓冲结束，取消超时定时器
         _timeoutTimer = null;
@@ -431,6 +429,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _progressEnabled = false;
             _showPlayIcon = false; // 播放时隐藏播放图标
             _showPauseIconFromListener = false; // 隐藏暂停图标
+            _isUserPaused = false; // 播放时重置用户暂停状态
           });
           _timeoutTimer?.cancel(); // 播放开始，取消缓冲超时定时器
           _timeoutTimer = null;
