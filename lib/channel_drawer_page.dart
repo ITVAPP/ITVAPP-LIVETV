@@ -562,31 +562,37 @@ class _GroupListState extends State<GroupList> {
   @override
   void initState() {
     super.initState();
-    FocusManager.addFocusListeners(
-      widget.startIndex,
-      widget.keys.length,
-      this,
-      scrollController: widget.scrollController,
-      groupController: widget.scrollController, // 指定分组控制器
-      viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
-      listType: "group", // 指定为分组列表
-    );
+    // 仅在非空时绑定焦点监听器
+    if (widget.keys.isNotEmpty) {
+      FocusManager.addFocusListeners(
+        widget.startIndex,
+        widget.keys.length,
+        this,
+        scrollController: widget.scrollController,
+        groupController: widget.scrollController, // 指定分组控制器
+        viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
+        listType: "group", // 指定为分组列表
+      );
+    }
   }
 
   @override
   void didUpdateWidget(covariant GroupList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _updateFocusListenersIfDataChanged(
-      oldWidget,
-      widget,
-      this,
-      widget.keys,
-      oldWidget.keys,
-      widget.startIndex,
-      widget.scrollController,
-      (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
-      "group", // 指定为分组列表
-    );
+    // 数据变化时，仅在非空时更新焦点监听器
+    if (widget.keys != oldWidget.keys) {
+      if (widget.keys.isNotEmpty) {
+        FocusManager.addFocusListeners(
+          widget.startIndex,
+          widget.keys.length,
+          this,
+          scrollController: widget.scrollController,
+          groupController: widget.scrollController,
+          viewPortHeight: (context.findAncestorStateOfType<_ChannelDrawerPageState>() as _ChannelDrawerPageState)._viewPortHeight,
+          listType: "group",
+        );
+      }
+    }
   }
 
   @override
@@ -1120,6 +1126,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (_groupIndex == -1) _groupIndex = 0;
     if (_channelIndex == -1) _channelIndex = 0;
+
+    // 排序后更新焦点节点和滚动位置
+    if (!_sortedKeysCache.containsKey(selectedCategory)) { // 仅在排序时更新
+      int totalFocusNodes = _calculateTotalFocusNodes();
+      FocusManager.initializeFocusNodes(totalFocusNodes);
+      _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _adjustScrollPositions();
+        _reInitializeFocusListeners();
+      });
+    }
   }
 
   /// 通用的地理位置前缀排序方法
@@ -1188,6 +1205,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
+    // 记录排序前的分组和频道
+    String? oldGroup = _groupIndex >= 0 && _groupIndex < _keys.length ? _keys[_groupIndex] : null;
+    String? oldChannel = _groupIndex >= 0 && _groupIndex < _values.length && _channelIndex >= 0 && _channelIndex < _values[_groupIndex].length 
+        ? _values[_groupIndex].keys.toList()[_channelIndex] 
+        : null;
+    LogUtil.d('排序前: groupIndex=$_groupIndex, group=$oldGroup, channelIndex=$_channelIndex, channel=$oldChannel');
+
     // 1. 对分组（_keys）排序，优先使用 regionPrefix
     _keys = _sortByGeoPrefix<String>(
       items: _keys,
@@ -1218,11 +1242,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     _values = newValues;
 
+    // 重新定位索引
+    if (oldGroup != null) {
+      _groupIndex = _keys.indexOf(oldGroup);
+      if (_groupIndex != -1 && oldChannel != null) {
+        _channelIndex = _values[_groupIndex].keys.toList().indexOf(oldChannel);
+        if (_channelIndex == -1) {
+          _channelIndex = 0; // 如果频道未找到，重置到第一个
+          LogUtil.d('频道 $oldChannel 在新排序后未找到，重置 channelIndex=0');
+        }
+      } else if (_groupIndex == -1) {
+        _groupIndex = 0; // 如果分组未找到，重置到第一个
+        _channelIndex = 0;
+        LogUtil.d('分组 $oldGroup 在新排序后未找到，重置 groupIndex=0, channelIndex=0');
+      }
+    }
+
     // 记录排序结果以便调试
     LogUtil.i('根据地区 "$regionPrefix" 和城市 "$cityPrefix" 排序完成: $_keys');
+    LogUtil.d('排序后: groupIndex=$_groupIndex, group=${_groupIndex >= 0 ? _keys[_groupIndex] : null}, channelIndex=$_channelIndex, channel=${_channelIndex >= 0 ? _values[_groupIndex].keys.toList()[_channelIndex] : null}');
   }
-
-  void _resetChannelData() {
+  
+    void _resetChannelData() {
     _keys = [];
     _values = [];
     _groupIndex = -1;
@@ -1338,20 +1379,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (widget.playModel?.group == _keys[index]) {
         _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
         if (_channelIndex == -1) _channelIndex = 0;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScrollUtil.scrollToCurrentItem(
-            channelIndex: _channelIndex,
-            channelController: _scrollChannelController,
-            viewPortHeight: _viewPortHeight!,
-            isSwitching: true, // 仅在切换分组时滚动频道
-          );
-        });
+        _isChannelAutoSelected = false;
       } else {
         _channelIndex = 0;
         _isChannelAutoSelected = true;
-        ScrollUtil.scrollToTop(_scrollChannelController);
-        // 分组列表保持当前位置，不滚动
       }
+      LogUtil.d('分组切换: groupIndex=$_groupIndex, group=${_keys[_groupIndex]}, channelIndex=$_channelIndex, channel=${_values[_groupIndex].keys.toList()[_channelIndex]}');
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1361,6 +1394,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
       }
       _reInitializeFocusListeners();
+      ScrollUtil.scrollToCurrentItem(
+        groupIndex: _groupIndex,
+        channelIndex: _channelIndex,
+        groupController: _scrollController,
+        channelController: _scrollChannelController,
+        viewPortHeight: _viewPortHeight!,
+        isSwitching: true, // 切换分组时滚动
+      );
     });
   }
 
@@ -1378,17 +1419,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           ));
       return;
     }
-    ScrollUtil.scrollToCurrentItem(
-      groupIndex: groupIndex ?? _groupIndex,
-      channelIndex: channelIndex ?? _channelIndex,
-      groupController: _scrollController,
-      channelController: _scrollChannelController,
-      viewPortHeight: _viewPortHeight!,
-      isSwitching: true, // 初始化时视为切换场景
-    );
+    // 仅在 _keys 非空时调整滚动
+    if (_keys.isNotEmpty) {
+      ScrollUtil.scrollToCurrentItem(
+        groupIndex: groupIndex ?? _groupIndex,
+        channelIndex: channelIndex ?? _channelIndex,
+        groupController: _scrollController,
+        channelController: _scrollChannelController,
+        viewPortHeight: _viewPortHeight!,
+        isSwitching: true, // 初始化时视为切换场景
+      );
+    }
   }
-
-  @override
+  
+    @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
@@ -1473,9 +1517,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       _epgData = null;
       _selEPGIndex = 0;
+      LogUtil.d('频道切换: groupIndex=$_groupIndex, group=${_keys[_groupIndex]}, channelIndex=$_channelIndex, channel=${newModel.title}');
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      int channelFocusIndex = _categories.length + _keys.length + _channelIndex;
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: channelFocusIndex);
+      }
+      _reInitializeFocusListeners();
+      ScrollUtil.scrollToCurrentItem(
+        channelIndex: _channelIndex,
+        channelController: _scrollChannelController,
+        viewPortHeight: _viewPortHeight!,
+        isSwitching: true, // 切换频道时滚动
+      );
+
       _epgDebounceTimer?.cancel();
       _epgDebounceTimer = Timer(const Duration(milliseconds: 300), () {
         _loadEPGMsg(newModel, channelKey: newModel.title ?? '');
