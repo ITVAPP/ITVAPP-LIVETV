@@ -288,7 +288,7 @@ class FocusManager {
   /// 修改说明：新增方法，验证焦点节点状态一致性
   static void validateFocusNodes(int expectedCount, String contextDescription) {
     if (_focusNodes.length != expectedCount) {
-      LogUtil.w('焦点节点数量不一致: 预期=$expectedCount, 实际=${_focusNodes.length}, 上下文=$contextDescription');
+      LogUtil.i('焦点节点数量不一致: 预期=$expectedCount, 实际=${_focusNodes.length}, 上下文=$contextDescription');
       initializeFocusNodes(expectedCount); // 强制同步
     }
   }
