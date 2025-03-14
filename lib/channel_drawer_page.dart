@@ -194,23 +194,32 @@ void addFocusListeners(
   }
 }
 
-// 修改部分：优化滚动工具函数，支持顶部/底部对齐
+// 修改部分：优化滚动工具函数，支持顶部/底部对齐，直接使用 controller.position.viewportDimension
 void _scrollToCurrentItem(ScrollController controller, int index, {bool alignToBottom = false}) {
   if (!controller.hasClients) return;
 
-  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
+  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
   final currentOffset = controller.offset;
-  final viewportHeight = controller.position.viewportDimension;
+  final viewportHeight = controller.position.viewportDimension; // 直接使用 ScrollController 的 viewportDimension
   final maxScrollExtent = controller.position.maxScrollExtent;
   final targetOffset = index * itemHeight;
+
+  // 计算内容总高度
+  final contentHeight = maxScrollExtent + viewportHeight;
+
+  // 如果内容高度小于视窗高度，不滚动
+  if (contentHeight <= viewportHeight) return;
 
   double adjustedOffset;
   if (alignToBottom || targetOffset + itemHeight > currentOffset + viewportHeight) {
     adjustedOffset = targetOffset + itemHeight - viewportHeight; // 底部对齐
   } else if (!alignToBottom && targetOffset < currentOffset) {
     adjustedOffset = targetOffset; // 顶部对齐
+  } else if (!alignToBottom) {
+    // 默认滚动到中间
+    adjustedOffset = targetOffset - (viewportHeight / 2) + (itemHeight / 2);
   } else {
-    return; // 在视窗内
+    return; // 在视窗内无需滚动
   }
 
   adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
@@ -481,7 +490,9 @@ class _GroupListState extends State<GroupList> {
                   groupIndex: 1,
                   children: List.generate(widget.keys.length, (index) {
                     return buildListItem(
-                      title: widget.keys[index],
+                      title: widget
+
+.keys[index],
                       isSelected: widget.selectedGroupIndex == index,
                       onTap: () => widget.onGroupTap(index),
                       isCentered: false,
@@ -718,7 +729,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool _isChannelAutoSelected = false;
 
   final GlobalKey _viewPortKey = GlobalKey();
-  double? _viewPortHeight;
+  // 修改部分：移除 _viewportHeight 变量
+  // double _viewportHeight = 0; // 已移除
 
   late List<String> _keys;
   late List<Map<String, PlayModel>> _values;
@@ -730,7 +742,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 修改部分：优化滚动方法，支持顶部/底部对齐
+  // 修改部分：优化滚动方法，支持顶部/底部对齐，默认滚动到中间
   void scrollTo({
     required String targetList,
     required int index,
@@ -755,7 +767,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _epgItemScrollController.scrollTo(
             index: index,
             duration: duration,
-            alignment: alignToBottom ? 1.0 : 0.0, // EPG 支持顶部或底部对齐
+            alignment: alignToBottom ? 1.0 : 0.5, // EPG 默认滚动到中间
           );
         }
         return;
@@ -781,6 +793,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+        // 修改部分：移除 _updateViewportHeight 调用，仅保留布局初始化
       });
     });
     _initializeData(); // 统一的初始化方法
@@ -815,8 +828,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     int totalFocusNodes = _calculateTotalFocusNodes();
     _initializeFocusNodes(totalFocusNodes);
 
-    // 3. 计算视图高度
-    _calculateViewportHeight(); // 统一方法名
+    // 3. 计算视图高度（移除）
+    // _calculateViewportHeight(); // 已移除
 
     // 4. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
@@ -870,16 +883,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         isPortrait = newOrientation;
       });
     }
-    final newHeight = MediaQuery.of(context).size.height * 0.5;
-    if (newHeight != _viewPortHeight) {
+    // 修改部分：移除 _updateViewportHeight 调用，直接调整滚动位置
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        _viewPortHeight = newHeight;
         _adjustScrollPositions();
-        _updateStartIndexes(
-          includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty,
-        );
+        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
-    }
+    });
   }
 
   // 修改部分：简化 _handleTvKeyNavigationStateCreated，不绑定 onFocusChanged
@@ -889,19 +899,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 删除 onFocusChanged 逻辑，滚动完全依赖 addFocusListeners
   }
 
-  // 计算视图窗口的高度
-  void _calculateViewportHeight() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox != null) {
-        final height = renderBox.size.height * 0.5;
-        setState(() {
-          _viewPortHeight = height;
-          _adjustScrollPositions();
-        });
-      }
-    });
-  }
+  // 修改部分：移除 _calculateViewportHeight 方法
+  // void _calculateViewportHeight() { ... } // 已移除
+
+  // 修改部分：移除 _updateViewportHeight 方法
+  // void _updateViewportHeight() { ... } // 已移除
 
   // 初始化分类数据
   void _initializeCategoryData() {
@@ -1133,23 +1135,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           // 是当前播放频道所在分类时，调整到正确位置
           _isSystemAutoSelected = false; // 找到当前播放频道时取消系统自动选中
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
-            final groupOffset = _groupIndex * itemHeight; // GroupList 的目标偏移量
-            final channelOffset = _channelIndex * itemHeight; // ChannelList 的目标偏移量
-            if (_scrollController.hasClients) {
-              _scrollController.jumpTo(
-                groupOffset < _scrollController.position.maxScrollExtent
-                    ? groupOffset
-                    : _scrollController.position.maxScrollExtent,
-              );
-            }
-            if (_scrollChannelController.hasClients) {
-              _scrollChannelController.jumpTo(
-                channelOffset < _scrollChannelController.position.maxScrollExtent
-                    ? channelOffset
-                    : _scrollChannelController.position.maxScrollExtent,
-              );
-            }
+            // 修改部分：移除手动计算偏移量，直接使用 scrollTo
+            scrollTo(targetList: 'group', index: _groupIndex);
+            scrollTo(targetList: 'channel', index: _channelIndex);
           });
         }
       }
@@ -1261,9 +1249,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _channelStartIndex = channelStartIndex;
   }
 
-  // 调整分组和频道列表的滚动位置
+  // 修改部分：调整滚动位置，移除对 _viewportHeight 的依赖
   void _adjustScrollPositions() {
-    if (_viewPortHeight == null) return;
+    // 修改部分：不再检查 _viewportHeight，直接调用 scrollTo
     scrollTo(targetList: 'group', index: _groupIndex);
     scrollTo(targetList: 'channel', index: _channelIndex);
   }
