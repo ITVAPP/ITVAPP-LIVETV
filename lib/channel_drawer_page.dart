@@ -722,7 +722,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _categoryViewportHeight = _scrollCategoryController.position.viewportDimension;
           });
         } else {
-          LogUtil.w('Category ScrollController 未就绪，缓存高度保持为 0');
+          LogUtil.i('Category ScrollController 未就绪，缓存高度保持为 0');
         }
       });
     }
@@ -737,7 +737,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _groupViewportHeight = _scrollController.position.viewportDimension;
           });
         } else {
-          LogUtil.w('Group ScrollController 未就绪，缓存高度保持为 0');
+          LogUtil.i('Group ScrollController 未就绪，缓存高度保持为 0');
         }
       });
     }
@@ -752,7 +752,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _channelViewportHeight = _scrollChannelController.position.viewportDimension;
           });
         } else {
-          LogUtil.w('Channel ScrollController 未就绪，缓存高度保持为 0');
+          LogUtil.i('Channel ScrollController 未就绪，缓存高度保持为 0');
         }
       });
     }
@@ -767,7 +767,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _epgViewportHeight = _epgScrollController.position.viewportDimension;
           });
         } else {
-          LogUtil.w('EPG ScrollController 未就绪，缓存高度保持为 0');
+          LogUtil.i('EPG ScrollController 未就绪，缓存高度保持为 0');
         }
       });
     }
