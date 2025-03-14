@@ -312,11 +312,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
 
       // 请求焦点
-      if (!focusNode.hasFocus) {
-        focusNode.requestFocus();  // 设置焦点到指定的节点
-        _currentFocus = focusNode;
-        LogUtil.i('切换焦点到索引: $index, 当前Group: $groupIndex');
-      }
+      focusNode.requestFocus(); // 只请求焦点，不立即更新_currentFocus
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (FocusManager.instance.primaryFocus == focusNode) {
+          _currentFocus = focusNode; // 确认焦点生效后更新
+          LogUtil.i('切换焦点到索引: $index, 当前Group: $groupIndex');
+        }
+      });
     } catch (e, stackTrace) {
       LogUtil.i('设置焦点时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
@@ -464,23 +466,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
 /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    FocusNode? currentFocus = _currentFocus;
-
-    if (currentFocus == null) {
-      LogUtil.i('当前无焦点，尝试设置初始焦点');
-      _requestFocus(0); // 设置焦点为第一个控件
+    FocusNode? actualFocus = FocusManager.instance.primaryFocus ?? _currentFocus;
+    if (actualFocus == null || !widget.focusNodes.contains(actualFocus)) {
+      _requestFocus(0);
       return KeyEventResult.handled;
     }
 
-    // 获取当前焦点的索引 (currentIndex)
-    int currentIndex = widget.focusNodes.indexOf(currentFocus);
+    int currentIndex = widget.focusNodes.indexOf(actualFocus);
     if (currentIndex == -1) {
       LogUtil.i('找不到当前焦点的索引');
       return KeyEventResult.ignored; 
     }
 
-    // 获取当前焦点的 groupIndex，如果找不到，默认为 -1
-    int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
+    int groupIndex = _getGroupIndex(actualFocus);
     
     try {
       // 判断是否启用了框架模式 (isFrame)
@@ -730,23 +728,24 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-    String action = '';
-    int nextIndex = 0;
-    // 获取当前组的首尾节点
+    FocusNode? actualFocus = FocusManager.instance.primaryFocus; // 获取实际焦点
+    if (actualFocus != null && widget.focusNodes.contains(actualFocus)) {
+      currentIndex = widget.focusNodes.indexOf(actualFocus); // 使用实际焦点的索引
+      groupIndex = _getGroupIndex(actualFocus); // 使用实际焦点的groupIndex
+    }
+
     FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
     FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-   
-    // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+    int nextIndex = 0;
     if (forward) {
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
         nextIndex = firstFocusIndex; // 循环到第一个焦点
-        action = "循环到第一个焦点 (索引: $nextIndex)";
       } else {
         nextIndex = currentIndex + 1;
-        action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
       }
     } else {
       // 后退逻辑
@@ -763,16 +762,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           }
           return; // 无论成功失败都返回，不要循环到最后
         } else {
-          nextIndex = lastFocusIndex;
-          action = "循环到最后一个焦点 (索引: $nextIndex)";
+          nextIndex = lastFocusIndex; // 循环到最后一个焦点
         } 
       } else {
         nextIndex = currentIndex - 1;
-        action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
       }
     }
     _requestFocus(nextIndex, groupIndex: groupIndex);
-    LogUtil.i('操作: $action (组: $groupIndex)');
+    LogUtil.i('Navigate: From $currentIndex (Group $groupIndex) to $nextIndex');
   }
 
   /// 处理在组之间的跳转逻辑
