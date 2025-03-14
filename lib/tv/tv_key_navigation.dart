@@ -48,6 +48,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   static Map<String, Map<int, Map<String, FocusNode>>> _namedCaches = {};
   bool _isFocusManagementActive = false;
   int? _lastParentFocusIndex;
+
+  // 添加 onGroupChanged 回调
+  void Function(int oldGroup, int newGroup)? onGroupChanged;
   
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
@@ -823,6 +826,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             nextFocusNode.requestFocus();
             _currentFocus = nextFocusNode;
             LogUtil.i('跳转到 Group $nextGroupIndex 的焦点节点: ${nextFocusNode.debugLabel ?? '未知'}');
+            // 调用 onGroupChanged 回调
+            onGroupChanged?.call(currentGroupIndex, nextGroupIndex);
           } else {
             LogUtil.i('目标焦点节点未挂载或不可请求');
           }
