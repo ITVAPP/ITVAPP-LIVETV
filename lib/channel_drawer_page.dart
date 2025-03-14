@@ -752,6 +752,49 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 修改部分：添加 _ensureFocusVisible 方法
+  // 调整滚动位置以确保焦点项在视窗内顶部或底部对齐
+  void _ensureFocusVisible(String targetList, int newFocusIndex) {
+    ScrollController? scrollController;
+    int maxIndex = 0;
+
+    switch (targetList) {
+      case 'group':
+        scrollController = _scrollController;
+        maxIndex = _keys.length - 1;
+        break;
+      case 'channel':
+        scrollController = _scrollChannelController;
+        maxIndex = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+            ? _values[_groupIndex].length - 1
+            : 0;
+        break;
+      default:
+        return;
+    }
+
+    if (newFocusIndex < 0 || newFocusIndex > maxIndex || !scrollController!.hasClients) return;
+
+    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 固定项高度：42 + padding (6*2) + divider (1)
+    final viewportHeight = scrollController.position.viewportDimension;
+    final currentOffset = scrollController.offset;
+    final targetOffset = newFocusIndex * itemHeight;
+    final maxScrollExtent = scrollController.position.maxScrollExtent;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (targetOffset < currentOffset) {
+        // 焦点向上移动，超出顶部，滚动到顶部对齐
+        scrollController.jumpTo(max(0.0, targetOffset));
+      } else if (targetOffset + itemHeight > currentOffset + viewportHeight) {
+        // 焦点向下移动，超出底部，滚动到底部对齐
+        final bottomOffset = targetOffset - viewportHeight + itemHeight;
+        scrollController.jumpTo(
+          bottomOffset < maxScrollExtent ? bottomOffset : maxScrollExtent,
+        );
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -860,6 +903,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分：更新 _handleTvKeyNavigationStateCreated 方法
   // 保存 TvKeyNavigationState 并处理焦点切换时的滚动
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
@@ -887,6 +931,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _scrollChannelController.jumpTo(0); // ChannelList 滚动到顶部
           }
         });
+      }
+      // 在 GroupList 内部移动焦点
+      else if (newIndex >= _groupStartIndex && newIndex < _channelStartIndex) {
+        final groupIndex = newIndex - _groupStartIndex;
+        _ensureFocusVisible('group', groupIndex);
+      }
+      // 在 ChannelList 内部移动焦点
+      else if (newIndex >= _channelStartIndex) {
+        final channelIndex = newIndex - _channelStartIndex;
+        _ensureFocusVisible('channel', channelIndex);
       }
     };
   }
