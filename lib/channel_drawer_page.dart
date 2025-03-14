@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:convert'; 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -9,9 +10,9 @@ import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'entity/playlist_model.dart';
-import 'generated/l10n.dart';
-import 'config.dart';
+import 'package:itvapp_live_tv/entity/playlist_model.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 // 是否在非 TV 模式下启用 TV 模式的焦点逻辑（用于调试）
 const bool enableFocusInNonTVMode = true; // 默认开启
@@ -209,7 +210,7 @@ bool isOutOfView(BuildContext context) {
   if (renderObject is RenderBox) {
     final ScrollableState? scrollableState = Scrollable.of(context);
     if (scrollableState != null) {
-      final ScrollPosition position = scrollableState.position;
+      final ScrollPosition position = scrollable_state.position;
       final double offset = position.pixels;
       final double viewportHeight = position.viewportDimension;
       final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
@@ -363,7 +364,7 @@ class _CategoryListState extends State<CategoryList> {
 // 分组列表组件
 class GroupList extends StatefulWidget {
   final List<String> keys;
-  final ItemScrollController scrollController; // 修改为 ItemScrollController
+  final ItemScrollController scrollController;
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
   final bool isTV;
@@ -416,7 +417,7 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? Center( // 修改为 Center 以简化无分组时的布局
+          ? Center(
               child: Text(
                 S.of(context).nofavorite,
                 textAlign: TextAlign.center,
@@ -425,7 +426,7 @@ class _GroupListState extends State<GroupList> {
                 ),
               ),
             )
-          : ScrollablePositionedList.builder( // 替换为 ScrollablePositionedList
+          : ScrollablePositionedList.builder(
               itemScrollController: widget.scrollController,
               itemCount: widget.keys.length,
               itemBuilder: (context, index) {
@@ -453,7 +454,7 @@ class _GroupListState extends State<GroupList> {
 // 频道列表组件
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
-  final ItemScrollController scrollController; // 修改为 ItemScrollController
+  final ItemScrollController scrollController;
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
@@ -505,7 +506,7 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: ScrollablePositionedList.builder( // 替换为 ScrollablePositionedList
+      child: ScrollablePositionedList.builder(
         itemScrollController: widget.scrollController,
         itemCount: channelList.length,
         itemBuilder: (context, index) {
@@ -655,8 +656,8 @@ class ChannelDrawerPage extends StatefulWidget {
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
-  final ItemScrollController _scrollController = ItemScrollController(); // 修改为 ItemScrollController
-  final ItemScrollController _scrollChannelController = ItemScrollController(); // 修改为 ItemScrollController
+  final ItemScrollController _scrollController = ItemScrollController();
+  final ItemScrollController _scrollChannelController = ItemScrollController();
   final ItemScrollController _epgItemScrollController = ItemScrollController();
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
@@ -703,25 +704,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         maxIndex = _epgData?.length ?? 0 - 1;
         break;
       default:
-        LogUtil.w('无效的滚动目标: $targetList');
+        LogUtil.i('无效的滚动目标: $targetList'); // 修改为 LogUtil.i
         return;
     }
 
     if (index < 0 || index > maxIndex) {
-      LogUtil.w('$targetList 滚动索引越界: index=$index, maxIndex=$maxIndex');
+      LogUtil.i('$targetList 滚动索引越界: index=$index, maxIndex=$maxIndex'); // 修改为 LogUtil.i
       return;
     }
 
     // 延迟执行，确保列表已构建
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (controller.isAttached) {
-        controller.scrollTo(
+      if (controller?.isAttached ?? false) { // 使用空安全操作符
+        controller?.scrollTo( // 使用空安全操作符
           index: index,
           duration: duration,
           alignment: alignment,
         );
       } else {
-        LogUtil.w('$targetList 的控制器未绑定');
+        LogUtil.i('$targetList 的控制器未绑定'); // 修改为 LogUtil.i
       }
     });
   }
@@ -932,7 +933,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     String? regionPrefix;
     String? cityPrefix;
     try {
-      Map<String, dynamic> cacheData = jsonDecode(locationStr);
+      Map<String, dynamic> cacheData = jsonDecode(locationStr); // 使用导入的 jsonDecode
       Map<String, dynamic>? locationData = cacheData['info']?['location'];
       String? region = locationData?['region'];
       String? city = locationData?['city'];
