@@ -174,7 +174,6 @@ void addFocusListeners(
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
-  static int? lastFocusedIndex; // 记录上一个焦点索引，用于判断移动方向
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
@@ -188,9 +187,9 @@ void addFocusListeners(
         state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          // 判断移动方向：上移（index < lastFocusedIndex），下移（index > lastFocusedIndex）
-          bool isMovingDown = lastFocusedIndex != null && index > lastFocusedIndex;
-          lastFocusedIndex = index; // 更新上一个焦点索引
+          // 判断移动方向：上移（index < _lastFocusedIndex），下移（index > _lastFocusedIndex）
+          bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
+          _lastFocusedIndex = index; // 更新上一个焦点索引
 
           // 计算新焦点的位置
           const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
@@ -730,6 +729,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
+  // 修改部分：添加 lastFocusedIndex 作为类成员变量
+  int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
+
   // 修改部分：添加 ScrollController 监听器
   void _setupScrollControllerListeners() {
     _scrollController.addListener(() {
@@ -791,7 +793,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void initState() {
-    super.initState();WidgetsBinding.instance.addObserver(this);
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
     
     // 修改部分：添加 ScrollController 监听器
     _setupScrollControllerListeners();
