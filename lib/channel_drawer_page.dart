@@ -194,25 +194,32 @@ void addFocusListeners(
   }
 }
 
-// 修改部分：新增滚动工具函数，仅在必要时滚动
+// 修改部分：优化滚动工具函数，支持顶部/底部对齐
 void _scrollToCurrentItem(ScrollController controller, int index) {
   if (!controller.hasClients) return;
-  
+
   const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
   final currentOffset = controller.offset;
   final viewportHeight = controller.position.viewportDimension;
   final maxScrollExtent = controller.position.maxScrollExtent;
   final targetOffset = index * itemHeight;
-  const topOffset = 100.0; // 默认顶部偏移量，与参考代码一致
 
-  // 检查焦点项是否在视窗内，如果在则不滚动
+  // 检查焦点项是否在视窗内
   if (targetOffset >= currentOffset && targetOffset + itemHeight <= currentOffset + viewportHeight) {
-    return; // 焦点项已在视窗内，无需滚动
+    return; // 在视窗内，无需滚动
   }
 
-  // 计算滚动目标位置
-  final adjustedOffset = (targetOffset - topOffset).clamp(0.0, maxScrollExtent);
-  controller.jumpTo(adjustedOffset);
+  // 判断滚动方向并调整对齐
+  double adjustedOffset;
+  if (targetOffset < currentOffset) {
+    // 向上移动，顶部对齐
+    adjustedOffset = targetOffset;
+  } else {
+    // 向下移动，底部对齐
+    adjustedOffset = (targetOffset + itemHeight - viewportHeight).clamp(0.0, maxScrollExtent);
+  }
+
+  controller.jumpTo(adjustedOffset.clamp(0.0, maxScrollExtent));
 }
 
 // 移除焦点监听逻辑的通用函数
@@ -723,12 +730,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 统一的滚动方法
+  // 修改部分：优化滚动方法，支持跨列表切换时的顶部对齐
   void scrollTo({
     required String targetList,
     required int index,
     Duration duration = Duration.zero,
-    double alignment = 0.0, // 修改为顶部对齐
+    double alignment = 0.0, // 保留参数但仅在 EPGList 使用
   }) {
     ItemScrollController? itemController;
     ScrollController? scrollController;
@@ -761,40 +768,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController != null && scrollController.hasClients) {
         const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
-        final shouldOffset = index * itemHeight; // 直接基于索引和固定高度计算偏移量
-        final maxScrollExtent = scrollController.position.maxScrollExtent;
-        scrollController.jumpTo(shouldOffset < maxScrollExtent ? shouldOffset : maxScrollExtent);
+        final shouldOffset = index * itemHeight;
+        // 跨列表切换时强制顶部对齐
+        scrollController.jumpTo(shouldOffset.clamp(0.0, scrollController.position.maxScrollExtent));
       } else if (itemController?.isAttached ?? false) {
         itemController?.scrollTo(
           index: index,
-          duration: duration,
-          alignment: alignment,
+          duration: Duration.zero, // 无动画
+          alignment: alignment, // EPGList 可自定义对齐
         );
       } else {
         LogUtil.i('$targetList 的控制器未绑定');
       }
     });
-  }
-
-  // 修改部分：新增 _scrollToCurrentItem 方法，仅在必要时滚动
-  void _scrollToCurrentItem(ScrollController controller, int index) {
-    if (!controller.hasClients) return;
-    
-    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
-    final currentOffset = controller.offset;
-    final viewportHeight = controller.position.viewportDimension;
-    final maxScrollExtent = controller.position.maxScrollExtent;
-    final targetOffset = index * itemHeight;
-    const topOffset = 100.0; // 默认顶部偏移量，与参考代码一致
-
-    // 检查焦点项是否在视窗内，如果在则不滚动
-    if (targetOffset >= currentOffset && targetOffset + itemHeight <= currentOffset + viewportHeight) {
-      return; // 焦点项已在视窗内，无需滚动
-    }
-
-    // 计算滚动目标位置
-    final adjustedOffset = (targetOffset - topOffset).clamp(0.0, maxScrollExtent);
-    controller.jumpTo(adjustedOffset);
   }
 
   @override
