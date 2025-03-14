@@ -1137,8 +1137,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             totalFocusNodes += _values[_groupIndex].length;
           }
         }
-
- fikirFocusNodes(totalFocusNodes);
+        
+        _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
 
         // 判断是否是当前播放频道所在分类
