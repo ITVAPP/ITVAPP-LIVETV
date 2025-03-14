@@ -9,7 +9,8 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
-import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
+import 'package:itvapp_live_tv/tv/t
+v_key_navigation.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
@@ -163,9 +164,7 @@ BoxDecoration buildItemDecoration({
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
-// 修改部分：将 lastFocusedIndex 移到文件顶层，优化焦点监听逻辑
-int? _lastFocusedIndex;
-
+// 修改部分：优化焦点监听逻辑，添加滚动控制并判断移动方向
 void addFocusListeners(
   int startIndex,
   int length,
@@ -176,6 +175,7 @@ void addFocusListeners(
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
+  static int? lastFocusedIndex; // 记录上一个焦点索引，用于判断移动方向
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
@@ -189,17 +189,38 @@ void addFocusListeners(
         state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          bool isMovingDown = _lastFocusedIndex != null && index > _lastFocusedIndex!;
-          _lastFocusedIndex = index;
-          if (state is _ChannelDrawerPageState) {
-            // 修改部分：统一使用 alignToBottom 参数
-            (state as _ChannelDrawerPageState)._scrollToCurrentItem(
-                scrollController, itemIndex, alignToBottom: isMovingDown);
-          }
+          // 判断移动方向：上移（index < lastFocusedIndex），下移（index > lastFocusedIndex）
+          bool isMovingDown = lastFocusedIndex != null && index > lastFocusedIndex;
+          lastFocusedIndex = index; // 更新上一个焦点索引
+          _scrollToCurrentItem(scrollController, itemIndex, isMovingDown: isMovingDown);
         }
       }
     });
   }
+}
+
+// 修改部分：优化滚动工具函数，上移对齐顶部，下移对齐底部，使用 jumpTo
+void _scrollToCurrentItem(ScrollController controller, int index, {required bool isMovingDown}) {
+  if (!controller.hasClients) return;
+
+  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
+  final viewportHeight = controller.position.viewportDimension; // 实时获取视窗高度
+  final maxScrollExtent = controller.position.maxScrollExtent;
+
+  double adjustedOffset;
+  if (isMovingDown) {
+    // 下移：焦点严格对齐底部
+    adjustedOffset = (index + 1) * itemHeight - viewportHeight;
+  } else {
+    // 上移：焦点严格对齐顶部
+    adjustedOffset = index * itemHeight;
+  }
+
+  // 限制偏移量在有效范围内
+  adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
+
+  // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
+  controller.jumpTo(adjustedOffset);
 }
 
 // 移除焦点监听逻辑的通用函数
@@ -207,6 +228,18 @@ void removeFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
     _focusNodes[startIndex + i].removeListener(() {});
     _focusStates.remove(startIndex + i);
+  }
+}
+
+// 初始化 FocusNode 列表
+void _initializeFocusNodes(int totalCount) {
+  if (_focusNodes.length != totalCount) {
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
+    _focusNodes.clear();
+    _focusStates.clear();
+    _focusNodes = List.generate(totalCount, (index) => FocusNode());
   }
 }
 
@@ -301,8 +334,6 @@ class CategoryList extends StatefulWidget {
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
-  // 修改部分：添加 ScrollController
-  final ScrollController scrollController;
 
   const CategoryList({
     super.key,
@@ -311,7 +342,6 @@ class CategoryList extends StatefulWidget {
     required this.onCategoryTap,
     required this.isTV,
     this.startIndex = 0,
-    required this.scrollController, // 新增
   });
 
   @override
@@ -328,8 +358,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改部分：在焦点监听中绑定滚动控制器
-    addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
+    addFocusListeners(widget.startIndex, widget.categories.length, this);
   }
 
   @override
@@ -345,8 +374,7 @@ class _CategoryListState extends State<CategoryList> {
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: Group(
         groupIndex: 0,
-        child: ListView( // 修改部分：使用 ListView 支持滚动
-          controller: widget.scrollController,
+        child: Column(
           children: List.generate(widget.categories.length, (index) {
             final category = widget.categories[index];
             final displayTitle = category == Config.myFavoriteKey
@@ -565,8 +593,7 @@ class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
   final bool isTV;
-  // 修改部分：将 ItemScrollController 改为 ScrollController
-  final ScrollController scrollController;
+  final ItemScrollController epgScrollController;
   final VoidCallback onCloseDrawer;
 
   const EPGList({
@@ -574,7 +601,7 @@ class EPGList extends StatefulWidget {
     required this.epgData,
     required this.selectedIndex,
     required this.isTV,
-    required this.scrollController, // 修改为 ScrollController
+    required this.epgScrollController,
     required this.onCloseDrawer,
   });
 
@@ -625,8 +652,9 @@ class _EPGListState extends State<EPGList> {
           ),
           verticalDivider,
           Flexible(
-            child: ListView.builder( // 修改部分：改为 ListView.builder 支持 ScrollController
-              controller: widget.scrollController,
+            child: ScrollablePositionedList.builder(
+              initialScrollIndex: widget.selectedIndex,
+              itemScrollController: widget.epgScrollController,
               itemCount: widget.epgData?.length ?? 0,
               itemBuilder: (BuildContext context, int index) {
                 final data = widget.epgData?[index];
@@ -678,19 +706,11 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-// 修改部分：添加所有列表的视窗高度全局变量
-double _categoryViewportHeight = 0; // CategoryList 的视窗高度
-double _groupViewportHeight = 0;    // GroupList 的视窗高度
-double _channelViewportHeight = 0;  // ChannelList 的视窗高度
-double _epgViewportHeight = 0;      // EPGList 的视窗高度
-
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
-  // 修改部分：为所有列表添加 ScrollController
-  final ScrollController _scrollCategoryController = ScrollController(); // 分类列表控制器
-  final ScrollController _scrollController = ScrollController();        // 分组列表控制器
-  final ScrollController _scrollChannelController = ScrollController(); // 频道列表控制器
-  final ScrollController _epgScrollController = ScrollController();     // EPG 列表控制器（替换 ItemScrollController）
+  final ScrollController _scrollController = ScrollController(); // 修改为 ScrollController
+  final ScrollController _scrollChannelController = ScrollController(); // 修改为 ScrollController
+  final ItemScrollController _epgItemScrollController = ItemScrollController();
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
@@ -699,6 +719,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool _isChannelAutoSelected = false;
 
   final GlobalKey _viewPortKey = GlobalKey();
+  // 修改部分：移除 _viewportHeight 变量
+  // double _viewportHeight = 0; // 已移除
 
   late List<String> _keys;
   late List<Map<String, PlayModel>> _values;
@@ -710,123 +732,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 修改部分：优化 _updateViewportHeights，支持所有列表的视窗高度
-  void _updateViewportHeights() {
-    // 分类列表
-    if (_scrollCategoryController.hasClients) {
-      _categoryViewportHeight = _scrollCategoryController.position.viewportDimension;
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollCategoryController.hasClients) {
-          setState(() {
-            _categoryViewportHeight = _scrollCategoryController.position.viewportDimension;
-          });
-        } else {
-          LogUtil.i('Category ScrollController 未就绪，缓存高度保持为 0');
-        }
-      });
-    }
-
-    // 分组列表
-    if (_scrollController.hasClients) {
-      _groupViewportHeight = _scrollController.position.viewportDimension;
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          setState(() {
-            _groupViewportHeight = _scrollController.position.viewportDimension;
-          });
-        } else {
-          LogUtil.i('Group ScrollController 未就绪，缓存高度保持为 0');
-        }
-      });
-    }
-
-    // 频道列表
-    if (_scrollChannelController.hasClients) {
-      _channelViewportHeight = _scrollChannelController.position.viewportDimension;
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollChannelController.hasClients) {
-          setState(() {
-            _channelViewportHeight = _scrollChannelController.position.viewportDimension;
-          });
-        } else {
-          LogUtil.i('Channel ScrollController 未就绪，缓存高度保持为 0');
-        }
-      });
-    }
-
-    // EPG 列表
-    if (_epgScrollController.hasClients) {
-      _epgViewportHeight = _epgScrollController.position.viewportDimension;
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_epgScrollController.hasClients) {
-          setState(() {
-            _epgViewportHeight = _epgScrollController.position.viewportDimension;
-          });
-        } else {
-          LogUtil.i('EPG ScrollController 未就绪，缓存高度保持为 0');
-        }
-      });
-    }
-  }
-
-  // 修改部分：调整 _scrollToCurrentItem 支持所有控制器
-  void _scrollToCurrentItem(ScrollController controller, int index, {required bool alignToBottom}) {
-    if (!controller.hasClients) return;
-
-    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
-    double viewportHeight;
-
-    if (controller == _scrollCategoryController) {
-      viewportHeight = _categoryViewportHeight > 0
-          ? _categoryViewportHeight
-          : controller.position.viewportDimension;
-    } else if (controller == _scrollController) {
-      viewportHeight = _groupViewportHeight > 0
-          ? _groupViewportHeight
-          : controller.position.viewportDimension;
-    } else if (controller == _scrollChannelController) {
-      viewportHeight = _channelViewportHeight > 0
-          ? _channelViewportHeight
-          : controller.position.viewportDimension;
-    } else if (controller == _epgScrollController) {
-      viewportHeight = _epgViewportHeight > 0
-          ? _epgViewportHeight
-          : controller.position.viewportDimension;
-    } else {
-      viewportHeight = controller.position.viewportDimension; // 默认回退
-    }
-
-    final maxScrollExtent = controller.position.maxScrollExtent;
-
-    double adjustedOffset = alignToBottom
-        ? (index + 1) * itemHeight - viewportHeight
-        : index * itemHeight;
-
-    // 限制偏移量在有效范围内
-    adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
-
-    // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
-    controller.jumpTo(adjustedOffset);
-  }
-
-  // 修改部分：将 _initializeFocusNodes 移到类中
-  void _initializeFocusNodes(int totalCount) {
-    if (_focusNodes.length != totalCount) {
-      for (final node in _focusNodes) {
-        node.dispose();
-      }
-      _focusNodes.clear();
-      _focusStates.clear();
-      _focusNodes = List.generate(totalCount, (index) => FocusNode());
-      _updateViewportHeights(); // 更新视窗高度
-    }
-  }
-
-  // 修改部分：优化滚动方法，支持所有列表
+  // 修改部分：优化滚动方法，支持顶部/底部对齐，默认滚动到中间
   void scrollTo({
     required String targetList,
     required int index,
@@ -836,10 +742,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     ScrollController? scrollController;
     int maxIndex = 0;
     switch (targetList) {
-      case 'category':
-        scrollController = _scrollCategoryController;
-        maxIndex = _categories.length - 1;
-        break;
       case 'group':
         scrollController = _scrollController;
         maxIndex = _keys.length - 1;
@@ -851,9 +753,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             : 0;
         break;
       case 'epg':
-        scrollController = _epgScrollController;
-        maxIndex = _epgData?.length ?? 0 - 1;
-        break;
+        if (_epgItemScrollController.isAttached) {
+          _epgItemScrollController.scrollTo(
+            index: index,
+            duration: duration,
+            alignment: alignToBottom ? 1.0 : 0.5, // EPG 默认滚动到中间
+          );
+        }
+        return;
       default:
         LogUtil.i('无效的滚动目标: $targetList');
         return;
@@ -865,7 +772,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     if (scrollController != null && scrollController.hasClients) {
-      // 修改部分：统一使用 alignToBottom 参数
       _scrollToCurrentItem(scrollController, index, alignToBottom: alignToBottom);
     }
   }
@@ -877,7 +783,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _updateViewportHeights(); // 首次初始化时更新视窗高度
+        // 修改部分：移除 _updateViewportHeight 调用，仅保留布局初始化
       });
     });
     _initializeData(); // 统一的初始化方法
@@ -912,7 +818,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     int totalFocusNodes = _calculateTotalFocusNodes();
     _initializeFocusNodes(totalFocusNodes);
 
-    // 3. 加载EPG数据（如果需要）
+    // 3. 计算视图高度（移除）
+    // _calculateViewportHeight(); // 已移除
+
+    // 4. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
       _loadEPGMsg(widget.playModel);
     }
@@ -940,17 +849,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 判断是否需要加载EPG
   bool _shouldLoadEpg() {
-    return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
+    return _keys.isNotEmpty &&
+        _values.isNotEmpty &&
+        _values[_groupIndex].isNotEmpty;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // 修改部分：释放所有 ScrollController
-    _scrollCategoryController.dispose();
     _scrollController.dispose();
     _scrollChannelController.dispose();
-    _epgScrollController.dispose();
     _focusNodes.forEach((node) => node.dispose());
     _focusNodes.clear();
     _focusStates.clear();
@@ -965,10 +873,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         isPortrait = newOrientation;
       });
     }
-    // 修改部分：调用 _updateViewportHeights
+    // 修改部分：移除 _updateViewportHeight 调用，直接调整滚动位置
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        _updateViewportHeights(); // 更新视窗高度
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
@@ -981,6 +888,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     widget.onTvKeyNavigationStateCreated?.call(state);
     // 删除 onFocusChanged 逻辑，滚动完全依赖 addFocusListeners
   }
+
+  // 修改部分：移除 _calculateViewportHeight 方法
+  // void _calculateViewportHeight() { ... } // 已移除
+
+  // 修改部分：移除 _updateViewportHeight 方法
+  // void _updateViewportHeight() { ... } // 已移除
 
   // 初始化分类数据
   void _initializeCategoryData() {
@@ -1152,7 +1065,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     // 添加新的监听器并检查焦点变化
-    addFocusListeners(0, _categories.length, this, scrollController: _scrollCategoryController);
+    addFocusListeners(0, _categories.length, this);
 
     // 如果有分组，初始化分组的监听器
     if (_keys.isNotEmpty) {
@@ -1197,12 +1110,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             totalFocusNodes += _values[_groupIndex].length;
           }
         }
-        
+
         _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
 
         // 判断是否是当前播放频道所在分类
-        if (widget.playModel?.title == null || !_values[_groupIndex].containsKey(widget.playModel?.title)) {
+        if (widget.playModel?.title == null ||
+            !_values[_groupIndex].containsKey(widget.playModel?.title)) {
           // 不是当前播放频道所在分类时，重置滚动位置
           _isSystemAutoSelected = true; // 找不到当前播放频道时设置为系统自动选中
           scrollTo(targetList: 'group', index: 0);
@@ -1240,7 +1154,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 重新计算所需节点数，并初始化 FocusNode
       int totalFocusNodes = _categories.length +
           (_keys.isNotEmpty ? _keys.length : 0) +
-          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+              ? _values[_groupIndex].length
+              : 0);
       _initializeFocusNodes(totalFocusNodes);
       // 重新分配索引
       _updateStartIndexes(includeGroupsAndChannels: true);
@@ -1323,20 +1239,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _channelStartIndex = channelStartIndex;
   }
 
-  // 修改部分：调整滚动位置，使用 _scrollToCurrentItem
+  // 修改部分：调整滚动位置，移除对 _viewportHeight 的依赖
   void _adjustScrollPositions() {
-    if (_scrollCategoryController.hasClients) {
-      _scrollToCurrentItem(_scrollCategoryController, _categoryIndex, alignToBottom: false);
-    }
-    if (_scrollController.hasClients) {
-      _scrollToCurrentItem(_scrollController, _groupIndex, alignToBottom: false);
-    }
-    if (_scrollChannelController.hasClients) {
-      _scrollToCurrentItem(_scrollChannelController, _channelIndex, alignToBottom: false);
-    }
-    if (_epgScrollController.hasClients && _selEPGIndex >= 0) {
-      _scrollToCurrentItem(_epgScrollController, _selEPGIndex, alignToBottom: false);
-    }
+    // 修改部分：不再检查 _viewportHeight，直接调用 scrollTo
+    scrollTo(targetList: 'group', index: _groupIndex);
+    scrollTo(targetList: 'channel', index: _channelIndex);
   }
 
   // 加载EPG
@@ -1428,7 +1335,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex, // 分类列表起始索引
-      scrollController: _scrollCategoryController, // 修改部分：绑定控制器
     );
     currentFocusIndex += _categories.length; // 更新焦点索引
 
@@ -1468,7 +1374,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           epgData: _epgData,
           selectedIndex: _selEPGIndex,
           isTV: useFocusNavigation,
-          scrollController: _epgScrollController, // 修改部分：绑定新的 ScrollController
+          epgScrollController: _epgItemScrollController,
           onCloseDrawer: widget.onCloseDrawer,
         );
       }
