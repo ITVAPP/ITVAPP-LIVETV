@@ -163,7 +163,7 @@ BoxDecoration buildItemDecoration({
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
-// 修改部分：优化焦点监听逻辑，添加滚动控制并判断移动方向
+// 修改部分：优化焦点监听逻辑，添加滚动控制
 void addFocusListeners(
   int startIndex,
   int length,
@@ -174,7 +174,6 @@ void addFocusListeners(
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
-  static int? lastFocusedIndex; // 记录上一个焦点索引，用于判断移动方向
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
@@ -188,38 +187,48 @@ void addFocusListeners(
         state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          // 判断移动方向：上移（index < lastFocusedIndex），下移（index > lastFocusedIndex）
-          bool isMovingDown = lastFocusedIndex != null && index > lastFocusedIndex;
-          lastFocusedIndex = index; // 更新上一个焦点索引
-          _scrollToCurrentItem(scrollController, itemIndex, isMovingDown: isMovingDown);
+          _scrollToCurrentItem(scrollController, itemIndex);
         }
       }
     });
   }
 }
 
-// 修改部分：优化滚动工具函数，上移对齐顶部，下移对齐底部，使用 jumpTo
-void _scrollToCurrentItem(ScrollController controller, int index, {required bool isMovingDown}) {
+// 修改部分：优化滚动工具函数，支持顶部/底部对齐，直接使用 controller.position.viewportDimension
+void _scrollToCurrentItem(ScrollController controller, int index, {bool alignToBottom = false}) {
   if (!controller.hasClients) return;
 
   const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
-  final viewportHeight = controller.position.viewportDimension; // 实时获取视窗高度
+  final currentOffset = controller.offset;
+  final viewportHeight = controller.position.viewportDimension; // 直接使用 ScrollController 的 viewportDimension
   final maxScrollExtent = controller.position.maxScrollExtent;
+  final targetOffset = index * itemHeight;
+
+  // 计算内容总高度
+  final contentHeight = maxScrollExtent + viewportHeight;
+
+  // 如果内容高度小于视窗高度，不滚动
+  if (contentHeight <= viewportHeight) return;
 
   double adjustedOffset;
-  if (isMovingDown) {
-    // 下移：焦点严格对齐底部
-    adjustedOffset = (index + 1) * itemHeight - viewportHeight;
+  if (alignToBottom || targetOffset + itemHeight > currentOffset + viewportHeight) {
+    adjustedOffset = targetOffset + itemHeight - viewportHeight; // 底部对齐
+  } else if (!alignToBottom && targetOffset < currentOffset) {
+    adjustedOffset = targetOffset; // 顶部对齐
+  } else if (!alignToBottom) {
+    // 默认滚动到中间
+    adjustedOffset = targetOffset - (viewportHeight / 2) + (itemHeight / 2);
   } else {
-    // 上移：焦点严格对齐顶部
-    adjustedOffset = index * itemHeight;
+    return; // 在视窗内无需滚动
   }
 
-  // 限制偏移量在有效范围内
   adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
 
-  // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
-  controller.jumpTo(adjustedOffset);
+  controller.animateTo(
+    adjustedOffset,
+    duration: const Duration(milliseconds: 200),
+    curve: Curves.easeInOut,
+  );
 }
 
 // 移除焦点监听逻辑的通用函数
