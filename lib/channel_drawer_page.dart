@@ -752,8 +752,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：添加 _ensureFocusVisible 方法
-  // 调整滚动位置以确保焦点项在视窗内顶部或底部对齐
+  // 修改部分：调整滚动位置以确保焦点项在视窗内顶部或底部对齐
   void _ensureFocusVisible(String targetList, int newFocusIndex) {
     ScrollController? scrollController;
     int maxIndex = 0;
@@ -805,6 +804,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       });
     });
     _initializeData(); // 统一的初始化方法
+
+    // 修改部分：在初始化时添加焦点监听
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _addFocusListenersForScroll();
+    });
   }
 
   @override
@@ -822,6 +826,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         // 重新初始化所有焦点监听器
         _reInitializeFocusListeners();
+        _addFocusListenersForScroll(); // 重新添加焦点监听
       });
     }
   }
@@ -903,46 +908,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分：添加焦点监听以控制滚动
+  void _addFocusListenersForScroll() {
+    for (int i = 0; i < _focusNodes.length; i++) {
+      _focusNodes[i].removeListener(() {}); // 移除旧的监听器，避免重复添加
+      _focusNodes[i].addListener(() {
+        if (_focusNodes[i].hasFocus) {
+          // 在 GroupList 内部移动焦点
+          if (i >= _groupStartIndex && i < _channelStartIndex) {
+            final groupIndex = i - _groupStartIndex;
+            _ensureFocusVisible('group', groupIndex);
+            // 从 CategoryList 到 GroupList 的首个焦点
+            if (i == _groupStartIndex && _scrollController.hasClients) {
+              _scrollController.jumpTo(0); // GroupList 滚动到顶部
+            }
+          }
+          // 在 ChannelList 内部移动焦点
+          else if (i >= _channelStartIndex) {
+            final channelIndex = i - _channelStartIndex;
+            _ensureFocusVisible('channel', channelIndex);
+            // 从 GroupList 到 ChannelList 的首个焦点
+            if (i == _channelStartIndex && _scrollChannelController.hasClients) {
+              _scrollChannelController.jumpTo(0); // ChannelList 滚动到顶部
+            }
+          }
+        }
+      });
+    }
+  }
+
   // 修改部分：更新 _handleTvKeyNavigationStateCreated 方法
-  // 保存 TvKeyNavigationState 并处理焦点切换时的滚动
+  // 仅保存 TvKeyNavigationState，不处理焦点切换逻辑
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
-
-    // 添加焦点切换时的滚动逻辑
-    state.onFocusChanged = (int oldIndex, int newIndex) {
-      // 从 CategoryList 移动到 GroupList
-      if (oldIndex >= _categoryStartIndex &&
-          oldIndex < _groupStartIndex &&
-          newIndex >= _groupStartIndex &&
-          newIndex < _channelStartIndex) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.jumpTo(0); // GroupList 滚动到顶部
-          }
-        });
-      }
-      // 从 GroupList 移动到 ChannelList
-      else if (oldIndex >= _groupStartIndex &&
-          oldIndex < _channelStartIndex &&
-          newIndex >= _channelStartIndex) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollChannelController.hasClients) {
-            _scrollChannelController.jumpTo(0); // ChannelList 滚动到顶部
-          }
-        });
-      }
-      // 在 GroupList 内部移动焦点
-      else if (newIndex >= _groupStartIndex && newIndex < _channelStartIndex) {
-        final groupIndex = newIndex - _groupStartIndex;
-        _ensureFocusVisible('group', groupIndex);
-      }
-      // 在 ChannelList 内部移动焦点
-      else if (newIndex >= _channelStartIndex) {
-        final channelIndex = newIndex - _channelStartIndex;
-        _ensureFocusVisible('channel', channelIndex);
-      }
-    };
+    // 移除原有的 onFocusChanged 逻辑，焦点监听已移至 _addFocusListenersForScroll
   }
 
   // 计算视图窗口的高度
@@ -1199,7 +1199,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               );
             }
             if (_scrollChannelController.hasClients) {
-              _scrollChannelController.jumpTo(
+              _scrollController.jumpTo(
                 channelOffset < _scrollChannelController.position.maxScrollExtent
                     ? channelOffset
                     : _scrollChannelController.position.maxScrollExtent,
