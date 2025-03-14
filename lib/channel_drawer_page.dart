@@ -752,48 +752,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 调整滚动位置以确保焦点项在视窗内顶部或底部对齐
-  void _ensureFocusVisible(String targetList, int newFocusIndex) {
-    ScrollController? scrollController;
-    int maxIndex = 0;
-
-    switch (targetList) {
-      case 'group':
-        scrollController = _scrollController;
-        maxIndex = _keys.length - 1;
-        break;
-      case 'channel':
-        scrollController = _scrollChannelController;
-        maxIndex = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-            ? _values[_groupIndex].length - 1
-            : 0;
-        break;
-      default:
-        return;
-    }
-
-    if (newFocusIndex < 0 || newFocusIndex > maxIndex || !scrollController!.hasClients) return;
-
-    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 固定项高度
-    final viewportHeight = scrollController.position.viewportDimension;
-    final currentOffset = scrollController.offset;
-    final targetOffset = newFocusIndex * itemHeight;
-    final maxScrollExtent = scrollController.position.maxScrollExtent;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (targetOffset < currentOffset) {
-        // 焦点向上移动，超出顶部，滚动到顶部对齐
-        scrollController.jumpTo(max(0.0, targetOffset));
-      } else if (targetOffset + itemHeight > currentOffset + viewportHeight) {
-        // 焦点向下移动，超出底部，滚动到底部对齐
-        final bottomOffset = targetOffset - viewportHeight + itemHeight;
-        scrollController.jumpTo(
-          bottomOffset < maxScrollExtent ? bottomOffset : maxScrollExtent,
-        );
-      }
-    });
-  }
-
   @override
   void initState() {
     super.initState();
@@ -902,23 +860,33 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 保存 TvKeyNavigationState
+  // 保存 TvKeyNavigationState 并处理焦点切换时的滚动
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
 
-    // 添加焦点切换时的滚动调整逻辑
+    // 添加焦点切换时的滚动逻辑
     state.onFocusChanged = (int oldIndex, int newIndex) {
-      if (newIndex >= _categoryStartIndex && newIndex < _groupStartIndex) {
-        // 在 CategoryList 中移动焦点，不调整滚动
-      } else if (newIndex >= _groupStartIndex && newIndex < _channelStartIndex) {
-        // 在 GroupList 中移动焦点
-        final groupIndex = newIndex - _groupStartIndex;
-        _ensureFocusVisible('group', groupIndex);
-      } else if (newIndex >= _channelStartIndex) {
-        // 在 ChannelList 中移动焦点
-        final channelIndex = newIndex - _channelStartIndex;
-        _ensureFocusVisible('channel', channelIndex);
+      // 从 CategoryList 移动到 GroupList
+      if (oldIndex >= _categoryStartIndex &&
+          oldIndex < _groupStartIndex &&
+          newIndex >= _groupStartIndex &&
+          newIndex < _channelStartIndex) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(0); // GroupList 滚动到顶部
+          }
+        });
+      }
+      // 从 GroupList 移动到 ChannelList
+      else if (oldIndex >= _groupStartIndex &&
+          oldIndex < _channelStartIndex &&
+          newIndex >= _channelStartIndex) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollChannelController.hasClients) {
+            _scrollChannelController.jumpTo(0); // ChannelList 滚动到顶部
+          }
+        });
       }
     };
   }
@@ -1160,14 +1128,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             !_values[_groupIndex].containsKey(widget.playModel?.title)) {
           // 不是当前播放频道所在分类时，重置滚动位置
           _isSystemAutoSelected = true; // 找不到当前播放频道时设置为系统自动选中
-          _scrollToTop(_scrollController);
-          _scrollToTop(_scrollChannelController);
+          scrollTo(targetList: 'group', index: 0);
+          scrollTo(targetList: 'channel', index: 0);
         } else {
-          // 是当前播放频道所在分类时，滚动到顶部
+          // 是当前播放频道所在分类时，调整到正确位置
           _isSystemAutoSelected = false; // 找到当前播放频道时取消系统自动选中
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _scrollToTop(_scrollController);
-            _scrollToTop(_scrollChannelController);
+            const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
+            final groupOffset = _groupIndex * itemHeight; // GroupList 的目标偏移量
+            final channelOffset = _channelIndex * itemHeight; // ChannelList 的目标偏移量
+            if (_scrollController.hasClients) {
+              _scrollController.jumpTo(
+                groupOffset < _scrollController.position.maxScrollExtent
+                    ? groupOffset
+                    : _scrollController.position.maxScrollExtent,
+              );
+            }
+            if (_scrollChannelController.hasClients) {
+              _scrollChannelController.jumpTo(
+                channelOffset < _scrollChannelController.position.maxScrollExtent
+                    ? channelOffset
+                    : _scrollChannelController.position.maxScrollExtent,
+              );
+            }
           });
         }
       }
@@ -1208,17 +1191,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         if (_channelIndex == -1) {
           _channelIndex = 0;
         }
+
+        // 调整到正确位置
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          scrollTo(targetList: 'channel', index: _channelIndex);
+        });
       } else {
         // 不是当前播放频道所在分组，重置到第一个频道
         _channelIndex = 0;
         _isChannelAutoSelected = true;
+        scrollTo(targetList: 'channel', index: 0);
       }
-
-      // 切换分组时滚动到顶部
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToTop(_scrollController);
-        _scrollToTop(_scrollChannelController);
-      });
     });
 
     // 状态更新后重新初始化焦点系统
