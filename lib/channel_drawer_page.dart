@@ -195,31 +195,31 @@ void addFocusListeners(
 }
 
 // 修改部分：优化滚动工具函数，支持顶部/底部对齐
-void _scrollToCurrentItem(ScrollController controller, int index) {
+void _scrollToCurrentItem(ScrollController controller, int index, {bool alignToBottom = false}) {
   if (!controller.hasClients) return;
 
-  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
+  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
   final currentOffset = controller.offset;
   final viewportHeight = controller.position.viewportDimension;
   final maxScrollExtent = controller.position.maxScrollExtent;
   final targetOffset = index * itemHeight;
 
-  // 检查焦点项是否在视窗内
-  if (targetOffset >= currentOffset && targetOffset + itemHeight <= currentOffset + viewportHeight) {
-    return; // 在视窗内，无需滚动
-  }
-
-  // 判断滚动方向并调整对齐
   double adjustedOffset;
-  if (targetOffset < currentOffset) {
-    // 向上移动，顶部对齐
-    adjustedOffset = targetOffset;
+  if (alignToBottom || targetOffset + itemHeight > currentOffset + viewportHeight) {
+    adjustedOffset = targetOffset + itemHeight - viewportHeight; // 底部对齐
+  } else if (!alignToBottom && targetOffset < currentOffset) {
+    adjustedOffset = targetOffset; // 顶部对齐
   } else {
-    // 向下移动，底部对齐
-    adjustedOffset = (targetOffset + itemHeight - viewportHeight).clamp(0.0, maxScrollExtent);
+    return; // 在视窗内
   }
 
-  controller.jumpTo(adjustedOffset.clamp(0.0, maxScrollExtent));
+  adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
+
+  controller.animateTo(
+    adjustedOffset,
+    duration: const Duration(milliseconds: 200),
+    curve: Curves.easeInOut,
+  );
 }
 
 // 移除焦点监听逻辑的通用函数
@@ -730,14 +730,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 修改部分：优化滚动方法，支持跨列表切换时的顶部对齐
+  // 修改部分：优化滚动方法，支持顶部/底部对齐
   void scrollTo({
     required String targetList,
     required int index,
-    Duration duration = Duration.zero,
-    double alignment = 0.0, // 保留参数但仅在 EPGList 使用
+    bool alignToBottom = false, // 新增参数，控制是否底部对齐
+    Duration duration = const Duration(milliseconds: 200),
   }) {
-    ItemScrollController? itemController;
     ScrollController? scrollController;
     int maxIndex = 0;
     switch (targetList) {
@@ -752,9 +751,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             : 0;
         break;
       case 'epg':
-        itemController = _epgItemScrollController;
-        maxIndex = _epgData?.length ?? 0 - 1;
-        break;
+        if (_epgItemScrollController.isAttached) {
+          _epgItemScrollController.scrollTo(
+            index: index,
+            duration: duration,
+            alignment: alignToBottom ? 1.0 : 0.0, // EPG 支持顶部或底部对齐
+          );
+        }
+        return;
       default:
         LogUtil.i('无效的滚动目标: $targetList');
         return;
@@ -765,22 +769,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController != null && scrollController.hasClients) {
-        const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
-        final shouldOffset = index * itemHeight;
-        // 跨列表切换时强制顶部对齐
-        scrollController.jumpTo(shouldOffset.clamp(0.0, scrollController.position.maxScrollExtent));
-      } else if (itemController?.isAttached ?? false) {
-        itemController?.scrollTo(
-          index: index,
-          duration: Duration.zero, // 无动画
-          alignment: alignment, // EPGList 可自定义对齐
-        );
-      } else {
-        LogUtil.i('$targetList 的控制器未绑定');
-      }
-    });
+    if (scrollController != null && scrollController.hasClients) {
+      _scrollToCurrentItem(scrollController, index, alignToBottom: alignToBottom);
+    }
   }
 
   @override
