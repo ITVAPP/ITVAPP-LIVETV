@@ -192,39 +192,14 @@ void addFocusListeners(
               index > (state as _ChannelDrawerPageState).lastFocusedIndex!;
           if (state is _ChannelDrawerPageState) {
             (state as _ChannelDrawerPageState).lastFocusedIndex = index; // 更新上一个焦点索引
+            (state as _ChannelDrawerPageState)._scrollToCurrentItem(
+                scrollController, itemIndex,
+                isMovingDown: isMovingDown); // 调用类方法
           }
-          _scrollToCurrentItem(scrollController, itemIndex, isMovingDown: isMovingDown);
         }
       }
     });
   }
-}
-
-// 修改部分：优化滚动工具函数，上移对齐顶部，下移对齐底部，使用 jumpTo，并使用缓存的视窗高度
-void _scrollToCurrentItem(ScrollController controller, int index, {required bool isMovingDown, bool alignToBottom = false}) {
-  if (!controller.hasClients) return;
-
-  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
-  // 修改部分：修复 _scrollController 未定义问题，直接使用类的成员变量
-  final viewportHeight = controller == (state as _ChannelDrawerPageState)._scrollController
-      ? (_groupViewportHeight > 0 ? _groupViewportHeight : controller.position.viewportDimension)
-      : (_channelViewportHeight > 0 ? _channelViewportHeight : controller.position.viewportDimension);
-  final maxScrollExtent = controller.position.maxScrollExtent;
-
-  double adjustedOffset;
-  if (alignToBottom || isMovingDown) {
-    // 下移或底部对齐：焦点严格对齐底部
-    adjustedOffset = (index + 1) * itemHeight - viewportHeight;
-  } else {
-    // 上移：焦点严格对齐顶部
-    adjustedOffset = index * itemHeight;
-  }
-
-  // 限制偏移量在有效范围内
-  adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
-
-  // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
-  controller.jumpTo(adjustedOffset);
 }
 
 // 移除焦点监听逻辑的通用函数
@@ -232,19 +207,6 @@ void removeFocusListeners(int startIndex, int length) {
   for (var i = 0; i < length; i++) {
     _focusNodes[startIndex + i].removeListener(() {});
     _focusStates.remove(startIndex + i);
-  }
-}
-
-// 修改部分：初始化 FocusNode 列表时更新视窗高度
-void _initializeFocusNodes(int totalCount) {
-  if (_focusNodes.length != totalCount) {
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    _focusNodes.clear();
-    _focusStates.clear();
-    _focusNodes = List.generate(totalCount, (index) => FocusNode());
-    _updateViewportHeights(); // 更新视窗高度
   }
 }
 
@@ -767,6 +729,46 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分：将 _scrollToCurrentItem 移到类中
+  void _scrollToCurrentItem(ScrollController controller, int index,
+      {required bool isMovingDown, bool alignToBottom = false}) {
+    if (!controller.hasClients) return;
+
+    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
+    final viewportHeight = controller == _scrollController
+        ? (_groupViewportHeight > 0 ? _groupViewportHeight : controller.position.viewportDimension)
+        : (_channelViewportHeight > 0 ? _channelViewportHeight : controller.position.viewportDimension);
+    final maxScrollExtent = controller.position.maxScrollExtent;
+
+    double adjustedOffset;
+    if (alignToBottom || isMovingDown) {
+      // 下移或底部对齐：焦点严格对齐底部
+      adjustedOffset = (index + 1) * itemHeight - viewportHeight;
+    } else {
+      // 上移：焦点严格对齐顶部
+      adjustedOffset = index * itemHeight;
+    }
+
+    // 限制偏移量在有效范围内
+    adjustedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
+
+    // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
+    controller.jumpTo(adjustedOffset);
+  }
+
+  // 修改部分：将 _initializeFocusNodes 移到类中
+  void _initializeFocusNodes(int totalCount) {
+    if (_focusNodes.length != totalCount) {
+      for (final node in _focusNodes) {
+        node.dispose();
+      }
+      _focusNodes.clear();
+      _focusStates.clear();
+      _focusNodes = List.generate(totalCount, (index) => FocusNode());
+      _updateViewportHeights(); // 更新视窗高度
+    }
+  }
+
   // 修改部分：优化滚动方法，支持顶部/底部对齐，默认滚动到中间
   void scrollTo({
     required String targetList,
@@ -881,9 +883,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 判断是否需要加载EPG
   bool _shouldLoadEpg() {
-    return _keys.isNotEmpty &&
-        _values.isNotEmpty &&
-        _values[_groupIndex].isNotEmpty;
+    return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
   }
 
   @override
@@ -1138,12 +1138,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           }
         }
 
-        _initializeFocusNodes(totalFocusNodes);
+ fikirFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
 
         // 判断是否是当前播放频道所在分类
-        if (widget.playModel?.title == null ||
-            !_values[_groupIndex].containsKey(widget.playModel?.title)) {
+        if (widget.playModel?.title == null || !_values[_groupIndex].containsKey(widget.playModel?.title)) {
           // 不是当前播放频道所在分类时，重置滚动位置
           _isSystemAutoSelected = true; // 找不到当前播放频道时设置为系统自动选中
           scrollTo(targetList: 'group', index: 0);
@@ -1181,9 +1180,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 重新计算所需节点数，并初始化 FocusNode
       int totalFocusNodes = _categories.length +
           (_keys.isNotEmpty ? _keys.length : 0) +
-          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
+          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
       _initializeFocusNodes(totalFocusNodes);
       // 重新分配索引
       _updateStartIndexes(includeGroupsAndChannels: true);
