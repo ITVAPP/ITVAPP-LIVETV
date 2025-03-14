@@ -920,6 +920,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
       if ((region?.isEmpty ?? true) && (city?.isEmpty ?? true)) return;
 
+      // 保存原始的 _keys 和 _values 映射
+      Map<String, Map<String, PlayModel>> originalMap = {
+        for (int i = 0; i < _keys.length; i++) _keys[i]: _values[i]
+      };
+
       // 对分组（_keys）进行排序，优先匹配地区
       List<String> regionMatches = [];
       List<String> otherGroups = [];
@@ -939,32 +944,31 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 更新 _values 以匹配新的 _keys 顺序
       List<Map<String, PlayModel>> newValues = [];
       for (String key in _keys) {
-        int oldIndex = widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList().indexOf(key) ?? -1;
-        if (oldIndex != -1) {
-          Map<String, PlayModel> channelMap = _values[oldIndex];
-          // 对每个分组内的频道进行排序，优先匹配城市
-          List<String> cityMatches = [];
-          List<String> otherChannels = [];
+        Map<String, PlayModel> channelMap = originalMap[key]!;
+        // 对每个分组内的频道进行排序，优先匹配城市
+        List<String> cityMatches = [];
+        List<String> otherChannels = [];
 
-          for (String channelKey in channelMap.keys) {
-            String lowercaseChannelKey = channelKey.toLowerCase();
-            if (city != null && city.isNotEmpty &&
-                (lowercaseChannelKey.contains(city) || city.contains(lowercaseChannelKey))) {
-              cityMatches.add(channelKey);
-            } else {
-              otherChannels.add(channelKey);
-            }
+        for (String channelKey in channelMap.keys) {
+          String lowercaseChannelKey = channelKey.toLowerCase();
+          if (city != null && city.isNotEmpty &&
+              (lowercaseChannelKey.contains(city) || city.contains(lowercaseChannelKey))) {
+            cityMatches.add(channelKey);
+          } else {
+            otherChannels.add(channelKey);
           }
-
-          // 根据排序后的键重新构建频道映射
-          Map<String, PlayModel> sortedChannels = {
-            for (String channelKey in [...cityMatches, ...otherChannels]) channelKey: channelMap[channelKey]!
-          };
-          newValues.add(sortedChannels);
         }
+
+        // 根据排序后的键重新构建频道映射
+        Map<String, PlayModel> sortedChannels = {
+          for (String channelKey in [...cityMatches, ...otherChannels]) channelKey: channelMap[channelKey]!
+        };
+        newValues.add(sortedChannels);
       }
       _values = newValues;
 
+      // 更新 UI
+      setState(() {});
     } catch (e) {
       LogUtil.e('解析位置信息失败: $e');
     }
