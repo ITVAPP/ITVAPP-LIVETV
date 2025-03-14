@@ -163,6 +163,9 @@ BoxDecoration buildItemDecoration({
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
+// 修改部分：添加全局变量 _lastFocusedIndex
+int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
+
 // 修改部分：优化焦点监听逻辑，添加滚动控制以确保焦点始终在视窗顶部或底部
 void addFocusListeners(
   int startIndex,
@@ -728,9 +731,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _categoryStartIndex = 0;
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
-
-  // 修改部分：添加 lastFocusedIndex 作为类成员变量
-  int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
   // 修改部分：添加 ScrollController 监听器
   void _setupScrollControllerListeners() {
