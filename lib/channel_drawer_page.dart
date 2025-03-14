@@ -163,9 +163,15 @@ BoxDecoration buildItemDecoration({
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
-// 添加焦点监听逻辑的通用函数
-void addFocusListeners(int startIndex, int length, State state) {
+// 修改部分：优化焦点监听逻辑，添加滚动控制
+void addFocusListeners(
+  int startIndex,
+  int length,
+  State state, {
+  ScrollController? scrollController,
+}) {
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+    LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
   for (var i = 0; i < length; i++) {
@@ -179,9 +185,34 @@ void addFocusListeners(int startIndex, int length, State state) {
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
         state.setState(() {});
+        if (scrollController != null && currentFocus) {
+          final itemIndex = index - startIndex;
+          _scrollToCurrentItem(scrollController, itemIndex);
+        }
       }
     });
   }
+}
+
+// 修改部分：新增滚动工具函数，仅在必要时滚动
+void _scrollToCurrentItem(ScrollController controller, int index) {
+  if (!controller.hasClients) return;
+  
+  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
+  final currentOffset = controller.offset;
+  final viewportHeight = controller.position.viewportDimension;
+  final maxScrollExtent = controller.position.maxScrollExtent;
+  final targetOffset = index * itemHeight;
+  const topOffset = 100.0; // 默认顶部偏移量，与参考代码一致
+
+  // 检查焦点项是否在视窗内，如果在则不滚动
+  if (targetOffset >= currentOffset && targetOffset + itemHeight <= currentOffset + viewportHeight) {
+    return; // 焦点项已在视窗内，无需滚动
+  }
+
+  // 计算滚动目标位置
+  final adjustedOffset = (targetOffset - topOffset).clamp(0.0, maxScrollExtent);
+  controller.jumpTo(adjustedOffset);
 }
 
 // 移除焦点监听逻辑的通用函数
@@ -398,7 +429,8 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.keys.length, this);
+    // 修改部分：在焦点监听中绑定滚动控制器
+    addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -496,16 +528,8 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.channels.length, this);
-
-    if (widget.isTV && widget.selectedChannelName != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final index = widget.channels.keys.toList().indexOf(widget.selectedChannelName!);
-        if (index != -1 && isOutOfView(context)) {
-          Scrollable.ensureVisible(context, alignment: 0.5, duration: Duration.zero);
-        }
-      });
-    }
+    // 修改部分：在焦点监听中绑定滚动控制器，移除原始滚动逻辑
+    addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -752,46 +776,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：调整滚动位置以确保焦点项在视窗内顶部或底部对齐
-  void _ensureFocusVisible(String targetList, int newFocusIndex) {
-    ScrollController? scrollController;
-    int maxIndex = 0;
+  // 修改部分：新增 _scrollToCurrentItem 方法，仅在必要时滚动
+  void _scrollToCurrentItem(ScrollController controller, int index) {
+    if (!controller.hasClients) return;
+    
+    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 42 + padding.vertical (6*2) + divider (1)
+    final currentOffset = controller.offset;
+    final viewportHeight = controller.position.viewportDimension;
+    final maxScrollExtent = controller.position.maxScrollExtent;
+    final targetOffset = index * itemHeight;
+    const topOffset = 100.0; // 默认顶部偏移量，与参考代码一致
 
-    switch (targetList) {
-      case 'group':
-        scrollController = _scrollController;
-        maxIndex = _keys.length - 1;
-        break;
-      case 'channel':
-        scrollController = _scrollChannelController;
-        maxIndex = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-            ? _values[_groupIndex].length - 1
-            : 0;
-        break;
-      default:
-        return;
+    // 检查焦点项是否在视窗内，如果在则不滚动
+    if (targetOffset >= currentOffset && targetOffset + itemHeight <= currentOffset + viewportHeight) {
+      return; // 焦点项已在视窗内，无需滚动
     }
 
-    if (newFocusIndex < 0 || newFocusIndex > maxIndex || !scrollController!.hasClients) return;
-
-    const itemHeight = defaultMinHeight + 12.0 + 1.0; // 固定项高度：42 + padding (6*2) + divider (1)
-    final viewportHeight = scrollController.position.viewportDimension;
-    final currentOffset = scrollController.offset;
-    final targetOffset = newFocusIndex * itemHeight;
-    final maxScrollExtent = scrollController.position.maxScrollExtent;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (targetOffset < currentOffset) {
-        // 焦点向上移动，超出顶部，滚动到顶部对齐
-        scrollController.jumpTo(max(0.0, targetOffset));
-      } else if (targetOffset + itemHeight > currentOffset + viewportHeight) {
-        // 焦点向下移动，超出底部，滚动到底部对齐
-        final bottomOffset = targetOffset - viewportHeight + itemHeight;
-        scrollController.jumpTo(
-          bottomOffset < maxScrollExtent ? bottomOffset : maxScrollExtent,
-        );
-      }
-    });
+    // 计算滚动目标位置
+    final adjustedOffset = (targetOffset - topOffset).clamp(0.0, maxScrollExtent);
+    controller.jumpTo(adjustedOffset);
   }
 
   @override
@@ -804,11 +807,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       });
     });
     _initializeData(); // 统一的初始化方法
-
-    // 修改部分：在初始化时添加焦点监听
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _addFocusListenersForScroll();
-    });
   }
 
   @override
@@ -826,7 +824,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         // 重新初始化所有焦点监听器
         _reInitializeFocusListeners();
-        _addFocusListenersForScroll(); // 重新添加焦点监听
       });
     }
   }
@@ -908,41 +905,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：添加焦点监听以控制滚动
-  void _addFocusListenersForScroll() {
-    for (int i = 0; i < _focusNodes.length; i++) {
-      _focusNodes[i].removeListener(() {}); // 移除旧的监听器，避免重复添加
-      _focusNodes[i].addListener(() {
-        if (_focusNodes[i].hasFocus) {
-          // 在 GroupList 内部移动焦点
-          if (i >= _groupStartIndex && i < _channelStartIndex) {
-            final groupIndex = i - _groupStartIndex;
-            _ensureFocusVisible('group', groupIndex);
-            // 从 CategoryList 到 GroupList 的首个焦点
-            if (i == _groupStartIndex && _scrollController.hasClients) {
-              _scrollController.jumpTo(0); // GroupList 滚动到顶部
-            }
-          }
-          // 在 ChannelList 内部移动焦点
-          else if (i >= _channelStartIndex) {
-            final channelIndex = i - _channelStartIndex;
-            _ensureFocusVisible('channel', channelIndex);
-            // 从 GroupList 到 ChannelList 的首个焦点
-            if (i == _channelStartIndex && _scrollChannelController.hasClients) {
-              _scrollChannelController.jumpTo(0); // ChannelList 滚动到顶部
-            }
-          }
-        }
-      });
-    }
-  }
-
-  // 修改部分：更新 _handleTvKeyNavigationStateCreated 方法
-  // 仅保存 TvKeyNavigationState，不处理焦点切换逻辑
+  // 修改部分：简化 _handleTvKeyNavigationStateCreated，不绑定 onFocusChanged
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
-    // 移除原有的 onFocusChanged 逻辑，焦点监听已移至 _addFocusListenersForScroll
+    // 删除 onFocusChanged 逻辑，滚动完全依赖 addFocusListeners
   }
 
   // 计算视图窗口的高度
@@ -1133,12 +1100,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 如果有分组，初始化分组的监听器
     if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this);
+      addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController);
       if (_values.isNotEmpty && _groupIndex >= 0) {
         addFocusListeners(
           _categories.length + _keys.length,
           _values[_groupIndex].length,
           this,
+          scrollController: _scrollChannelController,
         );
       }
     }
@@ -1199,7 +1167,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               );
             }
             if (_scrollChannelController.hasClients) {
-              _scrollController.jumpTo(
+              _scrollChannelController.jumpTo(
                 channelOffset < _scrollChannelController.position.maxScrollExtent
                     ? channelOffset
                     : _scrollChannelController.position.maxScrollExtent,
