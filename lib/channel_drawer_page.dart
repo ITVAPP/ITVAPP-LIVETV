@@ -174,7 +174,6 @@ void addFocusListeners(
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
-  // 注意：static int? lastFocusedIndex 已移除，移至类中
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
@@ -188,8 +187,9 @@ void addFocusListeners(
         state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          // 使用类中的 lastFocusedIndex
-          bool isMovingDown = state is _ChannelDrawerPageState && (state as _ChannelDrawerPageState).lastFocusedIndex != null && index > (state as _ChannelDrawerPageState).lastFocusedIndex!;
+          bool isMovingDown = state is _ChannelDrawerPageState &&
+              (state as _ChannelDrawerPageState).lastFocusedIndex != null &&
+              index > (state as _ChannelDrawerPageState).lastFocusedIndex!;
           if (state is _ChannelDrawerPageState) {
             (state as _ChannelDrawerPageState).lastFocusedIndex = index; // 更新上一个焦点索引
           }
@@ -205,14 +205,14 @@ void _scrollToCurrentItem(ScrollController controller, int index, {required bool
   if (!controller.hasClients) return;
 
   const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
-  // 使用外部定义的缓存变量 _groupViewportHeight 和 _channelViewportHeight
-  final viewportHeight = controller == _scrollController
+  // 修改部分：修复 _scrollController 未定义问题，直接使用类的成员变量
+  final viewportHeight = controller == (state as _ChannelDrawerPageState)._scrollController
       ? (_groupViewportHeight > 0 ? _groupViewportHeight : controller.position.viewportDimension)
       : (_channelViewportHeight > 0 ? _channelViewportHeight : controller.position.viewportDimension);
   final maxScrollExtent = controller.position.maxScrollExtent;
 
   double adjustedOffset;
-  if (alignToBottom || isMovingDown) { // 修改：支持 alignToBottom 参数
+  if (alignToBottom || isMovingDown) {
     // 下移或底部对齐：焦点严格对齐底部
     adjustedOffset = (index + 1) * itemHeight - viewportHeight;
   } else {
@@ -727,7 +727,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool _isSystemAutoSelected = false;
   bool _isChannelAutoSelected = false;
 
-  // 修改部分：将 lastFocusedIndex 从静态变量移至类中
   int? lastFocusedIndex;
 
   final GlobalKey _viewPortKey = GlobalKey();
@@ -808,7 +807,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     if (scrollController != null && scrollController.hasClients) {
-      _scrollToCurrentItem(scrollController, index, isMovingDown: false, alignToBottom: alignToBottom); // 修改：添加 alignToBottom 参数
+      _scrollToCurrentItem(scrollController, index, isMovingDown: false, alignToBottom: alignToBottom);
     }
   }
 
