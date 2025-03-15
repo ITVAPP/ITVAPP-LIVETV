@@ -503,17 +503,20 @@ class _GroupListState extends State<GroupList> {
             groupIndex: kGroupIndexGroup,
             child: Column(
               children: List.generate(widget.keys.length, (index) {
-                return buildListItem(
-                  title: widget.keys[index],
-                  isSelected: widget.selectedGroupIndex == index,
-                  onTap: () => widget.onGroupTap(index),
-                  isCentered: false,
-                  isTV: widget.isTV,
-                  minHeight: kDefaultMinHeight,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == widget.keys.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
+                // 修改部分：添加 RepaintBoundary，与 ChannelList 保持一致
+                return RepaintBoundary(
+                  child: buildListItem(
+                    title: widget.keys[index],
+                    isSelected: widget.selectedGroupIndex == index,
+                    onTap: () => widget.onGroupTap(index),
+                    isCentered: false,
+                    isTV: widget.isTV,
+                    minHeight: kDefaultMinHeight,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == widget.keys.length - 1,
+                    isSystemAutoSelected: widget.isSystemAutoSelected,
+                  ),
                 );
               }),
             ),
