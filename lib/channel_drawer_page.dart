@@ -348,6 +348,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
+// 修改后的 CategoryList
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -393,24 +394,28 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: Group(
-        groupIndex: kGroupIndexCategory,
-        child: ScrollablePositionedList.builder(
-          itemScrollController: widget.scrollController,
-          itemCount: widget.categories.length,
-          itemBuilder: (context, index) => buildListItem(
-            title: widget.categories[index] == Config.myFavoriteKey
-                ? S.of(context).myfavorite
-                : widget.categories[index] == Config.allChannelsKey
-                    ? S.of(context).allchannels
-                    : widget.categories[index],
-            isSelected: widget.selectedCategoryIndex == index,
-            onTap: () => widget.onCategoryTap(index),
-            isCentered: true,
-            isTV: widget.isTV,
-            context: context,
-            index: widget.startIndex + index,
-            isLastItem: index == widget.categories.length - 1,
+      child: ScrollablePositionedList.builder(
+        itemScrollController: widget.scrollController,
+        itemCount: 1, // 外层只包含一个静态组
+        itemBuilder: (context, _) => Group(
+          groupIndex: kGroupIndexCategory,
+          child: Column(
+            children: List.generate(widget.categories.length, (index) {
+              return buildListItem(
+                title: widget.categories[index] == Config.myFavoriteKey
+                    ? S.of(context).myfavorite
+                    : widget.categories[index] == Config.allChannelsKey
+                        ? S.of(context).allchannels
+                        : widget.categories[index],
+                isSelected: widget.selectedCategoryIndex == index,
+                onTap: () => widget.onCategoryTap(index),
+                isCentered: true,
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+                isLastItem: index == widget.categories.length - 1,
+              );
+            }),
           ),
         ),
       ),
@@ -418,6 +423,7 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
+// 修改后的 GroupList
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController;
@@ -473,32 +479,31 @@ class _GroupListState extends State<GroupList> {
 
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemPositionsListener: widget.positionsListener,
-              itemCount: 1,
-              itemBuilder: (context, index) => Container(
-                width: double.infinity,
-                constraints: BoxConstraints(minHeight: kDefaultMinHeight),
-                child: Center(
-                  child: Text(
-                    S.of(context).nofavorite,
-                    textAlign: TextAlign.center,
-                    style: kDefaultTextStyle.merge(
-                      const TextStyle(fontWeight: kBoldFontWeight),
-                    ),
+      child: ScrollablePositionedList.builder(
+        itemScrollController: widget.scrollController,
+        itemPositionsListener: widget.positionsListener,
+        itemCount: 1, // 外层只包含一个静态项
+        itemBuilder: (context, _) {
+          if (widget.keys.isEmpty && widget.isFavoriteCategory) {
+            return Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: kDefaultMinHeight),
+              child: Center(
+                child: Text(
+                  S.of(context).nofavorite,
+                  textAlign: TextAlign.center,
+                  style: kDefaultTextStyle.merge(
+                    const TextStyle(fontWeight: kBoldFontWeight),
                   ),
                 ),
               ),
-            )
-          : Group(
-              groupIndex: kGroupIndexGroup,
-              child: ScrollablePositionedList.builder(
-                itemScrollController: widget.scrollController,
-                itemPositionsListener: widget.positionsListener,
-                itemCount: widget.keys.length,
-                itemBuilder: (context, index) => buildListItem(
+            );
+          }
+          return Group(
+            groupIndex: kGroupIndexGroup,
+            child: Column(
+              children: List.generate(widget.keys.length, (index) {
+                return buildListItem(
                   title: widget.keys[index],
                   isSelected: widget.selectedGroupIndex == index,
                   onTap: () => widget.onGroupTap(index),
@@ -509,13 +514,17 @@ class _GroupListState extends State<GroupList> {
                   index: widget.startIndex + index,
                   isLastItem: index == widget.keys.length - 1,
                   isSystemAutoSelected: widget.isSystemAutoSelected,
-                ),
-              ),
+                );
+              }),
             ),
+          );
+        },
+      ),
     );
   }
 }
 
+// 修改后的 ChannelList
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController;
@@ -571,25 +580,29 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: Group(
-        groupIndex: kGroupIndexChannel,
-        child: ScrollablePositionedList.builder(
-          itemScrollController: widget.scrollController,
-          itemPositionsListener: widget.positionsListener,
-          itemCount: channelList.length,
-          itemBuilder: (context, index) => RepaintBoundary(
-            child: buildListItem(
-              title: channelList[index].key,
-              isSelected: !widget.isSystemAutoSelected && widget.selectedChannelName == channelList[index].key,
-              onTap: () => widget.onChannelTap(widget.channels[channelList[index].key]),
-              isCentered: false,
-              minHeight: kDefaultMinHeight,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == channelList.length - 1,
-              isSystemAutoSelected: widget.isSystemAutoSelected,
-            ),
+      child: ScrollablePositionedList.builder(
+        itemScrollController: widget.scrollController,
+        itemPositionsListener: widget.positionsListener,
+        itemCount: 1, // 外层只包含一个静态组
+        itemBuilder: (context, _) => Group(
+          groupIndex: kGroupIndexChannel,
+          child: Column(
+            children: List.generate(channelList.length, (index) {
+              return RepaintBoundary(
+                child: buildListItem(
+                  title: channelList[index].key,
+                  isSelected: !widget.isSystemAutoSelected && widget.selectedChannelName == channelList[index].key,
+                  onTap: () => widget.onChannelTap(widget.channels[channelList[index].key]),
+                  isCentered: false,
+                  minHeight: kDefaultMinHeight,
+                  isTV: widget.isTV,
+                  context: context,
+                  index: widget.startIndex + index,
+                  isLastItem: index == channelList.length - 1,
+                  isSystemAutoSelected: widget.isSystemAutoSelected,
+                ),
+              );
+            }),
           ),
         ),
       ),
@@ -1264,6 +1277,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return _focusNodes;
   }
 
+  // 修改后的 build 方法
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
@@ -1334,29 +1348,47 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         int groupStart = _categoryStartIndex + _categories.length;
         int channelStart = _groupStartIndex + _keys.length;
 
-        // 使用 addPostFrameCallback 确保滚动在界面更新后执行
+        LogUtil.i('焦点切换: newIndex=$newIndex, oldIndex=$oldIndex, categoryStart=$_categoryStartIndex, groupStart=$groupStart, channelStart=$channelStart');
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
             int categoryIndex = newIndex - _categoryStartIndex;
-            if (_categoryScrollController.isAttached) {
-              scrollTo(targetList: kTargetListCategory, index: categoryIndex, isMovingUp: isMovingUp);
+            if (_categoryScrollController.isAttached && _focusNodes[newIndex].context != null) {
+              Scrollable.ensureVisible(
+                _focusNodes[newIndex].context!,
+                alignment: isMovingUp ? 0.0 : 1.0,
+                duration: kScrollDuration,
+              );
+              LogUtil.i('滚动到分类: index=$categoryIndex');
             }
           } else if (newIndex >= groupStart && newIndex < channelStart) {
             int groupIndex = newIndex - groupStart;
-            if (_scrollController.isAttached) {
-              scrollTo(targetList: kTargetListGroup, index: groupIndex, isMovingUp: isMovingUp);
+            if (_scrollController.isAttached && _focusNodes[newIndex].context != null) {
+              Scrollable.ensureVisible(
+                _focusNodes[newIndex].context!,
+                alignment: isMovingUp ? 0.0 : 1.0,
+                duration: kScrollDuration,
+              );
               if (groupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
                 scrollTo(targetList: kTargetListGroup, index: kInitialIndex, isMovingUp: true);
               }
+              LogUtil.i('滚动到分组: index=$groupIndex');
             }
-          } else if (newIndex >= channelStart) {
+          } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
             int channelIndex = newIndex - channelStart;
-            if (_scrollChannelController.isAttached) {
-              scrollTo(targetList: kTargetListChannel, index: channelIndex, isMovingUp: isMovingUp);
+            if (_scrollChannelController.isAttached && _focusNodes[newIndex].context != null) {
+              Scrollable.ensureVisible(
+                _focusNodes[newIndex].context!,
+                alignment: isMovingUp ? 0.0 : 1.0,
+                duration: kScrollDuration,
+              );
               if (channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
                 scrollTo(targetList: kTargetListChannel, index: kInitialIndex, isMovingUp: true);
               }
+              LogUtil.i('滚动到频道: index=$channelIndex');
             }
+          } else {
+            LogUtil.w('焦点索引超出范围: newIndex=$newIndex, totalFocusNodes=${_focusNodes.length}');
           }
         });
       },
