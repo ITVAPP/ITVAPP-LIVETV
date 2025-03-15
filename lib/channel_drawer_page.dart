@@ -14,78 +14,79 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 全局常量定义
+// 全局常量定义（带中文注释）
+
 // 是否启用非TV模式下的焦点逻辑
-const bool kEnableFocusInNonTVMode = true;
+const bool kEnableFocusInNonTVMode = true; // 是否在非TV模式下启用焦点导航
 
-// 尺寸常量
-const double kVerticalDividerWidth = 1.5;
-const double kHorizontalDividerHeight = 1.0;
-const double kDefaultMinHeight = 42.0;
-const double kItemPaddingVertical = 6.0;
-const double kItemPaddingHorizontal = 8.0;
-const double kItemHeightExtraPadding = 12.0;
-const double kItemHeightDivider = 1.0;
-const double kCategoryWidthPortrait = 110.0;
-const double kCategoryWidthLandscape = 120.0;
-const double kGroupWidthPortrait = 120.0;
-const double kGroupWidthLandscape = 130.0;
-const double kChannelWidthLandscape = 160.0;
-const double kBorderWidth = 1.5;
-const double kShadowBlurRadius = 10.0;
-const double kShadowSpreadRadius = 2.0;
-const double kFocusShadowBlurRadius = 8.0;
-const double kFocusShadowSpreadRadius = 1.0;
-const double kDefaultFontSize = 16.0;
-const double kEpgTitleFontSize = 18.0;
-const double kLineHeight = 1.4;
-const double kShadowOffsetX = 0.0;
-const double kShadowOffsetY = 1.0;
-const double kFocusShadowOffsetY = 1.0;
-const double kItemLeadingEdgeTolerance = 0.1;
+// 尺寸常量（带中文注释）
+const double kVerticalDividerWidth = 1.5; // 垂直分割线宽度
+const double kHorizontalDividerHeight = 1.0; // 水平分割线高度
+const double kDefaultMinHeight = 42.0; // 默认最小高度
+const double kItemPaddingVertical = 6.0; // 列表项垂直内边距
+const double kItemPaddingHorizontal = 8.0; // 列表项水平内边距
+const double kItemHeightExtraPadding = 12.0; // 列表项高度额外内边距
+const double kItemHeightDivider = 1.0; // 列表项分隔线高度
+const double kCategoryWidthPortrait = 110.0; // 竖屏模式下分类列表宽度
+const double kCategoryWidthLandscape = 120.0; // 横屏模式下分类列表宽度
+const double kGroupWidthPortrait = 120.0; // 竖屏模式下分组列表宽度
+const double kGroupWidthLandscape = 130.0; // 横屏模式下分组列表宽度
+const double kChannelWidthLandscape = 160.0; // 横屏模式下频道列表宽度
+const double kBorderWidth = 1.5; // 边框宽度
+const double kShadowBlurRadius = 10.0; // 阴影模糊半径
+const double kShadowSpreadRadius = 2.0; // 阴影扩散半径
+const double kFocusShadowBlurRadius = 8.0; // 焦点阴影模糊半径
+const double kFocusShadowSpreadRadius = 1.0; // 焦点阴影扩散半径
+const double kDefaultFontSize = 16.0; // 默认字体大小
+const double kEpgTitleFontSize = 18.0; // EPG标题字体大小
+const double kLineHeight = 1.4; // 行高
+const double kShadowOffsetX = 0.0; // 阴影水平偏移
+const double kShadowOffsetY = 1.0; // 阴影垂直偏移
+const double kFocusShadowOffsetY = 1.0; // 焦点阴影垂直偏移
+const double kItemLeadingEdgeTolerance = 0.1; // 列表项顶部边缘容差
 
-// 颜色常量
-const Color kBackgroundGradientStart = Color(0xFF1A1A1A);
-const Color kBackgroundGradientEnd = Color(0xFF2C2C2C);
-const Color kSelectedColor = Color(0xFFEB144C);
-const Color kFocusColor = Color(0xFFDFA02A);
-const Color kWhite = Colors.white;
-const Color kBlack = Colors.black;
-const double kDividerOpacityStart = 0.05;
-const double kDividerOpacityMid = 0.25;
-const double kDividerOpacityHorizontalMid = 0.15;
-const double kBorderOpacity = 0.3;
-const double kShadowOpacity = 0.2;
-const double kFocusShadowOpacity = 0.3;
-const double kEpgHeaderOpacityStart = 0.8;
-const double kEpgHeaderOpacityEnd = 0.6;
-const double kGradientOpacityHigh = 0.9;
-const double kGradientOpacityLow = 0.7;
-const double kShadowColorOpacity = 0.1;
-const double kTextShadowOpacity = 0.45;
+// 颜色常量（带中文注释）
+const Color kBackgroundGradientStart = Color(0xFF1A1A1A); // 背景渐变起始颜色
+const Color kBackgroundGradientEnd = Color(0xFF2C2C2C); // 背景渐变结束颜色
+const Color kSelectedColor = Color(0xFFEB144C); // 选中时的颜色
+const Color kFocusColor = Color(0xFFDFA02A); // 焦点颜色
+const Color kWhite = Colors.white; // 白色
+const Color kBlack = Colors.black; // 黑色
+const double kDividerOpacityStart = 0.05; // 分割线透明度起始值
+const double kDividerOpacityMid = 0.25; // 分割线透明度中间值
+const double kDividerOpacityHorizontalMid = 0.15; // 水平分割线透明度中间值
+const double kBorderOpacity = 0.3; // 边框透明度
+const double kShadowOpacity = 0.2; // 阴影透明度
+const double kFocusShadowOpacity = 0.3; // 焦点阴影透明度
+const double kEpgHeaderOpacityStart = 0.8; // EPG头部透明度起始值
+const double kEpgHeaderOpacityEnd = 0.6; // EPG头部透明度结束值
+const double kGradientOpacityHigh = 0.9; // 渐变透明度高值
+const double kGradientOpacityLow = 0.7; // 渐变透明度低值
+const double kShadowColorOpacity = 0.1; // 阴影颜色透明度
+const double kTextShadowOpacity = 0.45; // 文字阴影透明度
 
-// 样式常量
-const double kCornerRadius = 8.0;
-const double kTextShadowBlurRadius = 4.0;
-const FontWeight kSelectedFontWeight = FontWeight.w600;
-const FontWeight kBoldFontWeight = FontWeight.bold;
+// 样式常量（带中文注释）
+const double kCornerRadius = 8.0; // 圆角半径
+const double kTextShadowBlurRadius = 4.0; // 文字阴影模糊半径
+const FontWeight kSelectedFontWeight = FontWeight.w600; // 选中时的字体粗细
+const FontWeight kBoldFontWeight = FontWeight.bold; // 加粗字体粗细
 
-// 字符串常量
-const String kCacheName = 'ChannelDrawerPage';
-const String kTargetListCategory = 'category';
-const String kTargetListGroup = 'group';
-const String kTargetListChannel = 'channel';
-const String kTargetListEpg = 'epg';
-const String kLocationKey = 'user_all_info';
+// 字符串常量（带中文注释）
+const String kCacheName = 'ChannelDrawerPage'; // 缓存名称
+const String kTargetListCategory = 'category'; // 目标列表：分类
+const String kTargetListGroup = 'group'; // 目标列表：分组
+const String kTargetListChannel = 'channel'; // 目标列表：频道
+const String kTargetListEpg = 'epg'; // 目标列表：EPG
+const String kLocationKey = 'user_all_info'; // 位置信息键名
 
-// 索引常量
-const int kInitialIndex = 0;
-const int kGroupIndexCategory = 0;
-const int kGroupIndexGroup = 1;
-const int kGroupIndexChannel = 2;
+// 索引常量（带中文注释）
+const int kInitialIndex = 0; // 初始索引
+const int kGroupIndexCategory = 0; // 分组索引：分类
+const int kGroupIndexGroup = 1; // 分组索引：分组
+const int kGroupIndexChannel = 2; // 分组索引：频道
 
-// 其他常量
-const Duration kScrollDuration = Duration.zero;
+// 其他常量（带中文注释）
+const Duration kScrollDuration = Duration.zero; // 滚动动画持续时间
 
 // 分割线样式
 final kVerticalDivider = Container(
@@ -397,7 +398,7 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: ScrollablePositionedList(
+      child: ScrollablePositionedList.builder( // 修改处：使用 builder 构造方法
         itemScrollController: widget.scrollController,
         itemCount: widget.categories.length,
         itemBuilder: (context, index) => Group(
@@ -478,7 +479,7 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? ScrollablePositionedList(
+          ? ScrollablePositionedList.builder( // 修改处：使用 builder 构造方法
               itemScrollController: widget.scrollController,
               itemPositionsListener: widget.positionsListener,
               itemCount: 1,
@@ -496,7 +497,7 @@ class _GroupListState extends State<GroupList> {
                 ),
               ),
             )
-          : ScrollablePositionedList(
+          : ScrollablePositionedList.builder( // 修改处：使用 builder 构造方法
               itemScrollController: widget.scrollController,
               itemPositionsListener: widget.positionsListener,
               itemCount: widget.keys.length,
@@ -575,7 +576,7 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: ScrollablePositionedList(
+      child: ScrollablePositionedList.builder( // 修改处：使用 builder 构造方法
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
         itemCount: channelList.length,
@@ -888,31 +889,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
-
-    state.onFocusChanged = (int newIndex, int oldIndex) {
-      if (newIndex == oldIndex) return;
-
-      bool isMovingUp = newIndex < oldIndex;
-      int groupStart = _categoryStartIndex + _categories.length;
-      int channelStart = _groupStartIndex + _keys.length;
-
-      if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
-        int categoryIndex = newIndex - _categoryStartIndex;
-        scrollTo(targetList: kTargetListCategory, index: categoryIndex, isMovingUp: isMovingUp);
-      } else if (newIndex >= groupStart && newIndex < channelStart) {
-        int groupIndex = newIndex - groupStart;
-        scrollTo(targetList: kTargetListGroup, index: groupIndex, isMovingUp: isMovingUp);
-        if (groupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
-          scrollTo(targetList: kTargetListGroup, index: kInitialIndex, isMovingUp: true);
-        }
-      } else if (newIndex >= channelStart) {
-        int channelIndex = newIndex - channelStart;
-        scrollTo(targetList: kTargetListChannel, index: channelIndex, isMovingUp: isMovingUp);
-        if (channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
-          scrollTo(targetList: kTargetListChannel, index: kInitialIndex, isMovingUp: true);
-        }
-      }
-    };
   }
 
   void _initializeCategoryData() {
@@ -1356,6 +1332,30 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isVerticalGroup: true,
       initialIndex: kInitialIndex,
       onStateCreated: _handleTvKeyNavigationStateCreated,
+      onFocusChanged: (int newIndex, int oldIndex) {
+        if (newIndex == oldIndex) return;
+
+        bool isMovingUp = newIndex < oldIndex;
+        int groupStart = _categoryStartIndex + _categories.length;
+        int channelStart = _groupStartIndex + _keys.length;
+
+        if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
+          int categoryIndex = newIndex - _categoryStartIndex;
+          scrollTo(targetList: kTargetListCategory, index: categoryIndex, isMovingUp: isMovingUp);
+        } else if (newIndex >= groupStart && newIndex < channelStart) {
+          int groupIndex = newIndex - groupStart;
+          scrollTo(targetList: kTargetListGroup, index: groupIndex, isMovingUp: isMovingUp);
+          if (groupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
+            scrollTo(targetList: kTargetListGroup, index: kInitialIndex, isMovingUp: true);
+          }
+        } else if (newIndex >= channelStart) {
+          int channelIndex = newIndex - channelStart;
+          scrollTo(targetList: kTargetListChannel, index: channelIndex, isMovingUp: isMovingUp);
+          if (channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
+            scrollTo(targetList: kTargetListChannel, index: kInitialIndex, isMovingUp: true);
+          }
+        }
+      },
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
     );
   }
