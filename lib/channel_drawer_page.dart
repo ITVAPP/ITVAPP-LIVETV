@@ -1388,7 +1388,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               LogUtil.i('滚动到频道: index=$channelIndex');
             }
           } else {
-            LogUtil.w('焦点索引超出范围: newIndex=$newIndex, totalFocusNodes=${_focusNodes.length}');
+            LogUtil.i('焦点索引超出范围: newIndex=$newIndex, totalFocusNodes=${_focusNodes.length}');
           }
         });
       },
