@@ -14,8 +14,8 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-//是否在非TV模式下启用 TV 模式的焦点逻辑（用于调试）
-const bool enableFocusInNonTVMode = true; //默认开启
+// 是否在非TV 模式下启用 TV 模式的焦点逻辑（用于调试）
+const bool enableFocusInNonTVMode = true; // 默认开启
 
 // 分割线样式 -垂直分割线加粗且增加渐变效果
 final verticalDivider = Container(
@@ -166,11 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 添加跟踪变量以区分交互模式
-bool _isSwitchingCategory = false;
-bool _isSwitchingGroup = false;
-
-// 修改部分：优化焦点监听逻辑，添加滚动控制以确保焦点始终在视窗顶部或底部
+// 修改部分：优化焦点监听逻辑，确保焦点超出边界时固定在顶部或底部，且在视窗内不滚动
 void addFocusListeners(
   int startIndex,
   int length,
@@ -190,26 +186,31 @@ void addFocusListeners(
     _focusNodes[index].addListener(() {
       final currentFocus = _focusNodes[index].hasFocus;
       if (_focusStates[index] != currentFocus) {
-        _focusStates[index] = currentFocus;state.setState(() {});
+        _focusStates[index] = currentFocus;
+        state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          // 判断移动方向：上移（index< _lastFocusedIndex），下移（index > _lastFocusedIndex）
           bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
           _lastFocusedIndex = index; // 更新上一个焦点索引
 
-          // 检查是否正在切换分类或分组
-          if (_isSwitchingCategory || _isSwitchingGroup) {
-            // 切换模式：使用中间对齐，确保选中项在视窗中间
-            _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.5);
-          } else {
-            // 正常导航模式：根据方向固定在顶部或底部
-            if (isMovingDown) {
-              // 下移时，始终固定在视窗底部
-              _scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
-            } else {
-              // 上移时，始终固定在视窗顶部
-              _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
-            }
+          const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
+          final viewportHeight = _getViewportHeight(scrollController);
+          final currentOffset = scrollController.position.pixels;
+          final itemTop = itemIndex * itemHeight;
+          final itemBottom = (itemIndex + 1) * itemHeight;
+
+          // 检查是否已在视窗内
+          if (itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight) {
+            return; // 在视窗内，不滚动
+          }
+
+          // 下移超出底部，固定在底部
+          if (isMovingDown && itemTop >= currentOffset + viewportHeight) {
+            _scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
+          }
+          // 上移超出顶部，固定在顶部
+          else if (!isMovingDown && itemBottom <= currentOffset) {
+            _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
           }
         }
       }
@@ -712,7 +713,7 @@ class ChannelDrawerPage extends StatefulWidget {
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
-  final ScrollController _scrollController = ScrollController(); // 修改为ScrollController
+  final ScrollController _scrollController = ScrollController(); // 修改为 ScrollController
   final ScrollController _scrollChannelController = ScrollController(); // 修改为 ScrollController
   final ItemScrollController _epgItemScrollController = ItemScrollController();
   TvKeyNavigationState? _tvKeyNavigationState;
@@ -804,12 +805,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
         
-        // 修改部分：初始化时更新视窗高度
+        // 修改部分：初始化时确保视窗高度已缓存
         if (_scrollController.hasClients) {
           _updateViewportHeight(_scrollController);
+        } else {
+          _getViewportHeight(_scrollController); // 强制初始化
         }
         if (_scrollChannelController.hasClients) {
           _updateViewportHeight(_scrollChannelController);
+        } else {
+          _getViewportHeight(_scrollChannelController); // 强制初始化
         }
       });
     });
@@ -1060,7 +1065,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('根据地区"$regionPrefix" 和城市 "$cityPrefix" 排序完成: $_keys');
   }
 
-  // 通用地理前缀排序方法（从<DOCUMENT> 引用）
+  // 通用地理前缀排序方法（从 <DOCUMENT> 引用）
   List<T> _sortByGeoPrefix<T>({
     required List<T> items,
     required String? prefix,
@@ -1115,144 +1120,87 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 切换分类时更新分组和频道
+  // 修改部分：切换分类时更新分组和频道，确保滚动位置正确
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
-      _isSwitchingCategory = true; // 标记正在切换分类
-      // 重置所有焦点状态
       _focusStates.clear();
-      // 检查选中的分类是否有分组
       final selectedCategory = _categories[_categoryIndex];
       final categoryMap = widget.videoMap?.playList[selectedCategory];
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
-        _isSystemAutoSelected = true; // 空分类时设置为系统自动选中
+        _isSystemAutoSelected = true;
         _initializeFocusNodes(_categories.length);
         _updateStartIndexes(includeGroupsAndChannels: false);
       } else {
-        // 分组不为空时，初始化频道数据
         _initializeChannelData();
-        // 计算新分类下的总节点数，并初始化 FocusNode
-        int totalFocusNodes = _categories.length;
-
-        // 确保_keys 不为空且_values 有效时才添加其长度
-        if (_keys.isNotEmpty) {
-          totalFocusNodes += _keys.length;
-          // 确保 _groupIndex 有效且_values[_groupIndex] 存在
-          if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-            totalFocusNodes += _values[_groupIndex].length;
-          }
-        }
-
+        int totalFocusNodes = _categories.length +
+            (_keys.isNotEmpty ? _keys.length : 0) +
+            (_groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
         _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
+
+        if (widget.playModel?.title == null || !_values[_groupIndex].containsKey(widget.playModel?.title)) {
+          _isSystemAutoSelected = true;
+        } else {
+          _isSystemAutoSelected = false;
+        }
       }
     });
 
-    // 切换后的滚动和焦点设置
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 判断是否是当前播放频道所在分类
-      if (widget.playModel?.title == null ||
-          !_values[_groupIndex].containsKey(widget.playModel?.title)) {
-        // 不是当前播放频道所在分类时
-        scrollTo(targetList: 'group', index: 0);
-        scrollTo(targetList: 'channel', index: 0);
-        
-        // 等待滚动完成后再设置焦点
-        Future.delayed(Duration(milliseconds: 100), () {
-          if (_tvKeyNavigationState != null) {
-            _tvKeyNavigationState!.releaseResources();
-            _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-          }_reInitializeFocusListeners();_isSwitchingCategory = false; // 重置切换状态
-        });
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
+      }
+      _reInitializeFocusListeners();
+      // 统一滚动逻辑
+      if (_isSystemAutoSelected) {
+        scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+        scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
       } else {
-        // 是当前播放频道所在分类
         scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
         scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-        // 等待滚动完成后再设置焦点
-        Future.delayed(Duration(milliseconds: 100), () {
-          if (_tvKeyNavigationState != null) {
-            _tvKeyNavigationState!.releaseResources();
-            _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-          }
-          _reInitializeFocusListeners();
-          
-          // 确保焦点项在视窗中
-          Future.delayed(Duration(milliseconds: 50), () {
-            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);_isSwitchingCategory = false; // 重置切换状态
-          });
-        });
       }
     });
   }
 
-  // 切换分组时更新频道
+  // 修改部分：切换分组时更新频道，确保滚动位置正确
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
-      _isSystemAutoSelected = false; // 用户点击，直接设置为false
-      _isSwitchingGroup = true; // 标记正在切换分组
-      // 重置所有焦点状态
+      _isSystemAutoSelected = false;
       _focusStates.clear();
-      // 重新计算所需节点数，并初始化 FocusNode
       int totalFocusNodes = _categories.length +
           (_keys.isNotEmpty ? _keys.length : 0) +
-          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
+          (_groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
       _initializeFocusNodes(totalFocusNodes);
-      // 重新分配索引
       _updateStartIndexes(includeGroupsAndChannels: true);
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 判断是否是当前播放频道所在分组
+
       if (widget.playModel?.group == _keys[index]) {
-        // 是当前播放频道所在分组
         _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (_channelIndex == -1) {
-          _channelIndex = 0;
-        }
-        
-        // 先滚动到顶部
-        _scrollChannelController.jumpTo(0);
-        
-        // 等待滚动完成后再滚动到目标位置
-        Future.delayed(Duration(milliseconds: 50), () {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);// 等待滚动完成后再设置焦点
-          Future.delayed(Duration(milliseconds: 100), () {
-            int focusIndex = _categories.length + _keys.length + _channelIndex;
-            if (_tvKeyNavigationState != null) {
-              _tvKeyNavigationState!.releaseResources();
-              _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
-            }
-            _reInitializeFocusListeners();
-            
-            // 最后一次确保滚动位置正确
-            Future.delayed(Duration(milliseconds: 50), () {
-              scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);_isSwitchingGroup = false; // 重置切换状态
-            });
-          });
-        });
+        if (_channelIndex == -1) _channelIndex = 0;
+        _isChannelAutoSelected = false;
       } else {
-        // 不是当前播放频道所在分组
         _channelIndex = 0;
         _isChannelAutoSelected = true;
-        // 强制滚动到顶部
-        _scrollChannelController.jumpTo(0);
-        // 等待滚动完成后再设置焦点
-        Future.delayed(Duration(milliseconds: 100), () {
-          int focusIndex = _categories.length + _keys.length;
-          if (_tvKeyNavigationState != null) {
-            _tvKeyNavigationState!.releaseResources();
-            _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: focusIndex);
-          }
-          _reInitializeFocusListeners();
-          _isSwitchingGroup = false; // 重置切换状态
-        });
       }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      }
+      _reInitializeFocusListeners();
+      // 统一滚动逻辑
+      scrollTo(
+        targetList: 'channel',
+        index: _channelIndex,
+        alignment: widget.playModel?.group == _keys[index] ? 0.5 : 0.0,
+      );
     });
   }
 
@@ -1277,10 +1225,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  //滚动到顶部
+  // 修改部分：滚动到顶部的方法
   void _scrollToTop(ScrollController controller) {
-    if (controller.hasClients) {
-      controller.jumpTo(0);
+    if (controller.hasClients && controller.offset > 0) {
+      controller.animateTo(
+        0.0,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -1528,7 +1480,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 // 修改部分：优化滚动工具函数，使用缓存的视窗高度
 Map<ScrollController, double> _viewportHeightCache = {};
 
-// 修改部分：更新和获取视窗高度的函数
+// 修改部分：更新和获取视窗高度的函数，按用户提供的逻辑
 void _updateViewportHeight(ScrollController controller) {
   if (controller.hasClients) {
     _viewportHeightCache[controller] = controller.position.viewportDimension;
@@ -1542,26 +1494,30 @@ double _getViewportHeight(ScrollController controller) {
       _viewportHeightCache[controller] = controller.position.viewportDimension;
     }
   }
-  // 项目显示参数
-  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
-  const visibleItemCount = 8.0; // 默认希望显示的项目数量
   
-  // 如果仍然没有值，返回基于项目高度的默认值
-  return _viewportHeightCache[controller] ?? (itemHeight * visibleItemCount);
+  // 如果仍然没有值，返回基于项目高度的默认值（显示5个项目）
+  const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
+  return _viewportHeightCache[controller] ?? (itemHeight * 5); // 可以容纳5个项目的高度
 }
 
-// 修改部分：优化滚动工具函数，支持指定对齐方式
+// 修改部分：优化滚动工具函数，支持指定对齐方式并检查视窗内情况
 void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
   if (!controller.hasClients) return;
 
   const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0，固定项高度（最小高度 + padding + 分割线）
-  final viewportHeight = _getViewportHeight(controller); // 使用缓存的视窗高度
+  final viewportHeight = _getViewportHeight(controller);
   final maxScrollExtent = controller.position.maxScrollExtent;
+  final currentOffset = controller.position.pixels;
 
   final itemTop = index * itemHeight;
   final itemBottom = (index + 1) * itemHeight;
 
-  // 根据 alignment 选择不同的计算方式
+  // 检查是否已在视窗内
+  if (itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight) {
+    return; // 在视窗内，不滚动
+  }
+
+  // 根据 alignment 计算目标偏移量
   double targetOffset;
   if (alignment == 0.0) {
     targetOffset = itemTop; // 顶部对齐使用项顶部
