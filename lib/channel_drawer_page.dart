@@ -1520,17 +1520,23 @@ void _scrollToCurrentItem(ScrollController controller, int index, {double alignm
   final viewportHeight = _getViewportHeight(controller); // 使用缓存的视窗高度
   final maxScrollExtent = controller.position.maxScrollExtent;
 
-  // 计算目标项的中心位置
   final itemTop = index * itemHeight;
   final itemBottom = (index + 1) * itemHeight;
-  final itemCenter = (itemTop + itemBottom) / 2;
 
-  // 根据 alignment 计算视窗的偏移量
-  final viewportOffset = viewportHeight * alignment;
-  final adjustedOffset = itemCenter - viewportOffset;
+  // 根据 alignment 选择不同的计算方式
+  double targetOffset;
+  if (alignment == 0.0) {
+    targetOffset = itemTop; // 顶部对齐使用项顶部
+  } else if (alignment == 1.0) {
+    targetOffset = itemBottom - viewportHeight; // 底部对齐使用项底部减去视窗高度
+  } else {
+    final itemCenter = (itemTop + itemBottom) / 2;
+    final viewportOffset = viewportHeight * alignment;
+    targetOffset = itemCenter - viewportOffset; // 其他对齐方式使用中心
+  }
 
   // 限制偏移量在有效范围内
-  final clampedOffset = adjustedOffset.clamp(0.0, maxScrollExtent);
+  final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
   // 使用 jumpTo 确保滚动与焦点同步，无动画延迟
   controller.jumpTo(clampedOffset);
