@@ -1495,9 +1495,9 @@ double _getViewportHeight(ScrollController controller) {
     }
   }
   
-  // 如果仍然没有值，返回基于项目高度的默认值（显示5个项目）
+  // 如果仍然没有值，返回基于项目高度的默认值（显示8个项目）
   const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
-  return _viewportHeightCache[controller] ?? (itemHeight * 5); // 可以容纳5个项目的高度
+  return _viewportHeightCache[controller] ?? (itemHeight * 8); 
 }
 
 // 修改部分：优化滚动工具函数，支持指定对齐方式并检查视窗内情况
