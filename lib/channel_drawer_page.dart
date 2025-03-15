@@ -166,7 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改部分：优化焦点监听逻辑，添加滚动控制以确保焦点始终在视窗顶部或底部
+// 修改部分：优化焦点监听逻辑，确保焦点在超出视窗前继续移动时固定在顶部或底部
 void addFocusListeners(
   int startIndex,
   int length,
@@ -190,24 +190,42 @@ void addFocusListeners(
         state.setState(() {});
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
-          // 判断移动方向：上移（index < _lastFocusedIndex），下移（index > _lastFocusedIndex）
           bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
-          _lastFocusedIndex = index; // 更新上一个焦点索引
+          _lastFocusedIndex = index;
 
-          // 计算新焦点的位置
           const itemHeight = defaultMinHeight + 12.0 + 1.0; // 55.0
           final viewportHeight = _getViewportHeight(scrollController);
           final currentOffset = scrollController.position.pixels;
           final itemTop = itemIndex * itemHeight;
           final itemBottom = (itemIndex + 1) * itemHeight;
 
-          // 检查新焦点是否超出视窗范围
+          // 下移焦点：焦点项底部超出视窗底部时，滚动到视窗底部
           if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-            // 下移超出底部，滚动到视窗底部
             _scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
-          } else if (!isMovingDown && itemTop < currentOffset) {
-            // 上移超出顶部，滚动到视窗顶部
+          }
+          // 上移焦点：焦点项顶部超出视窗顶部时，滚动到视窗顶部
+          else if (!isMovingDown && itemTop < currentOffset) {
             _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+          }
+          // 继续下移：检查下一项是否超出，若超出则提前滚动使当前项固定在底部
+          else if (isMovingDown && itemBottom <= currentOffset + viewportHeight && itemTop >= currentOffset) {
+            final nextItemIndex = itemIndex + 1;
+            if (nextItemIndex < length) {
+              final nextItemBottom = (nextItemIndex + 1) * itemHeight;
+              if (nextItemBottom > currentOffset + viewportHeight) {
+                _scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
+              }
+            }
+          }
+          // 继续上移：检查上一项是否超出，若超出则提前滚动使当前项固定在顶部
+          else if (!isMovingDown && itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight) {
+            final prevItemIndex = itemIndex - 1;
+            if (prevItemIndex >= 0) {
+              final prevItemTop = prevItemIndex * itemHeight;
+              if (prevItemTop < currentOffset) {
+                _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+              }
+            }
           }
         }
       }
@@ -1174,7 +1192,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 切换分组时更新频道
+  // 修改部分：切换分组时更新频道，确保滚动到顶部
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1199,25 +1217,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         if (_channelIndex == -1) {
           _channelIndex = 0;
         }
-
-        // 调整到正确位置
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5); // 滚动到中间
-        });
       } else {
         // 不是当前播放频道所在分组，重置到第一个频道
         _channelIndex = 0;
         _isChannelAutoSelected = true;
-        scrollTo(targetList: 'channel', index: 0);
       }
     });
 
-    // 状态更新后重新初始化焦点系统
+    // 状态更新后重新初始化焦点系统并滚动
     WidgetsBinding.instance.addPostFrameCallback((_) {
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       if (_tvKeyNavigationState != null) {
         _tvKeyNavigationState!.releaseResources();
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+      }
+      // 确保滚动到正确位置
+      if (widget.playModel?.group == _keys[index]) {
+        scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5); // 滚动到当前频道，居中对齐
+      } else {
+        scrollTo(targetList: 'channel', index: 0, alignment: 0.0); // 滚动到第一项，顶部对齐
       }
       // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
