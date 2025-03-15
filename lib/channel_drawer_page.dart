@@ -1142,7 +1142,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改后的 _onCategoryTap 方法
+  // 修改后的 _onCategoryTap 方法（未修改，仅保留原样）
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1233,14 +1233,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      int firstChannelFocusIndex = _channelStartIndex + _channelIndex;
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!._requestFocus(firstChannelFocusIndex);
-      }
-      final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
+      final viewportHeight = (_viewPortKey.currentContext?.findRenderObject() as RenderBox?)?.size.height ??
           MediaQuery.of(context).size.height;
 
-      // 检查是否包含当前频道
       bool containsCurrentChannel = widget.playModel?.title != null &&
           _values[_groupIndex].containsKey(widget.playModel?.title);
       bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
@@ -1251,7 +1246,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           index: _channelIndex,
           isMovingUp: false,
           viewportHeight: viewportHeight,
-          forceAlignment: 0.5, // 居中对齐
+          forceAlignment: 0.5,
         );
       } else {
         scrollTo(
@@ -1283,6 +1278,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 修改后的 _onChannelTap 方法
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
 
@@ -1296,21 +1292,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_channelIndex == -1) _channelIndex = kInitialIndex;
       _epgData = null;
       _selEPGIndex = kInitialIndex;
-      _focusStates.clear();
-      int totalFocusNodes = _categories.length +
-          (_keys.isNotEmpty ? _keys.length : kInitialIndex) +
-          (_groupIndex >= kInitialIndex && _groupIndex < _values.length ? _values[_groupIndex].length : kInitialIndex);
-      _initializeFocusNodes(totalFocusNodes);
-      _updateStartIndexes(includeGroupsAndChannels: true);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reInitializeFocusListeners();
-      if (_tvKeyNavigationState != null) {
-        int newFocusIndex = _channelStartIndex + _channelIndex;
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: newFocusIndex);
-      }
       scrollTo(
         targetList: kTargetListChannel,
         index: _channelIndex,
@@ -1502,7 +1486,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         int channelStart = _groupStartIndex + _keys.length;
 
         final RenderBox? renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-        final viewportHeight = renderBox?.size.height ?? MediaQuery.of(context).size.height;
+        final viewportHeight = (renderBox as RenderBox?)?.size.height ?? MediaQuery.of(context).size.height;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
