@@ -758,50 +758,116 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = kInitialIndex;
   int _channelStartIndex = kInitialIndex;
 
+  // 新增：视窗检查方法
+  bool _isIndexInViewport(ItemPositionsListener positionsListener, int targetIndex, double viewportHeight) {
+    final positions = positionsListener.itemPositions.value;
+    if (positions.isEmpty) return false;
+
+    final firstVisible = positions.firstWhere(
+      (pos) => pos.itemLeadingEdge >= 0,
+      orElse: () => positions.first,
+    );
+    final lastVisible = positions.lastWhere(
+      (pos) => pos.itemTrailingEdge <= 1,
+      orElse: () => positions.last,
+    );
+
+    return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
+  }
+
+  // 修改后的 scrollTo 方法
   void scrollTo({
     required String targetList,
     required int index,
     required bool isMovingUp,
+    required double viewportHeight,
+    double? forceAlignment, // 新增参数：强制对齐
   }) {
     ItemScrollController? scrollController;
+    ItemPositionsListener? positionsListener;
     int maxIndex = kInitialIndex;
+    int itemCount = 0;
+
     switch (targetList) {
       case kTargetListCategory:
         scrollController = _categoryScrollController;
+        positionsListener = null;
         maxIndex = _categories.length - 1;
+        itemCount = _categories.length;
         break;
       case kTargetListGroup:
         scrollController = _scrollController;
+        positionsListener = _groupPositionsListener;
         maxIndex = _keys.length - 1;
+        itemCount = _keys.length;
         break;
       case kTargetListChannel:
         scrollController = _scrollChannelController;
+        positionsListener = _channelPositionsListener;
         maxIndex = _values.isNotEmpty && _groupIndex >= kInitialIndex && _groupIndex < _values.length
             ? _values[_groupIndex].length - 1
             : kInitialIndex;
+        itemCount = _values.isNotEmpty && _groupIndex >= kInitialIndex && _groupIndex < _values.length
+            ? _values[_groupIndex].length
+            : 0;
         break;
       case kTargetListEpg:
         scrollController = _epgItemScrollController;
+        positionsListener = null;
         maxIndex = _epgData?.length ?? kInitialIndex - 1;
+        itemCount = _epgData?.length ?? 0;
         break;
       default:
-        LogUtil.i('无效的滚动目标: $targetList');
+        LogUtil.i('Invalid scroll target: $targetList');
         return;
     }
 
-    if (index < kInitialIndex || index > maxIndex) {
-      LogUtil.i('$targetList 滚动索引越界: index=$index, maxIndex=$maxIndex');
+    if (index < kInitialIndex || index > maxIndex || scrollController == null || !scrollController.isAttached) {
+      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, maxIndex=$maxIndex');
       return;
     }
 
-    if (scrollController != null && scrollController.isAttached) {
-      double alignment = isMovingUp ? 0.0 : 1.0;
-      scrollController.scrollTo(
-        index: index,
-        alignment: alignment,
-        duration: kScrollDuration,
-      );
+    double alignment;
+    if (forceAlignment != null) {
+      // 使用强制对齐
+      alignment = forceAlignment.clamp(0.0, 1.0);
+    } else {
+      // 现有动态对齐逻辑
+      final positions = positionsListener?.itemPositions.value ?? [];
+      if (positions.isEmpty && positionsListener != null) {
+        alignment = isMovingUp ? 0.0 : 1.0;
+      } else if (positionsListener == null) {
+        alignment = isMovingUp ? 0.0 : 1.0;
+      } else {
+        final firstVisible = positions.firstWhere((pos) => pos.itemLeadingEdge >= 0, orElse: () => positions.first);
+        final lastVisible = positions.lastWhere((pos) => pos.itemTrailingEdge <= 1, orElse: () => positions.last);
+        final visibleItemCount = (viewportHeight / kItemHeight).floor();
+
+        if (isMovingUp) {
+          if (index <= firstVisible.index) {
+            alignment = 0.0;
+          } else if (index >= lastVisible.index - visibleItemCount + 1) {
+            alignment = (index - firstVisible.index) / visibleItemCount;
+          } else {
+            return; // 项已在视窗内
+          }
+        } else {
+          if (index >= lastVisible.index) {
+            alignment = 1.0;
+          } else if (index <= firstVisible.index + visibleItemCount - 1) {
+            alignment = (index - firstVisible.index) / visibleItemCount;
+          } else {
+            return; // 项已在视窗内
+          }
+        }
+      }
     }
+
+    scrollController.scrollTo(
+      index: index,
+      alignment: alignment,
+      duration: kScrollDuration,
+    );
   }
 
   bool _isItemAtTop(ItemPositionsListener listener) {
@@ -1076,6 +1142,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改后的 _onCategoryTap 方法
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1095,7 +1162,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             (_groupIndex >= kInitialIndex && _groupIndex < _values.length ? _values[_groupIndex].length : kInitialIndex);
         _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
-        LogUtil.i('Category tap: focusNodes=${_focusNodes.length}, channels=${_values[_groupIndex].length}');
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1105,27 +1171,59 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       _reInitializeFocusListeners();
       if (_keys.isNotEmpty) {
-        int targetGroupIndex =
-            (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex]) ? _groupIndex : kInitialIndex;
-        scrollTo(targetList: kTargetListGroup, index: targetGroupIndex, isMovingUp: false);
-        scrollTo(targetList: kTargetListChannel, index: _channelIndex, isMovingUp: false);
+        int targetGroupIndex = (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex])
+            ? _groupIndex
+            : kInitialIndex;
+        final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
+            MediaQuery.of(context).size.height;
+
+        // 检查是否包含当前频道
+        bool containsCurrentChannel = widget.playModel?.group != null && _keys.contains(widget.playModel?.group);
+        bool groupInViewport = _isIndexInViewport(_groupPositionsListener, targetGroupIndex, viewportHeight);
+        bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
+
+        if (containsCurrentChannel && !groupInViewport) {
+          scrollTo(
+            targetList: kTargetListGroup,
+            index: targetGroupIndex,
+            isMovingUp: false,
+            viewportHeight: viewportHeight,
+            forceAlignment: 0.5, // 居中对齐
+          );
+        }
+        if (containsCurrentChannel && !channelInViewport) {
+          scrollTo(
+            targetList: kTargetListChannel,
+            index: _channelIndex,
+            isMovingUp: false,
+            viewportHeight: viewportHeight,
+            forceAlignment: 0.5, // 居中对齐
+          );
+        } else {
+          scrollTo(
+            targetList: kTargetListChannel,
+            index: _channelIndex,
+            isMovingUp: false,
+            viewportHeight: viewportHeight,
+          );
+        }
         if (targetGroupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
-          scrollTo(targetList: kTargetListGroup, index: kInitialIndex, isMovingUp: true);
+          scrollTo(
+            targetList: kTargetListGroup,
+            index: kInitialIndex,
+            isMovingUp: true,
+            viewportHeight: viewportHeight,
+          );
         }
       }
     });
   }
 
+  // 修改后的 _onGroupTap 方法
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _isSystemAutoSelected = false;
-      _focusStates.clear();
-      int totalFocusNodes = _categories.length +
-          (_keys.isNotEmpty ? _keys.length : kInitialIndex) +
-          (_groupIndex >= kInitialIndex && _groupIndex < _values.length ? _values[_groupIndex].length : kInitialIndex);
-      _initializeFocusNodes(totalFocusNodes);
-      _updateStartIndexes(includeGroupsAndChannels: true);
       if (widget.playModel?.group == _keys[index]) {
         _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
         if (_channelIndex == -1) _channelIndex = kInitialIndex;
@@ -1133,24 +1231,54 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      LogUtil.i('Group tap: focusNodes=${_focusNodes.length}, channels=${_values[_groupIndex].length}');
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       int firstChannelFocusIndex = _channelStartIndex + _channelIndex;
       if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
+        _tvKeyNavigationState!._requestFocus(firstChannelFocusIndex);
       }
-      _reInitializeFocusListeners();
-      scrollTo(targetList: kTargetListChannel, index: _channelIndex, isMovingUp: false);
+      final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
+          MediaQuery.of(context).size.height;
+
+      // 检查是否包含当前频道
+      bool containsCurrentChannel = widget.playModel?.title != null &&
+          _values[_groupIndex].containsKey(widget.playModel?.title);
+      bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
+
+      if (containsCurrentChannel && !channelInViewport) {
+        scrollTo(
+          targetList: kTargetListChannel,
+          index: _channelIndex,
+          isMovingUp: false,
+          viewportHeight: viewportHeight,
+          forceAlignment: 0.5, // 居中对齐
+        );
+      } else {
+        scrollTo(
+          targetList: kTargetListChannel,
+          index: _channelIndex,
+          isMovingUp: false,
+          viewportHeight: viewportHeight,
+        );
+      }
       int targetCategoryIndex = (_categoryIndex != -1 &&
               widget.playModel?.title != null &&
               _values[_groupIndex].containsKey(widget.playModel?.title))
           ? _categoryIndex
           : kInitialIndex;
-      scrollTo(targetList: kTargetListCategory, index: targetCategoryIndex, isMovingUp: false);
+      scrollTo(
+        targetList: kTargetListCategory,
+        index: targetCategoryIndex,
+        isMovingUp: false,
+        viewportHeight: viewportHeight,
+      );
       if (_channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
-        scrollTo(targetList: kTargetListChannel, index: kInitialIndex, isMovingUp: true);
+        scrollTo(
+          targetList: kTargetListChannel,
+          index: kInitialIndex,
+          isMovingUp: true,
+          viewportHeight: viewportHeight,
+        );
       }
     });
   }
@@ -1174,7 +1302,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           (_groupIndex >= kInitialIndex && _groupIndex < _values.length ? _values[_groupIndex].length : kInitialIndex);
       _initializeFocusNodes(totalFocusNodes);
       _updateStartIndexes(includeGroupsAndChannels: true);
-      LogUtil.i('Channel tap: focusNodes=${_focusNodes.length}, channelIndex=$_channelIndex');
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1184,7 +1311,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.releaseResources();
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: newFocusIndex);
       }
-      scrollTo(targetList: kTargetListChannel, index: _channelIndex, isMovingUp: false);
+      scrollTo(
+        targetList: kTargetListChannel,
+        index: _channelIndex,
+        isMovingUp: false,
+        viewportHeight: MediaQuery.of(context).size.height,
+      );
       _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
     });
   }
@@ -1211,8 +1343,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   void _adjustScrollPositions() {
-    scrollTo(targetList: kTargetListGroup, index: _groupIndex, isMovingUp: false);
-    scrollTo(targetList: kTargetListChannel, index: _channelIndex, isMovingUp: false);
+    scrollTo(
+      targetList: kTargetListGroup,
+      index: _groupIndex,
+      isMovingUp: false,
+      viewportHeight: MediaQuery.of(context).size.height,
+    );
+    scrollTo(
+      targetList: kTargetListChannel,
+      index: _channelIndex,
+      isMovingUp: false,
+      viewportHeight: MediaQuery.of(context).size.height,
+    );
   }
 
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
@@ -1227,7 +1369,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _selEPGIndex = _getInitialSelectedIndex(_epgData);
         });
         if (_epgData!.isNotEmpty) {
-          scrollTo(targetList: kTargetListEpg, index: _selEPGIndex, isMovingUp: false);
+          scrollTo(
+            targetList: kTargetListEpg,
+            index: _selEPGIndex,
+            isMovingUp: false,
+            viewportHeight: MediaQuery.of(context).size.height,
+          );
         }
         return;
       }
@@ -1247,7 +1394,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         };
       }
       if (_epgData!.isNotEmpty) {
-        scrollTo(targetList: kTargetListEpg, index: _selEPGIndex, isMovingUp: false);
+        scrollTo(
+          targetList: kTargetListEpg,
+          index: _selEPGIndex,
+          isMovingUp: false,
+          viewportHeight: MediaQuery.of(context).size.height,
+        );
       }
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
@@ -1280,7 +1432,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return _focusNodes;
   }
 
-  // 修改后的 build 方法
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
@@ -1347,49 +1498,46 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       onFocusChanged: (int newIndex, int oldIndex) {
         if (newIndex == oldIndex) return;
 
-        bool isMovingUp = newIndex < oldIndex;
         int groupStart = _categoryStartIndex + _categories.length;
         int channelStart = _groupStartIndex + _keys.length;
 
-        LogUtil.i('焦点切换: newIndex=$newIndex, oldIndex=$oldIndex, categoryStart=$_categoryStartIndex, groupStart=$groupStart, channelStart=$channelStart');
+        final RenderBox? renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
+        final viewportHeight = renderBox?.size.height ?? MediaQuery.of(context).size.height;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
             int categoryIndex = newIndex - _categoryStartIndex;
-            if (_categoryScrollController.isAttached && _focusNodes[newIndex].context != null) {
-              Scrollable.ensureVisible(
-                _focusNodes[newIndex].context!,
-                alignment: isMovingUp ? 0.0 : 1.0,
-                duration: kScrollDuration,
-              );
-              LogUtil.i('滚动到分类: index=$categoryIndex');
-            }
+            setState(() {
+              _categoryIndex = categoryIndex;
+            });
+            scrollTo(
+              targetList: kTargetListCategory,
+              index: categoryIndex,
+              isMovingUp: newIndex < oldIndex,
+              viewportHeight: viewportHeight,
+            );
           } else if (newIndex >= groupStart && newIndex < channelStart) {
             int groupIndex = newIndex - groupStart;
-            if (_scrollController.isAttached && _focusNodes[newIndex].context != null) {
-              Scrollable.ensureVisible(
-                _focusNodes[newIndex].context!,
-                alignment: isMovingUp ? 0.0 : 1.0,
-                duration: kScrollDuration,
-              );
-              if (groupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
-                scrollTo(targetList: kTargetListGroup, index: kInitialIndex, isMovingUp: true);
-              }
-              LogUtil.i('滚动到分组: index=$groupIndex');
-            }
+            setState(() {
+              _groupIndex = groupIndex;
+            });
+            scrollTo(
+              targetList: kTargetListGroup,
+              index: groupIndex,
+              isMovingUp: newIndex < oldIndex,
+              viewportHeight: viewportHeight,
+            );
           } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
             int channelIndex = newIndex - channelStart;
-            if (_scrollChannelController.isAttached && _focusNodes[newIndex].context != null) {
-              Scrollable.ensureVisible(
-                _focusNodes[newIndex].context!,
-                alignment: isMovingUp ? 0.0 : 1.0,
-                duration: kScrollDuration,
-              );
-              if (channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
-                scrollTo(targetList: kTargetListChannel, index: kInitialIndex, isMovingUp: true);
-              }
-              LogUtil.i('滚动到频道: index=$channelIndex');
-            }
+            setState(() {
+              _channelIndex = channelIndex;
+            });
+            scrollTo(
+              targetList: kTargetListChannel,
+              index: channelIndex,
+              isMovingUp: newIndex < oldIndex,
+              viewportHeight: viewportHeight,
+            );
           } else {
             LogUtil.i('焦点索引超出范围: newIndex=$newIndex, totalFocusNodes=${_focusNodes.length}');
           }
