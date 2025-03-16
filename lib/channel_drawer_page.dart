@@ -860,11 +860,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 修改部分：更严格的检查，避免 LateInitializationError
     if (scrollController == null || !scrollController.isAttached) {
-      LogUtil.w('$targetList scroll controller not attached, skipping scroll to index=$index');
+      LogUtil.i('$targetList scroll controller not attached, skipping scroll to index=$index');
       return;
     }
     if (index < kInitialIndex || index > maxIndex) {
-      LogUtil.w('$targetList scroll index out of bounds: index=$index, maxIndex=$maxIndex');
+      LogUtil.i('$targetList scroll index out of bounds: index=$index, maxIndex=$maxIndex');
       return;
     }
 
@@ -1347,7 +1347,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: newFocusIndex);
         }
       } else {
-        LogUtil.w('Focus index out of bounds: $newFocusIndex, total nodes=${_focusNodes.length}');
+        LogUtil.i('Focus index out of bounds: $newFocusIndex, total nodes=${_focusNodes.length}');
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
