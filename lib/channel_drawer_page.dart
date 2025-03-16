@@ -82,8 +82,8 @@ final defaultBackgroundColor = LinearGradient(
     Color(0xFF1A1A1A),
     Color(0xFF2C2C2C),
   ],
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
 );
 
 // padding设置
@@ -206,7 +206,7 @@ void addFocusListeners(
           // 获取 ChannelDrawerPage 的状态以访问第一项索引变量
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
-              : context.findAncestorStateOfType<_ChannelDrawerPageState>();
+              : state.context.findAncestorStateOfType<_ChannelDrawerPageState>(); // 修改部分：使用 state.context
           if (channelDrawerState != null) {
             // 判断是否是 GroupList 或 ChannelList 的第一项
             final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
@@ -737,18 +737,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 修改部分：添加视窗高度变量，仅在初始化和屏幕变化时设置
+  // 修改部分：添加视窗高度变量，参考代码方式
   double? _viewPortHeight;
 
   // 修改部分：添加第一项索引变量
   int _groupListFirstIndex = -1; // GroupList 第一项索引，初始值为 -1 表示未设置
   int _channelListFirstIndex = -1; // ChannelList 第一项索引，初始值为 -1 表示未设置
 
-  // 修改部分：计算视窗高度，仅在初始化和屏幕变化时调用
+  // 修改部分：移除 _setupScrollControllerListeners，改为直接在 initState 中计算
   void _calculateViewportHeight() {
     setState(() {
-      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 默认值，参考代码方式
-      LogUtil.i('Viewport height set to: $_viewPortHeight');
+      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 参考代码方式
     });
   }
 
@@ -796,16 +795,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：将 _scrollToCurrentItem 移入类内，使用 _viewPortHeight
+  // 修改部分：将 _scrollToCurrentItem 移入类内
   void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
     if (!controller.hasClients) return;
 
-    const itemHeight = defaultMinHeight + 12.0; // 54.0，固定项高度（最小高度 + padding）
+    const itemHeight = defaultMinHeight + 12.0; // 54.0，固定高度（最小高度 + padding）
     final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5; // 使用类内变量
     final maxScrollExtent = controller.position.maxScrollExtent;
 
     final itemTop = index * itemHeight;
-    final itemBottom = itemTop + itemHeight;
+    final itemBottom = (index + 1) * itemHeight;
 
     double targetOffset;
     if (alignment == 0.0) {
@@ -814,12 +813,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = itemBottom - viewportHeight; // 底部对齐
     } else {
       targetOffset = itemTop - (viewportHeight * alignment - itemHeight / 2); // 中间或其他对齐
-      if (targetOffset < itemTop) {
-        targetOffset = itemTop;
-      }
-      if (targetOffset + viewportHeight < itemBottom) {
-        targetOffset = itemBottom - viewportHeight;
-      }
     }
 
     final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
@@ -838,7 +831,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight(); // 初始化时设置抽屉高度
+        _calculateViewportHeight(); // 修改部分：初始化时计算视窗高度
       });
     });
     _initializeData(); // 统一的初始化方法
@@ -859,7 +852,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         // 重新初始化所有焦点监听器
         _reInitializeFocusListeners();
-        // 更新视窗高度
+        // 修改部分：更新视窗高度
         _calculateViewportHeight();
       });
     }
@@ -925,12 +918,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (newOrientation != isPortrait) {
       setState(() {
         isPortrait = newOrientation;
-        _calculateViewportHeight(); // 屏幕变化时更新抽屉高度
       });
     }
     
+    // 修改部分：屏幕尺寸变化时更新视窗高度
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
+        _calculateViewportHeight();
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
@@ -1492,7 +1486,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
-      height: _viewPortHeight, // 使用固定的视窗高度
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
