@@ -256,37 +256,6 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-void _initializeFocusNodes() {
-  // 计算当前所需的焦点节点总数
-  int totalFocusNodes = _categories.length; // 分类数量
-  if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-    totalFocusNodes += _keys.length; // 分组数量
-    if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-      totalFocusNodes += _values[_groupIndex].length; // 当前分组的频道数量
-    }
-  }
-
-  // 释放所有现有节点
-  for (var node in _focusNodes) {
-    node.dispose();
-  }
-  _focusNodes.clear();
-  _focusStates.clear();
-
-  // 生成新的焦点节点
-  _focusNodes = List.generate(
-    totalFocusNodes,
-    (index) => FocusNode(debugLabel: 'Node $index'),
-  );
-
-  // 更新起始索引
-  _categoryStartIndex = 0;
-  _groupStartIndex = _categories.length;
-  _channelStartIndex = _groupStartIndex + _keys.length;
-
-  LogUtil.i('Rebuilt _focusNodes: total=$totalFocusNodes, categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, channelStart=$_channelStartIndex');
-}
-
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
   if (renderObject is RenderBox) {
@@ -873,7 +842,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     if (index < kInitialIndex || index > maxIndex || scrollController == null || !scrollController.isAttached) {
-      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, maxIndex=$maxIndex');
+      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, LiberalIndex=$maxIndex');
       return;
     }
 
@@ -924,6 +893,37 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final firstVisible = positions.first;
     return firstVisible.index == kInitialIndex &&
         (firstVisible.itemLeadingEdge >= kInitialIndex && firstVisible.itemLeadingEdge < kItemLeadingEdgeTolerance);
+  }
+
+  void _initializeFocusNodes() {
+    // 计算当前所需的焦点节点总数
+    int totalFocusNodes = _categories.length; // 分类数量
+    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
+      totalFocusNodes += _keys.length; // 分组数量
+      if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+        totalFocusNodes += _values[_groupIndex].length; // 当前分组的频道数量
+      }
+    }
+
+    // 释放所有现有节点
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    _focusNodes.clear();
+    _focusStates.clear();
+
+    // 生成新的焦点节点
+    _focusNodes = List.generate(
+      totalFocusNodes,
+      (index) => FocusNode(debugLabel: 'Node $index'),
+    );
+
+    // 更新起始索引
+    _categoryStartIndex = 0;
+    _groupStartIndex = _categories.length;
+    _channelStartIndex = _groupStartIndex + _keys.length;
+
+    LogUtil.i('Rebuilt _focusNodes: total=$totalFocusNodes, categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, channelStart=$_channelStartIndex');
   }
 
   @override
