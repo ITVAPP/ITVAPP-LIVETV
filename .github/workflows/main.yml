@@ -6,7 +6,7 @@ on:
       enable_obfuscation:
         description: '是否启用代码混淆'
         required: true
-        default: 'true'
+        default: 'false'
         type: choice
         options:
           - 'true'
