@@ -256,17 +256,16 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
+// 修改部分开始：调整 _initializeFocusNodes 仅扩展，不重建
 void _initializeFocusNodes(int totalCount) {
-  if (_focusNodes.length != totalCount) {
-    for (final node in _focusNodes) {
-      node.dispose();
-    }
-    _focusNodes.clear();
-    _focusStates.clear();
-    _focusNodes = List.generate(totalCount, (index) => FocusNode(debugLabel: 'Node $index'));
-    LogUtil.i('Initialized ${_focusNodes.length} focus nodes for totalCount=$totalCount');
+  if (_focusNodes.length < totalCount) {
+    int additionalNodes = totalCount - _focusNodes.length;
+    _focusNodes.addAll(List.generate(additionalNodes, (index) => FocusNode(debugLabel: 'Node ${_focusNodes.length + index}')));
+    LogUtil.i('Expanded focus nodes to ${_focusNodes.length} for totalCount=$totalCount');
   }
+  // 不清空现有节点，仅扩展
 }
+// 修改部分结束
 
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
@@ -913,6 +912,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (firstVisible.itemLeadingEdge >= kInitialIndex && firstVisible.itemLeadingEdge < kItemLeadingEdgeTolerance);
   }
 
+  // 修改部分开始：修改 initState，一次性分配最大焦点节点
   @override
   void initState() {
     super.initState();
@@ -922,9 +922,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
       });
       _initializeData();
+      // 一次性分配最大节点数
+      int maxFocusNodes = _calculateMaxFocusNodes();
+      _initializeFocusNodes(maxFocusNodes);
       _setupFocusListeners();
     });
   }
+  // 修改部分结束
 
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
@@ -971,6 +975,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     return totalFocusNodes;
   }
+
+  // 修改部分开始：新增 _calculateMaxFocusNodes 方法
+  int _calculateMaxFocusNodes() {
+    int maxNodes = _categories.length;
+    for (var category in _categories) {
+      var categoryMap = widget.videoMap?.playList[category];
+      if (categoryMap != null) {
+        maxNodes += categoryMap.length; // 所有分组
+        for (var channels in categoryMap.values) {
+          maxNodes += channels.length; // 所有频道
+        }
+      }
+    }
+    return maxNodes;
+  }
+  // 修改部分结束
 
   bool _shouldLoadEpg() {
     return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
@@ -1173,6 +1193,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _focusNodes[i].addListener(() {
         if (_focusNodes[i].hasFocus && _currentFocusIndex != i) {
           _currentFocusIndex = i;
+          LogUtil.i('Focus changed to index: $i');
           _handleFocusChange(i);
         }
       });
@@ -1198,8 +1219,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _categoryIndex = newIndex - _categoryStartIndex;
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
-        int totalFocusNodes = _calculateTotalFocusNodes();
-        _initializeFocusNodes(totalFocusNodes);
+        // 移除 _initializeFocusNodes 调用，仅更新监听器
         _setupFocusListeners();
       } else if (newIndex >= groupStart && newIndex < channelStart) {
         _groupIndex = newIndex - groupStart;
@@ -1234,6 +1254,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 修改部分开始：修改 _onCategoryTap，移除 _initializeFocusNodes 调用
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1244,14 +1265,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
         _isSystemAutoSelected = true;
-        _initializeFocusNodes(_categories.length);
         _updateStartIndexes(includeGroupsAndChannels: false);
       } else {
         _initializeChannelData();
-        int totalFocusNodes = _calculateTotalFocusNodes();
-        _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
       }
+      _setupFocusListeners(); // 仅更新监听器
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListCategory, context);
@@ -1305,7 +1324,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
+  // 修改部分开始：修改 _onGroupTap，移除 _initializeFocusNodes 调用
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1317,9 +1338,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      int totalFocusNodes = _calculateTotalFocusNodes();
-      _initializeFocusNodes(totalFocusNodes); // 更新焦点节点
-      _setupFocusListeners(); // 重新绑定监听器
+      _setupFocusListeners(); // 仅更新监听器
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
@@ -1360,6 +1379,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
@@ -1491,13 +1511,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return kInitialIndex;
   }
 
+  // 修改部分开始：修改 _ensureCorrectFocusNodes，返回动态子列表
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _calculateTotalFocusNodes();
-    if (_focusNodes.length != totalNodesExpected) {
+    if (_focusNodes.length < totalNodesExpected) {
       _initializeFocusNodes(totalNodesExpected);
     }
-    return _focusNodes;
+    return _focusNodes.sublist(0, totalNodesExpected);
   }
+  // 修改部分结束
 
   @override
   Widget build(BuildContext context) {
