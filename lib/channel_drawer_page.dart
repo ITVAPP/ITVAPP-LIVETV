@@ -256,14 +256,22 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
+// 修改部分开始：优化 _initializeFocusNodes，避免重复重建
 void _initializeFocusNodes(int totalCount) {
   if (_focusNodes.length < totalCount) {
     int additionalNodes = totalCount - _focusNodes.length;
     _focusNodes.addAll(List.generate(additionalNodes, (index) => FocusNode(debugLabel: 'Node ${_focusNodes.length + index}')));
     LogUtil.i('Expanded focus nodes to ${_focusNodes.length} for totalCount=$totalCount');
+  } else if (_focusNodes.length > totalCount) {
+    for (int i = totalCount; i < _focusNodes.length; i++) {
+      _focusNodes[i].dispose();
+    }
+    _focusNodes = _focusNodes.sublist(0, totalCount);
+    LogUtil.i('Trimmed focus nodes to ${_focusNodes.length} for totalCount=$totalCount');
   }
-  // 不清空现有节点，仅扩展
+  // 不清空 _focusStates，确保状态一致性，由调用方管理
 }
+// 修改部分结束
 
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
@@ -912,8 +920,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
       });
       _initializeData();
-      int maxFocusNodes = _calculateMaxFocusNodes();
-      _initializeFocusNodes(maxFocusNodes);
+      // 修改部分开始：移除 _calculateMaxFocusNodes，改为动态计算
+      int totalFocusNodes = _calculateTotalFocusNodes();
+      _initializeFocusNodes(totalFocusNodes);
+      // 修改部分结束
       _setupFocusListeners();
     });
   }
@@ -964,20 +974,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
-  // 修改部分开始：修复 _calculateMaxFocusNodes 的类型错误
-  int _calculateMaxFocusNodes() {
-    int maxNodes = _categories.length;
-    for (var category in _categories) {
-      var categoryMap = widget.videoMap?.playList[category];
-      if (categoryMap != null) {
-        maxNodes += categoryMap.length.toInt(); // 所有分组，显式转换为 int
-        for (var channels in categoryMap.values) {
-          maxNodes += channels.length.toInt(); // 所有频道，显式转换为 int
-        }
-      }
-    }
-    return maxNodes;
-  }
+  // 修改部分开始：移除 _calculateMaxFocusNodes 方法
+  // 原方法已移除，仅保留 _calculateTotalFocusNodes 用于动态计算
   // 修改部分结束
 
   bool _shouldLoadEpg() {
@@ -1252,9 +1250,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _resetChannelData();
         _isSystemAutoSelected = true;
         _updateStartIndexes(includeGroupsAndChannels: false);
+        // 修改部分开始：动态调整焦点节点数
+        int totalFocusNodes = _calculateTotalFocusNodes();
+        _initializeFocusNodes(totalFocusNodes);
+        // 修改部分结束
       } else {
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: true);
+        // 修改部分开始：动态调整焦点节点数
+        int totalFocusNodes = _calculateTotalFocusNodes();
+        _initializeFocusNodes(totalFocusNodes);
+        // 修改部分结束
       }
       _setupFocusListeners();
     });
@@ -1322,6 +1328,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
+      // 修改部分开始：动态调整焦点节点数
+      int totalFocusNodes = _calculateTotalFocusNodes();
+      _initializeFocusNodes(totalFocusNodes);
+      // 修改部分结束
       _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1496,9 +1506,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _calculateTotalFocusNodes();
-    if (_focusNodes.length < totalNodesExpected) {
-      _initializeFocusNodes(totalNodesExpected);
-    }
+    _initializeFocusNodes(totalNodesExpected); // 修改部分：直接调用优化后的 _initializeFocusNodes
     return _focusNodes.sublist(0, totalNodesExpected);
   }
 
