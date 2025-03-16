@@ -256,7 +256,6 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-// 修改部分开始：调整 _initializeFocusNodes 仅扩展，不重建
 void _initializeFocusNodes(int totalCount) {
   if (_focusNodes.length < totalCount) {
     int additionalNodes = totalCount - _focusNodes.length;
@@ -265,7 +264,6 @@ void _initializeFocusNodes(int totalCount) {
   }
   // 不清空现有节点，仅扩展
 }
-// 修改部分结束
 
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
@@ -732,17 +730,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final ItemPositionsListener _groupPositionsListener = ItemPositionsListener.create();
   final ItemPositionsListener _channelPositionsListener = ItemPositionsListener.create();
 
-  // 新增：为每个列表添加 GlobalKey
   final GlobalKey _categoryListKey = GlobalKey();
   final GlobalKey _groupListKey = GlobalKey();
   final GlobalKey _channelListKey = GlobalKey();
   final GlobalKey _epgListKey = GlobalKey();
 
-  // 修改部分开始：新增高度缓存变量
   double? _categoryViewportHeight;
   double? _groupViewportHeight;
   double? _channelViewportHeight;
-  // 修改部分结束
 
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
@@ -781,7 +776,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
   }
 
-  // 修改部分开始：新增更新高度缓存的方法
   void _updateViewportHeights() {
     final categoryRenderObject = _categoryListKey.currentContext?.findRenderObject() as RenderBox?;
     final groupRenderObject = _groupListKey.currentContext?.findRenderObject() as RenderBox?;
@@ -793,9 +787,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     LogUtil.i('Updated viewport heights: Category=$_categoryViewportHeight, Group=$_groupViewportHeight, Channel=$_channelViewportHeight');
   }
-  // 修改部分结束
 
-  // 修改部分开始：修改 getViewportHeight 使用缓存值
   double getViewportHeight(String targetList, BuildContext context) {
     switch (targetList) {
       case kTargetListCategory:
@@ -805,12 +797,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       case kTargetListChannel:
         return _channelViewportHeight ?? MediaQuery.of(context).size.height;
       case kTargetListEpg:
-        return MediaQuery.of(context).size.height; // EPG 不需要缓存，直接返回默认值
+        return MediaQuery.of(context).size.height;
       default:
         return MediaQuery.of(context).size.height;
     }
   }
-  // 修改部分结束
 
   void scrollTo({
     required String targetList,
@@ -912,7 +903,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (firstVisible.itemLeadingEdge >= kInitialIndex && firstVisible.itemLeadingEdge < kItemLeadingEdgeTolerance);
   }
 
-  // 修改部分开始：修改 initState，一次性分配最大焦点节点
   @override
   void initState() {
     super.initState();
@@ -922,13 +912,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
       });
       _initializeData();
-      // 一次性分配最大节点数
       int maxFocusNodes = _calculateMaxFocusNodes();
       _initializeFocusNodes(maxFocusNodes);
       _setupFocusListeners();
     });
   }
-  // 修改部分结束
 
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
@@ -976,15 +964,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
-  // 修改部分开始：新增 _calculateMaxFocusNodes 方法
+  // 修改部分开始：修复 _calculateMaxFocusNodes 的类型错误
   int _calculateMaxFocusNodes() {
     int maxNodes = _categories.length;
     for (var category in _categories) {
       var categoryMap = widget.videoMap?.playList[category];
       if (categoryMap != null) {
-        maxNodes += categoryMap.length; // 所有分组
+        maxNodes += categoryMap.length.toInt(); // 所有分组，显式转换为 int
         for (var channels in categoryMap.values) {
-          maxNodes += channels.length; // 所有频道
+          maxNodes += channels.length.toInt(); // 所有频道，显式转换为 int
         }
       }
     }
@@ -1018,7 +1006,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
-      _updateViewportHeights(); // 屏幕方向变化后更新高度缓存
+      _updateViewportHeights();
     });
   }
 
@@ -1219,7 +1207,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _categoryIndex = newIndex - _categoryStartIndex;
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
-        // 移除 _initializeFocusNodes 调用，仅更新监听器
         _setupFocusListeners();
       } else if (newIndex >= groupStart && newIndex < channelStart) {
         _groupIndex = newIndex - groupStart;
@@ -1254,7 +1241,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分开始：修改 _onCategoryTap，移除 _initializeFocusNodes 调用
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1270,7 +1256,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: true);
       }
-      _setupFocusListeners(); // 仅更新监听器
+      _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListCategory, context);
@@ -1324,9 +1310,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
-  // 修改部分开始：修改 _onGroupTap，移除 _initializeFocusNodes 调用
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1338,7 +1322,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      _setupFocusListeners(); // 仅更新监听器
+      _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
@@ -1379,7 +1363,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
@@ -1429,7 +1412,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _channelStartIndex = channelStartIndex;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateViewportHeights(); // 节点索引更新后更新高度缓存
+      _updateViewportHeights();
     });
   }
 
@@ -1511,7 +1494,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return kInitialIndex;
   }
 
-  // 修改部分开始：修改 _ensureCorrectFocusNodes，返回动态子列表
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _calculateTotalFocusNodes();
     if (_focusNodes.length < totalNodesExpected) {
@@ -1519,7 +1501,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     return _focusNodes.sublist(0, totalNodesExpected);
   }
-  // 修改部分结束
 
   @override
   Widget build(BuildContext context) {
@@ -1535,7 +1516,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
       scrollController: _categoryScrollController,
-      listKey: _categoryListKey, // 传递 GlobalKey
+      listKey: _categoryListKey,
     );
     currentFocusIndex += _categories.length;
 
@@ -1553,7 +1534,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,
       isSystemAutoSelected: _isSystemAutoSelected,
-      listKey: _groupListKey, // 传递 GlobalKey
+      listKey: _groupListKey,
     );
 
     if (_keys.isNotEmpty) {
@@ -1568,7 +1549,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           positionsListener: _channelPositionsListener,
           startIndex: currentFocusIndex,
           isSystemAutoSelected: _isChannelAutoSelected,
-          listKey: _channelListKey, // 传递 GlobalKey
+          listKey: _channelListKey,
         );
 
         epgListWidget = EPGList(
@@ -1577,7 +1558,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           isTV: useFocusNavigation,
           epgScrollController: _epgItemScrollController,
           onCloseDrawer: widget.onCloseDrawer,
-          listKey: _epgListKey, // 传递 GlobalKey
+          listKey: _epgListKey,
         );
       }
     }
