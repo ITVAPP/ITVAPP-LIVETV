@@ -112,7 +112,7 @@ final kHorizontalDivider = Container(
     boxShadow: [
       BoxShadow(
         color: kBlack.withOpacity(kShadowColorOpacity),
-        blurRadius: kShadowBlurRadius / 5, // 调整为较小值
+        blurRadius: kShadowBlurRadius / 5,
         offset: Offset(kShadowOffsetX, kShadowOffsetY),
       ),
     ],
@@ -133,7 +133,7 @@ const kSelectedTextStyle = TextStyle(
     Shadow(
       offset: Offset(kShadowOffsetX, kShadowOffsetY),
       blurRadius: kTextShadowBlurRadius,
-      color: Colors.black45, // 保留为 Colors.black45，因为它是 Flutter 内置颜色
+      color: Colors.black45,
     ),
   ],
 );
@@ -348,7 +348,6 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改后的 CategoryList
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -396,7 +395,7 @@ class _CategoryListState extends State<CategoryList> {
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
         itemScrollController: widget.scrollController,
-        itemCount: 1, // 外层只包含一个静态组
+        itemCount: 1,
         itemBuilder: (context, _) => Group(
           groupIndex: kGroupIndexCategory,
           child: Column(
@@ -423,7 +422,6 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
-// 修改后的 GroupList
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController;
@@ -482,7 +480,7 @@ class _GroupListState extends State<GroupList> {
       child: ScrollablePositionedList.builder(
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
-        itemCount: 1, // 外层只包含一个静态项
+        itemCount: 1,
         itemBuilder: (context, _) {
           if (widget.keys.isEmpty && widget.isFavoriteCategory) {
             return Container(
@@ -503,7 +501,6 @@ class _GroupListState extends State<GroupList> {
             groupIndex: kGroupIndexGroup,
             child: Column(
               children: List.generate(widget.keys.length, (index) {
-                // 修改部分：添加 RepaintBoundary，与 ChannelList 保持一致
                 return RepaintBoundary(
                   child: buildListItem(
                     title: widget.keys[index],
@@ -527,7 +524,6 @@ class _GroupListState extends State<GroupList> {
   }
 }
 
-// 修改后的 ChannelList
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController;
@@ -586,7 +582,7 @@ class _ChannelListState extends State<ChannelList> {
       child: ScrollablePositionedList.builder(
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
-        itemCount: 1, // 外层只包含一个静态组
+        itemCount: 1,
         itemBuilder: (context, _) => Group(
           groupIndex: kGroupIndexChannel,
           child: Column(
@@ -758,7 +754,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = kInitialIndex;
   int _channelStartIndex = kInitialIndex;
 
-  // 新增：视窗检查方法
+  int _currentFocusIndex = -1;
+
   bool _isIndexInViewport(ItemPositionsListener positionsListener, int targetIndex, double viewportHeight) {
     final positions = positionsListener.itemPositions.value;
     if (positions.isEmpty) return false;
@@ -775,13 +772,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
   }
 
-  // 修改后的 scrollTo 方法
   void scrollTo({
     required String targetList,
     required int index,
     required bool isMovingUp,
     required double viewportHeight,
-    double? forceAlignment, // 新增参数：强制对齐
+    double? forceAlignment,
   }) {
     ItemScrollController? scrollController;
     ItemPositionsListener? positionsListener;
@@ -829,10 +825,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     double alignment;
     if (forceAlignment != null) {
-      // 使用强制对齐
       alignment = forceAlignment.clamp(0.0, 1.0);
     } else {
-      // 现有动态对齐逻辑
       final positions = positionsListener?.itemPositions.value ?? [];
       if (positions.isEmpty && positionsListener != null) {
         alignment = isMovingUp ? 0.0 : 1.0;
@@ -849,7 +843,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           } else if (index >= lastVisible.index - visibleItemCount + 1) {
             alignment = (index - firstVisible.index) / visibleItemCount;
           } else {
-            return; // 项已在视窗内
+            return;
           }
         } else {
           if (index >= lastVisible.index) {
@@ -857,7 +851,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           } else if (index <= firstVisible.index + visibleItemCount - 1) {
             alignment = (index - firstVisible.index) / visibleItemCount;
           } else {
-            return; // 项已在视窗内
+            return;
           }
         }
       }
@@ -886,8 +880,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
       });
+      _initializeData();
+      _setupFocusListeners();
     });
-    _initializeData();
   }
 
   @override
@@ -899,9 +894,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_tvKeyNavigationState != null) {
           _tvKeyNavigationState!.releaseResources();
-          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryIndex);
+          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + _categoryIndex);
         }
-        _reInitializeFocusListeners();
+        _setupFocusListeners();
       });
     }
   }
@@ -912,6 +907,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     int totalFocusNodes = _calculateTotalFocusNodes();
     _initializeFocusNodes(totalFocusNodes);
+
+    _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
 
     if (_shouldLoadEpg()) {
       _loadEPGMsg(widget.playModel);
@@ -1123,26 +1120,70 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _selEPGIndex = kInitialIndex;
   }
 
-  void _reInitializeFocusListeners() {
+  void _setupFocusListeners() {
     for (var node in _focusNodes) {
       node.removeListener(() {});
     }
+    _focusStates.clear();
 
-    addFocusListeners(kInitialIndex, _categories.length, this);
-
-    if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this);
-      if (_values.isNotEmpty && _groupIndex >= kInitialIndex) {
-        addFocusListeners(
-          _categories.length + _keys.length,
-          _values[_groupIndex].length,
-          this,
-        );
-      }
+    for (int i = 0; i < _focusNodes.length; i++) {
+      _focusStates[i] = _focusNodes[i].hasFocus;
+      _focusNodes[i].addListener(() {
+        if (_focusNodes[i].hasFocus && _currentFocusIndex != i) {
+          _currentFocusIndex = i;
+          _handleFocusChange(i);
+        }
+      });
     }
   }
 
-  // 修改后的 _onCategoryTap 方法（未修改，仅保留原样）
+  void _handleFocusChange(int newIndex) {
+    int groupStart = _categoryStartIndex + _categories.length;
+    int channelStart = _groupStartIndex + _keys.length;
+    final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
+        MediaQuery.of(context).size.height;
+
+    setState(() {
+      if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
+        _categoryIndex = newIndex - _categoryStartIndex;
+        _initializeChannelData();
+        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
+        int totalFocusNodes = _calculateTotalFocusNodes();
+        _initializeFocusNodes(totalFocusNodes);
+        _setupFocusListeners();
+      } else if (newIndex >= groupStart && newIndex < channelStart) {
+        _groupIndex = newIndex - groupStart;
+      } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
+        _channelIndex = newIndex - channelStart;
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
+        scrollTo(
+          targetList: kTargetListCategory,
+          index: _categoryIndex,
+          isMovingUp: newIndex < _currentFocusIndex,
+          viewportHeight: viewportHeight,
+        );
+      } else if (newIndex >= groupStart && newIndex < channelStart) {
+        scrollTo(
+          targetList: kTargetListGroup,
+          index: _groupIndex,
+          isMovingUp: newIndex < _currentFocusIndex,
+          viewportHeight: viewportHeight,
+        );
+      } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
+        scrollTo(
+          targetList: kTargetListChannel,
+          index: _channelIndex,
+          isMovingUp: newIndex < _currentFocusIndex,
+          viewportHeight: viewportHeight,
+        );
+      }
+    });
+  }
+
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1157,27 +1198,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _updateStartIndexes(includeGroupsAndChannels: false);
       } else {
         _initializeChannelData();
-        int totalFocusNodes = _categories.length +
-            (_keys.isNotEmpty ? _keys.length : kInitialIndex) +
-            (_groupIndex >= kInitialIndex && _groupIndex < _values.length ? _values[_groupIndex].length : kInitialIndex);
+        int totalFocusNodes = _calculateTotalFocusNodes();
         _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: index);
-      }
-      _reInitializeFocusListeners();
+      final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
+          MediaQuery.of(context).size.height;
+      scrollTo(
+        targetList: kTargetListCategory,
+        index: _categoryIndex,
+        isMovingUp: index < _categoryIndex,
+        viewportHeight: viewportHeight,
+      );
       if (_keys.isNotEmpty) {
         int targetGroupIndex = (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex])
             ? _groupIndex
             : kInitialIndex;
-        final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
-            MediaQuery.of(context).size.height;
-
-        // 检查是否包含当前频道
         bool containsCurrentChannel = widget.playModel?.group != null && _keys.contains(widget.playModel?.group);
         bool groupInViewport = _isIndexInViewport(_groupPositionsListener, targetGroupIndex, viewportHeight);
         bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
@@ -1188,7 +1226,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             index: targetGroupIndex,
             isMovingUp: false,
             viewportHeight: viewportHeight,
-            forceAlignment: 0.5, // 居中对齐
+            forceAlignment: 0.5,
           );
         }
         if (containsCurrentChannel && !channelInViewport) {
@@ -1197,7 +1235,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             index: _channelIndex,
             isMovingUp: false,
             viewportHeight: viewportHeight,
-            forceAlignment: 0.5, // 居中对齐
+            forceAlignment: 0.5,
           );
         } else {
           scrollTo(
@@ -1219,7 +1257,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改后的 _onGroupTap 方法
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1235,6 +1272,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = (_viewPortKey.currentContext?.findRenderObject() as RenderBox?)?.size.height ??
           MediaQuery.of(context).size.height;
+      scrollTo(
+        targetList: kTargetListGroup,
+        index: _groupIndex,
+        isMovingUp: index < _groupIndex,
+        viewportHeight: viewportHeight,
+      );
 
       bool containsCurrentChannel = widget.playModel?.title != null &&
           _values[_groupIndex].containsKey(widget.playModel?.title);
@@ -1256,17 +1299,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           viewportHeight: viewportHeight,
         );
       }
-      int targetCategoryIndex = (_categoryIndex != -1 &&
-              widget.playModel?.title != null &&
-              _values[_groupIndex].containsKey(widget.playModel?.title))
-          ? _categoryIndex
-          : kInitialIndex;
-      scrollTo(
-        targetList: kTargetListCategory,
-        index: targetCategoryIndex,
-        isMovingUp: false,
-        viewportHeight: viewportHeight,
-      );
       if (_channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
         scrollTo(
           targetList: kTargetListChannel,
@@ -1278,7 +1310,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改后的 _onChannelTap 方法
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
 
@@ -1295,11 +1326,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final viewportHeight = MediaQuery.of(context).size.height;
       scrollTo(
         targetList: kTargetListChannel,
         index: _channelIndex,
         isMovingUp: false,
-        viewportHeight: MediaQuery.of(context).size.height,
+        viewportHeight: viewportHeight,
       );
       _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
     });
@@ -1405,11 +1437,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length +
-        (_keys.isNotEmpty ? _keys.length : kInitialIndex) +
-        (_values.isNotEmpty && _groupIndex >= kInitialIndex && _groupIndex < _values.length
-            ? _values[_groupIndex].length
-            : kInitialIndex);
+    int totalNodesExpected = _calculateTotalFocusNodes();
     if (_focusNodes.length != totalNodesExpected) {
       _initializeFocusNodes(totalNodesExpected);
     }
@@ -1477,56 +1505,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       focusNodes: _ensureCorrectFocusNodes(),
       cacheName: kCacheName,
       isVerticalGroup: true,
-      initialIndex: kInitialIndex,
+      initialIndex: _categoryStartIndex + _categoryIndex,
       onStateCreated: _handleTvKeyNavigationStateCreated,
-      onFocusChanged: (int newIndex, int oldIndex) {
-        if (newIndex == oldIndex) return;
-
-        int groupStart = _categoryStartIndex + _categories.length;
-        int channelStart = _groupStartIndex + _keys.length;
-
-        final RenderBox? renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-        final viewportHeight = (renderBox as RenderBox?)?.size.height ?? MediaQuery.of(context).size.height;
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
-            int categoryIndex = newIndex - _categoryStartIndex;
-            setState(() {
-              _categoryIndex = categoryIndex;
-            });
-            scrollTo(
-              targetList: kTargetListCategory,
-              index: categoryIndex,
-              isMovingUp: newIndex < oldIndex,
-              viewportHeight: viewportHeight,
-            );
-          } else if (newIndex >= groupStart && newIndex < channelStart) {
-            int groupIndex = newIndex - groupStart;
-            setState(() {
-              _groupIndex = groupIndex;
-            });
-            scrollTo(
-              targetList: kTargetListGroup,
-              index: groupIndex,
-              isMovingUp: newIndex < oldIndex,
-              viewportHeight: viewportHeight,
-            );
-          } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
-            int channelIndex = newIndex - channelStart;
-            setState(() {
-              _channelIndex = channelIndex;
-            });
-            scrollTo(
-              targetList: kTargetListChannel,
-              index: channelIndex,
-              isMovingUp: newIndex < oldIndex,
-              viewportHeight: viewportHeight,
-            );
-          } else {
-            LogUtil.i('焦点索引超出范围: newIndex=$newIndex, totalFocusNodes=${_focusNodes.length}');
-          }
-        });
-      },
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
     );
   }
