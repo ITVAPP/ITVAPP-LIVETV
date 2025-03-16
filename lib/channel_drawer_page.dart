@@ -872,32 +872,35 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (firstVisible.itemLeadingEdge >= kInitialIndex && firstVisible.itemLeadingEdge < kItemLeadingEdgeTolerance);
   }
 
-  void _initializeFocusNodes() {
-    int totalFocusNodes = _categories.length;
-    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-      totalFocusNodes += _keys.length;
-      if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-        totalFocusNodes += _values[_groupIndex].length;
-      }
-    }
+List<FocusNode> _ensureCorrectFocusNodes() {
+  int totalNodesExpected = _categories.length +
+      (_keys.isNotEmpty ? _keys.length : 0) +
+      (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+  _initializeFocusNodes(totalNodesExpected);
+  return _focusNodes;
+}
 
-    for (var node in _focusNodes) {
+List<FocusNode> _ensureCorrectFocusNodes() {
+  int totalNodesExpected = _categories.length +
+      (_keys.isNotEmpty ? _keys.length : 0) +
+      (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+  _initializeFocusNodes(totalNodesExpected);
+  return _focusNodes;
+}
+
+void _initializeFocusNodes(int totalCount) {
+  if (_focusNodes.length != totalCount) {
+    for (final node in _focusNodes) {
       node.dispose();
     }
     _focusNodes.clear();
     _focusStates.clear();
-
-    _focusNodes = List.generate(
-      totalFocusNodes,
-      (index) => FocusNode(debugLabel: 'Node $index'),
-    );
-
+    _focusNodes = List.generate(totalCount, (index) => FocusNode());
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _groupStartIndex + _keys.length;
-
-    LogUtil.i('Rebuilt _focusNodes: total=$totalFocusNodes, categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, channelStart=$_channelStartIndex');
   }
+}
 
   @override
   void initState() {
@@ -943,22 +946,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_shouldLoadEpg()) {
       _loadEPGMsg(widget.playModel);
     }
-  }
-
-  int _calculateTotalFocusNodes() {
-    int totalFocusNodes = _categories.length;
-    if (_categoryIndex >= kInitialIndex && _categoryIndex < _categories.length) {
-      if (_keys.isNotEmpty) {
-        totalFocusNodes += _keys.length;
-        if (_values.isNotEmpty &&
-            _groupIndex >= kInitialIndex &&
-            _groupIndex < _values.length &&
-            _values[_groupIndex].isNotEmpty) {
-          totalFocusNodes += _values[_groupIndex].length;
-        }
-      }
-    }
-    return totalFocusNodes;
   }
 
   bool _shouldLoadEpg() {
@@ -1478,9 +1465,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _calculateTotalFocusNodes();
-    _initializeFocusNodes();
-    return _focusNodes.sublist(0, totalNodesExpected);
+    int totalNodesExpected = _categories.length +
+        (_keys.isNotEmpty ? _keys.length : 0) +
+        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    if (_focusNodes.length != totalNodesExpected) {
+      _initializeFocusNodes(totalNodesExpected);
+    }
+    return _focusNodes;
   }
 
   @override
