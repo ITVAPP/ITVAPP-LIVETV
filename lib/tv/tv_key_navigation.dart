@@ -21,8 +21,6 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isVerticalGroup; // 是否启用竖向分组
   final Function(TvKeyNavigationState state)? onStateCreated;
   final String? cacheName; // 自定义缓存名称
-  // 修改处：添加 onFocusChanged 回调，用于监听焦点变化
-  final Function(int newIndex, int oldIndex)? onFocusChanged;
 
   const TvKeyNavigation({
     Key? key,
@@ -37,7 +35,6 @@ class TvKeyNavigation extends StatefulWidget {
     this.isVerticalGroup = false,   // 默认不按竖向分组
     this.onStateCreated,
     this.cacheName,
-    this.onFocusChanged, // 修改处：添加到构造函数
   }) : super(key: key);
 
   @override
@@ -285,13 +282,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           orElse: () => widget.focusNodes[0]
         );
 
-        // 修改处：在设置第一个有效焦点时调用 onFocusChanged
-        int oldIndex = _currentFocus != null ? widget.focusNodes.indexOf(_currentFocus!) : -1;
+        // 请求第一个有效焦点
         firstValidFocusNode.requestFocus();
         _currentFocus = firstValidFocusNode;
-        if (widget.onFocusChanged != null && oldIndex != -1) {
-          widget.onFocusChanged!(widget.focusNodes.indexOf(firstValidFocusNode), oldIndex);
-        }
         LogUtil.i('无效的 Group，设置到第一个可用焦点节点');
         return;
       }
@@ -320,13 +313,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       // 请求焦点
       if (!focusNode.hasFocus) {
-        // 修改处：在焦点切换时调用 onFocusChanged
-        int oldIndex = _currentFocus != null ? widget.focusNodes.indexOf(_currentFocus!) : -1;
         focusNode.requestFocus();  // 设置焦点到指定的节点
         _currentFocus = focusNode;
-        if (widget.onFocusChanged != null && oldIndex != -1 && oldIndex != index) {
-          widget.onFocusChanged!(index, oldIndex);
-        }
         LogUtil.i('切换焦点到索引: $index, 当前Group: $groupIndex');
       }
     } catch (e, stackTrace) {
