@@ -348,6 +348,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
+// 修改部分开始：CategoryList
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -395,36 +396,31 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
-      child: ScrollablePositionedList.builder(
-        key: widget.listKey, // 使用 GlobalKey
-        itemScrollController: widget.scrollController,
-        itemCount: 1,
-        itemBuilder: (context, _) => Group(
-          groupIndex: kGroupIndexCategory,
-          child: Column(
-            children: List.generate(widget.categories.length, (index) {
-              return buildListItem(
-                title: widget.categories[index] == Config.myFavoriteKey
-                    ? S.of(context).myfavorite
-                    : widget.categories[index] == Config.allChannelsKey
-                        ? S.of(context).allchannels
-                        : widget.categories[index],
-                isSelected: widget.selectedCategoryIndex == index,
-                onTap: () => widget.onCategoryTap(index),
-                isCentered: true,
-                isTV: widget.isTV,
-                context: context,
-                index: widget.startIndex + index,
-                isLastItem: index == widget.categories.length - 1,
-              );
-            }),
-          ),
-        ),
+      child: Group(
+        groupIndex: kGroupIndexCategory,
+        children: List.generate(widget.categories.length, (index) {
+          return buildListItem(
+            title: widget.categories[index] == Config.myFavoriteKey
+                ? S.of(context).myfavorite
+                : widget.categories[index] == Config.allChannelsKey
+                    ? S.of(context).allchannels
+                    : widget.categories[index],
+            isSelected: widget.selectedCategoryIndex == index,
+            onTap: () => widget.onCategoryTap(index),
+            isCentered: true,
+            isTV: widget.isTV,
+            context: context,
+            index: widget.startIndex + index,
+            isLastItem: index == widget.categories.length - 1,
+          );
+        }),
       ),
     );
   }
 }
+// 修改部分结束
 
+// 修改部分开始：GroupList
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController;
@@ -505,31 +501,29 @@ class _GroupListState extends State<GroupList> {
           }
           return Group(
             groupIndex: kGroupIndexGroup,
-            child: Column(
-              children: List.generate(widget.keys.length, (index) {
-                return RepaintBoundary(
-                  child: buildListItem(
-                    title: widget.keys[index],
-                    isSelected: widget.selectedGroupIndex == index,
-                    onTap: () => widget.onGroupTap(index),
-                    isCentered: false,
-                    isTV: widget.isTV,
-                    minHeight: kDefaultMinHeight,
-                    context: context,
-                    index: widget.startIndex + index,
-                    isLastItem: index == widget.keys.length - 1,
-                    isSystemAutoSelected: widget.isSystemAutoSelected,
-                  ),
-                );
-              }),
-            ),
+            children: List.generate(widget.keys.length, (index) {
+              return buildListItem(
+                title: widget.keys[index],
+                isSelected: widget.selectedGroupIndex == index,
+                onTap: () => widget.onGroupTap(index),
+                isCentered: false,
+                isTV: widget.isTV,
+                minHeight: kDefaultMinHeight,
+                context: context,
+                index: widget.startIndex + index,
+                isLastItem: index == widget.keys.length - 1,
+                isSystemAutoSelected: widget.isSystemAutoSelected,
+              );
+            }),
           );
         },
       ),
     );
   }
 }
+// 修改部分结束
 
+// 修改部分开始：ChannelList
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController;
@@ -594,29 +588,26 @@ class _ChannelListState extends State<ChannelList> {
         itemCount: 1,
         itemBuilder: (context, _) => Group(
           groupIndex: kGroupIndexChannel,
-          child: Column(
-            children: List.generate(channelList.length, (index) {
-              return RepaintBoundary(
-                child: buildListItem(
-                  title: channelList[index].key,
-                  isSelected: !widget.isSystemAutoSelected && widget.selectedChannelName == channelList[index].key,
-                  onTap: () => widget.onChannelTap(widget.channels[channelList[index].key]),
-                  isCentered: false,
-                  minHeight: kDefaultMinHeight,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == channelList.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
-                ),
-              );
-            }),
-          ),
+          children: List.generate(channelList.length, (index) {
+            return buildListItem(
+              title: channelList[index].key,
+              isSelected: !widget.isSystemAutoSelected && widget.selectedChannelName == channelList[index].key,
+              onTap: () => widget.onChannelTap(widget.channels[channelList[index].key]),
+              isCentered: false,
+              minHeight: kDefaultMinHeight,
+              isTV: widget.isTV,
+              context: context,
+              index: widget.startIndex + index,
+              isLastItem: index == channelList.length - 1,
+              isSystemAutoSelected: widget.isSystemAutoSelected,
+            );
+          }),
         ),
       ),
     );
   }
 }
+// 修改部分结束
 
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
@@ -753,6 +744,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final GlobalKey _channelListKey = GlobalKey();
   final GlobalKey _epgListKey = GlobalKey();
 
+  // 修改部分开始：新增高度缓存变量
+  double? _categoryViewportHeight;
+  double? _groupViewportHeight;
+  double? _channelViewportHeight;
+  // 修改部分结束
+
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = kInitialIndex;
@@ -790,27 +787,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
   }
 
-  // 修改部分开始：使用 GlobalKey 获取每个列表的高度
+  // 修改部分开始：新增更新高度缓存的方法
+  void _updateViewportHeights() {
+    final categoryRenderObject = _categoryListKey.currentContext?.findRenderObject() as RenderBox?;
+    final groupRenderObject = _groupListKey.currentContext?.findRenderObject() as RenderBox?;
+    final channelRenderObject = _channelListKey.currentContext?.findRenderObject() as RenderBox?;
+
+    _categoryViewportHeight = categoryRenderObject?.size.height ?? MediaQuery.of(context).size.height;
+    _groupViewportHeight = groupRenderObject?.size.height ?? MediaQuery.of(context).size.height;
+    _channelViewportHeight = channelRenderObject?.size.height ?? MediaQuery.of(context).size.height;
+
+    LogUtil.i('Updated viewport heights: Category=$_categoryViewportHeight, Group=$_groupViewportHeight, Channel=$_channelViewportHeight');
+  }
+  // 修改部分结束
+
+  // 修改部分开始：修改 getViewportHeight 使用缓存值
   double getViewportHeight(String targetList, BuildContext context) {
-    GlobalKey? listKey;
     switch (targetList) {
       case kTargetListCategory:
-        listKey = _categoryListKey;
-        break;
+        return _categoryViewportHeight ?? MediaQuery.of(context).size.height;
       case kTargetListGroup:
-        listKey = _groupListKey;
-        break;
+        return _groupViewportHeight ?? MediaQuery.of(context).size.height;
       case kTargetListChannel:
-        listKey = _channelListKey;
-        break;
+        return _channelViewportHeight ?? MediaQuery.of(context).size.height;
       case kTargetListEpg:
-        listKey = _epgListKey;
-        break;
+        return MediaQuery.of(context).size.height; // EPG 不需要缓存，直接返回默认值
       default:
         return MediaQuery.of(context).size.height;
     }
-    final renderObject = listKey.currentContext?.findRenderObject() as RenderBox?;
-    return renderObject?.size.height ?? MediaQuery.of(context).size.height;
   }
   // 修改部分结束
 
@@ -986,6 +990,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.dispose();
   }
 
+  // 修改部分开始：在屏幕方向变化时更新高度缓存
   @override
   void didChangeMetrics() {
     final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
@@ -999,8 +1004,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
+      _updateViewportHeights(); // 屏幕方向变化后更新高度缓存
     });
   }
+  // 修改部分结束
 
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
@@ -1391,6 +1398,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分开始：在节点索引更新后更新高度缓存
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = kInitialIndex;
     int groupStartIndex = categoryStartIndex + _categories.length;
@@ -1404,22 +1412,37 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
     _channelStartIndex = channelStartIndex;
-  }
 
-  void _adjustScrollPositions() {
-    scrollTo(
-      targetList: kTargetListGroup,
-      index: _groupIndex,
-      isMovingUp: false,
-      viewportHeight: getViewportHeight(kTargetListGroup, context),
-    );
-    scrollTo(
-      targetList: kTargetListChannel,
-      index: _channelIndex,
-      isMovingUp: false,
-      viewportHeight: getViewportHeight(kTargetListChannel, context),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateViewportHeights(); // 节点索引更新后更新高度缓存
+    });
   }
+  // 修改部分结束
+
+  // 修改部分开始：调整 _adjustScrollPositions
+  void _adjustScrollPositions() {
+    if (_tvKeyNavigationState == null) return;
+    final currentFocusIndex = _tvKeyNavigationState!.currentFocusIndex;
+
+    if (currentFocusIndex >= _categoryStartIndex && currentFocusIndex < _groupStartIndex) {
+      // CategoryList 不滚动，无需调整
+    } else if (currentFocusIndex >= _groupStartIndex && currentFocusIndex < _channelStartIndex) {
+      scrollTo(
+        targetList: kTargetListGroup,
+        index: _groupIndex,
+        isMovingUp: false,
+        viewportHeight: getViewportHeight(kTargetListGroup, context),
+      );
+    } else if (currentFocusIndex >= _channelStartIndex && currentFocusIndex < _focusNodes.length) {
+      scrollTo(
+        targetList: kTargetListChannel,
+        index: _channelIndex,
+        isMovingUp: false,
+        viewportHeight: getViewportHeight(kTargetListChannel, context),
+      );
+    }
+  }
+  // 修改部分结束
 
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (isPortrait || playModel == null) return;
