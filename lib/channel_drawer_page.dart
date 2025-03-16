@@ -256,22 +256,36 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-// 修改部分开始：优化 _initializeFocusNodes，避免重复重建
-void _initializeFocusNodes(int totalCount) {
-  if (_focusNodes.length < totalCount) {
-    int additionalNodes = totalCount - _focusNodes.length;
-    _focusNodes.addAll(List.generate(additionalNodes, (index) => FocusNode(debugLabel: 'Node ${_focusNodes.length + index}')));
-    LogUtil.i('Expanded focus nodes to ${_focusNodes.length} for totalCount=$totalCount');
-  } else if (_focusNodes.length > totalCount) {
-    for (int i = totalCount; i < _focusNodes.length; i++) {
-      _focusNodes[i].dispose();
+void _initializeFocusNodes() {
+  // 计算当前所需的焦点节点总数
+  int totalFocusNodes = _categories.length; // 分类数量
+  if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
+    totalFocusNodes += _keys.length; // 分组数量
+    if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+      totalFocusNodes += _values[_groupIndex].length; // 当前分组的频道数量
     }
-    _focusNodes = _focusNodes.sublist(0, totalCount);
-    LogUtil.i('Trimmed focus nodes to ${_focusNodes.length} for totalCount=$totalCount');
   }
-  // 不清空 _focusStates，确保状态一致性，由调用方管理
+
+  // 释放所有现有节点
+  for (var node in _focusNodes) {
+    node.dispose();
+  }
+  _focusNodes.clear();
+  _focusStates.clear();
+
+  // 生成新的焦点节点
+  _focusNodes = List.generate(
+    totalFocusNodes,
+    (index) => FocusNode(debugLabel: 'Node $index'),
+  );
+
+  // 更新起始索引
+  _categoryStartIndex = 0;
+  _groupStartIndex = _categories.length;
+  _channelStartIndex = _groupStartIndex + _keys.length;
+
+  LogUtil.i('Rebuilt _focusNodes: total=$totalFocusNodes, categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, channelStart=$_channelStartIndex');
 }
-// 修改部分结束
 
 bool isOutOfView(BuildContext context) {
   RenderObject? renderObject = context.findRenderObject();
@@ -748,6 +762,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   double? _channelViewportHeight;
 
   TvKeyNavigationState? _tvKeyNavigationState;
+
   List<EpgData>? _epgData;
   int _selEPGIndex = kInitialIndex;
   bool isPortrait = true;
@@ -811,7 +826,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分开始：优化 scrollTo，解决 LateInitializationError
   void scrollTo({
     required String targetList,
     required int index,
@@ -858,13 +872,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         return;
     }
 
-    // 修改部分：更严格的检查，避免 LateInitializationError
-    if (scrollController == null || !scrollController.isAttached) {
-      LogUtil.i('$targetList scroll controller not attached, skipping scroll to index=$index');
-      return;
-    }
-    if (index < kInitialIndex || index > maxIndex) {
-      LogUtil.i('$targetList scroll index out of bounds: index=$index, maxIndex=$maxIndex');
+    if (index < kInitialIndex || index > maxIndex || scrollController == null || !scrollController.isAttached) {
+      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, maxIndex=$maxIndex');
       return;
     }
 
@@ -908,7 +917,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       duration: kScrollDuration,
     );
   }
-  // 修改部分结束
 
   bool _isItemAtTop(ItemPositionsListener listener) {
     final positions = listener.itemPositions.value;
@@ -925,28 +933,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+        _initializeData();
+        _initializeFocusNodes();  // 初始化焦点节点
+        _setupFocusListeners();
       });
-      _initializeData();
-      // 修改部分开始：移除 _calculateMaxFocusNodes，改为动态计算
-      int totalFocusNodes = _calculateTotalFocusNodes();
-      _initializeFocusNodes(totalFocusNodes);
-      // 修改部分结束
-      _setupFocusListeners();
     });
   }
 
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (widget.refreshKey != oldWidget.refreshKey) {
       _initializeData();
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _initializeFocusNodes();  // 更新焦点节点
+          _setupFocusListeners();
+        });
         if (_tvKeyNavigationState != null) {
-          _tvKeyNavigationState!.releaseResources();
+          _tvKeyNavigationState!.releaseResources();  // 释放旧资源
           _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + _categoryIndex);
         }
-        _setupFocusListeners();
       });
     }
   }
@@ -955,8 +962,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _initializeCategoryData();
     _initializeChannelData();
 
-    int totalFocusNodes = _calculateTotalFocusNodes();
-    _initializeFocusNodes(totalFocusNodes);
+    _initializeFocusNodes();  // 初始化焦点节点
 
     _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
 
@@ -981,10 +987,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
-  // 修改部分开始：移除 _calculateMaxFocusNodes 方法
-  // 原方法已移除，仅保留 _calculateTotalFocusNodes 用于动态计算
-  // 修改部分结束
-
   bool _shouldLoadEpg() {
     return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
   }
@@ -1004,17 +1006,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (newOrientation != isPortrait) {
       setState(() {
         isPortrait = newOrientation;
+        _initializeFocusNodes();  // 更新焦点节点
+        _setupFocusListeners();
+        _adjustScrollPositions();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateViewportHeights();
       });
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _adjustScrollPositions();
-        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
-      });
-      _updateViewportHeights();
-    });
   }
-
+  
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
@@ -1212,9 +1213,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _categoryIndex = newIndex - _categoryStartIndex;
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
+        _initializeFocusNodes();  // 更新焦点节点
         _setupFocusListeners();
       } else if (newIndex >= groupStart && newIndex < channelStart) {
         _groupIndex = newIndex - groupStart;
+        _initializeFocusNodes();  // 更新焦点节点
+        _setupFocusListeners();
       } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
         _channelIndex = newIndex - channelStart;
       }
@@ -1246,7 +1250,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分开始：优化 _onCategoryTap，解决 LateInitializationError 和焦点生成时机
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1258,28 +1261,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _resetChannelData();
         _isSystemAutoSelected = true;
         _updateStartIndexes(includeGroupsAndChannels: false);
-        int totalFocusNodes = _calculateTotalFocusNodes();
-        _initializeFocusNodes(totalFocusNodes);
+        _initializeFocusNodes();  // 更新焦点节点
       } else {
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: true);
-        int totalFocusNodes = _calculateTotalFocusNodes();
-        _initializeFocusNodes(totalFocusNodes);
+        _initializeFocusNodes();  // 更新焦点节点
       }
       _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = getViewportHeight(kTargetListCategory, context);
-      // 修改部分：确保 _categories 不为空且控制器附加
-      if (_categories.isNotEmpty && _categoryScrollController.isAttached) {
-        scrollTo(
-          targetList: kTargetListCategory,
-          index: _categoryIndex,
-          isMovingUp: index < _categoryIndex,
-          viewportHeight: viewportHeight,
-        );
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();  // 释放旧资源
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + index);
       }
-      if (_keys.isNotEmpty && _scrollController.isAttached) {
+      final viewportHeight = getViewportHeight(kTargetListCategory, context);
+      scrollTo(
+        targetList: kTargetListCategory,
+        index: _categoryIndex,
+        isMovingUp: index < _categoryIndex,
+        viewportHeight: viewportHeight,
+      );
+      if (_keys.isNotEmpty) {
         int targetGroupIndex = (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex])
             ? _groupIndex
             : kInitialIndex;
@@ -1296,7 +1298,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             forceAlignment: 0.5,
           );
         }
-        if (containsCurrentChannel && !channelInViewport && _scrollChannelController.isAttached) {
+        if (containsCurrentChannel && !channelInViewport) {
           scrollTo(
             targetList: kTargetListChannel,
             index: _channelIndex,
@@ -1304,7 +1306,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             viewportHeight: viewportHeight,
             forceAlignment: 0.5,
           );
-        } else if (_scrollChannelController.isAttached) {
+        } else {
           scrollTo(
             targetList: kTargetListChannel,
             index: _channelIndex,
@@ -1323,9 +1325,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
-  // 修改部分开始：优化 _onGroupTap，解决焦点“未知”和生成时机问题
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1337,20 +1337,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      // 修改部分：移除 _initializeFocusNodes 和 _setupFocusListeners，仅跳转焦点
-      int newFocusIndex = _groupStartIndex + index;
-      if (newFocusIndex >= 0 && newFocusIndex < _focusNodes.length) {
-        _focusNodes[newFocusIndex].requestFocus();
-        _currentFocusIndex = newFocusIndex;
-        LogUtil.i('Requested focus to Group index: $newFocusIndex');
-        if (_tvKeyNavigationState != null) {
-          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: newFocusIndex);
-        }
-      } else {
-        LogUtil.i('Focus index out of bounds: $newFocusIndex, total nodes=${_focusNodes.length}');
-      }
+      _initializeFocusNodes();  // 更新焦点节点
+      _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.releaseResources();  // 释放旧资源
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _groupStartIndex + index);
+      }
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
       scrollTo(
         targetList: kTargetListGroup,
@@ -1389,7 +1383,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
@@ -1523,7 +1516,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _calculateTotalFocusNodes();
-    _initializeFocusNodes(totalNodesExpected); // 修改部分：直接调用优化后的 _initializeFocusNodes
+    _initializeFocusNodes();
     return _focusNodes.sublist(0, totalNodesExpected);
   }
 
