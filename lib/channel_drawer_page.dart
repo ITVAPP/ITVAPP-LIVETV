@@ -348,7 +348,6 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分开始：CategoryList
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -418,9 +417,7 @@ class _CategoryListState extends State<CategoryList> {
     );
   }
 }
-// 修改部分结束
 
-// 修改部分开始：GroupList
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController;
@@ -521,9 +518,7 @@ class _GroupListState extends State<GroupList> {
     );
   }
 }
-// 修改部分结束
 
-// 修改部分开始：ChannelList
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController;
@@ -607,7 +602,6 @@ class _ChannelListState extends State<ChannelList> {
     );
   }
 }
-// 修改部分结束
 
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
@@ -990,7 +984,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.dispose();
   }
 
-  // 修改部分开始：在屏幕方向变化时更新高度缓存
   @override
   void didChangeMetrics() {
     final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
@@ -1007,7 +1000,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _updateViewportHeights(); // 屏幕方向变化后更新高度缓存
     });
   }
-  // 修改部分结束
 
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
@@ -1398,7 +1390,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分开始：在节点索引更新后更新高度缓存
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = kInitialIndex;
     int groupStartIndex = categoryStartIndex + _categories.length;
@@ -1417,32 +1408,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _updateViewportHeights(); // 节点索引更新后更新高度缓存
     });
   }
-  // 修改部分结束
 
-  // 修改部分开始：调整 _adjustScrollPositions
   void _adjustScrollPositions() {
-    if (_tvKeyNavigationState == null) return;
-    final currentFocusIndex = _tvKeyNavigationState!.currentFocusIndex;
-
-    if (currentFocusIndex >= _categoryStartIndex && currentFocusIndex < _groupStartIndex) {
-      // CategoryList 不滚动，无需调整
-    } else if (currentFocusIndex >= _groupStartIndex && currentFocusIndex < _channelStartIndex) {
-      scrollTo(
-        targetList: kTargetListGroup,
-        index: _groupIndex,
-        isMovingUp: false,
-        viewportHeight: getViewportHeight(kTargetListGroup, context),
-      );
-    } else if (currentFocusIndex >= _channelStartIndex && currentFocusIndex < _focusNodes.length) {
-      scrollTo(
-        targetList: kTargetListChannel,
-        index: _channelIndex,
-        isMovingUp: false,
-        viewportHeight: getViewportHeight(kTargetListChannel, context),
-      );
-    }
+    scrollTo(
+      targetList: kTargetListGroup,
+      index: _groupIndex,
+      isMovingUp: false,
+      viewportHeight: getViewportHeight(kTargetListGroup, context),
+    );
+    scrollTo(
+      targetList: kTargetListChannel,
+      index: _channelIndex,
+      isMovingUp: false,
+      viewportHeight: getViewportHeight(kTargetListChannel, context),
+    );
   }
-  // 修改部分结束
 
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (isPortrait || playModel == null) return;
