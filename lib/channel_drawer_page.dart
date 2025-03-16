@@ -779,12 +779,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改后的 _scrollWhenReady 方法，确保 forceAlignment 参数明确控制滚动对齐方式
   void _scrollWhenReady({
     required String targetList,
     required int index,
     required bool isMovingUp,
     required double viewportHeight,
-    double? forceAlignment,
+    double? forceAlignment, // 默认值为 null，表示滚动到顶部
   }) {
     ItemScrollController? scrollController;
     switch (targetList) {
@@ -807,10 +808,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     void tryScroll() {
       if (scrollController != null && scrollController.isAttached) {
-        scrollTo(
-          targetList: targetList,
+        scrollController.scrollTo(
           index: index,
-          viewportHeight: viewportHeight,
+          duration: kScrollDuration,
+          alignment: forceAlignment ?? 0.0, // 默认滚动到顶部
         );
       } else {
         LogUtil.i('$targetList controller not attached, retrying...');
@@ -872,35 +873,33 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (firstVisible.itemLeadingEdge >= kInitialIndex && firstVisible.itemLeadingEdge < kItemLeadingEdgeTolerance);
   }
 
-List<FocusNode> _ensureCorrectFocusNodes() {
-  int totalNodesExpected = _categories.length +
-      (_keys.isNotEmpty ? _keys.length : 0) +
-      (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-  _initializeFocusNodes(totalNodesExpected);
-  return _focusNodes;
-}
-
-List<FocusNode> _ensureCorrectFocusNodes() {
-  int totalNodesExpected = _categories.length +
-      (_keys.isNotEmpty ? _keys.length : 0) +
-      (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-  _initializeFocusNodes(totalNodesExpected);
-  return _focusNodes;
-}
-
-void _initializeFocusNodes(int totalCount) {
-  if (_focusNodes.length != totalCount) {
-    for (final node in _focusNodes) {
-      node.dispose();
+  // 修改后的 _initializeFocusNodes，支持可选参数
+  void _initializeFocusNodes([int? totalCount]) {
+    int expectedCount = totalCount ?? (_categories.length +
+        (_keys.isNotEmpty ? _keys.length : 0) +
+        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0));
+    if (_focusNodes.length != expectedCount) {
+      for (final node in _focusNodes) {
+        node.dispose();
+      }
+      _focusNodes.clear();
+      _focusStates.clear();
+      _focusNodes = List.generate(expectedCount, (index) => FocusNode(debugLabel: 'Node $index'));
+      _categoryStartIndex = 0;
+      _groupStartIndex = _categories.length;
+      _channelStartIndex = _groupStartIndex + _keys.length;
     }
-    _focusNodes.clear();
-    _focusStates.clear();
-    _focusNodes = List.generate(totalCount, (index) => FocusNode());
-    _categoryStartIndex = 0;
-    _groupStartIndex = _categories.length;
-    _channelStartIndex = _groupStartIndex + _keys.length;
   }
-}
+
+  List<FocusNode> _ensureCorrectFocusNodes() {
+    int totalNodesExpected = _categories.length +
+        (_keys.isNotEmpty ? _keys.length : 0) +
+        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+    if (_focusNodes.length != totalNodesExpected) {
+      _initializeFocusNodes(totalNodesExpected);
+    }
+    return _focusNodes;
+  }
 
   @override
   void initState() {
@@ -1204,6 +1203,7 @@ void _initializeFocusNodes(int totalCount) {
     });
   }
 
+  // 修改后的 _onCategoryTap 方法，明确区分是否包含当前播放频道并设置滚动对齐方式
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1229,36 +1229,53 @@ void _initializeFocusNodes(int totalCount) {
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + index);
       }
       final viewportHeight = getViewportHeight(kTargetListCategory, context);
+      
+      // 判断是否包含当前播放频道
+      bool containsCurrentChannel = widget.playModel?.group != null && _keys.contains(widget.playModel?.group);
+      
+      // 滚动分类列表
       _scrollWhenReady(
         targetList: kTargetListCategory,
         index: _categoryIndex,
         isMovingUp: index < _categoryIndex,
         viewportHeight: viewportHeight,
+        forceAlignment: containsCurrentChannel ? 0.5 : 0.0, // 包含当前频道滚动到中间，否则滚动到顶部
       );
+
       if (_keys.isNotEmpty) {
         int targetGroupIndex = (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex])
             ? _groupIndex
             : kInitialIndex;
-        bool containsCurrentChannel = widget.playModel?.group != null && _keys.contains(widget.playModel?.group);
         bool groupInViewport = _isIndexInViewport(_groupPositionsListener, targetGroupIndex, viewportHeight);
         bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
 
+        // 滚动分组列表
         if (containsCurrentChannel && !groupInViewport) {
           _scrollWhenReady(
             targetList: kTargetListGroup,
             index: targetGroupIndex,
             isMovingUp: false,
             viewportHeight: viewportHeight,
-            forceAlignment: 0.5,
+            forceAlignment: 0.5, // 包含当前频道滚动到中间
+          );
+        } else if (!containsCurrentChannel && targetGroupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
+          _scrollWhenReady(
+            targetList: kTargetListGroup,
+            index: kInitialIndex,
+            isMovingUp: true,
+            viewportHeight: viewportHeight,
+            forceAlignment: 0.0, // 不包含当前频道滚动到顶部
           );
         }
+
+        // 滚动频道列表
         if (containsCurrentChannel && !channelInViewport) {
           _scrollWhenReady(
             targetList: kTargetListChannel,
             index: _channelIndex,
             isMovingUp: false,
             viewportHeight: viewportHeight,
-            forceAlignment: 0.5,
+            forceAlignment: 0.5, // 包含当前频道滚动到中间
           );
         } else {
           _scrollWhenReady(
@@ -1266,20 +1283,14 @@ void _initializeFocusNodes(int totalCount) {
             index: _channelIndex,
             isMovingUp: false,
             viewportHeight: viewportHeight,
-          );
-        }
-        if (targetGroupIndex == kInitialIndex && !_isItemAtTop(_groupPositionsListener)) {
-          _scrollWhenReady(
-            targetList: kTargetListGroup,
-            index: kInitialIndex,
-            isMovingUp: true,
-            viewportHeight: viewportHeight,
+            forceAlignment: 0.0, // 不包含当前频道滚动到顶部
           );
         }
       }
     });
   }
 
+  // 修改后的 _onGroupTap 方法，明确区分是否包含当前播放频道并设置滚动对齐方式
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1300,24 +1311,30 @@ void _initializeFocusNodes(int totalCount) {
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _groupStartIndex + index);
       }
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
+      
+      // 判断是否包含当前播放频道
+      bool containsCurrentChannel = widget.playModel?.title != null &&
+          _values[_groupIndex].containsKey(widget.playModel?.title);
+
+      // 滚动分组列表
       _scrollWhenReady(
         targetList: kTargetListGroup,
         index: _groupIndex,
         isMovingUp: index < _groupIndex,
         viewportHeight: viewportHeight,
+        forceAlignment: containsCurrentChannel ? 0.5 : 0.0, // 包含当前频道滚动到中间，否则滚动到顶部
       );
 
-      bool containsCurrentChannel = widget.playModel?.title != null &&
-          _values[_groupIndex].containsKey(widget.playModel?.title);
       bool channelInViewport = _isIndexInViewport(_channelPositionsListener, _channelIndex, viewportHeight);
 
+      // 滚动频道列表
       if (containsCurrentChannel && !channelInViewport) {
         _scrollWhenReady(
           targetList: kTargetListChannel,
           index: _channelIndex,
           isMovingUp: false,
           viewportHeight: viewportHeight,
-          forceAlignment: 0.5,
+          forceAlignment: 0.5, // 包含当前频道滚动到中间
         );
       } else {
         _scrollWhenReady(
@@ -1325,14 +1342,7 @@ void _initializeFocusNodes(int totalCount) {
           index: _channelIndex,
           isMovingUp: false,
           viewportHeight: viewportHeight,
-        );
-      }
-      if (_channelIndex == kInitialIndex && !_isItemAtTop(_channelPositionsListener)) {
-        _scrollWhenReady(
-          targetList: kTargetListChannel,
-          index: kInitialIndex,
-          isMovingUp: true,
-          viewportHeight: viewportHeight,
+          forceAlignment: 0.0, // 不包含当前频道滚动到顶部
         );
       }
     });
@@ -1462,16 +1472,6 @@ void _initializeFocusNodes(int totalCount) {
     }
 
     return kInitialIndex;
-  }
-
-  List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length +
-        (_keys.isNotEmpty ? _keys.length : 0) +
-        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-    if (_focusNodes.length != totalNodesExpected) {
-      _initializeFocusNodes(totalNodesExpected);
-    }
-    return _focusNodes;
   }
 
   @override
