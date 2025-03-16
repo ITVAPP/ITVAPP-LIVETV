@@ -811,6 +811,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分开始：优化 scrollTo，解决 LateInitializationError
   void scrollTo({
     required String targetList,
     required int index,
@@ -857,8 +858,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         return;
     }
 
-    if (index < kInitialIndex || index > maxIndex || scrollController == null || !scrollController.isAttached) {
-      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, maxIndex=$maxIndex');
+    // 修改部分：更严格的检查，避免 LateInitializationError
+    if (scrollController == null || !scrollController.isAttached) {
+      LogUtil.w('$targetList scroll controller not attached, skipping scroll to index=$index');
+      return;
+    }
+    if (index < kInitialIndex || index > maxIndex) {
+      LogUtil.w('$targetList scroll index out of bounds: index=$index, maxIndex=$maxIndex');
       return;
     }
 
@@ -902,6 +908,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       duration: kScrollDuration,
     );
   }
+  // 修改部分结束
 
   bool _isItemAtTop(ItemPositionsListener listener) {
     final positions = listener.itemPositions.value;
@@ -1239,6 +1246,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 修改部分开始：优化 _onCategoryTap，解决 LateInitializationError 和焦点生成时机
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1250,29 +1258,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _resetChannelData();
         _isSystemAutoSelected = true;
         _updateStartIndexes(includeGroupsAndChannels: false);
-        // 修改部分开始：动态调整焦点节点数
         int totalFocusNodes = _calculateTotalFocusNodes();
         _initializeFocusNodes(totalFocusNodes);
-        // 修改部分结束
       } else {
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: true);
-        // 修改部分开始：动态调整焦点节点数
         int totalFocusNodes = _calculateTotalFocusNodes();
         _initializeFocusNodes(totalFocusNodes);
-        // 修改部分结束
       }
       _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListCategory, context);
-      scrollTo(
-        targetList: kTargetListCategory,
-        index: _categoryIndex,
-        isMovingUp: index < _categoryIndex,
-        viewportHeight: viewportHeight,
-      );
-      if (_keys.isNotEmpty) {
+      // 修改部分：确保 _categories 不为空且控制器附加
+      if (_categories.isNotEmpty && _categoryScrollController.isAttached) {
+        scrollTo(
+          targetList: kTargetListCategory,
+          index: _categoryIndex,
+          isMovingUp: index < _categoryIndex,
+          viewportHeight: viewportHeight,
+        );
+      }
+      if (_keys.isNotEmpty && _scrollController.isAttached) {
         int targetGroupIndex = (_groupIndex != -1 && widget.playModel?.group == _keys[_groupIndex])
             ? _groupIndex
             : kInitialIndex;
@@ -1289,7 +1296,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             forceAlignment: 0.5,
           );
         }
-        if (containsCurrentChannel && !channelInViewport) {
+        if (containsCurrentChannel && !channelInViewport && _scrollChannelController.isAttached) {
           scrollTo(
             targetList: kTargetListChannel,
             index: _channelIndex,
@@ -1297,7 +1304,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             viewportHeight: viewportHeight,
             forceAlignment: 0.5,
           );
-        } else {
+        } else if (_scrollChannelController.isAttached) {
           scrollTo(
             targetList: kTargetListChannel,
             index: _channelIndex,
@@ -1316,7 +1323,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
+  // 修改部分开始：优化 _onGroupTap，解决焦点“未知”和生成时机问题
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1328,11 +1337,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      // 修改部分开始：动态调整焦点节点数
-      int totalFocusNodes = _calculateTotalFocusNodes();
-      _initializeFocusNodes(totalFocusNodes);
-      // 修改部分结束
-      _setupFocusListeners();
+      // 修改部分：移除 _initializeFocusNodes 和 _setupFocusListeners，仅跳转焦点
+      int newFocusIndex = _groupStartIndex + index;
+      if (newFocusIndex >= 0 && newFocusIndex < _focusNodes.length) {
+        _focusNodes[newFocusIndex].requestFocus();
+        _currentFocusIndex = newFocusIndex;
+        LogUtil.i('Requested focus to Group index: $newFocusIndex');
+        if (_tvKeyNavigationState != null) {
+          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: newFocusIndex);
+        }
+      } else {
+        LogUtil.w('Focus index out of bounds: $newFocusIndex, total nodes=${_focusNodes.length}');
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
@@ -1373,6 +1389,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
