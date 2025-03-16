@@ -772,6 +772,33 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
   }
 
+  // 修改部分开始：新增 getViewportHeight 方法
+  double getViewportHeight(String targetList, BuildContext context) {
+    ItemScrollController? scrollController;
+    switch (targetList) {
+      case kTargetListCategory:
+        scrollController = _categoryScrollController;
+        break;
+      case kTargetListGroup:
+        scrollController = _scrollController;
+        break;
+      case kTargetListChannel:
+        scrollController = _scrollChannelController;
+        break;
+      case kTargetListEpg:
+        scrollController = _epgItemScrollController;
+        break;
+      default:
+        return MediaQuery.of(context).size.height;
+    }
+    if (scrollController.isAttached) {
+      final scrollPosition = scrollController.scrollController?.position;
+      return scrollPosition?.viewportDimension ?? MediaQuery.of(context).size.height;
+    }
+    return MediaQuery.of(context).size.height;
+  }
+  // 修改部分结束
+
   void scrollTo({
     required String targetList,
     required int index,
@@ -1137,11 +1164,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分开始：使用 viewportDimension 替换 RenderObject
   void _handleFocusChange(int newIndex) {
     int groupStart = _categoryStartIndex + _categories.length;
     int channelStart = _groupStartIndex + _keys.length;
-    final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
-        MediaQuery.of(context).size.height;
+
+    String targetList;
+    if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
+      targetList = kTargetListCategory;
+    } else if (newIndex >= groupStart && newIndex < channelStart) {
+      targetList = kTargetListGroup;
+    } else {
+      targetList = kTargetListChannel;
+    }
+    final viewportHeight = getViewportHeight(targetList, context);
 
     setState(() {
       if (newIndex >= _categoryStartIndex && newIndex < groupStart) {
@@ -1183,6 +1219,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
@@ -1204,8 +1241,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = _viewPortKey.currentContext?.findRenderObject()?.size.height ??
-          MediaQuery.of(context).size.height;
+      final viewportHeight = getViewportHeight(kTargetListCategory, context);
       scrollTo(
         targetList: kTargetListCategory,
         index: _categoryIndex,
@@ -1257,6 +1293,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 修改部分开始：使用 viewportDimension 替换 RenderObject
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1270,8 +1307,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = (_viewPortKey.currentContext?.findRenderObject() as RenderBox?)?.size.height ??
-          MediaQuery.of(context).size.height;
+      final viewportHeight = getViewportHeight(kTargetListGroup, context);
       scrollTo(
         targetList: kTargetListGroup,
         index: _groupIndex,
@@ -1309,6 +1345,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
+  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
@@ -1326,7 +1363,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = MediaQuery.of(context).size.height;
+      final viewportHeight = getViewportHeight(kTargetListChannel, context);
       scrollTo(
         targetList: kTargetListChannel,
         index: _channelIndex,
@@ -1363,13 +1400,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetList: kTargetListGroup,
       index: _groupIndex,
       isMovingUp: false,
-      viewportHeight: MediaQuery.of(context).size.height,
+      viewportHeight: getViewportHeight(kTargetListGroup, context),
     );
     scrollTo(
       targetList: kTargetListChannel,
       index: _channelIndex,
       isMovingUp: false,
-      viewportHeight: MediaQuery.of(context).size.height,
+      viewportHeight: getViewportHeight(kTargetListChannel, context),
     );
   }
 
@@ -1389,7 +1426,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             targetList: kTargetListEpg,
             index: _selEPGIndex,
             isMovingUp: false,
-            viewportHeight: MediaQuery.of(context).size.height,
+            viewportHeight: getViewportHeight(kTargetListEpg, context),
           );
         }
         return;
@@ -1414,7 +1451,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           targetList: kTargetListEpg,
           index: _selEPGIndex,
           isMovingUp: false,
-          viewportHeight: MediaQuery.of(context).size.height,
+          viewportHeight: getViewportHeight(kTargetListEpg, context),
         );
       }
     } catch (e, stackTrace) {
