@@ -355,6 +355,7 @@ class CategoryList extends StatefulWidget {
   final bool isTV;
   final int startIndex;
   final ItemScrollController scrollController;
+  final GlobalKey listKey; // 新增：为分类列表添加 GlobalKey
 
   const CategoryList({
     super.key,
@@ -364,6 +365,7 @@ class CategoryList extends StatefulWidget {
     required this.isTV,
     this.startIndex = kInitialIndex,
     required this.scrollController,
+    required this.listKey,
   });
 
   @override
@@ -394,6 +396,7 @@ class _CategoryListState extends State<CategoryList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
+        key: widget.listKey, // 使用 GlobalKey
         itemScrollController: widget.scrollController,
         itemCount: 1,
         itemBuilder: (context, _) => Group(
@@ -432,6 +435,7 @@ class GroupList extends StatefulWidget {
   final bool isFavoriteCategory;
   final int startIndex;
   final bool isSystemAutoSelected;
+  final GlobalKey listKey; // 新增：为分组列表添加 GlobalKey
 
   const GroupList({
     super.key,
@@ -444,6 +448,7 @@ class GroupList extends StatefulWidget {
     this.startIndex = kInitialIndex,
     this.isFavoriteCategory = false,
     required this.isSystemAutoSelected,
+    required this.listKey,
   });
 
   @override
@@ -478,6 +483,7 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
+        key: widget.listKey, // 使用 GlobalKey
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
         itemCount: 1,
@@ -533,6 +539,7 @@ class ChannelList extends StatefulWidget {
   final bool isTV;
   final int startIndex;
   final bool isSystemAutoSelected;
+  final GlobalKey listKey; // 新增：为频道列表添加 GlobalKey
 
   const ChannelList({
     super.key,
@@ -544,6 +551,7 @@ class ChannelList extends StatefulWidget {
     required this.isTV,
     this.startIndex = kInitialIndex,
     this.isSystemAutoSelected = false,
+    required this.listKey,
   });
 
   @override
@@ -580,6 +588,7 @@ class _ChannelListState extends State<ChannelList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
+        key: widget.listKey, // 使用 GlobalKey
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
         itemCount: 1,
@@ -615,6 +624,7 @@ class EPGList extends StatefulWidget {
   final bool isTV;
   final ItemScrollController epgScrollController;
   final VoidCallback onCloseDrawer;
+  final GlobalKey listKey; // 新增：为 EPG 列表添加 GlobalKey
 
   const EPGList({
     super.key,
@@ -623,6 +633,7 @@ class EPGList extends StatefulWidget {
     required this.isTV,
     required this.epgScrollController,
     required this.onCloseDrawer,
+    required this.listKey,
   });
 
   @override
@@ -674,6 +685,7 @@ class _EPGListState extends State<EPGList> {
           kVerticalDivider,
           Flexible(
             child: ScrollablePositionedList.builder(
+              key: widget.listKey, // 使用 GlobalKey
               initialScrollIndex: widget.selectedIndex,
               itemScrollController: widget.epgScrollController,
               itemCount: widget.epgData?.length ?? kInitialIndex,
@@ -735,6 +747,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final ItemPositionsListener _groupPositionsListener = ItemPositionsListener.create();
   final ItemPositionsListener _channelPositionsListener = ItemPositionsListener.create();
 
+  // 新增：为每个列表添加 GlobalKey
+  final GlobalKey _categoryListKey = GlobalKey();
+  final GlobalKey _groupListKey = GlobalKey();
+  final GlobalKey _channelListKey = GlobalKey();
+  final GlobalKey _epgListKey = GlobalKey();
+
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = kInitialIndex;
@@ -772,30 +790,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
   }
 
-  // 修改部分开始：新增 getViewportHeight 方法
+  // 修改部分开始：使用 GlobalKey 获取每个列表的高度
   double getViewportHeight(String targetList, BuildContext context) {
-    ItemScrollController? scrollController;
+    GlobalKey? listKey;
     switch (targetList) {
       case kTargetListCategory:
-        scrollController = _categoryScrollController;
+        listKey = _categoryListKey;
         break;
       case kTargetListGroup:
-        scrollController = _scrollController;
+        listKey = _groupListKey;
         break;
       case kTargetListChannel:
-        scrollController = _scrollChannelController;
+        listKey = _channelListKey;
         break;
       case kTargetListEpg:
-        scrollController = _epgItemScrollController;
+        listKey = _epgListKey;
         break;
       default:
         return MediaQuery.of(context).size.height;
     }
-    if (scrollController.isAttached) {
-      final scrollPosition = scrollController.scrollController?.position;
-      return scrollPosition?.viewportDimension ?? MediaQuery.of(context).size.height;
-    }
-    return MediaQuery.of(context).size.height;
+    final renderObject = listKey.currentContext?.findRenderObject() as RenderBox?;
+    return renderObject?.size.height ?? MediaQuery.of(context).size.height;
   }
   // 修改部分结束
 
@@ -1164,7 +1179,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分开始：使用 viewportDimension 替换 RenderObject
   void _handleFocusChange(int newIndex) {
     int groupStart = _categoryStartIndex + _categories.length;
     int channelStart = _groupStartIndex + _keys.length;
@@ -1219,7 +1233,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
@@ -1293,7 +1306,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分开始：使用 viewportDimension 替换 RenderObject
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1345,7 +1357,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  // 修改部分结束
 
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
@@ -1495,6 +1506,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
       scrollController: _categoryScrollController,
+      listKey: _categoryListKey, // 传递 GlobalKey
     );
     currentFocusIndex += _categories.length;
 
@@ -1512,6 +1524,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,
       isSystemAutoSelected: _isSystemAutoSelected,
+      listKey: _groupListKey, // 传递 GlobalKey
     );
 
     if (_keys.isNotEmpty) {
@@ -1526,6 +1539,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           positionsListener: _channelPositionsListener,
           startIndex: currentFocusIndex,
           isSystemAutoSelected: _isChannelAutoSelected,
+          listKey: _channelListKey, // 传递 GlobalKey
         );
 
         epgListWidget = EPGList(
@@ -1534,6 +1548,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           isTV: useFocusNavigation,
           epgScrollController: _epgItemScrollController,
           onCloseDrawer: widget.onCloseDrawer,
+          listKey: _epgListKey, // 传递 GlobalKey
         );
       }
     }
