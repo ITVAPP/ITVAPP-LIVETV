@@ -82,8 +82,8 @@ final defaultBackgroundColor = LinearGradient(
     Color(0xFF1A1A1A),
     Color(0xFF2C2C2C),
   ],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
 );
 
 // padding设置
@@ -166,7 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定
+// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定，并处理第一项滚动到顶部
 void addFocusListeners(
   int startIndex,
   int length,
@@ -203,13 +203,25 @@ void addFocusListeners(
           final topVisibleIndex = (currentOffset / itemHeight).floor();
           final bottomVisibleIndex = topVisibleIndex + itemsInViewport - 1;
 
-          if (isMovingDown && itemIndex > bottomVisibleIndex) {
-            if (state is _ChannelDrawerPageState) {
-              state._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0); // 底部固定
-            }
-          } else if (!isMovingDown && itemIndex < topVisibleIndex) {
-            if (state is _ChannelDrawerPageState) {
-              state._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0); // 顶部固定
+          // 获取 ChannelDrawerPage 的状态以访问第一项索引变量
+          final channelDrawerState = state is _ChannelDrawerPageState
+              ? state
+              : context.findAncestorStateOfType<_ChannelDrawerPageState>();
+          if (channelDrawerState != null) {
+            // 判断是否是 GroupList 或 ChannelList 的第一项
+            final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
+                                index == channelDrawerState._channelListFirstIndex;
+
+            if (isFirstItem) {
+              // 无条件滚动到顶部
+              channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+            } else {
+              // 原有逻辑
+              if (isMovingDown && itemIndex > bottomVisibleIndex) {
+                channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
+              } else if (!isMovingDown && itemIndex < topVisibleIndex) {
+                channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+              }
             }
           }
         }
@@ -725,13 +737,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
 
-  // 修改部分：添加视窗高度变量，参考代码方式
+  // 修改部分：添加视窗高度变量，仅在初始化和屏幕变化时设置
   double? _viewPortHeight;
 
-  // 修改部分：移除 _setupScrollControllerListeners，改为直接在 initState 中计算
+  // 修改部分：添加第一项索引变量
+  int _groupListFirstIndex = -1; // GroupList 第一项索引，初始值为 -1 表示未设置
+  int _channelListFirstIndex = -1; // ChannelList 第一项索引，初始值为 -1 表示未设置
+
+  // 修改部分：计算视窗高度，仅在初始化和屏幕变化时调用
   void _calculateViewportHeight() {
     setState(() {
-      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 参考代码方式
+      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 默认值，参考代码方式
+      LogUtil.i('Viewport height set to: $_viewPortHeight');
     });
   }
 
@@ -779,7 +796,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：将 _scrollToCurrentItem 移入类内
+  // 修改部分：将 _scrollToCurrentItem 移入类内，使用 _viewPortHeight
   void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
     if (!controller.hasClients) return;
 
@@ -788,7 +805,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final maxScrollExtent = controller.position.maxScrollExtent;
 
     final itemTop = index * itemHeight;
-    final itemBottom = (itemTop + itemHeight);
+    final itemBottom = itemTop + itemHeight;
 
     double targetOffset;
     if (alignment == 0.0) {
@@ -797,6 +814,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = itemBottom - viewportHeight; // 底部对齐
     } else {
       targetOffset = itemTop - (viewportHeight * alignment - itemHeight / 2); // 中间或其他对齐
+      if (targetOffset < itemTop) {
+        targetOffset = itemTop;
+      }
+      if (targetOffset + viewportHeight < itemBottom) {
+        targetOffset = itemBottom - viewportHeight;
+      }
     }
 
     final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
@@ -815,7 +838,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight(); // 修改部分：初始化时计算视窗高度
+        _calculateViewportHeight(); // 初始化时设置抽屉高度
       });
     });
     _initializeData(); // 统一的初始化方法
@@ -836,7 +859,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         // 重新初始化所有焦点监听器
         _reInitializeFocusListeners();
-        // 修改部分：更新视窗高度
+        // 更新视窗高度
         _calculateViewportHeight();
       });
     }
@@ -902,13 +925,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (newOrientation != isPortrait) {
       setState(() {
         isPortrait = newOrientation;
+        _calculateViewportHeight(); // 屏幕变化时更新抽屉高度
       });
     }
     
-    // 修改部分：屏幕尺寸变化时更新视窗高度
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        _calculateViewportHeight();
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
@@ -1140,21 +1162,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _initializeFocusNodes(totalFocusNodes);
         _updateStartIndexes(includeGroupsAndChannels: true);
 
-        // 判断是否是当前播放频道所在分类
-        if (widget.playModel?.title == null ||
-            !_values[_groupIndex].containsKey(widget.playModel?.title)) {
-          // 不是当前播放频道所在分类时，滚动到顶部
-          _isSystemAutoSelected = true;
-          scrollTo(targetList: 'group', index: 0, alignment: 0.0);
-          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-        } else {
-          // 是当前播放频道所在分类时，滚动到中间
-          _isSystemAutoSelected = false;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-          });
-        }
+        // 在状态更新后检查并调整滚动位置
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          const itemHeight = defaultMinHeight + 12.0;
+          final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5;
+
+          // 分组列表检查
+          final groupOffset = _scrollController.hasClients ? _scrollController.position.pixels : 0.0;
+          final groupTop = _groupIndex * itemHeight;
+          final groupBottom = groupTop + itemHeight;
+          final groupVisible = groupTop >= groupOffset && groupBottom <= groupOffset + viewportHeight;
+
+          // 频道列表检查
+          final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
+          final channelTop = _channelIndex * itemHeight;
+          final channelBottom = channelTop + itemHeight;
+          final channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
+
+          if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
+            // 是当前播放频道所在分类
+            if (!groupVisible) {
+              scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+            }
+            if (!channelVisible) {
+              scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            }
+          } else {
+            // 不是当前播放频道所在分类
+            if (groupOffset > 0) {
+              scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+            }
+            if (channelOffset > 0) {
+              scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            }
+          }
+        });
       }
     });
 
@@ -1186,24 +1228,33 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 重新分配索引
       _updateStartIndexes(includeGroupsAndChannels: true);
 
-      // 判断是否是当前播放频道所在分组
-      if (widget.playModel?.group == _keys[index]) {
-        // 是当前播放频道所在分组，找到对应的频道索引
-        _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (_channelIndex == -1) {
-          _channelIndex = 0;
-        }
+      // 在状态更新后检查并调整滚动位置
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        const itemHeight = defaultMinHeight + 12.0;
+        final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5;
+        final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
+        final channelTop = _channelIndex * itemHeight;
+        final channelBottom = channelTop + itemHeight;
+        final channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
 
-        // 滚动到中间
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-        });
-      } else {
-        // 不是当前播放频道所在分组，滚动到顶部
-        _channelIndex = 0;
-        _isChannelAutoSelected = true;
-        scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-      }
+        if (widget.playModel?.group == _keys[index]) {
+          // 是当前播放频道所在分组
+          _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
+          if (_channelIndex == -1) {
+            _channelIndex = 0;
+          }
+          if (!channelVisible) {
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+          }
+        } else {
+          // 不是当前播放频道所在分组
+          _channelIndex = 0;
+          _isChannelAutoSelected = true;
+          if (channelOffset > 0) {
+            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+          }
+        }
+      });
     });
 
     // 状态更新后重新初始化焦点系统
@@ -1246,7 +1297,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新分类、分组、频道的startIndex
+  // 更新分类、分组、频道的startIndex，并更新第一项索引变量
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = 0; // 分类的起始索引
     int groupStartIndex = categoryStartIndex + _categories.length; // 分组的起始索引
@@ -1262,6 +1313,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
     _channelStartIndex = channelStartIndex;
+
+    // 更新第一项索引变量
+    _groupListFirstIndex = groupStartIndex; // GroupList 第一项
+    _channelListFirstIndex = channelStartIndex; // ChannelList 第一项
   }
 
   // 修改部分：调整滚动位置
@@ -1437,6 +1492,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
+      height: _viewPortHeight, // 使用固定的视窗高度
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
