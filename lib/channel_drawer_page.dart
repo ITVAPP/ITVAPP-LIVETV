@@ -204,9 +204,13 @@ void addFocusListeners(
           final bottomVisibleIndex = topVisibleIndex + itemsInViewport - 1;
 
           if (isMovingDown && itemIndex > bottomVisibleIndex) {
-            _scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0); // 底部固定
+            if (state is _ChannelDrawerPageState) {
+              state._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0); // 底部固定
+            }
           } else if (!isMovingDown && itemIndex < topVisibleIndex) {
-            _scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0); // 顶部固定
+            if (state is _ChannelDrawerPageState) {
+              state._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0); // 顶部固定
+            }
           }
         }
       }
@@ -773,6 +777,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (scrollController != null && scrollController.hasClients) {
       _scrollToCurrentItem(scrollController, index, alignment: alignment);
     }
+  }
+
+  // 修改部分：将 _scrollToCurrentItem 移入类内
+  void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
+    if (!controller.hasClients) return;
+
+    const itemHeight = defaultMinHeight + 12.0; // 54.0，固定项高度（最小高度 + padding）
+    final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5; // 使用类内变量
+    final maxScrollExtent = controller.position.maxScrollExtent;
+
+    final itemTop = index * itemHeight;
+    final itemBottom = (itemTop + itemHeight);
+
+    double targetOffset;
+    if (alignment == 0.0) {
+      targetOffset = itemTop; // 顶部对齐
+    } else if (alignment == 1.0) {
+      targetOffset = itemBottom - viewportHeight; // 底部对齐
+    } else {
+      targetOffset = itemTop - (viewportHeight * alignment - itemHeight / 2); // 中间或其他对齐
+    }
+
+    final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
+    controller.animateTo(
+      clampedOffset,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -1453,32 +1485,4 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       ),
     );
   }
-}
-
-// 修改部分：优化滚动工具函数，使用固定高度和参考代码的视窗高度
-void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
-  if (!controller.hasClients) return;
-
-  const itemHeight = defaultMinHeight + 12.0; // 54.0，固定项高度（最小高度 + padding）
-  final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5; // 使用参考代码方式
-  final maxScrollExtent = controller.position.maxScrollExtent;
-
-  final itemTop = index * itemHeight;
-  final itemBottom = (itemTop + itemHeight);
-
-  double targetOffset;
-  if (alignment == 0.0) {
-    targetOffset = itemTop; // 顶部对齐
-  } else if (alignment == 1.0) {
-    targetOffset = itemBottom - viewportHeight; // 底部对齐
-  } else {
-    targetOffset = itemTop - (viewportHeight * alignment - itemHeight / 2); // 中间或其他对齐
-  }
-
-  final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
-  controller.animateTo(
-    clampedOffset,
-    duration: const Duration(milliseconds: 200),
-    curve: Curves.easeInOut,
-  );
 }
