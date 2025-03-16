@@ -23,8 +23,7 @@ const double kHorizontalDividerHeight = 1.0; // 水平分割线高度
 const double kDefaultMinHeight = 42.0; // 默认最小高度
 const double kItemPaddingVertical = 6.0; // 列表项垂直内边距
 const double kItemPaddingHorizontal = 8.0; // 列表项水平内边距
-const double kItemHeightExtraPadding = 12.0; // 列表项高度额外内边距
-const double kItemHeightDivider = 1.0; // 列表项分隔线高度
+const double kItemHeight = kDefaultMinHeight + 12.0 + 1.0; // 修改代码：内联 kItemHeightExtraPadding 和 kItemHeightDivider
 const double kCategoryWidthPortrait = 110.0; // 竖屏模式下分类列表宽度
 const double kCategoryWidthLandscape = 120.0; // 横屏模式下分类列表宽度
 const double kGroupWidthPortrait = 120.0; // 竖屏模式下分组列表宽度
@@ -137,9 +136,6 @@ const kSelectedTextStyle = TextStyle(
     ),
   ],
 );
-
-// 计算项高度
-const double kItemHeight = kDefaultMinHeight + kItemHeightExtraPadding + kItemHeightDivider;
 
 // 背景色
 final kDefaultBackgroundColor = LinearGradient(
@@ -337,14 +333,14 @@ Widget buildListItem({
       : listItemContent;
 }
 
+// 修改后的 CategoryList，移除 scrollController
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
-  final ItemScrollController scrollController;
-  final GlobalKey listKey; // 新增：为分类列表添加 GlobalKey
+  final GlobalKey listKey; // 保留 GlobalKey
 
   const CategoryList({
     super.key,
@@ -353,7 +349,6 @@ class CategoryList extends StatefulWidget {
     required this.onCategoryTap,
     required this.isTV,
     this.startIndex = kInitialIndex,
-    required this.scrollController,
     required this.listKey,
   });
 
@@ -417,7 +412,7 @@ class GroupList extends StatefulWidget {
   final bool isFavoriteCategory;
   final int startIndex;
   final bool isSystemAutoSelected;
-  final GlobalKey listKey; // 新增：为分组列表添加 GlobalKey
+  final GlobalKey listKey;
 
   const GroupList({
     super.key,
@@ -465,7 +460,7 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
-        key: widget.listKey, // 使用 GlobalKey
+        key: widget.listKey,
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
         itemCount: 1,
@@ -517,7 +512,7 @@ class ChannelList extends StatefulWidget {
   final bool isTV;
   final int startIndex;
   final bool isSystemAutoSelected;
-  final GlobalKey listKey; // 新增：为频道列表添加 GlobalKey
+  final GlobalKey listKey;
 
   const ChannelList({
     super.key,
@@ -566,7 +561,7 @@ class _ChannelListState extends State<ChannelList> {
     return Container(
       decoration: BoxDecoration(gradient: kDefaultBackgroundColor),
       child: ScrollablePositionedList.builder(
-        key: widget.listKey, // 使用 GlobalKey
+        key: widget.listKey,
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
         itemCount: 1,
@@ -598,7 +593,7 @@ class EPGList extends StatefulWidget {
   final bool isTV;
   final ItemScrollController epgScrollController;
   final VoidCallback onCloseDrawer;
-  final GlobalKey listKey; // 新增：为 EPG 列表添加 GlobalKey
+  final GlobalKey listKey;
 
   const EPGList({
     super.key,
@@ -659,7 +654,7 @@ class _EPGListState extends State<EPGList> {
           kVerticalDivider,
           Flexible(
             child: ScrollablePositionedList.builder(
-              key: widget.listKey, // 使用 GlobalKey
+              key: widget.listKey,
               initialScrollIndex: widget.selectedIndex,
               itemScrollController: widget.epgScrollController,
               itemCount: widget.epgData?.length ?? kInitialIndex,
@@ -754,18 +749,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   bool _isIndexInViewport(ItemPositionsListener positionsListener, int targetIndex, double viewportHeight) {
     final positions = positionsListener.itemPositions.value;
-    if (positions.isEmpty) return false;
-
-    final firstVisible = positions.firstWhere(
-      (pos) => pos.itemLeadingEdge >= 0,
-      orElse: () => positions.first,
-    );
-    final lastVisible = positions.lastWhere(
-      (pos) => pos.itemTrailingEdge <= 1,
-      orElse: () => positions.last,
-    );
-
-    return targetIndex >= firstVisible.index && targetIndex <= lastVisible.index;
+    return positions.any((pos) => pos.index == targetIndex && pos.itemLeadingEdge >= 0 && pos.itemTrailingEdge <= 1);
   }
 
   void _updateViewportHeights() {
@@ -795,7 +779,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 新增 _scrollWhenReady 方法
   void _scrollWhenReady({
     required String targetList,
     required int index,
@@ -827,9 +810,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: targetList,
           index: index,
-          isMovingUp: isMovingUp,
           viewportHeight: viewportHeight,
-          forceAlignment: forceAlignment,
         );
       } else {
         LogUtil.i('$targetList controller not attached, retrying...');
@@ -843,43 +824,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void scrollTo({
     required String targetList,
     required int index,
-    required bool isMovingUp,
     required double viewportHeight,
-    double? forceAlignment,
   }) {
     ItemScrollController? scrollController;
-    ItemPositionsListener? positionsListener;
     int maxIndex = kInitialIndex;
-    int itemCount = 0;
 
     switch (targetList) {
       case kTargetListCategory:
         scrollController = _categoryScrollController;
-        positionsListener = null;
         maxIndex = _categories.length - 1;
-        itemCount = _categories.length;
         break;
       case kTargetListGroup:
         scrollController = _scrollController;
-        positionsListener = _groupPositionsListener;
         maxIndex = _keys.length - 1;
-        itemCount = _keys.length;
         break;
       case kTargetListChannel:
         scrollController = _scrollChannelController;
-        positionsListener = _channelPositionsListener;
         maxIndex = _values.isNotEmpty && _groupIndex >= kInitialIndex && _groupIndex < _values.length
             ? _values[_groupIndex].length - 1
             : kInitialIndex;
-        itemCount = _values.isNotEmpty && _groupIndex >= kInitialIndex && _groupIndex < _values.length
-            ? _values[_groupIndex].length
-            : 0;
         break;
       case kTargetListEpg:
         scrollController = _epgItemScrollController;
-        positionsListener = null;
         maxIndex = _epgData?.length ?? kInitialIndex - 1;
-        itemCount = _epgData?.length ?? 0;
         break;
       default:
         LogUtil.i('Invalid scroll target: $targetList');
@@ -887,47 +854,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     if (index < kInitialIndex || index > maxIndex || scrollController == null || !scrollController.isAttached) {
-      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, LiberalIndex=$maxIndex');
+      LogUtil.i('$targetList scroll index out of bounds or controller not attached: index=$index, maxIndex=$maxIndex');
       return;
-    }
-
-    double alignment;
-    if (forceAlignment != null) {
-      alignment = forceAlignment.clamp(0.0, 1.0);
-    } else {
-      final positions = positionsListener?.itemPositions.value ?? [];
-      if (positions.isEmpty && positionsListener != null) {
-        alignment = isMovingUp ? 0.0 : 1.0;
-      } else if (positionsListener == null) {
-        alignment = isMovingUp ? 0.0 : 1.0;
-      } else {
-        final firstVisible = positions.firstWhere((pos) => pos.itemLeadingEdge >= 0, orElse: () => positions.first);
-        final lastVisible = positions.lastWhere((pos) => pos.itemTrailingEdge <= 1, orElse: () => positions.last);
-        final visibleItemCount = (viewportHeight / kItemHeight).floor();
-
-        if (isMovingUp) {
-          if (index <= firstVisible.index) {
-            alignment = 0.0;
-          } else if (index >= lastVisible.index - visibleItemCount + 1) {
-            alignment = (index - firstVisible.index) / visibleItemCount;
-          } else {
-            return;
-          }
-        } else {
-          if (index >= lastVisible.index) {
-            alignment = 1.0;
-          } else if (index <= firstVisible.index + visibleItemCount - 1) {
-            alignment = (index - firstVisible.index) / visibleItemCount;
-          } else {
-            return;
-          }
-        }
-      }
     }
 
     scrollController.scrollTo(
       index: index,
-      alignment: alignment,
       duration: kScrollDuration,
     );
   }
@@ -941,29 +873,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   void _initializeFocusNodes() {
-    // 计算当前所需的焦点节点总数
-    int totalFocusNodes = _categories.length; // 分类数量
+    int totalFocusNodes = _categories.length;
     if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-      totalFocusNodes += _keys.length; // 分组数量
+      totalFocusNodes += _keys.length;
       if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-        totalFocusNodes += _values[_groupIndex].length; // 当前分组的频道数量
+        totalFocusNodes += _values[_groupIndex].length;
       }
     }
 
-    // 释放所有现有节点
     for (var node in _focusNodes) {
       node.dispose();
     }
     _focusNodes.clear();
     _focusStates.clear();
 
-    // 生成新的焦点节点
     _focusNodes = List.generate(
       totalFocusNodes,
       (index) => FocusNode(debugLabel: 'Node $index'),
     );
 
-    // 更新起始索引
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _groupStartIndex + _keys.length;
@@ -979,9 +907,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
         _initializeData();
-        _initializeFocusNodes();  // 初始化焦点节点
+        _initializeFocusNodes();
         _setupFocusListeners();
       });
+      _updateViewportHeights();
     });
   }
 
@@ -992,11 +921,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _initializeData();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
-          _initializeFocusNodes();  // 更新焦点节点
+          _initializeFocusNodes();
           _setupFocusListeners();
         });
         if (_tvKeyNavigationState != null) {
-          _tvKeyNavigationState!.releaseResources();  // 释放旧资源
+          _tvKeyNavigationState!.releaseResources();
           _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + _categoryIndex);
         }
       });
@@ -1007,7 +936,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _initializeCategoryData();
     _initializeChannelData();
 
-    _initializeFocusNodes();  // 初始化焦点节点
+    _initializeFocusNodes();
 
     _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
 
@@ -1051,7 +980,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (newOrientation != isPortrait) {
       setState(() {
         isPortrait = newOrientation;
-        _initializeFocusNodes();  // 更新焦点节点
+        _initializeFocusNodes();
         _setupFocusListeners();
         _adjustScrollPositions();
       });
@@ -1060,7 +989,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       });
     }
   }
-  
+
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
@@ -1270,21 +1199,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: kTargetListCategory,
           index: _categoryIndex,
-          isMovingUp: newIndex < _currentFocusIndex,
           viewportHeight: viewportHeight,
         );
       } else if (newIndex >= groupStart && newIndex < channelStart) {
         scrollTo(
           targetList: kTargetListGroup,
           index: _groupIndex,
-          isMovingUp: newIndex < _currentFocusIndex,
           viewportHeight: viewportHeight,
         );
       } else if (newIndex >= channelStart && newIndex < _focusNodes.length) {
         scrollTo(
           targetList: kTargetListChannel,
           index: _channelIndex,
-          isMovingUp: newIndex < _currentFocusIndex,
           viewportHeight: viewportHeight,
         );
       }
@@ -1302,17 +1228,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _resetChannelData();
         _isSystemAutoSelected = true;
         _updateStartIndexes(includeGroupsAndChannels: false);
-        _initializeFocusNodes();  // 切换分类时重新生成
+        _initializeFocusNodes();
       } else {
         _initializeChannelData();
         _updateStartIndexes(includeGroupsAndChannels: true);
-        _initializeFocusNodes();  // 切换分类时重新生成
+        _initializeFocusNodes();
       }
       _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();  // 释放旧资源
+        _tvKeyNavigationState!.releaseResources();
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _categoryStartIndex + index);
       }
       final viewportHeight = getViewportHeight(kTargetListCategory, context);
@@ -1378,12 +1304,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
-      _initializeFocusNodes();  // 切换分组时重新生成
+      _initializeFocusNodes();
       _setupFocusListeners();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.releaseResources();  // 释放旧资源
+        _tvKeyNavigationState!.releaseResources();
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: _groupStartIndex + index);
       }
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
@@ -1481,13 +1407,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     scrollTo(
       targetList: kTargetListGroup,
       index: _groupIndex,
-      isMovingUp: false,
       viewportHeight: getViewportHeight(kTargetListGroup, context),
     );
     scrollTo(
       targetList: kTargetListChannel,
       index: _channelIndex,
-      isMovingUp: false,
       viewportHeight: getViewportHeight(kTargetListChannel, context),
     );
   }
@@ -1507,7 +1431,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           scrollTo(
             targetList: kTargetListEpg,
             index: _selEPGIndex,
-            isMovingUp: false,
             viewportHeight: getViewportHeight(kTargetListEpg, context),
           );
         }
@@ -1532,7 +1455,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: kTargetListEpg,
           index: _selEPGIndex,
-          isMovingUp: false,
           viewportHeight: getViewportHeight(kTargetListEpg, context),
         );
       }
@@ -1568,13 +1490,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     int currentFocusIndex = kInitialIndex;
 
+    // 修改：移除 scrollController 参数
     Widget categoryListWidget = CategoryList(
       categories: _categories,
       selectedCategoryIndex: _categoryIndex,
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
-      scrollController: _categoryScrollController,
       listKey: _categoryListKey,
     );
     currentFocusIndex += _categories.length;
@@ -1625,7 +1547,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return TvKeyNavigation(
       focusNodes: _ensureCorrectFocusNodes(),
       cacheName: kCacheName,
-      isVerticalGroup: true, // 启用竖向分组
+      isVerticalGroup: true,
       initialIndex: 0,
       onStateCreated: _handleTvKeyNavigationStateCreated,
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
