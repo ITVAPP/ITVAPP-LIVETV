@@ -263,7 +263,8 @@ void _initializeFocusNodes(int totalCount) {
     }
     _focusNodes.clear();
     _focusStates.clear();
-    _focusNodes = List.generate(totalCount, (index) => FocusNode());
+    _focusNodes = List.generate(totalCount, (index) => FocusNode(debugLabel: 'Node $index'));
+    LogUtil.i('Initialized ${_focusNodes.length} focus nodes for totalCount=$totalCount');
   }
 }
 
@@ -1316,6 +1317,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _channelIndex = kInitialIndex;
         _isChannelAutoSelected = true;
       }
+      int totalFocusNodes = _calculateTotalFocusNodes();
+      _initializeFocusNodes(totalFocusNodes); // 更新焦点节点
+      _setupFocusListeners(); // 重新绑定监听器
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = getViewportHeight(kTargetListGroup, context);
