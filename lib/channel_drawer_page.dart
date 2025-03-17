@@ -76,6 +76,10 @@ const selectedTextStyle = TextStyle(
 // 最小高度
 const defaultMinHeight = 42.0;
 
+// 修改部分：添加全局常量用于列表项高度
+const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 12.0 + 1.0; // 55.0（42.0 + 12.0 + 1.0）
+const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight + 12.0; // 54.0（最后一项无分割线）
+
 // 背景色
 final defaultBackgroundColor = LinearGradient(
   colors: [
@@ -166,7 +170,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改部分：优化焦点监听逻辑，考虑边距、分隔线和部分显示项
+// 修改部分：优化焦点监听逻辑，使用预计算的抽屉高度和项高度
 void addFocusListeners(
   int startIndex,
   int length,
@@ -191,43 +195,24 @@ void addFocusListeners(
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
           bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
-          _lastFocusedIndex = index; // 更新上一个焦点索引
+          _lastFocusedIndex = index;
 
-          // 项高度：包含最小高度、padding 和分割线
-          const itemHeightWithDivider = defaultMinHeight + 12.0 + 1.0; // 55.0（42.0 + 12.0 + 1.0）
-          const itemHeightWithoutDivider = defaultMinHeight + 12.0; // 54.0（最后一项无分割线）
-
-          // 计算真实的抽屉高度
-          double getDrawerHeight() {
-            double screenHeight = MediaQuery.of(state.context).size.height;
-            double appBarHeight = 48.0 + 1 + MediaQuery.of(state.context).padding.top;
-            double playerHeight = MediaQuery.of(state.context).size.width / (16 / 9);
-            double bottomPadding = MediaQuery.of(state.context).padding.bottom;
-            double leftPadding = MediaQuery.of(state.context).padding.left; // 考虑抽屉左侧padding
-
-            if (MediaQuery.of(state.context).orientation == Orientation.landscape) {
-              return screenHeight - leftPadding; // 横屏时减去左侧padding
-            } else {
-              double drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding - leftPadding;
-              return drawerHeight > 0 ? drawerHeight : 0; // 竖屏时计算剩余高度
-            }
-          }
-
-          final viewportHeight = getDrawerHeight();
+          // 使用类成员变量获取预计算的抽屉高度
+          final viewportHeight = (state as _ChannelDrawerPageState)._drawerHeight;
           final currentOffset = scrollController.position.pixels;
           final maxScrollExtent = scrollController.position.maxScrollExtent;
 
-          // 计算视窗内完整项数和部分显示高度
-          final fullItemsInViewport = (viewportHeight / itemHeightWithDivider).floor();
-          final remainingHeight = viewportHeight - (fullItemsInViewport * itemHeightWithDivider);
-          final hasPartialItem = remainingHeight > 0; // 是否有部分显示项
+          // 计算视窗内完整项数和部分显示高度，使用全局常量
+          final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
+          final remainingHeight = viewportHeight - (fullItemsInViewport * ITEM_HEIGHT_WITH_DIVIDER);
+          final hasPartialItem = remainingHeight > 0;
 
           // 当前可见范围
-          final topVisibleIndex = (currentOffset / itemHeightWithDivider).floor();
+          final topVisibleIndex = (currentOffset / ITEM_HEIGHT_WITH_DIVIDER).floor();
           double bottomOffset = currentOffset + viewportHeight;
           int bottomVisibleIndex = topVisibleIndex + fullItemsInViewport;
-          if (hasPartialItem && bottomOffset >= (bottomVisibleIndex + 1) * itemHeightWithDivider) {
-            bottomVisibleIndex++; // 包含部分显示项
+          if (hasPartialItem && bottomOffset >= (bottomVisibleIndex + 1) * ITEM_HEIGHT_WITH_DIVIDER) {
+            bottomVisibleIndex++;
           }
 
           // 添加调试日志
@@ -237,7 +222,6 @@ void addFocusListeners(
               'fullItemsInViewport=$fullItemsInViewport, viewportHeight=$viewportHeight, '
               'remainingHeight=$remainingHeight');
 
-          // 获取 ChannelDrawerPage 的状态
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
@@ -247,18 +231,14 @@ void addFocusListeners(
             final isLastItem = itemIndex == length - 1;
 
             if (isFirstItem) {
-              // 无条件滚动到顶部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
               LogUtil.i('滚动到第一项: itemIndex=$itemIndex');
             } else if (isLastItem && isMovingDown) {
-              // 最后一项下移，滚动到底部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
               LogUtil.i('滚动到最后一项: itemIndex=$itemIndex');
             } else {
-              // 中间项逻辑：考虑部分显示项
-              if (isMovingDown && itemIndex > bottomVisibleIndex) {
-                // 下移超出底部：新焦点完全可见
-                final targetOffset = (itemIndex - fullItemsInViewport) * itemHeightWithDivider;
+              if (isMovingDown && (itemIndex >= bottomVisibleIndex || itemIndex > topVisibleIndex + fullItemsInViewport - 1)) {
+                final targetOffset = (itemIndex + 1) * ITEM_HEIGHT_WITH_DIVIDER - viewportHeight;
                 final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
                 scrollController.animateTo(
                   clampedOffset,
@@ -267,8 +247,7 @@ void addFocusListeners(
                 );
                 LogUtil.i('下移超出底部: itemIndex=$itemIndex, targetOffset=$clampedOffset');
               } else if (!isMovingDown && itemIndex < topVisibleIndex) {
-                // 上移超出顶部：新焦点完全可见
-                final targetOffset = itemIndex * itemHeightWithDivider;
+                final targetOffset = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
                 final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
                 scrollController.animateTo(
                   clampedOffset,
@@ -277,7 +256,6 @@ void addFocusListeners(
                 );
                 LogUtil.i('上移超出顶部: itemIndex=$itemIndex, targetOffset=$clampedOffset');
               }
-              // 焦点在视窗内（包括部分显示项）时不滚动
             }
           }
         }
@@ -797,6 +775,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 修改部分：添加视窗高度变量，参考代码方式
   double? _viewPortHeight;
 
+  // 修改部分：添加抽屉高度成员变量
+  double _drawerHeight = 0.0;
+
   // 修改部分：添加第一项索引变量
   int _groupListFirstIndex = -1; // GroupList 第一项索引，初始值为 -1 表示未设置
   int _channelListFirstIndex = -1; // ChannelList 第一项索引，初始值为 -1 表示未设置
@@ -806,6 +787,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     setState(() {
       _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 参考代码方式
     });
+  }
+
+  // 修改部分：计算抽屉高度的方法
+  void _calculateDrawerHeight() {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
+    double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+    double bottomPadding = MediaQuery.of(context).padding.bottom;
+    double leftPadding = MediaQuery.of(context).padding.left;
+
+    if (MediaQuery.of(context).orientation == Orientation.landscape) {
+      _drawerHeight = screenHeight - leftPadding;
+    } else {
+      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding - leftPadding;
+      _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
+    }
+    LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
   // 修改部分：优化滚动方法，支持指定对齐方式
@@ -889,7 +887,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight(); // 修改部分：初始化时计算视窗高度
+        _calculateViewportHeight(); // 原有视窗高度计算
+        _calculateDrawerHeight();  // 初始化抽屉高度
       });
     });
     _initializeData(); // 统一的初始化方法
@@ -979,10 +978,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       });
     }
     
-    // 修改部分：屏幕尺寸变化时更新视窗高度
+    // 修改部分：屏幕尺寸变化时更新视窗高度和抽屉高度
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _calculateViewportHeight();
+        _calculateDrawerHeight();  // 更新抽屉高度
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
@@ -1181,7 +1181,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：切换分类时更新分组和频道，支持滚动需求
+  // 修改部分：切换分类时更新分组和频道，使用 _drawerHeight 并恢复滚动
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1216,8 +1216,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
         // 在状态更新后检查并调整滚动位置
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          const itemHeight = defaultMinHeight + 12.0;
-          final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5;
+          const itemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 使用全局常量 55.0
+          final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
 
           // 分组列表检查
           final groupOffset = _scrollController.hasClients ? _scrollController.position.pixels : 0.0;
@@ -1234,22 +1234,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
             // 是当前播放频道所在分类
             if (!groupVisible) {
-              // scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
-              LogUtil.i('分类切换 - 分组不可见: _groupIndex=$_groupIndex');
+              scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+              LogUtil.i('分类切换 - 分组不可见，已滚动到中间: _groupIndex=$_groupIndex');
             }
             if (!channelVisible) {
-              // scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-              LogUtil.i('分类切换 - 频道不可见: _channelIndex=$_channelIndex');
+              scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+              LogUtil.i('分类切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
             }
           } else {
             // 不是当前播放频道所在分类
             if (groupOffset > 0) {
-              // scrollTo(targetList: 'group', index: 0, alignment: 0.0);
-              LogUtil.i('分类切换 - 重置分组到顶部');
+              scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+              LogUtil.i('分类切换 - 分组不在顶部，已滚动到顶部');
             }
             if (channelOffset > 0) {
-              // scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-              LogUtil.i('分类切换 - 重置频道到顶部');
+              scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+              LogUtil.i('分类切换 - 频道不在顶部，已滚动到顶部');
             }
           }
         });
@@ -1266,7 +1266,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：切换分组时更新频道，支持滚动需求，注释掉 scrollTo 并添加日志
+  // 修改部分：切换分组时更新频道，使用 _drawerHeight 并恢复滚动
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1286,8 +1286,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
       // 在状态更新后检查并调整滚动位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        const itemHeight = defaultMinHeight + 12.0;
-        final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5;
+        const itemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 使用全局常量 55.0
+        final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
         final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
         final channelTop = _channelIndex * itemHeight;
         final channelBottom = channelTop + itemHeight;
@@ -1300,16 +1300,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _channelIndex = 0;
           }
           if (!channelVisible) {
-            // scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-            LogUtil.i('分组切换 - 频道不可见: _channelIndex=$_channelIndex');
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            LogUtil.i('分组切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
           }
         } else {
           // 不是当前播放频道所在分组
           _channelIndex = 0;
           _isChannelAutoSelected = true;
           if (channelOffset > 0) {
-            // scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-            LogUtil.i('分组切换 - 重置频道到顶部');
+            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            LogUtil.i('分组切换 - 频道不在顶部，已滚动到顶部');
           }
         }
       });
