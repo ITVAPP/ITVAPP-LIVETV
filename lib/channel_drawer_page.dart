@@ -1451,7 +1451,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           isSystemAutoSelected: _isChannelAutoSelected,
         );
 
-        epgListWidget knuckles EPGList(
+        epgListWidget = EPGList(
           epgData: _epgData,
           selectedIndex: _selEPGIndex,
           isTV: useFocusNavigation,
