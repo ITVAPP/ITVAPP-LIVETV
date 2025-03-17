@@ -1080,7 +1080,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (region != null && region.isNotEmpty) {
         regionPrefix = region.length >= 2 ? region.substring(0, 2) : region;
       }
-      if (city != null && city.isNotEmpty)แห่ง
+      if (city != null && city.isNotEmpty) {
         cityPrefix = city.length >= 2 ? city.substring(0, 2) : city;
       }
     } catch (e) {
@@ -1177,7 +1177,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：切换分类时更新分组和频道，直接指定滚动位置
+  // 修改部分：切换分类时更新分组和频道，使用 _drawerHeight 并恢复滚动
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1196,60 +1196,58 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _initializeChannelData();
         // 计算新分类下的总节点数，并初始化 FocusNode
         int totalFocusNodes = _categories.length;
+        // 确保_keys 不为空且_values 有效时才添加其长度
         if (_keys.isNotEmpty) {
           totalFocusNodes += _keys.length;
+          // 确保 _groupIndex 有效且_values[_groupIndex] 存在
           if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
             totalFocusNodes += _values[_groupIndex].length;
           }
         }
         _initializeFocusNodes(totalFocusNodes);
       }
+      // 修改部分：移除条件判断，直接调用 _updateStartIndexes
       _updateStartIndexes(includeGroupsAndChannels: true);
-    });
 
-    // 在状态更新后调整滚动位置
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_keys.isEmpty) return; // 无分组时无需滚动
+      // 在状态更新后检查并调整滚动位置
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        const itemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 使用全局常量 55.0
+        final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
 
-      // 判断是否为当前播放频道所在分类
-      bool isCurrentPlayingCategory = widget.playModel?.title != null &&
-          _values[_groupIndex].containsKey(widget.playModel?.title);
-
-      if (isCurrentPlayingCategory) {
-        // 是当前播放频道所在分类，分组和频道不在视窗时滚动到中间
+        // 分组列表检查
         final groupOffset = _scrollController.hasClients ? _scrollController.position.pixels : 0.0;
+        final groupTop = _groupIndex * itemHeight;
+        final groupBottom = groupTop + itemHeight;
+        final groupVisible = groupTop >= groupOffset && groupBottom <= groupOffset + viewportHeight;
+
+        // 频道列表检查
         final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
-        final viewportHeight = _drawerHeight;
-        final groupTop = _groupIndex * ITEM_HEIGHT_WITH_DIVIDER;
-        final groupBottom = groupTop + ITEM_HEIGHT_WITH_DIVIDER;
-        final channelTop = _channelIndex * ITEM_HEIGHT_WITH_DIVIDER;
-        final channelBottom = channelTop + ITEM_HEIGHT_WITH_DIVIDER;
+        final channelTop = _channelIndex * itemHeight;
+        final channelBottom = channelTop + itemHeight;
+        final channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
 
-        bool groupVisible = groupTop >= groupOffset && groupBottom <= groupOffset + viewportHeight;
-        bool channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
-
-        if (!groupVisible) {
-          scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
-          LogUtil.i('分类切换 - 是当前播放分类，分组不可见，滚动到中间: _groupIndex=$_groupIndex');
+        if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
+          // 是当前播放频道所在分类
+          if (!groupVisible) {
+            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+            LogUtil.i('分类切换 - 分组不可见，已滚动到中间: _groupIndex=$_groupIndex');
+          }
+          if (!channelVisible) {
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            LogUtil.i('分类切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
+          }
+        } else {
+          // 不是当前播放频道所在分类
+          if (groupOffset > 0) {
+            scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+            LogUtil.i('分类切换 - 分组不在顶部，已滚动到顶部');
+          }
+          if (channelOffset > 0) {
+            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            LogUtil.i('分类切换 - 频道不在顶部，已滚动到顶部');
+          }
         }
-        if (!channelVisible) {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-          LogUtil.i('分类切换 - 是当前播放分类，频道不可见，滚动到中间: _channelIndex=$_channelIndex');
-        }
-      } else {
-        // 不是当前播放频道所在分类，不在顶部时滚动到顶部
-        final groupOffset = _scrollController.hasClients ? _scrollController.position.pixels : 0.0;
-        final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
-
-        if (groupOffset > 0) {
-          scrollTo(targetList: 'group', index: 0, alignment: 0.0);
-          LogUtil.i('分类切换 - 非当前播放分类，分组不在顶部，滚动到顶部');
-        }
-        if (channelOffset > 0) {
-          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-          LogUtil.i('分类切换 - 非当前播放分类，频道不在顶部，滚动到顶部');
-        }
-      }
+      });
     });
 
     // 重新初始化焦点系统
@@ -1262,7 +1260,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：切换分组时更新频道，直接指定滚动位置
+  // 修改部分：切换分组时更新频道，使用 _drawerHeight 并恢复滚动
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1277,40 +1275,38 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               ? _values[_groupIndex].length
               : 0);
       _initializeFocusNodes(totalFocusNodes);
+      // 重新分配索引
       _updateStartIndexes(includeGroupsAndChannels: true);
-    });
 
-    // 在状态更新后调整滚动位置
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 判断是否为当前播放频道所在分组
-      bool isCurrentPlayingGroup = widget.playModel?.group == _keys[index];
-
-      if (isCurrentPlayingGroup) {
-        // 是当前播放频道所在分组，频道不在视窗时滚动到中间
-        _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (_channelIndex == -1) _channelIndex = 0;
-
+      // 在状态更新后检查并调整滚动位置
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        const itemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 使用全局常量 55.0
+        final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
         final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
-        final viewportHeight = _drawerHeight;
-        final channelTop = _channelIndex * ITEM_HEIGHT_WITH_DIVIDER;
-        final channelBottom = channelTop + ITEM_HEIGHT_WITH_DIVIDER;
-        bool channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
+        final channelTop = _channelIndex * itemHeight;
+        final channelBottom = channelTop + itemHeight;
+        final channelVisible = channelTop >= channelOffset && channelBottom <= channelOffset + viewportHeight;
 
-        if (!channelVisible) {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
-          LogUtil.i('分组切换 - 是当前播放分组，频道不可见，滚动到中间: _channelIndex=$_channelIndex');
+        if (widget.playModel?.group == _keys[index]) {
+          // 是当前播放频道所在分组
+          _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
+          if (_channelIndex == -1) {
+            _channelIndex = 0;
+          }
+          if (!channelVisible) {
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            LogUtil.i('分组切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
+          }
+        } else {
+          // 不是当前播放频道所在分组
+          _channelIndex = 0;
+          _isChannelAutoSelected = true;
+          if (channelOffset > 0) {
+            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            LogUtil.i('分组切换 - 频道不在顶部，已滚动到顶部');
+          }
         }
-      } else {
-        // 不是当前播放频道所在分组，不在顶部时滚动到顶部
-        _channelIndex = 0;
-        _isChannelAutoSelected = true;
-
-        final channelOffset = _scrollChannelController.hasClients ? _scrollChannelController.position.pixels : 0.0;
-        if (channelOffset > 0) {
-          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-          LogUtil.i('分组切换 - 非当前播放分组，频道不在顶部，滚动到顶部');
-        }
-      }
+      });
     });
 
     // 状态更新后重新初始化焦点系统
@@ -1320,6 +1316,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.releaseResources();
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: firstChannelFocusIndex);
       }
+      // 重新初始化所有焦点监听器
       _reInitializeFocusListeners();
     });
   }
