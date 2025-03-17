@@ -831,8 +831,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
-  // 修改部分：移除 _scrollToCurrentItem 方法（不再需要，由 scrollTo 直接实现）
-
   @override
   void initState() {
     super.initState();
@@ -920,9 +918,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scrollController.jumpTo(0); // 清理时重置位置
-    _scrollChannelController.jumpTo(0);
-    _categoryScrollController.jumpTo(0);
+    // 修改部分：修复清理逻辑，使用 scrollTo 替代 jumpTo
+    if (_scrollController.isAttached) {
+      _scrollController.scrollTo(index: 0, duration: Duration.zero);
+    }
+    if (_scrollChannelController.isAttached) {
+      _scrollChannelController.scrollTo(index: 0, duration: Duration.zero);
+    }
+    if (_categoryScrollController.isAttached) {
+      _categoryScrollController.scrollTo(index: 0, duration: Duration.zero);
+    }
     _focusNodes.forEach((node) => node.dispose());
     _focusNodes.clear();
     _focusStates.clear();
@@ -1446,7 +1451,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           isSystemAutoSelected: _isChannelAutoSelected,
         );
 
-        epgListWidget = EPGList(
+        epgListWidget knuckles EPGList(
           epgData: _epgData,
           selectedIndex: _selEPGIndex,
           isTV: useFocusNavigation,
