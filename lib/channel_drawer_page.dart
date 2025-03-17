@@ -402,13 +402,13 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Group(
-        groupIndex: 0,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded( // 使用 Expanded 填充可用空间
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded( // 使用 Expanded 填充可用空间
+            child: Group(
+              groupIndex: 0,
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
                 itemCount: widget.categories.length,
@@ -433,8 +433,8 @@ class _CategoryListState extends State<CategoryList> {
                 },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -506,13 +506,13 @@ class _GroupListState extends State<GroupList> {
                 ),
               ),
             )
-          : Group(
-              groupIndex: 1,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded( // 使用 Expanded 填充可用空间
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded( // 使用 Expanded 填充可用空间
+                  child: Group(
+                    groupIndex: 1,
                     child: ScrollablePositionedList.builder(
                       itemScrollController: widget.scrollController,
                       itemCount: widget.keys.length,
@@ -532,8 +532,8 @@ class _GroupListState extends State<GroupList> {
                       },
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
     );
   }
@@ -595,13 +595,13 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Group(
-        groupIndex: 2,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded( // 使用 Expanded 填充可用空间
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded( // 使用 Expanded 填充可用空间
+            child: Group(
+              groupIndex: 2,
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
                 itemCount: channelList.length,
@@ -624,8 +624,8 @@ class _ChannelListState extends State<ChannelList> {
                 },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -914,7 +914,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 4. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
-      _loadEPGMsg(widget.playModel);
+     
+
+ _loadEPGMsg(widget.playModel);
     }
   }
 
