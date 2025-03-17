@@ -498,7 +498,6 @@ class _GroupListState extends State<GroupList> {
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: widget.keys.isEmpty && widget.isFavoriteCategory
           ? ListView(
-              controller: widget.scrollController,
               children: [
                 Container(
                   width: double.infinity,
