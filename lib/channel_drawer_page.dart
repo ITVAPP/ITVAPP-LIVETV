@@ -779,6 +779,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   List<GlobalKey> _groupKeys = [];
   List<GlobalKey> _channelKeys = [];
 
+  // 修改部分：添加 _calculateViewportHeight 方法
+  void _calculateViewportHeight() {
+    setState(() {
+      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 设置为屏幕高度的50%
+    });
+    LogUtil.i('Viewport height calculated: _viewPortHeight=$_viewPortHeight');
+  }
+
   // 修改部分：计算抽屉高度的方法
   void _calculateDrawerHeight() {
     double screenHeight = MediaQuery.of(context).size.height;
@@ -877,7 +885,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight(); // 原有视窗高度计算
+        _calculateViewportHeight(); // 修改部分：调用已定义的方法
         _calculateDrawerHeight();  // 初始化抽屉高度
       });
     });
@@ -902,7 +910,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         // 重新初始化所有焦点监听器
         _reInitializeFocusListeners();
-        // 修改部分：更新视窗高度
+        // 修改部分：调用已定义的方法
         _calculateViewportHeight();
         // 修改部分：在 didUpdateWidget 中更新索引
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
@@ -985,7 +993,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 修改部分：屏幕尺寸变化时更新视窗高度和抽屉高度
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        _calculateViewportHeight();
+        _calculateViewportHeight(); // 修改部分：调用已定义的方法
         _calculateDrawerHeight();  // 更新抽屉高度
         _adjustScrollPositions();
         _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
