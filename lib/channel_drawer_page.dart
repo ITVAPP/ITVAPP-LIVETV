@@ -139,27 +139,22 @@ BoxDecoration buildItemDecoration({
 }) {
   return BoxDecoration(
     gradient: getGradientForDecoration(
-      isTV: isTV,
-      hasFocus: hasFocus,
       isSelected: isSelected,
+      hasFocus: hasFocus,
+      isTV: isTV,
       isSystemAutoSelected: isSystemAutoSelected,
     ),
-    border: Border.all(
-      color: hasFocus || (isSelected && !isSystemAutoSelected)
-          ? Colors.white.withOpacity(0.3)
-          : Colors.transparent,
-      width: 1.5, // 加粗边框
-    ),
-    borderRadius: BorderRadius.circular(8), // 添加圆角
-    boxShadow: hasFocus
+    borderRadius: BorderRadius.circular(8),
+    // 移除 border，使用 boxShadow 表示焦点/选中状态
+    boxShadow: hasFocus || (isSelected && !isSystemAutoSelected)
         ? [
             BoxShadow(
-              color: focusColor.withOpacity(0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
+              color: Colors.white.withOpacity(0.3),
+              blurRadius: 4.0,
+              spreadRadius: 1.0,
             ),
           ]
-        : [],
+        : null,
   );
 }
 
@@ -894,6 +889,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       });
     });
     _initializeData(); // 统一的初始化方法
+
+    // 修改部分：在 initState 中调用 _updateStartIndexes，确保索引初始化
+    _updateStartIndexes(includeGroupsAndChannels: true);
   }
 
   @override
@@ -913,6 +911,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _reInitializeFocusListeners();
         // 修改部分：更新视窗高度
         _calculateViewportHeight();
+        // 修改部分：在 didUpdateWidget 中更新索引
+        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
     }
   }
