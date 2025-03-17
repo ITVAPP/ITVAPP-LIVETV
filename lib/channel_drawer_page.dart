@@ -194,7 +194,18 @@ void addFocusListeners(
           _lastFocusedIndex = index; // 更新上一个焦点索引
 
           const itemHeight = defaultMinHeight + 12.0; // 54.0，固定高度（最小高度 + padding）
-          final viewportHeight = MediaQuery.of(state.context).size.height * 0.5; // 参考代码方式获取视窗高度
+          // 修改部分：使用 RenderBox 获取真实的视窗高度
+          double viewportHeight;
+          if (scrollController.hasClients) {
+            final renderObject = state.context.findRenderObject();
+            if (renderObject is RenderBox) {
+              viewportHeight = renderObject.size.height;
+            } else {
+              viewportHeight = MediaQuery.of(state.context).size.height * 0.7; // 回退值
+            }
+          } else {
+            viewportHeight = MediaQuery.of(state.context).size.height * 0.7; // 回退值
+          }
           final currentOffset = scrollController.position.pixels;
           final maxScrollExtent = scrollController.position.maxScrollExtent;
 
@@ -205,7 +216,8 @@ void addFocusListeners(
           // 添加调试日志
           LogUtil.i('焦点变化: index=$index, itemIndex=$itemIndex, isMovingDown=$isMovingDown, '
               'topVisibleIndex=$topVisibleIndex, bottomVisibleIndex=$bottomVisibleIndex, '
-              'currentOffset=$currentOffset, hasClients=${scrollController.hasClients}');
+              'currentOffset=$currentOffset, hasClients=${scrollController.hasClients}, '
+              'itemsInViewport=$itemsInViewport, viewportHeight=$viewportHeight');
 
           // 获取 ChannelDrawerPage 的状态以访问第一项索引变量
           final channelDrawerState = state is _ChannelDrawerPageState
@@ -228,9 +240,17 @@ void addFocusListeners(
             } else {
               // 中间项逻辑：根据移动方向调整滚动
               if (isMovingDown && itemIndex > bottomVisibleIndex) {
-                channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
-                LogUtil.i('下移超出底部: itemIndex=$itemIndex, targetAlignment=1.0');
+                // 修改部分：滚动到新焦点固定在底部
+                final targetOffset = (itemIndex - itemsInViewport + 1) * itemHeight;
+                final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
+                scrollController.animateTo(
+                  clampedOffset,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                );
+                LogUtil.i('下移超出底部: itemIndex=$itemIndex, targetOffset=$clampedOffset');
               } else if (!isMovingDown && itemIndex < topVisibleIndex) {
+                // 上移超出顶部，直接滚动到顶部对齐
                 channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
                 LogUtil.i('上移超出顶部: itemIndex=$itemIndex, targetAlignment=0.0');
               }
