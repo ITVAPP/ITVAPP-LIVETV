@@ -355,7 +355,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ScrollablePositionedList 包裹 Group
+// 修改部分：CategoryList 使用 ScrollablePositionedList 包裹 Group，并传递 FocusNode 给 TvKeyNavigation
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -380,6 +380,7 @@ class CategoryList extends StatefulWidget {
 
 class _CategoryListState extends State<CategoryList> {
   Map<int, bool> _localFocusStates = {};
+  late List<FocusNode> focusNodes; // 新增：FocusNode 列表
 
   @override
   void initState() {
@@ -388,6 +389,8 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
+    // 新增：初始化 FocusNode 列表
+    focusNodes = List.generate(widget.categories.length, (_) => FocusNode());
     addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
   }
 
@@ -395,52 +398,64 @@ class _CategoryListState extends State<CategoryList> {
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.categories.length);
     _localFocusStates.clear();
+    // 新增：清理 FocusNode
+    for (var node in focusNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Group(
-        groupIndex: 0,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded( // 使用 Expanded 填充可用空间
-              child: ScrollablePositionedList.builder(
-                itemScrollController: widget.scrollController,
-                itemCount: widget.categories.length,
-                itemBuilder: (context, index) {
-                  final category = widget.categories[index];
-                  final displayTitle = category == Config.myFavoriteKey
-                      ? S.of(context).myfavorite
-                      : category == Config.allChannelsKey
-                          ? S.of(context).allchannels
-                          : category;
+    return TvKeyNavigation(
+      focusNodes: focusNodes, // 传递给 TvKeyNavigation 的 focusNodes
+      groupFocusNodes: {0: focusNodes}, // 新增：将 focusNodes 作为分组 0 传递
+      child: Container(
+        decoration: BoxDecoration(gradient: defaultBackgroundColor),
+        child: Group(
+          groupIndex: 0,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded( // 使用 Expanded 填充可用空间
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: widget.scrollController,
+                  itemCount: widget.categories.length,
+                  itemBuilder: (context, index) {
+                    final category = widget.categories[index];
+                    final displayTitle = category == Config.myFavoriteKey
+                        ? S.of(context).myfavorite
+                        : category == Config.allChannelsKey
+                            ? S.of(context).allchannels
+                            : category;
 
-                  return buildListItem(
-                    title: displayTitle,
-                    isSelected: widget.selectedCategoryIndex == index,
-                    onTap: () => widget.onCategoryTap(index),
-                    isCentered: true,
-                    isTV: widget.isTV,
-                    context: context,
-                    index: widget.startIndex + index,
-                    isLastItem: index == widget.categories.length - 1,
-                  );
-                },
+                    return Focus(
+                      focusNode: focusNodes[index], // 新增：使用本地的 focusNodes
+                      child: buildListItem(
+                        title: displayTitle,
+                        isSelected: widget.selectedCategoryIndex == index,
+                        onTap: () => widget.onCategoryTap(index),
+                        isCentered: true,
+                        isTV: widget.isTV,
+                        context: context,
+                        index: widget.startIndex + index,
+                        isLastItem: index == widget.categories.length - 1,
+                        useFocusableItem: false, // 新增：避免重复包裹 FocusableItem
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// 修改部分：GroupList 使用单一 Group 包裹整个列表，与 CategoryList 一致
+// 修改部分：GroupList 使用单一 Group 包裹整个列表，并传递 FocusNode 给 TvKeyNavigation
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -469,6 +484,7 @@ class GroupList extends StatefulWidget {
 
 class _GroupListState extends State<GroupList> {
   Map<int, bool> _localFocusStates = {};
+  late List<FocusNode> focusNodes; // 新增：FocusNode 列表
 
   @override
   void initState() {
@@ -477,6 +493,8 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
+    // 新增：初始化 FocusNode 列表
+    focusNodes = List.generate(widget.keys.length, (_) => FocusNode());
     // 修改部分：在焦点监听中绑定滚动控制器
     addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
@@ -485,6 +503,10 @@ class _GroupListState extends State<GroupList> {
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.keys.length);
     _localFocusStates.clear();
+    // 新增：清理 FocusNode
+    for (var node in focusNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -515,40 +537,48 @@ class _GroupListState extends State<GroupList> {
                 ),
               ],
             )
-          : Group(  // 修改：将 Group 移到外部，包裹整个 Column
-              groupIndex: 1,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded( // 使用 Expanded 填充可用空间
-                    child: ScrollablePositionedList.builder(
-                      itemScrollController: widget.scrollController,
-                      itemCount: widget.keys.length,
-                      itemBuilder: (context, index) {
-                        return buildListItem(  // 修改：移除内部 Group
-                          title: widget.keys[index],
-                          isSelected: widget.selectedGroupIndex == index,
-                          onTap: () => widget.onGroupTap(index),
-                          isCentered: false,
-                          isTV: widget.isTV,
-                          minHeight: defaultMinHeight,
-                          context: context,
-                          index: widget.startIndex + index,
-                          isLastItem: index == widget.keys.length - 1,
-                          isSystemAutoSelected: widget.isSystemAutoSelected,
-                        );
-                      },
+          : TvKeyNavigation(
+              focusNodes: focusNodes, // 传递给 TvKeyNavigation 的 focusNodes
+              groupFocusNodes: {1: focusNodes}, // 新增：将 focusNodes 作为分组 1 传递
+              child: Group(
+                groupIndex: 1,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded( // 使用 Expanded 填充可用空间
+                      child: ScrollablePositionedList.builder(
+                        itemScrollController: widget.scrollController,
+                        itemCount: widget.keys.length,
+                        itemBuilder: (context, index) {
+                          return Focus(
+                            focusNode: focusNodes[index], // 新增：使用本地的 focusNodes
+                            child: buildListItem(
+                              title: widget.keys[index],
+                              isSelected: widget.selectedGroupIndex == index,
+                              onTap: () => widget.onGroupTap(index),
+                              isCentered: false,
+                              isTV: widget.isTV,
+                              minHeight: defaultMinHeight,
+                              context: context,
+                              index: widget.startIndex + index,
+                              isLastItem: index == widget.keys.length - 1,
+                              isSystemAutoSelected: widget.isSystemAutoSelected,
+                              useFocusableItem: false, // 新增：避免重复包裹 FocusableItem
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
   }
 }
 
-// 修改部分：ChannelList 使用单一 Group 包裹整个列表，与 CategoryList 一致
+// 修改部分：ChannelList 使用单一 Group 包裹整个列表，并传递 FocusNode 给 TvKeyNavigation
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -575,6 +605,7 @@ class ChannelList extends StatefulWidget {
 
 class _ChannelListState extends State<ChannelList> {
   Map<int, bool> _localFocusStates = {};
+  late List<FocusNode> focusNodes; // 新增：FocusNode 列表
 
   @override
   void initState() {
@@ -583,6 +614,8 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
+    // 新增：初始化 FocusNode 列表
+    focusNodes = List.generate(widget.channels.length, (_) => FocusNode());
     // 修改部分：在焦点监听中绑定滚动控制器
     addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
@@ -591,6 +624,10 @@ class _ChannelListState extends State<ChannelList> {
   void dispose() {
     removeFocusListeners(widget.startIndex, widget.channels.length);
     _localFocusStates.clear();
+    // 新增：清理 FocusNode
+    for (var node in focusNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -602,38 +639,46 @@ class _ChannelListState extends State<ChannelList> {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Group(  // 修改：将 Group 移到外部，包裹整个 Column
-        groupIndex: 2,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded( // 使用 Expanded 填充可用空间
-              child: ScrollablePositionedList.builder(
-                itemScrollController: widget.scrollController,
-                itemCount: channelList.length,
-                itemBuilder: (context, index) {
-                  final channelEntry = channelList[index];
-                  final channelName = channelEntry.key;
-                  final isSelect = widget.selectedChannelName == channelName;
-                  return buildListItem(  // 修改：移除内部 Group
-                    title: channelName,
-                    isSelected: !widget.isSystemAutoSelected && isSelect,
-                    onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                    isCentered: false,
-                    minHeight: defaultMinHeight,
-                    isTV: widget.isTV,
-                    context: context,
-                    index: widget.startIndex + index,
-                    isLastItem: index == channelList.length - 1,
-                    isSystemAutoSelected: widget.isSystemAutoSelected,
-                  );
-                },
+    return TvKeyNavigation(
+      focusNodes: focusNodes, // 传递给 TvKeyNavigation 的 focusNodes
+      groupFocusNodes: {2: focusNodes}, // 新增：将 focusNodes 作为分组 2 传递
+      child: Container(
+        decoration: BoxDecoration(gradient: defaultBackgroundColor),
+        child: Group(
+          groupIndex: 2,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded( // 使用 Expanded 填充可用空间
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: widget.scrollController,
+                  itemCount: channelList.length,
+                  itemBuilder: (context, index) {
+                    final channelEntry = channelList[index];
+                    final channelName = channelEntry.key;
+                    final isSelect = widget.selectedChannelName == channelName;
+                    return Focus(
+                      focusNode: focusNodes[index], // 新增：使用本地的 focusNodes
+                      child: buildListItem(
+                        title: channelName,
+                        isSelected: !widget.isSystemAutoSelected && isSelect,
+                        onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                        isCentered: false,
+                        minHeight: defaultMinHeight,
+                        isTV: widget.isTV,
+                        context: context,
+                        index: widget.startIndex + index,
+                        isLastItem: index == channelList.length - 1,
+                        isSystemAutoSelected: widget.isSystemAutoSelected,
+                        useFocusableItem: false, // 新增：避免重复包裹 FocusableItem
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -923,9 +968,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 4. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
-     
-
- _loadEPGMsg(widget.playModel);
+      _loadEPGMsg(widget.playModel);
     }
   }
 
@@ -961,7 +1004,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.removeObserver(this);
     // 修改部分：修复清理逻辑，使用 scrollTo 替代 jumpTo
     if (_scrollController.isAttached) {
-      _scrollController.scrollTo(index: 0, duration: Duration.zero);
+      _scrollController.scrollTo(index:  MEDICINE 0, duration: Duration.zero);
     }
     if (_scrollChannelController.isAttached) {
       _scrollChannelController.scrollTo(index: 0, duration: Duration.zero);
