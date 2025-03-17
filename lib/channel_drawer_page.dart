@@ -166,7 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定，并处理第一项滚动到顶部
+// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定，并添加调试日志
 void addFocusListeners(
   int startIndex,
   int length,
@@ -202,38 +202,37 @@ void addFocusListeners(
           final topVisibleIndex = (currentOffset / itemHeight).floor();
           final bottomVisibleIndex = topVisibleIndex + itemsInViewport - 1;
 
+          // 添加调试日志
+          LogUtil.i('焦点变化: index=$index, itemIndex=$itemIndex, isMovingDown=$isMovingDown, '
+              'topVisibleIndex=$topVisibleIndex, bottomVisibleIndex=$bottomVisibleIndex, '
+              'currentOffset=$currentOffset, hasClients=${scrollController.hasClients}');
+
           // 获取 ChannelDrawerPage 的状态以访问第一项索引变量
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState != null) {
-            // 判断是否是 GroupList 或 ChannelList 的第一项
+            // 判断是否是 GroupList 或 ChannelList 的第一项或最后一项
             final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
-                                index == channelDrawerState._channelListFirstIndex;
+                index == channelDrawerState._channelListFirstIndex;
             final isLastItem = itemIndex == length - 1;
 
             if (isFirstItem) {
               // 无条件滚动到顶部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+              LogUtil.i('滚动到第一项: itemIndex=$itemIndex');
             } else if (isLastItem && isMovingDown) {
-              // 最后一项下移，固定底部
+              // 最后一项下移，滚动到底部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
+              LogUtil.i('滚动到最后一项: itemIndex=$itemIndex');
             } else {
-              // 中间项逻辑：确保焦点固定在顶部或底部
-              if (isMovingDown && itemIndex >= bottomVisibleIndex + 1) {
-                final targetOffset = (itemIndex - itemsInViewport + 1) * itemHeight;
-                scrollController.animateTo(
-                  targetOffset.clamp(0.0, maxScrollExtent),
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                );
-              } else if (!isMovingDown && itemIndex <= topVisibleIndex - 1) {
-                final targetOffset = itemIndex * itemHeight;
-                scrollController.animateTo(
-                  targetOffset.clamp(0.0, maxScrollExtent),
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                );
+              // 中间项逻辑：根据移动方向调整滚动
+              if (isMovingDown && itemIndex > bottomVisibleIndex) {
+                channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
+                LogUtil.i('下移超出底部: itemIndex=$itemIndex, targetAlignment=1.0');
+              } else if (!isMovingDown && itemIndex < topVisibleIndex) {
+                channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
+                LogUtil.i('上移超出顶部: itemIndex=$itemIndex, targetAlignment=0.0');
               }
             }
           }
@@ -260,6 +259,7 @@ void _initializeFocusNodes(int totalCount) {
     _focusNodes.clear();
     _focusStates.clear();
     _focusNodes = List.generate(totalCount, (index) => FocusNode());
+    LogUtil.i('FocusNodes 初始化: totalCount=$totalCount, _focusNodes.length=${_focusNodes.length}');
   }
 }
 
@@ -805,6 +805,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (scrollController != null && scrollController.hasClients) {
       _scrollToCurrentItem(scrollController, index, alignment: alignment);
+      LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
     }
   }
 
@@ -1189,18 +1190,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
             // 是当前播放频道所在分类
             if (!groupVisible) {
-              scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+              // scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+              LogUtil.i('分类切换 - 分组不可见: _groupIndex=$_groupIndex');
             }
             if (!channelVisible) {
-              scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+              // scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+              LogUtil.i('分类切换 - 频道不可见: _channelIndex=$_channelIndex');
             }
           } else {
             // 不是当前播放频道所在分类
             if (groupOffset > 0) {
-              scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+              // scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+              LogUtil.i('分类切换 - 重置分组到顶部');
             }
             if (channelOffset > 0) {
-              scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+              // scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+              LogUtil.i('分类切换 - 重置频道到顶部');
             }
           }
         });
@@ -1217,7 +1222,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：切换分组时更新频道，支持滚动需求
+  // 修改部分：切换分组时更新频道，支持滚动需求，注释掉 scrollTo 并添加日志
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1251,14 +1256,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _channelIndex = 0;
           }
           if (!channelVisible) {
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            // scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            LogUtil.i('分组切换 - 频道不可见: _channelIndex=$_channelIndex');
           }
         } else {
           // 不是当前播放频道所在分组
           _channelIndex = 0;
           _isChannelAutoSelected = true;
           if (channelOffset > 0) {
-            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            // scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+            LogUtil.i('分组切换 - 重置频道到顶部');
           }
         }
       });
