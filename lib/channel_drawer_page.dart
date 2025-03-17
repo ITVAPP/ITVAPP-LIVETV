@@ -296,7 +296,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数（修改部分：移除 key 参数，恢复鼠标点击，固定高度并避免换行）
+// 通用列表项构建函数（修改部分：添加 GlobalKey 参数）
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -310,6 +310,7 @@ Widget buildListItem({
   bool useFocusableItem = true,
   bool isLastItem = false,
   bool isSystemAutoSelected = false,
+  GlobalKey? itemKey, // 修改部分：添加 GlobalKey
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
       ? _focusNodes[index]
@@ -336,6 +337,7 @@ Widget buildListItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
+            key: itemKey, // 修改部分：使用传入的 GlobalKey
             height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
@@ -364,7 +366,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 分类列表组件
+// 分类列表组件（不修改）
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -437,7 +439,7 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
-// 分组列表组件（修改部分：绑定焦点监听和滚动）
+// 分组列表组件（修改部分：添加 GlobalKey）
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ScrollController scrollController;
@@ -447,6 +449,7 @@ class GroupList extends StatefulWidget {
   final bool isFavoriteCategory;
   final int startIndex;
   final bool isSystemAutoSelected;
+  final List<GlobalKey> groupKeys; // 修改部分：添加 groupKeys
 
   const GroupList({
     super.key,
@@ -458,6 +461,7 @@ class GroupList extends StatefulWidget {
     this.startIndex = 0,
     this.isFavoriteCategory = false,
     required this.isSystemAutoSelected,
+    required this.groupKeys, // 修改部分：添加 groupKeys
   });
 
   @override
@@ -474,7 +478,6 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改部分：在焦点监听中绑定滚动控制器
     addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
 
@@ -514,31 +517,29 @@ class _GroupListState extends State<GroupList> {
             )
           : ListView(
               controller: widget.scrollController,
-              children: [
-                Group(
-                  groupIndex: 1,
-                  children: List.generate(widget.keys.length, (index) {
-                    return buildListItem(
-                      title: widget.keys[index],
-                      isSelected: widget.selectedGroupIndex == index,
-                      onTap: () => widget.onGroupTap(index),
-                      isCentered: false,
-                      isTV: widget.isTV,
-                      minHeight: defaultMinHeight,
-                      context: context,
-                      index: widget.startIndex + index,
-                      isLastItem: index == widget.keys.length - 1,
-                      isSystemAutoSelected: widget.isSystemAutoSelected,
-                    );
-                  }),
-                ),
-              ],
+              children: List.generate(widget.keys.length, (index) {
+                return Container(
+                  key: widget.groupKeys[index], // 修改部分：使用 groupKeys
+                  child: buildListItem(
+                    title: widget.keys[index],
+                    isSelected: widget.selectedGroupIndex == index,
+                    onTap: () => widget.onGroupTap(index),
+                    isCentered: false,
+                    isTV: widget.isTV,
+                    minHeight: defaultMinHeight,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == widget.keys.length - 1,
+                    isSystemAutoSelected: widget.isSystemAutoSelected,
+                  ),
+                );
+              }),
             ),
     );
   }
 }
 
-// 频道列表组件（修改部分：绑定焦点监听和滚动）
+// 频道列表组件（修改部分：添加 GlobalKey）
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ScrollController scrollController;
@@ -547,6 +548,7 @@ class ChannelList extends StatefulWidget {
   final bool isTV;
   final int startIndex;
   final bool isSystemAutoSelected;
+  final List<GlobalKey> channelKeys; // 修改部分：添加 channelKeys
 
   const ChannelList({
     super.key,
@@ -557,6 +559,7 @@ class ChannelList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     this.isSystemAutoSelected = false,
+    required this.channelKeys, // 修改部分：添加 channelKeys
   });
 
   @override
@@ -573,7 +576,6 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改部分：在焦点监听中绑定滚动控制器，移除原始滚动逻辑
     addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
 
@@ -596,36 +598,32 @@ class _ChannelListState extends State<ChannelList> {
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: ListView(
         controller: widget.scrollController,
-        children: [
-          RepaintBoundary(
-            child: Group(
-              groupIndex: 2,
-              children: List.generate(channelList.length, (index) {
-                final channelEntry = channelList[index];
-                final channelName = channelEntry.key;
-                final isSelect = widget.selectedChannelName == channelName;
-                return buildListItem(
-                  title: channelName,
-                  isSelected: !widget.isSystemAutoSelected && isSelect,
-                  onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                  isCentered: false,
-                  minHeight: defaultMinHeight,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == channelList.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
-                );
-              }),
+        children: List.generate(channelList.length, (index) {
+          final channelEntry = channelList[index];
+          final channelName = channelEntry.key;
+          final isSelect = widget.selectedChannelName == channelName;
+          return Container(
+            key: widget.channelKeys[index], // 修改部分：使用 channelKeys
+            child: buildListItem(
+              title: channelName,
+              isSelected: !widget.isSystemAutoSelected && isSelect,
+              onTap: () => widget.onChannelTap(widget.channels[channelName]),
+              isCentered: false,
+              minHeight: defaultMinHeight,
+              isTV: widget.isTV,
+              context: context,
+              index: widget.startIndex + index,
+              isLastItem: index == channelList.length - 1,
+              isSystemAutoSelected: widget.isSystemAutoSelected,
             ),
-          ),
-        ],
+          );
+        }),
       ),
     );
   }
 }
 
-// EPG列表组件
+// EPG列表组件（不修改）
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
@@ -777,12 +775,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _groupListFirstIndex = -1; // GroupList 第一项索引，初始值为 -1 表示未设置
   int _channelListFirstIndex = -1; // ChannelList 第一项索引，初始值为 -1 表示未设置
 
-  // 修改部分：移除 _setupScrollControllerListeners，改为直接在 initState 中计算
-  void _calculateViewportHeight() {
-    setState(() {
-      _viewPortHeight = MediaQuery.of(context).size.height * 0.5; // 参考代码方式
-    });
-  }
+  // 修改部分：添加 GlobalKey 列表
+  List<GlobalKey> _groupKeys = [];
+  List<GlobalKey> _channelKeys = [];
 
   // 修改部分：计算抽屉高度的方法
   void _calculateDrawerHeight() {
@@ -846,34 +841,32 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：将 _scrollToCurrentItem 移入类内，并使用全局常量
+  // 修改部分：使用 GlobalKey 和 ensureVisible 实现滚动
   void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
-    if (!controller.hasClients) return;
-
-    // 判断是否为最后一项，使用全局常量
-    final isLastItem = index == (controller == _scrollController ? _keys.length - 1 : _values[_groupIndex].length - 1);
-    final itemHeight = isLastItem ? ITEM_HEIGHT_WITHOUT_DIVIDER : ITEM_HEIGHT_WITH_DIVIDER; // 54.0 或 55.0
-    final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
-    final maxScrollExtent = controller.position.maxScrollExtent;
-
-    final itemTop = index * itemHeight;
-    final itemBottom = itemTop + itemHeight;
-
-    double targetOffset;
-    if (alignment == 0.0) {
-      targetOffset = itemTop; // 顶部对齐
-    } else if (alignment == 1.0) {
-      targetOffset = itemBottom - viewportHeight; // 底部对齐
-    } else {
-      targetOffset = itemTop - (viewportHeight * alignment - itemHeight / 2); // 中间或其他对齐
+    List<GlobalKey> keys = controller == _scrollController ? _groupKeys : _channelKeys;
+    if (index < 0 || index >= keys.length) {
+      LogUtil.i('滚动索引越界: index=$index, keys.length=${keys.length}');
+      return;
     }
 
-    final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
-    controller.animateTo(
-      clampedOffset,
+    final targetKey = keys[index];
+    final context = targetKey.currentContext;
+    if (context == null) {
+      LogUtil.i('目标项未渲染，索引: $index');
+      return;
+    }
+
+    final renderObject = context.findRenderObject();
+    if (renderObject == null || renderObject is! RenderBox) return;
+
+    // 使用 ensureVisible
+    Scrollable.ensureVisible(
+      context,
+      alignment: alignment, // 0.0 顶部，0.5 中间，1.0 底部
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
+    LogUtil.i('滚动到: index=$index, alignment=$alignment');
   }
 
   @override
@@ -926,6 +919,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 2. 计算并初始化焦点节点
     int totalFocusNodes = _calculateTotalFocusNodes();
     _initializeFocusNodes(totalFocusNodes);
+
+    // 3. 初始化 GlobalKey
+    _groupKeys = List.generate(_keys.length, (_) => GlobalKey());
+    _channelKeys = List.generate(
+      _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+          ? _values[_groupIndex].length
+          : 0,
+      (_) => GlobalKey(),
+    );
 
     // 4. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
@@ -1492,6 +1494,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex, // 分组列表起始索引
       isSystemAutoSelected: _isSystemAutoSelected,
+      groupKeys: _groupKeys, // 修改部分：传递 groupKeys
     );
 
     if (_keys.isNotEmpty) {
@@ -1506,6 +1509,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           scrollController: _scrollChannelController,
           startIndex: currentFocusIndex, // 频道列表起始索引
           isSystemAutoSelected: _isChannelAutoSelected,
+          channelKeys: _channelKeys, // 修改部分：传递 channelKeys
         );
 
         // EPG 列表
