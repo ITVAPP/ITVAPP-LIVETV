@@ -355,13 +355,14 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 分类列表组件
+// 修改部分：CategoryList 使用 ScrollablePositionedList 包裹 Group
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
+  final ItemScrollController scrollController; // 修改：添加 ItemScrollController
 
   const CategoryList({
     super.key,
@@ -370,6 +371,7 @@ class CategoryList extends StatefulWidget {
     required this.onCategoryTap,
     required this.isTV,
     this.startIndex = 0,
+    required this.scrollController,
   });
 
   @override
@@ -386,7 +388,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.categories.length, this);
+    addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -403,25 +405,35 @@ class _CategoryListState extends State<CategoryList> {
       child: Group(
         groupIndex: 0,
         child: Column(
-          children: List.generate(widget.categories.length, (index) {
-            final category = widget.categories[index];
-            final displayTitle = category == Config.myFavoriteKey
-                ? S.of(context).myfavorite
-                : category == Config.allChannelsKey
-                    ? S.of(context).allchannels
-                    : category;
+          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded( // 使用 Expanded 填充可用空间
+              child: ScrollablePositionedList.builder(
+                itemScrollController: widget.scrollController,
+                itemCount: widget.categories.length,
+                itemBuilder: (context, index) {
+                  final category = widget.categories[index];
+                  final displayTitle = category == Config.myFavoriteKey
+                      ? S.of(context).myfavorite
+                      : category == Config.allChannelsKey
+                          ? S.of(context).allchannels
+                          : category;
 
-            return buildListItem(
-              title: displayTitle,
-              isSelected: widget.selectedCategoryIndex == index,
-              onTap: () => widget.onCategoryTap(index),
-              isCentered: true,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == widget.categories.length - 1,
-            );
-          }),
+                  return buildListItem(
+                    title: displayTitle,
+                    isSelected: widget.selectedCategoryIndex == index,
+                    onTap: () => widget.onCategoryTap(index),
+                    isCentered: true,
+                    isTV: widget.isTV,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == widget.categories.length - 1,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1448,6 +1460,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
+      scrollController: _categoryScrollController,
     );
     currentFocusIndex += _categories.length;
 
