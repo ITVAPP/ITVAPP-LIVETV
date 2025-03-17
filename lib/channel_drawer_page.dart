@@ -440,7 +440,7 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
-// 修改部分：GroupList 使用 ScrollablePositionedList 包裹 Group
+// 修改部分：GroupList 使用单一 Group 包裹整个列表，与 CategoryList 一致
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -497,35 +497,36 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? ListView(
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.start, // 整体顶部对齐
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
-                  width: double.infinity,
-                  constraints: BoxConstraints(minHeight: defaultMinHeight),
-                  child: Center(
-                    child: Text(
-                      S.of(context).nofavorite,
-                      textAlign: TextAlign.center,
-                      style: defaultTextStyle.merge(
-                        const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                  height: defaultMinHeight, // 使用与列表项一致的高度
+                  alignment: Alignment.center, // 文字在项内垂直居中
+                  padding: const EdgeInsets.all(8.0), // 保持内边距
+                  child: Text(
+                    S.of(context).nofavorite,
+                    textAlign: TextAlign.center, // 水平居中
+                    style: defaultTextStyle.merge(
+                      const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
             )
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded( // 使用 Expanded 填充可用空间
-                  child: ScrollablePositionedList.builder(
-                    itemScrollController: widget.scrollController,
-                    itemCount: widget.keys.length,
-                    itemBuilder: (context, index) {
-                      return Group(
-                        groupIndex: 1,
-                        child: buildListItem(
+          : Group(  // 修改：将 Group 移到外部，包裹整个 Column
+              groupIndex: 1,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded( // 使用 Expanded 填充可用空间
+                    child: ScrollablePositionedList.builder(
+                      itemScrollController: widget.scrollController,
+                      itemCount: widget.keys.length,
+                      itemBuilder: (context, index) {
+                        return buildListItem(  // 修改：移除内部 Group
                           title: widget.keys[index],
                           isSelected: widget.selectedGroupIndex == index,
                           onTap: () => widget.onGroupTap(index),
@@ -536,18 +537,18 @@ class _GroupListState extends State<GroupList> {
                           index: widget.startIndex + index,
                           isLastItem: index == widget.keys.length - 1,
                           isSystemAutoSelected: widget.isSystemAutoSelected,
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
     );
   }
 }
 
-// 修改部分：ChannelList 使用 ScrollablePositionedList 包裹 Group
+// 修改部分：ChannelList 使用单一 Group 包裹整个列表，与 CategoryList 一致
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -603,21 +604,21 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded( // 使用 Expanded 填充可用空间
-            child: ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemCount: channelList.length,
-              itemBuilder: (context, index) {
-                final channelEntry = channelList[index];
-                final channelName = channelEntry.key;
-                final isSelect = widget.selectedChannelName == channelName;
-                return Group(
-                  groupIndex: 2,
-                  child: buildListItem(
+      child: Group(  // 修改：将 Group 移到外部，包裹整个 Column
+        groupIndex: 2,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded( // 使用 Expanded 填充可用空间
+              child: ScrollablePositionedList.builder(
+                itemScrollController: widget.scrollController,
+                itemCount: channelList.length,
+                itemBuilder: (context, index) {
+                  final channelEntry = channelList[index];
+                  final channelName = channelEntry.key;
+                  final isSelect = widget.selectedChannelName == channelName;
+                  return buildListItem(  // 修改：移除内部 Group
                     title: channelName,
                     isSelected: !widget.isSystemAutoSelected && isSelect,
                     onTap: () => widget.onChannelTap(widget.channels[channelName]),
@@ -628,12 +629,12 @@ class _ChannelListState extends State<ChannelList> {
                     index: widget.startIndex + index,
                     isLastItem: index == channelList.length - 1,
                     isSystemAutoSelected: widget.isSystemAutoSelected,
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
