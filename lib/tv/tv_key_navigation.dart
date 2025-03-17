@@ -12,7 +12,7 @@ Color darkenColor(Color color, [double amount = 0.3]) {
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
-  final Map<int, List<FocusNode>>? groupFocusNodes; // 新增：可选的分组节点参数
+  final Map<int, Map<String, FocusNode>>? groupFocusCache; // 新增：可选的分组缓存参数
   final Function(int index)? onSelect; // 选择某个焦点时的回调
   final Function(LogicalKeyboardKey key)? onKeyPressed; // 按键时的回调
   final bool isFrame; // 是否启用框架模式，用于切换焦点
@@ -27,7 +27,7 @@ class TvKeyNavigation extends StatefulWidget {
     Key? key,
     required this.child,
     required this.focusNodes,
-    this.groupFocusNodes, // 新增参数
+    this.groupFocusCache, // 新增参数
     this.onSelect,
     this.onKeyPressed,
     this.isFrame = false,
@@ -169,7 +169,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  /// 初始化焦点逻辑
+  /// 初始化焦点逻辑（修改部分）
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -181,7 +181,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('正在初始化焦点逻辑，共 ${widget.focusNodes.length} 个节点');
         }
       
-        _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+        // 修改：检查是否传入了 groupFocusCache
+        if (widget.groupFocusCache != null) {
+          _groupFocusCache = Map.from(widget.groupFocusCache!);
+          LogUtil.i('使用传入的 groupFocusCache: $_groupFocusCache');
+        } else {
+          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+        }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -327,35 +334,15 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
     _groupFocusCache.clear();  // 清空缓存
-    
-    if (widget.groupFocusNodes != null) {
-      // 如果传入了 groupFocusNodes，直接使用传入的分组节点
-      for (var entry in widget.groupFocusNodes!.entries) {
-        int groupIndex = entry.key;
-        List<FocusNode> focusNodes = entry.value;
-        if (focusNodes.isNotEmpty) {
-          _groupFocusCache[groupIndex] = {
-            'firstFocusNode': focusNodes.first,
-            'lastFocusNode': focusNodes.last,
-          };
-          LogUtil.i('使用传入的分组 $groupIndex 缓存焦点节点 - '
-                    '首个焦点节点: ${_formatFocusNodeDebugLabel(focusNodes.first)}, '
-                    '最后焦点节点: ${_formatFocusNodeDebugLabel(focusNodes.last)}');
-        } else {
-          LogUtil.i('警告：传入的分组 $groupIndex 没有可聚焦的节点');
-        }
-      }
-    } else {
-      // 如果未传入 groupFocusNodes，使用原有的查找逻辑
-      final groups = _getAllGroups();
-      LogUtil.i('缓存分组：找到的总组数: ${groups.length}');
+    // 获取所有的分组
+    final groups = _getAllGroups();
+    LogUtil.i('缓存分组：找到的总组数: ${groups.length}');
 
-      // 如果没有分组或只有一个分组，处理为默认分组逻辑
-      if (groups.isEmpty || groups.length == 1) {
-        _cacheDefaultGroup();
-      } else {
-        _cacheMultipleGroups(groups);
-      }
+    // 如果没有分组或只有一个分组，处理为默认分组逻辑
+    if (groups.isEmpty || groups.length == 1) {
+      _cacheDefaultGroup();
+    } else {
+      _cacheMultipleGroups(groups);
     }
     
     final cacheName = 'groupCache-${widget.cacheName ?? "TvKeyNavigation"}';
