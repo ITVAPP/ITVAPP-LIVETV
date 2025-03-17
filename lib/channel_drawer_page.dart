@@ -355,7 +355,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ScrollablePositionedList 并强制顶部对齐
+// 修改部分：CategoryList 使用 ScrollablePositionedList 包裹 Group
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -407,20 +407,20 @@ class _CategoryListState extends State<CategoryList> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded( // 使用 Expanded 填充可用空间
-            child: Group(
-              groupIndex: 0,
-              child: ScrollablePositionedList.builder(
-                itemScrollController: widget.scrollController,
-                itemCount: widget.categories.length,
-                itemBuilder: (context, index) {
-                  final category = widget.categories[index];
-                  final displayTitle = category == Config.myFavoriteKey
-                      ? S.of(context).myfavorite
-                      : category == Config.allChannelsKey
-                          ? S.of(context).allchannels
-                          : category;
+            child: ScrollablePositionedList.builder(
+              itemScrollController: widget.scrollController,
+              itemCount: widget.categories.length,
+              itemBuilder: (context, index) {
+                final category = widget.categories[index];
+                final displayTitle = category == Config.myFavoriteKey
+                    ? S.of(context).myfavorite
+                    : category == Config.allChannelsKey
+                        ? S.of(context).allchannels
+                        : category;
 
-                  return buildListItem(
+                return Group(
+                  groupIndex: 0,
+                  child: buildListItem(
                     title: displayTitle,
                     isSelected: widget.selectedCategoryIndex == index,
                     onTap: () => widget.onCategoryTap(index),
@@ -429,9 +429,9 @@ class _CategoryListState extends State<CategoryList> {
                     context: context,
                     index: widget.startIndex + index,
                     isLastItem: index == widget.categories.length - 1,
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -440,7 +440,7 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
-// 修改部分：GroupList 使用 ScrollablePositionedList 并强制顶部对齐
+// 修改部分：GroupList 使用 ScrollablePositionedList 包裹 Group
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -495,29 +495,33 @@ class _GroupListState extends State<GroupList> {
     }
 
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? Center(
-              child: Text(
-                S.of(context).nofavorite,
-                textAlign: TextAlign.center,
-                style: defaultTextStyle.merge(
-                  const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            )
+          decoration: BoxDecoration(gradient: defaultBackgroundColor),
+          child: widget.keys.isEmpty && widget.isFavoriteCategory
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      S.of(context).nofavorite,
+                      textAlign: TextAlign.center, // 水平居中
+                      style: defaultTextStyle.merge(
+                        const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                )
           : Column(
               mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded( // 使用 Expanded 填充可用空间
-                  child: Group(
-                    groupIndex: 1,
-                    child: ScrollablePositionedList.builder(
-                      itemScrollController: widget.scrollController,
-                      itemCount: widget.keys.length,
-                      itemBuilder: (context, index) {
-                        return buildListItem(
+                  child: ScrollablePositionedList.builder(
+                    itemScrollController: widget.scrollController,
+                    itemCount: widget.keys.length,
+                    itemBuilder: (context, index) {
+                      return Group(
+                        groupIndex: 1,
+                        child: buildListItem(
                           title: widget.keys[index],
                           isSelected: widget.selectedGroupIndex == index,
                           onTap: () => widget.onGroupTap(index),
@@ -528,9 +532,9 @@ class _GroupListState extends State<GroupList> {
                           index: widget.startIndex + index,
                           isLastItem: index == widget.keys.length - 1,
                           isSystemAutoSelected: widget.isSystemAutoSelected,
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -539,7 +543,7 @@ class _GroupListState extends State<GroupList> {
   }
 }
 
-// 修改部分：ChannelList 使用 ScrollablePositionedList 并强制顶部对齐
+// 修改部分：ChannelList 使用 ScrollablePositionedList 包裹 Group
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -600,16 +604,16 @@ class _ChannelListState extends State<ChannelList> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded( // 使用 Expanded 填充可用空间
-            child: Group(
-              groupIndex: 2,
-              child: ScrollablePositionedList.builder(
-                itemScrollController: widget.scrollController,
-                itemCount: channelList.length,
-                itemBuilder: (context, index) {
-                  final channelEntry = channelList[index];
-                  final channelName = channelEntry.key;
-                  final isSelect = widget.selectedChannelName == channelName;
-                  return buildListItem(
+            child: ScrollablePositionedList.builder(
+              itemScrollController: widget.scrollController,
+              itemCount: channelList.length,
+              itemBuilder: (context, index) {
+                final channelEntry = channelList[index];
+                final channelName = channelEntry.key;
+                final isSelect = widget.selectedChannelName == channelName;
+                return Group(
+                  groupIndex: 2,
+                  child: buildListItem(
                     title: channelName,
                     isSelected: !widget.isSystemAutoSelected && isSelect,
                     onTap: () => widget.onChannelTap(widget.channels[channelName]),
@@ -620,9 +624,9 @@ class _ChannelListState extends State<ChannelList> {
                     index: widget.startIndex + index,
                     isLastItem: index == channelList.length - 1,
                     isSystemAutoSelected: widget.isSystemAutoSelected,
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -1218,11 +1222,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
           // 是当前播放频道所在分类
           if (_groupIndex >= fullItemsInViewport || _groupIndex < 0) {
-            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
+            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.3);
             LogUtil.i('分类切换 - 分组不可见，已滚动到中间: _groupIndex=$_groupIndex');
           }
           if (_channelIndex >= fullItemsInViewport || _channelIndex < 0) {
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.3);
             LogUtil.i('分类切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
           }
         } else {
@@ -1279,7 +1283,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             _channelIndex = 0;
           }
           if (_channelIndex >= fullItemsInViewport || _channelIndex < 0) {
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
+            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.3);
             LogUtil.i('分组切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
           }
         } else {
