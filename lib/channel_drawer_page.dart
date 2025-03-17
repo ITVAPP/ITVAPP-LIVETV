@@ -498,7 +498,9 @@ class _GroupListState extends State<GroupList> {
                 ),
               ),
             )
-          : ScrollablePositionedList.builder(
+          : child: Group(
+          groupIndex: 1,
+          child:ScrollablePositionedList.builder(
               itemScrollController: widget.scrollController,
               itemCount: widget.keys.length,
               itemBuilder: (context, index) {
@@ -516,6 +518,7 @@ class _GroupListState extends State<GroupList> {
                 );
               },
             ),
+           ),
     );
   }
 }
@@ -576,6 +579,8 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
+      child: Group(
+          groupIndex: 2, 
       child: ScrollablePositionedList.builder(
         itemScrollController: widget.scrollController,
         itemCount: channelList.length,
@@ -597,6 +602,7 @@ class _ChannelListState extends State<ChannelList> {
           );
         },
       ),
+     ),
     );
   }
 }
