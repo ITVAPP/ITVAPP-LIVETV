@@ -355,14 +355,13 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ScrollablePositionedList 包裹 Group
+// 分类列表组件
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
-  final ItemScrollController scrollController; // 修改：添加 ItemScrollController
 
   const CategoryList({
     super.key,
@@ -371,7 +370,6 @@ class CategoryList extends StatefulWidget {
     required this.onCategoryTap,
     required this.isTV,
     this.startIndex = 0,
-    required this.scrollController,
   });
 
   @override
@@ -1450,7 +1448,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
-      scrollController: _categoryScrollController,
     );
     currentFocusIndex += _categories.length;
 
