@@ -166,7 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改后的焦点监听逻辑，支持焦点移动时顶部/底部固定
+// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定，并处理第一项滚动到顶部
 void addFocusListeners(
   int startIndex,
   int length,
@@ -191,41 +191,43 @@ void addFocusListeners(
         if (scrollController != null && currentFocus) {
           final itemIndex = index - startIndex;
           bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
-          _lastFocusedIndex = index;
+          _lastFocusedIndex = index; // 更新上一个焦点索引
 
-          const itemHeight = defaultMinHeight + 12.0; // 每项高度
-          final viewportHeight = MediaQuery.of(state.context).size.height * 0.5; // 视窗高度
+          const itemHeight = defaultMinHeight + 12.0; // 54.0，固定高度（最小高度 + padding）
+          final viewportHeight = MediaQuery.of(state.context).size.height * 0.5; // 参考代码方式获取视窗高度
           final currentOffset = scrollController.position.pixels;
           final maxScrollExtent = scrollController.position.maxScrollExtent;
 
-          final itemsInViewport = (viewportHeight / itemHeight).floor(); // 视窗内项数
+          final itemsInViewport = (viewportHeight / itemHeight).floor();
           final topVisibleIndex = (currentOffset / itemHeight).floor();
           final bottomVisibleIndex = topVisibleIndex + itemsInViewport - 1;
 
+          // 获取 ChannelDrawerPage 的状态以访问第一项索引变量
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState != null) {
-            final isFirstItem = itemIndex == 0;
+            // 判断是否是 GroupList 或 ChannelList 的第一项
+            final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
+                                index == channelDrawerState._channelListFirstIndex;
             final isLastItem = itemIndex == length - 1;
 
-            if (isFirstItem && !isMovingDown) {
-              // 第一项上移，固定顶部
+            if (isFirstItem) {
+              // 无条件滚动到顶部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
             } else if (isLastItem && isMovingDown) {
               // 最后一项下移，固定底部
               channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 1.0);
             } else {
-              if (isMovingDown && itemIndex > bottomVisibleIndex) {
-                // 下移超出底部，新焦点固定在底部
+              // 中间项逻辑：确保焦点固定在顶部或底部
+              if (isMovingDown && itemIndex >= bottomVisibleIndex + 1) {
                 final targetOffset = (itemIndex - itemsInViewport + 1) * itemHeight;
                 scrollController.animateTo(
                   targetOffset.clamp(0.0, maxScrollExtent),
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
                 );
-              } else if (!isMovingDown && itemIndex < topVisibleIndex) {
-                // 上移超出顶部，新焦点固定在顶部
+              } else if (!isMovingDown && itemIndex <= topVisibleIndex - 1) {
                 final targetOffset = itemIndex * itemHeight;
                 scrollController.animateTo(
                   targetOffset.clamp(0.0, maxScrollExtent),
