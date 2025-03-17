@@ -355,7 +355,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ScrollablePositionedList
+// 修改部分：CategoryList 使用 ScrollablePositionedList 并强制顶部对齐
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -404,35 +404,43 @@ class _CategoryListState extends State<CategoryList> {
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: Group(
         groupIndex: 0,
-        child: ScrollablePositionedList.builder(
-          itemScrollController: widget.scrollController,
-          itemCount: widget.categories.length,
-          itemBuilder: (context, index) {
-            final category = widget.categories[index];
-            final displayTitle = category == Config.myFavoriteKey
-                ? S.of(context).myfavorite
-                : category == Config.allChannelsKey
-                    ? S.of(context).allchannels
-                    : category;
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded( // 使用 Expanded 填充可用空间
+              child: ScrollablePositionedList.builder(
+                itemScrollController: widget.scrollController,
+                itemCount: widget.categories.length,
+                itemBuilder: (context, index) {
+                  final category = widget.categories[index];
+                  final displayTitle = category == Config.myFavoriteKey
+                      ? S.of(context).myfavorite
+                      : category == Config.allChannelsKey
+                          ? S.of(context).allchannels
+                          : category;
 
-            return buildListItem(
-              title: displayTitle,
-              isSelected: widget.selectedCategoryIndex == index,
-              onTap: () => widget.onCategoryTap(index),
-              isCentered: true,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == widget.categories.length - 1,
-            );
-          },
+                  return buildListItem(
+                    title: displayTitle,
+                    isSelected: widget.selectedCategoryIndex == index,
+                    onTap: () => widget.onCategoryTap(index),
+                    isCentered: true,
+                    isTV: widget.isTV,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == widget.categories.length - 1,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// 修改部分：GroupList 使用 ScrollablePositionedList
+// 修改部分：GroupList 使用 ScrollablePositionedList 并强制顶部对齐
 class GroupList extends StatefulWidget {
   final List<String> keys;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -498,32 +506,40 @@ class _GroupListState extends State<GroupList> {
                 ),
               ),
             )
-          : child: Group(
-          groupIndex: 1,
-          child:ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemCount: widget.keys.length,
-              itemBuilder: (context, index) {
-                return buildListItem(
-                  title: widget.keys[index],
-                  isSelected: widget.selectedGroupIndex == index,
-                  onTap: () => widget.onGroupTap(index),
-                  isCentered: false,
-                  isTV: widget.isTV,
-                  minHeight: defaultMinHeight,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == widget.keys.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
-                );
-              },
+          : Group(
+              groupIndex: 1,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded( // 使用 Expanded 填充可用空间
+                    child: ScrollablePositionedList.builder(
+                      itemScrollController: widget.scrollController,
+                      itemCount: widget.keys.length,
+                      itemBuilder: (context, index) {
+                        return buildListItem(
+                          title: widget.keys[index],
+                          isSelected: widget.selectedGroupIndex == index,
+                          onTap: () => widget.onGroupTap(index),
+                          isCentered: false,
+                          isTV: widget.isTV,
+                          minHeight: defaultMinHeight,
+                          context: context,
+                          index: widget.startIndex + index,
+                          isLastItem: index == widget.keys.length - 1,
+                          isSystemAutoSelected: widget.isSystemAutoSelected,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-           ),
     );
   }
 }
 
-// 修改部分：ChannelList 使用 ScrollablePositionedList
+// 修改部分：ChannelList 使用 ScrollablePositionedList 并强制顶部对齐
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
   final ItemScrollController scrollController; // 修改：改为 ItemScrollController
@@ -580,29 +596,37 @@ class _ChannelListState extends State<ChannelList> {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: Group(
-          groupIndex: 2, 
-      child: ScrollablePositionedList.builder(
-        itemScrollController: widget.scrollController,
-        itemCount: channelList.length,
-        itemBuilder: (context, index) {
-          final channelEntry = channelList[index];
-          final channelName = channelEntry.key;
-          final isSelect = widget.selectedChannelName == channelName;
-          return buildListItem(
-            title: channelName,
-            isSelected: !widget.isSystemAutoSelected && isSelect,
-            onTap: () => widget.onChannelTap(widget.channels[channelName]),
-            isCentered: false,
-            minHeight: defaultMinHeight,
-            isTV: widget.isTV,
-            context: context,
-            index: widget.startIndex + index,
-            isLastItem: index == channelList.length - 1,
-            isSystemAutoSelected: widget.isSystemAutoSelected,
-          );
-        },
+        groupIndex: 2,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded( // 使用 Expanded 填充可用空间
+              child: ScrollablePositionedList.builder(
+                itemScrollController: widget.scrollController,
+                itemCount: channelList.length,
+                itemBuilder: (context, index) {
+                  final channelEntry = channelList[index];
+                  final channelName = channelEntry.key;
+                  final isSelect = widget.selectedChannelName == channelName;
+                  return buildListItem(
+                    title: channelName,
+                    isSelected: !widget.isSystemAutoSelected && isSelect,
+                    onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                    isCentered: false,
+                    minHeight: defaultMinHeight,
+                    isTV: widget.isTV,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == channelList.length - 1,
+                    isSystemAutoSelected: widget.isSystemAutoSelected,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
-     ),
     );
   }
 }
