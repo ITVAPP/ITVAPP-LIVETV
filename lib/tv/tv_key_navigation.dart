@@ -849,15 +849,13 @@ class Group extends StatelessWidget {
 
 // 用于包装具有焦点的组件
 class FocusableItem extends StatefulWidget { 
-  final FocusNode focusNode; // 焦点节点
-  final Widget child; // 子组件
-  final int? groupIndex;
+  final FocusNode focusNode;
+  final Widget child;
 
   const FocusableItem({
     Key? key,
     required this.focusNode,
     required this.child,
-    this.groupIndex,
   }) : super(key: key);
 
   @override
