@@ -388,7 +388,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
+    addFocusListeners(widget.startIndex, widget.categories.length, this);
   }
 
   @override
@@ -402,39 +402,29 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded( // 使用 Expanded 填充可用空间
-            child: ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemCount: widget.categories.length,
-              itemBuilder: (context, index) {
-                final category = widget.categories[index];
-                final displayTitle = category == Config.myFavoriteKey
-                    ? S.of(context).myfavorite
-                    : category == Config.allChannelsKey
-                        ? S.of(context).allchannels
-                        : category;
+      child: Group(
+        groupIndex: 0,
+        child: Column(
+          children: List.generate(widget.categories.length, (index) {
+            final category = widget.categories[index];
+            final displayTitle = category == Config.myFavoriteKey
+                ? S.of(context).myfavorite
+                : category == Config.allChannelsKey
+                    ? S.of(context).allchannels
+                    : category;
 
-                return Group(
-                  groupIndex: 0,
-                  child: buildListItem(
-                    title: displayTitle,
-                    isSelected: widget.selectedCategoryIndex == index,
-                    onTap: () => widget.onCategoryTap(index),
-                    isCentered: true,
-                    isTV: widget.isTV,
-                    context: context,
-                    index: widget.startIndex + index,
-                    isLastItem: index == widget.categories.length - 1,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+            return buildListItem(
+              title: displayTitle,
+              isSelected: widget.selectedCategoryIndex == index,
+              onTap: () => widget.onCategoryTap(index),
+              isCentered: true,
+              isTV: widget.isTV,
+              context: context,
+              index: widget.startIndex + index,
+              isLastItem: index == widget.categories.length - 1,
+            );
+          }),
+        ),
       ),
     );
   }
@@ -495,21 +485,26 @@ class _GroupListState extends State<GroupList> {
     }
 
     return Container(
-          decoration: BoxDecoration(gradient: defaultBackgroundColor),
-          child: widget.keys.isEmpty && widget.isFavoriteCategory
-              ? Column(
-                  mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
+      decoration: BoxDecoration(gradient: defaultBackgroundColor),
+      child: widget.keys.isEmpty && widget.isFavoriteCategory
+          ? ListView(
+              controller: widget.scrollController,
+              children: [
+                Container(
+                  width: double.infinity,
+                  constraints: BoxConstraints(minHeight: defaultMinHeight),
+                  child: Center(
+                    child: Text(
                       S.of(context).nofavorite,
-                      textAlign: TextAlign.center, // 水平居中
+                      textAlign: TextAlign.center,
                       style: defaultTextStyle.merge(
                         const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ],
-                )
+                  ),
+                ),
+              ],
+            )
           : Column(
               mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
               crossAxisAlignment: CrossAxisAlignment.stretch,
