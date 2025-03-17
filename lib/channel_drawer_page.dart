@@ -166,7 +166,7 @@ Map<int, bool> _focusStates = {};
 // 修改部分：添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 修改部分：优化焦点监听逻辑，支持焦点移动时顶部/底部固定，并添加调试日志
+// 修改部分：优化焦点监听逻辑，使用抽屉高度精确计算视窗项数，支持焦点移动时顶部/底部固定
 void addFocusListeners(
   int startIndex,
   int length,
@@ -194,22 +194,26 @@ void addFocusListeners(
           _lastFocusedIndex = index; // 更新上一个焦点索引
 
           const itemHeight = defaultMinHeight + 12.0; // 54.0，固定高度（最小高度 + padding）
-          // 修改部分：使用 RenderBox 获取真实的视窗高度
-          double viewportHeight;
-          if (scrollController.hasClients) {
-            final renderObject = state.context.findRenderObject();
-            if (renderObject is RenderBox) {
-              viewportHeight = renderObject.size.height;
+          // 使用提供的 getDrawerHeight 计算真实的抽屉高度
+          double getDrawerHeight() {
+            double screenHeight = MediaQuery.of(state.context).size.height;
+            double appBarHeight = 48.0 + 1 + MediaQuery.of(state.context).padding.top;
+            double playerHeight = MediaQuery.of(state.context).size.width / (16 / 9);
+            double bottomPadding = MediaQuery.of(state.context).padding.bottom;
+
+            if (MediaQuery.of(state.context).orientation == Orientation.landscape) {
+              return screenHeight; // 横屏时返回屏幕高度
             } else {
-              viewportHeight = MediaQuery.of(state.context).size.height * 0.7; // 回退值
+              double drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding;
+              return drawerHeight > 0 ? drawerHeight : 0; // 竖屏时计算剩余高度
             }
-          } else {
-            viewportHeight = MediaQuery.of(state.context).size.height * 0.7; // 回退值
           }
+
+          final viewportHeight = getDrawerHeight();
+          final itemsInViewport = (viewportHeight / itemHeight).floor(); // 精确计算视窗内项数
           final currentOffset = scrollController.position.pixels;
           final maxScrollExtent = scrollController.position.maxScrollExtent;
 
-          final itemsInViewport = (viewportHeight / itemHeight).floor();
           final topVisibleIndex = (currentOffset / itemHeight).floor();
           final bottomVisibleIndex = topVisibleIndex + itemsInViewport - 1;
 
@@ -240,7 +244,7 @@ void addFocusListeners(
             } else {
               // 中间项逻辑：根据移动方向调整滚动
               if (isMovingDown && itemIndex > bottomVisibleIndex) {
-                // 修改部分：滚动到新焦点固定在底部
+                // 修改部分：滚动到新焦点固定在底部，显示完整视窗
                 final targetOffset = (itemIndex - itemsInViewport + 1) * itemHeight;
                 final clampedOffset = targetOffset.clamp(0.0, maxScrollExtent);
                 scrollController.animateTo(
@@ -250,7 +254,7 @@ void addFocusListeners(
                 );
                 LogUtil.i('下移超出底部: itemIndex=$itemIndex, targetOffset=$clampedOffset');
               } else if (!isMovingDown && itemIndex < topVisibleIndex) {
-                // 上移超出顶部，直接滚动到顶部对齐
+                // 上移超出顶部，保持原有逻辑
                 channelDrawerState._scrollToCurrentItem(scrollController, itemIndex, alignment: 0.0);
                 LogUtil.i('上移超出顶部: itemIndex=$itemIndex, targetAlignment=0.0');
               }
