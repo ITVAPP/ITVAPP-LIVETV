@@ -301,7 +301,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数（修改部分：移除 key 参数，恢复鼠标点击）
+// 通用列表项构建函数（修改部分：移除 key 参数，恢复鼠标点击，固定高度并避免换行）
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -341,7 +341,7 @@ Widget buildListItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            constraints: BoxConstraints(minHeight: minHeight),
+            height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
@@ -353,9 +353,9 @@ Widget buildListItem({
             child: Text(
               title,
               style: textStyle,
-              softWrap: true,
-              maxLines: null,
-              overflow: TextOverflow.visible,
+              softWrap: false,              // 修改：禁用换行
+              maxLines: 1,                  // 修改：限制为单行
+              overflow: TextOverflow.ellipsis, // 修改：超出宽度显示省略号
             ),
           ),
         ),
@@ -851,16 +851,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：将 _scrollToCurrentItem 移入类内
+  // 修改部分：将 _scrollToCurrentItem 移入类内，并使用全局常量
   void _scrollToCurrentItem(ScrollController controller, int index, {double alignment = 0.0}) {
     if (!controller.hasClients) return;
 
-    const itemHeight = defaultMinHeight + 12.0; // 54.0，固定高度（最小高度 + padding）
-    final viewportHeight = _viewPortHeight ?? MediaQuery.of(context).size.height * 0.5; // 使用类内变量
+    // 判断是否为最后一项，使用全局常量
+    final isLastItem = index == (controller == _scrollController ? _keys.length - 1 : _values[_groupIndex].length - 1);
+    final itemHeight = isLastItem ? ITEM_HEIGHT_WITHOUT_DIVIDER : ITEM_HEIGHT_WITH_DIVIDER; // 54.0 或 55.0
+    final viewportHeight = _drawerHeight; // 使用预计算的抽屉高度
     final maxScrollExtent = controller.position.maxScrollExtent;
 
     final itemTop = index * itemHeight;
-    final itemBottom = (index + 1) * itemHeight;
+    final itemBottom = itemTop + itemHeight;
 
     double targetOffset;
     if (alignment == 0.0) {
