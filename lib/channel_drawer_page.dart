@@ -258,7 +258,7 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-// 初始化 FocusNode 列表（修改部分：添加 _groupFocusCache 生成逻辑）
+// 初始化 FocusNode 列表（修改部分：移除 _groupFocusCache 生成逻辑）
 void _initializeFocusNodes(int totalCount) {
   if (_focusNodes.length != totalCount) {
     for (final node in _focusNodes) {
@@ -268,40 +268,6 @@ void _initializeFocusNodes(int totalCount) {
     _focusStates.clear();
     _focusNodes = List.generate(totalCount, (index) => FocusNode());
     LogUtil.i('FocusNodes 初始化: totalCount=$totalCount, _focusNodes.length=${_focusNodes.length}');
-
-    // 生成 _groupFocusCache
-    _groupFocusCache.clear();
-    
-    // 分类（groupIndex: 0）
-    int categoryStart = 0;
-    int categoryLength = _categories.length;
-    if (categoryLength > 0) {
-      _groupFocusCache[0] = {
-        'firstFocusNode': _focusNodes[categoryStart],
-        'lastFocusNode': _focusNodes[categoryStart + categoryLength - 1],
-      };
-    }
-
-    // 分组（groupIndex: 1）
-    int groupStart = categoryStart + categoryLength;
-    int groupLength = _keys.length;
-    if (groupLength > 0) {
-      _groupFocusCache[1] = {
-        'firstFocusNode': _focusNodes[groupStart],
-        'lastFocusNode': _focusNodes[groupStart + groupLength - 1],
-      };
-    }
-
-    // 频道（groupIndex: 2）
-    int channelStart = groupStart + groupLength;
-    int channelLength = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
-    if (channelLength > 0) {
-      _groupFocusCache[2] = {
-        'firstFocusNode': _focusNodes[channelStart],
-        'lastFocusNode': _focusNodes[channelStart + channelLength - 1],
-      };
-    }
-    LogUtil.i('生成 _groupFocusCache: $_groupFocusCache');
   }
 }
 
@@ -1293,7 +1259,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：切换分组时更新频道，使用 ScrollablePositionedLis
+  // 修改部分：切换分组时更新频道，使用 ScrollablePositionedList
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1378,7 +1344,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新分类、分组、频道的startIndex，并更新第一项索引变量
+  // 更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = 0; // 分类的起始索引
     int groupStartIndex = categoryStartIndex + _categories.length; // 分组的起始索引
@@ -1398,6 +1364,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 更新第一项索引变量
     _groupListFirstIndex = groupStartIndex; // GroupList 第一项
     _channelListFirstIndex = channelStartIndex; // ChannelList 第一项
+
+    // 更新 _groupFocusCache
+    _groupFocusCache.clear();
+    if (_categories.length > 0 && _focusNodes.length > categoryStartIndex) {
+      _groupFocusCache[0] = {
+        'firstFocusNode': _focusNodes[categoryStartIndex],
+        'lastFocusNode': _focusNodes[categoryStartIndex + _categories.length - 1],
+      };
+    }
+    if (_keys.length > 0 && _focusNodes.length > groupStartIndex + _keys.length - 1) {
+      _groupFocusCache[1] = {
+        'firstFocusNode': _focusNodes[groupStartIndex],
+        'lastFocusNode': _focusNodes[groupStartIndex + _keys.length - 1],
+      };
+    }
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _focusNodes.length > channelStartIndex + _values[_groupIndex].length - 1) {
+      _groupFocusCache[2] = {
+        'firstFocusNode': _focusNodes[channelStartIndex],
+        'lastFocusNode': _focusNodes[channelStartIndex + _values[_groupIndex].length - 1],
+      };
+    }
+    LogUtil.i('更新 _groupFocusCache: $_groupFocusCache');
   }
 
   // 修改部分：调整滚动位置
