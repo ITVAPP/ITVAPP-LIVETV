@@ -406,35 +406,28 @@ class _CategoryListState extends State<CategoryList> {
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: Group(
         groupIndex: 0,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 修改部分：移除 Expanded，直接使用 ScrollablePositionedList
-            ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemCount: widget.categories.length,
-              itemBuilder: (context, index) {
-                final category = widget.categories[index];
-                final displayTitle = category == Config.myFavoriteKey
-                    ? S.of(context).myfavorite
-                    : category == Config.allChannelsKey
-                        ? S.of(context).allchannels
-                        : category;
+        child: ScrollablePositionedList.builder(
+          itemScrollController: widget.scrollController,
+          itemCount: widget.categories.length,
+          itemBuilder: (context, index) {
+            final category = widget.categories[index];
+            final displayTitle = category == Config.myFavoriteKey
+                ? S.of(context).myfavorite
+                : category == Config.allChannelsKey
+                    ? S.of(context).allchannels
+                    : category;
 
-                return buildListItem(
-                  title: displayTitle,
-                  isSelected: widget.selectedCategoryIndex == index,
-                  onTap: () => widget.onCategoryTap(index),
-                  isCentered: true,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == widget.categories.length - 1,
-                );
-              },
-            ),
-          ],
+            return buildListItem(
+              title: displayTitle,
+              isSelected: widget.selectedCategoryIndex == index,
+              onTap: () => widget.onCategoryTap(index),
+              isCentered: true,
+              isTV: widget.isTV,
+              context: context,
+              index: widget.startIndex + index,
+              isLastItem: index == widget.categories.length - 1,
+            );
+          },
         ),
       ),
     );
@@ -516,32 +509,25 @@ class _GroupListState extends State<GroupList> {
                 ),
               ],
             )
-          : Group(  // 修改：将 Group 移到外部，包裹整个 Column
+          : Group(
               groupIndex: 1,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 修改部分：移除 Expanded，直接使用 ScrollablePositionedList
-                  ScrollablePositionedList.builder(
-                    itemScrollController: widget.scrollController,
-                    itemCount: widget.keys.length,
-                    itemBuilder: (context, index) {
-                      return buildListItem(  // 修改：移除内部 Group
-                        title: widget.keys[index],
-                        isSelected: widget.selectedGroupIndex == index,
-                        onTap: () => widget.onGroupTap(index),
-                        isCentered: false,
-                        isTV: widget.isTV,
-                        minHeight: defaultMinHeight,
-                        context: context,
-                        index: widget.startIndex + index,
-                        isLastItem: index == widget.keys.length - 1,
-                        isSystemAutoSelected: widget.isSystemAutoSelected,
-                      );
-                    },
-                  ),
-                ],
+              child: ScrollablePositionedList.builder(
+                itemScrollController: widget.scrollController,
+                itemCount: widget.keys.length,
+                itemBuilder: (context, index) {
+                  return buildListItem(
+                    title: widget.keys[index],
+                    isSelected: widget.selectedGroupIndex == index,
+                    onTap: () => widget.onGroupTap(index),
+                    isCentered: false,
+                    isTV: widget.isTV,
+                    minHeight: defaultMinHeight,
+                    context: context,
+                    index: widget.startIndex + index,
+                    isLastItem: index == widget.keys.length - 1,
+                    isSystemAutoSelected: widget.isSystemAutoSelected,
+                  );
+                },
               ),
             ),
     );
@@ -604,35 +590,28 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: Group(  // 修改：将 Group 移到外部，包裹整个 Column
+      child: Group(
         groupIndex: 2,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 修改部分：移除 Expanded，直接使用 ScrollablePositionedList
-            ScrollablePositionedList.builder(
-              itemScrollController: widget.scrollController,
-              itemCount: channelList.length,
-              itemBuilder: (context, index) {
-                final channelEntry = channelList[index];
-                final channelName = channelEntry.key;
-                final isSelect = widget.selectedChannelName == channelName;
-                return buildListItem(  // 修改：移除内部 Group
-                  title: channelName,
-                  isSelected: !widget.isSystemAutoSelected && isSelect,
-                  onTap: () => widget.onChannelTap(widget.channels[channelName]),
-                  isCentered: false,
-                  minHeight: defaultMinHeight,
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == channelList.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
-                );
-              },
-            ),
-          ],
+        child: ScrollablePositionedList.builder(
+          itemScrollController: widget.scrollController,
+          itemCount: channelList.length,
+          itemBuilder: (context, index) {
+            final channelEntry = channelList[index];
+            final channelName = channelEntry.key;
+            final isSelect = widget.selectedChannelName == channelName;
+            return buildListItem(
+              title: channelName,
+              isSelected: !widget.isSystemAutoSelected && isSelect,
+              onTap: () => widget.onChannelTap(widget.channels[channelName]),
+              isCentered: false,
+              minHeight: defaultMinHeight,
+              isTV: widget.isTV,
+              context: context,
+              index: widget.startIndex + index,
+              isLastItem: index == channelList.length - 1,
+              isSystemAutoSelected: widget.isSystemAutoSelected,
+            );
+          },
         ),
       ),
     );
@@ -1176,7 +1155,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_focusNodes.length != totalNodes) {
       for (final node in _focusNodes) node.dispose();
       _focusNodes.clear();
-      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index')); // 修复变量名拼写错误
+      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
       LogUtil.i('焦点节点更新: 总数=$totalNodes');
     }
 
@@ -1438,7 +1417,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      height: _drawerHeight, // 修改：添加 height 属性，使用 _drawerHeight 限制高度
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
@@ -1457,36 +1435,43 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: categoryWidth,
-            child: categoryListWidget,
-          ),
-          if (groupListWidget != null) ...[
-            verticalDivider,
-            Container(
-              width: groupWidth,
-              child: groupListWidget,
-            ),
-          ],
-          if (channelListWidget != null) ...[
-            verticalDivider,
-            Container(
-              width: channelListWidth,
-              child: channelListWidget,
-            ),
-          ],
-          if (epgListWidget != null) ...[
-            verticalDivider,
-            Container(
-              width: epgListWidth,
-              child: epgListWidget,
-            ),
-          ],
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: categoryWidth,
+                height: constraints.maxHeight, // 自适应高度
+                child: categoryListWidget,
+              ),
+              if (groupListWidget != null) ...[
+                verticalDivider,
+                SizedBox(
+                  width: groupWidth,
+                  height: constraints.maxHeight,
+                  child: groupListWidget,
+                ),
+              ],
+              if (channelListWidget != null) ...[
+                verticalDivider,
+                SizedBox(
+                  width: channelListWidth,
+                  height: constraints.maxHeight,
+                  child: channelListWidget,
+                ),
+              ],
+              if (epgListWidget != null) ...[
+                verticalDivider,
+                Container(
+                  width: epgListWidth,
+                  child: epgListWidget,
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
