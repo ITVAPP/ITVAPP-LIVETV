@@ -876,6 +876,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void initState() {
     super.initState();
+    _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
@@ -1437,6 +1438,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
+      height: _drawerHeight, // 修改：添加 height 属性，使用 _drawerHeight 限制高度
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
