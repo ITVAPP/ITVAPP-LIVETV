@@ -885,7 +885,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
-      _updateFocusLogic(isInitial: true); // 首次初始化
+      _updateFocusLogic(true); // 首次初始化
       setState(() {});
     });
   }
@@ -896,7 +896,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.didUpdateWidget(oldWidget);
     if (widget.videoMap != oldWidget.videoMap) {
       _initializeData();
-      _updateFocusLogic(isInitial: false); // 数据更新时重新初始化
+      _updateFocusLogic(false); // 数据更新时重新初始化
       setState(() {});
     }
   }
@@ -1244,7 +1244,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       } else {
         _initializeChannelData();
       }
-      _updateFocusLogic(isInitial: false, initialIndexOverride: index);
+      _updateFocusLogic(false, initialIndexOverride: index);
     });
   }
 
@@ -1254,7 +1254,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _groupIndex = index;
       _isSystemAutoSelected = false; // 用户点击，直接设置为 false
       _focusStates.clear();
-      _updateFocusLogic(isInitial: false, initialIndexOverride: _categories.length + index);
+      _updateFocusLogic(false, initialIndexOverride: _categories.length + index);
     });
   }
 
@@ -1272,7 +1272,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
       _epgData = null; // 清空节目单数据
       _selEPGIndex = 0; // 重置节目单索引
-      _updateFocusLogic(isInitial: false); // 更新焦点逻辑
+      _updateFocusLogic(false); // 更新焦点逻辑
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
