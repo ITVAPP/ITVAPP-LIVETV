@@ -1170,7 +1170,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：新增 _updateFocusLogic 方法，统一处理焦点逻辑
+  // 修改部分：优化 _updateFocusLogic 方法，仅优化日志输出
   void _updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     // 计算总数
     int totalNodes = _categories.length +
@@ -1213,8 +1213,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       };
     }
 
+    // 优化后的日志输出：将 FocusNode 显示为索引
+    final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
+          key,
+          '{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}',
+        ));
     LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-        'channelStart=$_channelStartIndex, groupFocusCache=$_groupFocusCache');
+        'channelStart=$_channelStartIndex, groupFocusCache=$groupFocusCacheLog');
 
     // 非初始化时更新导航状态
     if (!isInitial && _tvKeyNavigationState != null) {
