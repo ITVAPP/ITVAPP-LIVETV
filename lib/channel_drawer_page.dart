@@ -1112,7 +1112,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         Map<String, PlayModel> channelMap = _values[oldIndex];
         bool needsChannelSort = channelMap.keys.any((channel) => sortKeywords.any((keyword) => channel.contains(keyword)));
         if (needsChannelSort) {
-          String cacheKey = ''channel_$i';
+          String cacheKey = 'channel_$i';
           if (_channelSortCache.containsKey(cacheKey)) {
             List<String> sortedChannelKeys = List.from(_channelSortCache[cacheKey]!);
             newValues.add({for (var k in sortedChannelKeys) k: channelMap[k]!});
