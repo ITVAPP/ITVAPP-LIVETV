@@ -1,4 +1,4 @@
-import 'dart:async';
+--import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -202,17 +202,13 @@ void addFocusListeners(
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState == null) return;
 
-          final isFirstItem = itemIndex == 0; // 第一项
-          final isLastItem = itemIndex == length - 1; // 最后一项
+          final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
+              index == channelDrawerState._channelListFirstIndex;
+          final isLastItem = itemIndex == length - 1;
 
           // 计算视窗内完整项数
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-          // 估算当前视窗的顶部和底部索引
-          // 由于 ItemScrollController 不直接提供当前滚动位置，这里基于上一个焦点位置估算
-          int visibleTopIndex = (itemIndex - fullItemsInViewport + 1).clamp(0, length - fullItemsInViewport);
-          int visibleBottomIndex = (visibleTopIndex + fullItemsInViewport - 1).clamp(0, length - 1);
 
           if (isFirstItem) {
             scrollController.scrollTo(
@@ -230,26 +226,23 @@ void addFocusListeners(
               curve: Curves.easeInOut,
             );
             LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex');
-          } else if (isMovingDown && itemIndex > visibleBottomIndex) {
-            // 焦点超出底部，新焦点固定在底部
+          } else if (isMovingDown && itemIndex >= fullItemsInViewport) {
+            final targetIndex = itemIndex - fullItemsInViewport + 1;
             scrollController.scrollTo(
-              index: itemIndex,
-              alignment: 1.0,
+              index: targetIndex.clamp(0, length - fullItemsInViewport),
+              alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向下移动（固定底部）: itemIndex=$itemIndex, visibleBottomIndex=$visibleBottomIndex');
-          } else if (!isMovingDown && itemIndex < visibleTopIndex) {
-            // 焦点超出顶部，新焦点固定在顶部
+            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
+          } else if (!isMovingDown && itemIndex < length - fullItemsInViewport) {
             scrollController.scrollTo(
               index: itemIndex,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向上移动（固定顶部）: itemIndex=$itemIndex, visibleTopIndex=$visibleTopIndex');
-          } else {
-            LogUtil.i('焦点在视窗内，无需滚动: itemIndex=$itemIndex, visibleTop=$visibleTopIndex, visibleBottom=$visibleBottomIndex');
+            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
           }
         }
       }
@@ -918,8 +911,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _reInitializeFocusListeners();
         // 修改部分：更新视窗高度
         _calculateViewportHeight();
-        // 修改部分：在 didUpdateWidget 中更新索引，增加 _groupIndex 检查
-        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length);
+        // 修改部分：在 didUpdateWidget 中更新索引
+        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
     }
   }
@@ -1001,8 +994,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _calculateViewportHeight();
         _calculateDrawerHeight();  // 更新抽屉高度
         _adjustScrollPositions();
-        // 修改部分：在 didChangeMetrics 中更新索引，增加 _groupIndex 检查
-        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length);
+        _updateStartIndexes(includeGroupsAndChannels: _keys.isNotEmpty && _values.isNotEmpty);
       });
     });
   }
@@ -1355,16 +1347,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache
+  // 更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache
   void _updateStartIndexes({bool includeGroupsAndChannels = true}) {
     int categoryStartIndex = 0; // 分类的起始索引
     int groupStartIndex = categoryStartIndex + _categories.length; // 分组的起始索引
     int channelStartIndex = groupStartIndex + (_keys.isNotEmpty ? _keys.length : 0); // 频道的起始索引
 
-    // 如果不包含分组和频道，或分组/频道数据无效，则索引只到分类部分
-    if (!includeGroupsAndChannels || _keys.isEmpty || _values.isEmpty || _groupIndex < 0 || _groupIndex >= _values.length) {
+    if (!includeGroupsAndChannels) {
+      // 如果不包含分组和频道，则分组和频道的索引只到分类部分
       groupStartIndex = categoryStartIndex + _categories.length;
-      channelStartIndex = groupStartIndex;
+      channelStartIndex = groupStartIndex; // 频道部分不参与计算
     }
 
     // 更新构造组件时的起始索引
@@ -1390,13 +1382,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': _focusNodes[groupStartIndex + _keys.length - 1],
       };
     }
-    // 增加 _groupIndex 的有效性检查，确保频道数据有效时才更新
-    if (includeGroupsAndChannels &&
-        _keys.isNotEmpty &&
-        _values.isNotEmpty &&
-        _groupIndex >= 0 &&
-        _groupIndex < _values.length &&
-        _focusNodes.length > channelStartIndex + _values[_groupIndex].length - 1) {
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _focusNodes.length > channelStartIndex + _values[_groupIndex].length - 1) {
       _groupFocusCache[2] = {
         'firstFocusNode': _focusNodes[channelStartIndex],
         'lastFocusNode': _focusNodes[channelStartIndex + _values[_groupIndex].length - 1],
