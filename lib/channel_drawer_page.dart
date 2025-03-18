@@ -1,4 +1,3 @@
-// 导入语句保持不变
 import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
@@ -891,8 +890,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
     _initializeData(); // 统一的初始化方法
 
-    // 修改部分：仅初始化焦点节点和索引，不触发焦点逻辑
+    // 修改部分：仅初始化焦点节点和索引，不触发焦点逻辑，并在初始后绑定监听器
     _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: false);
+    _reInitializeFocusListeners(); // 初始绑定监听器
   }
 
   @override
@@ -1210,7 +1210,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
         _initializeFocusNodes(totalFocusNodes);
       }
-      // 修改部分：更新索引并触发焦点逻辑
+      // 修改部分：更新索引并触发焦点逻辑（监听器绑定移到 _updateStartIndexes）
       _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: index);
 
       // 在状态更新后检查并调整滚动位置
@@ -1258,7 +1258,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               ? _values[_groupIndex].length
               : 0);
       _initializeFocusNodes(totalFocusNodes);
-      // 修改部分：更新索引并触发焦点逻辑
+      // 修改部分：更新索引并触发焦点逻辑（监听器绑定移到 _updateStartIndexes）
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: firstChannelFocusIndex);
 
@@ -1318,7 +1318,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache，触发焦点逻辑
+  // 修改部分：更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache，触发焦点逻辑后绑定监听器
   void _updateStartIndexes({
     bool includeGroupsAndChannels = true,
     bool shouldInitializeFocusLogic = false,
@@ -1365,10 +1365,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     LogUtil.i('更新 _groupFocusCache: $_groupFocusCache');
 
-    // 在 _focusNodes 和 _groupFocusCache 更新完成后，触发焦点逻辑
+    // 在 _focusNodes 和 _groupFocusCache 更新完成后，触发焦点逻辑并绑定监听器
     if (shouldInitializeFocusLogic && _tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
+      _tvKeyNavigationState!.releaseResources(); // 清理旧资源
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0); // 刷新焦点逻辑
+      _reInitializeFocusListeners(); // TvKeyNavigation 刷新完成后重新绑定监听器
     }
   }
 
