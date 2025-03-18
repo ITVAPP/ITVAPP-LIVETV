@@ -410,10 +410,9 @@ class _CategoryListState extends State<CategoryList> {
           mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded( // 使用 Expanded 填充可用空间
+            IntrinsicHeight( // 修改：使用 IntrinsicHeight 替换 Expanded
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
-                initialAlignment: 0.0, // 确保顶部对齐
                 itemCount: widget.categories.length,
                 itemBuilder: (context, index) {
                   final category = widget.categories[index];
@@ -524,10 +523,9 @@ class _GroupListState extends State<GroupList> {
                 mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded( // 使用 Expanded 填充可用空间
+                  IntrinsicHeight( // 修改：使用 IntrinsicHeight 替换 Expanded
                     child: ScrollablePositionedList.builder(
                       itemScrollController: widget.scrollController,
-                      initialAlignment: 0.0, // 确保顶部对齐
                       itemCount: widget.keys.length,
                       itemBuilder: (context, index) {
                         return buildListItem(  // 修改：移除内部 Group
@@ -614,10 +612,9 @@ class _ChannelListState extends State<ChannelList> {
           mainAxisAlignment: MainAxisAlignment.start, // 强制顶部对齐
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded( // 使用 Expanded 填充可用空间
+            IntrinsicHeight( // 修改：使用 IntrinsicHeight 替换 Expanded
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
-                initialAlignment: 0.0, // 确保顶部对齐
                 itemCount: channelList.length,
                 itemBuilder: (context, index) {
                   final channelEntry = channelList[index];
@@ -1443,6 +1440,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
+      height: _drawerHeight, // 修改：添加 height 属性，使用 _drawerHeight 限制高度
       width: widget.isLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
