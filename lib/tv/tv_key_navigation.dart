@@ -184,7 +184,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // 修改：检查是否传入了 groupFocusCache
         if (widget.groupFocusCache != null) {
           _groupFocusCache = Map.from(widget.groupFocusCache!);
-          LogUtil.i('使用传入的 groupFocusCache: $_groupFocusCache');
+          LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
         } else {
           LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
           _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
