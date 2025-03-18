@@ -1087,7 +1087,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 分组排序
     bool needsGroupSort = _keys.any((key) => sortKeywords.any((keyword) => key.contains(keyword)));
     if (needsGroupSort) {
-      String cacheKey = 'group_$categoryIndex';
+      String cacheKey = 'group_$_categoryIndex';
       if (_groupSortCache.containsKey(cacheKey)) {
         _keys = List.from(_groupSortCache[cacheKey]!);
         LogUtil.i('从内存缓存加载分组排序: $_keys');
@@ -1112,7 +1112,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         Map<String, PlayModel> channelMap = _values[oldIndex];
         bool needsChannelSort = channelMap.keys.any((channel) => sortKeywords.any((keyword) => channel.contains(keyword)));
         if (needsChannelSort) {
-          String cacheKey = 'channel_$i';
+          String cacheKey = 'channels_$_categoryIndex_$key';
           if (_channelSortCache.containsKey(cacheKey)) {
             List<String> sortedChannelKeys = List.from(_channelSortCache[cacheKey]!);
             newValues.add({for (var k in sortedChannelKeys) k: channelMap[k]!});
