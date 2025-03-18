@@ -878,31 +878,26 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
-  // 修改部分：优化 initState，确保 _focusNodes 和 _groupFocusCache 正确初始化
+  // 修改部分：优化 initState，确保 _focusNodes 和 _groupFocusCache 在 TvKeyNavigation 前初始化
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight();
-        _calculateDrawerHeight();
-        _initializeData();
-        _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true);
-      });
+      _initializeData();
+      _updateFocusLogic(isInitial: true); // 首次初始化
+      setState(() {});
     });
   }
 
-  // 修改部分：优化 didUpdateWidget，当 videoMap 变化时重新初始化 _focusNodes 和 _groupFocusCache
+  // 修改部分：优化 didUpdateWidget，当 videoMap 变化时重新更新焦点逻辑
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.videoMap != oldWidget.videoMap) {
-      setState(() {
-        _initializeData();
-        _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: _categoryIndex);
-      });
+      _initializeData();
+      _updateFocusLogic(isInitial: false); // 数据更新时重新初始化
+      setState(() {});
     }
   }
 
@@ -912,11 +907,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _initializeCategoryData();
     _initializeChannelData();
 
-    // 2. 计算并初始化焦点节点
-    int totalFocusNodes = _calculateTotalFocusNodes();
-    _initializeFocusNodes(totalFocusNodes);
-
-    // 4. 加载EPG数据（如果需要）
+    // 2. 加载EPG数据（如果需要）
     if (_shouldLoadEpg()) {
       _loadEPGMsg(widget.playModel);
     }
@@ -1179,7 +1170,62 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：优化 _onCategoryTap，确保 _focusNodes 和 _groupFocusCache 更新
+  // 修改部分：新增 _updateFocusLogic 方法，统一处理焦点逻辑
+  void _updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
+    // 计算总数
+    int totalNodes = _categories.length +
+        (_keys.isNotEmpty ? _keys.length : 0) +
+        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
+
+    // 更新 _focusNodes
+    if (_focusNodes.length != totalNodes) {
+      for (final node in _focusNodes) node.dispose();
+      _focusNodes.clear();
+      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+      LogUtil.i('焦点节点更新: 总数=$totalNodes');
+    }
+
+    // 设置索引和 groupFocusCache
+    _categoryStartIndex = 0;
+    _groupStartIndex = _categories.length;
+    _channelStartIndex = _categories.length + _keys.length;
+
+    _groupListFirstIndex = _groupStartIndex;
+    _channelListFirstIndex = _channelStartIndex;
+
+    _groupFocusCache.clear();
+    if (_categories.isNotEmpty) {
+      _groupFocusCache[0] = {
+        'firstFocusNode': _focusNodes[0],
+        'lastFocusNode': _focusNodes[_categories.length - 1]
+      };
+    }
+    if (_keys.isNotEmpty) {
+      _groupFocusCache[1] = {
+        'firstFocusNode': _focusNodes[_groupStartIndex],
+        'lastFocusNode': _focusNodes[_groupStartIndex + _keys.length - 1]
+      };
+    }
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      _groupFocusCache[2] = {
+        'firstFocusNode': _focusNodes[_channelStartIndex],
+        'lastFocusNode': _focusNodes[_channelStartIndex + _values[_groupIndex].length - 1]
+      };
+    }
+
+    LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
+        'channelStart=$_channelStartIndex, groupFocusCache=$_groupFocusCache');
+
+    // 非初始化时更新导航状态
+    if (!isInitial && _tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.releaseResources();
+      int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+      _reInitializeFocusListeners();
+    }
+  }
+
+  // 修改部分：优化 _onCategoryTap，使用 _updateFocusLogic 更新焦点
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1190,26 +1236,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
         _isSystemAutoSelected = true; // 空分类时设置为系统自动选中
-        _initializeFocusNodes(_categories.length);
       } else {
         _initializeChannelData();
-        int totalFocusNodes = _calculateTotalFocusNodes();
-        _initializeFocusNodes(totalFocusNodes);
       }
-      _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: index);
+      _updateFocusLogic(isInitial: false, initialIndexOverride: index);
     });
   }
 
-  // 修改部分：优化 _onGroupTap，确保 _focusNodes 和 _groupFocusCache 更新
+  // 修改部分：优化 _onGroupTap，使用 _updateFocusLogic 更新焦点
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _isSystemAutoSelected = false; // 用户点击，直接设置为 false
       _focusStates.clear();
-      int totalFocusNodes = _calculateTotalFocusNodes();
-      _initializeFocusNodes(totalFocusNodes);
-      int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
-      _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: firstChannelFocusIndex);
+      _updateFocusLogic(isInitial: false, initialIndexOverride: _categories.length + index);
     });
   }
 
@@ -1227,6 +1267,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
       _epgData = null; // 清空节目单数据
       _selEPGIndex = 0; // 重置节目单索引
+      _updateFocusLogic(isInitial: false); // 更新焦点逻辑
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1241,76 +1282,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：优化 _updateStartIndexes，确保 _focusNodes 初始化后更新 _groupFocusCache
-  void _updateStartIndexes({
-    bool includeGroupsAndChannels = true,
-    bool shouldInitializeFocusLogic = false,
-    int? initialIndexOverride,
-  }) {
-    // 先计算总节点数并初始化 _focusNodes
-    int totalFocusNodes = _calculateTotalFocusNodes();
-    _initializeFocusNodes(totalFocusNodes);
+  // 修改部分：移除 _updateStartIndexes 和 _ensureCorrectFocusNodes，使用 _updateFocusLogic 替代
+  // void _updateStartIndexes(...) 和 List<FocusNode> _ensureCorrectFocusNodes() 已删除
 
-    // 计算索引
-    int categoryStartIndex = 0;
-    int groupStartIndex = categoryStartIndex + _categories.length;
-    int channelStartIndex = groupStartIndex + (includeGroupsAndChannels && _keys.isNotEmpty ? _keys.length : 0);
-
-    if (!includeGroupsAndChannels) {
-      groupStartIndex = categoryStartIndex + _categories.length;
-      channelStartIndex = groupStartIndex;
-    }
-
-    _categoryStartIndex = categoryStartIndex;
-    _groupStartIndex = groupStartIndex;
-    _channelStartIndex = channelStartIndex;
-
-    // 更新第一项索引
-    _groupListFirstIndex = groupStartIndex;
-    _channelListFirstIndex = channelStartIndex;
-
-    // 更新 _groupFocusCache
-    _groupFocusCache.clear();
-    if (_categories.length > 0 && _focusNodes.length >= categoryStartIndex + _categories.length) {
-      _groupFocusCache[0] = {
-        'firstFocusNode': _focusNodes[categoryStartIndex],
-        'lastFocusNode': _focusNodes[categoryStartIndex + _categories.length - 1],
-      };
-    } else {
-      LogUtil.i('分组 0 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${_categories.length}');
-    }
-
-    if (_keys.length > 0 && _focusNodes.length >= groupStartIndex + _keys.length) {
-      _groupFocusCache[1] = {
-        'firstFocusNode': _focusNodes[groupStartIndex],
-        'lastFocusNode': _focusNodes[groupStartIndex + _keys.length - 1],
-      };
-    } else if (_keys.length > 0) {
-      LogUtil.i('分组 1 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${groupStartIndex + _keys.length}');
-    }
-
-    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && 
-        _focusNodes.length >= channelStartIndex + _values[_groupIndex].length) {
-      _groupFocusCache[2] = {
-        'firstFocusNode': _focusNodes[channelStartIndex],
-        'lastFocusNode': _focusNodes[channelStartIndex + _values[_groupIndex].length - 1],
-      };
-    } else if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-      LogUtil.i('分组 2 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${channelStartIndex + _values[_groupIndex].length}');
-    }
-
-    LogUtil.i('索引更新: categoryStart=$categoryStartIndex, groupStart=$groupStartIndex, '
-        'channelStart=$channelStartIndex, _groupFocusCache=$_groupFocusCache');
-
-    // 触发焦点逻辑
-    if (shouldInitializeFocusLogic && _tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
-      _reInitializeFocusListeners();
-    }
-  }
-
-  // 修改部分：调整滚动位置
+  // 调整滚动位置
   void _adjustScrollPositions() {
     scrollTo(targetList: 'group', index: _groupIndex);
     scrollTo(targetList: 'channel', index: _channelIndex);
@@ -1378,24 +1353,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return 0;
   }
 
-  // 修改部分：添加 _ensureCorrectFocusNodes，确保 _focusNodes 在 build 时正确
-  List<FocusNode> _ensureCorrectFocusNodes() {
-    int totalNodesExpected = _categories.length +
-        (_keys.isNotEmpty ? _keys.length : 0) +
-        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-    if (_focusNodes.length != totalNodesExpected) {
-      LogUtil.i('FocusNodes 长度不匹配，预期: $totalNodesExpected, 实际: ${_focusNodes.length}');
-      _initializeFocusNodes(totalNodesExpected);
-    }
-    return _focusNodes;
-  }
-
-  // 修改部分：优化 build，确保 _focusNodes 在构建时正确
+  // 修改部分：优化 build，不重复调用焦点更新，直接使用已初始化的数据
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
-    _ensureCorrectFocusNodes(); // 确保 _focusNodes 正确
     int currentFocusIndex = 0;
 
     Widget categoryListWidget = CategoryList(
