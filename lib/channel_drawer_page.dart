@@ -210,14 +210,24 @@ void addFocusListeners(
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          if (isFirstItem) {
+          // 计算当前视窗的顶部和底部索引（基于上一次焦点位置）
+          int currentTopIndex = 0;
+          if (_lastFocusedIndex >= fullItemsInViewport) {
+            currentTopIndex = (_lastFocusedIndex - (fullItemsInViewport - 1)).clamp(0, length - fullItemsInViewport);
+          }
+          final currentBottomIndex = currentTopIndex + fullItemsInViewport - 1;
+
+          LogUtil.i('焦点移动: itemIndex=$itemIndex, isMovingDown=$isMovingDown, '
+              'currentView=$currentTopIndex-$currentBottomIndex');
+
+          if (isFirstItem && !isMovingDown) {
             scrollController.scrollTo(
               index: 0,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex');
+            LogUtil.i('焦点滚动到首项（顶部固定）: itemIndex=$itemIndex');
           } else if (isLastItem && isMovingDown) {
             scrollController.scrollTo(
               index: length - 1,
@@ -225,24 +235,29 @@ void addFocusListeners(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex');
-          } else if (isMovingDown && itemIndex >= fullItemsInViewport) {
-            final targetIndex = itemIndex - fullItemsInViewport + 1;
+            LogUtil.i('焦点滚动到末项（底部固定）: itemIndex=$itemIndex');
+          } else if (isMovingDown && itemIndex > currentBottomIndex) {
+            // 下移超出底部时，滚动使新焦点固定在底部
+            final targetIndex = itemIndex - (fullItemsInViewport - 1);
             scrollController.scrollTo(
               index: targetIndex.clamp(0, length - fullItemsInViewport),
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
-          } else if (!isMovingDown && itemIndex < length - fullItemsInViewport) {
+            LogUtil.i('焦点向下移动（底部固定）: itemIndex=$itemIndex, targetIndex=$targetIndex');
+          } else if (!isMovingDown && itemIndex < currentTopIndex) {
+            // 上移超出顶部时，滚动使新焦点固定在顶部
             scrollController.scrollTo(
               index: itemIndex,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
+            LogUtil.i('焦点向上移动（顶部固定）: itemIndex=$itemIndex');
+          } else {
+            // 焦点仍在视窗内，不滚动
+            LogUtil.i('焦点在视窗内，无需滚动: itemIndex=$itemIndex');
           }
         }
       }
@@ -944,6 +959,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     
     // 修改部分：仅更新高度和滚动位置，不更新焦点索引
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return; // 检查 State 是否仍挂载
       setState(() {
         _calculateViewportHeight();
         _calculateDrawerHeight();
@@ -1151,13 +1167,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
 
-    // 更新 _focusNodes
-    if (_focusNodes.length != totalNodes) {
       for (final node in _focusNodes) node.dispose();
       _focusNodes.clear();
       _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
       LogUtil.i('焦点节点更新: 总数=$totalNodes');
-    }
 
     // 设置索引和 groupFocusCache
     _categoryStartIndex = 0;
