@@ -1277,7 +1277,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': _focusNodes[categoryStartIndex + _categories.length - 1],
       };
     } else {
-      LogUtil.w('分组 0 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${_categories.length}');
+      LogUtil.i('分组 0 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${_categories.length}');
     }
 
     if (_keys.length > 0 && _focusNodes.length >= groupStartIndex + _keys.length) {
@@ -1286,7 +1286,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': _focusNodes[groupStartIndex + _keys.length - 1],
       };
     } else if (_keys.length > 0) {
-      LogUtil.w('分组 1 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${groupStartIndex + _keys.length}');
+      LogUtil.i('分组 1 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${groupStartIndex + _keys.length}');
     }
 
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && 
@@ -1296,7 +1296,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': _focusNodes[channelStartIndex + _values[_groupIndex].length - 1],
       };
     } else if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-      LogUtil.w('分组 2 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${channelStartIndex + _values[_groupIndex].length}');
+      LogUtil.i('分组 2 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${channelStartIndex + _values[_groupIndex].length}');
     }
 
     LogUtil.i('索引更新: categoryStart=$categoryStartIndex, groupStart=$groupStartIndex, '
@@ -1384,7 +1384,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
     if (_focusNodes.length != totalNodesExpected) {
-      LogUtil.w('FocusNodes 长度不匹配，预期: $totalNodesExpected, 实际: ${_focusNodes.length}');
+      LogUtil.i('FocusNodes 长度不匹配，预期: $totalNodesExpected, 实际: ${_focusNodes.length}');
       _initializeFocusNodes(totalNodesExpected);
     }
     return _focusNodes;
