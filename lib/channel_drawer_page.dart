@@ -1,4 +1,4 @@
-import 'dart:async';
+你仔细看我的代码！没有你说的错误的地方！import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -1087,7 +1087,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 分组排序
     bool needsGroupSort = _keys.any((key) => sortKeywords.any((keyword) => key.contains(keyword)));
     if (needsGroupSort) {
-      String cacheKey = 'keys_$_categoryIndex';
+      String cacheKey = 'group_$categoryIndex';
       if (_groupSortCache.containsKey(cacheKey)) {
         _keys = List.from(_groupSortCache[cacheKey]!);
         LogUtil.i('从内存缓存加载分组排序: $_keys');
@@ -1112,7 +1112,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         Map<String, PlayModel> channelMap = _values[oldIndex];
         bool needsChannelSort = channelMap.keys.any((channel) => sortKeywords.any((keyword) => channel.contains(keyword)));
         if (needsChannelSort) {
-          String cacheKey = 'channels_$_categoryIndex_$key';
+          String cacheKey = ''channel_$i';
           if (_channelSortCache.containsKey(cacheKey)) {
             List<String> sortedChannelKeys = List.from(_channelSortCache[cacheKey]!);
             newValues.add({for (var k in sortedChannelKeys) k: channelMap[k]!});
