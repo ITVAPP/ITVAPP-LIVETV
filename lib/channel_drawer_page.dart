@@ -258,7 +258,7 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-// 初始化 FocusNode 列表（修改部分：移除 _groupFocusCache 生成逻辑）
+// 修改部分：优化 _initializeFocusNodes，添加日志验证
 void _initializeFocusNodes(int totalCount) {
   if (_focusNodes.length != totalCount) {
     for (final node in _focusNodes) {
@@ -268,6 +268,8 @@ void _initializeFocusNodes(int totalCount) {
     _focusStates.clear();
     _focusNodes = List.generate(totalCount, (index) => FocusNode());
     LogUtil.i('FocusNodes 初始化: totalCount=$totalCount, _focusNodes.length=${_focusNodes.length}');
+  } else {
+    LogUtil.i('FocusNodes 无需更新: totalCount=$totalCount, _focusNodes.length=${_focusNodes.length}');
   }
 }
 
@@ -876,30 +878,26 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
+  // 修改部分：优化 initState，确保 _focusNodes 和 _groupFocusCache 正确初始化
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-        _calculateViewportHeight(); // 原有视窗高度计算
-        _calculateDrawerHeight();  // 初始化抽屉高度
+        _calculateViewportHeight();
+        _calculateDrawerHeight();
+        _initializeData();
+        _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true);
       });
     });
-    _initializeData(); // 统一的初始化方法
-
-    // 修改部分：仅初始化焦点节点和索引，不触发焦点逻辑，并在初始后绑定监听器
-    _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: false);
-    _reInitializeFocusListeners(); // 初始绑定监听器
   }
 
+  // 修改部分：优化 didUpdateWidget，当 videoMap 变化时重新初始化 _focusNodes 和 _groupFocusCache
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // 修改部分：当 videoMap 变化时重新初始化
     if (widget.videoMap != oldWidget.videoMap) {
       setState(() {
         _initializeData();
@@ -1181,14 +1179,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：切换分类时更新分组和频道，使用 ScrollablePositionedList
+  // 修改部分：优化 _onCategoryTap，确保 _focusNodes 和 _groupFocusCache 更新
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
       _categoryIndex = index; // 更新选中的分类索引
-      // 重置所有焦点状态
       _focusStates.clear();
-      // 检查选中的分类是否有分组
       final selectedCategory = _categories[_categoryIndex];
       final categoryMap = widget.videoMap?.playList[selectedCategory];
       if (categoryMap == null || categoryMap.isEmpty) {
@@ -1196,97 +1192,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _isSystemAutoSelected = true; // 空分类时设置为系统自动选中
         _initializeFocusNodes(_categories.length);
       } else {
-        // 分组不为空时，初始化频道数据
         _initializeChannelData();
-        // 计算新分类下的总节点数，并初始化 FocusNode
-        int totalFocusNodes = _categories.length;
-        // 确保_keys 不为空且_values 有效时才添加其长度
-        if (_keys.isNotEmpty) {
-          totalFocusNodes += _keys.length;
-          // 确保 _groupIndex 有效且_values[_groupIndex] 存在
-          if (_groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-            totalFocusNodes += _values[_groupIndex].length;
-          }
-        }
+        int totalFocusNodes = _calculateTotalFocusNodes();
         _initializeFocusNodes(totalFocusNodes);
       }
-      // 修改部分：更新索引并触发焦点逻辑（监听器绑定移到 _updateStartIndexes）
       _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: index);
-
-      // 在状态更新后检查并调整滚动位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final viewportHeight = _drawerHeight;
-        final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-        if (widget.playModel?.title != null && _values[_groupIndex].containsKey(widget.playModel?.title)) {
-          // 是当前播放频道所在分类
-          if (_groupIndex >= fullItemsInViewport || _groupIndex < 0) {
-            scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.3);
-            LogUtil.i('分类切换 - 分组不可见，已滚动到中间: _groupIndex=$_groupIndex');
-          }
-          if (_channelIndex >= fullItemsInViewport || _channelIndex < 0) {
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.3);
-            LogUtil.i('分类切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
-          }
-        } else {
-          // 不是当前播放频道所在分类
-          if (_groupIndex != 0) {
-            scrollTo(targetList: 'group', index: 0, alignment: 0.0);
-            LogUtil.i('分类切换 - 分组不在顶部，已滚动到顶部');
-          }
-          if (_channelIndex != 0) {
-            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-            LogUtil.i('分类切换 - 频道不在顶部，已滚动到顶部');
-          }
-        }
-      });
     });
   }
 
-  // 修改部分：切换分组时更新频道，使用 ScrollablePositionedList
+  // 修改部分：优化 _onGroupTap，确保 _focusNodes 和 _groupFocusCache 更新
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _isSystemAutoSelected = false; // 用户点击，直接设置为 false
-
-      // 重置所有焦点状态
       _focusStates.clear();
-      // 重新计算所需节点数，并初始化 FocusNode
-      int totalFocusNodes = _categories.length +
-          (_keys.isNotEmpty ? _keys.length : 0) +
-          (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-              ? _values[_groupIndex].length
-              : 0);
+      int totalFocusNodes = _calculateTotalFocusNodes();
       _initializeFocusNodes(totalFocusNodes);
-      // 修改部分：更新索引并触发焦点逻辑（监听器绑定移到 _updateStartIndexes）
       int firstChannelFocusIndex = _categories.length + _keys.length + _channelIndex;
       _updateStartIndexes(includeGroupsAndChannels: true, shouldInitializeFocusLogic: true, initialIndexOverride: firstChannelFocusIndex);
-
-      // 在状态更新后检查并调整滚动位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final viewportHeight = _drawerHeight;
-        final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-        if (widget.playModel?.group == _keys[index]) {
-          // 是当前播放频道所在分组
-          _channelIndex = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-          if (_channelIndex == -1) {
-            _channelIndex = 0;
-          }
-          if (_channelIndex >= fullItemsInViewport || _channelIndex < 0) {
-            scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.3);
-            LogUtil.i('分组切换 - 频道不可见，已滚动到中间: _channelIndex=$_channelIndex');
-          }
-        } else {
-          // 不是当前播放频道所在分组
-          _channelIndex = 0;
-          _isChannelAutoSelected = true;
-          if (_channelIndex != 0) {
-            scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-            LogUtil.i('分组切换 - 频道不在顶部，已滚动到顶部');
-          }
-        }
-      });
     });
   }
 
@@ -1318,58 +1241,72 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：更新分类、分组、频道的startIndex，并更新第一项索引变量和_groupFocusCache，触发焦点逻辑后绑定监听器
+  // 修改部分：优化 _updateStartIndexes，确保 _focusNodes 初始化后更新 _groupFocusCache
   void _updateStartIndexes({
     bool includeGroupsAndChannels = true,
     bool shouldInitializeFocusLogic = false,
     int? initialIndexOverride,
   }) {
-    int categoryStartIndex = 0; // 分类的起始索引
-    int groupStartIndex = categoryStartIndex + _categories.length; // 分组的起始索引
-    int channelStartIndex = groupStartIndex + (includeGroupsAndChannels && _keys.isNotEmpty ? _keys.length : 0); // 频道的起始索引
+    // 先计算总节点数并初始化 _focusNodes
+    int totalFocusNodes = _calculateTotalFocusNodes();
+    _initializeFocusNodes(totalFocusNodes);
+
+    // 计算索引
+    int categoryStartIndex = 0;
+    int groupStartIndex = categoryStartIndex + _categories.length;
+    int channelStartIndex = groupStartIndex + (includeGroupsAndChannels && _keys.isNotEmpty ? _keys.length : 0);
 
     if (!includeGroupsAndChannels) {
-      // 如果不包含分组和频道，则分组和频道的索引只到分类部分
       groupStartIndex = categoryStartIndex + _categories.length;
-      channelStartIndex = groupStartIndex; // 频道部分不参与计算
+      channelStartIndex = groupStartIndex;
     }
 
-    // 更新构造组件时的起始索引
     _categoryStartIndex = categoryStartIndex;
     _groupStartIndex = groupStartIndex;
     _channelStartIndex = channelStartIndex;
 
-    // 更新第一项索引变量
-    _groupListFirstIndex = groupStartIndex; // GroupList 第一项
-    _channelListFirstIndex = channelStartIndex; // ChannelList 第一项
+    // 更新第一项索引
+    _groupListFirstIndex = groupStartIndex;
+    _channelListFirstIndex = channelStartIndex;
 
     // 更新 _groupFocusCache
     _groupFocusCache.clear();
-    if (_categories.length > 0 && _focusNodes.length > categoryStartIndex) {
+    if (_categories.length > 0 && _focusNodes.length >= categoryStartIndex + _categories.length) {
       _groupFocusCache[0] = {
         'firstFocusNode': _focusNodes[categoryStartIndex],
         'lastFocusNode': _focusNodes[categoryStartIndex + _categories.length - 1],
       };
+    } else {
+      LogUtil.w('分组 0 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${_categories.length}');
     }
-    if (_keys.length > 0 && _focusNodes.length > groupStartIndex + _keys.length - 1) {
+
+    if (_keys.length > 0 && _focusNodes.length >= groupStartIndex + _keys.length) {
       _groupFocusCache[1] = {
         'firstFocusNode': _focusNodes[groupStartIndex],
         'lastFocusNode': _focusNodes[groupStartIndex + _keys.length - 1],
       };
+    } else if (_keys.length > 0) {
+      LogUtil.w('分组 1 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${groupStartIndex + _keys.length}');
     }
-    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _focusNodes.length > channelStartIndex + _values[_groupIndex].length - 1) {
+
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && 
+        _focusNodes.length >= channelStartIndex + _values[_groupIndex].length) {
       _groupFocusCache[2] = {
         'firstFocusNode': _focusNodes[channelStartIndex],
         'lastFocusNode': _focusNodes[channelStartIndex + _values[_groupIndex].length - 1],
       };
+    } else if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      LogUtil.w('分组 2 更新失败: _focusNodes.length=${_focusNodes.length}, 需 ${channelStartIndex + _values[_groupIndex].length}');
     }
-    LogUtil.i('更新 _groupFocusCache: $_groupFocusCache');
 
-    // 在 _focusNodes 和 _groupFocusCache 更新完成后，触发焦点逻辑并绑定监听器
+    LogUtil.i('索引更新: categoryStart=$categoryStartIndex, groupStart=$groupStartIndex, '
+        'channelStart=$channelStartIndex, _groupFocusCache=$_groupFocusCache');
+
+    // 触发焦点逻辑
     if (shouldInitializeFocusLogic && _tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources(); // 清理旧资源
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0); // 刷新焦点逻辑
-      _reInitializeFocusListeners(); // TvKeyNavigation 刷新完成后重新绑定监听器
+      _tvKeyNavigationState!.releaseResources();
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: initialIndexOverride ?? 0);
+      _reInitializeFocusListeners();
     }
   }
 
@@ -1441,27 +1378,26 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return 0;
   }
 
-  // 检查焦点列表是否正确，如果不正确则重建
+  // 修改部分：添加 _ensureCorrectFocusNodes，确保 _focusNodes 在 build 时正确
   List<FocusNode> _ensureCorrectFocusNodes() {
     int totalNodesExpected = _categories.length +
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
     if (_focusNodes.length != totalNodesExpected) {
+      LogUtil.w('FocusNodes 长度不匹配，预期: $totalNodesExpected, 实际: ${_focusNodes.length}');
       _initializeFocusNodes(totalNodesExpected);
     }
     return _focusNodes;
   }
 
+  // 修改部分：优化 build，确保 _focusNodes 在构建时正确
   @override
   Widget build(BuildContext context) {
-    // 获取 isTV 状态
     bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
+    _ensureCorrectFocusNodes(); // 确保 _focusNodes 正确
+    int currentFocusIndex = 0;
 
-    // 索引管理
-    int currentFocusIndex = 0; // 从0开始
-
-    // 修改部分：移除 _ensureCorrectFocusNodes，直接使用 _focusNodes
     Widget categoryListWidget = CategoryList(
       categories: _categories,
       selectedCategoryIndex: _categoryIndex,
@@ -1511,8 +1447,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     return TvKeyNavigation(
-      focusNodes: _focusNodes, // 修改部分：直接使用 _focusNodes
-      groupFocusCache: _groupFocusCache, // 修改部分：传递 _groupFocusCache
+      focusNodes: _focusNodes,
+      groupFocusCache: _groupFocusCache,
       cacheName: 'ChannelDrawerPage',
       isVerticalGroup: true,
       initialIndex: 0,
