@@ -195,6 +195,7 @@ void addFocusListeners(
         if (scrollController != null && currentFocus && scrollController.isAttached) {
           final itemIndex = index - startIndex;
           bool isMovingDown = _lastFocusedIndex != -1 && index > _lastFocusedIndex;
+          bool isMovingUp = _lastFocusedIndex != -1 && index < _lastFocusedIndex; // 判断向上移动
           _lastFocusedIndex = index;
 
           final channelDrawerState = state is _ChannelDrawerPageState
@@ -210,24 +211,20 @@ void addFocusListeners(
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          // 计算当前视窗的顶部和底部索引（基于上一次焦点位置）
-          int currentTopIndex = 0;
-          if (_lastFocusedIndex >= fullItemsInViewport) {
-            currentTopIndex = (_lastFocusedIndex - (fullItemsInViewport - 1)).clamp(0, length - fullItemsInViewport);
+          // 计算当前视窗顶部索引
+          int currentTopIndex = max(0, itemIndex - (fullItemsInViewport - 1));
+          if (currentTopIndex > length - fullItemsInViewport) {
+            currentTopIndex = length - fullItemsInViewport;
           }
-          final currentBottomIndex = currentTopIndex + fullItemsInViewport - 1;
 
-          LogUtil.i('焦点移动: itemIndex=$itemIndex, isMovingDown=$isMovingDown, '
-              'currentView=$currentTopIndex-$currentBottomIndex');
-
-          if (isFirstItem && !isMovingDown) {
+          if (isFirstItem && !isMovingUp) { // 恢复：仅非向上移动到首项时滚动
             scrollController.scrollTo(
               index: 0,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到首项（顶部固定）: itemIndex=$itemIndex');
+            LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex');
           } else if (isLastItem && isMovingDown) {
             scrollController.scrollTo(
               index: length - 1,
@@ -235,29 +232,24 @@ void addFocusListeners(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到末项（底部固定）: itemIndex=$itemIndex');
-          } else if (isMovingDown && itemIndex > currentBottomIndex) {
-            // 下移超出底部时，滚动使新焦点固定在底部
-            final targetIndex = itemIndex - (fullItemsInViewport - 1);
+            LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex');
+          } else if (isMovingDown && itemIndex >= fullItemsInViewport) {
+            final targetIndex = itemIndex - fullItemsInViewport + 1;
             scrollController.scrollTo(
               index: targetIndex.clamp(0, length - fullItemsInViewport),
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向下移动（底部固定）: itemIndex=$itemIndex, targetIndex=$targetIndex');
-          } else if (!isMovingDown && itemIndex < currentTopIndex) {
-            // 上移超出顶部时，滚动使新焦点固定在顶部
+            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
+          } else if (isMovingUp && itemIndex < currentTopIndex) {
             scrollController.scrollTo(
               index: itemIndex,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向上移动（顶部固定）: itemIndex=$itemIndex');
-          } else {
-            // 焦点仍在视窗内，不滚动
-            LogUtil.i('焦点在视窗内，无需滚动: itemIndex=$itemIndex');
+            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
           }
         }
       }
@@ -753,7 +745,6 @@ class ChannelDrawerPage extends StatefulWidget {
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
-  // 修改部分：将 ScrollController 改为 ItemScrollController
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
   final ItemScrollController _categoryScrollController = ItemScrollController(); // 修改：新增分类控制器
@@ -766,13 +757,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool _isChannelAutoSelected = false;
 
   final GlobalKey _viewPortKey = GlobalKey();
-
-  late List<String> _keys;
-  late List<Map<String, PlayModel>> _values;
-  late int _groupIndex;
-  late int _channelIndex;
-  late List<String> _categories;
-  late int _categoryIndex;
+  // 修改部分：移除 late，提供与上下文逻辑匹配的默认值
+  List<String> _categories = [];                  // 默认空列表，与 _initializeCategoryData 的降级行为一致
+  List<String> _keys = [];                        // 默认空列表，与 _resetChannelData 一致
+  List<Map<String, PlayModel>> _values = [];      // 默认空列表，与 _resetChannelData 一致
+  int _groupIndex = -1;                           // 默认 -1，与 _initializeCategoryData 的初始值一致
+  int _channelIndex = -1;                         // 默认 -1，与 _initializeCategoryData 的初始值一致
+  int _categoryIndex = -1;                        // 默认 -1，与 _initializeCategoryData 的初始值一致
   int _categoryStartIndex = 0;
   int _groupStartIndex = 0;
   int _channelStartIndex = 0;
@@ -789,6 +780,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 修改部分：新增分组焦点缓存
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+
+  // 修改部分：新增排序相关变量（按修改大纲添加）
+  static const List<String> sortKeywords = ['海南', '地区', '城市']; // 定义关键字列表
+  String? _lastLocationStr; // 记录上次的地理信息，用于判断是否需要重新排序
+  Map<String, List<String>> _groupSortCache = {}; // 分组排序内存缓存，键为 "keys_$_categoryIndex"
+  Map<String, List<String>> _channelSortCache = {}; // 频道排序内存缓存，键为 "channels_$_categoryIndex_$key"
 
   // 修改部分：移除 _setupScrollControllerListeners，改为直接在 initState 中计算
   void _calculateViewportHeight() {
@@ -866,15 +863,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
-  // 修改部分：优化 initState，确保 _focusNodes 和 _groupFocusCache 在 TvKeyNavigation 前初始化
+  // 修改部分：优化 initState，同步初始化数据，异步加载 EPG
   @override
   void initState() {
     super.initState();
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
+
+    // 同步初始化数据，确保 build 前所有变量已就绪
+    _initializeData();
+    _updateFocusLogic(true); // 首次初始化
+
+    // 异步加载 EPG 数据
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeData();
-      _updateFocusLogic(true); // 首次初始化
+      if (_shouldLoadEpg()) {
+        _loadEPGMsg(widget.playModel);
+      }
       setState(() {});
     });
   }
@@ -1043,7 +1047,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_channelIndex == -1) _channelIndex = 0;
   }
 
-  // 位置排序逻辑（与<DOCUMENT> 完全一致）
+  // 修改部分：优化后的 _sortByLocation() 方法（按大纲实现，使用内存缓存）
   void _sortByLocation() {
     const String locationKey = 'user_all_info';
     String? locationStr = SpUtil.getString(locationKey);
@@ -1053,6 +1057,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
+    // 检查地理信息是否变化，若变化则清空内存缓存
+    if (_lastLocationStr != locationStr) {
+      _groupSortCache.clear();
+      _channelSortCache.clear();
+      _lastLocationStr = locationStr;
+      LogUtil.i('地理信息变化，清空内存缓存');
+    }
+
+    // 解析地理信息
     String? regionPrefix;
     String? cityPrefix;
     try {
@@ -1071,38 +1084,60 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
-      LogUtil.i('地理信息中未找到地区或城市，跳过排序');
-      return;
+    // 分组排序
+    bool needsGroupSort = _keys.any((key) => sortKeywords.any((keyword) => key.contains(keyword)));
+    if (needsGroupSort) {
+      String cacheKey = 'keys_$_categoryIndex';
+      if (_groupSortCache.containsKey(cacheKey)) {
+        _keys = List.from(_groupSortCache[cacheKey]!);
+        LogUtil.i('从内存缓存加载分组排序: $_keys');
+      } else {
+        _keys = _sortByGeoPrefix(
+          items: _keys,
+          prefix: regionPrefix,
+          getName: (key) => key,
+        );
+        _groupSortCache[cacheKey] = List.from(_keys);
+        LogUtil.i('分组排序完成并存入内存缓存: $_keys');
+      }
+    } else {
+      LogUtil.i('分组列表无关键字，跳过排序');
     }
 
-    _keys = _sortByGeoPrefix<String>(
-      items: _keys,
-      prefix: regionPrefix,
-      getName: (key) => key,
-    );
-
+    // 频道排序
     List<Map<String, PlayModel>> newValues = [];
     for (String key in _keys) {
       int oldIndex = widget.videoMap?.playList[_categories[_categoryIndex]]?.keys.toList().indexOf(key) ?? -1;
       if (oldIndex != -1) {
         Map<String, PlayModel> channelMap = _values[oldIndex];
-        List<String> sortedChannelKeys = _sortByGeoPrefix<String>(
-          items: channelMap.keys.toList(),
-          prefix: cityPrefix,
-          getName: (key) => key,
-        );
-        Map<String, PlayModel> sortedChannels = {
-          for (String channelKey in sortedChannelKeys) channelKey: channelMap[channelKey]!
-        };
-        newValues.add(sortedChannels);
+        bool needsChannelSort = channelMap.keys.any((channel) => sortKeywords.any((keyword) => channel.contains(keyword)));
+        if (needsChannelSort) {
+          String cacheKey = 'channels_$_categoryIndex_$key';
+          if (_channelSortCache.containsKey(cacheKey)) {
+            List<String> sortedChannelKeys = List.from(_channelSortCache[cacheKey]!);
+            newValues.add({for (var k in sortedChannelKeys) k: channelMap[k]!});
+            LogUtil.i('从内存缓存加载频道排序: group=$key');
+          } else {
+            List<String> sortedChannelKeys = _sortByGeoPrefix(
+              items: channelMap.keys.toList(),
+              prefix: cityPrefix,
+              getName: (k) => k,
+            );
+            newValues.add({for (var k in sortedChannelKeys) k: channelMap[k]!});
+            _channelSortCache[cacheKey] = List.from(sortedChannelKeys);
+            LogUtil.i('频道排序完成并存入内存缓存: group=$key');
+          }
+        } else {
+          newValues.add(channelMap);
+          LogUtil.i('频道列表 $key 无关键字，跳过排序');
+        }
       } else {
         LogUtil.e('位置排序时未找到键: $key');
       }
     }
     _values = newValues;
 
-    LogUtil.i('根据地区"$regionPrefix" 和城市 "$cityPrefix" 排序完成: $_keys');
+    LogUtil.i('排序完成: keys=$_keys');
   }
 
   // 通用地理前缀排序方法（从 <DOCUMENT> 引用）
@@ -1167,10 +1202,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
 
-      for (final node in _focusNodes) node.dispose();
-      _focusNodes.clear();
-      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
-      LogUtil.i('焦点节点更新: 总数=$totalNodes');
+    for (final node in _focusNodes) node.dispose();
+    _focusNodes.clear();
+    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    LogUtil.i('焦点节点更新: 总数=$totalNodes');
 
     // 设置索引和 groupFocusCache
     _categoryStartIndex = 0;
@@ -1274,9 +1309,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：移除 _updateStartIndexes 和 _ensureCorrectFocusNodes，使用 _updateFocusLogic 替代
-  // void _updateStartIndexes(...) 和 List<FocusNode> _ensureCorrectFocusNodes() 已删除
-
   // 调整滚动位置
   void _adjustScrollPositions() {
     scrollTo(targetList: 'group', index: _groupIndex);
@@ -1345,7 +1377,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return 0;
   }
 
-  // 修改部分：优化 build，不重复调用焦点更新，直接使用已初始化的数据
+  // 修改部分：优化 build，添加防护检查以匹配默认值逻辑
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
@@ -1354,7 +1386,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     Widget categoryListWidget = CategoryList(
       categories: _categories,
-      selectedCategoryIndex: _categoryIndex,
+      selectedCategoryIndex: _categoryIndex >= 0 ? _categoryIndex : -1, // 防护：确保索引有效
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
@@ -1368,11 +1400,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     groupListWidget = GroupList(
       keys: _keys,
-      selectedGroupIndex: _groupIndex,
+      selectedGroupIndex: _groupIndex >= 0 ? _groupIndex : -1, // 防护：确保索引有效
       onGroupTap: _onGroupTap,
       isTV: useFocusNavigation,
       scrollController: _scrollController,
-      isFavoriteCategory: _categories[_categoryIndex] == Config.myFavoriteKey,
+      isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,
       isSystemAutoSelected: _isSystemAutoSelected,
     );
@@ -1382,7 +1414,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         currentFocusIndex += _keys.length;
         channelListWidget = ChannelList(
           channels: _values[_groupIndex],
-          selectedChannelName: _values[_groupIndex].keys.toList()[_channelIndex],
+          selectedChannelName: _channelIndex >= 0 && _channelIndex < _values[_groupIndex].keys.length
+              ? _values[_groupIndex].keys.toList()[_channelIndex]
+              : null, // 防护：确保索引有效，避免越界
           onChannelTap: _onChannelTap,
           isTV: useFocusNavigation,
           scrollController: _scrollChannelController,
