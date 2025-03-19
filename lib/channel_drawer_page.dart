@@ -759,6 +759,11 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
+abstract class ChannelDrawerStateInterface {
+  void initializeData();
+  void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
+}
+
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
