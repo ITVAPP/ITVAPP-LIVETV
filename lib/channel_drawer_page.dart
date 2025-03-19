@@ -1061,7 +1061,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_channelIndex == -1) _channelIndex = 0;
   }
 
-  // 修改部分：按需排序的 _sortByLocation 方法
+  // 修改部分：修复后的 _sortByLocation 方法
   void _sortByLocation() {
     const String locationKey = 'user_all_info';
     String? locationStr = SpUtil.getString(locationKey);
@@ -1109,6 +1109,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         );
         _groupSortCache[cacheKey] = List.from(_keys);
         LogUtil.i('分组排序完成并存入内存缓存: $_keys');
+      }
+
+      // 同步调整 _values 顺序以匹配 _keys
+      final originalCategoryMap = widget.videoMap?.playList[_categories[_categoryIndex]];
+      if (originalCategoryMap != null) {
+        List<Map<String, PlayModel>> newValues = [];
+        for (String key in _keys) {
+          int oldIndex = originalCategoryMap.keys.toList().indexOf(key);
+          if (oldIndex != -1 && oldIndex < _values.length) {
+            newValues.add(_values[oldIndex]);
+          } else {
+            LogUtil.e('同步 _values 时未找到键: $key');
+            newValues.add({}); // 添加空映射作为占位
+          }
+        }
+        _values = newValues;
       }
     } else {
       LogUtil.i('分组列表无关键字，跳过排序');
