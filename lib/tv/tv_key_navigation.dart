@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/tv/channel_drawer_page.dart';
 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
@@ -93,7 +94,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _isFocusManagementActive = true;
     });
 
-    // 如果传入了 cacheName,直接使用缓存
+    // 如果传入了 cacheName，直接使用缓存
     if (widget.cacheName != null) {
       String cacheName = 'groupCache-${widget.cacheName}';
       if (_namedCaches.containsKey(cacheName)) {
@@ -106,7 +107,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         LogUtil.i('未找到 ${widget.cacheName} 的缓存');
       }
     }
-    // 如果是子页面,直接初始化焦点逻辑
+    // 如果是子页面，直接初始化焦点逻辑
     else if (widget.frameType == "child") {
       initializeFocusLogic();
     }
@@ -185,6 +186,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         if (widget.groupFocusCache != null) {
           _groupFocusCache = Map.from(widget.groupFocusCache!);
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
+          
+          // 检查 cacheName 是否为 "ChannelDrawerPage"
+          if (widget.cacheName == "ChannelDrawerPage") {
+            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+            if (channelDrawerState != null && widget.groupFocusCache!.isNotEmpty) {
+              // 如果 groupFocusCache 已初始化，则跳过重复调用
+              LogUtil.i('groupFocusCache 已初始化，跳过重复调用 initializeData 和 updateFocusLogic');
+            } else if (channelDrawerState != null) {
+              channelDrawerState.initializeData();
+              channelDrawerState.updateFocusLogic(true);
+              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+            } else {
+              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+            }
+          }
         } else {
           LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
           _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
@@ -269,7 +285,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return parentNavigation;
   }
   
-/// 请求将焦点切换到指定索引的控件上
+  /// 请求将焦点切换到指定索引的控件上
   void _requestFocus(int index, {int? groupIndex}) {
     if (widget.focusNodes.isEmpty) {
       LogUtil.i('焦点节点列表为空，无法设置焦点');
@@ -333,6 +349,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
+   if (widget.groupFocusCache != null) {
+       LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
+       return;
+     }
     _groupFocusCache.clear();  // 清空缓存
     // 获取所有的分组
     final groups = _getAllGroups();
@@ -388,7 +408,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
   
-// 查找第一个可聚焦的节点
+  // 查找第一个可聚焦的节点
   FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
     return nodes.firstWhere(
       (node) => node.canRequestFocus,
@@ -471,7 +491,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return groups;
   }
 
-/// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
+  /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     FocusNode? currentFocus = _currentFocus;
 
@@ -595,7 +615,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return KeyEventResult.ignored; 
   }
   
-/// 判断是否为方向键
+  /// 判断是否为方向键
   bool _isDirectionKey(LogicalKeyboardKey key) {
     return {
       LogicalKeyboardKey.arrowUp,
@@ -699,7 +719,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return _triggerSpecificWidgetAction(widget);
   }
   
-// 触发特定组件的操作
+  // 触发特定组件的操作
   bool _triggerSpecificWidgetAction(Widget widget) {
     if (widget is SwitchListTile && widget.onChanged != null) {
       Function.apply(widget.onChanged!, [!widget.value]);
