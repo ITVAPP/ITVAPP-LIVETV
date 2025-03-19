@@ -876,6 +876,86 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  // 新增：获取地理信息
+  Map<String, String?> _getLocationInfo(String? userInfo) {
+    if (userInfo == null || userInfo.isEmpty) {
+      LogUtil.i('用户地理信息为空，使用默认顺序');
+      return {'region': null, 'city': null};
+    }
+    try {
+      final Map<String, dynamic> userData = jsonDecode(userInfo);
+      final String? region = userData['region'] as String?;
+      final String? city = userData['city'] as String?;
+      LogUtil.i('获取地理信息 - 地区: $region, 城市: $city');
+      return {'region': region, 'city': city};
+    } catch (e) {
+      LogUtil.e('解析地理信息失败: $e');
+      return {'region': null, 'city': null};
+    }
+  }
+
+  // 新增：基于地理前缀排序
+  List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
+    if (prefix == null || prefix.isEmpty) {
+      LogUtil.i('地理前缀为空，返回原始顺序');
+      return items;
+    }
+
+    List<String> matched = [];
+    List<String> unmatched = [];
+
+    for (String item in items) {
+      if (item.startsWith(prefix)) {
+        matched.add(item);
+      } else {
+        unmatched.add(item);
+      }
+    }
+
+    matched.sort((a, b) => a.compareTo(b));
+    unmatched.sort((a, b) => a.compareTo(b));
+    LogUtil.i('排序结果 - 匹配: $matched, 未匹配: $unmatched');
+    return [...matched, ...unmatched];
+  }
+
+  // 新增：对 videoMap 进行排序
+  void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
+    if (videoMap.playList == null || videoMap.playList!.isEmpty) {
+      LogUtil.e('播放列表为空，无需排序');
+      return;
+    }
+
+    final location = _getLocationInfo(userInfo);
+    final String? regionPrefix = location['region'];
+    final String? cityPrefix = location['city'];
+
+    videoMap.playList!.forEach((category, groups) {
+      // 排序分组
+      final groupList = groups.keys.toList();
+      final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
+      final newGroups = <String, Map<String, PlayModel>>{};
+      
+      // 重新构建分组 Map，保持 PlayModel 映射
+      for (var group in sortedGroups) {
+        final channels = groups[group]!;
+        final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), cityPrefix);
+        final newChannels = <String, PlayModel>{};
+        
+        // 排序频道并保持 PlayModel 映射
+        for (var channel in sortedChannels) {
+          newChannels[channel] = channels[channel]!;
+        }
+        
+        newGroups[group] = newChannels;
+      }
+      
+      // 更新原始 playList
+      videoMap.playList![category] = newGroups;
+    });
+    
+    LogUtil.i('videoMap 排序完成');
+  }
+
   Future<void> _onTapChannel(PlayModel? model) async {
     if (model == null) return;
 
@@ -1011,6 +1091,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     try {
       _videoMap = widget.m3uData;
+      // 添加排序逻辑
+      String? userInfo = SpUtil.getString('user_all_info');
+      _sortVideoMap(_videoMap!, userInfo);
       _sourceIndex = 0;
       await _handlePlaylist();
     } catch (e, stackTrace) {
