@@ -1063,10 +1063,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _keys = categoryMap.keys.toList();
     _values = categoryMap.values.toList();
 
-    // 仅当当前分类匹配当前播放频道的分类时，设置 _groupIndex 和 _channelIndex
-    _groupIndex = 0; // 默认从顶部开始
-    _channelIndex = 0; // 默认从顶部开始
-    if (selectedCategory == widget.playModel?.category) {
+    // 默认从顶部开始
+    _groupIndex = 0;
+    _channelIndex = 0;
+
+    // 检查当前分类是否包含当前播放频道的分组
+    if (widget.playModel?.group != null && categoryMap.containsKey(widget.playModel?.group)) {
       final groupIdx = _keys.indexOf(widget.playModel?.group ?? '');
       if (groupIdx != -1) {
         _groupIndex = groupIdx;
@@ -1077,7 +1079,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    _isSystemAutoSelected = selectedCategory != widget.playModel?.category;
+    // 如果当前分类不包含当前播放频道的分组，则认为是系统自动选择
+    _isSystemAutoSelected = widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
     _isChannelAutoSelected = _groupIndex == 0 && _channelIndex == 0;
   }
 
@@ -1209,8 +1212,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       final viewportHeight = _drawerHeight;
       final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-      // 检查当前分类是否为当前播放频道的分类
-      final isCurrentCategory = _categories[_categoryIndex] == widget.playModel?.category;
+      // 检查当前分类是否包含当前播放频道的分组
+      final selectedCategory = _categories[_categoryIndex];
+      final categoryMap = widget.videoMap?.playList[selectedCategory];
+      final isCurrentCategory = widget.playModel?.group != null && categoryMap.containsKey(widget.playModel?.group);
 
       // 分组列表滚动逻辑
       if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _keys.length) {
