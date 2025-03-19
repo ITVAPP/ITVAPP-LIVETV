@@ -170,7 +170,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  /// 初始化焦点逻辑（修改部分）
+  /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -182,29 +182,26 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('正在初始化焦点逻辑，共 ${widget.focusNodes.length} 个节点');
         }
       
-        // 修改：检查是否传入了 groupFocusCache
+        // 检查是否传入了 groupFocusCache
         if (widget.groupFocusCache != null) {
           _groupFocusCache = Map.from(widget.groupFocusCache!);
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
-          
-          // 检查 cacheName 是否为 "ChannelDrawerPage"
-          if (widget.cacheName == "ChannelDrawerPage") {
-            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
-            if (channelDrawerState != null && widget.groupFocusCache!.isNotEmpty) {
-              // 如果 groupFocusCache 已初始化，则跳过重复调用
-              LogUtil.i('groupFocusCache 已初始化，跳过重复调用 initializeData 和 updateFocusLogic');
-            } else if (channelDrawerState != null) {
-              channelDrawerState.initializeData();
-              channelDrawerState.updateFocusLogic(true);
-              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
-            } else {
-              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
-            }
-          }
         } else {
+      // 检查 cacheName 是否为 "ChannelDrawerPage"
+      if (widget.cacheName == "ChannelDrawerPage") {
+        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+        if (channelDrawerState != null) {
+          channelDrawerState.initializeData();
+          channelDrawerState.updateFocusLogic(true);
+          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+        } else {
+          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+        }
+      }  else {
           LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
           _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
         }
+     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
