@@ -876,7 +876,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 新增：获取地理信息
+  // 获取地理信息
   Map<String, String?> _getLocationInfo(String? userInfo) {
     if (userInfo == null || userInfo.isEmpty) {
       LogUtil.i('用户地理信息为空，使用默认顺序');
@@ -884,17 +884,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     try {
       final Map<String, dynamic> userData = jsonDecode(userInfo);
-      final String? region = userData['region'] as String?;
-      final String? city = userData['city'] as String?;
-      LogUtil.i('获取地理信息 - 地区: $region, 城市: $city');
-      return {'region': region, 'city': city};
+      final Map<String, dynamic>? locationData = userData['info']?['location'];
+      final String? region = locationData?['region'] as String?;
+      final String? city = locationData?['city'] as String?;
+      
+      // 取前两个字符
+      final String? regionPrefix = region != null && region.isNotEmpty
+          ? (region.length >= 2 ? region.substring(0, 2) : region)
+          : null;
+      final String? cityPrefix = city != null && city.isNotEmpty
+          ? (city.length >= 2 ? city.substring(0, 2) : city)
+          : null;
+
+      LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
+      return {'region': regionPrefix, 'city': cityPrefix};
     } catch (e) {
       LogUtil.e('解析地理信息失败: $e');
       return {'region': null, 'city': null};
     }
   }
 
-  // 新增：基于地理前缀排序
+  // 基于地理前缀排序
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序');
@@ -918,7 +928,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return [...matched, ...unmatched];
   }
 
-  // 新增：对 videoMap 进行排序
+  // 对 videoMap 进行排序
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       LogUtil.e('播放列表为空，无需排序');
@@ -929,19 +939,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
     final String? regionPrefix = location['region'];
     final String? cityPrefix = location['city'];
 
+    // 如果两者均为空则跳过排序
+    if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
+      LogUtil.i('地理信息中未找到有效地区或城市前缀，跳过排序');
+      return;
+    }
+
     videoMap.playList!.forEach((category, groups) {
-      // 排序分组
       final groupList = groups.keys.toList();
       final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
       final newGroups = <String, Map<String, PlayModel>>{};
       
-      // 重新构建分组 Map，保持 PlayModel 映射
       for (var group in sortedGroups) {
         final channels = groups[group]!;
         final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), cityPrefix);
         final newChannels = <String, PlayModel>{};
         
-        // 排序频道并保持 PlayModel 映射
         for (var channel in sortedChannels) {
           newChannels[channel] = channels[channel]!;
         }
@@ -949,11 +962,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         newGroups[group] = newChannels;
       }
       
-      // 更新原始 playList
       videoMap.playList![category] = newGroups;
     });
     
-    LogUtil.i('videoMap 排序完成');
+    LogUtil.i('按地理位置排序完成');
   }
 
   Future<void> _onTapChannel(PlayModel? model) async {
@@ -1093,6 +1105,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _videoMap = widget.m3uData;
       // 添加排序逻辑
       String? userInfo = SpUtil.getString('user_all_info');
+      LogUtil.i('原始 user_all_info: $userInfo'); // 添加调试日志以检查实际数据
       _sortVideoMap(_videoMap!, userInfo);
       _sourceIndex = 0;
       await _handlePlaylist();
