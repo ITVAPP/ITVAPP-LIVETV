@@ -223,8 +223,8 @@ void addFocusListeners(
             currentTopIndex = length - fullItemsInViewport;
           }
 
-          // 修改：当是第一项时，首次聚焦、非向上移动或组间切换时滚动到顶部
-          if (isFirstItem && (isInitialFocus || !isMovingUp || currentGroup != lastGroup)) {
+          // 修改：当是第一项时滚动到顶部
+          if (isFirstItem) {
             scrollController.scrollTo(
               index: 0,
               alignment: 0.0,
@@ -234,8 +234,8 @@ void addFocusListeners(
             LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
                 'isInitialFocus=$isInitialFocus, isMovingUp=$isMovingUp, groupChanged=${currentGroup != lastGroup}');
           }
-          // 修改：当是最后一项时，首次聚焦、非向下移动或组间切换时滚动到底部
-          else if (isLastItem && (isInitialFocus || !isMovingDown || currentGroup != lastGroup)) {
+          // 修改：当是最后一项时滚动到底部
+          else if (isLastItem) {
             scrollController.scrollTo(
               index: length - 1,
               alignment: 1.0,
