@@ -760,7 +760,7 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
+abstract class ChannelDrawer USer {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
 }
@@ -1122,7 +1122,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改：暴露为公共方法
+  // 修改：暴露为公共方法，并按建议优化
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
@@ -1131,9 +1131,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
 
-    for (final node in _focusNodes) node.dispose();
-    _focusNodes.clear();
-    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    // 初始化或更新 _focusNodes，确保长度与 totalNodes 一致
+    if (_focusNodes.length != totalNodes) {
+      for (final node in _focusNodes) node.dispose();
+      _focusNodes.clear();
+      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    }
     _focusGroupIndices.clear(); // 清空旧的映射
 
     // 分配 groupIndex
@@ -1149,9 +1152,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    LogUtil.i('焦点节点更新: 总数=$totalNodes');
+    LogUtil.i('焦点节点更新: 总数=$totalNodes, _focusNodes.length=${_focusNodes.length}');
 
-    // 设置索引和 groupFocusCache
+    // 设置索引
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
@@ -1159,6 +1162,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _groupListFirstIndex = _groupStartIndex;
     _channelListFirstIndex = _channelStartIndex;
 
+    // 更新 _groupFocusCache
     _groupFocusCache.clear();
     if (_categories.isNotEmpty) {
       _groupFocusCache[0] = {
@@ -1179,7 +1183,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       };
     }
 
-    // 优化后的日志输出：将 FocusNode 显示为索引
+    // 验证 _groupFocusCache 中的 FocusNode
+    _groupFocusCache.forEach((groupIndex, cache) {
+      final firstNode = cache['firstFocusNode']!;
+      final lastNode = cache['lastFocusNode']!;
+      LogUtil.i('Group $groupIndex: firstFocusNode=${firstNode.debugLabel}, canRequestFocus=${firstNode.canRequestFocus}, '
+          'lastFocusNode=${lastNode.debugLabel}, canRequestFocus=${lastNode.canRequestFocus}');
+    });
+
+    // 日志输出：将 FocusNode 显示为索引
     final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
           key,
           '{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}',
