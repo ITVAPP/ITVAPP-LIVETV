@@ -225,25 +225,19 @@ void addFocusListeners(
 
           // 修改：当是第一项时滚动到顶部
           if (isFirstItem) {
-            scrollController.scrollTo(
-              index: 0,
-              alignment: 0.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-            LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
-                'isInitialFocus=$isInitialFocus, isMovingUp=$isMovingUp, groupChanged=${currentGroup != lastGroup}');
-          }
+                      scrollController.jumpTo(
+                        index: 0,
+                        alignment: 0.0,
+                      );
+                      LogUtil.i('焦点跳到首项顶部');
+                    }
           // 修改：当是最后一项时滚动到底部
           else if (isLastItem) {
-            scrollController.scrollTo(
+            scrollController.jumpTo(
               index: length - 1,
               alignment: 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
-                'isInitialFocus=$isInitialFocus, isMovingDown=$isMovingDown, groupChanged=${currentGroup != lastGroup}');
+            LogUtil.i('焦点滚动到末项底部');
           }
           // 向下移动（非最后一项）
           else if (isMovingDown && itemIndex >= fullItemsInViewport) {
@@ -760,7 +754,7 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawer USer {
+abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
 }
@@ -830,12 +824,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
     double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
     double bottomPadding = MediaQuery.of(context).padding.bottom;
-    double leftPadding = MediaQuery.of(context).padding.left;
 
     if (MediaQuery.of(context).orientation == Orientation.landscape) {
-      _drawerHeight = screenHeight - leftPadding;
+      _drawerHeight = screenHeight; // 移除 leftPadding
     } else {
-      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding - leftPadding;
+      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding; // 移除 leftPadding
       _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
     }
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
@@ -1122,7 +1115,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改：暴露为公共方法，并按建议优化
+  // 修改：暴露为公共方法
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
@@ -1131,12 +1124,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         (_keys.isNotEmpty ? _keys.length : 0) +
         (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
 
-    // 初始化或更新 _focusNodes，确保长度与 totalNodes 一致
-    if (_focusNodes.length != totalNodes) {
-      for (final node in _focusNodes) node.dispose();
-      _focusNodes.clear();
-      _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
-    }
+    for (final node in _focusNodes) node.dispose();
+    _focusNodes.clear();
+    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
     _focusGroupIndices.clear(); // 清空旧的映射
 
     // 分配 groupIndex
@@ -1152,9 +1142,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    LogUtil.i('焦点节点更新: 总数=$totalNodes, _focusNodes.length=${_focusNodes.length}');
+    LogUtil.i('焦点节点更新: 总数=$totalNodes');
 
-    // 设置索引
+    // 设置索引和 groupFocusCache
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
@@ -1162,7 +1152,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _groupListFirstIndex = _groupStartIndex;
     _channelListFirstIndex = _channelStartIndex;
 
-    // 更新 _groupFocusCache
     _groupFocusCache.clear();
     if (_categories.isNotEmpty) {
       _groupFocusCache[0] = {
@@ -1183,15 +1172,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       };
     }
 
-    // 验证 _groupFocusCache 中的 FocusNode
-    _groupFocusCache.forEach((groupIndex, cache) {
-      final firstNode = cache['firstFocusNode']!;
-      final lastNode = cache['lastFocusNode']!;
-      LogUtil.i('Group $groupIndex: firstFocusNode=${firstNode.debugLabel}, canRequestFocus=${firstNode.canRequestFocus}, '
-          'lastFocusNode=${lastNode.debugLabel}, canRequestFocus=${lastNode.canRequestFocus}');
-    });
-
-    // 日志输出：将 FocusNode 显示为索引
+    // 优化后的日志输出：将 FocusNode 显示为索引
     final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
           key,
           '{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}',
