@@ -96,16 +96,14 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 
-// 修改后的 buildItemDecoration 函数，合并了 getGradientForDecoration 的逻辑
-BoxDecoration buildItemDecoration({
-  bool isSelected = false,
-  bool hasFocus = false,
-  bool isTV = false,
-  bool isSystemAutoSelected = false,
+LinearGradient? getGradientForDecoration({
+  required bool isTV,
+  required bool hasFocus,
+  required bool isSelected,
+  required bool isSystemAutoSelected,
 }) {
-  LinearGradient? gradient;
   if (isTV) {
-    gradient = hasFocus
+    return hasFocus
         ? LinearGradient(
             colors: [
               focusColor.withOpacity(0.9),
@@ -121,7 +119,7 @@ BoxDecoration buildItemDecoration({
               )
             : null);
   } else {
-    gradient = isSelected && !isSystemAutoSelected
+    return isSelected && !isSystemAutoSelected
         ? LinearGradient(
             colors: [
               selectedColor.withOpacity(0.9),
@@ -130,9 +128,21 @@ BoxDecoration buildItemDecoration({
           )
         : null;
   }
+}
 
+BoxDecoration buildItemDecoration({
+  bool isSelected = false,
+  bool hasFocus = false,
+  bool isTV = false,
+  bool isSystemAutoSelected = false,
+}) {
   return BoxDecoration(
-    gradient: gradient,
+    gradient: getGradientForDecoration(
+      isTV: isTV,
+      hasFocus: hasFocus,
+      isSelected: isSelected,
+      isSystemAutoSelected: isSystemAutoSelected,
+    ),
     border: Border.all(
       color: hasFocus || (isSelected && !isSystemAutoSelected)
           ? Colors.white.withOpacity(0.3)
@@ -404,8 +414,8 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: () => !isTV ? (context as Element).markNeedsBuild() : null,
-        onExit: () => !isTV ? (context as Element).markNeedsBuild() : null,
+        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
+        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -1185,7 +1195,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     for (final node in _focusNodes) node.dispose();
     _focusNodes.clear();
-    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node$index'));
+    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
     _focusGroupIndices.clear(); // 清空旧的映射
 
     // 分配 groupIndex
