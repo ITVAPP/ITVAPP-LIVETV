@@ -96,14 +96,16 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
 const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
 
-LinearGradient? getGradientForDecoration({
-  required bool isTV,
-  required bool hasFocus,
-  required bool isSelected,
-  required bool isSystemAutoSelected,
+// 修改后的 buildItemDecoration 函数，合并了 getGradientForDecoration 的逻辑
+BoxDecoration buildItemDecoration({
+  bool isSelected = false,
+  bool hasFocus = false,
+  bool isTV = false,
+  bool isSystemAutoSelected = false,
 }) {
+  LinearGradient? gradient;
   if (isTV) {
-    return hasFocus
+    gradient = hasFocus
         ? LinearGradient(
             colors: [
               focusColor.withOpacity(0.9),
@@ -119,7 +121,7 @@ LinearGradient? getGradientForDecoration({
               )
             : null);
   } else {
-    return isSelected && !isSystemAutoSelected
+    gradient = isSelected && !isSystemAutoSelected
         ? LinearGradient(
             colors: [
               selectedColor.withOpacity(0.9),
@@ -128,21 +130,9 @@ LinearGradient? getGradientForDecoration({
           )
         : null;
   }
-}
 
-BoxDecoration buildItemDecoration({
-  bool isSelected = false,
-  bool hasFocus = false,
-  bool isTV = false,
-  bool isSystemAutoSelected = false,
-}) {
   return BoxDecoration(
-    gradient: getGradientForDecoration(
-      isTV: isTV,
-      hasFocus: hasFocus,
-      isSelected: isSelected,
-      isSystemAutoSelected: isSystemAutoSelected,
-    ),
+    gradient: gradient,
     border: Border.all(
       color: hasFocus || (isSelected && !isSystemAutoSelected)
           ? Colors.white.withOpacity(0.3)
@@ -172,20 +162,28 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改后的 addFocusListeners 方法，按完善逻辑调整
+String _lastMoveDirection = 'none'; // 记录上一次移动方向 'up', 'down', 或 'none'（初始状态）
+
+// 修改后的 addFocusListeners 方法，整合滚动逻辑并优化方向切换
 void addFocusListeners(
   int startIndex,
   int length,
   State state, {
   ItemScrollController? scrollController,
+  bool scrollToCurrent = false,
 }) {
+  // 边界检查
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
+
+  // 初始化焦点状态
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
+
+  // 为每个焦点节点添加监听器
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
     _focusNodes[index].removeListener(() {});
@@ -193,72 +191,133 @@ void addFocusListeners(
       final currentFocus = _focusNodes[index].hasFocus;
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
-        state.setState(() {});
-        if (scrollController != null && currentFocus && scrollController.isAttached) {
-          final itemIndex = index - startIndex;
-          final currentGroup = _focusGroupIndices[index] ?? -1;
-          final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
-          bool isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup;
-          bool isMovingUp = isSameGroup && index < _lastFocusedIndex; // 仅组内向上移动
-          bool isMovingDown = isSameGroup && index > _lastFocusedIndex; // 仅组内向下移动
-          bool isInitialFocus = _lastFocusedIndex == -1; // 新增：检测首次聚焦
-          _lastFocusedIndex = index;
+        state.setState(() {}); // 更新 UI
 
+        // 滚动逻辑仅在 scrollController 存在且已附着、当前节点获得焦点时执行
+        if (scrollController != null && currentFocus && scrollController.isAttached) {
+          final itemIndex = index - startIndex; // 当前组内的相对索引
+          final currentGroup = _focusGroupIndices[index] ?? -1; // 当前焦点所属组
+          final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
+          final isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup; // 是否同一组
+          final isMovingUp = isSameGroup && index < _lastFocusedIndex; // 组内向上移动
+          final isMovingDown = isSameGroup && index > _lastFocusedIndex; // 组内向下移动
+          final isInitialFocus = _lastFocusedIndex == -1; // 首次聚焦
+          _lastFocusedIndex = index; // 更新最后焦点索引
+
+          // 获取 ChannelDrawerPageState 以访问必要数据
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState == null) return;
 
+          // 判断是否为组内首尾项
           final isFirstItem = index == channelDrawerState._groupListFirstIndex ||
               index == channelDrawerState._channelListFirstIndex;
           final isLastItem = itemIndex == length - 1;
 
-          // 计算视窗内完整项数
+          // 计算视窗参数
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          // 计算当前视窗顶部索引
-          int currentTopIndex = max(0, itemIndex - (fullItemsInViewport - 1));
-          if (currentTopIndex > length - fullItemsInViewport) {
-            currentTopIndex = length - fullItemsInViewport;
+          // 根据组别获取当前索引和播放状态
+          int currentIndex = -1;
+          bool isCurrentItem = false;
+          if (currentGroup == 1) { // 分组列表
+            currentIndex = channelDrawerState._groupIndex;
+            isCurrentItem = channelDrawerState.widget.playModel?.group != null &&
+                channelDrawerState._keys.isNotEmpty &&
+                itemIndex == currentIndex &&
+                channelDrawerState._keys[itemIndex] == channelDrawerState.widget.playModel?.group;
+          } else if (currentGroup == 2) { // 频道列表
+            currentIndex = channelDrawerState._channelIndex;
+            isCurrentItem = channelDrawerState.widget.playModel?.title != null &&
+                channelDrawerState._values.isNotEmpty &&
+                channelDrawerState._groupIndex >= 0 &&
+                channelDrawerState._groupIndex < channelDrawerState._values.length &&
+                itemIndex == currentIndex &&
+                channelDrawerState._values[channelDrawerState._groupIndex].keys.toList()[itemIndex] ==
+                    channelDrawerState.widget.playModel?.title;
           }
 
-          // 修改：当是第一项时滚动到顶部
-          if (isFirstItem) {
-                      scrollController.jumpTo(
-                        index: 0,
-                        alignment: 0.0,
-                      );
-                      LogUtil.i('焦点跳到首项顶部');
-                    }
-          // 修改：当是最后一项时滚动到底部
-          else if (isLastItem) {
-            scrollController.jumpTo(
-              index: length - 1,
-              alignment: 1.0,
-            );
-            LogUtil.i('焦点滚动到末项底部');
+          // 处理外部调用滚动（scrollToCurrent）
+          if (scrollToCurrent) {
+            if (!isCurrentItem || length <= fullItemsInViewport) {
+              scrollController.scrollTo(
+                index: 0,
+                alignment: 0.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+              LogUtil.i('调用滚动 - 非当前播放项或列表过短，滚动到顶部: groupIndex=$currentGroup, itemIndex=$itemIndex');
+            } else {
+              scrollController.scrollTo(
+                index: currentIndex,
+                alignment: 0.23,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+              LogUtil.i('调用滚动 - 滚动到当前播放项: groupIndex=$currentGroup, currentIndex=$currentIndex');
+            }
+            return; // 跳过监听滚动
           }
-          // 向下移动（非最后一项）
-          else if (isMovingDown && itemIndex >= fullItemsInViewport) {
-            final targetIndex = itemIndex - fullItemsInViewport + 1;
+
+          // 提取公共滚动方法
+          void _scrollToIndex(int index, double alignment, {required int duration}) {
             scrollController.scrollTo(
-              index: targetIndex.clamp(0, length - fullItemsInViewport),
-              alignment: 0.0,
-              duration: const Duration(milliseconds: 200),
+              index: index.clamp(0, length - 1), // 添加边界检查
+              alignment: alignment,
+              duration: Duration(milliseconds: duration),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
           }
-          // 向上移动（非第一项）
-          else if (isMovingUp && itemIndex < currentTopIndex) {
-            scrollController.scrollTo(
-              index: itemIndex,
-              alignment: 0.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
+
+          // 以下为监听触发的滚动逻辑
+          if (length <= fullItemsInViewport) {
+            // 列表项少于视窗高度，无需滚动
+            LogUtil.i('监听滚动 - 列表项少于视窗高度，无需滚动: itemIndex=$itemIndex, length=$length, fullItemsInViewport=$fullItemsInViewport');
+          } else if (isFirstItem) {
+            _scrollToIndex(0, 0.0, duration: 200);
+            _lastMoveDirection = 'up';
+            LogUtil.i('监听滚动 - 滚动到顶部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+          } else if (isLastItem) {
+            _scrollToIndex(length - 1, 1.0, duration: 200);
+            _lastMoveDirection = 'down';
+            LogUtil.i('监听滚动 - 滚动到底部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+          } else if (isInitialFocus) {
+            _scrollToIndex(itemIndex, 0.0, duration: 200);
+            _lastMoveDirection = 'none';
+            LogUtil.i('监听滚动 - 首次聚焦滚动到顶部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+          } else if (isSameGroup) {
+            if (isMovingUp) {
+              // 从向下切换到向上，第一次滚动到底部
+              if (_lastMoveDirection == 'down') {
+                _scrollToIndex(length - 1, 1.0, duration: 0); // 直接跳转
+                LogUtil.i('监听滚动 - 从向下切换到向上，初始滚动到底部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+              } else if (itemIndex < fullItemsInViewport - 1) {
+                // 焦点离开视窗顶部，滚动到顶部
+                _scrollToIndex(itemIndex, 0.0, duration: 200);
+                LogUtil.i('监听滚动 - 向上滚动到顶部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+              }
+              _lastMoveDirection = 'up';
+              LogUtil.i('方向更新: _lastMoveDirection=up');
+            } else if (isMovingDown) {
+              // 从向上切换到向下，第一次滚动到顶部
+              if (_lastMoveDirection == 'up') {
+                _scrollToIndex(0, 0.0, duration: 0); // 直接跳转
+                LogUtil.i('监听滚动 - 从向上切换到向下，初始滚动到顶部: itemIndex=$itemIndex, groupIndex=$currentGroup');
+              } else if (itemIndex >= fullItemsInViewport) {
+                // 焦点离开视窗底部，滚动到底部
+                final targetIndex = itemIndex - fullItemsInViewport + 1;
+                _scrollToIndex(targetIndex, 0.0, duration: 200);
+                LogUtil.i('监听滚动 - 向下滚动到底部: itemIndex=$itemIndex, targetIndex=$targetIndex, groupIndex=$currentGroup');
+              }
+              _lastMoveDirection = 'down';
+              LogUtil.i('方向更新: _lastMoveDirection=down');
+            }
+          } else if (lastGroup != -1) {
+            LogUtil.i('监听滚动 - 跨组移动，不滚动: fromGroup=$lastGroup, toGroup=$currentGroup, itemIndex=$itemIndex');
+            _lastMoveDirection = 'none';
+            LogUtil.i('方向更新: _lastMoveDirection=none');
           }
         }
       }
@@ -345,8 +404,8 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
-        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
+        onEnter: () => !isTV ? (context as Element).markNeedsBuild() : null,
+        onExit: () => !isTV ? (context as Element).markNeedsBuild() : null,
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -1126,7 +1185,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     for (final node in _focusNodes) node.dispose();
     _focusNodes.clear();
-    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node$index'));
     _focusGroupIndices.clear(); // 清空旧的映射
 
     // 分配 groupIndex
@@ -1189,7 +1248,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改后的 _onCategoryTap 方法
+  // 修改后的 _onCategoryTap 方法，移除 scrollTo，改为通过 scrollToCurrent 参数控制
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1203,100 +1262,58 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       } else {
         _initializeChannelData();
       }
-      updateFocusLogic(false, initialIndexOverride: index);  // 修改：去掉 _ 前缀
+      updateFocusLogic(false, initialIndexOverride: index); // 更新焦点逻辑
     });
 
-    // 添加滚动调整逻辑，确保只有当前播放频道的分类才滚动到 0.23
+    // 添加滚动调整逻辑
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = _drawerHeight;
-      final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
+      final isCurrentCategory = widget.playModel?.group != null &&
+          widget.videoMap?.playList[_categories[_categoryIndex]].containsKey(widget.playModel?.group) == true;
 
-      // 检查当前分类是否包含当前播放频道的分组
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
-      final isCurrentCategory = widget.playModel?.group != null && categoryMap.containsKey(widget.playModel?.group);
-
-      // 分组列表滚动逻辑
+      // 分组列表滚动
       if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _keys.length) {
-        final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
-        if (!isCurrentGroup || _keys.length <= fullItemsInViewport) {
-          scrollTo(
-            targetList: 'group',
-            index: 0,
-            alignment: 0.0,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分类切换 - 非当前播放分组或分组列表过短，滚动到顶部');
-        } else {
-          scrollTo(
-            targetList: 'group',
-            index: _groupIndex,
-            alignment: 0.23,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分类切换 - 滚动到当前播放分组: index=$_groupIndex');
-        }
+        addFocusListeners(
+          _groupStartIndex,
+          _keys.length,
+          this,
+          scrollController: _scrollController,
+          scrollToCurrent: isCurrentCategory, // 传递是否滚动到当前播放分组
+        );
       }
 
-      // 频道列表滚动逻辑
+      // 频道列表滚动
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
-        final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
-        if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          scrollTo(
-            targetList: 'channel',
-            index: 0,
-            alignment: 0.0,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分类切换 - 非当前播放频道或频道列表过短，滚动到顶部');
-        } else {
-          scrollTo(
-            targetList: 'channel',
-            index: _channelIndex,
-            alignment: 0.23,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分类切换 - 滚动到当前播放频道: index=$_channelIndex');
-        }
+        addFocusListeners(
+          _channelStartIndex,
+          _values[_groupIndex].length,
+          this,
+          scrollController: _scrollChannelController,
+          scrollToCurrent: isCurrentCategory, // 传递是否滚动到当前播放频道
+        );
       }
     });
   }
 
-  // 修改后的 _onGroupTap 方法
+  // 修改后的 _onGroupTap 方法，移除 scrollTo，改为通过 scrollToCurrent 参数控制
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _isSystemAutoSelected = false; // 用户点击，直接设置为 false
       _focusStates.clear();
-      updateFocusLogic(false, initialIndexOverride: _categories.length + index);  // 修改：去掉 _ 前缀
+      updateFocusLogic(false, initialIndexOverride: _categories.length + index); // 更新焦点逻辑
     });
 
-    // 添加滚动调整逻辑，确保只有当前播放频道所在分组才滚动到 0.23
+    // 添加滚动调整逻辑
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = _drawerHeight;
-      final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
         final isCurrentGroup = _keys[_groupIndex] == widget.playModel?.group;
-        final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
-        if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          scrollTo(
-            targetList: 'channel',
-            index: 0,
-            alignment: 0.0,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分组切换 - 非当前播放频道或频道列表过短，滚动到顶部');
-        } else {
-          scrollTo(
-            targetList: 'channel',
-            index: _channelIndex,
-            alignment: 0.23,
-            duration: const Duration(milliseconds: 200),
-          );
-          LogUtil.i('分组切换 - 滚动到当前播放频道: index=$_channelIndex');
-        }
+        addFocusListeners(
+          _channelStartIndex,
+          _values[_groupIndex].length,
+          this,
+          scrollController: _scrollChannelController,
+          scrollToCurrent: isCurrentGroup, // 传递是否滚动到当前播放频道
+        );
       }
     });
   }
