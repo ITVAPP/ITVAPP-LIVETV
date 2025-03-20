@@ -53,7 +53,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   bool _isFocusManagementActive = false; // 是否激活焦点管理
   int? _lastParentFocusIndex; // 父页面最后焦点索引
   DateTime? _lastKeyProcessedTime; // 上次按键处理时间
-  static const Duration _throttleDuration = Duration(milliseconds: 500); // 按键节流间隔改为 500 毫秒
+  static const Duration _throttleDuration = Duration(milliseconds: 150); // 按键节流间隔的毫秒数
   
   /// 判断是否为导航相关按键
   bool _isNavigationKey(LogicalKeyboardKey key) {
