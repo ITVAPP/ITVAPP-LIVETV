@@ -54,35 +54,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   DateTime? _lastKeyProcessedTime; // 新增：记录上一次按键处理的时间
   static const Duration _throttleDuration = Duration(milliseconds: 200); // 按键节流间隔的毫秒数
   
-  @override
-  void didUpdateWidget(TvKeyNavigation oldWidget) {
-    super.didUpdateWidget(oldWidget); // 调用父类方法
-    if (oldWidget.focusNodes != widget.focusNodes || oldWidget.groupFocusCache != widget.groupFocusCache) { // 检查焦点节点或缓存是否变化
-      LogUtil.i('TvKeyNavigation: focusNodes 或 groupFocusCache 变化，同步状态');
-      
-      bool isCurrentFocusValid = _currentFocus != null && widget.focusNodes.contains(_currentFocus) && _currentFocus!.canRequestFocus; // 验证当前焦点有效性
-      if (!isCurrentFocusValid) _currentFocus = null; // 重置无效焦点
-      
-      if (widget.groupFocusCache != null && oldWidget.groupFocusCache != widget.groupFocusCache) { // 检查是否需要同步缓存
-        _groupFocusCache = Map.from(widget.groupFocusCache!); // 更新缓存
-      }
-      
-      if (_isFocusManagementActive && !isCurrentFocusValid) { // 检查是否需要重新初始化焦点
-        int initialIndex = widget.initialIndex ?? 0; // 获取初始索引
-        if (widget.focusNodes.isNotEmpty && initialIndex >= 0 && initialIndex < widget.focusNodes.length) { // 验证索引有效性
-          initializeFocusLogic(initialIndexOverride: initialIndex); // 初始化焦点
-        } else {
-          initializeFocusLogic(); // 使用默认初始化
-        }
-      }
-    }
-  }
-  
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -196,6 +172,23 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
+void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+    if (widget.cacheName == null) {
+      LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
+      return;
+    }
+    if (cache.isEmpty) {
+      LogUtil.i('传入的缓存为空，跳过更新 _namedCaches');
+      return;
+    }
+    final cacheName = 'groupCache-${widget.cacheName}';
+    _namedCaches[cacheName] = Map.from(cache);
+    if (syncGroupFocusCache) {
+      _groupFocusCache = Map.from(cache);
+    }
+    LogUtil.i('更新 _namedCaches[$cacheName]: ${_namedCaches[cacheName]}');
+  }
+  
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -212,6 +205,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         if (widget.groupFocusCache != null) {
           _groupFocusCache = Map.from(widget.groupFocusCache!);
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
+          updateNamedCache(cache: _groupFocusCache); 
         } else {
       // 检查 cacheName 是否为 "ChannelDrawerPage"
       if (widget.cacheName == "ChannelDrawerPage") {
