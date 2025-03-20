@@ -172,12 +172,13 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改后的 addFocusListeners 方法，按完善逻辑调整
+// 修改后的 addFocusListeners 方法，实现逐步滚动逻辑
 void addFocusListeners(
   int startIndex,
   int length,
   State state, {
   ItemScrollController? scrollController,
+  ItemPositionsListener? itemPositionsListener, // 新增：支持逐步滚动所需的可见性监听器
 }) {
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
@@ -194,7 +195,7 @@ void addFocusListeners(
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
         state.setState(() {});
-        if (scrollController != null && currentFocus && scrollController.isAttached) {
+        if (scrollController != null && currentFocus && scrollController.isAttached && itemPositionsListener != null) {
           final itemIndex = index - startIndex;
           final currentGroup = _focusGroupIndices[index] ?? -1;
           final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
@@ -213,21 +214,12 @@ void addFocusListeners(
               index == channelDrawerState._channelListFirstIndex;
           final isLastItem = itemIndex == length - 1;
 
-          // 计算视窗内完整项数
-          final viewportHeight = channelDrawerState._drawerHeight;
-          final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-          // 当列表项数 <= fullItemsInViewport 时，不执行滚动
-          if (length <= fullItemsInViewport) {
-            LogUtil.i('列表项数少于视窗容量，不执行滚动: length=$length, fullItemsInViewport=$fullItemsInViewport');
-            return;
-          }
-
-          // 计算当前视窗顶部索引
-          int currentTopIndex = max(0, itemIndex - (fullItemsInViewport - 1));
-          if (currentTopIndex > length - fullItemsInViewport) {
-            currentTopIndex = length - fullItemsInViewport;
-          }
+          // 获取当前可见项的顶部和底部索引
+          final positions = itemPositionsListener.value;
+          final topItem = positions.reduce((a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b);
+          final bottomItem = positions.reduce((a, b) => a.itemTrailingEdge > b.itemTrailingEdge ? a : b);
+          final topIndex = topItem.index;
+          final bottomIndex = bottomItem.index;
 
           // 修改：当是第一项时，首次聚焦、非向上移动或组间切换时滚动到顶部
           if (isFirstItem && (isInitialFocus || !isMovingUp || currentGroup != lastGroup)) {
@@ -239,31 +231,37 @@ void addFocusListeners(
             );
             LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
                 'isInitialFocus=$isInitialFocus, isMovingUp=$isMovingUp, groupChanged=${currentGroup != lastGroup}');
-          } else if (isLastItem && isMovingDown) {
+          }
+          // 修改：当是最后一项时，首次聚焦、非向下移动或组间切换时滚动到底部
+          else if (isLastItem && (isInitialFocus || !isMovingDown || currentGroup != lastGroup)) {
             scrollController.scrollTo(
               index: length - 1,
               alignment: 1.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex');
-          } else if (isMovingDown && itemIndex >= fullItemsInViewport) {
-            final targetIndex = itemIndex - fullItemsInViewport + 1;
+            LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
+                'isInitialFocus=$isInitialFocus, isMovingDown=$isMovingDown, groupChanged=${currentGroup != lastGroup}');
+          }
+          // 修改：逐步向下移动，滚动到当前底部项的下一个
+          else if (isMovingDown && itemIndex > bottomIndex) {
             scrollController.scrollTo(
-              index: targetIndex.clamp(0, length - fullItemsInViewport),
+              index: bottomIndex + 1,
+              alignment: 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('焦点逐步向下移动: itemIndex=$itemIndex, from bottomIndex=$bottomIndex to ${bottomIndex + 1}');
+          }
+          // 修改：逐步向上移动，滚动到当前顶部项的上一个
+          else if (isMovingUp && itemIndex < topIndex) {
+            scrollController.scrollTo(
+              index: topIndex - 1,
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
-          } else if (isMovingUp && itemIndex < currentTopIndex) {
-            scrollController.scrollTo(
-              index: itemIndex,
-              alignment: 0.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
+            LogUtil.i('焦点逐步向上移动: itemIndex=$itemIndex, from topIndex=$topIndex to ${topIndex - 1}');
           }
         }
       }
