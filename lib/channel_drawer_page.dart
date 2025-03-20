@@ -282,10 +282,7 @@ void addFocusListeners(
           }
 
           // 以下为监听触发的滚动逻辑
-          if (length <= fullItemsInViewport) {
-            // 列表项少于视窗高度，无需滚动
-            LogUtil.i('监听滚动 - 列表项少于视窗高度，无需滚动: itemIndex=$itemIndex, length=$length, fullItemsInViewport=$fullItemsInViewport');
-          } else if (isFirstItem) {
+          if (isFirstItem) {
             _scrollToIndex(0, 0.0, duration: 200);
             _lastMoveDirection = 'up';
             LogUtil.i('监听滚动 - 滚动到顶部: itemIndex=$itemIndex, groupIndex=$currentGroup');
