@@ -142,7 +142,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
     }
     // 如果是子页面，直接初始化焦点逻辑
-    else if widget.frameType == "child") {
+    else if (widget.frameType == "child") {
       initializeFocusLogic();
     }
     LogUtil.i('激活页面的焦点管理');
@@ -401,12 +401,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
-   if (widget.groupFocusCache != null) {
-       LogUtil.i('groupFocusCache 已传入，不执行 _atoare
-
- _cacheGroupFocusNodes');
-       return;
-     }
+    if (widget.groupFocusCache != null) {
+      LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
+      return;
+    }
     _groupFocusCache.clear();  // 清空缓存
     // 获取所有的分组
     final groups = _getAllGroups();
