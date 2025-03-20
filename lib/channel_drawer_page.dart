@@ -172,13 +172,12 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改后的 addFocusListeners 方法，修复 itemPositionsListener.value 错误并实现逐步滚动
+// 修改后的 addFocusListeners 方法，按完善逻辑调整
 void addFocusListeners(
   int startIndex,
   int length,
   State state, {
   ItemScrollController? scrollController,
-  ItemPositionsListener? itemPositionsListener, // 用于监听可见项位置
 }) {
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
@@ -195,14 +194,14 @@ void addFocusListeners(
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
         state.setState(() {});
-        if (scrollController != null && currentFocus && scrollController.isAttached && itemPositionsListener != null) {
+        if (scrollController != null && currentFocus && scrollController.isAttached) {
           final itemIndex = index - startIndex;
           final currentGroup = _focusGroupIndices[index] ?? -1;
           final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
           bool isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup;
           bool isMovingUp = isSameGroup && index < _lastFocusedIndex; // 仅组内向上移动
           bool isMovingDown = isSameGroup && index > _lastFocusedIndex; // 仅组内向下移动
-          bool isInitialFocus = _lastFocusedIndex == -1; // 检测首次聚焦
+          bool isInitialFocus = _lastFocusedIndex == -1; // 新增：检测首次聚焦
           _lastFocusedIndex = index;
 
           final channelDrawerState = state is _ChannelDrawerPageState
@@ -214,15 +213,17 @@ void addFocusListeners(
               index == channelDrawerState._channelListFirstIndex;
           final isLastItem = itemIndex == length - 1;
 
-          // 获取当前可见项的顶部和底部索引
-          final positions = itemPositionsListener.itemPositions.value; // 修改：使用 itemPositions.value
-          if (positions.isEmpty) return; // 防护：如果没有可见项，则跳过滚动
-          final topItem = positions.reduce((a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b);
-          final bottomItem = positions.reduce((a, b) => a.itemTrailingEdge > b.itemTrailingEdge ? a : b);
-          final topIndex = topItem.index;
-          final bottomIndex = bottomItem.index;
+          // 计算视窗内完整项数
+          final viewportHeight = channelDrawerState._drawerHeight;
+          final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          // 当是第一项时，首次聚焦、非向上移动或组间切换时滚动到顶部
+          // 计算当前视窗顶部索引
+          int currentTopIndex = max(0, itemIndex - (fullItemsInViewport - 1));
+          if (currentTopIndex > length - fullItemsInViewport) {
+            currentTopIndex = length - fullItemsInViewport;
+          }
+
+          // 修改：当是第一项时，首次聚焦、非向上移动或组间切换时滚动到顶部
           if (isFirstItem && (isInitialFocus || !isMovingUp || currentGroup != lastGroup)) {
             scrollController.scrollTo(
               index: 0,
@@ -233,7 +234,7 @@ void addFocusListeners(
             LogUtil.i('焦点滚动到首项（顶部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
                 'isInitialFocus=$isInitialFocus, isMovingUp=$isMovingUp, groupChanged=${currentGroup != lastGroup}');
           }
-          // 当是最后一项时，首次聚焦、非向下移动或组间切换时滚动到底部
+          // 修改：当是最后一项时，首次聚焦、非向下移动或组间切换时滚动到底部
           else if (isLastItem && (isInitialFocus || !isMovingDown || currentGroup != lastGroup)) {
             scrollController.scrollTo(
               index: length - 1,
@@ -244,25 +245,26 @@ void addFocusListeners(
             LogUtil.i('焦点滚动到末项（底部）: itemIndex=$itemIndex, groupIndex=$currentGroup, '
                 'isInitialFocus=$isInitialFocus, isMovingDown=$isMovingDown, groupChanged=${currentGroup != lastGroup}');
           }
-          // 逐步向下移动，滚动到当前底部项的下一个
-          else if (isMovingDown && itemIndex > bottomIndex) {
+          // 向下移动（非最后一项）
+          else if (isMovingDown && itemIndex >= fullItemsInViewport) {
+            final targetIndex = itemIndex - fullItemsInViewport + 1;
             scrollController.scrollTo(
-              index: bottomIndex + 1,
-              alignment: 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-            LogUtil.i('焦点逐步向下移动: itemIndex=$itemIndex, from bottomIndex=$bottomIndex to ${bottomIndex + 1}');
-          }
-          // 逐步向上移动，滚动到当前顶部项的上一个
-          else if (isMovingUp && itemIndex < topIndex) {
-            scrollController.scrollTo(
-              index: topIndex - 1,
+              index: targetIndex.clamp(0, length - fullItemsInViewport),
               alignment: 0.0,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
             );
-            LogUtil.i('焦点逐步向上移动: itemIndex=$itemIndex, from topIndex=$topIndex to ${topIndex - 1}');
+            LogUtil.i('焦点向下移动（底部对齐）: itemIndex=$itemIndex, targetIndex=$targetIndex');
+          }
+          // 向上移动（非第一项）
+          else if (isMovingUp && itemIndex < currentTopIndex) {
+            scrollController.scrollTo(
+              index: itemIndex,
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('焦点向上移动（顶部对齐）: itemIndex=$itemIndex');
           }
         }
       }
@@ -382,15 +384,14 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改 CategoryList，添加 ItemPositionsListener 参数
+// CategoryList 使用 ScrollablePositionedList 包裹 Group
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
   final Function(int index) onCategoryTap;
   final bool isTV;
   final int startIndex;
-  final ItemScrollController scrollController;
-  final ItemPositionsListener itemPositionsListener; // 新增参数
+  final ItemScrollController scrollController; // 修改：添加 ItemScrollController
 
   const CategoryList({
     super.key,
@@ -400,7 +401,6 @@ class CategoryList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     required this.scrollController,
-    required this.itemPositionsListener, // 要求传入
   });
 
   @override
@@ -417,13 +417,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    addFocusListeners(
-      widget.startIndex,
-      widget.categories.length,
-      this,
-      scrollController: widget.scrollController,
-      itemPositionsListener: widget.itemPositionsListener, // 传递
-    );
+    addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -444,7 +438,6 @@ class _CategoryListState extends State<CategoryList> {
         groupIndex: 0,
         child: ScrollablePositionedList.builder(
           itemScrollController: widget.scrollController,
-          itemPositionsListener: widget.itemPositionsListener, // 设置监听器
           itemCount: widget.categories.length,
           itemBuilder: (context, index) {
             final category = widget.categories[index];
@@ -471,17 +464,16 @@ class _CategoryListState extends State<CategoryList> {
   }
 }
 
-// 修改 GroupList，添加 ItemPositionsListener 参数
+// GroupList 使用单一 Group 包裹整个列表，与 CategoryList 一致
 class GroupList extends StatefulWidget {
   final List<String> keys;
-  final ItemScrollController scrollController;
+  final ItemScrollController scrollController; // 修改：改为 ItemScrollController
   final int selectedGroupIndex;
   final Function(int index) onGroupTap;
   final bool isTV;
   final bool isFavoriteCategory;
   final int startIndex;
   final bool isSystemAutoSelected;
-  final ItemPositionsListener itemPositionsListener; // 新增参数
 
   const GroupList({
     super.key,
@@ -493,7 +485,6 @@ class GroupList extends StatefulWidget {
     this.startIndex = 0,
     this.isFavoriteCategory = false,
     required this.isSystemAutoSelected,
-    required this.itemPositionsListener, // 要求传入
   });
 
   @override
@@ -510,14 +501,8 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 在焦点监听中绑定滚动控制器和位置监听器
-    addFocusListeners(
-      widget.startIndex,
-      widget.keys.length,
-      this,
-      scrollController: widget.scrollController,
-      itemPositionsListener: widget.itemPositionsListener, // 传递
-    );
+    // 在焦点监听中绑定滚动控制器
+    addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -561,7 +546,6 @@ class _GroupListState extends State<GroupList> {
               groupIndex: 1,
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
-                itemPositionsListener: widget.itemPositionsListener, // 设置监听器
                 itemCount: widget.keys.length,
                 itemBuilder: (context, index) {
                   return buildListItem(
@@ -583,16 +567,15 @@ class _GroupListState extends State<GroupList> {
   }
 }
 
-// 修改 ChannelList，添加 ItemPositionsListener 参数
+// ChannelList 使用单一 Group 包裹整个列表，与 CategoryList 一致
 class ChannelList extends StatefulWidget {
   final Map<String, PlayModel> channels;
-  final ItemScrollController scrollController;
+  final ItemScrollController scrollController; // 修改：改为 ItemScrollController
   final Function(PlayModel?) onChannelTap;
   final String? selectedChannelName;
   final bool isTV;
   final int startIndex;
   final bool isSystemAutoSelected;
-  final ItemPositionsListener itemPositionsListener; // 新增参数
 
   const ChannelList({
     super.key,
@@ -603,7 +586,6 @@ class ChannelList extends StatefulWidget {
     required this.isTV,
     this.startIndex = 0,
     this.isSystemAutoSelected = false,
-    required this.itemPositionsListener, // 要求传入
   });
 
   @override
@@ -620,14 +602,8 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 在焦点监听中绑定滚动控制器和位置监听器
-    addFocusListeners(
-      widget.startIndex,
-      widget.channels.length,
-      this,
-      scrollController: widget.scrollController,
-      itemPositionsListener: widget.itemPositionsListener, // 传递
-    );
+    // 在焦点监听中绑定滚动控制器
+    addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -665,7 +641,6 @@ class _ChannelListState extends State<ChannelList> {
         groupIndex: 2,
         child: ScrollablePositionedList.builder(
           itemScrollController: widget.scrollController,
-          itemPositionsListener: widget.itemPositionsListener, // 设置监听器
           itemCount: channelList.length,
           itemBuilder: (context, index) {
             final channelEntry = channelList[index];
@@ -790,7 +765,7 @@ abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
 }
 
-// 修改 ChannelDrawerPage，添加 ItemPositionsListener 实例并传递
+// 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -821,10 +796,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
   final ItemScrollController _categoryScrollController = ItemScrollController(); // 修改：新增分类控制器
   final ItemScrollController _epgItemScrollController = ItemScrollController();
-  // 新增 ItemPositionsListener 实例
-  final ItemPositionsListener _categoryPositionsListener = ItemPositionsListener.create();
-  final ItemPositionsListener _groupPositionsListener = ItemPositionsListener.create();
-  final ItemPositionsListener _channelPositionsListener = ItemPositionsListener.create();
   TvKeyNavigationState? _tvKeyNavigationState;
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
@@ -1128,21 +1099,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _selEPGIndex = 0;
   }
 
-  // 重新初始化所有焦点监听器的方法，添加 ItemPositionsListener
+  // 重新初始化所有焦点监听器的方法
   void _reInitializeFocusListeners() {
     for (var node in _focusNodes) {
       node.removeListener(() {});
     }
 
-    // 添加新的监听器并传递 ItemPositionsListener
-    addFocusListeners(0, _categories.length, this,
-        scrollController: _categoryScrollController, itemPositionsListener: _categoryPositionsListener);
+    // 添加新的监听器并检查焦点变化
+    addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController);
+
+    // 如果有分组，初始化分组的监听器
     if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this,
-          scrollController: _scrollController, itemPositionsListener: _groupPositionsListener);
+      addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController);
       if (_values.isNotEmpty && _groupIndex >= 0) {
-        addFocusListeners(_categories.length + _keys.length, _values[_groupIndex].length, this,
-            scrollController: _scrollChannelController, itemPositionsListener: _channelPositionsListener);
+        addFocusListeners(
+          _categories.length + _keys.length,
+          _values[_groupIndex].length,
+          this,
+          scrollController: _scrollChannelController,
+        );
       }
     }
   }
@@ -1430,7 +1405,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return 0;
   }
 
-  // 修改 build 方法，传递 ItemPositionsListener
+  // 优化 build，添加防护检查以匹配默认值逻辑
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
@@ -1444,7 +1419,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isTV: useFocusNavigation,
       startIndex: currentFocusIndex,
       scrollController: _categoryScrollController,
-      itemPositionsListener: _categoryPositionsListener, // 传递
     );
     currentFocusIndex += _categories.length;
 
@@ -1461,7 +1435,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: currentFocusIndex,
       isSystemAutoSelected: _isSystemAutoSelected,
-      itemPositionsListener: _groupPositionsListener, // 传递
     );
 
     if (_keys.isNotEmpty) {
@@ -1477,7 +1450,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           scrollController: _scrollChannelController,
           startIndex: currentFocusIndex,
           isSystemAutoSelected: _isChannelAutoSelected,
-          itemPositionsListener: _channelPositionsListener, // 传递
         );
 
         epgListWidget = EPGList(
