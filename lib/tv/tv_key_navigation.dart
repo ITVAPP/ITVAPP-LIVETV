@@ -53,7 +53,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   bool _isFocusManagementActive = false; // 是否激活焦点管理
   int? _lastParentFocusIndex; // 父页面最后焦点索引
   DateTime? _lastKeyProcessedTime; // 上次按键处理时间
-  static const Duration _throttleDuration = Duration(seconds: 1); // 按键节流间隔
+  static const Duration _throttleDuration = Duration(milliseconds: 500); // 按键节流间隔改为 500 毫秒
   
   /// 判断是否为导航相关按键
   bool _isNavigationKey(LogicalKeyboardKey key) {
@@ -147,15 +147,23 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 释放组件使用的资源
   void releaseResources() {
-    try {
-      if (!mounted) return; // 检查组件是否已卸载
-      if (_currentFocus != null && _currentFocus!.canRequestFocus) { // 检查当前焦点是否有效
+    if (!mounted) return; // 检查组件是否已卸载
+
+    // 释放焦点
+    if (_currentFocus != null && _currentFocus!.canRequestFocus) { // 检查当前焦点是否有效
+      try {
         if (widget.frameType == "parent") { // 检查是否为父页面
           _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!); // 保存焦点索引
         }
         if (_currentFocus!.hasFocus) _currentFocus!.unfocus(); // 移除焦点
         _currentFocus = null; // 清空焦点
+      } catch (e) {
+        LogUtil.i('释放焦点失败: $e');
       }
+    }
+
+    // 清理缓存
+    try {
       if (widget.frameType == "child" || !widget.isFrame) { // 检查是否为子页面或非框架模式
         _groupFocusCache.clear(); // 清空分组缓存
         if (widget.cacheName != null) { // 检查是否使用缓存名称
@@ -164,18 +172,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('清理 $cacheName 的缓存');
         }
       }
-      _isFocusManagementActive = !widget.isFrame; // 重置焦点管理状态
-      WidgetsBinding.instance.removeObserver(this); // 移除观察者
     } catch (e) {
-      _ensureCriticalResourceRelease(); // 确保关键资源释放
+      LogUtil.i('清理缓存失败: $e');
     }
-  }
 
-  /// 确保关键资源被释放
-  void _ensureCriticalResourceRelease() {
+    // 重置状态
+    _isFocusManagementActive = !widget.isFrame;
+
+    // 移除观察者
     try {
       WidgetsBinding.instance.removeObserver(this); // 移除观察者
-    } catch (_) {} // 忽略错误
+    } catch (e) {
+      LogUtil.i('移除 WidgetsBindingObserver 失败: $e');
+    }
   }
 
   /// 初始化焦点逻辑
@@ -458,7 +467,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     if (_lastKeyProcessedTime != null) { // 检查是否已有上次处理时间
       final timeSinceLastKey = now.difference(_lastKeyProcessedTime!); // 计算时间差
       if (timeSinceLastKey < _throttleDuration) { // 检查是否在节流时间内
-        LogUtil.i('按键事件被节流，距离上一次处理未满 ${_throttleDuration.inSeconds} 秒');
+        LogUtil.i('按键事件被节流，距离上一次处理未满 ${_throttleDuration.inMilliseconds} 毫秒');
         return KeyEventResult.handled; // 忽略事件
       }
     }
