@@ -51,6 +51,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   static Map<String, Map<int, Map<String, FocusNode>>> _namedCaches = {};
   bool _isFocusManagementActive = false;
   int? _lastParentFocusIndex;
+  DateTime? _lastKeyProcessedTime; // 新增：记录上一次按键处理的时间
+  static const Duration _throttleDuration = Duration(seconds: 1); // 新增：节流时间间隔，1秒
   
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
@@ -490,6 +492,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
+    // 新增：节流逻辑
+    final now = DateTime.now();
+    if (_lastKeyProcessedTime != null) {
+      final timeSinceLastKey = now.difference(_lastKeyProcessedTime!);
+      if (timeSinceLastKey < _throttleDuration) {
+        LogUtil.i('按键事件被节流，距离上一次处理未满 ${_throttleDuration.inSeconds} 秒');
+        return KeyEventResult.handled; // 忽略本次按键事件
+      }
+    }
+
+    // 如果通过节流检查，更新上一次处理时间并继续执行导航逻辑
+    _lastKeyProcessedTime = now;
+
     FocusNode? currentFocus = _currentFocus;
 
     if (currentFocus == null) {
