@@ -916,11 +916,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.videoMap != oldWidget.videoMap) {
-      LogUtil.i('videoMap 变化，更新焦点逻辑');
-      initializeData();  // 修改：去掉 _ 前缀
-      updateFocusLogic(false);  // 修改：去掉 _ 前缀，数据更新
-      setState(() {});
+    if (widget.videoMap != oldWidget.videoMap || widget.playModel != oldWidget.playModel) {
+      LogUtil.i('ChannelDrawerPage: videoMap 或 playModel 变化，重新初始化');
+      initializeData();
+      updateFocusLogic(false);
+      setState(() {}); // 确保 UI 更新
     }
   }
 
