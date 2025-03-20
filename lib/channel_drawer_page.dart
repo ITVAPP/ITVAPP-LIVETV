@@ -759,7 +759,7 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawerStateInterface {
+abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
 }
