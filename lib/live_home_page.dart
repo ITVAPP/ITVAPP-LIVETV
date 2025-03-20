@@ -904,17 +904,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 基于地理前缀排序
+  // 基于地理前缀排序，全部按原始顺序排列
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序');
-      return items;
+      return items; // 如果没有前缀，返回原始列表
     }
 
-    List<String> matched = [];
-    List<String> unmatched = [];
+    List<String> matched = []; // 匹配前缀的项
+    List<String> unmatched = []; // 未匹配前缀的项
+    Map<String, int> originalOrder = {}; // 保存原始顺序的索引
 
-    for (String item in items) {
+    // 记录原始顺序并分离匹配与未匹配项
+    for (int i = 0; i < items.length; i++) {
+      String item = items[i];
+      originalOrder[item] = i; // 记录原始索引
       if (item.startsWith(prefix)) {
         matched.add(item);
       } else {
@@ -922,8 +926,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     }
 
-    matched.sort((a, b) => a.compareTo(b));
-    unmatched.sort((a, b) => a.compareTo(b));
+    // 按原始顺序对匹配项排序
+    matched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
+    // 按原始顺序对未匹配项排序
+    unmatched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
+
     LogUtil.i('排序结果 - 匹配: $matched, 未匹配: $unmatched');
     return [...matched, ...unmatched];
   }
