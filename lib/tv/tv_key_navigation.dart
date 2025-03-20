@@ -142,7 +142,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
     }
     // 如果是子页面，直接初始化焦点逻辑
-    else if (widget.frameType == "child") {
+    else if widget.frameType == "child") {
       initializeFocusLogic();
     }
     LogUtil.i('激活页面的焦点管理');
@@ -402,7 +402,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
    if (widget.groupFocusCache != null) {
-       LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
+       LogUtil.i('groupFocusCache 已传入，不执行 _atoare
+
+ _cacheGroupFocusNodes');
        return;
      }
     _groupFocusCache.clear();  // 清空缓存
@@ -633,7 +635,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
     
     try {
-      // 修改代码开始 - 使用 _navigateInGroup 消除重复逻辑
+      // 修改代码开始 - 使用 _navigateInGroup 消除重复逻辑，并确保正确传递所有参数
       if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {
           // 父页面导航逻辑
@@ -647,15 +649,15 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               return KeyEventResult.handled;
             }
           } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {   // 左上键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: false);
+            _navigateInGroup(key, currentIndex, groupIndex, false);
           } else if (key == LogicalKeyboardKey.arrowDown) {    // 下键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: true);
+            _navigateInGroup(key, currentIndex, groupIndex, true);
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: false);  // 后退或回父页面
+            _navigateInGroup(key, currentIndex, groupIndex, false);  // 后退或回父页面
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: true);  // 前进或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, true);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
@@ -664,25 +666,25 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // 判断是否启用了横向分组
         if (widget.isHorizontalGroup) {
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: false);  // 后退或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, false);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: true);  // 前进或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, true);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
         } else if (widget.isVerticalGroup) {   // 判断是否启用了竖向分组
           if (key == LogicalKeyboardKey.arrowUp) {  // 上键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: false);  // 后退或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, false);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: true);  // 前进或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, true);  // 前进或循环焦点
           } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {  // 左右键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
         } else {  // 没有启用分组的默认导航逻辑
           if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {  // 左上键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: false);  // 后退或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, false);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {  // 右下键
-            _navigateInGroup(key, currentIndex, groupIndex, forward: true);  // 前进或循环焦点
+            _navigateInGroup(key, currentIndex, groupIndex, true);  // 前进或循环焦点
           }
         }
       }
