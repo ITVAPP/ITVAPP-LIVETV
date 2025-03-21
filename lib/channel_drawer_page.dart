@@ -825,7 +825,7 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver implements ChannelDrawerStateInterface {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
@@ -963,6 +963,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
+  @override
   void initializeData() {
     _initializeCategoryData();
     _initializeChannelData();
@@ -1148,6 +1149,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改后的 updateFocusLogic，直接更新所有索引并供复用
+  @override
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
@@ -1557,5 +1559,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         },
       ),
     );
+  }
+
+  // 新增：实现接口方法
+  @override
+  ItemScrollController getCategoryScrollController() {
+    return _categoryScrollController;
+  }
+
+  @override
+  ItemScrollController getGroupScrollController() {
+    return _scrollController;
+  }
+
+  @override
+  ItemScrollController getChannelScrollController() {
+    return _scrollChannelController;
   }
 }
