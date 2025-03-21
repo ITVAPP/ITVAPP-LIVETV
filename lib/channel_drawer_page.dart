@@ -219,7 +219,7 @@ void addFocusListeners(
           final isInitialFocus = _lastFocusedIndex == -1; // 首次聚焦
           _lastFocusedIndex = index;
 
-          // 获取 ChannelDrawerPageState 以访问索引和抽屉高度
+          // 获取 _ChannelDrawerPageState 以访问索引和抽屉高度
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
@@ -659,7 +659,7 @@ class _ChannelListState extends State<ChannelList> {
       return const SizedBox.shrink();
     }
 
-    // 获取 ChannelDrawerPageState 以访问 _groupIndex 和 playModel
+    // 获取 _ChannelDrawerPageState 以访问 _groupIndex 和 playModel
     final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
     final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
     final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
@@ -795,14 +795,6 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawerStateInterface {
-  void initializeData();
-  void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-  ItemScrollController getCategoryScrollController();
-  ItemScrollController getGroupScrollController();
-  ItemScrollController getChannelScrollController();
-}
-
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
@@ -828,7 +820,7 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver implements ChannelDrawerStateInterface {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
@@ -1563,17 +1555,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
   
   // 接口方法实现
- @override
   ItemScrollController getCategoryScrollController() {
     return _categoryScrollController;
   }
 
-  @override
   ItemScrollController getGroupScrollController() {
     return _scrollController;
   }
 
-  @override
   ItemScrollController getChannelScrollController() {
     return _scrollChannelController;
   }
