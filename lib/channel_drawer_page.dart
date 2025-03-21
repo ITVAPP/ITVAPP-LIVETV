@@ -178,6 +178,8 @@ void addFocusListeners(
   int length,
   State state, {
   ItemScrollController? scrollController,
+  bool enableScroll = false, // 新增：控制是否触发滚动
+  bool isForward = true, // 新增：循环方向，true 为顶部，false 为底部
 }) {
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
@@ -186,6 +188,19 @@ void addFocusListeners(
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
+  
+  // 当 enableScroll 为 true 时，立即触发滚动
+  if (enableScroll && scrollController != null && scrollController.isAttached) {
+    final targetIndex = isForward ? 0 : length - 1;
+    scrollController.scrollTo(
+      index: targetIndex,
+      alignment: isForward ? 0.0 : 1.0, // 顶部或底部
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
+    LogUtil.i('触发滚动: startIndex=$startIndex, length=$length, targetIndex=$targetIndex, direction=${isForward ? '顶部' : '底部'}');
+  }
+  
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
     _focusNodes[index].removeListener(() {});
