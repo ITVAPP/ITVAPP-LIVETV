@@ -795,12 +795,12 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
+abstract class ChannelDrawerStateInterface {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-  ItemScrollController getCategoryScrollController(); // 获取分类滚动控制器
-  ItemScrollController getGroupScrollController();   // 获取分组滚动控制器
-  ItemScrollController getChannelScrollController(); // 获取频道滚动控制器
+  ItemScrollController getCategoryScrollController();
+  ItemScrollController getGroupScrollController();
+  ItemScrollController getChannelScrollController();
 }
 
 // 主组件ChannelDrawerPage
@@ -1563,7 +1563,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
   
   // 接口方法实现
-  @override
+ @override
   ItemScrollController getCategoryScrollController() {
     return _categoryScrollController;
   }
