@@ -223,7 +223,11 @@ void addFocusListeners(
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
-          if (channelDrawerState == null) return;
+          // 修改点：增强错误处理
+          if (channelDrawerState == null) {
+            LogUtil.e('未找到 _ChannelDrawerPageState，addFocusListeners 失败');
+            return;
+          }
 
           // 判断是否为首项或末项
           final isFirstItem = index == channelDrawerState._categoryListFirstIndex ||
@@ -820,6 +824,14 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
+abstract class ChannelDrawerStateInterface {
+  void initializeData();
+  void updateFocusLogic(bool isInitial);
+  ItemScrollController getCategoryScrollController();
+  ItemScrollController getGroupScrollController();
+  ItemScrollController getChannelScrollController();
+}
+
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
@@ -926,18 +938,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
-  // 优化 initState，同步初始化数据，异步加载 EPG
+  // 修改点：优化 initState，避免重复初始化
   @override
   void initState() {
     super.initState();
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
 
-    // 同步初始化数据，确保 build 前所有变量已就绪
-    initializeData();  // 修改：去掉 _ 前缀
-    updateFocusLogic(true);  // 修改：去掉 _ 前缀，首次初始化
-
-    // 异步加载 EPG 数据
+    // 移除直接调用 initializeData 和 updateFocusLogic，交给 TvKeyNavigation 处理
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_shouldLoadEpg()) {
         _loadEPGMsg(widget.playModel);
@@ -958,6 +966,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
+ @override
   void initializeData() {
     _initializeCategoryData();
     _initializeChannelData();
@@ -1143,6 +1152,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改后的 updateFocusLogic，直接更新所有索引并供复用
+ @override
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
@@ -1400,7 +1410,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    // 如果没找到,返回第一个节目的索引
+    // 如果没找到，返回第一个节目的索引
     return 0;
   }
 
@@ -1553,16 +1563,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       ),
     );
   }
-  
-  // 接口方法实现
+
+ @override
   ItemScrollController getCategoryScrollController() {
     return _categoryScrollController;
   }
 
+  @override
   ItemScrollController getGroupScrollController() {
     return _scrollController;
   }
 
+  @override
   ItemScrollController getChannelScrollController() {
     return _scrollChannelController;
   }
