@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
-
+ 
 // 是否在非TV 模式下启用 TV 模式的焦点逻辑（用于调试）
 const bool enableFocusInNonTVMode = true; // 默认开启
 
@@ -667,7 +667,7 @@ class _ChannelListState extends State<ChannelList> {
   }
 }
 
-// EPG列表组件（修改处：使用Group包裹ScrollablePositionedList）
+// EPG列表组件（未修改，已使用 ScrollablePositionedList）
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
@@ -1178,18 +1178,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
         'channelStart=$_channelStartIndex, groupFocusCache=$groupFocusCacheLog');
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tvKeyNavigationState != null) {
-      //  _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
+        _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
       }
     });
-
+  
     // 非初始化时更新导航状态
     if (!isInitial && _tvKeyNavigationState != null) {
-    //   _tvKeyNavigationState!.releaseResources();
-     //  int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
-    //   _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-    //   _reInitializeFocusListeners();
+      _tvKeyNavigationState!.releaseResources();
+      int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
+      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+      _reInitializeFocusListeners();
     }
   }
 
@@ -1460,15 +1460,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     return TvKeyNavigation(
-      // focusNodes: _focusNodes,
-      // groupFocusCache: _groupFocusCache,
+      focusNodes: _focusNodes,
+      groupFocusCache: _groupFocusCache,
       cacheName: 'ChannelDrawerPage',
       isVerticalGroup: true,
       initialIndex: 0,
       onStateCreated: _handleTvKeyNavigationStateCreated,
-      child: FocusScope( // 修改处：添加FocusScope包裹顶层child
-        child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
-      ),
+      child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
     );
   }
 
