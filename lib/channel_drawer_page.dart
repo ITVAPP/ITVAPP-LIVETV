@@ -222,20 +222,15 @@ void addFocusListeners(
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          // 当列表项数少于视窗容量时，确保滚动到顶部
+          // 当列表项数少于视窗容量时，直接滚动到顶部
           if (length <= fullItemsInViewport) {
-            // 检查当前是否已在顶部，避免不必要的滚动
-            if (scrollController.position != null && scrollController.position!.index != 0) {
-              scrollController.scrollTo(
-                index: 0,
-                alignment: 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('列表项数少于视窗容量，滚动到顶部: length=$length, fullItemsInViewport=$fullItemsInViewport');
-            } else {
-              LogUtil.i('列表项数少于视窗容量，已在顶部，无需滚动: length=$length, fullItemsInViewport=$fullItemsInViewport');
-            }
+            scrollController.scrollTo(
+              index: 0,
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('列表项数少于视窗容量，滚动到顶部: length=$length, fullItemsInViewport=$fullItemsInViewport');
             return;
           }
 
