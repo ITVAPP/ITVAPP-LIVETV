@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
-import 'package:async/async.dart'; // 确保导入async包以使用Debouncer
+// 移除 'package:async/async.dart' 导入，因为不再使用Debouncer
 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
@@ -110,7 +110,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   static Map<String, Map<int, Map<String, FocusNode>>> _namedCaches = {};
   bool _isFocusManagementActive = false;
   int? _lastParentFocusIndex;
-  final _debouncer = Debouncer(milliseconds: 200);
+  // 修改处：移除 Debouncer，添加时间戳节流变量
+  DateTime? _lastKeyProcessedTime; // 用于节流的时间戳
+  static const Duration _throttleDuration = Duration(milliseconds: 200); // 节流间隔
   List<FocusNode>? _dynamicFocusNodes; // 动态收集的FocusNode
 
   bool _isNavigationKey(LogicalKeyboardKey key) {
@@ -647,6 +649,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return KeyEventResult.handled;
   }
   
+  // 修改处：移除 Debouncer，使用时间戳节流
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {    
     if (event is KeyEvent && event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
@@ -657,8 +660,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
       
       if (_isDirectionKey(key)) {
-        _debouncer.debounce(() => _handleNavigation(key));
-        return KeyEventResult.handled;
+        // 使用时间戳实现节流
+        final now = DateTime.now();
+        if (_lastKeyProcessedTime != null && 
+            now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
+          return KeyEventResult.handled; // 忽略过快的按键
+        }
+        _lastKeyProcessedTime = now;
+        return _handleNavigation(key); // 处理导航
       }
 
       if (_isSelectKey(key)) {
