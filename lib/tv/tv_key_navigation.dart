@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
- 
+
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+  void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null) {
       LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
       return;
@@ -189,7 +189,7 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
     LogUtil.i('更新 _namedCaches[$cacheName]: ${_namedCaches[cacheName]}');
   }
   
-  /// 初始化焦点逻辑
+  /// 修改后的 initializeFocusLogic 方法
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -207,21 +207,22 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-      // 检查 cacheName 是否为 "ChannelDrawerPage"
-      if (widget.cacheName == "ChannelDrawerPage") {
-        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-        if (channelDrawerState != null) {
-          channelDrawerState.initializeData();
-          channelDrawerState.updateFocusLogic(true);
-          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
-        } else {
-          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+          // 检查 cacheName 是否为 "ChannelDrawerPage"
+          if (widget.cacheName == "ChannelDrawerPage") {
+            // 修改点：使用 _ChannelDrawerPageState 替换 ChannelDrawerStateInterface
+            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+            if (channelDrawerState != null) {
+              channelDrawerState.initializeData();
+              channelDrawerState.updateFocusLogic(true);
+              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+            } else {
+              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+            }
+          } else {
+            LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+            _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+          }
         }
-      }  else {
-          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
-          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
-        }
-     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -787,69 +788,28 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
     }
   }
   
-/// 导航方法，通过 forward 参数决定是前进还是后退
-/// 导航方法，通过 forward 参数决定是前进还是后退
-void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
-  String action = '';
-  int nextIndex = 0;
-  // 获取当前组的首尾节点
-  FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
-  FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
+  /// 修改后的 _navigateFocus 方法
+  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
+    String action = '';
+    int nextIndex = 0;
+    // 获取当前组的首尾节点
+    FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
+    FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
  
-  // 获取焦点范围
-  int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
-  int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+    // 获取焦点范围
+    int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
+    int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
   
-  if (forward) {
-    // 前进逻辑
-    if (currentIndex == lastFocusIndex) {
-      nextIndex = firstFocusIndex; // 循环到第一个焦点
-      action = "循环到第一个焦点 (索引: $nextIndex)";
-      
-      // 判断目标节点是否可聚焦，若不可见则触发滚动
-      if (!widget.focusNodes[nextIndex].canRequestFocus && widget.cacheName == "ChannelDrawerPage") {
-        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-        if (channelDrawerState != null) {
-          final scrollController = groupIndex == 0
-              ? channelDrawerState.getCategoryScrollController()
-              : groupIndex == 1
-                  ? channelDrawerState.getGroupScrollController()
-                  : channelDrawerState.getChannelScrollController();
-          addFocusListeners(
-            firstFocusIndex,
-            lastFocusIndex - firstFocusIndex + 1,
-            channelDrawerState,
-            scrollController: scrollController,
-            enableScroll: true,
-            isForward: true, // 循环到顶部
-          );
-        }
-      }
-    } else {
-      nextIndex = currentIndex + 1;
-      action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-    }
-  } else {
-    // 后退逻辑
-    if (currentIndex == firstFocusIndex) {
-      if (widget.frameType == "child") {
-        // 在子页面的第一个焦点按左键时，一定要返回父页面
-        final parentNavigation = _findParentNavigation();
-        if (parentNavigation != null) {
-          deactivateFocusManagement(); // 停用子页面焦点
-          parentNavigation.activateFocusManagement(); // 激活父页面焦点
-          LogUtil.i('返回父页面');
-        } else {
-          LogUtil.i('尝试返回父页面但失败');
-        }
-        return; // 无论成功失败都返回，不要循环到最后
-      } else {
-        nextIndex = lastFocusIndex;
-        action = "循环到最后一个焦点 (索引: $nextIndex)";
+    if (forward) {
+      // 前进逻辑
+      if (currentIndex == lastFocusIndex) {
+        nextIndex = firstFocusIndex; // 循环到第一个焦点
+        action = "循环到第一个焦点 (索引: $nextIndex)";
         
         // 判断目标节点是否可聚焦，若不可见则触发滚动
         if (!widget.focusNodes[nextIndex].canRequestFocus && widget.cacheName == "ChannelDrawerPage") {
-          final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+          // 修改点：使用 _ChannelDrawerPageState 替换 ChannelDrawerStateInterface
+          final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState != null) {
             final scrollController = groupIndex == 0
                 ? channelDrawerState.getCategoryScrollController()
@@ -859,22 +819,64 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
             addFocusListeners(
               firstFocusIndex,
               lastFocusIndex - firstFocusIndex + 1,
-              channelDrawerState,
+              channelDrawerState, // 直接传入 _ChannelDrawerPageState
               scrollController: scrollController,
               enableScroll: true,
-              isForward: false, // 循环到底部
+              isForward: true, // 循环到顶部
             );
           }
         }
-      } 
+      } else {
+        nextIndex = currentIndex + 1;
+        action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
     } else {
-      nextIndex = currentIndex - 1;
-      action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      // 后退逻辑
+      if (currentIndex == firstFocusIndex) {
+        if (widget.frameType == "child") {
+          // 在子页面的第一个焦点按左键时，一定要返回父页面
+          final parentNavigation = _findParentNavigation();
+          if (parentNavigation != null) {
+            deactivateFocusManagement(); // 停用子页面焦点
+            parentNavigation.activateFocusManagement(); // 激活父页面焦点
+            LogUtil.i('返回父页面');
+          } else {
+            LogUtil.i('尝试返回父页面但失败');
+          }
+          return; // 无论成功失败都返回，不要循环到最后
+        } else {
+          nextIndex = lastFocusIndex;
+          action = "循环到最后一个焦点 (索引: $nextIndex)";
+          
+          // 判断目标节点是否可聚焦，若不可见则触发滚动
+          if (!widget.focusNodes[nextIndex].canRequestFocus && widget.cacheName == "ChannelDrawerPage") {
+            // 修改点：使用 _ChannelDrawerPageState 替换 ChannelDrawerStateInterface
+            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+            if (channelDrawerState != null) {
+              final scrollController = groupIndex == 0
+                  ? channelDrawerState.getCategoryScrollController()
+                  : groupIndex == 1
+                      ? channelDrawerState.getGroupScrollController()
+                      : channelDrawerState.getChannelScrollController();
+              addFocusListeners(
+                firstFocusIndex,
+                lastFocusIndex - firstFocusIndex + 1,
+                channelDrawerState, // 直接传入 _ChannelDrawerPageState
+                scrollController: scrollController,
+                enableScroll: true,
+                isForward: false, // 循环到底部
+              );
+            }
+          }
+        } 
+      } else {
+        nextIndex = currentIndex - 1;
+        action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+      }
     }
+    _requestFocus(nextIndex, groupIndex: groupIndex);
+    LogUtil.i('操作: $action (组: $groupIndex)');
   }
-  _requestFocus(nextIndex, groupIndex: groupIndex);
-  LogUtil.i('操作: $action (组: $groupIndex)');
-}
 
   /// 处理在组之间的跳转逻辑
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
