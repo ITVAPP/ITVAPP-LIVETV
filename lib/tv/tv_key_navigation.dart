@@ -788,6 +788,7 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
   }
   
 /// 导航方法，通过 forward 参数决定是前进还是后退
+/// 导航方法，通过 forward 参数决定是前进还是后退
 void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
   String action = '';
   int nextIndex = 0;
@@ -806,14 +807,14 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
       action = "循环到第一个焦点 (索引: $nextIndex)";
       
       // 判断目标节点是否可聚焦，若不可见则触发滚动
-      if (!widget.focusNodes[nextIndex].canRequestFocus) {
-        final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+      if (!widget.focusNodes[nextIndex].canRequestFocus && widget.cacheName == "ChannelDrawerPage") {
+        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
         if (channelDrawerState != null) {
           final scrollController = groupIndex == 0
-              ? channelDrawerState._categoryScrollController
+              ? channelDrawerState.getCategoryScrollController()
               : groupIndex == 1
-                  ? channelDrawerState._scrollController
-                  : channelDrawerState._scrollChannelController;
+                  ? channelDrawerState.getGroupScrollController()
+                  : channelDrawerState.getChannelScrollController();
           addFocusListeners(
             firstFocusIndex,
             lastFocusIndex - firstFocusIndex + 1,
@@ -847,14 +848,14 @@ void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool for
         action = "循环到最后一个焦点 (索引: $nextIndex)";
         
         // 判断目标节点是否可聚焦，若不可见则触发滚动
-        if (!widget.focusNodes[nextIndex].canRequestFocus) {
-          final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+        if (!widget.focusNodes[nextIndex].canRequestFocus && widget.cacheName == "ChannelDrawerPage") {
+          final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
           if (channelDrawerState != null) {
             final scrollController = groupIndex == 0
-                ? channelDrawerState._categoryScrollController
+                ? channelDrawerState.getCategoryScrollController()
                 : groupIndex == 1
-                    ? channelDrawerState._scrollController
-                    : channelDrawerState._scrollChannelController;
+                    ? channelDrawerState.getGroupScrollController()
+                    : channelDrawerState.getChannelScrollController();
             addFocusListeners(
               firstFocusIndex,
               lastFocusIndex - firstFocusIndex + 1,
