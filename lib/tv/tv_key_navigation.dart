@@ -13,8 +13,8 @@ Color darkenColor(Color color, [double amount = 0.3]) {
 
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
-  final List<FocusNode>? focusNodes; // 修改处：focusNodes为可选参数
-  final Map<int, Map<String, FocusNode>>? groupFocusCache; // 新增：可选的分组缓存参数
+  final List<FocusNode>? focusNodes; // focusNodes为可选参数
+  final Map<int, Map<String, FocusNode>>? groupFocusCache; // 可选的分组缓存参数
   final Function(int index)? onSelect; // 选择某个焦点时的回调
   final Function(LogicalKeyboardKey key)? onKeyPressed; // 按键时的回调
   final bool isFrame; // 是否启用框架模式，用于切换焦点
@@ -28,15 +28,15 @@ class TvKeyNavigation extends StatefulWidget {
   const TvKeyNavigation({
     Key? key,
     required this.child,
-    this.focusNodes, // 修改处：移除required关键字
-    this.groupFocusCache, // 新增参数
+    this.focusNodes,
+    this.groupFocusCache,
     this.onSelect,
     this.onKeyPressed,
     this.isFrame = false,
-    this.frameType, // 父页面或子页面
+    this.frameType,
     this.initialIndex,
-    this.isHorizontalGroup = false, // 默认不按横向分组
-    this.isVerticalGroup = false,   // 默认不按竖向分组
+    this.isHorizontalGroup = false,
+    this.isVerticalGroup = false,
     this.onStateCreated,
     this.cacheName,
   }) : super(key: key);
@@ -45,29 +45,28 @@ class TvKeyNavigation extends StatefulWidget {
   TvKeyNavigationState createState() => TvKeyNavigationState();
 }
 
-// 修改处：添加TvFocusTraversalPolicy并实现所有抽象方法
 class TvFocusTraversalPolicy extends FocusTraversalPolicy {
-  final List<FocusNode>? focusNodes; // 修改处：focusNodes改为可选
+  final List<FocusNode> focusNodes; // 动态或传入的focusNodes
   final Map<int, Map<String, FocusNode>> groupFocusCache;
 
   TvFocusTraversalPolicy(this.focusNodes, this.groupFocusCache);
 
   @override
   FocusNode? findNextFocus(FocusNode currentNode, TraversalDirection direction) {
-    if (focusNodes == null || focusNodes!.isEmpty) return null;
-    int currentIndex = focusNodes!.indexOf(currentNode);
+    if (focusNodes.isEmpty) return null;
+    int currentIndex = focusNodes.indexOf(currentNode);
     int groupIndex = _getGroupIndex(currentNode);
     if (groupIndex == -1) return null;
 
     FocusNode first = groupFocusCache[groupIndex]!['firstFocusNode']!;
     FocusNode last = groupFocusCache[groupIndex]!['lastFocusNode']!;
-    int firstIndex = focusNodes!.indexOf(first);
-    int lastIndex = focusNodes!.indexOf(last);
+    int firstIndex = focusNodes.indexOf(first);
+    int lastIndex = focusNodes.indexOf(last);
 
     if (direction == TraversalDirection.down || direction == TraversalDirection.right) {
-      return currentIndex == lastIndex ? first : focusNodes![currentIndex + 1];
+      return currentIndex == lastIndex ? first : focusNodes[currentIndex + 1];
     } else if (direction == TraversalDirection.up || direction == TraversalDirection.left) {
-      return currentIndex == firstIndex ? last : focusNodes![currentIndex - 1];
+      return currentIndex == firstIndex ? last : focusNodes[currentIndex - 1];
     }
     return null;
   }
@@ -91,15 +90,13 @@ class TvFocusTraversalPolicy extends FocusTraversalPolicy {
 
   @override
   Iterable<FocusNode> sortDescendants(Iterable<FocusNode> descendants, FocusNode currentNode) {
-    if (focusNodes == null) return descendants;
-    return descendants.toList()..sort((a, b) => focusNodes!.indexOf(a) - focusNodes!.indexOf(b));
+    return descendants.toList()..sort((a, b) => focusNodes.indexOf(a) - focusNodes.indexOf(b));
   }
 
   int _getGroupIndex(FocusNode node) {
-    if (focusNodes == null) return -1;
     for (var entry in groupFocusCache.entries) {
-      if (focusNodes!.indexOf(node) >= focusNodes!.indexOf(entry.value['firstFocusNode']!) &&
-          focusNodes!.indexOf(node) <= focusNodes!.indexOf(entry.value['lastFocusNode']!)) {
+      if (focusNodes.indexOf(node) >= focusNodes.indexOf(entry.value['firstFocusNode']!) &&
+          focusNodes.indexOf(node) <= focusNodes.indexOf(entry.value['lastFocusNode']!)) {
         return entry.key;
       }
     }
@@ -110,27 +107,42 @@ class TvFocusTraversalPolicy extends FocusTraversalPolicy {
 class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObserver {
   FocusNode? _currentFocus;
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
-  // 按页面名称存储的缓存
   static Map<String, Map<int, Map<String, FocusNode>>> _namedCaches = {};
   bool _isFocusManagementActive = false;
   int? _lastParentFocusIndex;
-  DateTime? _lastKeyProcessedTime; // 新增：记录上一次按键处理的时间
-  static const Duration _throttleDuration = Duration(milliseconds: 200); // 按键节流间隔的毫秒数
-  final _debouncer = Debouncer(milliseconds: 200); // 使用Debouncer
-  List<FocusNode>? _dynamicFocusNodes; // 修改处：存储动态获取的FocusNode
+  final _debouncer = Debouncer(milliseconds: 200);
+  List<FocusNode>? _dynamicFocusNodes; // 动态收集的FocusNode
 
-  // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
   }
 
-  // 修改处：动态收集FocusNode的方法
+  // 修改处：动态收集FocusNode并支持分组
   List<FocusNode> _collectFocusNodesFromChild(Widget child) {
     List<FocusNode> focusNodes = [];
     void visitChild(Element element) {
       if (element.widget is FocusableItem) {
         final focusableItem = element.widget as FocusableItem;
         focusNodes.add(focusableItem.focusNode);
+      } else if (element.widget is Group) {
+        // 如果遇到Group，收集其子节点并记录分组信息
+        final group = element.widget as Group;
+        List<FocusNode> groupNodes = [];
+        element.visitChildren((childElement) {
+          if (childElement.widget is FocusableItem) {
+            final focusableItem = childElement.widget as FocusableItem;
+            groupNodes.add(focusableItem.focusNode);
+          }
+          childElement.visitChildren(visitChild);
+        });
+        if (groupNodes.isNotEmpty) {
+          focusNodes.addAll(groupNodes);
+          _groupFocusCache[group.groupIndex] = {
+            'firstFocusNode': groupNodes.first,
+            'lastFocusNode': groupNodes.last,
+          };
+          LogUtil.i('动态收集Group ${group.groupIndex}: 首节点 ${_formatFocusNodeDebugLabel(groupNodes.first)}, 末节点 ${_formatFocusNodeDebugLabel(groupNodes.last)}');
+        }
       }
       element.visitChildren(visitChild);
     }
@@ -167,7 +179,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     WidgetsBinding.instance.addObserver(this);
   }
 
-  /// 激活焦点管理
   void activateFocusManagement({int? initialIndexOverride}) {
     setState(() {
       _isFocusManagementActive = true;
@@ -188,7 +199,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     LogUtil.i('激活页面的焦点管理');
   }
 
-  /// 停用焦点管理
   void deactivateFocusManagement() {
     setState(() {
       _isFocusManagementActive = false;
@@ -206,7 +216,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     super.dispose();
   }
 
-  /// 释放组件使用的资源
   void releaseResources() {
     try {
       if (!mounted) return;
@@ -255,11 +264,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     LogUtil.i('更新 _namedCaches[$cacheName]: ${_namedCaches[cacheName]}');
   }
   
-  /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // 如果未传入focusNodes，动态收集
+        final focusNodes = widget.focusNodes ?? _dynamicFocusNodes;
         if (widget.focusNodes == null) {
           _dynamicFocusNodes = _collectFocusNodesFromChild(widget.child);
           if (_dynamicFocusNodes!.isEmpty) {
@@ -274,13 +282,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('使用传入的focusNodes，共 ${widget.focusNodes!.length} 个节点');
         }
 
-        // 检查是否传入了groupFocusCache
-        if (widget.focusNodes != null && widget.groupFocusCache != null) {
-          _groupFocusCache = Map.from(widget.groupFocusCache!);
-          LogUtil.i('使用传入的groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes!.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes!.indexOf(value['lastFocusNode']!)}}"))}');
-          updateNamedCache(cache: _groupFocusCache);
-        } else if (widget.focusNodes != null) {
-          if (widget.cacheName == "ChannelDrawerPage") {
+        if (focusNodes != null && focusNodes.isNotEmpty) {
+          if (widget.groupFocusCache != null) {
+            _groupFocusCache = Map.from(widget.groupFocusCache!);
+            LogUtil.i('使用传入的groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${focusNodes.indexOf(value['firstFocusNode']!)}, last: ${focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
+            updateNamedCache(cache: _groupFocusCache);
+          } else if (widget.focusNodes != null && widget.cacheName == "ChannelDrawerPage") {
             final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
             if (channelDrawerState != null) {
               channelDrawerState.initializeData();
@@ -293,11 +300,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             LogUtil.i('未传入groupFocusCache，执行分组查找逻辑');
             _cacheGroupFocusNodes();
           }
-        }
 
-        int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
-        if (initialIndex != -1 && (widget.focusNodes?.isNotEmpty ?? _dynamicFocusNodes!.isNotEmpty)) {
-          _requestFocus(initialIndex);
+          int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
+          if (initialIndex != -1) {
+            _requestFocus(initialIndex);
+          }
         }
       } catch (e) {
         LogUtil.i('初始焦点设置失败: $e');
@@ -305,12 +312,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     });
   }
 
-  /// 封装错误处理逻辑
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
     LogUtil.i('$message: $error\n位置: $stackTrace');
   }
   
-  /// 查找子页面导航状态
   TvKeyNavigationState? _findChildNavigation() {
     TvKeyNavigationState? childNavigation;
     void visitChild(Element element) {
@@ -331,7 +336,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return childNavigation;
   }
 
-  /// 查找父页面导航状态
   TvKeyNavigationState? _findParentNavigation() {
     TvKeyNavigationState? parentNavigation;
     void findInContext(BuildContext context) {
@@ -357,7 +361,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return parentNavigation;
   }
   
-  /// 请求将焦点切换到指定索引的控件上
   void _requestFocus(int index, {int? groupIndex}) {
     final focusNodes = widget.focusNodes ?? _dynamicFocusNodes;
     if (focusNodes == null || focusNodes.isEmpty) {
@@ -370,81 +373,61 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         return;
       }
 
-      // 如果未传入focusNodes，则不使用groupFocusCache
-      if (widget.focusNodes != null) {
-        groupIndex ??= _getGroupIndex(focusNodes[index]);
-        if (groupIndex == -1 || !_groupFocusCache.containsKey(groupIndex)) {
-          FocusNode firstValidFocusNode = focusNodes.firstWhere(
-            (node) => node.canRequestFocus,
-            orElse: () => focusNodes[0]
-          );
+      groupIndex ??= _getGroupIndex(focusNodes[index]);
+      if (groupIndex == -1 || !_groupFocusCache.containsKey(groupIndex)) {
+        FocusNode firstValidFocusNode = focusNodes.firstWhere(
+          (node) => node.canRequestFocus,
+          orElse: () => focusNodes[0]
+        );
+        firstValidFocusNode.requestFocus();
+        _currentFocus = firstValidFocusNode;
+        if (FocusManager.instance.primaryFocus != _currentFocus) {
+          FocusManager.instance.primaryFocus?.unfocus();
           firstValidFocusNode.requestFocus();
-          _currentFocus = firstValidFocusNode;
-          if (FocusManager.instance.primaryFocus != _currentFocus) {
-            FocusManager.instance.primaryFocus?.unfocus();
-            firstValidFocusNode.requestFocus();
-          }
-          LogUtil.i('无效的Group，设置到第一个可用焦点节点');
-          return;
         }
+        LogUtil.i('无效的Group，设置到第一个可用焦点节点');
+        return;
+      }
 
-        FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
-        FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-        int firstFocusIndex = focusNodes.indexOf(firstFocusNode);
-        int lastFocusIndex = focusNodes.indexOf(lastFocusNode);
+      FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
+      FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
+      int firstFocusIndex = focusNodes.indexOf(firstFocusNode);
+      int lastFocusIndex = focusNodes.indexOf(lastFocusNode);
 
-        int newIndex = index;
-        if (newIndex < firstFocusIndex) {
-          newIndex = lastFocusIndex;
-        } else if (newIndex > lastFocusIndex) {
-          newIndex = firstFocusIndex;
-        }
-        FocusNode focusNode = focusNodes[newIndex];
-        if (!focusNode.canRequestFocus) {
-          LogUtil.i('焦点节点不可请求，索引: $newIndex');
-          return;
-        }
-        if (!focusNode.hasFocus) {
+      int newIndex = index;
+      if (newIndex < firstFocusIndex) {
+        newIndex = lastFocusIndex;
+      } else if (newIndex > lastFocusIndex) {
+        newIndex = firstFocusIndex;
+      }
+      FocusNode focusNode = focusNodes[newIndex];
+      if (!focusNode.canRequestFocus) {
+        LogUtil.i('焦点节点不可请求，索引: $newIndex');
+        return;
+      }
+      if (!focusNode.hasFocus) {
+        focusNode.requestFocus();
+        _currentFocus = focusNode;
+        if (FocusManager.instance.primaryFocus != _currentFocus) {
+          LogUtil.i('焦点状态不一致，同步到FocusManager');
+          FocusManager.instance.primaryFocus?.unfocus();
           focusNode.requestFocus();
-          _currentFocus = focusNode;
-          if (FocusManager.instance.primaryFocus != _currentFocus) {
-            LogUtil.i('焦点状态不一致，同步到FocusManager');
-            FocusManager.instance.primaryFocus?.unfocus();
-            focusNode.requestFocus();
-          }
-          LogUtil.i('切换焦点到索引: $newIndex, 当前Group: $groupIndex');
         }
-      } else {
-        // 未传入focusNodes，直接使用动态节点，不考虑groupIndex
-        FocusNode focusNode = focusNodes[index];
-        if (!focusNode.canRequestFocus) {
-          LogUtil.i('动态焦点节点不可请求，索引: $index');
-          return;
-        }
-        if (!focusNode.hasFocus) {
-          focusNode.requestFocus();
-          _currentFocus = focusNode;
-          if (FocusManager.instance.primaryFocus != _currentFocus) {
-            LogUtil.i('焦点状态不一致，同步到FocusManager');
-            FocusManager.instance.primaryFocus?.unfocus();
-            focusNode.requestFocus();
-          }
-          LogUtil.i('切换焦点到动态节点索引: $index');
-        }
+        LogUtil.i('切换焦点到索引: $newIndex, 当前Group: $groupIndex');
       }
     } catch (e, stackTrace) {
       LogUtil.i('设置焦点时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
   }
   
-  /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
-    if (widget.groupFocusCache != null) {
-      LogUtil.i('groupFocusCache已传入，不执行_cacheGroupFocusNodes');
+    final focusNodes = widget.focusNodes ?? _dynamicFocusNodes;
+    if (focusNodes == null || focusNodes.isEmpty) {
+      LogUtil.i('focusNodes为空或未提供，无法缓存分组焦点信息');
       return;
     }
-    if (widget.focusNodes == null || widget.focusNodes!.isEmpty) {
-      LogUtil.i('focusNodes为空或未提供，无法缓存分组焦点信息');
+    if (widget.groupFocusCache != null) {
+      LogUtil.i('groupFocusCache已传入，不执行_cacheGroupFocusNodes');
       return;
     }
     _groupFocusCache.clear();
@@ -463,8 +446,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   void _cacheDefaultGroup() {
-    final firstFocusNode = _findFirstFocusableNode(widget.focusNodes!);
-    final lastFocusNode = _findLastFocusableNode(widget.focusNodes!);
+    final focusNodes = widget.focusNodes ?? _dynamicFocusNodes!;
+    final firstFocusNode = _findFirstFocusableNode(focusNodes);
+    final lastFocusNode = _findLastFocusableNode(focusNodes);
 
     _groupFocusCache[0] = {
       'firstFocusNode': firstFocusNode,
@@ -477,6 +461,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   void _cacheMultipleGroups(List<Group> groups) {
+    final focusNodes = widget.focusNodes ?? _dynamicFocusNodes!;
     for (var group in groups) {
       final groupWidgets = _getWidgetsInGroup(group);
       final groupFocusNodes = _getFocusNodesInGroup(groupWidgets);
@@ -535,7 +520,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   int _getGroupIndex(FocusNode focusNode) {
     try {
       final focusNodes = widget.focusNodes ?? _dynamicFocusNodes;
-      if (focusNodes == null || widget.focusNodes == null) return -1; // 未传入focusNodes时不使用分组
+      if (focusNodes == null) return -1;
       for (var entry in _groupFocusCache.entries) {
         FocusNode firstFocusNode = entry.value['firstFocusNode']!;
         FocusNode lastFocusNode = entry.value['lastFocusNode']!;
@@ -634,7 +619,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             _jumpToOtherGroup(key, currentIndex, groupIndex);
           }
         } else {
-          final policy = TvFocusTraversalPolicy(focusNodes, _groupFocusCache);
+          final policy = TvFocusTraversalPolicy(focusNodes!, _groupFocusCache);
           FocusNode? nextFocus;
           if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
             nextFocus = policy.findNextFocus(currentFocus, TraversalDirection.up);
@@ -816,12 +801,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
     String action = '';
     int nextIndex = 0;
-    final focusNodes = widget.focusNodes ?? _dynamicFocusNodes;
+    final focusNodes = widget.focusNodes ?? _dynamicFocusNodes!;
 
-    if (widget.focusNodes != null && groupIndex != -1) {
+    if (groupIndex != -1) {
       FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
       FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-      int firstFocusIndex = focusNodes!.indexOf(firstFocusNode);
+      int firstFocusIndex = focusNodes.indexOf(firstFocusNode);
       int lastFocusIndex = focusNodes.indexOf(lastFocusNode);
 
       if (forward) {
@@ -854,14 +839,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         }
       }
     } else {
-      // 未传入focusNodes，使用动态节点，不考虑分组
       if (forward) {
-        if (currentIndex == focusNodes!.length - 1) {
+        if (currentIndex == focusNodes.length - 1) {
           nextIndex = 0;
-          action = "循环到第一个动态焦点 (索引: $nextIndex)";
+          action = "循环到第一个焦点 (索引: $nextIndex)";
         } else {
           nextIndex = currentIndex + 1;
-          action = "切换到下一个动态焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+          action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
         }
       } else {
         if (currentIndex == 0) {
@@ -877,11 +861,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             return;
           } else {
             nextIndex = focusNodes.length - 1;
-            action = "循环到最后一个动态焦点 (索引: $nextIndex)";
+            action = "循环到最后一个焦点 (索引: $nextIndex)";
           }
         } else {
           nextIndex = currentIndex - 1;
-          action = "切换到前一个动态焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+          action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
         }
       }
     }
@@ -890,8 +874,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
-    if (widget.focusNodes == null || _groupFocusCache.isEmpty) {
-      LogUtil.i('未传入focusNodes或没有缓存的分组信息，无法跳转');
+    if (_groupFocusCache.isEmpty) {
+      LogUtil.i('没有缓存的分组信息，无法跳转');
       return false;
     }
 
