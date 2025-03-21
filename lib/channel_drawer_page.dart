@@ -798,6 +798,9 @@ class _EPGListState extends State<EPGList> {
 abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
+  ItemScrollController getCategoryScrollController(); // 获取分类滚动控制器
+  ItemScrollController getGroupScrollController();   // 获取分组滚动控制器
+  ItemScrollController getChannelScrollController(); // 获取频道滚动控制器
 }
 
 // 主组件ChannelDrawerPage
@@ -963,7 +966,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
-  @override
   void initializeData() {
     _initializeCategoryData();
     _initializeChannelData();
@@ -1149,7 +1151,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 修改后的 updateFocusLogic，直接更新所有索引并供复用
-  @override
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
@@ -1560,8 +1561,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       ),
     );
   }
-
-  // 新增：实现接口方法
+  
+  // 接口方法实现
   @override
   ItemScrollController getCategoryScrollController() {
     return _categoryScrollController;
