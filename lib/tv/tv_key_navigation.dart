@@ -834,7 +834,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     final effectiveContext = widget.parentContext ?? context;
     // 获取 ChannelDrawerPage 的状态，使用接口类型
     final channelDrawerState = effectiveContext.findAncestorStateOfType<ChannelDrawerStateInterface>();
-    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}, 是否在视窗内: ${isInViewport(firstFocusNode, effectiveContext)}');
+    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}');
     
     if (forward) {
       // 前进逻辑（向下或向右）
