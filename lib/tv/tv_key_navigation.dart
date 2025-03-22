@@ -53,7 +53,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   int? _lastParentFocusIndex;
   DateTime? _lastKeyProcessedTime; // 新增：记录上一次按键处理的时间
   static const Duration _throttleDuration = Duration(milliseconds: 200); // 按键节流间隔的毫秒数
-  
+
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
@@ -808,8 +808,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return objectTop >= viewportTop && objectBottom <= viewportBottom;
   }
   
-  /// 导航方法，通过 forward 参数决定是前进还是后退
-  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
+  /// 导航方法
+  Future<void> _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
     int nextIndex = 0;
 
