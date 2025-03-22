@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
-
+ 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
@@ -798,40 +798,6 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
     // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
-
-    // 修改部分：检查是否需要触发 ChannelDrawerPage 的滚动逻辑
-    final drawerState = ChannelDrawerPage.drawerKey.currentState;
-    if (drawerState != null && drawerState.mounted && widget.cacheName == "ChannelDrawerPage") {
-      // 如果焦点将要到达首节点或尾节点，且 canRequestFocus 为 false，则触发滚动
-      if (forward && currentIndex == lastFocusIndex && !lastFocusNode.canRequestFocus) {
-        // 到达尾节点，滚动到底部
-        if (groupIndex == 0) {
-          drawerState.scrollCategoryToBottom();
-          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发分类列表滚动到底部');
-        } else if (groupIndex == 1) {
-          drawerState.scrollGroupToBottom();
-          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发分组列表滚动到底部');
-        } else if (groupIndex == 2) {
-          drawerState.scrollChannelToBottom();
-          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发频道列表滚动到底部');
-        }
-        return; // 滚动后不再请求焦点
-      } else if (!forward && currentIndex == firstFocusIndex && !firstFocusNode.canRequestFocus) {
-        // 到达首节点，滚动到顶部
-        if (groupIndex == 0) {
-          drawerState.scrollCategoryToTop();
-          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发分类列表滚动到顶部');
-        } else if (groupIndex == 1) {
-          drawerState.scrollGroupToTop();
-          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发分组列表滚动到顶部');
-        } else if (groupIndex == 2) {
-          drawerState.scrollChannelToTop();
-          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发频道列表滚动到顶部');
-        }
-        return; // 滚动后不再请求焦点
-      }
-    }
-
     if (forward) {
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
