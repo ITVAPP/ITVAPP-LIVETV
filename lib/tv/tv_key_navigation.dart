@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
-
+ 
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null) {
       LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
       return;
@@ -207,17 +207,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-          // 检查 cacheName 是否为 "ChannelDrawerPage"
-          if (widget.cacheName == "ChannelDrawerPage") {
-            final manager = ChannelDrawerPage().getManager(context);
-            manager.initializeData();
-            manager.updateFocusLogic(true);
-            LogUtil.i('cacheName 为 ChannelDrawerPage，调用 ChannelDrawerManager 的 initializeData 和 updateFocusLogic');
-          } else {
-            LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
-            _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
-          }
+      // 检查 cacheName 是否为 "ChannelDrawerPage"
+      if (widget.cacheName == "ChannelDrawerPage") {
+        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+        if (channelDrawerState != null) {
+          channelDrawerState.initializeData();
+          channelDrawerState.updateFocusLogic(true);
+          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+        } else {
+          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
         }
+      }  else {
+          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+        }
+     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -362,10 +366,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
-    if (widget.groupFocusCache != null) {
-      LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
-      return;
-    }
+   if (widget.groupFocusCache != null) {
+       LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
+       return;
+     }
     _groupFocusCache.clear();  // 清空缓存
     // 获取所有的分组
     final groups = _getAllGroups();
@@ -783,23 +787,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
   
-  /// 判断节点是否在视窗内（从 ChannelDrawerPage 借用）
-  bool _isOutOfView(FocusNode node) {
-    if (node.context == null) return true;
-    RenderObject? renderObject = node.context!.findRenderObject();
-    if (renderObject is RenderBox) {
-      final ScrollableState? scrollableState = Scrollable.of(node.context!);
-      if (scrollableState != null) {
-        final ScrollPosition position = scrollableState.position;
-        final double offset = position.pixels;
-        final double viewportHeight = position.viewportDimension;
-        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-        return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
-      }
-    }
-    return false;
-  }
-
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
     String action = '';
@@ -811,40 +798,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
-
-    // 获取 ChannelDrawerManager
-    final manager = ChannelDrawerPage().getManager(context);
-    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
-
     if (forward) {
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
-        // 添加调试日志
-        LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}, 是否在视窗内: ${!_isOutOfView(firstFocusNode)}');
-        
-        // 检查第一个节点是否在视窗内
-        if (_isOutOfView(firstFocusNode)) {
-          String targetList;
-          switch (groupIndex) {
-            case 0:
-              targetList = 'category';
-              break;
-            case 1:
-              targetList = 'group';
-              break;
-            case 2:
-              targetList = 'channel';
-              break;
-            default:
-              targetList = 'group';
-          }
-          channelDrawerState?.scrollTo(
-            targetList: targetList,
-            index: 0,
-            alignment: 0.0,
-          );
-          LogUtil.i('节点不在视窗内，滚动到 $targetList 顶部');
-        }
         nextIndex = firstFocusIndex; // 循环到第一个焦点
         action = "循环到第一个焦点 (索引: $nextIndex)";
       } else {
@@ -866,41 +822,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           }
           return; // 无论成功失败都返回，不要循环到最后
         } else {
-          // 添加调试日志
-          LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}, 是否在视窗内: ${!_isOutOfView(lastFocusNode)}');
-          
-          // 检查最后一个节点是否在视窗内
-          if (_isOutOfView(lastFocusNode)) {
-            String targetList;
-            int maxIndex;
-            switch (groupIndex) {
-              case 0:
-                targetList = 'category';
-                maxIndex = channelDrawerState?._categories.length ?? 0 - 1;
-                break;
-              case 1:
-                targetList = 'group';
-                maxIndex = channelDrawerState?._keys.length ?? 0 - 1;
-                break;
-              case 2:
-                targetList = 'channel';
-                maxIndex = (channelDrawerState?._values.isNotEmpty ?? false &&
-                        channelDrawerState?._groupIndex >= 0 &&
-                        channelDrawerState?._groupIndex < channelDrawerState?._values.length)
-                    ? channelDrawerState!._values[channelDrawerState._groupIndex].length - 1
-                    : 0;
-                break;
-              default:
-                targetList = 'group';
-                maxIndex = channelDrawerState?._keys.length ?? 0 - 1;
-            }
-            channelDrawerState?.scrollTo(
-              targetList: targetList,
-              index: maxIndex.clamp(0, maxIndex),
-              alignment: 1.0,
-            );
-            LogUtil.i('节点不在视窗内，滚动到 $targetList 底部');
-          }
           nextIndex = lastFocusIndex;
           action = "循环到最后一个焦点 (索引: $nextIndex)";
         } 
