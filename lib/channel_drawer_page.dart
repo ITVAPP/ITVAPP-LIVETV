@@ -813,7 +813,7 @@ class ChannelDrawerPage extends StatefulWidget {
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver implements ChannelDrawerStateInterface {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
