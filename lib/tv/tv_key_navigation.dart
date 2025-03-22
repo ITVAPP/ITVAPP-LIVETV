@@ -787,27 +787,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
   
-  /// 判断焦点节点是否在视窗内
-  bool isInViewport(FocusNode focusNode, BuildContext context) {
-    if (focusNode.context == null) return false; // 节点未附加到树中
-    final RenderObject? renderObject = focusNode.context!.findRenderObject();
-    if (renderObject is! RenderBox) return true; // 无法计算，默认视为可见
-
-    final ScrollableState? scrollableState = Scrollable.of(context);
-    if (scrollableState == null) return true; // 无滚动容器，默认视为可见
-
-    final ScrollPosition position = scrollableState.position;
-    final double viewportTop = position.pixels;
-    final double viewportBottom = viewportTop + position.viewportDimension;
-    final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-
-    // 判断 widget 是否完全在视窗内
-    final double objectTop = objectPosition.dy;
-    final double objectBottom = objectTop + renderObject.size.height;
-
-    return objectTop >= viewportTop && objectBottom <= viewportBottom;
-  }
-  
   /// 导航方法
   Future<void> _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
@@ -823,6 +802,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
     // 获取 ChannelDrawerPage 的状态，使用接口类型
     final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}');
 
     if (forward) {
       // 前进逻辑（向下或向右）
@@ -832,7 +812,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         action = "循环到第一个焦点 (索引: $nextIndex)";
         
         // 检查第一个焦点是否在视窗内
-        if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(firstFocusNode, context)) {
+        if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
           // 如果第一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到底部
           String listType;
           switch (groupIndex) {
@@ -878,7 +858,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           action = "循环到最后一个焦点 (索引: $nextIndex)";
           
           // 检查最后一个焦点是否在视窗内
-          if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(lastFocusNode, context)) {
+          if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
             // 如果最后一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到顶部
             String listType;
             switch (groupIndex) {
