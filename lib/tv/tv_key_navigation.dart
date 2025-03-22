@@ -23,6 +23,7 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isVerticalGroup; // 是否启用竖向分组
   final Function(TvKeyNavigationState state)? onStateCreated;
   final String? cacheName; // 自定义缓存名称
+  final BuildContext? parentContext; // 新增：父级上下文，用于解决 Focus 隔离问题
 
   const TvKeyNavigation({
     Key? key,
@@ -38,6 +39,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.isVerticalGroup = false,   // 默认不按竖向分组
     this.onStateCreated,
     this.cacheName,
+    this.parentContext, // 新增参数
   }) : super(key: key);
 
   @override
@@ -787,6 +789,27 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
   
+  /// 判断焦点节点是否在视窗内
+  bool isInViewport(FocusNode focusNode, BuildContext context) {
+    if (focusNode.context == null) return false; // 节点未附加到树中
+    final RenderObject? renderObject = focusNode.context!.findRenderObject();
+    if (renderObject is! RenderBox) return true; // 无法计算，默认视为可见
+
+    final ScrollableState? scrollableState = Scrollable.of(context);
+    if (scrollableState == null) return true; // 无滚动容器，默认视为可见
+
+    final ScrollPosition position = scrollableState.position;
+    final double viewportTop = position.pixels;
+    final double viewportBottom = viewportTop + position.viewportDimension;
+    final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+
+    // 判断 widget 是否完全在视窗内
+    final double objectTop = objectPosition.dy;
+    final double objectBottom = objectTop + renderObject.size.height;
+
+    return objectTop >= viewportTop && objectBottom <= viewportBottom;
+  }
+  
   /// 导航方法
   Future<void> _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
@@ -800,10 +823,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
+    // 使用 parentContext 如果可用，否则回退到当前 context
+    final effectiveContext = widget.parentContext ?? context;
     // 获取 ChannelDrawerPage 的状态，使用接口类型
-    final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}');
-
+    final channelDrawerState = effectiveContext.findAncestorStateOfType<ChannelDrawerStateInterface>();
+    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, widget.cacheName: ${widget.cacheName ?? "未设置"}, 是否在视窗内: ${isInViewport(firstFocusNode, effectiveContext)}');
+    
     if (forward) {
       // 前进逻辑（向下或向右）
       if (currentIndex == lastFocusIndex) {
@@ -812,7 +837,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         action = "循环到第一个焦点 (索引: $nextIndex)";
         
         // 检查第一个焦点是否在视窗内
-        if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
+        if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(firstFocusNode, effectiveContext)) {
           // 如果第一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到底部
           String listType;
           switch (groupIndex) {
@@ -858,7 +883,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           action = "循环到最后一个焦点 (索引: $nextIndex)";
           
           // 检查最后一个焦点是否在视窗内
-          if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
+          if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(lastFocusNode, effectiveContext)) {
             // 如果最后一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到顶部
             String listType;
             switch (groupIndex) {
