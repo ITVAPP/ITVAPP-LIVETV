@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
- 
+
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+  void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null) {
       LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
       return;
@@ -207,21 +207,29 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-      // 检查 cacheName 是否为 "ChannelDrawerPage"
-      if (widget.cacheName == "ChannelDrawerPage") {
-        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-        if (channelDrawerState != null) {
-          channelDrawerState.initializeData();
-          channelDrawerState.updateFocusLogic(true);
-          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
-        } else {
-          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+          // 修改部分：替换 ChannelDrawerStateInterface 为 _ChannelDrawerPageState，并调用 ChannelDrawerManager 的方法
+          if (widget.cacheName == "ChannelDrawerPage") {
+            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+            if (channelDrawerState != null) {
+              channelDrawerState._manager.initializeData(
+                videoMap: channelDrawerState.widget.videoMap,
+                playModel: channelDrawerState.widget.playModel,
+                state: channelDrawerState,
+              );
+              channelDrawerState._manager.updateFocusLogic(
+                true,
+                state: channelDrawerState,
+                tvKeyNavigationState: this,
+              );
+              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+            } else {
+              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+            }
+          } else {
+            LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+            _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+          }
         }
-      }  else {
-          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
-          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
-        }
-     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -786,6 +794,23 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
       return false;
     }
   }
+
+  // 修改部分：新增方法，判断节点是否在视窗内
+  bool _isOutOfView(FocusNode node) {
+    if (node.context == null) return true;
+    RenderObject? renderObject = node.context!.findRenderObject();
+    if (renderObject is RenderBox) {
+      final ScrollableState? scrollableState = Scrollable.of(node.context!);
+      if (scrollableState != null) {
+        final ScrollPosition position = scrollableState.position;
+        final double offset = position.pixels;
+        final double viewportHeight = position.viewportDimension;
+        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+        return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
+      }
+    }
+    return false;
+  }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
@@ -798,9 +823,22 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
     // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+    // 修改部分：添加调试日志和视窗检查
+    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+    LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, '
+        'widget.cacheName: ${widget.cacheName ?? "未设置"}, '
+        '是否在视窗内：${currentIndex == firstFocusIndex ? !_isOutOfView(firstFocusNode) : !_isOutOfView(lastFocusNode)}');
+
     if (forward) {
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
+        // 修改部分：在循环到第一个节点前检查是否在视窗内，若不在则滚动到顶部
+        if (_isOutOfView(firstFocusNode) && channelDrawerState != null) {
+          String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
+          channelDrawerState.scrollTo(targetList: targetList, index: 0);
+          LogUtil.i('首节点不在视窗内，滚动 $targetList 到顶部');
+        }
         nextIndex = firstFocusIndex; // 循环到第一个焦点
         action = "循环到第一个焦点 (索引: $nextIndex)";
       } else {
@@ -822,6 +860,12 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
           }
           return; // 无论成功失败都返回，不要循环到最后
         } else {
+          // 修改部分：在循环到最后一个节点前检查是否在视窗内，若不在则滚动到底部
+          if (_isOutOfView(lastFocusNode) && channelDrawerState != null) {
+            String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
+            channelDrawerState.scrollTo(targetList: targetList, index: lastFocusIndex - firstFocusIndex);
+            LogUtil.i('末节点不在视窗内，滚动 $targetList 到底部');
+          }
           nextIndex = lastFocusIndex;
           action = "循环到最后一个焦点 (索引: $nextIndex)";
         } 
