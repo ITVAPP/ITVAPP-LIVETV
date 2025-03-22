@@ -780,8 +780,8 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-// 修改部分：调整接口支持异步
-abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
+// 修改部分：调整接口支持异步，去除继承 State<StatefulWidget>
+abstract class ChannelDrawerStateInterface {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
   Future<void> scrollListToTop(String listType); // 修改为 Future<void>
