@@ -1065,11 +1065,11 @@ class ChannelDrawerManager {
 
   bool _isValidScroll(ScrollTarget target, int index, int maxIndex, ItemScrollController controller) {
     if (!controller.isAttached) {
-      LogUtil.w('ChannelDrawerManager: $target 控制器未附着');
+      LogUtil.i('ChannelDrawerManager: $target 控制器未附着');
       return false;
     }
     if (index < 0 || index >= maxIndex) {
-      LogUtil.w('ChannelDrawerManager: $target 索引越界: index=$index, maxIndex=$maxIndex');
+      LogUtil.i('ChannelDrawerManager: $target 索引越界: index=$index, maxIndex=$maxIndex');
       return false;
     }
     return true;
