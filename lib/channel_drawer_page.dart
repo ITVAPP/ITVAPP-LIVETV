@@ -442,7 +442,7 @@ class _CategoryListState extends State<CategoryList> {
 
   @override
   void dispose() {
-    // 修改部分：添加防护检查Avoid，越界
+    // 修改部分：添加防护检查，避免索引越界
     if (_focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < _focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.categories.length);
     }
@@ -780,15 +780,115 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-// 修改部分：调整接口支持异步，去除继承 State<StatefulWidget>
-abstract class ChannelDrawerStateInterface {
-  void initializeData();
-  void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-  Future<void> scrollListToTop(String listType); // 修改为 Future<void>
-  Future<void> scrollListToBottom(String listType); // 修改为 Future<void>
+// 新增 ChannelDrawerManager 类，用于管理 initializeData 和 updateFocusLogic
+class ChannelDrawerManager {
+  final _ChannelDrawerPageState _state;
+
+  ChannelDrawerManager(this._state);
+
+  Future<void> initializeData() async {
+    _state._initializeCategoryData();
+    _state._initializeChannelData();
+    await updateFocusLogic(true); // 异步调用 updateFocusLogic
+  }
+
+  Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
+    _state._lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
+
+    // 计算总数
+    int totalNodes = _state._categories.length +
+        (_state._keys.isNotEmpty ? _state._keys.length : 0) +
+        (_state._values.isNotEmpty && _state._groupIndex >= 0 && _state._groupIndex < _state._values.length
+            ? _state._values[_state._groupIndex].length
+            : 0);
+
+    for (final node in _state._focusNodes) node.dispose();
+    _state._focusNodes.clear();
+    _state._focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    _state._focusGroupIndices.clear();
+
+    // 分配 groupIndex
+    for (int i = 0; i < _state._categories.length; i++) {
+      _state._focusGroupIndices[i] = 0; // 分类列表 groupIndex: 0
+    }
+    for (int i = 0; i < _state._keys.length; i++) {
+      _state._focusGroupIndices[_state._groupStartIndex + i] = 1; // 分组列表 groupIndex: 1
+    }
+    if (_state._values.isNotEmpty && _state._groupIndex >= 0 && _state._groupIndex < _state._values.length) {
+      for (int i = 0; i < _state._values[_state._groupIndex].length; i++) {
+        _state._focusGroupIndices[_state._channelStartIndex + i] = 2; // 频道列表 groupIndex: 2
+      }
+    }
+
+    LogUtil.i('焦点节点更新: 总数=$totalNodes');
+
+    // 更新起始索引
+    _state._categoryStartIndex = 0;
+    _state._groupStartIndex = _state._categories.length;
+    _state._channelStartIndex = _state._categories.length + _state._keys.length;
+
+    // 直接更新第一项和最后一项索引
+    _state._categoryListFirstIndex = 0; // 分类列表第一项始终为 0
+    _state._groupListFirstIndex = _state._groupStartIndex;
+    _state._channelListFirstIndex = _state._channelStartIndex;
+
+    _state._categoryListLastIndex = _state._categories.isNotEmpty ? _state._categories.length - 1 : -1;
+    _state._groupListLastIndex = _state._keys.isNotEmpty ? _state._groupStartIndex + _state._keys.length - 1 : -1;
+    _state._channelListLastIndex = (_state._values.isNotEmpty &&
+            _state._groupIndex >= 0 &&
+            _state._groupIndex < _state._values.length)
+        ? _state._channelStartIndex + _state._values[_state._groupIndex].length - 1
+        : -1;
+
+    // 使用已更新的索引生成 _groupFocusCache
+    _state._groupFocusCache.clear();
+    if (_state._categories.isNotEmpty) {
+      _state._groupFocusCache[0] = {
+        'firstFocusNode': _state._focusNodes[_state._categoryListFirstIndex],
+        'lastFocusNode': _state._focusNodes[_state._categoryListLastIndex]
+      };
+    }
+    if (_state._keys.isNotEmpty) {
+      _state._groupFocusCache[1] = {
+        'firstFocusNode': _state._focusNodes[_state._groupListFirstIndex],
+        'lastFocusNode': _state._focusNodes[_state._groupListLastIndex]
+      };
+    }
+    if (_state._values.isNotEmpty && _state._groupIndex >= 0 && _state._groupIndex < _state._values.length) {
+      _state._groupFocusCache[2] = {
+        'firstFocusNode': _state._focusNodes[_state._channelListFirstIndex],
+        'lastFocusNode': _state._focusNodes[_state._channelListLastIndex]
+      };
+    }
+
+    // 日志输出
+    final groupFocusCacheLog = _state._groupFocusCache.map((key, value) => MapEntry(
+          key,
+          '{first: ${_state._focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_state._focusNodes.indexOf(value['lastFocusNode']!)}}',
+        ));
+    LogUtil.i('焦点逻辑更新: categoryStart=${_state._categoryStartIndex}, groupStart=${_state._groupStartIndex}, '
+        'channelStart=${_state._channelStartIndex}, '
+        'first=[${_state._categoryListFirstIndex}, ${_state._groupListFirstIndex}, ${_state._channelListFirstIndex}], '
+        'last=[${_state._categoryListLastIndex}, ${_state._groupListLastIndex}, ${_state._channelListLastIndex}], '
+        'groupFocusCache=$groupFocusCacheLog');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_state._tvKeyNavigationState != null) {
+        _state._tvKeyNavigationState!.updateNamedCache(cache: _state._groupFocusCache);
+      }
+    });
+
+    // 非初始化时更新导航状态
+    if (!isInitial && _state._tvKeyNavigationState != null) {
+      _state._tvKeyNavigationState!.releaseResources();
+      int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
+      _state._tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+      _state._reInitializeFocusListeners();
+    }
+  }
 }
 
-// 主组件ChannelDrawerPage
+// 主组件 ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -811,9 +911,14 @@ class ChannelDrawerPage extends StatefulWidget {
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
+
+  // 暴露 ChannelDrawerManager 以供外部调用
+  ChannelDrawerManager getManager(BuildContext context) {
+    return context.findAncestorStateOfType<_ChannelDrawerPageState>()!._manager;
+  }
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver implements ChannelDrawerStateInterface {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
@@ -850,6 +955,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 新增分组焦点缓存
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+
+  // 添加 ChannelDrawerManager 实例
+  late ChannelDrawerManager _manager;
 
   // 计算抽屉高度的方法
   void _calculateDrawerHeight() {
@@ -926,9 +1034,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
 
+    // 初始化 ChannelDrawerManager
+    _manager = ChannelDrawerManager(this);
     // 同步初始化数据，确保 build 前所有变量已就绪
-    initializeData();  // 修改：去掉 _ 前缀
-    updateFocusLogic(true);  // 修改：去掉 _ 前缀，首次初始化
+    _manager.initializeData(); // 修改：使用 _manager 调用，不加 await 与原逻辑一致
 
     // 异步加载 EPG 数据
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -944,17 +1053,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.didUpdateWidget(oldWidget);
     if (widget.videoMap != oldWidget.videoMap || widget.playModel != oldWidget.playModel) {
       LogUtil.i('ChannelDrawerPage: videoMap 或 playModel 变化，重新初始化');
-      initializeData();
-      updateFocusLogic(false);
+      _manager.initializeData(); // 修改：使用 _manager 调用
       setState(() {}); // 确保 UI 更新
     }
-  }
-
-  // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
-  void initializeData() {
-    _initializeCategoryData();
-    _initializeChannelData();
-    updateFocusLogic(true); // 首次初始化时更新索引
   }
 
   // 计算总焦点节点数
@@ -1135,98 +1236,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改后的 updateFocusLogic，直接更新所有索引并供复用
-  void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
-    _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
-
-    // 计算总数
-    int totalNodes = _categories.length +
-        (_keys.isNotEmpty ? _keys.length : 0) +
-        (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0);
-
-    for (final node in _focusNodes) node.dispose();
-    _focusNodes.clear();
-    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
-    _focusGroupIndices.clear();
-
-    // 分配 groupIndex
-    for (int i = 0; i < _categories.length; i++) {
-      _focusGroupIndices[i] = 0; // 分类列表 groupIndex: 0
-    }
-    for (int i = 0; i < _keys.length; i++) {
-      _focusGroupIndices[_groupStartIndex + i] = 1; // 分组列表 groupIndex: 1
-    }
-    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-      for (int i = 0; i < _values[_groupIndex].length; i++) {
-        _focusGroupIndices[_channelStartIndex + i] = 2; // 频道列表 groupIndex: 2
-      }
-    }
-
-    LogUtil.i('焦点节点更新: 总数=$totalNodes');
-
-    // 更新起始索引
-    _categoryStartIndex = 0;
-    _groupStartIndex = _categories.length;
-    _channelStartIndex = _categories.length + _keys.length;
-
-    // 直接更新第一项和最后一项索引
-    _categoryListFirstIndex = 0;  // 分类列表第一项始终为 0
-    _groupListFirstIndex = _groupStartIndex;
-    _channelListFirstIndex = _channelStartIndex;
-
-    _categoryListLastIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
-    _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
-    _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
-        ? _channelStartIndex + _values[_groupIndex].length - 1
-        : -1;
-
-    // 使用已更新的索引生成 _groupFocusCache
-    _groupFocusCache.clear();
-    if (_categories.isNotEmpty) {
-      _groupFocusCache[0] = {
-        'firstFocusNode': _focusNodes[_categoryListFirstIndex],
-        'lastFocusNode': _focusNodes[_categoryListLastIndex]
-      };
-    }
-    if (_keys.isNotEmpty) {
-      _groupFocusCache[1] = {
-        'firstFocusNode': _focusNodes[_groupListFirstIndex],
-        'lastFocusNode': _focusNodes[_groupListLastIndex]
-      };
-    }
-    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-      _groupFocusCache[2] = {
-        'firstFocusNode': _focusNodes[_channelListFirstIndex],
-        'lastFocusNode': _focusNodes[_channelListLastIndex]
-      };
-    }
-
-    // 日志输出
-    final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
-          key,
-          '{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}',
-        ));
-    LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-        'channelStart=$_channelStartIndex, '
-        'first=[$_categoryListFirstIndex, $_groupListFirstIndex, $_channelListFirstIndex], '
-        'last=[$_categoryListLastIndex, $_groupListLastIndex, $_channelListLastIndex], '
-        'groupFocusCache=$groupFocusCacheLog');
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
-      }
-    });
-
-    // 非初始化时更新导航状态
-    if (!isInitial && _tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-      _reInitializeFocusListeners();
-    }
-  }
-
   // 修改后的 _onCategoryTap 方法，切换时更新索引
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
@@ -1241,7 +1250,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       } else {
         _initializeChannelData();
       }
-      updateFocusLogic(false, initialIndexOverride: index); // 更新焦点逻辑和索引
+      _manager.updateFocusLogic(false, initialIndexOverride: index); // 修改：使用 _manager 调用
     });
 
     // 添加滚动调整逻辑，确保只有当前播放频道的分类才滚动到 0.23
@@ -1280,7 +1289,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _groupIndex = index;
       _isSystemAutoSelected = false;
       _focusStates.clear();
-      updateFocusLogic(false, initialIndexOverride: _categories.length + index); // 更新焦点逻辑和索引
+      _manager.updateFocusLogic(false, initialIndexOverride: _categories.length + index); // 修改：使用 _manager 调用
     });
 
     // 添加滚动调整逻辑，确保只有当前播放频道所在分组才滚动到 0.23
@@ -1314,7 +1323,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _channelIndex = _values[_groupIndex].keys.toList().indexOf(newModel?.title ?? '');
       _epgData = null; // 清空节目单数据
       _selEPGIndex = 0; // 重置节目单索引
-      updateFocusLogic(false);
+      _manager.updateFocusLogic(false); // 修改：使用 _manager 调用
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1464,7 +1473,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       cacheName: 'ChannelDrawerPage',
       isVerticalGroup: true,
       initialIndex: 0,
-      parentContext: context,
       onStateCreated: _handleTvKeyNavigationStateCreated,
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
     );
@@ -1546,137 +1554,5 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         },
       ),
     );
-  }
-
-  // **修改部分：以下为新增的异步滚动控制方法**
-
-  // 滚动分类列表到顶部（异步）
-  Future<void> scrollCategoryToTop() {
-    if (_categoryScrollController.isAttached && _categories.isNotEmpty) {
-      return _categoryScrollController.scrollTo(
-        index: 0,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('分类列表滚动到顶部');
-      });
-    }
-    return Future.value();
-  }
-
-  // 滚动分类列表到底部（异步）
-  Future<void> scrollCategoryToBottom() {
-    if (_categoryScrollController.isAttached && _categories.isNotEmpty) {
-      return _categoryScrollController.scrollTo(
-        index: _categories.length - 1,
-        alignment: 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('分类列表滚动到底部');
-      });
-    }
-    return Future.value();
-  }
-
-  // 滚动分组列表到顶部（异步）
-  Future<void> scrollGroupToTop() {
-    if (_scrollController.isAttached && _keys.isNotEmpty) {
-      return _scrollController.scrollTo(
-        index: 0,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('分组列表滚动到顶部');
-      });
-    }
-    return Future.value();
-  }
-
-  // 滚动分组列表到底部（异步）
-  Future<void> scrollGroupToBottom() {
-    if (_scrollController.isAttached && _keys.isNotEmpty) {
-      return _scrollController.scrollTo(
-        index: _keys.length - 1,
-        alignment: 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('分组列表滚动到底部');
-      });
-    }
-    return Future.value();
-  }
-
-  // 滚动频道列表到顶部（异步）
-  Future<void> scrollChannelToTop() {
-    if (_scrollChannelController.isAttached && 
-        _values.isNotEmpty && 
-        _groupIndex >= 0 && 
-        _groupIndex < _values.length && 
-        _values[_groupIndex].isNotEmpty) {
-      return _scrollChannelController.scrollTo(
-        index: 0,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('频道列表滚动到顶部');
-      });
-    }
-    return Future.value();
-  }
-
-  // 滚动频道列表到底部（异步）
-  Future<void> scrollChannelToBottom() {
-    if (_scrollChannelController.isAttached && 
-        _values.isNotEmpty && 
-        _groupIndex >= 0 && 
-        _groupIndex < _values.length && 
-        _values[_groupIndex].isNotEmpty) {
-      final channelCount = _values[_groupIndex].length;
-      return _scrollChannelController.scrollTo(
-        index: channelCount - 1,
-        alignment: 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      ).then((_) {
-        LogUtil.i('频道列表滚动到底部');
-      });
-    }
-    return Future.value();
-  }
-
-  // **修改部分：统一滚动接口改为异步**
-  // 统一滚动到顶部的方法
-  Future<void> scrollListToTop(String listType) {
-    switch (listType) {
-      case 'category':
-        return scrollCategoryToTop();
-      case 'group':
-        return scrollGroupToTop();
-      case 'channel':
-        return scrollChannelToTop();
-      default:
-        LogUtil.i('未知的列表类型: $listType');
-        return Future.value(); // 返回已完成的 Future
-    }
-  }
-
-  // 统一滚动到底部的方法
-  Future<void> scrollListToBottom(String listType) {
-    switch (listType) {
-      case 'category':
-        return scrollCategoryToBottom();
-      case 'group':
-        return scrollGroupToBottom();
-      case 'channel':
-        return scrollChannelToBottom();
-      default:
-        LogUtil.i('未知的列表类型: $listType');
-        return Future.value(); // 返回已完成的 Future
-    }
   }
 }
