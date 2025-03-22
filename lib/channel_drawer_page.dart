@@ -172,7 +172,125 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改部分：移除全局 addFocusListeners 方法，移入 ChannelDrawerStateInterface
+// 修改后的 addFocusListeners 方法，按完善逻辑调整
+void addFocusListeners(
+  int startIndex,
+  int length,
+  State state, {
+  ItemScrollController? scrollController,
+}) {
+  if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
+    LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
+    return;
+  }
+  for (var i = 0; i < length; i++) {
+    _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
+  }
+  for (var i = 0; i < length; i++) {
+    final index = startIndex + i;
+    _focusNodes[index].removeListener(() {});
+    _focusNodes[index].addListener(() {
+      final currentFocus = _focusNodes[index].hasFocus;
+      if (_focusStates[index] != currentFocus) {
+        _focusStates[index] = currentFocus;
+        state.setState(() {});
+        if (scrollController != null && currentFocus && scrollController.isAttached) {
+          final itemIndex = index - startIndex; // 相对索引
+          final currentGroup = _focusGroupIndices[index] ?? -1;
+          final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
+          final isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup;
+          final isMovingForward = isSameGroup && index > _lastFocusedIndex; // 向前移动（下移或反转上移）
+          final isMovingBackward = isSameGroup && index < _lastFocusedIndex; // 向后移动（上移或反转下移）
+          final isInitialFocus = _lastFocusedIndex == -1; // 首次聚焦
+          _lastFocusedIndex = index;
+
+          // 获取 ChannelDrawerPageState 以访问索引和抽屉高度
+          final channelDrawerState = state is _ChannelDrawerPageState
+              ? state
+              : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
+          if (channelDrawerState == null) return;
+
+          // 判断是否为首项或末项
+          final isFirstItem = index == channelDrawerState._categoryListFirstIndex ||
+              index == channelDrawerState._groupListFirstIndex ||
+              index == channelDrawerState._channelListFirstIndex;
+          final isLastItem = index == channelDrawerState._categoryListLastIndex ||
+              index == channelDrawerState._groupListLastIndex ||
+              index == channelDrawerState._channelListLastIndex;
+
+          // 计算视窗内完整项数
+          final viewportHeight = channelDrawerState._drawerHeight;
+          final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
+
+          // 当列表项数少于视窗容量时，直接滚动到顶部
+          if (length <= fullItemsInViewport) {
+            scrollController.scrollTo(
+              index: 0,
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('列表项数少于视窗容量，滚动到顶部: length=$length, fullItemsInViewport=$fullItemsInViewport');
+            return;
+          }
+
+          // 滚动逻辑
+          if (isFirstItem) {
+            // 首项：滚动到顶部
+            scrollController.scrollTo(
+              index: 0,
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('滚动到首项: index=$index, group=$currentGroup');
+          } else if (isLastItem) {
+            // 末项：滚动到底部
+            scrollController.scrollTo(
+              index: length - 1,
+              alignment: 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('滚动到末项: index=$index, group=$currentGroup');
+          } else if (isMovingForward && itemIndex >= fullItemsInViewport) {
+            // 向前移动（正常下移或反转上移）：焦点项居底部
+            final targetIndex = itemIndex - fullItemsInViewport + 1;
+            scrollController.scrollTo(
+              index: targetIndex.clamp(0, length - fullItemsInViewport),
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('向前滚动: index=$index, targetIndex=$targetIndex');
+          } else if (isMovingBackward && itemIndex < fullItemsInViewport - 1) {
+            // 向后移动（正常上移或反转下移）：焦点项居顶部
+            scrollController.scrollTo(
+              index: itemIndex,
+              alignment: 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('向后滚动: index=$index, targetIndex=$itemIndex');
+          } else if (!isSameGroup && !isInitialFocus) {
+            // 组间移动：根据移动方向滚动到新组首项或末项
+            final targetIndex = (currentGroup > lastGroup) ? 0 : (length - 1);
+            scrollController.scrollTo(
+              index: targetIndex,
+              alignment: (currentGroup > lastGroup) ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
+            LogUtil.i('组间切换: index=$index, group=$currentGroup, targetIndex=$targetIndex');
+          } else if (isInitialFocus) {
+            // 首次聚焦：不滚动（保持默认位置）
+            LogUtil.i('首次聚焦，不触发滚动: index=$index, group=$currentGroup');
+          }
+        }
+      }
+    });
+  }
+}
 
 // 修改部分：移除焦点监听逻辑的通用函数，添加边界检查
 void removeFocusListeners(int startIndex, int length) {
@@ -319,12 +437,7 @@ class _CategoryListState extends State<CategoryList> {
     for (var i = 0; i < widget.categories.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改：调用接口方法
-    context.findAncestorStateOfType<ChannelDrawerStateInterface>()?.addFocusListeners(
-      widget.startIndex,
-      widget.categories.length,
-      scrollController: widget.scrollController,
-    );
+    addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -408,12 +521,8 @@ class _GroupListState extends State<GroupList> {
     for (var i = 0; i < widget.keys.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改：调用接口方法
-    context.findAncestorStateOfType<ChannelDrawerStateInterface>()?.addFocusListeners(
-      widget.startIndex,
-      widget.keys.length,
-      scrollController: widget.scrollController,
-    );
+    // 在焦点监听中绑定滚动控制器
+    addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -513,12 +622,8 @@ class _ChannelListState extends State<ChannelList> {
     for (var i = 0; i < widget.channels.length; i++) {
       _localFocusStates[widget.startIndex + i] = false;
     }
-    // 修改：调用接口方法
-    context.findAncestorStateOfType<ChannelDrawerStateInterface>()?.addFocusListeners(
-      widget.startIndex,
-      widget.channels.length,
-      scrollController: widget.scrollController,
-    );
+    // 在焦点监听中绑定滚动控制器
+    addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
 
   @override
@@ -675,21 +780,16 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-// 修改部分：调整 ChannelDrawerStateInterface，添加 addFocusListeners
 abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-  void addFocusListeners(
-    int startIndex,
-    int length, {
-    ItemScrollController? scrollController,
-    bool enableScroll = false,
-    bool isForward = true,
-  });
 }
 
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
+  // 修改部分：添加静态 GlobalKey 以便外部访问 State
+  static final GlobalKey<_ChannelDrawerPageState> drawerKey = GlobalKey<_ChannelDrawerPageState>();
+
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
   final bool isLandscape;
@@ -707,15 +807,13 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  });
+  }) : super(key: drawerKey); // 修改部分：绑定 GlobalKey
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
-class _ChannelDrawerPageState extends State<ChannelDrawerPage>
-    with WidgetsBindingObserver
-    implements ChannelDrawerStateInterface {
+class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
@@ -752,136 +850,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
 
   // 新增分组焦点缓存
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
-
-  // 修改部分：实现 addFocusListeners
-  @override
-  void addFocusListeners(
-    int startIndex,
-    int length, {
-    ItemScrollController? scrollController,
-    bool enableScroll = false,
-    bool isForward = true,
-  }) {
-    if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
-      LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
-      return;
-    }
-
-    // 若启用滚动，主动调整位置
-    if (enableScroll && scrollController != null && scrollController.isAttached) {
-      int targetIndex = isForward ? 0 : length - 1;
-      scrollController.scrollTo(
-        index: targetIndex,
-        alignment: isForward ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      );
-      LogUtil.i('主动滚动: targetIndex=$targetIndex, direction=${isForward ? "顶部" : "底部"}');
-    }
-
-    // 原有监听逻辑
-    for (var i = 0; i < length; i++) {
-      _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
-    }
-    for (var i = 0; i < length; i++) {
-      final index = startIndex + i;
-      _focusNodes[index].removeListener(() {});
-      _focusNodes[index].addListener(() {
-        final currentFocus = _focusNodes[index].hasFocus;
-        if (_focusStates[index] != currentFocus) {
-          _focusStates[index] = currentFocus;
-          setState(() {});
-          if (scrollController != null && currentFocus && scrollController.isAttached) {
-            final itemIndex = index - startIndex; // 相对索引
-            final currentGroup = _focusGroupIndices[index] ?? -1;
-            final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
-            final isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup;
-            final isMovingForward = isSameGroup && index > _lastFocusedIndex; // 向前移动（下移或反转上移）
-            final isMovingBackward = isSameGroup && index < _lastFocusedIndex; // 向后移动（上移或反转下移）
-            final isInitialFocus = _lastFocusedIndex == -1; // 首次聚焦
-            _lastFocusedIndex = index;
-
-            // 判断是否为首项或末项
-            final isFirstItem = index == _categoryListFirstIndex ||
-                index == _groupListFirstIndex ||
-                index == _channelListFirstIndex;
-            final isLastItem = index == _categoryListLastIndex ||
-                index == _groupListLastIndex ||
-                index == _channelListLastIndex;
-
-            // 计算视窗内完整项数
-            final viewportHeight = _drawerHeight;
-            final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-            // 当列表项数少于视窗容量时，直接滚动到顶部
-            if (length <= fullItemsInViewport) {
-              scrollController.scrollTo(
-                index: 0,
-                alignment: 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('列表项数少于视窗容量，滚动到顶部: length=$length, fullItemsInViewport=$fullItemsInViewport');
-              return;
-            }
-
-            // 滚动逻辑
-            if (isFirstItem) {
-              // 首项：滚动到顶部
-              scrollController.scrollTo(
-                index: 0,
-                alignment: 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('滚动到首项: index=$index, group=$currentGroup');
-            } else if (isLastItem) {
-              // 末项：滚动到底部
-              scrollController.scrollTo(
-                index: length - 1,
-                alignment: 1.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('滚动到末项: index=$index, group=$currentGroup');
-            } else if (isMovingForward && itemIndex >= fullItemsInViewport) {
-              // 向前移动（正常下移或反转上移）：焦点项居底部
-              final targetIndex = itemIndex - fullItemsInViewport + 1;
-              scrollController.scrollTo(
-                index: targetIndex.clamp(0, length - fullItemsInViewport),
-                alignment: 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('向前滚动: index=$index, targetIndex=$targetIndex');
-            } else if (isMovingBackward && itemIndex < fullItemsInViewport - 1) {
-              // 向后移动（正常上移或反转下移）：焦点项居顶部
-              scrollController.scrollTo(
-                index: itemIndex,
-                alignment: 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('向后滚动: index=$index, targetIndex=$itemIndex');
-            } else if (!isSameGroup && !isInitialFocus) {
-              // 组间移动：根据移动方向滚动到新组首项或末项
-              final targetIndex = (currentGroup > lastGroup) ? 0 : (length - 1);
-              scrollController.scrollTo(
-                index: targetIndex,
-                alignment: (currentGroup > lastGroup) ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
-              );
-              LogUtil.i('组间切换: index=$index, group=$currentGroup, targetIndex=$targetIndex');
-            } else if (isInitialFocus) {
-              // 首次聚焦：不滚动（保持默认位置）
-              LogUtil.i('首次聚焦，不触发滚动: index=$index, group=$currentGroup');
-            }
-          }
-        }
-      });
-    }
-  }
 
   // 计算抽屉高度的方法
   void _calculateDrawerHeight() {
@@ -951,6 +919,43 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
+  // 修改部分：添加公共方法以控制分类、分组和频道列表滚动
+  // 滚动分类列表到顶部
+  void scrollCategoryToTop() {
+    if (_categories.isEmpty || !_categoryScrollController.isAttached) return;
+    scrollTo(targetList: 'category', index: 0, alignment: 0.0);
+  }
+
+  // 滚动分类列表到底部
+  void scrollCategoryToBottom() {
+    if (_categories.isEmpty || !_categoryScrollController.isAttached) return;
+    scrollTo(targetList: 'category', index: _categories.length - 1, alignment: 1.0);
+  }
+
+  // 滚动分组列表到顶部
+  void scrollGroupToTop() {
+    if (_keys.isEmpty || !_scrollController.isAttached) return;
+    scrollTo(targetList: 'group', index: 0, alignment: 0.0);
+  }
+
+  // 滚动分组列表到底部
+  void scrollGroupToBottom() {
+    if (_keys.isEmpty || !_scrollController.isAttached) return;
+    scrollTo(targetList: 'group', index: _keys.length - 1, alignment: 1.0);
+  }
+
+  // 滚动频道列表到顶部
+  void scrollChannelToTop() {
+    if (_values.isEmpty || _groupIndex < 0 || _groupIndex >= _values.length || !_scrollChannelController.isAttached) return;
+    scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
+  }
+
+  // 滚动频道列表到底部
+  void scrollChannelToBottom() {
+    if (_values.isEmpty || _groupIndex < 0 || _groupIndex >= _values.length || !_scrollChannelController.isAttached) return;
+    scrollTo(targetList: 'channel', index: _values[_groupIndex].length - 1, alignment: 1.0);
+  }
+
   // 优化 initState，同步初始化数据，异步加载 EPG
   @override
   void initState() {
@@ -983,7 +988,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
   }
 
   // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
-  @override
   void initializeData() {
     _initializeCategoryData();
     _initializeChannelData();
@@ -1152,15 +1156,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
     }
 
     // 添加新的监听器并检查焦点变化
-    addFocusListeners(0, _categories.length, scrollController: _categoryScrollController);
+    addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController);
 
     // 如果有分组，初始化分组的监听器
     if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, scrollController: _scrollController);
+      addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController);
       if (_values.isNotEmpty && _groupIndex >= 0) {
         addFocusListeners(
           _categories.length + _keys.length,
           _values[_groupIndex].length,
+          this,
           scrollController: _scrollChannelController,
         );
       }
@@ -1168,7 +1173,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage>
   }
 
   // 修改后的 updateFocusLogic，直接更新所有索引并供复用
-  @override
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
