@@ -53,12 +53,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   int? _lastParentFocusIndex;
   DateTime? _lastKeyProcessedTime; // 新增：记录上一次按键处理的时间
   static const Duration _throttleDuration = Duration(milliseconds: 200); // 按键节流间隔的毫秒数
-
+  
   // 判断是否为导航相关的按键（方向键、选择键和确认键）
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -85,7 +85,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent";
     // 如果焦点管理未激活，则不处理按键事件
     if (_isFocusManagementActive) {
-      initializeFocusLogic(); // 调用初始化焦点逻辑
+       initializeFocusLogic(); // 调用初始化焦点逻辑
     }
     WidgetsBinding.instance.addObserver(this); // 添加生命周期观察者
   }
@@ -102,7 +102,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (_namedCaches.containsKey(cacheName)) {
         _groupFocusCache = Map.from(_namedCaches[cacheName]!);
         LogUtil.i('使用 ${widget.cacheName} 的缓存');
-
+        
         // 恢复焦点位置
         _requestFocus(_lastParentFocusIndex ?? 0);
       } else {
@@ -118,16 +118,16 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 停用焦点管理
   void deactivateFocusManagement() {
-    setState(() {
-      _isFocusManagementActive = false;
-      if (widget.frameType == "parent" && _currentFocus != null) {
-        _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
-        LogUtil.i('保存父页面焦点位置: $_lastParentFocusIndex');
-      }
-    });
-    LogUtil.i('停用页面的焦点管理');
+      setState(() {
+        _isFocusManagementActive = false;
+        if (widget.frameType == "parent" && _currentFocus != null) {
+          _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
+          LogUtil.i('保存父页面焦点位置: $_lastParentFocusIndex');
+        }
+      });
+      LogUtil.i('停用页面的焦点管理');
   }
-
+  
   @override
   void dispose() {
     releaseResources();
@@ -158,6 +158,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _isFocusManagementActive = !widget.isFrame;
 
       WidgetsBinding.instance.removeObserver(this);
+
     } catch (e) {
       _ensureCriticalResourceRelease();
     }
@@ -187,7 +188,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     LogUtil.i('更新 _namedCaches[$cacheName]: ${_namedCaches[cacheName]}');
   }
-
+  
   /// 初始化焦点逻辑
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -195,20 +196,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // 判断 focusNodes 是否有效
         if (widget.focusNodes.isEmpty) {
           LogUtil.i('focusNodes 为空，无法设置焦点');
-          return;
+          return; 
         } else {
           LogUtil.i('正在初始化焦点逻辑，共 ${widget.focusNodes.length} 个节点');
         }
-
+      
         // 检查是否传入了 groupFocusCache
         if (widget.groupFocusCache != null) {
           _groupFocusCache = Map.from(widget.groupFocusCache!);
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
-          updateNamedCache(cache: _groupFocusCache);
+          updateNamedCache(cache: _groupFocusCache); 
         } else {
           // 检查 cacheName 是否为 "ChannelDrawerPage"
           if (widget.cacheName == "ChannelDrawerPage") {
-            // 修改：直接调用 ChannelDrawerPage 的静态方法
             ChannelDrawerPage.initializeData();
             ChannelDrawerPage.updateFocusLogic(true);
             LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
@@ -224,7 +224,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // initialIndex 为 -1，跳过设置初始焦点的逻辑
         if (initialIndex != -1 && widget.focusNodes.isNotEmpty) {
           _requestFocus(initialIndex); // 设置初始焦点
-        }
+        } 
       } catch (e) {
         LogUtil.i('初始焦点设置失败: $e');
       }
@@ -235,14 +235,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
     LogUtil.i('$message: $error\n位置: $stackTrace');
   }
-
+  
   /// 查找子页面导航状态
   TvKeyNavigationState? _findChildNavigation() {
     TvKeyNavigationState? childNavigation;
     void visitChild(Element element) {
       if (element.widget is TvKeyNavigation) {
         final navigationWidget = element.widget as TvKeyNavigation;
-        // 检查 frame.debugLabelType 是否为 "child"
+        // 检查 frameType 是否为 "child"
         if (navigationWidget.frameType == "child") {
           // 找到目标子页面并进行初始化
           childNavigation = (element as StatefulElement).state as TvKeyNavigationState;
@@ -296,7 +296,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
     return parentNavigation;
   }
-
+  
   /// 请求将焦点切换到指定索引的控件上
   void _requestFocus(int index, {int? groupIndex}) {
     if (widget.focusNodes.isEmpty) {
@@ -315,8 +315,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (groupIndex == -1 || !_groupFocusCache.containsKey(groupIndex)) {
         // 无效的 groupIndex，直接设置为第一个可请求焦点的节点
         FocusNode firstValidFocusNode = widget.focusNodes.firstWhere(
-          (node) => node.canRequestFocus,
-          orElse: () => widget.focusNodes[0],
+          (node) => node.canRequestFocus, 
+          orElse: () => widget.focusNodes[0]
         );
 
         // 请求第一个有效焦点
@@ -350,7 +350,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       // 请求焦点
       if (!focusNode.hasFocus) {
-        focusNode.requestFocus(); // 设置焦点到指定的节点
+        focusNode.requestFocus();  // 设置焦点到指定的节点
         _currentFocus = focusNode;
         LogUtil.i('切换焦点到索引: $index, 当前Group: $groupIndex');
       }
@@ -358,14 +358,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       LogUtil.i('设置焦点时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
   }
-
+  
   /// 缓存 Group 的焦点信息
   void _cacheGroupFocusNodes() {
-    if (widget.groupFocusCache != null) {
-      LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
-      return;
-    }
-    _groupFocusCache.clear(); // 清空缓存
+   if (widget.groupFocusCache != null) {
+       LogUtil.i('groupFocusCache 已传入，不执行 _cacheGroupFocusNodes');
+       return;
+     }
+    _groupFocusCache.clear();  // 清空缓存
     // 获取所有的分组
     final groups = _getAllGroups();
     LogUtil.i('缓存分组：找到的总组数: ${groups.length}');
@@ -376,12 +376,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     } else {
       _cacheMultipleGroups(groups);
     }
-
+    
     final cacheName = 'groupCache-${widget.cacheName ?? "TvKeyNavigation"}';
     _namedCaches[cacheName] = Map.from(_groupFocusCache);
     LogUtil.i('保存 $cacheName 的缓存');
   }
-
+  
   // 缓存默认分组（无分组或单一分组）的焦点节点
   void _cacheDefaultGroup() {
     final firstFocusNode = _findFirstFocusableNode(widget.focusNodes);
@@ -392,10 +392,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       'lastFocusNode': lastFocusNode,
     };
 
-    LogUtil.i(
-        '缓存了默认分组的焦点节点 - '
-        '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-        '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}');
+    LogUtil.i('缓存了默认分组的焦点节点 - '
+               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
+               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
+    );
   }
 
   // 遍历分组缓存它们的焦点节点
@@ -410,21 +410,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           'lastFocusNode': groupFocusNodes.last,
         };
 
-        LogUtil.i(
-            '分组 ${group.groupIndex}: '
-            '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
-            '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}');
+        LogUtil.i('分组 ${group.groupIndex}: '
+                   '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
+                   '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
+        );
       } else {
         LogUtil.i('警告：分组 ${group.groupIndex} 没有可聚焦的节点');
       }
     }
   }
-
+  
   // 查找第一个可聚焦的节点
   FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
     return nodes.firstWhere(
       (node) => node.canRequestFocus,
-      orElse: () => FocusNode(debugLabel: '空焦点节点'), // 添加 debugLabel，便于调试
+      orElse: () => FocusNode(debugLabel: '空焦点节点') // 添加 debugLabel，便于调试
     );
   }
 
@@ -432,7 +432,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
     return nodes.lastWhere(
       (node) => node.canRequestFocus,
-      orElse: () => FocusNode(debugLabel: '空焦点节点'),
+      orElse: () => FocusNode(debugLabel: '空焦点节点')
     );
   }
 
@@ -468,7 +468,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // 如果焦点节点在当前分组的范围内（首尾节点之间）
         if (widget.focusNodes.indexOf(focusNode) >= widget.focusNodes.indexOf(firstFocusNode) &&
             widget.focusNodes.indexOf(focusNode) <= widget.focusNodes.indexOf(lastFocusNode)) {
-          return entry.key; // 返回对应的 groupIndex
+          return entry.key;  // 返回对应的 groupIndex
         }
       }
       return -1; // 如果没有找到匹配的分组，返回 -1
@@ -480,7 +480,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 获取总的组数
   int _getTotalGroups() {
-    return _groupFocusCache.length;
+    return _groupFocusCache.length; 
   }
 
   /// 获取所有的 Group
@@ -530,17 +530,17 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int currentIndex = widget.focusNodes.indexOf(currentFocus);
     if (currentIndex == -1) {
       LogUtil.i('找不到当前焦点的索引');
-      return KeyEventResult.ignored;
+      return KeyEventResult.ignored; 
     }
 
     // 获取当前焦点的 groupIndex，如果找不到，默认为 -1
-    int groupIndex = _getGroupIndex(currentFocus); // 通过 context 获取 groupIndex
-
+    int groupIndex = _getGroupIndex(currentFocus);  // 通过 context 获取 groupIndex
+    
     try {
       // 判断是否启用了框架模式 (isFrame)
-      if (widget.isFrame) {
-        // 父页面导航逻辑
+      if (widget.isFrame) {  // 如果是框架模式
         if (widget.frameType == "parent") {
+          // 父页面导航逻辑
           if (key == LogicalKeyboardKey.arrowRight) {
             // 按下右键时，尝试切换到子页面
             final childNavigation = _findChildNavigation();
@@ -550,46 +550,43 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               LogUtil.i('切换到子页面');
               return KeyEventResult.handled;
             }
-          } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+          } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {   // 左上键
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);
-          } else if (key == LogicalKeyboardKey.arrowDown) {
+          } else if (key == LogicalKeyboardKey.arrowDown) {    // 下键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);
           }
-        } else if (widget.frameType == "child") {
-          // 子页面
-          if (key == LogicalKeyboardKey.arrowLeft) {
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex); // 后退或回父页面
-          } else if (key == LogicalKeyboardKey.arrowRight) {
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex); // 前进或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
-            _jumpToOtherGroup(key, currentIndex, groupIndex); // 跳转到其它 Group
+        } else if (widget.frameType == "child") {  // 子页面
+          if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或回父页面
+          } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
+            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
+            _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
         }
-      } else {
+      } else {  // 如果不是框架模式
         // 判断是否启用了横向分组
         if (widget.isHorizontalGroup) {
-          if (key == LogicalKeyboardKey.arrowLeft) {
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex); // 后退或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowRight) {
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex); // 前进或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {
-            _jumpToOtherGroup(key, currentIndex, groupIndex); // 跳转到其它 Group
+          if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
+            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
+            _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
-        } else if (widget.isVerticalGroup) {
-          // 判断是否启用了竖向分组
-          if (key == LogicalKeyboardKey.arrowUp) {
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex); // 后退或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowDown) {
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex); // 前进或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {
-            _jumpToOtherGroup(key, currentIndex, groupIndex); // 跳转到其它 Group
+        } else if (widget.isVerticalGroup) {   // 判断是否启用了竖向分组
+          if (key == LogicalKeyboardKey.arrowUp) {  // 上键
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
+            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {  // 左右键
+            _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
-        } else {
-          // 没有启用分组的默认导航逻辑
-          if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex); // 后退或循环焦点
-          } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex); // 前进或循环焦点
+        } else {  // 没有启用分组的默认导航逻辑
+          if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {  // 左上键
+            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+          } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {  // 右下键
+            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
           }
         }
       }
@@ -608,18 +605,18 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
     return KeyEventResult.handled;
   }
-
+  
   /// 处理键盘事件，包括方向键和选择键。
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {    
     if (event is KeyEvent && event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
-
+      
       // 如果焦点管理未激活，则不处理按键事件
       if (!_isFocusManagementActive) {
         LogUtil.i('焦点管理未激活，不处理按键事件');
         return KeyEventResult.ignored;
       }
-
+      
       // 判断是否为方向键
       if (_isDirectionKey(key)) {
         return _handleNavigation(key);
@@ -640,9 +637,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         widget.onKeyPressed!(key);
       }
     }
-    return KeyEventResult.ignored;
+    return KeyEventResult.ignored; 
   }
-
+  
   /// 判断是否为方向键
   bool _isDirectionKey(LogicalKeyboardKey key) {
     return {
@@ -657,10 +654,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   bool _isSelectKey(LogicalKeyboardKey key) {
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
-
+  
   /// 执行当前焦点控件的点击操作
-  void _triggerButtonAction() {
-    final focusNode = _currentFocus; // 获取当前焦点
+  void _triggerButtonAction() { 
+    final focusNode = _currentFocus;  // 获取当前焦点
     if (focusNode != null && focusNode.context != null) {
       final BuildContext? context = focusNode.context;
 
@@ -692,21 +689,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       final widget = element.widget;
 
       // 识别并触发交互控件的操作，找到并触发后停止递归
-      return _triggerWidgetAction(widget); // 如果成功触发操作，返回 true，停止遍历
+      return _triggerWidgetAction(widget);  // 如果成功触发操作，返回 true，停止遍历
     });
   }
 
   // 遍历函数，遇到交互控件后终止遍历
   bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
-    bool stop = false; // 用于控制是否继续递归
+    bool stop = false;  // 用于控制是否继续递归
     context.visitChildElements((element) {
       if (stop) return; // 如果已经找到并触发了操作，停止递归
-      stop = visitor(element); // 如果触发了操作，stop 会变为 true
+      stop = visitor(element);  // 如果触发了操作，stop 会变为 true
       if (!stop) {
-        stop = _visitAllElements(element, visitor); // 递归遍历子元素
+        stop = _visitAllElements(element, visitor);  // 递归遍历子元素
       }
     });
-    return stop; // 返回是否已停止查找
+    return stop;  // 返回是否已停止查找
   }
 
   // 执行目标控件的操作函数，返回 true 表示已触发操作并停止查找
@@ -746,13 +743,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 如果不是高优先级组件，则按原来的顺序检查
     return _triggerSpecificWidgetAction(widget);
   }
-
+  
   // 触发特定组件的操作
   bool _triggerSpecificWidgetAction(Widget widget) {
     if (widget is SwitchListTile && widget.onChanged != null) {
       Function.apply(widget.onChanged!, [!widget.value]);
       return true;
-    } else if (widget is ElevatedButton && widget.onPressed != null) {
+    } else if (widget is ElevatedButton && widget.onPressed != null) {	
       Function.apply(widget.onPressed!, []);
       return true;
     } else if (widget is TextButton && widget.onPressed != null) {
@@ -801,7 +798,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     return false;
   }
-
+  
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
@@ -809,73 +806,30 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 获取当前组的首尾节点
     FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
     FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
-
+   
     // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
-    // 修改：检查是否需要滚动
     if (widget.cacheName == "ChannelDrawerPage") {
       String targetList;
       switch (groupIndex) {
-        case 0:
-          targetList = 'category';
-          break;
-        case 1:
-          targetList = 'group';
-          break;
-        case 2:
-          targetList = 'channel';
-          break;
-        default:
-          targetList = '';
+        case 0: targetList = 'category'; break;
+        case 1: targetList = 'group'; break;
+        case 2: targetList = 'channel'; break;
+        default: targetList = '';
       }
 
-      if (forward && currentIndex == lastFocusIndex) {
-        bool isLastInViewport = _isInViewport(lastFocusNode);
-        LogUtil.i(
-            '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
-            'targetList: $targetList, '
-            '是否在视窗内: $isLastInViewport');
-        if (!isLastInViewport) {
-          await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
-        }
-        nextIndex = firstFocusIndex; // 循环到第一个焦点
-        action = "循环到第一个焦点 (索引: $nextIndex)";
-      } else if (!forward && currentIndex == firstFocusIndex) {
-        bool isFirstInViewport = _isInViewport(firstFocusNode);
-        LogUtil.i(
-            '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
-            'targetList: $targetList, '
-            '是否在视窗内: $isFirstInViewport');
-        if (!isFirstInViewport) {
-          await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
-        }
-        if (widget.frameType == "child") {
-          // 在子页面的第一个焦点按左键时，一定要返回父页面
-          final parentNavigation = _findParentNavigation();
-          if (parentNavigation != null) {
-            deactivateFocusManagement(); // 停用子页面焦点
-            parentNavigation.activateFocusManagement(); // 激活父页面焦点
-            LogUtil.i('返回父页面');
-          } else {
-            LogUtil.i('尝试返回父页面但失败');
-          }
-          return; // 无论成功失败都返回，不要循环到最后
-        } else {
-          nextIndex = lastFocusIndex;
-          action = "循环到最后一个焦点 (索引: $nextIndex)";
-        }
-      } else {
-        nextIndex = forward ? currentIndex + 1 : currentIndex - 1;
-        action = forward
-            ? "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)"
-            : "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
-      }
-    } else {
-      // 非 ChannelDrawerPage 的原有逻辑
       if (forward) {
         if (currentIndex == lastFocusIndex) {
+          bool isLastInViewport = _isInViewport(lastFocusNode);
+          LogUtil.i(
+              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
+              'targetList: $targetList, '
+              '是否在视窗内: $isLastInViewport');
+          if (!isLastInViewport) {
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
+          }
           nextIndex = firstFocusIndex; // 循环到第一个焦点
           action = "循环到第一个焦点 (索引: $nextIndex)";
         } else {
@@ -884,7 +838,16 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         }
       } else {
         if (currentIndex == firstFocusIndex) {
+          bool isFirstInViewport = _isInViewport(firstFocusNode);
+          LogUtil.i(
+              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
+              'targetList: $targetList, '
+              '是否在视窗内: $isFirstInViewport');
+          if (!isFirstInViewport) {
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
+          }
           if (widget.frameType == "child") {
+            // 在子页面的第一个焦点按左键时，一定要返回父页面
             final parentNavigation = _findParentNavigation();
             if (parentNavigation != null) {
               deactivateFocusManagement(); // 停用子页面焦点
@@ -898,6 +861,39 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             nextIndex = lastFocusIndex;
             action = "循环到最后一个焦点 (索引: $nextIndex)";
           }
+        } else {
+          nextIndex = currentIndex - 1;
+          action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+        }
+      }
+    } else {
+      if (forward) {
+        // 前进逻辑
+        if (currentIndex == lastFocusIndex) {
+          nextIndex = firstFocusIndex; // 循环到第一个焦点
+          action = "循环到第一个焦点 (索引: $nextIndex)";
+        } else {
+          nextIndex = currentIndex + 1;
+          action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
+        }
+      } else {
+        // 后退逻辑
+        if (currentIndex == firstFocusIndex) {
+          if (widget.frameType == "child") {
+            // 在子页面的第一个焦点按左键时，一定要返回父页面
+            final parentNavigation = _findParentNavigation();
+            if (parentNavigation != null) {
+              deactivateFocusManagement(); // 停用子页面焦点
+              parentNavigation.activateFocusManagement(); // 激活父页面焦点
+              LogUtil.i('返回父页面');
+            } else {
+              LogUtil.i('尝试返回父页面但失败');
+            }
+            return; // 无论成功失败都返回，不要循环到最后
+          } else {
+            nextIndex = lastFocusIndex;
+            action = "循环到最后一个焦点 (索引: $nextIndex)";
+          } 
         } else {
           nextIndex = currentIndex - 1;
           action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
@@ -919,12 +915,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     try {
       List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
       int currentGroupIndex = groupIndex ?? groupIndices.first;
-
+      
       if (!groupIndices.contains(currentGroupIndex)) {
         LogUtil.i('当前 Group $currentGroupIndex 无法找到');
         return false;
       }
-
+      
       int totalGroups = groupIndices.length;
       int nextGroupIndex;
 
@@ -934,7 +930,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       } else {
         nextGroupIndex = groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % totalGroups];
       }
-
+      
       LogUtil.i('从 Group $currentGroupIndex 跳转到 Group $nextGroupIndex');
 
       // 获取下一个组的焦点信息
@@ -958,7 +954,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     } catch (e, stackTrace) {
       LogUtil.i('跳转组时发生未知错误: $e\n堆栈信息: $stackTrace');
     }
-
+    
     return false;
   }
 }
@@ -982,7 +978,7 @@ class Group extends StatelessWidget {
 }
 
 // 用于包装具有焦点的组件
-class FocusableItem extends StatefulWidget {
+class FocusableItem extends StatefulWidget { 
   final FocusNode focusNode;
   final Widget child;
 
