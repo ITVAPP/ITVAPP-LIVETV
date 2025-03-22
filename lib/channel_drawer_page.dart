@@ -1464,6 +1464,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       cacheName: 'ChannelDrawerPage',
       isVerticalGroup: true,
       initialIndex: 0,
+      parentContext: context,
       onStateCreated: _handleTvKeyNavigationStateCreated,
       child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelListWidget, epgListWidget),
     );
