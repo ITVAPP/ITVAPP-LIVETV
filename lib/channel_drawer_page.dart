@@ -787,7 +787,7 @@ abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
 
 // 主组件ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
-  // 修改部分：添加静态 GlobalKey 以便外部访问 State
+  // 修改部分：保留静态 GlobalKey 以便外部访问 State
   static final GlobalKey<_ChannelDrawerPageState> drawerKey = GlobalKey<_ChannelDrawerPageState>();
 
   final PlaylistModel? videoMap;
@@ -798,7 +798,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
   final ValueKey<int>? refreshKey; // 刷新键
 
-  // 修改部分：在构造函数中通过三元运算符决定 key 的值
+  // 修改部分：只接受外部传入的 key，不在构造函数中绑定 drawerKey
   const ChannelDrawerPage({
     Key? key, // 显式定义 Key? key 参数
     this.videoMap,
@@ -808,16 +808,13 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  }) : super(key: key ?? drawerKey); // 如果外部未提供 key，则使用 drawerKey
+  }) : super(key: key); // 直接传递外部传入的 key
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
-  // 修改部分：移除错误的构造函数逻辑
-  // 不需要在这里修改 widget.key，因为 key 已在构造函数中正确传递
-
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
   final ItemScrollController _scrollChannelController = ItemScrollController(); // 频道
@@ -1038,7 +1035,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_categoryScrollController.isAttached) {
       _categoryScrollController.scrollTo(index: 0, duration: Duration.zero);
     }
-    _focusNodes.forEach((node) => node.dispose());
+    _focusNodes.forEach((node) =>เสnode.dispose());
     _focusNodes.clear();
     _focusStates.clear();
     super.dispose();
