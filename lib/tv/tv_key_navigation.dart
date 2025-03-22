@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null) {
       LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
       return;
@@ -207,49 +207,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-          // 检查 cacheName 是否为 "ChannelDrawerPage"
-          if (widget.cacheName == "ChannelDrawerPage") {
-            final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-            if (channelDrawerState != null) {
-              channelDrawerState.initializeData();
-              channelDrawerState.updateFocusLogic(true);
-
-              // 为 ChannelDrawerPage 的三个列表添加焦点监听器
-              final categoryCount = channelDrawerState._categories.length; // 假设有访问方法或字段
-              final groupCount = channelDrawerState._keys.length;
-              final channelCount = (channelDrawerState._values.isNotEmpty && channelDrawerState._groupIndex >= 0 && channelDrawerState._groupIndex < channelDrawerState._values.length)
-                  ? channelDrawerState._values[channelDrawerState._groupIndex].length
-                  : 0;
-
-              channelDrawerState.addFocusListeners(
-                0,
-                categoryCount,
-                scrollController: channelDrawerState._categoryScrollController,
-              );
-              if (groupCount > 0) {
-                channelDrawerState.addFocusListeners(
-                  categoryCount,
-                  groupCount,
-                  scrollController: channelDrawerState._scrollController,
-                );
-              }
-              if (channelCount > 0) {
-                channelDrawerState.addFocusListeners(
-                  categoryCount + groupCount,
-                  channelCount,
-                  scrollController: channelDrawerState._scrollChannelController,
-                );
-              }
-
-              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData、updateFocusLogic 并添加焦点监听器');
-            } else {
-              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
-            }
-          } else {
-            LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
-            _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
-          }
+      // 检查 cacheName 是否为 "ChannelDrawerPage"
+      if (widget.cacheName == "ChannelDrawerPage") {
+        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+        if (channelDrawerState != null) {
+          channelDrawerState.initializeData();
+          channelDrawerState.updateFocusLogic(true);
+          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+        } else {
+          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
         }
+      }  else {
+          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+        }
+     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -827,81 +799,39 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
-    // 修改部分：检查 canRequestFocus 并触发滚动
-    if (widget.cacheName == "ChannelDrawerPage") {
-      final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-      if (channelDrawerState != null) {
-        if (forward && currentIndex == lastFocusIndex && !lastFocusNode.canRequestFocus) {
-          // 到达尾节点且不可请求焦点，触发滚动到底部
-          int startIndex;
-          int length;
-          ItemScrollController? scrollController;
-
-          if (groupIndex == 0) {
-            startIndex = 0;
-            length = channelDrawerState._categories.length;
-            scrollController = channelDrawerState._categoryScrollController;
-          } else if (groupIndex == 1) {
-            startIndex = channelDrawerState._categories.length;
-            length = channelDrawerState._keys.length;
-            scrollController = channelDrawerState._scrollController;
-          } else if (groupIndex == 2) {
-            startIndex = channelDrawerState._categories.length + channelDrawerState._keys.length;
-            length = channelDrawerState._values.isNotEmpty && channelDrawerState._groupIndex >= 0
-                ? channelDrawerState._values[channelDrawerState._groupIndex].length
-                : 0;
-            scrollController = channelDrawerState._scrollChannelController;
-          } else {
-            return; // 无效 groupIndex
-          }
-
-          channelDrawerState.addFocusListeners(
-            startIndex,
-            length,
-            scrollController: scrollController,
-            enableScroll: true,
-            isForward: false, // 滚动到底部
-          );
-          LogUtil.i('尾节点不可请求焦点，触发滚动到底部: Group $groupIndex');
-          return; // 触发滚动后退出
-        } else if (!forward && currentIndex == firstFocusIndex && !firstFocusNode.canRequestFocus) {
-          // 到达首节点且不可请求焦点，触发滚动到顶部
-          int startIndex;
-          int length;
-          ItemScrollController? scrollController;
-
-          if (groupIndex == 0) {
-            startIndex = 0;
-            length = channelDrawerState._categories.length;
-            scrollController = channelDrawerState._categoryScrollController;
-          } else if (groupIndex == 1) {
-            startIndex = channelDrawerState._categories.length;
-            length = channelDrawerState._keys.length;
-            scrollController = channelDrawerState._scrollController;
-          } else if (groupIndex == 2) {
-            startIndex = channelDrawerState._categories.length + channelDrawerState._keys.length;
-            length = channelDrawerState._values.isNotEmpty && channelDrawerState._groupIndex >= 0
-                ? channelDrawerState._values[channelDrawerState._groupIndex].length
-                : 0;
-            scrollController = channelDrawerState._scrollChannelController;
-          } else {
-            return; // 无效 groupIndex
-          }
-
-          channelDrawerState.addFocusListeners(
-            startIndex,
-            length,
-            scrollController: scrollController,
-            enableScroll: true,
-            isForward: true, // 滚动到顶部
-          );
-          LogUtil.i('首节点不可请求焦点，触发滚动到顶部: Group $groupIndex');
-          return; // 触发滚动后退出
+    // 修改部分：检查是否需要触发 ChannelDrawerPage 的滚动逻辑
+    final drawerState = ChannelDrawerPage.drawerKey.currentState;
+    if (drawerState != null && drawerState.mounted && widget.cacheName == "ChannelDrawerPage") {
+      // 如果焦点将要到达首节点或尾节点，且 canRequestFocus 为 false，则触发滚动
+      if (forward && currentIndex == lastFocusIndex && !lastFocusNode.canRequestFocus) {
+        // 到达尾节点，滚动到底部
+        if (groupIndex == 0) {
+          drawerState.scrollCategoryToBottom();
+          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发分类列表滚动到底部');
+        } else if (groupIndex == 1) {
+          drawerState.scrollGroupToBottom();
+          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发分组列表滚动到底部');
+        } else if (groupIndex == 2) {
+          drawerState.scrollChannelToBottom();
+          LogUtil.i('Group $groupIndex 尾节点不可聚焦，触发频道列表滚动到底部');
         }
+        return; // 滚动后不再请求焦点
+      } else if (!forward && currentIndex == firstFocusIndex && !firstFocusNode.canRequestFocus) {
+        // 到达首节点，滚动到顶部
+        if (groupIndex == 0) {
+          drawerState.scrollCategoryToTop();
+          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发分类列表滚动到顶部');
+        } else if (groupIndex == 1) {
+          drawerState.scrollGroupToTop();
+          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发分组列表滚动到顶部');
+        } else if (groupIndex == 2) {
+          drawerState.scrollChannelToTop();
+          LogUtil.i('Group $groupIndex 首节点不可聚焦，触发频道列表滚动到顶部');
+        }
+        return; // 滚动后不再请求焦点
       }
     }
 
-    // 原有导航逻辑
     if (forward) {
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
@@ -976,41 +906,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             nextFocusNode.requestFocus();
             _currentFocus = nextFocusNode;
             LogUtil.i('跳转到 Group $nextGroupIndex 的焦点节点: ${nextFocusNode.debugLabel ?? '未知'}');
-
-            // 组间跳转触发滚动到该组顶部
-            if (widget.cacheName == "ChannelDrawerPage") {
-              final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-              if (channelDrawerState != null) {
-                if (nextGroupIndex == 0) {
-                  channelDrawerState.addFocusListeners(
-                    0,
-                    channelDrawerState._categories.length,
-                    scrollController: channelDrawerState._categoryScrollController,
-                    enableScroll: true,
-                    isForward: true,
-                  );
-                } else if (nextGroupIndex == 1) {
-                  channelDrawerState.addFocusListeners(
-                    channelDrawerState._categories.length,
-                    channelDrawerState._keys.length,
-                    scrollController: channelDrawerState._scrollController,
-                    enableScroll: true,
-                    isForward: true,
-                  );
-                } else if (nextGroupIndex == 2) {
-                  channelDrawerState.addFocusListeners(
-                    channelDrawerState._categories.length + channelDrawerState._keys.length,
-                    channelDrawerState._values.isNotEmpty && channelDrawerState._groupIndex >= 0
-                        ? channelDrawerState._values[channelDrawerState._groupIndex].length
-                        : 0,
-                    scrollController: channelDrawerState._scrollChannelController,
-                    enableScroll: true,
-                    isForward: true,
-                  );
-                }
-                LogUtil.i('组间跳转触发滚动: Group $nextGroupIndex');
-              }
-            }
           } else {
             LogUtil.i('目标焦点节点未挂载或不可请求');
           }
