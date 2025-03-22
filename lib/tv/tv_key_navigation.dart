@@ -800,8 +800,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
-    // 获取 ChannelDrawerPage 的状态
-    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+    // 获取 ChannelDrawerPage 的状态，使用接口类型
+    final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
 
     if (forward) {
       // 前进逻辑（向下或向右）
