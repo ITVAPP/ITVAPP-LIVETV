@@ -64,11 +64,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   Widget build(BuildContext context) {
     return Focus(
-      onKeyEvent: (node, event) {
+      onKeyEvent: (node, event) async { // 修改：添加 async 以支持异步处理
         if (event is KeyDownEvent) {
           // 如果是导航相关的按键，处理并阻止传递
           if (_isNavigationKey(event.logicalKey)) {
-            final result = _handleKeyEvent(node, event);
+            final result = await _handleKeyEvent(node, event); // 修改：添加 await 等待异步结果
             return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
           }
         }
@@ -518,13 +518,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 处理导航逻辑，根据按下的键决定下一个焦点的位置。
-  KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
+  Future<KeyEventResult> _handleNavigation(LogicalKeyboardKey key) async { // 修改：添加 async 以支持异步操作
     // 新增：节流逻辑
     final now = DateTime.now();
     if (_lastKeyProcessedTime != null) {
       final timeSinceLastKey = now.difference(_lastKeyProcessedTime!);
       if (timeSinceLastKey < _throttleDuration) {
-        LogUtil.i('按键事件被节流，距离上一次处理未满 ${_throttleDuration.inSeconds} 秒');
+        LogUtil.i('按键事件被节流，距离上一次处理未满 ${_throttleDuration.inMilliseconds} 毫秒');
         return KeyEventResult.handled; // 忽略本次按键事件
       }
     }
@@ -565,15 +565,15 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               return KeyEventResult.handled;
             }
           } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {   // 左上键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);
+            await _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex); // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowDown) {    // 下键
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);
+            await _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex); // 修改：添加 await
           }
         } else if (widget.frameType == "child") {  // 子页面
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或回父页面
+            await _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+            await _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
@@ -582,25 +582,25 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         // 判断是否启用了横向分组
         if (widget.isHorizontalGroup) {
           if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+            await _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+            await _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown) {  // 上下键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
         } else if (widget.isVerticalGroup) {   // 判断是否启用了竖向分组
           if (key == LogicalKeyboardKey.arrowUp) {  // 上键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+            await _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowDown) {  // 下键
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+            await _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowRight) {  // 左右键
             _jumpToOtherGroup(key, currentIndex, groupIndex);  // 跳转到其它 Group
           }
         } else {  // 没有启用分组的默认导航逻辑
           if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft) {  // 左上键
-            _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
+            await _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 修改：添加 await
           } else if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.arrowRight) {  // 右下键
-            _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
+            await _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 修改：添加 await
           }
         }
       }
@@ -621,7 +621,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   /// 处理键盘事件，包括方向键和选择键。
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {    
+  Future<KeyEventResult> _handleKeyEvent(FocusNode node, KeyEvent event) async { // 修改：添加 async 以支持异步操作
     if (event is KeyEvent && event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
       
@@ -633,7 +633,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       
       // 判断是否为方向键
       if (_isDirectionKey(key)) {
-        return _handleNavigation(key);
+        return await _handleNavigation(key); // 修改：添加 await 等待异步导航结果
       }
 
       // 判断是否为选择键
