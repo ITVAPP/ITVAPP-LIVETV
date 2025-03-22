@@ -207,18 +207,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-          // 修改部分：替换 ChannelDrawerStateInterface 为 _ChannelDrawerPageState，并调用 ChannelDrawerManager 的方法
+          // 修改部分：使用 State<ChannelDrawerPage> 替代直接引用 _ChannelDrawerPageState
           if (widget.cacheName == "ChannelDrawerPage") {
-            final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
-            if (channelDrawerState != null) {
-              channelDrawerState._manager.initializeData(
-                videoMap: channelDrawerState.widget.videoMap,
-                playModel: channelDrawerState.widget.playModel,
-                state: channelDrawerState,
+            final channelDrawerState = context.findAncestorStateOfType<State<ChannelDrawerPage>>();
+            if (channelDrawerState != null && channelDrawerState is _ChannelDrawerPageState) {
+              final typedState = channelDrawerState as _ChannelDrawerPageState;
+              typedState._manager.initializeData(
+                videoMap: typedState.widget.videoMap,
+                playModel: typedState.widget.playModel,
+                state: typedState,
               );
-              channelDrawerState._manager.updateFocusLogic(
+              typedState._manager.updateFocusLogic(
                 true,
-                state: channelDrawerState,
+                state: typedState,
                 tvKeyNavigationState: this,
               );
               LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
@@ -824,8 +825,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
 
-    // 修改部分：添加调试日志和视窗检查
-    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+    // 修改部分：使用 State<ChannelDrawerPage> 替代直接引用 _ChannelDrawerPageState
+    final channelDrawerState = context.findAncestorStateOfType<State<ChannelDrawerPage>>();
     LogUtil.i('检查滚动条件 - channelDrawerState: ${channelDrawerState != null ? "存在" : "null"}, '
         'widget.cacheName: ${widget.cacheName ?? "未设置"}, '
         '是否在视窗内：${currentIndex == firstFocusIndex ? !_isOutOfView(firstFocusNode) : !_isOutOfView(lastFocusNode)}');
@@ -834,9 +835,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       // 前进逻辑
       if (currentIndex == lastFocusIndex) {
         // 修改部分：在循环到第一个节点前检查是否在视窗内，若不在则滚动到顶部
-        if (_isOutOfView(firstFocusNode) && channelDrawerState != null) {
+        if (_isOutOfView(firstFocusNode) && channelDrawerState != null && channelDrawerState is _ChannelDrawerPageState) {
           String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
-          channelDrawerState.scrollTo(targetList: targetList, index: 0);
+          (channelDrawerState as _ChannelDrawerPageState).scrollTo(targetList: targetList, index: 0);
           LogUtil.i('首节点不在视窗内，滚动 $targetList 到顶部');
         }
         nextIndex = firstFocusIndex; // 循环到第一个焦点
@@ -861,9 +862,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           return; // 无论成功失败都返回，不要循环到最后
         } else {
           // 修改部分：在循环到最后一个节点前检查是否在视窗内，若不在则滚动到底部
-          if (_isOutOfView(lastFocusNode) && channelDrawerState != null) {
+          if (_isOutOfView(lastFocusNode) && channelDrawerState != null && channelDrawerState is _ChannelDrawerPageState) {
             String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
-            channelDrawerState.scrollTo(targetList: targetList, index: lastFocusIndex - firstFocusIndex);
+            (channelDrawerState as _ChannelDrawerPageState).scrollTo(targetList: targetList, index: lastFocusIndex - firstFocusIndex);
             LogUtil.i('末节点不在视窗内，滚动 $targetList 到底部');
           }
           nextIndex = lastFocusIndex;
