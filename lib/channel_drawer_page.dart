@@ -780,12 +780,6 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-// 修改部分：移除抽象类 ChannelDrawerStateInterface
-// abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
-//   void initializeData();
-//   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-// }
-
 // 修改部分：主组件 ChannelDrawerPage，支持异步静态方法
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
@@ -799,8 +793,8 @@ class ChannelDrawerPage extends StatefulWidget {
   // 添加静态 GlobalKey 用于访问 State
   static final GlobalKey<_ChannelDrawerPageState> _stateKey = GlobalKey<_ChannelDrawerPageState>();
 
-  const ChannelDrawerPage({
-    super.key,
+  ChannelDrawerPage({ // 移除 const 关键字
+    Key? key, // 改为 Key?，不再直接用 super.key
     this.videoMap,
     this.playModel,
     this.onTapChannel,
@@ -808,12 +802,11 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  }) : super.key = key ?? _stateKey; // 如果未提供 key，则使用 _stateKey
+  }) : super(key: key ?? _stateKey); // 在 super 中传递 key
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 
-  // 修改部分：添加异步静态方法
   // 异步初始化数据
   static Future<void> initializeData() async {
     final state = _stateKey.currentState;
