@@ -780,12 +780,13 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
-abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
-  void initializeData();
-  void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-}
+// 修改部分：移除抽象类 ChannelDrawerStateInterface
+// abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
+//   void initializeData();
+//   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
+// }
 
-// 主组件ChannelDrawerPage
+// 修改部分：主组件 ChannelDrawerPage，支持异步静态方法
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -794,6 +795,9 @@ class ChannelDrawerPage extends StatefulWidget {
   final VoidCallback onCloseDrawer;
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
   final ValueKey<int>? refreshKey; // 刷新键
+
+  // 添加静态 GlobalKey 用于访问 State
+  static final GlobalKey<_ChannelDrawerPageState> _stateKey = GlobalKey<_ChannelDrawerPageState>();
 
   const ChannelDrawerPage({
     super.key,
@@ -804,10 +808,67 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  });
+  }) : super.key = key ?? _stateKey; // 如果未提供 key，则使用 _stateKey
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
+
+  // 修改部分：添加异步静态方法
+  // 异步初始化数据
+  static Future<void> initializeData() async {
+    final state = _stateKey.currentState;
+    if (state != null) {
+      await state.initializeData();
+    }
+  }
+
+  // 异步更新焦点逻辑
+  static Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
+    final state = _stateKey.currentState;
+    if (state != null) {
+      await state.updateFocusLogic(isInitial, initialIndexOverride: initialIndexOverride);
+    }
+  }
+
+  // 异步通用滚动方法
+  static Future<void> scroll({
+    required String targetList, // 'category', 'group', 或 'channel'
+    required bool toTop, // true 表示滚动到顶部，false 表示滚动到底部
+    Duration duration = const Duration(milliseconds: 200),
+  }) async {
+    final state = _stateKey.currentState;
+    if (state == null) return;
+
+    int index;
+    double alignment;
+
+    switch (targetList) {
+      case 'category':
+        if (state._categories.isEmpty) return;
+        index = toTop ? 0 : state._categories.length - 1;
+        alignment = toTop ? 0.0 : 1.0;
+        break;
+      case 'group':
+        if (state._keys.isEmpty) return;
+        index = toTop ? 0 : state._keys.length - 1;
+        alignment = toTop ? 0.0 : 1.0;
+        break;
+      case 'channel':
+        if (state._values.isEmpty || state._groupIndex < 0) return;
+        index = toTop ? 0 : state._values[state._groupIndex].length - 1;
+        alignment = toTop ? 0.0 : 1.0;
+        break;
+      default:
+        return; // 无效的 targetList，直接返回
+    }
+
+    await state.scrollTo(
+      targetList: targetList,
+      index: index,
+      alignment: alignment,
+      duration: duration,
+    );
+  }
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
@@ -864,60 +925,57 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
-  // 修改后的 scrollTo 方法，支持通过 direction 参数滚动到顶部或底部
+  // 修改部分：调整 scrollTo 方法为异步
   Future<void> scrollTo({
     required String targetList,
-    required String direction, // 'top' 或 'bottom'
-    double alignment = 0.0, // 默认顶部对齐，底部会覆盖为 1.0
+    required int index,
+    double alignment = 0.0, // 0.0 表示顶部，0.5 表示中间，1.0 表示底部
     Duration duration = const Duration(milliseconds: 200),
   }) async {
     ItemScrollController? scrollController;
-    int targetIndex = 0;
     int maxIndex = 0;
-
     switch (targetList) {
       case 'category':
         scrollController = _categoryScrollController;
         maxIndex = _categories.length - 1;
-        targetIndex = direction == 'bottom' ? maxIndex : 0;
         break;
       case 'group':
         scrollController = _scrollController;
         maxIndex = _keys.length - 1;
-        targetIndex = direction == 'bottom' ? maxIndex : 0;
         break;
       case 'channel':
         scrollController = _scrollChannelController;
         maxIndex = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
             ? _values[_groupIndex].length - 1
             : 0;
-        targetIndex = direction == 'bottom' ? maxIndex : 0;
         break;
       case 'epg':
-        scrollController = _epgItemScrollController;
-        maxIndex = _epgData?.length ?? 0 - 1;
-        targetIndex = direction == 'bottom' ? maxIndex : 0;
-        break;
+        if (_epgItemScrollController.isAttached) {
+          await _epgItemScrollController.scrollTo(
+            index: index,
+            alignment: alignment,
+            duration: duration,
+          );
+        }
+        return;
       default:
         LogUtil.i('无效的滚动目标: $targetList');
         return;
     }
 
-    if (maxIndex < 0 || !scrollController!.isAttached) {
-      LogUtil.i('$targetList 列表为空或未附着: maxIndex=$maxIndex');
+    if (index < 0 || index > maxIndex || !scrollController.isAttached) {
+      LogUtil.i('$targetList 滚动索引越界或未附着: index=$index, maxIndex=$maxIndex');
       return;
     }
 
-    // 底部滚动时覆盖 alignment 为 1.0
-    final finalAlignment = direction == 'bottom' ? 1.0 : alignment;
-
+    // 等待滚动完成
     await scrollController.scrollTo(
-      index: targetIndex,
-      alignment: finalAlignment,
+      index: index,
+      alignment: alignment,
       duration: duration,
       curve: Curves.easeInOut,
     );
-    LogUtil.i('scrollTo 调用: targetList=$targetList, direction=$direction, index=$targetIndex');
+    LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment');
   }
 
   // 优化 initState，同步初始化数据，异步加载 EPG
@@ -951,11 +1009,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改：暴露为公共方法，仅初始化数据并调用 updateFocusLogic
-  void initializeData() {
+  // 修改部分：将 initializeData 改为异步
+  Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
-    updateFocusLogic(true); // 首次初始化时更新索引
+    await updateFocusLogic(true); // 等待焦点逻辑更新完成
   }
 
   // 计算总焦点节点数
@@ -1136,8 +1194,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改后的 updateFocusLogic，直接更新所有索引并供复用
-  void updateFocusLogic(bool isInitial, {int? initialIndexOverride}) {
+  // 修改部分：将 updateFocusLogic 改为异步
+  Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     _lastFocusedIndex = -1; // 重置 _lastFocusedIndex，确保首次聚焦正确触发
 
     // 计算总数
@@ -1213,18 +1271,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'last=[$_categoryListLastIndex, $_groupListLastIndex, $_channelListLastIndex], '
         'groupFocusCache=$groupFocusCacheLog');
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
-      }
-    });
+    // 等待 UI 更新完成
+    await WidgetsBinding.instance.endOfFrame;
 
-    // 非初始化时更新导航状态
-    if (!isInitial && _tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.releaseResources();
-      int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-      _reInitializeFocusListeners();
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
+      // 非初始化时更新导航状态
+      if (!isInitial) {
+        _tvKeyNavigationState!.releaseResources();
+        int safeIndex = initialIndexOverride != null && initialIndexOverride < totalNodes ? initialIndexOverride : 0;
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+        _reInitializeFocusListeners();
+      }
     }
   }
 
@@ -1246,7 +1304,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     // 添加滚动调整逻辑，确保只有当前播放频道的分类才滚动到 0.23
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = _drawerHeight;
       final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
@@ -1257,9 +1315,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _keys.length) {
         final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
         if (!isCurrentGroup || _keys.length <= fullItemsInViewport) {
-          await scrollTo(targetList: 'group', direction: 'top');
+          scrollTo(targetList: 'group', index: 0, alignment: 0.0);
         } else {
-          await scrollTo(targetList: 'group', direction: 'top', alignment: 0.23);
+          scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.23);
         }
       }
 
@@ -1267,9 +1325,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
         final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
         if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          await scrollTo(targetList: 'channel', direction: 'top');
+          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
         } else {
-          await scrollTo(targetList: 'channel', direction: 'top', alignment: 0.23);
+          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.23);
         }
       }
     });
@@ -1285,7 +1343,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     // 添加滚动调整逻辑，确保只有当前播放频道所在分组才滚动到 0.23
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewportHeight = _drawerHeight;
       final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
@@ -1293,9 +1351,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         final isCurrentGroup = _keys[_groupIndex] == widget.playModel?.group;
         final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
         if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          await scrollTo(targetList: 'channel', direction: 'top');
+          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
         } else {
-          await scrollTo(targetList: 'channel', direction: 'top', alignment: 0.23);
+          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.23);
         }
       }
     });
@@ -1332,8 +1390,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 调整滚动位置
   void _adjustScrollPositions() {
-    scrollTo(targetList: 'group', direction: 'top');
-    scrollTo(targetList: 'channel', direction: 'top');
+    scrollTo(targetList: 'group', index: _groupIndex);
+    scrollTo(targetList: 'channel', index: _channelIndex);
   }
 
   // 加载EPG
@@ -1351,7 +1409,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         });
         // 在节目单数据更新后滚动到当前选中的节目项
         if (_epgData!.isNotEmpty) {
-          await scrollTo(targetList: 'epg', direction: 'top', alignment: _selEPGIndex / _epgData!.length);
+          scrollTo(targetList: 'epg', index: _selEPGIndex);
         }
         return;
       }
@@ -1374,7 +1432,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       // 在节目单数据更新后滚动到当前选中的节目项
       if (_epgData!.isNotEmpty) {
-        await scrollTo(targetList: 'epg', direction: 'top', alignment: _selEPGIndex / _epgData!.length);
+        scrollTo(targetList: 'epg', index: _selEPGIndex);
       }
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
