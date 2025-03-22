@@ -787,8 +787,29 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
   
+  /// 判断焦点节点是否在视窗内
+  bool isInViewport(FocusNode focusNode, BuildContext context) {
+    if (focusNode.context == null) return false; // 节点未附加到树中
+    final RenderObject? renderObject = focusNode.context!.findRenderObject();
+    if (renderObject is! RenderBox) return true; // 无法计算，默认视为可见
+
+    final ScrollableState? scrollableState = Scrollable.of(context);
+    if (scrollableState == null) return true; // 无滚动容器，默认视为可见
+
+    final ScrollPosition position = scrollableState.position;
+    final double viewportTop = position.pixels;
+    final double viewportBottom = viewportTop + position.viewportDimension;
+    final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+
+    // 判断 widget 是否完全在视窗内
+    final double objectTop = objectPosition.dy;
+    final double objectBottom = objectTop + renderObject.size.height;
+
+    return objectTop >= viewportTop && objectBottom <= viewportBottom;
+  }
+  
   /// 导航方法，通过 forward 参数决定是前进还是后退
-  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
+  void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
     int nextIndex = 0;
 
@@ -810,9 +831,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         nextIndex = firstFocusIndex; // 默认循环到第一个焦点
         action = "循环到第一个焦点 (索引: $nextIndex)";
         
-        // 检查最后一个焦点是否可以请求焦点
-        if (!lastFocusNode.canRequestFocus && channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
-          // 如果焦点不可请求，且属于 ChannelDrawerPage，触发滚动到底部
+        // 检查第一个焦点是否在视窗内
+        if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(firstFocusNode, context)) {
+          // 如果第一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到底部
           String listType;
           switch (groupIndex) {
             case 0:
@@ -828,8 +849,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               listType = '';
           }
           if (listType.isNotEmpty) {
-            channelDrawerState.scrollListToBottom(listType);
-            LogUtil.i('组 $groupIndex 最后一个焦点不可请求，触发 $listType 列表滚动到底部');
+            await channelDrawerState.scrollListToBottom(listType);  // 添加 await，确保滚动完成
+            LogUtil.i('组 $groupIndex 循环到第一个焦点不在视窗内，触发 $listType 列表滚动到底部');
           }
         }
       } else {
@@ -856,9 +877,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           nextIndex = lastFocusIndex; // 默认循环到最后一个焦点
           action = "循环到最后一个焦点 (索引: $nextIndex)";
           
-          // 检查第一个焦点是否可以请求焦点
-          if (!firstFocusNode.canRequestFocus && channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
-            // 如果焦点不可请求，且属于 ChannelDrawerPage，触发滚动到顶部
+          // 检查最后一个焦点是否在视窗内
+          if (channelDrawerState != null && widget.cacheName == "ChannelDrawerPage" && !isInViewport(lastFocusNode, context)) {
+            // 如果最后一个焦点不在视窗内，且属于 ChannelDrawerPage，触发滚动到顶部
             String listType;
             switch (groupIndex) {
               case 0:
@@ -874,8 +895,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
                 listType = '';
             }
             if (listType.isNotEmpty) {
-              channelDrawerState.scrollListToTop(listType);
-              LogUtil.i('组 $groupIndex 第一个焦点不可请求，触发 $listType 列表滚动到顶部');
+              await channelDrawerState.scrollListToTop(listType);  // 添加 await，确保滚动完成
+              LogUtil.i('组 $groupIndex 循环到最后一个焦点不在视窗内，触发 $listType 列表滚动到顶部');
             }
           }
         }
