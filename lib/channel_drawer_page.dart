@@ -798,7 +798,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated;
   final ValueKey<int>? refreshKey; // 刷新键
 
-  // 修改部分：移除初始化列表中的 super(key: drawerKey)，改为传递 key 参数
+  // 修改部分：在构造函数中通过三元运算符决定 key 的值
   const ChannelDrawerPage({
     Key? key, // 显式定义 Key? key 参数
     this.videoMap,
@@ -808,17 +808,15 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  }) : super(key: key); // 只传递构造函数接收的 key
+  }) : super(key: key ?? drawerKey); // 如果外部未提供 key，则使用 drawerKey
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
-  // 修改部分：在 State 构造函数中绑定 drawerKey
-  _ChannelDrawerPageState() {
-    widget.key ??= ChannelDrawerPage.drawerKey; // 如果外部未提供 key，则使用 drawerKey
-  }
+  // 修改部分：移除错误的构造函数逻辑
+  // 不需要在这里修改 widget.key，因为 key 已在构造函数中正确传递
 
   final Map<String, Map<String, dynamic>> epgCache = {};
   final ItemScrollController _scrollController = ItemScrollController(); // 分组
