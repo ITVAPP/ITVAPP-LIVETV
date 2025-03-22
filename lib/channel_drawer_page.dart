@@ -442,7 +442,7 @@ class _CategoryListState extends State<CategoryList> {
 
   @override
   void dispose() {
-    // 修改部分：添加防护检查，避免索引越界
+    // 修改部分：添加防护检查Avoid，越界
     if (_focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < _focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.categories.length);
     }
@@ -780,11 +780,12 @@ class _EPGListState extends State<EPGList> {
   }
 }
 
+// 修改部分：调整接口支持异步
 abstract class ChannelDrawerStateInterface extends State<StatefulWidget> {
   void initializeData();
   void updateFocusLogic(bool isInitial, {int? initialIndexOverride});
-  void scrollListToTop(String listType);
-  void scrollListToBottom(String listType);
+  Future<void> scrollListToTop(String listType); // 修改为 Future<void>
+  Future<void> scrollListToBottom(String listType); // 修改为 Future<void>
 }
 
 // 主组件ChannelDrawerPage
@@ -1546,127 +1547,135 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
-  // **修改部分：以下为新增的滚动控制方法**
+  // **修改部分：以下为新增的异步滚动控制方法**
 
-  // 滚动分类列表到顶部
-  void scrollCategoryToTop() {
+  // 滚动分类列表到顶部（异步）
+  Future<void> scrollCategoryToTop() {
     if (_categoryScrollController.isAttached && _categories.isNotEmpty) {
-      _categoryScrollController.scrollTo(
+      return _categoryScrollController.scrollTo(
         index: 0,
         alignment: 0.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('分类列表滚动到顶部');
+      ).then((_) {
+        LogUtil.i('分类列表滚动到顶部');
+      });
     }
+    return Future.value();
   }
 
-  // 滚动分类列表到底部
-  void scrollCategoryToBottom() {
+  // 滚动分类列表到底部（异步）
+  Future<void> scrollCategoryToBottom() {
     if (_categoryScrollController.isAttached && _categories.isNotEmpty) {
-      _categoryScrollController.scrollTo(
+      return _categoryScrollController.scrollTo(
         index: _categories.length - 1,
         alignment: 1.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('分类列表滚动到底部');
+      ).then((_) {
+        LogUtil.i('分类列表滚动到底部');
+      });
     }
+    return Future.value();
   }
 
-  // 滚动分组列表到顶部
-  void scrollGroupToTop() {
+  // 滚动分组列表到顶部（异步）
+  Future<void> scrollGroupToTop() {
     if (_scrollController.isAttached && _keys.isNotEmpty) {
-      _scrollController.scrollTo(
+      return _scrollController.scrollTo(
         index: 0,
         alignment: 0.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('分组列表滚动到顶部');
+      ).then((_) {
+        LogUtil.i('分组列表滚动到顶部');
+      });
     }
+    return Future.value();
   }
 
-  // 滚动分组列表到底部
-  void scrollGroupToBottom() {
+  // 滚动分组列表到底部（异步）
+  Future<void> scrollGroupToBottom() {
     if (_scrollController.isAttached && _keys.isNotEmpty) {
-      _scrollController.scrollTo(
+      return _scrollController.scrollTo(
         index: _keys.length - 1,
         alignment: 1.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('分组列表滚动到底部');
+      ).then((_) {
+        LogUtil.i('分组列表滚动到底部');
+      });
     }
+    return Future.value();
   }
 
-  // 滚动频道列表到顶部
-  void scrollChannelToTop() {
+  // 滚动频道列表到顶部（异步）
+  Future<void> scrollChannelToTop() {
     if (_scrollChannelController.isAttached && 
         _values.isNotEmpty && 
         _groupIndex >= 0 && 
         _groupIndex < _values.length && 
         _values[_groupIndex].isNotEmpty) {
-      _scrollChannelController.scrollTo(
+      return _scrollChannelController.scrollTo(
         index: 0,
         alignment: 0.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('频道列表滚动到顶部');
+      ).then((_) {
+        LogUtil.i('频道列表滚动到顶部');
+      });
     }
+    return Future.value();
   }
 
-  // 滚动频道列表到底部
-  void scrollChannelToBottom() {
+  // 滚动频道列表到底部（异步）
+  Future<void> scrollChannelToBottom() {
     if (_scrollChannelController.isAttached && 
         _values.isNotEmpty && 
         _groupIndex >= 0 && 
         _groupIndex < _values.length && 
         _values[_groupIndex].isNotEmpty) {
       final channelCount = _values[_groupIndex].length;
-      _scrollChannelController.scrollTo(
+      return _scrollChannelController.scrollTo(
         index: channelCount - 1,
         alignment: 1.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-      );
-      LogUtil.i('频道列表滚动到底部');
+      ).then((_) {
+        LogUtil.i('频道列表滚动到底部');
+      });
     }
+    return Future.value();
   }
 
-  // **修改部分：新增统一滚动接口**
+  // **修改部分：统一滚动接口改为异步**
   // 统一滚动到顶部的方法
-  void scrollListToTop(String listType) {
+  Future<void> scrollListToTop(String listType) {
     switch (listType) {
       case 'category':
-        scrollCategoryToTop();
-        break;
+        return scrollCategoryToTop();
       case 'group':
-        scrollGroupToTop();
-        break;
+        return scrollGroupToTop();
       case 'channel':
-        scrollChannelToTop();
-        break;
+        return scrollChannelToTop();
       default:
         LogUtil.i('未知的列表类型: $listType');
+        return Future.value(); // 返回已完成的 Future
     }
   }
 
   // 统一滚动到底部的方法
-  void scrollListToBottom(String listType) {
+  Future<void> scrollListToBottom(String listType) {
     switch (listType) {
       case 'category':
-        scrollCategoryToBottom();
-        break;
+        return scrollCategoryToBottom();
       case 'group':
-        scrollGroupToBottom();
-        break;
+        return scrollGroupToBottom();
       case 'channel':
-        scrollChannelToBottom();
-        break;
+        return scrollChannelToBottom();
       default:
         LogUtil.i('未知的列表类型: $listType');
+        return Future.value(); // 返回已完成的 Future
     }
   }
 }
