@@ -211,13 +211,20 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         } else {
           // 检查 cacheName 是否为 "ChannelDrawerPage"
           if (widget.cacheName == "ChannelDrawerPage") {
-            final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+            final effectiveContext = widget.parentContext ?? context; // 使用 effectiveContext
+            final channelDrawerState = effectiveContext.findAncestorStateOfType<ChannelDrawerStateInterface>();
             if (channelDrawerState != null) {
-              channelDrawerState.initializeData();
-              channelDrawerState.updateFocusLogic(true);
-              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+              // 如果 groupFocusCache 为空，则触发初始化
+              if (widget.groupFocusCache == null || widget.groupFocusCache!.isEmpty) {
+                channelDrawerState.initializeData();
+                channelDrawerState.updateFocusLogic(true);
+                LogUtil.i('cacheName 为 ChannelDrawerPage，且 groupFocusCache 为空，调用 initializeData 和 updateFocusLogic');
+              } else {
+                LogUtil.i('cacheName 为 ChannelDrawerPage，但 groupFocusCache 已提供，跳过初始化');
+              }
             } else {
               LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+              _cacheGroupFocusNodes(); // 找不到状态时回退到默认逻辑
             }
           } else {
             LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
