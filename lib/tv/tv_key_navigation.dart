@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
- 
+
 /// 用于将颜色变暗的函数
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
@@ -172,7 +172,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
+  void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null) {
       LogUtil.i('cacheName 未提供，无法更新 _namedCaches');
       return;
@@ -207,21 +207,21 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
           LogUtil.i('使用传入的 groupFocusCache: ${_groupFocusCache.map((key, value) => MapEntry(key, "{first: ${widget.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${widget.focusNodes.indexOf(value['lastFocusNode']!)}}"))}');
           updateNamedCache(cache: _groupFocusCache); 
         } else {
-      // 检查 cacheName 是否为 "ChannelDrawerPage"
-      if (widget.cacheName == "ChannelDrawerPage") {
-        final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
-        if (channelDrawerState != null) {
-          channelDrawerState.initializeData();
-          channelDrawerState.updateFocusLogic(true);
-          LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
-        } else {
-          LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+          // 检查 cacheName 是否为 "ChannelDrawerPage"
+          if (widget.cacheName == "ChannelDrawerPage") {
+            final channelDrawerState = context.findAncestorStateOfType<ChannelDrawerStateInterface>();
+            if (channelDrawerState != null) {
+              channelDrawerState.initializeData();
+              channelDrawerState.updateFocusLogic(true);
+              LogUtil.i('cacheName 为 ChannelDrawerPage，调用 initializeData 和 updateFocusLogic');
+            } else {
+              LogUtil.i('未找到 ChannelDrawerPage 的状态，无法调用 initializeData 和 updateFocusLogic');
+            }
+          } else {
+            LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
+            _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
+          }
         }
-      }  else {
-          LogUtil.i('未传入 groupFocusCache，执行分组查找逻辑');
-          _cacheGroupFocusNodes(); // 缓存 Group 的焦点信息
-        }
-     }
 
         // 使用 initialIndexOverride 参数，如果为空则使用 widget.initialIndex 或默认 0
         int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
@@ -791,6 +791,7 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) {
     String action = '';
     int nextIndex = 0;
+
     // 获取当前组的首尾节点
     FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
     FocusNode lastFocusNode = _groupFocusCache[groupIndex]!['lastFocusNode']!;
@@ -798,20 +799,50 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
     // 获取焦点范围
     int firstFocusIndex = widget.focusNodes.indexOf(firstFocusNode);
     int lastFocusIndex = widget.focusNodes.indexOf(lastFocusNode);
+
+    // 获取 ChannelDrawerPage 的状态
+    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+
     if (forward) {
-      // 前进逻辑
+      // 前进逻辑（向下或向右）
       if (currentIndex == lastFocusIndex) {
-        nextIndex = firstFocusIndex; // 循环到第一个焦点
+        // 当前焦点是组内最后一个节点
+        nextIndex = firstFocusIndex; // 默认循环到第一个焦点
         action = "循环到第一个焦点 (索引: $nextIndex)";
+        
+        // 检查最后一个焦点是否可以请求焦点
+        if (!lastFocusNode.canRequestFocus && channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
+          // 如果焦点不可请求，且属于 ChannelDrawerPage，触发滚动到底部
+          String listType;
+          switch (groupIndex) {
+            case 0:
+              listType = 'category';
+              break;
+            case 1:
+              listType = 'group';
+              break;
+            case 2:
+              listType = 'channel';
+              break;
+            default:
+              listType = '';
+          }
+          if (listType.isNotEmpty) {
+            channelDrawerState.scrollListToBottom(listType);
+            LogUtil.i('组 $groupIndex 最后一个焦点不可请求，触发 $listType 列表滚动到底部');
+          }
+        }
       } else {
+        // 正常前进到下一个焦点
         nextIndex = currentIndex + 1;
         action = "切换到下一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
       }
     } else {
-      // 后退逻辑
+      // 后退逻辑（向上或向左）
       if (currentIndex == firstFocusIndex) {
+        // 当前焦点是组内第一个节点
         if (widget.frameType == "child") {
-          // 在子页面的第一个焦点按左键时，一定要返回父页面
+          // 在子页面的第一个焦点按左键时，返回父页面
           final parentNavigation = _findParentNavigation();
           if (parentNavigation != null) {
             deactivateFocusManagement(); // 停用子页面焦点
@@ -820,16 +851,41 @@ void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syn
           } else {
             LogUtil.i('尝试返回父页面但失败');
           }
-          return; // 无论成功失败都返回，不要循环到最后
+          return; // 无论成功失败都返回，不循环到最后
         } else {
-          nextIndex = lastFocusIndex;
+          nextIndex = lastFocusIndex; // 默认循环到最后一个焦点
           action = "循环到最后一个焦点 (索引: $nextIndex)";
-        } 
+          
+          // 检查第一个焦点是否可以请求焦点
+          if (!firstFocusNode.canRequestFocus && channelDrawerState != null && widget.cacheName == "ChannelDrawerPage") {
+            // 如果焦点不可请求，且属于 ChannelDrawerPage，触发滚动到顶部
+            String listType;
+            switch (groupIndex) {
+              case 0:
+                listType = 'category';
+                break;
+              case 1:
+                listType = 'group';
+                break;
+              case 2:
+                listType = 'channel';
+                break;
+              default:
+                listType = '';
+            }
+            if (listType.isNotEmpty) {
+              channelDrawerState.scrollListToTop(listType);
+              LogUtil.i('组 $groupIndex 第一个焦点不可请求，触发 $listType 列表滚动到顶部');
+            }
+          }
+        }
       } else {
+        // 正常后退到前一个焦点
         nextIndex = currentIndex - 1;
         action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
       }
     }
+    
     _requestFocus(nextIndex, groupIndex: groupIndex);
     LogUtil.i('操作: $action (组: $groupIndex)');
   }
