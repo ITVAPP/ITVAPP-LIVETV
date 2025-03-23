@@ -11,11 +11,18 @@ Color darkenColor(Color color, [double amount = 0.3]) {
 }
 
 /// 判断焦点节点是否在视窗内，支持多种滚动布局，可被其他文件调用
-bool isInViewport(FocusNode focusNode) {
+// 修改：添加 strict 参数，控制是否严格检查视窗边界
+bool isInViewport(FocusNode focusNode, {bool strict = true}) {
   if (focusNode.context == null) return false;
 
   RenderObject? renderObject = focusNode.context!.findRenderObject();
   if (renderObject is! RenderBox) return false;
+
+  // 修改：非严格模式仅检查节点是否挂载
+  if (!strict) {
+    LogUtil.i('非严格模式检查: node=${focusNode.debugLabel}, mounted=${focusNode.context != null}');
+    return true;
+  }
 
   final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
   final double objectHeight = renderObject.size.height;
@@ -195,7 +202,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         _currentFocus = null;
       }
 
-      if (widget.frameType == "child" || !widget.isFrame) {
+      if (widget.frameType == "child"idl || !widget.isFrame) {
         _groupFocusCache.clear();
       }
 
@@ -342,6 +349,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   /// 请求将焦点切换到指定索引的控件上
+  // 修改：增强可靠性，检查 context 并添加延迟重试机制
   void _requestFocus(int index, {int? groupIndex}) {
     if (widget.focusNodes.isEmpty) {
       LogUtil.i('焦点节点列表为空，无法设置焦点');
@@ -386,9 +394,17 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       FocusNode focusNode = widget.focusNodes[index];
 
-      // 检查焦点是否可请求
-      if (!focusNode.canRequestFocus) {
-        LogUtil.i('焦点节点不可请求，索引: $index');
+      // 修改：检查焦点是否可请求并已挂载
+      if (!focusNode.canRequestFocus || focusNode.context == null) {
+        LogUtil.i('焦点节点不可请求或未挂载，索引: $index');
+        // 修改：延迟重试，确保节点挂载
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (focusNode.canRequestFocus && focusNode.context != null) {
+            focusNode.requestFocus();
+            _currentFocus = focusNode;
+            LogUtil.i('延迟重试成功，切换焦点到索引: $index, Group: $groupIndex');
+          }
+        });
         return;
       }
 
@@ -827,6 +843,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
+  // 修改：增强与 ChannelDrawerPage.scroll 的同步性，使用 strict: false，并在滚动后验证焦点
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
     int nextIndex = 0;
@@ -849,7 +866,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       if (forward) {
         if (currentIndex == lastFocusIndex) {
-          bool isFirstInViewport = isInViewport(firstFocusNode); // 检查第一个节点
+          // 修改：使用 strict: false 检查视窗
+          bool isFirstInViewport = isInViewport(firstFocusNode, strict: false); // 检查第一个节点
           LogUtil.i(
               '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
               'targetList: $targetList, '
@@ -877,7 +895,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
             return; // 无论成功失败都返回，不要循环到最后
           } else {
-          bool isLastInViewport = isInViewport(lastFocusNode); // 检查最后一个节点
+          // 修改：使用 strict: false 检查视窗
+          bool isLastInViewport = isInViewport(lastFocusNode, strict: false); // 检查最后一个节点
           LogUtil.i(
               '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
               'targetList: $targetList, '
@@ -892,6 +911,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           nextIndex = currentIndex - 1;
           action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
         }
+      }
+
+      // 修改：滚动后显式请求焦点并验证
+      _requestFocus(nextIndex, groupIndex: groupIndex);
+      await WidgetsBinding.instance.endOfFrame; // 等待渲染完成
+      if (_currentFocus != widget.focusNodes[nextIndex]) {
+        LogUtil.w('焦点切换失败，强制重试: 预期索引=$nextIndex');
+        _requestFocus(nextIndex, groupIndex: groupIndex);
       }
     } else {
       if (forward) {
@@ -926,9 +953,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           action = "切换到前一个焦点 (当前索引: $currentIndex -> 新索引: $nextIndex)";
         }
       }
+
+      _requestFocus(nextIndex, groupIndex: groupIndex);
     }
 
-    _requestFocus(nextIndex, groupIndex: groupIndex);
     LogUtil.i('操作: $action (组: $groupIndex)');
   }
 
