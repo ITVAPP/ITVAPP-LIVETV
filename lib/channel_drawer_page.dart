@@ -284,7 +284,7 @@ void addFocusListeners(
             LogUtil.i('组间切换: index=$index, group=$currentGroup, targetIndex=$targetIndex');
           } else if (isInitialFocus) {
             // 首次聚焦：不滚动（保持默认位置）
-            LogUtil.i('首次聚焦，不触发滚动: index=$index, group=$currentGroup');
+            LogUtil.i('首次聚焦，不滚动: index=$index, group=$currentGroup');
           }
         }
       }
@@ -459,6 +459,7 @@ class _CategoryListState extends State<CategoryList> {
         child: ScrollablePositionedList.builder(
           itemScrollController: widget.scrollController,
           itemCount: widget.categories.length,
+          cacheExtent: 9999.0, // 修改部分：添加大缓存范围
           itemBuilder: (context, index) {
             final category = widget.categories[index];
             final displayTitle = category == Config.myFavoriteKey
@@ -567,6 +568,7 @@ class _GroupListState extends State<GroupList> {
               child: ScrollablePositionedList.builder(
                 itemScrollController: widget.scrollController,
                 itemCount: widget.keys.length,
+                cacheExtent: 9999.0, // 修改部分：添加大缓存范围
                 itemBuilder: (context, index) {
                   return buildListItem(
                     title: widget.keys[index],
@@ -662,6 +664,7 @@ class _ChannelListState extends State<ChannelList> {
         child: ScrollablePositionedList.builder(
           itemScrollController: widget.scrollController,
           itemCount: channelList.length,
+          cacheExtent: 9999.0, // 修改部分：添加大缓存范围
           itemBuilder: (context, index) {
             final channelEntry = channelList[index];
             final channelName = channelEntry.key;
@@ -755,6 +758,7 @@ class _EPGListState extends State<EPGList> {
               initialScrollIndex: widget.selectedIndex,
               itemScrollController: widget.epgScrollController,
               itemCount: widget.epgData?.length ?? 0,
+              cacheExtent: 9999.0, // 修改部分：添加大缓存范围
               itemBuilder: (BuildContext context, int index) {
                 final data = widget.epgData?[index];
                 if (data == null) return const SizedBox.shrink();
@@ -823,44 +827,93 @@ class ChannelDrawerPage extends StatefulWidget {
     }
   }
 
-  // 异步通用滚动方法
+  // 修改部分：异步通用滚动方法，index 为可选参数，优先级高于 toTop，添加焦点切换逻辑
   static Future<void> scroll({
-    required String targetList, // 'category', 'group', 或 'channel'
-    required bool toTop, // true 表示滚动到顶部，false 表示滚动到底部
+    required String targetList, // 'category', 'group', 'channel' 或 'epg'
+    int? index, // 可选的滚动目标索引，优先级最高
+    bool toTop = true, // 未传入 index 时生效，默认为顶部
+    double alignment = 0.0, // 默认对齐顶部，可选调整
     Duration duration = const Duration(milliseconds: 200),
   }) async {
     final state = _stateKey.currentState;
     if (state == null) return;
 
-    int index;
-    double alignment;
+    ItemScrollController? scrollController;
+    int maxIndex;
 
     switch (targetList) {
       case 'category':
-        if (state._categories.isEmpty) return;
-        index = toTop ? 0 : state._categories.length - 1;
-        alignment = toTop ? 0.0 : 1.0;
+        scrollController = state._categoryScrollController;
+        maxIndex = state._categories.length - 1;
         break;
       case 'group':
-        if (state._keys.isEmpty) return;
-        index = toTop ? 0 : state._keys.length - 1;
-        alignment = toTop ? 0.0 : 1.0;
+        scrollController = state._scrollController;
+        maxIndex = state._keys.length - 1;
         break;
       case 'channel':
-        if (state._values.isEmpty || state._groupIndex < 0) return;
-        index = toTop ? 0 : state._values[state._groupIndex].length - 1;
-        alignment = toTop ? 0.0 : 1.0;
+        scrollController = state._scrollChannelController;
+        maxIndex = state._values.isNotEmpty && state._groupIndex >= 0 && state._groupIndex < state._values.length
+            ? state._values[state._groupIndex].length - 1
+            : 0;
+        break;
+      case 'epg':
+        scrollController = state._epgItemScrollController;
+        maxIndex = state._epgData?.length ?? 0 - 1;
         break;
       default:
-        return; // 无效的 targetList，直接返回
+        LogUtil.i('无效的滚动目标: $targetList');
+        return;
     }
 
-    await state.scrollTo(
-      targetList: targetList,
-      index: index,
-      alignment: alignment,
+    if (!scrollController.isAttached || maxIndex < 0) {
+      LogUtil.i('$targetList 控制器未附着或列表为空');
+      return;
+    }
+
+    // 确定滚动目标
+    final targetIndex = index ?? (toTop ? 0 : maxIndex);
+    final targetAlignment = index != null ? alignment : (toTop ? 0.0 : 1.0);
+
+    await scrollController.scrollTo(
+      index: targetIndex.clamp(0, maxIndex), // 防止越界
+      alignment: targetAlignment,
       duration: duration,
+      curve: Curves.easeInOut,
     );
+    LogUtil.i('scrollTo 调用: targetList=$targetList, index=$targetIndex, alignment=$targetAlignment');
+
+    // 等待渲染完成
+    await WidgetsBinding.instance.endOfFrame;
+
+    // 如果指定了 index，尝试切换焦点
+    if (index != null && state._tvKeyNavigationState != null) {
+      int globalIndex;
+      switch (targetList) {
+        case 'category':
+          globalIndex = targetIndex;
+          break;
+        case 'group':
+          globalIndex = state._groupStartIndex + targetIndex;
+          break;
+        case 'channel':
+          globalIndex = state._channelStartIndex + targetIndex;
+          break;
+        case 'epg':
+          return; // EPG 不需要焦点切换
+        default:
+          return;
+      }
+      if (globalIndex >= 0 && globalIndex < state._focusNodes.length) {
+        final focusNode = state._focusNodes[globalIndex];
+        if (focusNode.context != null) {
+          focusNode.requestFocus();
+          state._lastFocusedIndex = globalIndex; // 更新最后聚焦索引
+          LogUtil.i('焦点切换: index=$globalIndex, 成功=${focusNode.hasFocus}');
+        } else {
+          LogUtil.w('焦点切换失败: index=$globalIndex 未挂载');
+        }
+      }
+    }
   }
 }
 
@@ -918,7 +971,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：调整 scrollTo 方法为异步
+  // 修改部分：调整 scrollTo 方法为异步，与静态 scroll 方法保持一致
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -1080,14 +1133,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     widget.onTvKeyNavigationStateCreated?.call(state);
   }
 
-  // 初始化分类数据
+  // 修改部分：初始化分类数据，确保 _categoryIndex 在范围内
   void _initializeCategoryData() {
     _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
-    _categoryIndex = -1;
+    _categoryIndex = -1; // 默认重置
     _groupIndex = -1;
     _channelIndex = -1;
 
-    // 查找当前播放的频道所属的分组和分类
+    // 查找当前播放频道
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
       final categoryMap = widget.videoMap?.playList[category];
@@ -1107,8 +1160,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    // 如果未找到当前播放频道的分类，寻找第一个非空分类
-    if (_categoryIndex == -1) {
+    // 未找到时，设置第一个非空分类，或保持-1
+    if (_categoryIndex == -1 && _categories.isNotEmpty) {
       for (int i = 0; i < _categories.length; i++) {
         final categoryMap = widget.videoMap?.playList[_categories[i]];
         if (categoryMap != null && categoryMap.isNotEmpty) {
@@ -1119,9 +1172,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         }
       }
     }
+
+    // 确保 _categoryIndex 在范围内
+    if (_categoryIndex >= _categories.length) {
+      _categoryIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
+    }
   }
 
-  // 修改后的 _initializeChannelData 方法
+  // 修改部分：初始化频道数据，确保 _groupIndex 和 _channelIndex 在范围内
   void _initializeChannelData() {
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
       _resetChannelData();
@@ -1150,7 +1208,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
 
-    // 如果当前分类不包含当前播放频道的分组，则认为是系统自动选择
+    // 确保 _groupIndex 在范围内
+    if (_groupIndex >= _keys.length) {
+      _groupIndex = _keys.isNotEmpty ? _keys.length - 1 : -1;
+    }
+    // 确保 _channelIndex 在范围内
+    if (_groupIndex >= 0 && _groupIndex < _values.length) {
+      if (_channelIndex >= _values[_groupIndex].length) {
+        _channelIndex = _values[_groupIndex].isNotEmpty ? _values[_groupIndex].length - 1 : -1;
+      }
+    } else {
+      _channelIndex = -1;
+    }
+
     _isSystemAutoSelected = widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
     _isChannelAutoSelected = _groupIndex == 0 && _channelIndex == 0;
   }
@@ -1289,7 +1359,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       final categoryMap = widget.videoMap?.playList[selectedCategory];
       if (categoryMap == null || categoryMap.isEmpty) {
         _resetChannelData();
-        _isSystemAutoSelected = true;
       } else {
         _initializeChannelData();
       }
@@ -1402,7 +1471,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         });
         // 在节目单数据更新后滚动到当前选中的节目项
         if (_epgData!.isNotEmpty) {
-          scrollTo(targetList: 'epg', index: _selEPGIndex);
+          ChannelDrawerPage.scroll(targetList: 'epg', index: _selEPGIndex, alignment: 0.5); // 修改：使用静态方法
         }
         return;
       }
@@ -1425,7 +1494,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
       // 在节目单数据更新后滚动到当前选中的节目项
       if (_epgData!.isNotEmpty) {
-        scrollTo(targetList: 'epg', index: _selEPGIndex);
+        ChannelDrawerPage.scroll(targetList: 'epg', index: _selEPGIndex, alignment: 0.5); // 修改：使用静态方法
       }
     } catch (e, stackTrace) {
       LogUtil.logError('加载EPG数据时出错', e, stackTrace);
