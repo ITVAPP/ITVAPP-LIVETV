@@ -828,7 +828,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               'targetList: $targetList, '
               '是否在视窗内: $isLastInViewport');
           if (!isLastInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
           }
           nextIndex = firstFocusIndex; // 循环到第一个焦点
           action = "循环到第一个焦点 (索引: $nextIndex)";
@@ -844,7 +844,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               'targetList: $targetList, '
               '是否在视窗内: $isFirstInViewport');
           if (!isFirstInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
           }
           if (widget.frameType == "child") {
             // 在子页面的第一个焦点按左键时，一定要返回父页面
