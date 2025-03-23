@@ -419,30 +419,32 @@ class _CategoryListState extends State<CategoryList> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-        child: ListView(
-          controller: widget.scrollController,
-                child: Group(
-        groupIndex: 0,
-          children: List.generate(widget.categories.length, (index) {
-            final category = widget.categories[index];
-            final displayTitle = category == Config.myFavoriteKey
-                ? S.of(context).myfavorite
-                : category == Config.allChannelsKey
-                    ? S.of(context).allchannels
-                    : category;
+      child: ListView(
+        controller: widget.scrollController,
+        children: [
+          Group(
+            groupIndex: 0,
+            children: List.generate(widget.categories.length, (index) {
+              final category = widget.categories[index];
+              final displayTitle = category == Config.myFavoriteKey
+                  ? S.of(context).myfavorite
+                  : category == Config.allChannelsKey
+                      ? S.of(context).allchannels
+                      : category;
 
-            return buildListItem(
-              title: displayTitle,
-              isSelected: widget.selectedCategoryIndex == index,
-              onTap: () => widget.onCategoryTap(index),
-              isCentered: true,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == widget.categories.length - 1,
-            );
-          }),
-        ),
+              return buildListItem(
+                title: displayTitle,
+                isSelected: widget.selectedCategoryIndex == index,
+                onTap: () => widget.onCategoryTap(index),
+                isCentered: true,
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+                isLastItem: index == widget.categories.length - 1,
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
@@ -505,19 +507,19 @@ class _GroupListState extends State<GroupList> {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: widget.keys.isEmpty && widget.isFavoriteCategory
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          ? ListView(
+              controller: widget.scrollController,
               children: [
                 Container(
-                  height: defaultMinHeight,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    S.of(context).nofavorite,
-                    textAlign: TextAlign.center,
-                    style: defaultTextStyle.merge(
-                      const TextStyle(fontWeight: FontWeight.bold),
+                  width: double.infinity,
+                  constraints: BoxConstraints(minHeight: defaultMinHeight),
+                  child: Center(
+                    child: Text(
+                      S.of(context).nofavorite,
+                      textAlign: TextAlign.center,
+                      style: defaultTextStyle.merge(
+                        const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ),
@@ -525,23 +527,25 @@ class _GroupListState extends State<GroupList> {
             )
           : ListView(
               controller: widget.scrollController,
-              child: Group(
-              groupIndex: 1,
-                children: List.generate(widget.keys.length, (index) {
-                  return buildListItem(
-                    title: widget.keys[index],
-                    isSelected: widget.selectedGroupIndex == index,
-                    onTap: () => widget.onGroupTap(index),
-                    isCentered: false,
-                    isTV: widget.isTV,
-                    minHeight: defaultMinHeight,
-                    context: context,
-                    index: widget.startIndex + index,
-                    isLastItem: index == widget.keys.length - 1,
-                    isSystemAutoSelected: widget.isSystemAutoSelected,
-                  );
-                }),
-              ),
+              children: [
+                Group(
+                  groupIndex: 1,
+                  children: List.generate(widget.keys.length, (index) {
+                    return buildListItem(
+                      title: widget.keys[index],
+                      isSelected: widget.selectedGroupIndex == index,
+                      onTap: () => widget.onGroupTap(index),
+                      isCentered: false,
+                      isTV: widget.isTV,
+                      minHeight: defaultMinHeight,
+                      context: context,
+                      index: widget.startIndex + index,
+                      isLastItem: index == widget.keys.length - 1,
+                      isSystemAutoSelected: widget.isSystemAutoSelected,
+                    );
+                  }),
+                ),
+              ],
             ),
     );
   }
@@ -612,29 +616,31 @@ class _ChannelListState extends State<ChannelList> {
 
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-        child: ListView(
-          controller: widget.scrollController,
-          child: Group(
-          groupIndex: 2,
-          children: List.generate(channelList.length, (index) {
-            final channelEntry = channelList[index];
-            final channelName = channelEntry.key;
-            final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-            final isSelect = isCurrentPlayingGroup && widget.selectedChannelName == channelName;
-            return buildListItem(
-              title: channelName,
-              isSelected: !widget.isSystemAutoSelected && isSelect,
-              onTap: () => widget.onChannelTap(widget.channels[channelName]),
-              isCentered: false,
-              minHeight: defaultMinHeight,
-              isTV: widget.isTV,
-              context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == channelList.length - 1,
-              isSystemAutoSelected: widget.isSystemAutoSelected,
-            );
-          }),
-        ),
+      child: ListView(
+        controller: widget.scrollController,
+        children: [
+          Group(
+            groupIndex: 2,
+            children: List.generate(channelList.length, (index) {
+              final channelEntry = channelList[index];
+              final channelName = channelEntry.key;
+              final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+              final isSelect = isCurrentPlayingGroup && widget.selectedChannelName == channelName;
+              return buildListItem(
+                title: channelName,
+                isSelected: !widget.isSystemAutoSelected && isSelect,
+                onTap: () => widget.onChannelTap(widget.channels[channelName]),
+                isCentered: false,
+                minHeight: defaultMinHeight,
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+                isLastItem: index == channelList.length - 1,
+                isSystemAutoSelected: widget.isSystemAutoSelected,
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
