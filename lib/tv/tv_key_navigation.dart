@@ -400,11 +400,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       'firstFocusNode': firstFocusNode,
       'lastFocusNode': lastFocusNode,
     };
-
-    LogUtil.i('缓存了默认分组的焦点节点 - '
-               '首个焦点节点: ${_formatFocusNodeDebugLabel(firstFocusNode)}, '
-               '最后焦点节点: ${_formatFocusNodeDebugLabel(lastFocusNode)}'
-    );
   }
 
   // 遍历分组缓存它们的焦点节点
@@ -418,11 +413,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           'firstFocusNode': groupFocusNodes.first,
           'lastFocusNode': groupFocusNodes.last,
         };
-
-        LogUtil.i('分组 ${group.groupIndex}: '
-                   '首个焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.first)}, '
-                   '最后焦点节点: ${_formatFocusNodeDebugLabel(groupFocusNodes.last)}'
-        );
       } else {
         LogUtil.i('警告：分组 ${group.groupIndex} 没有可聚焦的节点');
       }
@@ -443,10 +433,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       (node) => node.canRequestFocus,
       orElse: () => FocusNode(debugLabel: '空焦点节点')
     );
-  }
-
-  String _formatFocusNodeDebugLabel(FocusNode focusNode) {
-    return focusNode.debugLabel ?? '索引: ${widget.focusNodes.indexOf(focusNode)}';
   }
 
   List<Widget> _getWidgetsInGroup(Group group) {
@@ -485,11 +471,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _handleError('从缓存中获取分组索引失败', e, stackTrace);
       return -1;
     }
-  }
-
-  /// 获取总的组数
-  int _getTotalGroups() {
-    return _groupFocusCache.length; 
   }
 
   /// 获取所有的 Group
