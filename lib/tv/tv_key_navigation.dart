@@ -10,57 +10,6 @@ Color darkenColor(Color color, [double amount = 0.3]) {
   return darkened.toColor();
 }
 
-/// 判断焦点节点是否在视窗内，支持多种滚动布局，可被其他文件调用
-// 修改：添加 strict 参数，控制是否严格检查视窗边界
-bool isInViewport(FocusNode focusNode, {bool strict = true}) {
-  if (focusNode.context == null) return false;
-
-  RenderObject? renderObject = focusNode.context!.findRenderObject();
-  if (renderObject is! RenderBox) return false;
-
-  // 修改：非严格模式仅检查节点是否挂载
-  if (!strict) {
-    LogUtil.i('非严格模式检查: node=${focusNode.debugLabel}, mounted=${focusNode.context != null}');
-    return true;
-  }
-
-  final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-  final double objectHeight = renderObject.size.height;
-  final double objectWidth = renderObject.size.width;
-
-  final ScrollableState? scrollableState = Scrollable.of(focusNode.context!);
-
-  if (scrollableState != null) {
-    final ScrollPosition position = scrollableState.position;
-    final double offset = position.pixels;
-    final double viewportDimension = position.viewportDimension;
-
-    if (scrollableState.widget.axis == Axis.vertical) {
-      final bool isVisible = objectPosition.dy + objectHeight >= offset &&
-          objectPosition.dy <= offset + viewportDimension;
-      LogUtil.i('垂直滚动检查: dy=${objectPosition.dy}, height=$objectHeight, '
-          'offset=$offset, viewport=$viewportDimension, visible=$isVisible');
-      return isVisible;
-    } else {
-      final bool isVisible = objectPosition.dx + objectWidth >= offset &&
-          objectPosition.dx <= offset + viewportDimension;
-      LogUtil.i('水平滚动检查: dx=${objectPosition.dx}, width=$objectWidth, '
-          'offset=$offset, viewport=$viewportDimension, visible=$isVisible');
-      return isVisible;
-    }
-  } else {
-    final screenSize = MediaQuery.of(focusNode.context!).size;
-    final bool isVisible = objectPosition.dy >= 0 &&
-        objectPosition.dy + objectHeight <= screenSize.height &&
-        objectPosition.dx >= 0 &&
-        objectPosition.dx + objectWidth <= screenSize.width;
-    LogUtil.i('无滚动检查: dy=${objectPosition.dy}, height=$objectHeight, '
-        'dx=${objectPosition.dx}, width=$objectWidth, '
-        'screenHeight=${screenSize.height}, screenWidth=${screenSize.width}, visible=$isVisible');
-    return isVisible;
-  }
-}
-
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
@@ -336,7 +285,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
     // 从根部开始查找
     final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
-    if (rootElement != null) {
+   ана如果 (rootElement != null) {
       findInContext(rootElement);
     }
 
@@ -627,7 +576,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       } else {  // 如果不是框架模式
         // 判断是否启用了横向分组
         if (widget.isHorizontalGroup) {
-          if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
+          if (key == Logical GROWKeyboardKey.arrowLeft) {  // 左键
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
@@ -843,7 +792,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
-  // 修改：增强与 ChannelDrawerPage.scroll 的同步性，使用 strict: false，并在滚动后验证焦点
+  // 修改：移除 isInViewport 的检查，直接执行滚动逻辑
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
     String action = '';
     int nextIndex = 0;
@@ -866,15 +815,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       if (forward) {
         if (currentIndex == lastFocusIndex) {
-          // 修改：使用 strict: false 检查视窗
-          bool isFirstInViewport = isInViewport(firstFocusNode, strict: false); // 检查第一个节点
-          LogUtil.i(
-              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
-              'targetList: $targetList, '
-              '是否在视窗内: $isFirstInViewport');
-          if (!isFirstInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true); // 修改：滚动到顶部
-          }
+          await ChannelDrawerPage.scroll(targetList: targetList, toTop: true); // 直接滚动到顶部
           nextIndex = firstFocusIndex; // 循环到第一个焦点
           action = "循环到第一个焦点 (索引: $nextIndex)";
         } else {
@@ -895,15 +836,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
             return; // 无论成功失败都返回，不要循环到最后
           } else {
-          // 修改：使用 strict: false 检查视窗
-          bool isLastInViewport = isInViewport(lastFocusNode, strict: false); // 检查最后一个节点
-          LogUtil.i(
-              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
-              'targetList: $targetList, '
-              '是否在视窗内: $isLastInViewport');
-          if (!isLastInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false); // 修改：滚动到底部
-          }
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false); // 直接滚动到底部
             nextIndex = lastFocusIndex;
             action = "循环到最后一个焦点 (索引: $nextIndex)";
           }
@@ -913,7 +846,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         }
       }
 
-      // 修改：滚动后显式请求焦点并验证
+      // 滚动后显式请求焦点并验证
       _requestFocus(nextIndex, groupIndex: groupIndex);
       await WidgetsBinding.instance.endOfFrame; // 等待渲染完成
       if (_currentFocus != widget.focusNodes[nextIndex]) {
