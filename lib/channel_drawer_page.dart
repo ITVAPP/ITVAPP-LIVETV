@@ -299,8 +299,9 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数（移除 key 参数，恢复鼠标点击，固定高度并避免换行）
+// 修改部分：添加 key 参数到 buildListItem，并传递给 Column
 Widget buildListItem({
+  Key? key, // 新增 key 参数
   required String title,
   required bool isSelected,
   required Function() onTap,
@@ -331,6 +332,7 @@ Widget buildListItem({
           : defaultTextStyle);
 
   Widget listItemContent = Column(
+    key: key, // 将 key 传递给 Column
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
