@@ -849,12 +849,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       if (forward) {
         if (currentIndex == lastFocusIndex) {
-          bool isLastInViewport = isInViewport(firstFocusIndex); // 修改：调用全局函数
+          bool isFirstInViewport = isInViewport(firstFocusNode); // 检查第一个节点
           LogUtil.i(
               '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
               'targetList: $targetList, '
-              '是否在视窗内: $isLastInViewport');
-          if (!isLastInViewport) {
+              '是否在视窗内: $isFirstInViewport');
+          if (!isFirstInViewport) {
             await ChannelDrawerPage.scroll(targetList: targetList, toTop: true); // 修改：滚动到顶部
           }
           nextIndex = firstFocusIndex; // 循环到第一个焦点
@@ -877,12 +877,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
             return; // 无论成功失败都返回，不要循环到最后
           } else {
-          bool isNextInViewport = isInViewport(lastFocusIndex); 
+          bool isLastInViewport = isInViewport(lastFocusNode); // 检查最后一个节点
           LogUtil.i(
               '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
               'targetList: $targetList, '
-              '是否在视窗内: $isNextInViewport');
-          if (!isNextInViewport) {
+              '是否在视窗内: $isLastInViewport');
+          if (!isLastInViewport) {
             await ChannelDrawerPage.scroll(targetList: targetList, toTop: false); // 修改：滚动到底部
           }
             nextIndex = lastFocusIndex;
