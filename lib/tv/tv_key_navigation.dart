@@ -10,6 +10,50 @@ Color darkenColor(Color color, [double amount = 0.3]) {
   return darkened.toColor();
 }
 
+/// 判断焦点节点是否在视窗内，支持多种滚动布局，可被其他文件调用
+bool isInViewport(FocusNode focusNode) {
+  if (focusNode.context == null) return false;
+
+  RenderObject? renderObject = focusNode.context!.findRenderObject();
+  if (renderObject is! RenderBox) return false;
+
+  final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
+  final double objectHeight = renderObject.size.height;
+  final double objectWidth = renderObject.size.width;
+
+  final ScrollableState? scrollableState = Scrollable.of(focusNode.context!);
+
+  if (scrollableState != null) {
+    final ScrollPosition position = scrollableState.position;
+    final double offset = position.pixels;
+    final double viewportDimension = position.viewportDimension;
+
+    if (scrollableState.widget.axis == Axis.vertical) {
+      final bool isVisible = objectPosition.dy + objectHeight >= offset &&
+          objectPosition.dy <= offset + viewportDimension;
+      LogUtil.i('垂直滚动检查: dy=${objectPosition.dy}, height=$objectHeight, '
+          'offset=$offset, viewport=$viewportDimension, visible=$isVisible');
+      return isVisible;
+    } else {
+      final bool isVisible = objectPosition.dx + objectWidth >= offset &&
+          objectPosition.dx <= offset + viewportDimension;
+      LogUtil.i('水平滚动检查: dx=${objectPosition.dx}, width=$objectWidth, '
+          'offset=$offset, viewport=$viewportDimension, visible=$isVisible');
+      return isVisible;
+    }
+  } else {
+    final screenSize = MediaQuery.of(focusNode.context!).size;
+    final bool isVisible = objectPosition.dy >= 0 &&
+        objectPosition.dy + objectHeight <= screenSize.height &&
+        objectPosition.dx >= 0 &&
+        objectPosition.dx + objectWidth <= screenSize.width;
+    LogUtil.i('无滚动检查: dy=${objectPosition.dy}, height=$objectHeight, '
+        'dx=${objectPosition.dx}, width=$objectWidth, '
+        'screenHeight=${screenSize.height}, screenWidth=${screenSize.width}, visible=$isVisible');
+    return isVisible;
+  }
+}
+
 class TvKeyNavigation extends StatefulWidget {
   final Widget child; // 包裹的子组件
   final List<FocusNode> focusNodes; // 需要导航的焦点节点列表
@@ -781,23 +825,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return false;
     }
   }
-
-  /// 判断焦点节点是否在视窗内
-  bool _isInViewport(FocusNode focusNode) {
-    if (focusNode.context == null) return false;
-    RenderObject? renderObject = focusNode.context!.findRenderObject();
-    if (renderObject is RenderBox) {
-      final ScrollableState? scrollableState = Scrollable.of(focusNode.context!);
-      if (scrollableState != null) {
-        final ScrollPosition position = scrollableState.position;
-        final double offset = position.pixels;
-        final double viewportHeight = position.viewportDimension;
-        final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-        return objectPosition.dy >= offset && objectPosition.dy <= offset + viewportHeight;
-      }
-    }
-    return false;
-  }
   
   /// 导航方法，通过 forward 参数决定是前进还是后退
   void _navigateFocus(LogicalKeyboardKey key, int currentIndex, {required bool forward, required int groupIndex}) async {
@@ -822,13 +849,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
       if (forward) {
         if (currentIndex == lastFocusIndex) {
-          bool isLastInViewport = _isInViewport(lastFocusNode);
+          bool isLastInViewport = isInViewport(firstFocusIndex); // 修改：调用全局函数
           LogUtil.i(
               '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
               'targetList: $targetList, '
               '是否在视窗内: $isLastInViewport');
           if (!isLastInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: true); // 修改：滚动到顶部
           }
           nextIndex = firstFocusIndex; // 循环到第一个焦点
           action = "循环到第一个焦点 (索引: $nextIndex)";
@@ -838,14 +865,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         }
       } else {
         if (currentIndex == firstFocusIndex) {
-          bool isFirstInViewport = _isInViewport(firstFocusNode);
-          LogUtil.i(
-              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
-              'targetList: $targetList, '
-              '是否在视窗内: $isFirstInViewport');
-          if (!isFirstInViewport) {
-            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
-          }
           if (widget.frameType == "child") {
             // 在子页面的第一个焦点按左键时，一定要返回父页面
             final parentNavigation = _findParentNavigation();
@@ -858,6 +877,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
             return; // 无论成功失败都返回，不要循环到最后
           } else {
+          bool isNextInViewport = isInViewport(lastFocusIndex); 
+          LogUtil.i(
+              '检查滚动条件 - widget.cacheName: ${widget.cacheName ?? "未设置"}, '
+              'targetList: $targetList, '
+              '是否在视窗内: $isNextInViewport');
+          if (!isNextInViewport) {
+            await ChannelDrawerPage.scroll(targetList: targetList, toTop: false); // 修改：滚动到底部
+          }
             nextIndex = lastFocusIndex;
             action = "循环到最后一个焦点 (索引: $nextIndex)";
           }
