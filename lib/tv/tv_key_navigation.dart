@@ -202,7 +202,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         _currentFocus = null;
       }
 
-      if (widget.frameType == "child"idl || !widget.isFrame) {
+      if (widget.frameType == "child" || !widget.isFrame) {	
         _groupFocusCache.clear();
       }
 
@@ -917,7 +917,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _requestFocus(nextIndex, groupIndex: groupIndex);
       await WidgetsBinding.instance.endOfFrame; // 等待渲染完成
       if (_currentFocus != widget.focusNodes[nextIndex]) {
-        LogUtil.w('焦点切换失败，强制重试: 预期索引=$nextIndex');
+        LogUtil.i('焦点切换失败，强制重试: 预期索引=$nextIndex');
         _requestFocus(nextIndex, groupIndex: groupIndex);
       }
     } else {
