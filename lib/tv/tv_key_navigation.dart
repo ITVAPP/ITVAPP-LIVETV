@@ -285,7 +285,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
     // 从根部开始查找
     final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
-   ана如果 (rootElement != null) {
+   if (rootElement != null) {
       findInContext(rootElement);
     }
 
@@ -557,7 +557,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       } else {  // 如果不是框架模式
         // 判断是否启用了横向分组
         if (widget.isHorizontalGroup) {
-          if (key == Logical GROWKeyboardKey.arrowLeft) {  // 左键
+          if (key == LogicalKeyboardKey.arrowLeft) {  // 左键
             _navigateFocus(key, currentIndex, forward: false, groupIndex: groupIndex);  // 后退或循环焦点
           } else if (key == LogicalKeyboardKey.arrowRight) {  // 右键
             _navigateFocus(key, currentIndex, forward: true, groupIndex: groupIndex);  // 前进或循环焦点
