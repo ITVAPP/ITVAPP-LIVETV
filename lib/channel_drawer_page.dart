@@ -178,14 +178,15 @@ void addFocusListeners(
   State state, {
   ScrollController? scrollController,
 }) {
-  // 修改：添加边界检查
   if (startIndex < 0 || length <= 0 || startIndex + length > _focusNodes.length) {
     LogUtil.e('焦点监听器索引越界: startIndex=$startIndex, length=$length, total=${_focusNodes.length}');
     return;
   }
+
   for (var i = 0; i < length; i++) {
     _focusStates[startIndex + i] = _focusNodes[startIndex + i].hasFocus;
   }
+
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
     _focusNodes[index].removeListener(() {});
@@ -194,17 +195,14 @@ void addFocusListeners(
       if (_focusStates[index] != currentFocus) {
         _focusStates[index] = currentFocus;
         state.setState(() {});
+
         if (scrollController != null && currentFocus && scrollController.hasClients) {
           final itemIndex = index - startIndex;
           final currentGroup = _focusGroupIndices[index] ?? -1;
           final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
-          final isSameGroup = _lastFocusedIndex != -1 && currentGroup == lastGroup;
-          final isMovingForward = isSameGroup && index > _lastFocusedIndex;
-          final isMovingBackward = isSameGroup && index < _lastFocusedIndex;
           final isInitialFocus = _lastFocusedIndex == -1;
           _lastFocusedIndex = index;
 
-          // 修改：添加日志验证焦点切换
           LogUtil.i('焦点切换: index=$index, itemIndex=$itemIndex, currentGroup=$currentGroup, lastGroup=$lastGroup');
 
           final channelDrawerState = state is _ChannelDrawerPageState
@@ -212,38 +210,42 @@ void addFocusListeners(
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState == null) return;
 
-          final isFirstItem = index == channelDrawerState._categoryListFirstIndex ||
-              index == channelDrawerState._groupListFirstIndex ||
-              index == channelDrawerState._channelListFirstIndex;
-          final isLastItem = index == channelDrawerState._categoryListLastIndex ||
-              index == channelDrawerState._groupListLastIndex ||
-              index == channelDrawerState._channelListLastIndex;
+          final viewportHeight = channelDrawerState._drawerHeight;
+          final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
 
-          final fullItemsInViewport = (channelDrawerState._drawerHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
+          // 如果列表项少于视窗容量，直接滚动到顶部
           if (length <= fullItemsInViewport) {
-            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0, alignment: 0.0);
-            LogUtil.i('列表项数少于视窗容量，滚动到顶部');
+            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
             return;
           }
 
-          if (isFirstItem) {
-            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 0.0);
-          } else if (isLastItem) {
-            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 1.0);
-          } else if (isMovingForward && itemIndex >= fullItemsInViewport) {
-            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 1.0);
-          } else if (isMovingBackward && itemIndex < fullItemsInViewport - 1) {
-            channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 0.0);
-          } else if (!isSameGroup && !isInitialFocus) {
-            channelDrawerState.scrollTo(
-              targetList: _getTargetList(currentGroup),
-              index: itemIndex,
-              alignment: (currentGroup > lastGroup) ? 0.0 : 1.0,
-            );
+          // 计算滚动对齐方式
+          double alignment;
+          if (itemIndex == 0) {
+            alignment = 0.0; // 第一个项目，顶部对齐
+          } else if (itemIndex == length - 1) {
+            alignment = 1.0; // 最后一个项目，底部对齐
           } else if (isInitialFocus) {
-            return;
+            alignment = 0.5; // 首次聚焦，居中对齐
+          } else {
+            // 非边界项目，保持当前焦点在视窗内
+            final currentOffset = scrollController.offset;
+            final itemTop = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
+            final itemBottom = itemTop + ITEM_HEIGHT_WITH_DIVIDER;
+            if (itemTop < currentOffset) {
+              alignment = 0.0; // 项目在视窗上方，顶部对齐
+            } else if (itemBottom > currentOffset + viewportHeight) {
+              alignment = 1.0; // 项目在视窗下方，底部对齐
+            } else {
+              return; // 项目已在视窗内，无需滚动
+            }
           }
+
+          channelDrawerState.scrollTo(
+            targetList: _getTargetList(currentGroup),
+            index: itemIndex,
+            alignment: alignment,
+          );
         }
       }
     });
@@ -343,8 +345,8 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
-        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
+        onEnter: () => !isTV ? (context as Element).markNeedsBuild() : null,
+        onExit: () => !isTV ? (context as Element).markNeedsBuild() : null,
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -672,11 +674,11 @@ class EPGList extends StatefulWidget {
   State<EPGList> createState() => _EPGListState();
 }
 
-class _EPGListState extends State<EPGList> {
+class EPGListState extends State<EPGList> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback(() {
       if (widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         state?.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: 0.23);
@@ -887,13 +889,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> scrollTo({
     required String targetList,
     required int index,
-    double alignment = 0.0, // 0.0 表示顶部，0.5 表示中间，1.0 表示底部
+    double alignment = 0.0, // 0.0 表示顶部对齐，1.0 表示底部对齐
     Duration duration = const Duration(milliseconds: 200),
   }) async {
     ScrollController? scrollController;
     int itemCount = 0;
-    double itemHeight = ITEM_HEIGHT_WITH_DIVIDER;
+    const double itemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 固定项目高度
 
+    // 根据目标列表选择控制器和项目总数
     switch (targetList) {
       case 'category':
         scrollController = _categoryScrollController;
@@ -914,29 +917,37 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         itemCount = _epgData?.length ?? 0;
         break;
       default:
-        LogUtil.i('无效的滚动目标: $targetList');
+        LogUtil.e('无效的滚动目标: $targetList');
         return;
     }
 
+    // 边界检查
     if (index < 0 || index >= itemCount || !scrollController.hasClients) {
-      LogUtil.i('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
+      LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
       return;
     }
 
-    double targetOffset = index * itemHeight;
-    double maxScrollExtent = scrollController.position.maxScrollExtent;
+    // 计算目标偏移量
+    final double viewportHeight = _drawerHeight; // 视窗高度
+    final double maxScrollExtent = scrollController.position.maxScrollExtent;
+    double targetOffset = index * itemHeight; // 目标项目的顶部位置
 
+    // 根据 alignment 调整偏移量，使目标项目在视窗内适当位置
     if (alignment > 0.0 && alignment <= 1.0) {
-      targetOffset -= _drawerHeight * alignment;
+      targetOffset -= viewportHeight * alignment; // 调整到视窗内的相对位置
     }
 
+    // 确保偏移量在有效范围内
     targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+    // 执行滚动动画
     await scrollController.animateTo(
       targetOffset,
       duration: duration,
       curve: Curves.easeInOut,
     );
-    LogUtil.i('scrollTo 调用: targetList=$targetList, index=$index, alignment=$alignment, offset=$targetOffset');
+
+    LogUtil.i('滚动完成: targetList=$targetList, index=$index, alignment=$alignment, offset=$targetOffset');
   }
 
   @override
@@ -1137,7 +1148,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     for (final node in _focusNodes) node.dispose();
     _focusNodes.clear();
-    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node_$index'));
+    _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node$index'));
     _focusGroupIndices.clear();
 
     // 修改：提前定义索引范围，确保顺序正确
@@ -1232,61 +1243,32 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = _drawerHeight;
-      final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
-      final selectedCategory = _categories[_categoryIndex];
-      final categoryMap = widget.videoMap?.playList[selectedCategory];
-      final isCurrentCategory = widget.playModel?.group != null && categoryMap.containsKey(widget.playModel?.group);
-
-      if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _keys.length) {
-        final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
-        if (!isCurrentGroup || _keys.length <= fullItemsInViewport) {
-          scrollTo(targetList: 'group', index: 0, alignment: 0.0);
-        } else {
-          scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.23);
-        }
+      scrollTo(targetList: 'category', index: index, alignment: 0.5); // 分类切换时居中显示
+      if (_keys.isNotEmpty) {
+        scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
       }
-
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final isCurrentGroup = isCurrentCategory && _keys[_groupIndex] == widget.playModel?.group;
-        final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
-        if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-        } else {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.23);
-        }
+        scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
       }
     });
   }
 
-  // 修改部分：_onGroupTap 确保焦点更新一致
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
       _isSystemAutoSelected = false;
       _focusStates.clear();
-      // 修改：同步更新焦点逻辑，确保索引正确
-      updateFocusLogic(false, initialIndexOverride: _categories.length + index).then((_) {
-        // 确保焦点切换到新的分组项
-        if (_focusNodes.isNotEmpty && _groupListFirstIndex + index < _focusNodes.length) {
-          _focusNodes[_groupListFirstIndex + index].requestFocus();
+      updateFocusLogic(false, initialIndexOverride: _groupStartIndex + index).then((_) {
+        if (_focusNodes.isNotEmpty && _groupStartIndex + index < _focusNodes.length) {
+          _focusNodes[_groupStartIndex + index].requestFocus();
         }
       });
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final viewportHeight = _drawerHeight;
-      final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
-
+      scrollTo(targetList: 'group', index: index, alignment: 0.5); // 分组切换时居中显示
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final isCurrentGroup = _keys[_groupIndex] == widget.playModel?.group;
-        final isCurrentChannel = isCurrentGroup && _values[_groupIndex].containsKey(widget.playModel?.title);
-        if (!isCurrentChannel || _values[_groupIndex].length <= fullItemsInViewport) {
-          scrollTo(targetList: 'channel', index: 0, alignment: 0.0);
-        } else {
-          scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.23);
-        }
+        scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
       }
     });
   }
@@ -1444,7 +1426,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   Widget _buildOpenDrawer(
-      bool isTV, Widget categoryListWidget, Widget? groupListWidget, Widget? channelListWidget, Widget? epgListWidget) {
+    bool isTV,
+    Widget categoryListWidget,
+    Widget? groupListWidget,
+    Widget? channelListWidget,
+    Widget? epgListWidget,
+  ) {
     double categoryWidth = isPortrait ? 110 : 120;
     double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;
     double channelListWidth = (groupListWidget != null && channelListWidget != null)
