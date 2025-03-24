@@ -874,24 +874,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
-  // 修改部分：_calculateDrawerHeight 增强日志以验证高度
+  // 修改部分：_calculateDrawerHeight 不减去 appBarHeight 和 playerHeight，仅考虑 padding
   void _calculateDrawerHeight() {
     double screenHeight = MediaQuery.of(context).size.height;
-    double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
-    double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
-    double bottomPadding = MediaQuery.of(context).padding.bottom;
+    double paddingTop = MediaQuery.of(context).padding.top;
+    double paddingBottom = MediaQuery.of(context).padding.bottom;
 
-    if (MediaQuery.of(context).orientation == Orientation.landscape) {
-      _drawerHeight = screenHeight;
-    } else {
-      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding;
-      _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
-    }
-    LogUtil.i('抽屉高度计算: screenHeight=$screenHeight, appBarHeight=$appBarHeight, '
-        'playerHeight=$playerHeight, bottomPadding=$bottomPadding, _drawerHeight=$_drawerHeight');
+    // 直接使用 screenHeight，假设它已是抽屉的可用高度，仅减去 padding
+    _drawerHeight = screenHeight - paddingTop - paddingBottom;
+    _drawerHeight = _drawerHeight > 0 ? _drawerHeight : screenHeight;
+
+    LogUtil.i('抽屉高度计算: screenHeight=$screenHeight, paddingTop=$paddingTop, '
+        'paddingBottom=$paddingBottom, _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 增强日志并优化滚动计算
+  // 修改部分：scrollTo 处理短列表并增强日志
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -937,27 +934,32 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double viewportHeight = _drawerHeight; // 视窗高度
     final double maxScrollExtent = scrollController.position.maxScrollExtent;
     final double currentOffset = scrollController.offset;
+    final double totalContentHeight = itemCount * itemHeight;
 
     double targetOffset;
-    if (alignment == 0.0) {
-      targetOffset = index * itemHeight; // 顶部对齐
-    } else if (alignment == 1.0) {
-      targetOffset = index * itemHeight + itemHeight - viewportHeight; // 底部对齐
+    if (totalContentHeight <= viewportHeight) {
+      // 短列表，强制居中
+      targetOffset = (totalContentHeight - viewportHeight) / 2;
+      targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
     } else {
-      // 对于其他 alignment（如 0.5），将目标项中点与视窗中点对齐
-      final double itemMidPoint = index * itemHeight + itemHeight / 2; // 目标项中点
-      final double viewportMidPoint = viewportHeight / 2; // 视窗中点
-      targetOffset = itemMidPoint - viewportMidPoint; // 使目标项中点与视窗中点对齐
+      if (alignment == 0.0) {
+        targetOffset = index * itemHeight; // 顶部对齐
+      } else if (alignment == 1.0) {
+        targetOffset = index * itemHeight + itemHeight - viewportHeight; // 底部对齐
+      } else {
+        // 对于其他 alignment（如 0.5），将目标项中点与视窗中点对齐
+        final double itemMidPoint = index * itemHeight + itemHeight / 2; // 目标项中点
+        final double viewportMidPoint = viewportHeight / 2; // 视窗中点
+        targetOffset = itemMidPoint - viewportMidPoint; // 使目标项中点与视窗中点对齐
+      }
+      targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
     }
-
-    // 确保偏移量在有效范围内
-    targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
     // 增强日志以帮助调试
     LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
         'itemCount=$itemCount, viewportHeight=$viewportHeight, '
-        'maxScrollExtent=$maxScrollExtent, currentOffset=$currentOffset, '
-        'targetOffset=$targetOffset');
+        'totalContentHeight=$totalContentHeight, maxScrollExtent=$maxScrollExtent, '
+        'currentOffset=$currentOffset, targetOffset=$targetOffset');
 
     // 执行滚动动画
     await scrollController.animateTo(
