@@ -474,6 +474,7 @@ class GroupList extends StatefulWidget {
     required this.keys,
     required this.scrollController,
     required this.selectedGroupIndex,
+    required this.onGroupTap,
     required this.isTV,
     this.startIndex = 0,
     this.isFavoriteCategory = false,
