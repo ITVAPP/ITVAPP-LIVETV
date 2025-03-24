@@ -310,7 +310,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 通用列表项构建函数（移除 key 参数，恢复鼠标点击，固定高度并避免换行）
+// 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型）
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -345,8 +345,8 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: () => !isTV ? (context as Element).markNeedsBuild() : null,
-        onExit: () => !isTV ? (context as Element).markNeedsBuild() : null,
+        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null, // 添加 PointerEnterEvent 参数
+        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,  // 添加 PointerExitEvent 参数
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -653,7 +653,7 @@ class _ChannelListState extends State<ChannelList> {
   }
 }
 
-// 修改部分：EPGList 使用 ListView 加载全部项，从顶部排列
+// 修改部分：EPGList 使用 ListView 加载全部项，从顶部排列（修复 createState）
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData;
   final int selectedIndex;
@@ -671,14 +671,14 @@ class EPGList extends StatefulWidget {
   });
 
   @override
-  State<EPGList> createState() => _EPGListState();
+  State<EPGList> createState() => EPGListState(); // 修复：使用正确的状态类名
 }
 
 class EPGListState extends State<EPGList> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(() {
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) { // 修复：添加 Duration 参数
       if (widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         state?.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: 0.23);
@@ -691,7 +691,7 @@ class EPGListState extends State<EPGList> {
     super.didUpdateWidget(oldWidget);
     if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
       setState(() {});
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((Duration _) { // 修复：添加 Duration 参数
         if (widget.epgData != null && widget.epgData!.isNotEmpty) {
           final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
           state?.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: 0.23);
@@ -756,7 +756,7 @@ class EPGListState extends State<EPGList> {
   }
 }
 
-// 主组件 ChannelDrawerPage（未修改，仅保留原样）
+// 主组件 ChannelDrawerPage
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -1138,7 +1138,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：updateFocusLogic 确保索引顺序正确
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     _lastFocusedIndex = -1;
 
@@ -1151,20 +1150,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _focusNodes = List.generate(totalNodes, (index) => FocusNode(debugLabel: 'Node$index'));
     _focusGroupIndices.clear();
 
-    // 修改：提前定义索引范围，确保顺序正确
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
 
-    // 分配 CategoryList 的焦点
     for (int i = 0; i < _categories.length; i++) {
       _focusGroupIndices[i] = 0;
     }
-    // 分配 GroupList 的焦点
     for (int i = 0; i < _keys.length; i++) {
       _focusGroupIndices[_groupStartIndex + i] = 1;
     }
-    // 分配 ChannelList 的焦点
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
       for (int i = 0; i < _values[_groupIndex].length; i++) {
         _focusGroupIndices[_channelStartIndex + i] = 2;
@@ -1243,7 +1238,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      scrollTo(targetList: 'category', index: index, alignment: 0.5); // 分类切换时居中显示
+      scrollTo(targetList: 'category', index: index, alignment: 0.5);
       if (_keys.isNotEmpty) {
         scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
       }
@@ -1266,7 +1261,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      scrollTo(targetList: 'group', index: index, alignment: 0.5); // 分组切换时居中显示
+      scrollTo(targetList: 'group', index: index, alignment: 0.5);
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
         scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
       }
