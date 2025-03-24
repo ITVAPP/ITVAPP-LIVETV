@@ -171,7 +171,7 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改部分：addFocusListeners 添加边界检查和日志
+// 修改部分：addFocusListeners 阻止 category 滚动并增强日志
 void addFocusListeners(
   int startIndex,
   int length,
@@ -209,6 +209,9 @@ void addFocusListeners(
               ? state
               : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
           if (channelDrawerState == null) return;
+
+          // 如果是 category 组，不滚动
+          if (currentGroup == 0) return;
 
           final viewportHeight = channelDrawerState._drawerHeight;
           final fullItemsInViewport = (viewportHeight / ITEM_HEIGHT_WITH_DIVIDER).floor();
@@ -871,6 +874,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
+  // 修改部分：_calculateDrawerHeight 增强日志以验证高度
   void _calculateDrawerHeight() {
     double screenHeight = MediaQuery.of(context).size.height;
     double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
@@ -883,9 +887,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding;
       _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
     }
-    LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
+    LogUtil.i('抽屉高度计算: screenHeight=$screenHeight, appBarHeight=$appBarHeight, '
+        'playerHeight=$playerHeight, bottomPadding=$bottomPadding, _drawerHeight=$_drawerHeight');
   }
 
+  // 修改部分：scrollTo 增强日志并优化滚动计算
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -930,8 +936,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 计算目标偏移量
     final double viewportHeight = _drawerHeight; // 视窗高度
     final double maxScrollExtent = scrollController.position.maxScrollExtent;
+    final double currentOffset = scrollController.offset;
 
-    // 计算目标项的中点位置
     double targetOffset;
     if (alignment == 0.0) {
       targetOffset = index * itemHeight; // 顶部对齐
@@ -946,6 +952,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 确保偏移量在有效范围内
     targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+    // 增强日志以帮助调试
+    LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
+        'itemCount=$itemCount, viewportHeight=$viewportHeight, '
+        'maxScrollExtent=$maxScrollExtent, currentOffset=$currentOffset, '
+        'targetOffset=$targetOffset');
 
     // 执行滚动动画
     await scrollController.animateTo(
@@ -1228,6 +1240,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 修改部分：_onCategoryTap 不滚动 category，根据当前播放频道滚动 group 和 channel
   void _onCategoryTap(int index) {
     if (_categoryIndex == index) return;
     setState(() {
@@ -1240,16 +1253,36 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _isSystemAutoSelected = true;
       } else {
         _initializeChannelData();
+
+        // 检查当前播放的频道是否属于该分类
+        final currentPlayModel = widget.playModel;
+        if (currentPlayModel != null && categoryMap.containsKey(currentPlayModel.group)) {
+          _groupIndex = _keys.indexOf(currentPlayModel.group!);
+          if (_groupIndex != -1) {
+            final channelList = _values[_groupIndex].keys.toList();
+            _channelIndex = channelList.indexOf(currentPlayModel.title ?? '');
+            if (_channelIndex == -1) _channelIndex = 0; // 如果未找到，设为 0
+          } else {
+            _groupIndex = 0;
+            _channelIndex = 0;
+          }
+        } else {
+          // 如果当前播放频道不在该分类，保持默认值
+          _groupIndex = _groupIndex >= 0 ? _groupIndex : 0;
+          _channelIndex = _channelIndex >= 0 ? _channelIndex : 0;
+        }
       }
       updateFocusLogic(false, initialIndexOverride: index);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      scrollTo(targetList: 'category', index: index, alignment: 0.5);
+      // 不滚动 category，仅滚动 group 和 channel
       if (_keys.isNotEmpty) {
+        LogUtil.i('准备滚动 group: _groupIndex=$_groupIndex, _keys.length=${_keys.length}');
         scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.5);
       }
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+        LogUtil.i('准备滚动 channel: _channelIndex=$_channelIndex, _values[_groupIndex].length=${_values[_groupIndex].length}');
         scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
       }
     });
