@@ -889,7 +889,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> scrollTo({
     required String targetList,
     required int index,
-    double alignment = 0.0, // 0.0 表示顶部对齐，1.0 表示底部对齐
+    double alignment = 0.0, // 0.0 表示顶部对齐，1.0 表示底部对齐，0.5 表示居中
     Duration duration = const Duration(milliseconds: 200),
   }) async {
     ScrollController? scrollController;
@@ -930,11 +930,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 计算目标偏移量
     final double viewportHeight = _drawerHeight; // 视窗高度
     final double maxScrollExtent = scrollController.position.maxScrollExtent;
-    double targetOffset = index * itemHeight; // 目标项目的顶部位置
 
-    // 根据 alignment 调整偏移量，使目标项目在视窗内适当位置
-    if (alignment > 0.0 && alignment <= 1.0) {
-      targetOffset -= viewportHeight * alignment; // 调整到视窗内的相对位置
+    // 计算目标项的中点位置
+    double targetOffset;
+    if (alignment == 0.0) {
+      targetOffset = index * itemHeight; // 顶部对齐
+    } else if (alignment == 1.0) {
+      targetOffset = index * itemHeight + itemHeight - viewportHeight; // 底部对齐
+    } else {
+      // 对于其他 alignment（如 0.5），将目标项中点与视窗中点对齐
+      final double itemMidPoint = index * itemHeight + itemHeight / 2; // 目标项中点
+      final double viewportMidPoint = viewportHeight / 2; // 视窗中点
+      targetOffset = itemMidPoint - viewportMidPoint; // 使目标项中点与视窗中点对齐
     }
 
     // 确保偏移量在有效范围内
