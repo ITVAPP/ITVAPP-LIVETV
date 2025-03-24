@@ -888,11 +888,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'paddingBottom=$paddingBottom, _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 处理短列表并增强日志
+  // 修改部分：scrollTo 实现顶部对齐后向下偏移两个列表项高度
   Future<void> scrollTo({
     required String targetList,
     required int index,
-    double alignment = 0.0, // 0.0 表示顶部对齐，1.0 表示底部对齐，0.5 表示居中
+    double alignment = 0.0, // 0.0 表示顶部对齐后向下偏移两项，1.0 表示底部对齐，0.5 表示居中
     Duration duration = const Duration(milliseconds: 200),
   }) async {
     ScrollController? scrollController;
@@ -931,34 +931,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     // 计算目标偏移量
-    final double viewportHeight = _drawerHeight; // 视窗高度
     final double maxScrollExtent = scrollController.position.maxScrollExtent;
     final double currentOffset = scrollController.offset;
-    final double totalContentHeight = itemCount * itemHeight;
-
     double targetOffset;
-    if (totalContentHeight <= viewportHeight) {
-      // 短列表，强制居中
-      targetOffset = (totalContentHeight - viewportHeight) / 2;
+
+    if (alignment == 0.0) {
+      // 顶部对齐后向下偏移两个列表项高度
+      targetOffset = (index - 2) * itemHeight;
+      if (targetOffset < 0) targetOffset = 0; // 确保偏移不小于 0
+    } else if (alignment == 1.0) {
+      // 底部对齐保持不变
+      targetOffset = index * itemHeight + itemHeight - _drawerHeight;
       targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
     } else {
-      if (alignment == 0.0) {
-        targetOffset = index * itemHeight; // 顶部对齐
-      } else if (alignment == 1.0) {
-        targetOffset = index * itemHeight + itemHeight - viewportHeight; // 底部对齐
-      } else {
-        // 对于其他 alignment（如 0.5），将目标项中点与视窗中点对齐
-        final double itemMidPoint = index * itemHeight + itemHeight / 2; // 目标项中点
-        final double viewportMidPoint = viewportHeight / 2; // 视窗中点
-        targetOffset = itemMidPoint - viewportMidPoint; // 使目标项中点与视窗中点对齐
-      }
+      // 居中对齐保持不变
+      final double itemMidPoint = index * itemHeight + itemHeight / 2; // 目标项中点
+      final double viewportMidPoint = _drawerHeight / 2; // 视窗中点
+      targetOffset = itemMidPoint - viewportMidPoint;
       targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
     }
 
-    // 增强日志以帮助调试
+    // 日志记录滚动信息
     LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
-        'itemCount=$itemCount, viewportHeight=$viewportHeight, '
-        'totalContentHeight=$totalContentHeight, maxScrollExtent=$maxScrollExtent, '
+        'itemCount=$itemCount, maxScrollExtent=$maxScrollExtent, '
         'currentOffset=$currentOffset, targetOffset=$targetOffset');
 
     // 执行滚动动画
