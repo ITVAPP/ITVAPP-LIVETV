@@ -171,7 +171,7 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
-// 修改部分：addFocusListeners 优化上移和下移逻辑
+// 修改部分：addFocusListeners 阻止 category 滚动并增强日志
 void addFocusListeners(
   int startIndex,
   int length,
@@ -201,10 +201,9 @@ void addFocusListeners(
           final currentGroup = _focusGroupIndices[index] ?? -1;
           final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
           final isInitialFocus = _lastFocusedIndex == -1;
-          final isMovingUp = !isInitialFocus && index < _lastFocusedIndex; // 判断是否上移
           _lastFocusedIndex = index;
 
-          LogUtil.i('焦点切换: index=$index, itemIndex=$itemIndex, currentGroup=$currentGroup, lastGroup=$lastGroup, isMovingUp=$isMovingUp');
+          LogUtil.i('焦点切换: index=$index, itemIndex=$itemIndex, currentGroup=$currentGroup, lastGroup=$lastGroup');
 
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
@@ -232,24 +231,16 @@ void addFocusListeners(
           } else if (isInitialFocus) {
             alignment = 0.5; // 首次聚焦，居中对齐
           } else {
+            // 非边界项目，保持当前焦点在视窗内
             final currentOffset = scrollController.offset;
             final itemTop = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
             final itemBottom = itemTop + ITEM_HEIGHT_WITH_DIVIDER;
-            
-            if (isMovingUp) {
-              // 上移：检查距离顶部是否小于一个项高度
-              if (itemTop - currentOffset < ITEM_HEIGHT_WITH_DIVIDER) {
-                alignment = 0.0; // 顶部对齐
-              } else {
-                return; // 在视窗内，无需滚动
-              }
+            if (itemTop < currentOffset) {
+              alignment = 0.0; // 项目在视窗上方，顶部对齐
+            } else if (itemBottom > currentOffset + viewportHeight) {
+              alignment = 1.0; // 项目在视窗下方，底部对齐
             } else {
-              // 下移：检查距离底部是否小于一个项高度
-              if (currentOffset + viewportHeight - itemBottom < ITEM_HEIGHT_WITH_DIVIDER) {
-                alignment = 1.0; // 底部对齐
-              } else {
-                return; // 在视窗内，无需滚动
-              }
+              return; // 项目已在视窗内，无需滚动
             }
           }
 
@@ -1294,7 +1285,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 修改部分：_onGroupTap 优化切换分组时的滚动逻辑
   void _onGroupTap(int index) {
     setState(() {
       _groupIndex = index;
@@ -1308,17 +1298,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      scrollTo(targetList: 'group', index: index, alignment: 0.5); // 分组列表始终居中对齐
-
+      scrollTo(targetList: 'group', index: index, alignment: 0.5);
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final currentPlayingGroup = widget.playModel?.group;
-        final isCurrentPlayingGroup = currentPlayingGroup != null && _keys[index] == currentPlayingGroup;
-        final alignment = isCurrentPlayingGroup ? 0.5 : 0.0;
-        scrollTo(
-          targetList: 'channel',
-          index: isCurrentPlayingGroup ? _channelIndex : 0,
-          alignment: alignment,
-        );
+        scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.5);
       }
     });
   }
