@@ -315,12 +315,12 @@ bool isOutOfView(BuildContext context) {
 final GlobalKey _itemKey = GlobalKey();
 double? _dynamicItemHeight;
 
-// 获取动态高度的方法
+// 获取动态高度的方法，使用静态值 1 作为分割线高度
 void _getItemHeight(BuildContext context) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox != null) {
-      _dynamicItemHeight = renderBox.size.height + horizontalDivider.height; // 包含分割线高度
+      _dynamicItemHeight = renderBox.size.height + 1; // 使用静态定义的分割线高度 1
       LogUtil.i('动态获取的 itemHeight: $_dynamicItemHeight');
     }
   });
@@ -981,7 +981,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_shouldLoadEpg()) {
         _loadEPGMsg(widget.playModel);
       }
-      _getItemHeight(context); // 在首次渲染后获取动态高度
+      _getItemHeight(context); // 在初始化时获取动态高度
       setState(() {});
     });
   }
@@ -1051,6 +1051,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (!mounted) return;
       setState(() {
         _calculateDrawerHeight();
+        _getItemHeight(context); // 在屏幕横竖屏切换时重新获取动态高度
         _adjustScrollPositions();
       });
     });
