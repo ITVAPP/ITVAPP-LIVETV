@@ -171,6 +171,21 @@ int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表
 // 添加全局变量用于跟踪每个焦点的 groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
+// 添加全局变量用于动态获取列表项高度
+final GlobalKey _itemKey = GlobalKey(); // 用于获取分类列表项高度
+double? _dynamicItemHeight; // 存储动态获取的列表项高度
+
+// 获取动态高度的方法，从分类列表项自动获取
+void _getItemHeight(BuildContext context) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      _dynamicItemHeight = renderBox.size.height; // 自动获取 Column 的渲染高度
+      LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight');
+    }
+  });
+}
+
 // 修改部分：addFocusListeners 阻止 category 滚动并增强日志
 void addFocusListeners(
   int startIndex,
@@ -311,22 +326,7 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
-// 添加 GlobalKey 和动态高度变量
-final GlobalKey _itemKey = GlobalKey();
-double? _dynamicItemHeight;
-
-// 获取动态高度的方法，使用静态值 1 作为分割线高度
-void _getItemHeight(BuildContext context) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null) {
-      _dynamicItemHeight = renderBox.size.height + 1; // 使用静态定义的分割线高度 1
-      LogUtil.i('动态获取的 itemHeight: $_dynamicItemHeight');
-    }
-  });
-}
-
-// 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型）
+// 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型，支持传入 key）
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -340,6 +340,7 @@ Widget buildListItem({
   bool useFocusableItem = true,
   bool isLastItem = false,
   bool isSystemAutoSelected = false,
+  Key? key, // 新增 key 参数
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
       ? _focusNodes[index]
@@ -358,6 +359,7 @@ Widget buildListItem({
           : defaultTextStyle);
 
   Widget listItemContent = Column(
+    key: key, // 使用传入的 key
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
@@ -366,7 +368,6 @@ Widget buildListItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            key: index == 0 ? _itemKey : null, // 仅为第一个项添加 GlobalKey
             height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
@@ -395,7 +396,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ListView 加载全部项，从顶部排列
+// 修改部分：CategoryList 使用 ListView 加载全部项，从顶部排列，绑定 GlobalKey
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -465,6 +466,7 @@ class _CategoryListState extends State<CategoryList> {
                 context: context,
                 index: widget.startIndex + index,
                 isLastItem: index == widget.categories.length - 1,
+                key: index == 0 ? _itemKey : null, // 只在第一个项绑定 GlobalKey
               );
             }),
           ),
@@ -902,7 +904,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'paddingBottom=$paddingBottom, _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 使用动态高度，默认使用 (index - 2) * itemHeight
+  // 修改部分：scrollTo 使用 _dynamicItemHeight 或默认值
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -911,7 +913,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }) async {
     ScrollController? scrollController;
     int itemCount = 0;
-    final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 使用动态高度，fallback 到默认值
+    final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 使用动态高度，fallback 到静态值
 
     switch (targetList) {
       case 'category':
@@ -958,7 +960,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
-    LogUtil.i('滚动开始: itemHeight=$itemHeight, targetList=$targetList, index=$index, alignment=$alignment, '
+    LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
         'targetOffset=$targetOffset');
 
     await scrollController.animateTo(
@@ -981,7 +983,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_shouldLoadEpg()) {
         _loadEPGMsg(widget.playModel);
       }
-      _getItemHeight(context); // 在初始化时获取动态高度
+      _getItemHeight(context); // 初始化时获取高度
       setState(() {});
     });
   }
@@ -1051,7 +1053,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (!mounted) return;
       setState(() {
         _calculateDrawerHeight();
-        _getItemHeight(context); // 在屏幕横竖屏切换时重新获取动态高度
+        _getItemHeight(context); // 横竖屏切换时重新获取高度
         _adjustScrollPositions();
       });
     });
