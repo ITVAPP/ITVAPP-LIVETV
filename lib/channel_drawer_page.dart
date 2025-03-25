@@ -311,6 +311,21 @@ bool isOutOfView(BuildContext context) {
   return false;
 }
 
+// 添加 GlobalKey 和动态高度变量
+final GlobalKey _itemKey = GlobalKey();
+double? _dynamicItemHeight;
+
+// 获取动态高度的方法
+void _getItemHeight(BuildContext context) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      _dynamicItemHeight = renderBox.size.height + horizontalDivider.height; // 包含分割线高度
+      LogUtil.i('动态获取的 itemHeight: $_dynamicItemHeight');
+    }
+  });
+}
+
 // 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型）
 Widget buildListItem({
   required String title,
@@ -351,6 +366,7 @@ Widget buildListItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
+            key: index == 0 ? _itemKey : null, // 仅为第一个项添加 GlobalKey
             height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
@@ -886,7 +902,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'paddingBottom=$paddingBottom, _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 实现顶部对齐无偏移，默认使用 (index - 2) * itemHeight
+  // 修改部分：scrollTo 使用动态高度，默认使用 (index - 2) * itemHeight
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -895,7 +911,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }) async {
     ScrollController? scrollController;
     int itemCount = 0;
-    const double itemHeight = ITEM_HEIGHT_WITH_DIVIDER;
+    final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 使用动态高度，fallback 到默认值
 
     switch (targetList) {
       case 'category':
@@ -942,7 +958,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
     targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
-    LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
+    LogUtil.i('滚动开始: itemHeight=$itemHeight, targetList=$targetList, index=$index, alignment=$alignment, '
         'targetOffset=$targetOffset');
 
     await scrollController.animateTo(
@@ -965,6 +981,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_shouldLoadEpg()) {
         _loadEPGMsg(widget.playModel);
       }
+      _getItemHeight(context); // 在首次渲染后获取动态高度
       setState(() {});
     });
   }
