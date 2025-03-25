@@ -871,11 +871,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
-void _calculateDrawerHeight() {
-  final RenderBox? renderBox = _viewPortKey.currentContext?.findRenderObject() as RenderBox?;
-  _drawerHeight = renderBox?.size.height ?? (MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom);
-  LogUtil.i('实际抽屉视窗高度: $_drawerHeight');
-}
+  // 计算抽屉高度的方法
+  void _calculateDrawerHeight() {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
+    double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+    double bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    if (MediaQuery.of(context).orientation == Orientation.landscape) {
+      _drawerHeight = screenHeight; // 移除 leftPadding
+    } else {
+      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding; // 移除 leftPadding
+      _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
+    }
+    LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
+  }
 
   // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
 Future<void> scrollTo({
