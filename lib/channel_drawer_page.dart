@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
 // 是否在非TV 模式下启用 TV 模式的焦点逻辑（用于调试）
-const bool enableFocusInNonTVMode = true; // 默认开启
+const bool enableFocusInNonTVMode = true; // 默认开启 
 
 // 分割线样式 -垂直分割线加粗且增加渐变效果
 final verticalDivider = Container(
