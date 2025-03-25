@@ -215,9 +215,11 @@ void addFocusListeners(
           final currentGroup = _focusGroupIndices[index] ?? -1;
           final lastGroup = _lastFocusedIndex != -1 ? (_focusGroupIndices[_lastFocusedIndex] ?? -1) : -1;
           final isInitialFocus = _lastFocusedIndex == -1;
+          final isMovingDown = !isInitialFocus && index > _lastFocusedIndex; // 判断是否下移
           _lastFocusedIndex = index;
 
-          LogUtil.i('焦点切换: index=$index, itemIndex=$itemIndex, currentGroup=$currentGroup, lastGroup=$lastGroup');
+          LogUtil.i('焦点切换: index=$index, itemIndex=$itemIndex, currentGroup=$currentGroup, '
+              'lastGroup=$lastGroup, isMovingDown=$isMovingDown');
 
           final channelDrawerState = state is _ChannelDrawerPageState
               ? state
@@ -236,24 +238,38 @@ void addFocusListeners(
             return;
           }
 
-          // 计算滚动对齐方式
-          double alignment;
+          // 计算当前项位置
+          final currentOffset = scrollController.offset;
+          final itemTop = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
+          final itemBottom = itemTop + ITEM_HEIGHT_WITH_DIVIDER;
+
+          // 判断滚动对齐方式
+          double? alignment;
           if (itemIndex == 0) {
             alignment = 0.0; // 第一个项目，顶部对齐
           } else if (itemIndex == length - 1) {
             alignment = 1.0; // 最后一个项目，底部对齐
+          } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+            // 下移且超出视窗底部，目标项底部对齐
+            alignment = 2.0;
+            channelDrawerState.scrollTo(
+              targetList: _getTargetList(currentGroup),
+              index: itemIndex, // 滚动到当前目标项
+              alignment: alignment,
+            );
+            return;
+          } else if (!isMovingDown && itemTop < currentOffset) {
+            // 上移且超出视窗顶部，目标项顶部对齐
+            alignment = 0.0;
+            channelDrawerState.scrollTo(
+              targetList: _getTargetList(currentGroup),
+              index: itemIndex, // 滚动到当前目标项
+              alignment: alignment,
+            );
+            return;
           } else {
-            // 非边界项目，保持当前焦点在视窗内
-            final currentOffset = scrollController.offset;
-            final itemTop = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
-            final itemBottom = itemTop + ITEM_HEIGHT_WITH_DIVIDER;
-            if (itemTop < currentOffset) {
-              alignment = 0.0; // 项目在视窗上方，顶部对齐
-            } else if (itemBottom > currentOffset + viewportHeight) {
-              alignment = 1.0; // 项目在视窗下方，底部对齐
-            } else {
-              return; // 项目已在视窗内，无需滚动
-            }
+            // 项目已在视窗内，无需滚动
+            return;
           }
 
           channelDrawerState.scrollTo(
@@ -878,8 +894,10 @@ Future<void> scrollTo({
 }) async {
   ScrollController? scrollController;
   int itemCount = 0;
-  final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+  final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 43.0
+  final double lastItemHeight = defaultMinHeight; // 42.0
 
+  // 根据 targetList 设置 scrollController 和 itemCount
   switch (targetList) {
     case 'category':
       scrollController = _categoryScrollController;
@@ -909,37 +927,51 @@ Future<void> scrollTo({
     return;
   }
 
-  final double maxScrollExtent = scrollController.position.maxScrollExtent;
-  final double totalHeight = itemCount * itemHeight; // 列表总高度
   double targetOffset;
 
   if (alignment == 0.0) {
-    // 顶部对齐
-    targetOffset = index * itemHeight;
-  } else if (alignment == 1.0) {
-    // 底部对齐：将最后一项的底部与视窗底部对齐
-    targetOffset = totalHeight - _drawerHeight;
-    if (targetOffset < 0) targetOffset = 0; // 如果总高度小于视窗高度，从顶部开始
-  } else {
-    // 默认偏移：根据分组或频道对应的分类索引动态调整
-    int offsetAdjustment;
-    if (targetList == 'group' || targetList == 'channel') {
-      // 对于分组和频道，直接使用当前分类索引 _categoryIndex，但限制最大偏移
-      offsetAdjustment = _categoryIndex.clamp(0, 6); // 限制偏移在 0 到 2 之间
+    if (index == 0) {
+      // 列表顶部对齐
+      targetOffset = scrollController.position.minScrollExtent; // 通常为 0.0
     } else {
-      // 对于其他列表（如 category、epg），保持固定偏移 2
-      offsetAdjustment = 3;
+      // 特定项顶部对齐
+      targetOffset = index * itemHeight;
     }
+  } else if (alignment == 1.0) {
+    // 列表底部对齐
+    targetOffset = scrollController.position.maxScrollExtent;
+  } else if (alignment == 2.0) {
+    // 特定项底部对齐
+    double itemBottomPosition;
+    if (index == itemCount - 1) {
+      // 最后一项，使用实际总高度
+      itemBottomPosition = (itemCount - 1) * itemHeight + lastItemHeight;
+    } else {
+      // 非最后一项
+      itemBottomPosition = (index + 1) * itemHeight;
+    }
+    targetOffset = itemBottomPosition - _drawerHeight;
+    if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始
+  } else {
+    // 默认偏移 (alignment = null)
+    int offsetAdjustment = (targetList == 'group' || targetList == 'channel') 
+        ? _categoryIndex.clamp(0, 6) 
+        : 3;
     targetOffset = (index - offsetAdjustment) * itemHeight;
-    if (targetOffset < 0) targetOffset = 0; // 确保不小于 0
+    if (targetOffset < 0) targetOffset = 0;
   }
 
+  // 限制在滚动范围内
+  final double maxScrollExtent = scrollController.position.maxScrollExtent;
   targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
+  // 日志记录，便于调试
   LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, '
-      'itemHeight=$itemHeight, totalHeight=$totalHeight, _drawerHeight=$_drawerHeight, '
-      'targetOffset=$targetOffset, maxScrollExtent=$maxScrollExtent, '
-      'categoryIndex=$_categoryIndex');
+      'itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
+      'itemCount=$itemCount, _drawerHeight=$_drawerHeight, '
+      'targetOffset=$targetOffset, '
+      'minScrollExtent=${scrollController.position.minScrollExtent}, '
+      'maxScrollExtent=$maxScrollExtent');
 
   await scrollController.animateTo(
     targetOffset,
