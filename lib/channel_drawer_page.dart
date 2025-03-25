@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -74,9 +73,9 @@ const selectedTextStyle = TextStyle(
 // 最小高度
 const defaultMinHeight = 42.0;
 
-// 添加全局常量用于列表项高度
-const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 12.0 + 1.0; // 55.0（42.0 + 12.0 + 1.0）
-const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight + 12.0; // 54.0（最后一项无分割线）
+// 添加全局常量用于列表项高度（更新为与 _dynamicItemHeight = 43.0 一致）
+const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 1.0; // 43.0（42.0 + 1.0）
+const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight; // 42.0（最后一项无分割线）
 
 // 背景色
 final defaultBackgroundColor = LinearGradient(
@@ -310,22 +309,6 @@ void _initializeFocusNodes(int totalCount) {
   }
 }
 
-// 判断是否超出可视区域函数
-bool isOutOfView(BuildContext context) {
-  RenderObject? renderObject = context.findRenderObject();
-  if (renderObject is RenderBox) {
-    final ScrollableState? scrollableState = Scrollable.of(context);
-    if (scrollableState != null) {
-      final ScrollPosition position = scrollableState.position; // 修复拼写错误
-      final double offset = position.pixels;
-      final double viewportHeight = position.viewportDimension;
-      final Offset objectPosition = renderObject.localToGlobal(Offset.zero);
-      return objectPosition.dy < offset || objectPosition.dy > offset + viewportHeight;
-    }
-  }
-  return false;
-}
-
 // 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型，支持传入 key）
 Widget buildListItem({
   required String title,
@@ -420,14 +403,9 @@ class CategoryList extends StatefulWidget {
 }
 
 class _CategoryListState extends State<CategoryList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    for (var i = 0; i < widget.categories.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.categories.length, this, scrollController: widget.scrollController);
   }
 
@@ -436,7 +414,6 @@ class _CategoryListState extends State<CategoryList> {
     if (_focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < _focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.categories.length);
     }
-    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -504,14 +481,9 @@ class GroupList extends StatefulWidget {
 }
 
 class _GroupListState extends State<GroupList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    for (var i = 0; i < widget.keys.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.keys.length, this, scrollController: widget.scrollController);
   }
 
@@ -520,7 +492,6 @@ class _GroupListState extends State<GroupList> {
     if (_focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < _focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.keys.length);
     }
-    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -603,14 +574,9 @@ class ChannelList extends StatefulWidget {
 }
 
 class _ChannelListState extends State<ChannelList> {
-  Map<int, bool> _localFocusStates = {};
-
   @override
   void initState() {
     super.initState();
-    for (var i = 0; i < widget.channels.length; i++) {
-      _localFocusStates[widget.startIndex + i] = false;
-    }
     addFocusListeners(widget.startIndex, widget.channels.length, this, scrollController: widget.scrollController);
   }
 
@@ -619,7 +585,6 @@ class _ChannelListState extends State<ChannelList> {
     if (_focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < _focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.channels.length);
     }
-    _localFocusStates.clear();
     super.dispose();
   }
 
@@ -1390,12 +1355,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  void _scrollToTop(ScrollController controller) {
-    if (controller.hasClients) {
-      controller.jumpTo(0);
-    }
-  }
-
   void _adjustScrollPositions() {
     scrollTo(targetList: 'group', index: _groupIndex, alignment: 0.23);
     scrollTo(targetList: 'channel', index: _channelIndex, alignment: 0.23);
@@ -1458,17 +1417,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
-    int currentFocusIndex = 0;
 
     Widget categoryListWidget = CategoryList(
       categories: _categories,
       selectedCategoryIndex: _categoryIndex,
       onCategoryTap: _onCategoryTap,
       isTV: useFocusNavigation,
-      startIndex: currentFocusIndex,
+      startIndex: 0,
       scrollController: _categoryScrollController,
     );
-    currentFocusIndex += _categories.length;
 
     Widget? groupListWidget;
     Widget? channelListWidget;
@@ -1481,13 +1438,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isTV: useFocusNavigation,
       scrollController: _scrollController,
       isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
-      startIndex: currentFocusIndex,
+      startIndex: _categories.length,
       isSystemAutoSelected: _isSystemAutoSelected,
     );
 
     if (_keys.isNotEmpty) {
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        currentFocusIndex += _keys.length;
         String? selectedChannelName = _channelIndex >= 0 && _values[_groupIndex].isNotEmpty
             ? _values[_groupIndex].keys.toList()[_channelIndex]
             : null;
@@ -1497,7 +1453,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           onChannelTap: _onChannelTap,
           isTV: useFocusNavigation,
           scrollController: _scrollChannelController,
-          startIndex: currentFocusIndex,
+          startIndex: _categories.length + _keys.length,
           isSystemAutoSelected: _isChannelAutoSelected,
         );
 
