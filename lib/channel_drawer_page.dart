@@ -869,71 +869,84 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'paddingBottom=$paddingBottom, _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 使用 _dynamicItemHeight 或默认值
-  Future<void> scrollTo({
-    required String targetList,
-    required int index,
-    double? alignment, // null 表示使用 (index - 2) * itemHeight
-    Duration duration = const Duration(milliseconds: 200),
-  }) async {
-    ScrollController? scrollController;
-    int itemCount = 0;
-    final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 使用动态高度，fallback 到静态值
+  // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
+Future<void> scrollTo({
+  required String targetList,
+  required int index,
+  double? alignment,
+  Duration duration = const Duration(milliseconds: 200),
+}) async {
+  ScrollController? scrollController;
+  int itemCount = 0;
+  final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
 
-    switch (targetList) {
-      case 'category':
-        scrollController = _categoryScrollController;
-        itemCount = _categories.length;
-        break;
-      case 'group':
-        scrollController = _scrollController;
-        itemCount = _keys.length;
-        break;
-      case 'channel':
-        scrollController = _scrollChannelController;
-        itemCount = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-            ? _values[_groupIndex].length
-            : 0;
-        break;
-      case 'epg':
-        scrollController = _epgItemScrollController;
-        itemCount = _epgData?.length ?? 0;
-        break;
-      default:
-        LogUtil.e('无效的滚动目标: $targetList');
-        return;
-    }
-
-    if (index < 0 || index >= itemCount || !scrollController.hasClients) {
-      LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
+  switch (targetList) {
+    case 'category':
+      scrollController = _categoryScrollController;
+      itemCount = _categories.length;
+      break;
+    case 'group':
+      scrollController = _scrollController;
+      itemCount = _keys.length;
+      break;
+    case 'channel':
+      scrollController = _scrollChannelController;
+      itemCount = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+          ? _values[_groupIndex].length
+          : 0;
+      break;
+    case 'epg':
+      scrollController = _epgItemScrollController;
+      itemCount = _epgData?.length ?? 0;
+      break;
+    default:
+      LogUtil.e('无效的滚动目标: $targetList');
       return;
-    }
-
-    final double maxScrollExtent = scrollController.position.maxScrollExtent;
-    double targetOffset;
-
-    if (alignment == 0.0) {
-      // 顶部对齐
-      targetOffset = index * itemHeight;
-    } else if (alignment == 1.0) {
-      // 底部对齐
-      targetOffset = index * itemHeight + itemHeight - _drawerHeight;
-    } else {
-      // 默认偏移 (index - 2) * itemHeight
-      targetOffset = (index - 2) * itemHeight;
-      if (targetOffset < 0) targetOffset = 0; // 确保不小于 0
-    }
-    targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
-
-    LogUtil.i('滚动开始: targetList=$targetList, index=$index, alignment=$alignment, '
-        'targetOffset=$targetOffset');
-
-    await scrollController.animateTo(
-      targetOffset,
-      duration: duration,
-      curve: Curves.easeInOut,
-    );
   }
+
+  if (index < 0 || index >= itemCount || !scrollController.hasClients) {
+    LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
+    return;
+  }
+
+  final double maxScrollExtent = scrollController.position.maxScrollExtent;
+  final double totalHeight = itemCount * itemHeight; // 列表总高度
+  double targetOffset;
+
+  if (alignment == 0.0) {
+    // 顶部对齐
+    targetOffset = index * itemHeight;
+  } else if (alignment == 1.0) {
+    // 底部对齐：将最后一项的底部与视窗底部对齐
+    targetOffset = totalHeight - _drawerHeight;
+    if (targetOffset < 0) targetOffset = 0; // 如果总高度小于视窗高度，从顶部开始
+  } else {
+    // 默认偏移：根据分组或频道对应的分类索引动态调整
+    int offsetAdjustment;
+    if (targetList == 'group' || targetList == 'channel') {
+      // 对于分组和频道，直接使用当前分类索引 _categoryIndex，但限制最大偏移
+      offsetAdjustment = _categoryIndex.clamp(0, 6); // 限制偏移在 0 到 2 之间
+    } else {
+      // 对于其他列表（如 category、epg），保持固定偏移 2
+      offsetAdjustment = 3;
+    }
+    targetOffset = (index - offsetAdjustment) * itemHeight;
+    if (targetOffset < 0) targetOffset = 0; // 确保不小于 0
+  }
+
+  targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+  LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, '
+      'itemHeight=$itemHeight, totalHeight=$totalHeight, _drawerHeight=$_drawerHeight, '
+      'targetOffset=$targetOffset, maxScrollExtent=$maxScrollExtent, '
+      'categoryIndex=$_categoryIndex');
+
+  await scrollController.animateTo(
+    targetOffset,
+    duration: duration,
+    curve: Curves.easeInOut,
+  );
+}
 
   @override
   void initState() {
@@ -1267,7 +1280,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: 'group',
           index: isChannelInCategory ? _groupIndex : 0,
-          alignment: isChannelInCategory ? null : 0.0, // null 表示 (index - 2) * itemHeight
+          alignment: isChannelInCategory ? null : 0.0, // null 表示 (index - offsetAdjustment) * itemHeight
         );
 
         // 滚动频道（如果有数据）
@@ -1275,7 +1288,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           scrollTo(
             targetList: 'channel',
             index: isChannelInCategory ? _channelIndex : 0,
-            alignment: isChannelInCategory ? null : 0.0, // null 表示 (index - 2) * itemHeight
+            alignment: isChannelInCategory ? null : 0.0, // null 表示 (index - offsetAdjustment) * itemHeight
           );
         }
       }
@@ -1329,7 +1342,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: 'channel',
           index: isChannelInGroup ? _channelIndex : 0,
-          alignment: isChannelInGroup ? null : 0.0, // null 表示 (index - 2) * itemHeight
+          alignment: isChannelInGroup ? null : 0.0, // null 表示 (index - offsetAdjustment) * itemHeight
         );
       }
     });
