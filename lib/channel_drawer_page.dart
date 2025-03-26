@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/config.dart';
 
 // 是否在非TV 模式下启用 TV 模式的焦点逻辑（用于调试）
 const bool enableFocusInNonTVMode = true; // 默认开启  
- 
+
 // 分割线样式 -垂直分割线加粗且增加渐变效果
 final verticalDivider = Container(
   width: 1.5, // 加粗
@@ -174,18 +174,21 @@ Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 final GlobalKey _itemKey = GlobalKey(); // 用于获取分类列表项高度
 double? _dynamicItemHeight; // 存储动态获取的列表项高度
 
-// 获取动态高度的方法，从分类列表项自动获取
+// 修改部分 1：_getItemHeight，确保更新后触发 UI 刷新
 void _getItemHeight(BuildContext context) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null) {
-      _dynamicItemHeight = renderBox.size.height; // 自动获取 Column 的渲染高度
-      LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight');
+  final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
+  if (renderBox != null) {
+    final newHeight = renderBox.size.height;
+    if (newHeight != _dynamicItemHeight) {
+      setState(() {
+        _dynamicItemHeight = newHeight;
+      });
+      LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight, 方向=${isPortrait ? "竖屏" : "横屏"}');
     }
-  });
+  }
 }
 
-// 修改部分：addFocusListeners 阻止 category 滚动并增强日志
+// 修改部分 2：addFocusListeners，确保目标项完全可见
 void addFocusListeners(
   int startIndex,
   int length,
@@ -238,10 +241,12 @@ void addFocusListeners(
             return;
           }
 
-          // 计算当前项位置
+          // 计算当前项位置，使用动态高度
+          final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+          final itemTop = itemIndex * itemHeight;
+          final itemBottom = itemTop + itemHeight;
+
           final currentOffset = scrollController.offset;
-          final itemTop = itemIndex * ITEM_HEIGHT_WITH_DIVIDER;
-          final itemBottom = itemTop + ITEM_HEIGHT_WITH_DIVIDER;
 
           // 判断滚动对齐方式
           double? alignment;
@@ -249,12 +254,12 @@ void addFocusListeners(
             alignment = 0.0; // 第一个项目，顶部对齐
           } else if (itemIndex == length - 1) {
             alignment = 1.0; // 最后一个项目，底部对齐
-          } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-            // 下移且超出视窗底部，目标项底部对齐
-            alignment = 2.0;
+          } else if (isMovingDown && (itemBottom > currentOffset + viewportHeight || itemTop < currentOffset)) {
+            // 下移时，确保目标项完全可见
+            alignment = 2.0; // 底部对齐
             channelDrawerState.scrollTo(
               targetList: _getTargetList(currentGroup),
-              index: itemIndex, // 滚动到当前目标项
+              index: itemIndex,
               alignment: alignment,
             );
             return;
@@ -263,7 +268,7 @@ void addFocusListeners(
             alignment = 0.0;
             channelDrawerState.scrollTo(
               targetList: _getTargetList(currentGroup),
-              index: itemIndex, // 滚动到当前目标项
+              index: itemIndex,
               alignment: alignment,
             );
             return;
@@ -325,7 +330,7 @@ void _initializeFocusNodes(int totalCount) {
   }
 }
 
-// 通用列表项构建函数（修复 MouseRegion 的 onEnter 和 onExit 类型，支持传入 key）
+// 修改部分 3：buildListItem，使用动态高度
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -367,7 +372,7 @@ Widget buildListItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
+            height: _dynamicItemHeight ?? defaultMinHeight, // 修改：使用动态高度
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
@@ -1052,20 +1057,18 @@ Future<void> scrollTo({
     super.dispose();
   }
 
+  // 修改部分 4：didChangeMetrics，强制每次旋转都更新布局
   @override
   void didChangeMetrics() {
     final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
-    if (newOrientation != isPortrait) {
-      setState(() {
-        isPortrait = newOrientation;
-      });
-    }
-
+    setState(() { // 修改：移除 if 条件，强制每次更新
+      isPortrait = newOrientation;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
         _calculateDrawerHeight();
-        _getItemHeight(context); // 横竖屏切换时重新获取高度
+        _getItemHeight(context); // 确保在布局刷新后测量
         _adjustScrollPositions();
       });
     });
@@ -1525,6 +1528,7 @@ Future<void> scrollTo({
     );
   }
 
+  // 修改部分 5：_buildOpenDrawer，添加日志验证宽度更新
   Widget _buildOpenDrawer(
     bool isTV,
     Widget categoryListWidget,
@@ -1540,6 +1544,11 @@ Future<void> scrollTo({
     double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
         : 0;
+
+    // 添加日志验证宽度更新
+    LogUtil.i('列表宽度: categoryWidth=$categoryWidth, groupWidth=$groupWidth, '
+        'channelListWidth=$channelListWidth, epgListWidth=$epgListWidth, '
+        'screenWidth=${MediaQuery.of(context).size.width}, isPortrait=$isPortrait');
 
     return Container(
       key: _viewPortKey,
