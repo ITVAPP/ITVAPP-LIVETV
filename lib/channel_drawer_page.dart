@@ -889,7 +889,7 @@ void _calculateDrawerHeight() {
     _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
   }
 
-  LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
+  LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight, statusBarHeight=$statusBarHeight,');
 }
 
   // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
