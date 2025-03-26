@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as appui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -252,7 +253,7 @@ void addFocusListeners(
             alignment = 0.0; // 第一个项目，顶部对齐
           } else if (itemIndex == length - 1) {
             alignment = 1.0; // 最后一个项目，底部对齐
-          } else if (isMovingDown && itemBottom >= currentOffset + viewportHeight - (_dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER)) {
+          } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
             // 下移且目标项部分显示或完全不可见，底部对齐
             alignment = 2.0;
             channelDrawerState.scrollTo(
@@ -875,9 +876,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
 // 计算抽屉高度的方法
+double getStatusBarHeight() {
+  final height = appui.window.viewPadding.top / appui.window.devicePixelRatio;
+  LogUtil.i('状态栏高度 (window): $height');
+  return height;
+}
 void _calculateDrawerHeight() {
   final double screenHeight = MediaQuery.of(context).size.height;
-  final double statusBarHeight = MediaQuery.of(context).padding.top;
+  final double statusBarHeight = getStatusBarHeight();
   final double bottomPadding = MediaQuery.of(context).padding.bottom;
   const double appBarHeight = 48.0 + 1;
   final double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
@@ -888,8 +894,7 @@ void _calculateDrawerHeight() {
     _drawerHeight = screenHeight - statusBarHeight - appBarHeight - playerHeight - bottomPadding;
     _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
   }
-
-  LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight, statusBarHeight=$statusBarHeight,');
+  LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight, statusBarHeight=$statusBarHeight');
 }
 
   // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
