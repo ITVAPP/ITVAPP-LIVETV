@@ -874,21 +874,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
-  // 计算抽屉高度的方法
-  void _calculateDrawerHeight() {
-    double screenHeight = MediaQuery.of(context).size.height;
-    double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
-    double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
-    double bottomPadding = MediaQuery.of(context).padding.bottom;
+// 计算抽屉高度的方法
+void _calculateDrawerHeight() {
+  final double screenHeight = MediaQuery.of(context).size.height;
+  final double statusBarHeight = MediaQuery.of(context).padding.top;
+  final double bottomPadding = MediaQuery.of(context).padding.bottom;
+  const double appBarHeight = 48.0 + 1;
+  final double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
 
-    if (MediaQuery.of(context).orientation == Orientation.landscape) {
-      _drawerHeight = screenHeight; // 移除 leftPadding
-    } else {
-      _drawerHeight = screenHeight - appBarHeight - playerHeight - bottomPadding; // 移除 leftPadding
-      _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
-    }
-    LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
+  if (MediaQuery.of(context).orientation == Orientation.landscape) {
+    _drawerHeight = screenHeight;
+  } else {
+    _drawerHeight = screenHeight - statusBarHeight - appBarHeight - playerHeight - bottomPadding;
+    _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
   }
+
+  LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
+}
 
   // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
   Future<void> scrollTo({
