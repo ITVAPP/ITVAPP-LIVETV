@@ -88,7 +88,7 @@ final defaultBackgroundColor = LinearGradient(
 );
 
 // padding设置
-const defaultPadding = EdgeInsets.symmetric(horizontal: 6.0);
+const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0);
 
 // 装饰设置
 const Color selectedColor = Color(0xFFEB144C); // 选中颜色
@@ -176,14 +176,14 @@ double? _dynamicItemHeight; // 存储动态获取的列表项高度
 
 // 获取动态高度的方法，从分类列表项自动获取，失败时使用默认值
 void getItemHeight(BuildContext context) {
-  WidgetsBinding.instance.addPostFrameCallback(() {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox != null) {
       _dynamicItemHeight = renderBox.size.height; // 自动获取 Column 的渲染高度
       LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight');
     } else {
       _dynamicItemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 获取失败时使用默认值
-      LogUtil.w('动态获取分类列表项高度失败，使用默认值: $_dynamicItemHeight');
+      LogUtil.i('动态获取分类列表项高度失败，使用默认值: $_dynamicItemHeight');
     }
   });
 }
@@ -365,8 +365,8 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: () => !isTV ? (context as Element).markNeedsBuild() : null, // 添加 PointerEnterEvent 参数
-        onExit: () => !isTV ? (context as Element).markNeedsBuild() : null,  // 添加 PointerExitEvent 参数
+        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null, // 添加 PointerEnterEvent 参数
+        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,  // 添加 PointerExitEvent 参数
         child: GestureDetector(
           onTap: onTap,
           child: Container(
