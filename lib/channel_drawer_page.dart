@@ -11,9 +11,8 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-//是否在非TV 模式下启用 TV 模式的焦点逻辑（用于调试）
+// 是否在非TV模式下启用 TV 模式的焦点逻辑（用于调试）
 const bool enableFocusInNonTVMode = true; // 默认开启  
-
 // 分割线样式 -垂直分割线加粗且增加渐变效果
 final verticalDivider = Container(
   width: 1.5, // 加粗
@@ -73,7 +72,7 @@ const selectedTextStyle = TextStyle(
 // 最小高度
 const defaultMinHeight = 42.0;
 
-// 添加全局常量用于列表项高度
+// 添加全局常量用于列表项高度（更新为与_dynamicItemHeight =43.0 一致）
 const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 1.0; // 43.0（42.0 + 1.0）
 const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight; // 42.0（最后一项无分割线）
 
@@ -160,14 +159,14 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 用于管理所有 FocusNode 的列表和全局焦点状态
+// 用于管理所有 FocusNode的列表和全局焦点状态
 List<FocusNode> _focusNodes = [];
 Map<int, bool> _focusStates = {};
 
 // 添加全局变量 _lastFocusedIndex
 int _lastFocusedIndex = -1; // 记录上一个焦点索引，初始值为 -1 表示未设置焦点
 
-// 添加全局变量用于跟踪每个焦点的 groupIndex
+// 添加全局变量用于跟踪每个焦点的groupIndex
 Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 
 // 添加全局变量用于动态获取列表项高度
@@ -185,7 +184,7 @@ void _getItemHeight(BuildContext context) {
   });
 }
 
-// 修改部分：addFocusListeners阻止 category滚动并增强日志
+// 修改部分：addFocusListeners 改进下移滚动逻辑，增强对部分可见项的处理
 void addFocusListeners(
   int startIndex,
   int length,
@@ -250,15 +249,20 @@ void addFocusListeners(
           } else if (itemIndex == length - 1) {
             alignment = 1.0; // 最后一个项目，底部对齐
           } 
-          // 修改部分：下移且项目底部超出视窗或项目部分在视窗内且部分超出，都触发滚动
-          else if (isMovingDown && (itemBottom > currentOffset + viewportHeight || (itemTop > currentOffset && itemBottom > currentOffset + viewportHeight))) {
-            alignment = 2.0;
-            channelDrawerState.scrollTo(
-              targetList: _getTargetList(currentGroup),
-              index: itemIndex, //滚动到当前目标项
-              alignment: alignment,
-            );
-            return;
+          // 修改部分：改进下移滚动逻辑，处理项目部分可见的情况
+          else if (isMovingDown) {
+            // 检查项目是否部分可见 - 项目在视窗内但底部超出或接近底部
+            final isPartiallyVisible = itemTop < currentOffset + viewportHeight &&itemBottom > currentOffset + viewportHeight * 0.8;
+            LogUtil.i('滚动检查: isMovingDown=$isMovingDown, itemTop=$itemTop, '
+                'itemBottom=$itemBottom, currentOffset=$currentOffset, '
+                'viewportHeight=$viewportHeight, isPartiallyVisible=$isPartiallyVisible');
+            if (isPartiallyVisible || itemBottom > currentOffset + viewportHeight) {
+              // 如果项目部分可见且底部超出或接近视窗底部，或完全超出视窗，触发滚动
+              alignment = 2.0;channelDrawerState.scrollTo(
+                targetList: _getTargetList(currentGroup),
+                index: itemIndex, //滚动到当前目标项alignment: alignment,);
+              return;
+            }
           } else if (!isMovingDown && itemTop < currentOffset) {
             // 上移且超出视窗顶部，目标项顶部对齐
             alignment = 0.0;
@@ -301,7 +305,7 @@ String _getTargetList(int groupIndex) {
 // 修改部分：移除焦点监听逻辑的通用函数，添加边界检查
 void removeFocusListeners(int startIndex, int length) {
   if (startIndex < 0 || startIndex >= _focusNodes.length) {
-    LogUtil.e('removeFocusListeners: startIndex 超出范围: $startIndex, _focusNodes.length=${_focusNodes.length}');
+    LogUtil.e('removeFocusListeners: startIndex超出范围: $startIndex, _focusNodes.length=${_focusNodes.length}');
     return;
   }
   int safeLength = (startIndex + length > _focusNodes.length) ? (_focusNodes.length - startIndex) : length;
@@ -343,14 +347,14 @@ Widget buildListItem({
   Key? key, // 新增 key 参数
 }) {
   FocusNode? focusNode = (index != null && index >= 0 && index < _focusNodes.length)
-  ?  _focusNodes[index]
+      ? _focusNodes[index]
       : null;
 
   final hasFocus = focusNode?.hasFocus ?? false;
 
   final textStyle = (isTV || enableFocusInNonTVMode)
       ? (hasFocus
-          ? defaultTextStyle.merge(selectedTextStyle)
+      ? defaultTextStyle.merge(selectedTextStyle)
           : (isSelected && !isSystemAutoSelected
               ? defaultTextStyle.merge(selectedTextStyle)
               : defaultTextStyle))
@@ -363,12 +367,12 @@ Widget buildListItem({
     mainAxisSize: MainAxisSize.min,
     children: [
       MouseRegion(
-        onEnter: !isTV ? (_) => (context as Element).markNeedsBuild() : null,
-        onExit: !isTV ? (_) => (context as Element).markNeedsBuild() : null,
+        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null, // 添加 PointerEnterEvent参数
+        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null, // 添加 PointerExitEvent 参数
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: defaultMinHeight, // 修改：固定高度为 42.0，替换 constraints
+            height: defaultMinHeight, // 修改：固定高度为42.0，替换 constraints
             padding: padding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
@@ -383,7 +387,7 @@ Widget buildListItem({
               softWrap: false, // 修改：禁用换行
               maxLines: 1, // 修改：限制为单行
               overflow: TextOverflow.ellipsis, // 修改：超出宽度显示省略号
-            ),
+              ),
           ),
         ),
       ),
@@ -396,7 +400,7 @@ Widget buildListItem({
       : listItemContent;
 }
 
-// 修改部分：CategoryList 使用 ListView加载全部项，从顶部排列，绑定 GlobalKey
+// 修改部分：CategoryList 使用 ListView 加载全部项，从顶部排列，绑定 GlobalKey
 class CategoryList extends StatefulWidget {
   final List<String> categories;
   final int selectedCategoryIndex;
@@ -556,7 +560,7 @@ class _GroupListState extends State<GroupList> {
                       index: widget.startIndex + index,
                       isLastItem: index == widget.keys.length - 1,
                       isSystemAutoSelected: widget.isSystemAutoSelected,
-                    );
+                      );
                   }),
                 ),
               ],
@@ -721,7 +725,7 @@ class EPGListState extends State<EPGList> {
                   Colors.black.withOpacity(0.8),
                   Colors.black.withOpacity(0.6),
                 ],
-              ),
+                ),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -729,7 +733,7 @@ class EPGListState extends State<EPGList> {
               style: defaultTextStyle.merge(
                 const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
+              ),
           ),
           verticalDivider,
           Flexible(
@@ -768,7 +772,6 @@ class ChannelDrawerPage extends StatefulWidget {
   final ValueKey<int>? refreshKey;
 
   static final GlobalKey<_ChannelDrawerPageState> _stateKey = GlobalKey<_ChannelDrawerPageState>();
-
   ChannelDrawerPage({
     Key? key,
     this.videoMap,
@@ -871,12 +874,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _channelListLastIndex = -1;
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+  
+  // 添加一个getter方法获取当前屏幕方向
+  bool get isLandscapeOrientation => MediaQuery.of(context).orientation == Orientation.landscape;
 
   // 计算抽屉高度的方法
   void _calculateDrawerHeight() {
     double screenHeight = MediaQuery.of(context).size.height;
     double appBarHeight = 48.0 + 1 + MediaQuery.of(context).padding.top;
-    double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+    double playerHeight = MediaQuery.of(context).size.width / (16/ 9);
     double bottomPadding = MediaQuery.of(context).padding.bottom;
 
     if (MediaQuery.of(context).orientation == Orientation.landscape) {
@@ -888,7 +894,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移，添加额外偏移确保完全可见
+  // 修改scrollTo方法，增加底部对齐时的额外偏移以确保完全可见
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -900,7 +906,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 43.0
     final double lastItemHeight = defaultMinHeight; // 42.0
 
-    // 根据 targetList 设置 scrollController和 itemCount
+    // 根据 targetList 设置 scrollController 和 itemCount
     switch (targetList) {
       case 'category':
         scrollController = _categoryScrollController;
@@ -944,7 +950,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       // 列表底部对齐
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      // 修改部分：特定项底部对齐，并添加额外偏移确保完全可见
+      // 特定项底部对齐，添加额外偏移确保完全可见
       double itemBottomPosition;
       if (index == itemCount - 1) {
         // 最后一项，使用实际总高度
@@ -953,12 +959,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         // 非最后一项
         itemBottomPosition = (index + 1) * itemHeight;
       }
-      targetOffset = itemBottomPosition - _drawerHeight +5; // 添加5像素额外偏移确保完全可见
-      if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始
-    } else {
+      // 增加15像素的额外偏移，确保项目完全可见
+      targetOffset = itemBottomPosition - _drawerHeight + 15;// 添加调试日志
+      LogUtil.i('底部对齐滚动计算: itemBottomPosition=$itemBottomPosition, ' +
+               '_drawerHeight=$_drawerHeight, targetOffset=$targetOffset');
+               if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始} else {
       // 默认偏移 (alignment = null)
-      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') 
-          ? _categoryIndex.clamp(0,6) 
+      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0,6) 
           : 3;
       targetOffset = (index - offsetAdjustment) * itemHeight;
       if (targetOffset < 0) targetOffset = 0;
@@ -969,8 +976,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
     // 日志记录，便于调试
-    LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, '
-        'itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
+    LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, ''itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
         'itemCount=$itemCount, _drawerHeight=$_drawerHeight, '
         'targetOffset=$targetOffset, '
         'minScrollExtent=${scrollController.position.minScrollExtent}, '
@@ -1004,7 +1010,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.videoMap != oldWidget.videoMap || widget.playModel != oldWidget.playModel) {
-      LogUtil.i('ChannelDrawerPage: videoMap 或 playModel变化，重新初始化');
+      LogUtil.i('ChannelDrawerPage: videoMap 或 playModel 变化，重新初始化');
       initializeData();
       updateFocusLogic(false);
       setState(() {});
@@ -1035,7 +1041,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   bool _shouldLoadEpg() {
     return _keys.isNotEmpty &&
-        _values.isNotEmpty &&
+    _values.isNotEmpty &&
         _values[_groupIndex].isNotEmpty;
   }
 
@@ -1052,22 +1058,39 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.dispose();
   }
 
+  // 增强didChangeMetrics方法，确保在屏幕旋转后能够强制重新计算布局
   @override
   void didChangeMetrics() {
     final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
-    if (newOrientation != isPortrait) {
+    bool orientationChanged = newOrientation != isPortrait;
+    if (orientationChanged) {
       setState(() {
         isPortrait = newOrientation;
+        });
+      
+      // 确保在布局计算后再进行视图操作
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // 强制重新计算尺寸
+        _calculateDrawerHeight();
+        _getItemHeight(context);
+        // 添加延迟确保布局已经更新后再调整滚动
+        Future.delayed(Duration(milliseconds: 100), () {
+          if (mounted) {
+            setState(() {}); // 再次触发重建_adjustScrollPositions();
+          }
+        });
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _calculateDrawerHeight();
+          _getItemHeight(context); // 横竖屏切换时重新获取高度
+          _adjustScrollPositions();
+        });
       });
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _calculateDrawerHeight();
-        _getItemHeight(context); // 横竖屏切换时重新获取高度
-        _adjustScrollPositions();
-      });
-    });
   }
 
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
@@ -1166,7 +1189,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _values[_groupIndex].length,
           this,
           scrollController: _scrollChannelController,
-        );
+          );
       }
     }
   }
@@ -1232,7 +1255,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
-          key,
+    key,
           '{first: ${_focusNodes.indexOf(value['firstFocusNode']!)}, last: ${_focusNodes.indexOf(value['lastFocusNode']!)}}',
         ));
     LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
@@ -1254,7 +1277,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 修改部分：_onCategoryTap 在 await updateFocusLogic 前暂停监听，完成后恢复
+  // 修改部分：_onCategoryTap在await updateFocusLogic 前暂停监听，完成后恢复
   void _onCategoryTap(int index) async {
     if (_categoryIndex == index) return;
 
@@ -1288,13 +1311,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     //暂停 TvKeyNavigation 的监听
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.deactivateFocusManagement();
-      LogUtil.i('暂停 TvKeyNavigation 监听以更新焦点逻辑');
+      LogUtil.i('暂停 TvKeyNavigation监听以更新焦点逻辑');
     }
 
     // 等待焦点更新完成
     await updateFocusLogic(false, initialIndexOverride: index);
 
-    // 恢复 TvKeyNavigation 的监听
+    // 恢复TvKeyNavigation 的监听
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.activateFocusManagement();
       LogUtil.i('恢复 TvKeyNavigation 监听');
@@ -1302,7 +1325,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     // 更新 UI并执行后续操作
     setState(() {});
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_keys.isNotEmpty) {
         final currentPlayModel = widget.playModel;
@@ -1311,10 +1333,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
         //滚动分组
         scrollTo(
-          targetList: 'group',
+        targetList: 'group',
           index: isChannelInCategory ? _groupIndex : 0,
           alignment: isChannelInCategory ? null : 0.0, // null 表示 (index - offsetAdjustment) * itemHeight
-        );
+          );
 
         // 滚动频道（如果有数据）
         if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
@@ -1327,7 +1349,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     });
   }
-  
   // 修改部分：_onGroupTap 在 await updateFocusLogic 前暂停监听，完成后恢复
   void _onGroupTap(int index) async {
     // 先更新状态，但不触发 build
@@ -1435,7 +1456,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         epgCache[channelKey] = {
           'data': res.epgData!,
           'timestamp': currentTime,
-        };
+          };
       }
       if (_epgData!.isNotEmpty) {
         scrollTo(targetList: 'epg', index: _selEPGIndex, alignment: 0.23);
@@ -1498,7 +1519,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           selectedChannelName: selectedChannelName,
           onChannelTap: _onChannelTap,
           isTV: useFocusNavigation,
-          scrollController: _scrollChannelController,startIndex: _categories.length + _keys.length,
+          scrollController: _scrollChannelController,
+          startIndex: _categories.length + _keys.length,
           isSystemAutoSelected: _isChannelAutoSelected,
         );
 
@@ -1507,7 +1529,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           selectedIndex: _selEPGIndex,
           isTV: useFocusNavigation,
           epgScrollController: _epgItemScrollController,
-          onCloseDrawer: widget.onCloseDrawer,);
+          onCloseDrawer: widget.onCloseDrawer,
+          );
       }
     }
 
@@ -1522,7 +1545,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
-  // 修改部分：_buildOpenDrawer 使用MediaQuery获取当前方向而不是依赖widget.isLandscape
+  // 修改_buildOpenDrawer方法，使用当前屏幕方向而非外部传入参数
   Widget _buildOpenDrawer(
     bool isTV,
     Widget categoryListWidget,
@@ -1530,8 +1553,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget? channelListWidget,
     Widget? epgListWidget,
   ) {
-    // 修改部分：使用 MediaQuery 判断当前屏幕方向而不是依赖 widget.isLandscape
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    // 使用getter获取当前屏幕方向
+    bool currentIsLandscape = isLandscapeOrientation;
     double categoryWidth = isPortrait ? 110 : 120;
     double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;
     double channelListWidth = (groupListWidget != null && channelListWidget != null)
@@ -1542,10 +1565,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         : 0;
 
     return Container(
-      key: _viewPortKey,
+      // 添加ValueKey确保在屏幕方向变化时强制重建
+      key: ValueKey("drawer_container_${MediaQuery.of(context).orientation}"),
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
-      // 修改部分：使用isLandscape变量而不是widget.isLandscape
-      width: isLandscape
+      // 使用当前屏幕方向而非widget.isLandscape
+      width: currentIsLandscape
           ? categoryWidth + groupWidth + channelListWidth + epgListWidth
           : MediaQuery.of(context).size.width,
       decoration: BoxDecoration(
@@ -1565,6 +1589,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // 添加日志记录布局大小变化
+          LogUtil.i('列表容器宽度: ${constraints.maxWidth}, 当前方向: ${currentIsLandscape ? "横屏" : "竖屏"}');
           return Row(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.stretch,
