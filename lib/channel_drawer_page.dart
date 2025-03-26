@@ -643,7 +643,7 @@ class _ChannelListState extends State<ChannelList> {
               final isSelect = isCurrentPlayingGroup && widget.selectedChannelName == channelName;
               return buildListItem(
                 title: channelName,
-                isSelected: !widget.isSystemAutoAutoSelected && isSelect,
+                isSelected: !widget.isSystemAutoSelected && isSelect,
                 onTap: () => widget.onChannelTap(widget.channels[channelName]),
                 isCentered: false,
                 minHeight: defaultMinHeight,
