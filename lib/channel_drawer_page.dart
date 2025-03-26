@@ -643,7 +643,7 @@ class _ChannelListState extends State<ChannelList> {
               final isSelect = isCurrentPlayingGroup && widget.selectedChannelName == channelName;
               return buildListItem(
                 title: channelName,
-                isSelected: !widget.isSystemAutoSelected && isSelect,
+                isSelected: !widget.isSystemAutoAutoSelected && isSelect,
                 onTap: () => widget.onChannelTap(widget.channels[channelName]),
                 isCentered: false,
                 minHeight: defaultMinHeight,
@@ -897,19 +897,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
-  // 修改scrollTo方法，增加底部对齐时的额外偏移以确保完全可见
+  // 修改后的 scrollTo 方法，解决空安全问题并优化逻辑
   Future<void> scrollTo({
     required String targetList,
     required int index,
     double? alignment,
     Duration duration = const Duration(milliseconds: 200),
   }) async {
+    // 初始化滚动控制器和项计数
     ScrollController? scrollController;
     int itemCount = 0;
     final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 43.0
     final double lastItemHeight = defaultMinHeight; // 42.0
 
-    // 根据 targetList 设置 scrollController 和 itemCount
+    // 根据 targetList 配置滚动控制器和项数
     switch (targetList) {
       case 'category':
         scrollController = _categoryScrollController;
@@ -934,57 +935,57 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         return;
     }
 
+    // 边界检查
     if (index < 0 || index >= itemCount || !scrollController.hasClients) {
       LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
       return;
     }
 
-    double targetOffset;
+    // 初始化目标偏移，默认值为 0.0（顶部）
+    double targetOffset = 0.0;
+    final double maxScrollExtent = scrollController.position.maxScrollExtent;
 
-    if (alignment ==0.0) {
-      if (index == 0) {
-        // 列表顶部对齐
-        targetOffset = scrollController.position.minScrollExtent; // 通常为 0.0
-      } else {
-        // 特定项顶部对齐
-        targetOffset = index * itemHeight;
-      }
-    } else if (alignment == 1.0) {
-      // 列表底部对齐
-      targetOffset = scrollController.position.maxScrollExtent;
-    } else if (alignment == 2.0) {
-      // 特定项底部对齐，添加额外偏移确保完全可见
-      double itemBottomPosition;
-      if (index == itemCount - 1) {
-        // 最后一项，使用实际总高度
-        itemBottomPosition = (itemCount - 1) * itemHeight + lastItemHeight;
-      } else {
-        // 非最后一项
-        itemBottomPosition = (index + 1) * itemHeight;
-      }
-      // 增加15像素的额外偏移，确保项目完全可见
-      targetOffset = itemBottomPosition - _drawerHeight + 15;// 添加调试日志
-      LogUtil.i('底部对齐滚动计算: itemBottomPosition=$itemBottomPosition, ' +
-               '_drawerHeight=$_drawerHeight, targetOffset=$targetOffset');
-               if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始} else {
-      // 默认偏移 (alignment = null)
-      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0,6) 
-          : 3;
-      targetOffset = (index - offsetAdjustment) * itemHeight;
-      if (targetOffset < 0) targetOffset = 0;
+    // 根据对齐方式计算目标偏移
+    switch (alignment) {
+      case 0.0: // 顶部对齐
+        targetOffset = index == 0
+            ? scrollController.position.minScrollExtent
+            : index * itemHeight;
+        break;
+      case 1.0: // 底部对齐
+        targetOffset = maxScrollExtent;
+        break;
+      case 2.0: // 特定项底部对齐
+        final double itemBottomPosition = index == itemCount - 1
+            ? (itemCount - 1) * itemHeight + lastItemHeight
+            : (index + 1) * itemHeight;
+        targetOffset = itemBottomPosition - _drawerHeight + 15; // 额外偏移确保可见
+        break;
+      default: // 默认偏移（居中调整）
+        final int offsetAdjustment = (targetList == 'group' || targetList == 'channel')
+            ? _categoryIndex.clamp(0, 6)
+            : 3;
+        targetOffset = (index - offsetAdjustment) * itemHeight;
+        break;
     }
 
-    // 限制在滚动范围内
-  final double maxScrollExtent = scrollController.position.maxScrollExtent;
-  targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+    // 确保偏移在有效范围内
+    targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
-    // 日志记录，便于调试
-    LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, ''itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
-        'itemCount=$itemCount, _drawerHeight=$_drawerHeight, '
+    // 记录滚动信息，便于调试
+    LogUtil.i('滚动计算: '
+        'targetList=$targetList, '
+        'index=$index, '
+        'alignment=$alignment, '
+        'itemHeight=$itemHeight, '
+        'lastItemHeight=$lastItemHeight, '
+        'itemCount=$itemCount, '
+        'drawerHeight=$_drawerHeight, '
         'targetOffset=$targetOffset, '
         'minScrollExtent=${scrollController.position.minScrollExtent}, '
         'maxScrollExtent=$maxScrollExtent');
 
+    // 执行滚动动画
     await scrollController.animateTo(
       targetOffset,
       duration: duration,
