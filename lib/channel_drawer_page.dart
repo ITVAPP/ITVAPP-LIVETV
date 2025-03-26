@@ -174,21 +174,6 @@ Map<int, int> _focusGroupIndices = {}; // 记录每个焦点的 groupIndex
 final GlobalKey _itemKey = GlobalKey(); // 用于获取分类列表项高度
 double? _dynamicItemHeight; // 存储动态获取的列表项高度
 
-// 修改部分 1：_getItemHeight，确保更新后触发 UI 刷新
-void _getItemHeight(BuildContext context) {
-  final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
-  if (renderBox != null) {
-    final newHeight = renderBox.size.height;
-    if (newHeight != _dynamicItemHeight) {
-      setState(() {
-        _dynamicItemHeight = newHeight;
-      });
-      LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight, 方向=${isPortrait ? "竖屏" : "横屏"}');
-    }
-  }
-}
-
-// 修改部分 2：addFocusListeners，确保目标项完全可见
 void addFocusListeners(
   int startIndex,
   int length,
@@ -330,7 +315,6 @@ void _initializeFocusNodes(int totalCount) {
   }
 }
 
-// 修改部分 3：buildListItem，使用动态高度
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -892,100 +876,113 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     LogUtil.i('抽屉高度计算: _drawerHeight=$_drawerHeight');
   }
 
-  // 修改部分：scrollTo 根据分组或频道对应的分类位置动态调整默认偏移
-Future<void> scrollTo({
-  required String targetList,
-  required int index,
-  double? alignment,
-  Duration duration = const Duration(milliseconds: 200),
-}) async {
-  ScrollController? scrollController;
-  int itemCount = 0;
-  final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 43.0
-  final double lastItemHeight = defaultMinHeight; // 42.0
+  // 修改部分 1：将 _getItemHeight 移到类中
+  void _getItemHeight() {
+    final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final newHeight = renderBox.size.height;
+      if (newHeight != _dynamicItemHeight) {
+        setState(() {
+          _dynamicItemHeight = newHeight;
+        });
+        LogUtil.i('动态获取的分类列表项高度: $_dynamicItemHeight, 方向=${isPortrait ? "竖屏" : "横屏"}');
+      }
+    }
+  }
 
-  // 根据 targetList 设置 scrollController 和 itemCount
-  switch (targetList) {
-    case 'category':
-      scrollController = _categoryScrollController;
-      itemCount = _categories.length;
-      break;
-    case 'group':
-      scrollController = _scrollController;
-      itemCount = _keys.length;
-      break;
-    case 'channel':
-      scrollController = _scrollChannelController;
-      itemCount = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
-          ? _values[_groupIndex].length
-          : 0;
-      break;
-    case 'epg':
-      scrollController = _epgItemScrollController;
-      itemCount = _epgData?.length ?? 0;
-      break;
-    default:
-      LogUtil.e('无效的滚动目标: $targetList');
+  Future<void> scrollTo({
+    required String targetList,
+    required int index,
+    double? alignment,
+    Duration duration = const Duration(milliseconds: 200),
+  }) async {
+    ScrollController? scrollController;
+    int itemCount = 0;
+    final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER; // 43.0
+    final double lastItemHeight = defaultMinHeight; // 42.0
+
+    // 根据 targetList 设置 scrollController 和 itemCount
+    switch (targetList) {
+      case 'category':
+        scrollController = _categoryScrollController;
+        itemCount = _categories.length;
+        break;
+      case 'group':
+        scrollController = _scrollController;
+        itemCount = _keys.length;
+        break;
+      case 'channel':
+        scrollController = _scrollChannelController;
+        itemCount = _values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length
+            ? _values[_groupIndex].length
+            : 0;
+        break;
+      case 'epg':
+        scrollController = _epgItemScrollController;
+        itemCount = _epgData?.length ?? 0;
+        break;
+      default:
+        LogUtil.e('无效的滚动目标: $targetList');
+        return;
+    }
+
+    if (index < 0 || index >= itemCount || !scrollController.hasClients) {
+      LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
       return;
-  }
-
-  if (index < 0 || index >= itemCount || !scrollController.hasClients) {
-    LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
-    return;
-  }
-
-  double targetOffset;
-
-  if (alignment == 0.0) {
-    if (index == 0) {
-      // 列表顶部对齐
-      targetOffset = scrollController.position.minScrollExtent; // 通常为 0.0
-    } else {
-      // 特定项顶部对齐
-      targetOffset = index * itemHeight;
     }
-  } else if (alignment == 1.0) {
-    // 列表底部对齐
-    targetOffset = scrollController.position.maxScrollExtent;
-  } else if (alignment == 2.0) {
-    // 特定项底部对齐
-    double itemBottomPosition;
-    if (index == itemCount - 1) {
-      // 最后一项，使用实际总高度
-      itemBottomPosition = (itemCount - 1) * itemHeight + lastItemHeight;
+
+    double targetOffset;
+
+    if (alignment == 0.0) {
+      if (index == 0) {
+        // 列表顶部对齐
+        targetOffset = scrollController.position.minScrollExtent; // 通常为 0.0
+      } else {
+        // 特定项顶部对齐
+        targetOffset = index * itemHeight;
+      }
+    } else if (alignment == 1.0) {
+      // 列表底部对齐
+      targetOffset = scrollController.position.maxScrollExtent;
+    } else if (alignment == 2.0) {
+      // 特定项底部对齐
+      double itemBottomPosition;
+      if (index == itemCount - 1) {
+        // 最后一项，使用实际总高度
+        itemBottomPosition = (itemCount - 1) * itemHeight + lastItemHeight;
+      } else {
+        // 非最后一项
+        itemBottomPosition = (index + 1) * itemHeight;
+      }
+      targetOffset = itemBottomPosition - _drawerHeight;
+      if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始
     } else {
-      // 非最后一项
-      itemBottomPosition = (index + 1) * itemHeight;
+      // 默认偏移 (alignment = null)
+      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') 
+          ? _categoryIndex.clamp(0, 6) 
+          : 3;
+      targetOffset = (index - offsetAdjustment) * itemHeight;
+      if (targetOffset < 0) targetOffset = 0;
     }
-    targetOffset = itemBottomPosition - _drawerHeight;
-    if (targetOffset < 0) targetOffset = 0; // 如果内容不足以填满视窗，从顶部开始
-  } else {
-    // 默认偏移 (alignment = null)
-    int offsetAdjustment = (targetList == 'group' || targetList == 'channel') 
-        ? _categoryIndex.clamp(0, 6) 
-        : 3;
-    targetOffset = (index - offsetAdjustment) * itemHeight;
-    if (targetOffset < 0) targetOffset = 0;
+
+    // 限制在滚动范围内
+    final double maxScrollExtent = scrollController.position.maxScrollExtent;
+    targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+
+    // 日志记录，便于调试
+    LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, '
+        'itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
+        'itemCount=$itemCount, _drawerHeight=$_drawerHeight, '
+        'targetOffset=$targetOffset, '
+        'minScrollExtent=${scrollController.position.minScrollExtent}, '
+        'maxScrollExtent=$maxScrollExtent');
+
+    await scrollController.animateTo(
+      targetOffset,
+      duration: duration,
+      curve: Curves.easeInOut,
+    );
   }
-
-  // 限制在滚动范围内
-  final double maxScrollExtent = scrollController.position.maxScrollExtent;
-  targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
-
-  // 日志记录，便于调试
-  LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, '
-      'itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
-      'itemCount=$itemCount, _drawerHeight=$_drawerHeight, '
-      'targetOffset=$targetOffset, '
-      'minScrollExtent=${scrollController.position.minScrollExtent}, '
-      'maxScrollExtent=$maxScrollExtent');
-
-  await scrollController.animateTo(
-    targetOffset,
-    duration: duration,
-    curve: Curves.easeInOut,
-  );
-}
 
   @override
   void initState() {
@@ -1000,7 +997,7 @@ Future<void> scrollTo({
       if (_shouldLoadEpg()) {
         _loadEPGMsg(widget.playModel);
       }
-      _getItemHeight(context); // 初始化时获取高度
+      _getItemHeight(); // 修改部分 2：初始化时获取高度
       setState(() {});
     });
   }
@@ -1057,18 +1054,17 @@ Future<void> scrollTo({
     super.dispose();
   }
 
-  // 修改部分 4：didChangeMetrics，强制每次旋转都更新布局
   @override
   void didChangeMetrics() {
     final newOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
-    setState(() { // 修改：移除 if 条件，强制每次更新
+    setState(() { // 修改部分 3：强制每次旋转都更新布局
       isPortrait = newOrientation;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
         _calculateDrawerHeight();
-        _getItemHeight(context); // 确保在布局刷新后测量
+        _getItemHeight(); // 修改部分 4：横竖屏切换时重新获取高度
         _adjustScrollPositions();
       });
     });
@@ -1258,7 +1254,6 @@ Future<void> scrollTo({
     }
   }
 
-  // 修改部分：_onCategoryTap 在 await updateFocusLogic 前暂停监听，完成后恢复
   void _onCategoryTap(int index) async {
     if (_categoryIndex == index) return;
 
@@ -1332,7 +1327,6 @@ Future<void> scrollTo({
     });
   }
   
-  // 修改部分：_onGroupTap 在 await updateFocusLogic 前暂停监听，完成后恢复
   void _onGroupTap(int index) async {
     // 先更新状态，但不触发 build
     _groupIndex = index;
@@ -1528,7 +1522,6 @@ Future<void> scrollTo({
     );
   }
 
-  // 修改部分 5：_buildOpenDrawer，添加日志验证宽度更新
   Widget _buildOpenDrawer(
     bool isTV,
     Widget categoryListWidget,
