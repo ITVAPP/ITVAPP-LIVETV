@@ -258,9 +258,12 @@ void addFocusListeners(
                 'viewportHeight=$viewportHeight, isPartiallyVisible=$isPartiallyVisible');
             if (isPartiallyVisible || itemBottom > currentOffset + viewportHeight) {
               // 如果项目部分可见且底部超出或接近视窗底部，或完全超出视窗，触发滚动
-              alignment = 2.0;channelDrawerState.scrollTo(
+              alignment = 2.0;
+              channelDrawerState.scrollTo(
                 targetList: _getTargetList(currentGroup),
-                index: itemIndex, //滚动到当前目标项alignment: alignment,);
+                index: itemIndex, //滚动到当前目标项
+                alignment: alignment,
+                );
               return;
             }
           } else if (!isMovingDown && itemTop < currentOffset) {
@@ -972,8 +975,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     // 限制在滚动范围内
-    final double maxScrollExtent = scrollController.position.maxScrollExtent;
-    targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
+  final double maxScrollExtent = scrollController.position.maxScrollExtent;
+  targetOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
     // 日志记录，便于调试
     LogUtil.i('滚动计算: targetList=$targetList, index=$index, alignment=$alignment, ''itemHeight=$itemHeight, lastItemHeight=$lastItemHeight, '
