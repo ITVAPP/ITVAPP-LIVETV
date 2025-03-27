@@ -1168,7 +1168,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新焦点逻辑，初始化或动态调整焦点节点
+  // 更新焦点逻辑
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
       focusManager.lastFocusedIndex = -1; // 仅在首次初始化时重置
@@ -1221,19 +1221,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
       if (!isInitial) {
         _tvKeyNavigationState!.releaseResources();
-        // 仅当 initialIndexOverride 未传入时，默认到 0
         int safeIndex = initialIndexOverride ?? 0;
-        // 确保 safeIndex 在有效范围内
         if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
           safeIndex = 0;
         }
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
         _reInitializeFocusListeners();
-        // 立即同步焦点
-        if (safeIndex < focusManager.focusNodes.length) {
-          focusManager.focusNodes[safeIndex].requestFocus();
-          focusManager.focusStates[safeIndex] = true;
-        }
       }
     }
   }
@@ -1275,9 +1268,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.activateFocusManagement();
-      if (index < focusManager.focusNodes.length) {
-        focusManager.focusNodes[index].requestFocus();
-      }
     }
 
     setState(() {});
@@ -1327,9 +1317,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.activateFocusManagement();
-      if (_groupStartIndex + index < focusManager.focusNodes.length) {
-        focusManager.focusNodes[_groupStartIndex + index].requestFocus();
-      }
     }
 
     setState(() {});
