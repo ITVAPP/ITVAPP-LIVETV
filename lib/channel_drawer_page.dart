@@ -161,6 +161,7 @@ class FocusStateManager {
   Map<int, int> focusGroupIndices = {}; // 焦点组索引映射
   List<FocusNode> categoryFocusNodes = []; // 分类焦点节点
   bool _isUpdating = false; // 更新状态锁
+  bool _isUpFocusing = false;
 
   // 初始化焦点管理器，创建分类焦点节点
   void initialize(int categoryCount) {
@@ -182,22 +183,27 @@ class FocusStateManager {
 
   // 更新动态焦点节点，适应分组和频道数量
   void updateDynamicNodes(int groupCount, int channelCount) {
-    // 修改：移除内部 _isUpdating 控制，由外部 updateFocusLogic 管理
-    focusNodes.clear();
-    focusNodes.addAll(categoryFocusNodes);
-    final totalDynamicNodes = groupCount + channelCount;
-    final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
-    focusNodes.addAll(dynamicNodes);
+    if (_isUpdating) return;
+    _isUpdating = true;
+    try {
+      focusNodes.clear();
+      focusNodes.addAll(categoryFocusNodes);
+      final totalDynamicNodes = groupCount + channelCount;
+      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+      focusNodes.addAll(dynamicNodes);
 
-    focusGroupIndices.clear();
-    for (int i = 0; i < categoryFocusNodes.length; i++) {
-      focusGroupIndices[i] = 0; // 分类组
-    }
-    for (int i = 0; i < groupCount; i++) {
-      focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
-    }
-    for (int i = 0; i < channelCount; i++) {
-      focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
+      focusGroupIndices.clear();
+      for (int i = 0; i < categoryFocusNodes.length; i++) {
+        focusGroupIndices[i] = 0; // 分类组
+      }
+      for (int i = 0; i < groupCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
+      }
+      for (int i = 0; i < channelCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
+      }
+    } finally {
+      _isUpdating = false;
     }
   }
 
@@ -214,17 +220,17 @@ class FocusStateManager {
     focusNodes.clear();
     categoryFocusNodes.clear();
     focusStates.clear();
-    // 修改：显式重置 _isUpdating
-    _isUpdating = false;
+    _isUpFocusing = false;
   }
 }
 
 final focusManager = FocusStateManager(); // 全局焦点管理器实例
 
-// 获取列表项动态高度，失败时使用默认值
+// 定义全局键和变量，用于动态获取列表项高度
 final GlobalKey _itemKey = GlobalKey();
 double? _dynamicItemHeight;
 
+// 获取列表项动态高度，失败时使用默认值
 void getItemHeight(BuildContext context) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
@@ -244,9 +250,6 @@ void addFocusListeners(
   State state, {
   ScrollController? scrollController,
 }) {
-  // 修改：检查 _isUpdating，若为 true 则跳过绑定
-  if (focusManager.isUpdating) return;
-
   if (focusManager.focusNodes.isEmpty) {
     LogUtil.e('焦点节点未初始化，无法添加监听器');
     return;
@@ -267,7 +270,9 @@ void addFocusListeners(
       final currentFocus = focusManager.focusNodes[index].hasFocus;
       if (focusManager.focusStates[index] != currentFocus) {
         focusManager.focusStates[index] = currentFocus;
-        state.setState(() {});
+        if (!focusManager.isUpFocusing) {
+          state.setState(() {});
+        }
         if (scrollController != null && currentFocus && scrollController.hasClients) {
           _handleScroll(index, startIndex, state, scrollController, length);
         }
@@ -1169,8 +1174,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 更新焦点逻辑，初始化或动态调整焦点节点
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
-    // 修改：添加 _isUpdating 控制
-    focusManager._isUpdating = true;
+    focusManager._isUpFocusing = true;	
     focusManager.lastFocusedIndex = -1;
 
     if (isInitial) {
@@ -1216,8 +1220,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       };
     }
 
-    LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-        'channelStart=$_channelStartIndex');
+   focusManager._isUpFocusing = false;
 
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
@@ -1225,13 +1228,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.releaseResources();
         int safeIndex = initialIndexOverride != null && initialIndexOverride < focusManager.focusNodes.length ? initialIndexOverride : 0;
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-        _reInitializeFocusListeners(); // 第一次调用，因 _isUpdating == true 跳过
+        _reInitializeFocusListeners();
       }
     }
-
-    // 修改：在更新完成时重置 _isUpdating 并第二次调用 _reInitializeFocusListeners
-    focusManager._isUpdating = false;
-    _reInitializeFocusListeners(); // 第二次调用，绑定监听器
   }
 
   // 处理分类点击事件
