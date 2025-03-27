@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package: homicapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
@@ -182,27 +182,22 @@ class FocusStateManager {
 
   // 更新动态焦点节点，适应分组和频道数量
   void updateDynamicNodes(int groupCount, int channelCount) {
-    if (_isUpdating) return;
-    _isUpdating = true;
-    try {
-      focusNodes.clear();
-      focusNodes.addAll(categoryFocusNodes);
-      final totalDynamicNodes = groupCount + channelCount;
-      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
-      focusNodes.addAll(dynamicNodes);
+    // 修改：移除内部 _isUpdating 控制，由外部 updateFocusLogic 管理
+    focusNodes.clear();
+    focusNodes.addAll(categoryFocusNodes);
+    final totalDynamicNodes = groupCount + channelCount;
+    final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+    focusNodes.addAll(dynamicNodes);
 
-      focusGroupIndices.clear();
-      for (int i = 0; i < categoryFocusNodes.length; i++) {
-        focusGroupIndices[i] = 0; // 分类组
-      }
-      for (int i = 0; i < groupCount; i++) {
-        focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
-      }
-      for (int i = 0; i < channelCount; i++) {
-        focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
-      }
-    } finally {
-      _isUpdating = false;
+    focusGroupIndices.clear();
+    for (int i = 0; i < categoryFocusNodes.length; i++) {
+      focusGroupIndices[i] = 0; // 分类组
+    }
+    for (int i = 0; i < groupCount; i++) {
+      focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
+    }
+    for (int i = 0; i < channelCount; i++) {
+      focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
     }
   }
 
@@ -219,16 +214,17 @@ class FocusStateManager {
     focusNodes.clear();
     categoryFocusNodes.clear();
     focusStates.clear();
+    // 修改：显式重置 _isUpdating
+    _isUpdating = false;
   }
 }
 
 final focusManager = FocusStateManager(); // 全局焦点管理器实例
 
-// 定义全局键和变量，用于动态获取列表项高度
+// 获取列表项动态高度，失败时使用默认值
 final GlobalKey _itemKey = GlobalKey();
 double? _dynamicItemHeight;
 
-// 获取列表项动态高度，失败时使用默认值
 void getItemHeight(BuildContext context) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
@@ -248,6 +244,9 @@ void addFocusListeners(
   State state, {
   ScrollController? scrollController,
 }) {
+  // 修改：检查 _isUpdating，若为 true 则跳过绑定
+  if (focusManager.isUpdating) return;
+
   if (focusManager.focusNodes.isEmpty) {
     LogUtil.e('焦点节点未初始化，无法添加监听器');
     return;
@@ -277,70 +276,65 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑，带防抖机制
-Timer? _scrollDebounceTimer;
-
+// 处理焦点切换时的滚动逻辑，去除防抖机制
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
-  _scrollDebounceTimer?.cancel();
-  _scrollDebounceTimer = Timer(Duration(milliseconds: 500), () {
-    final itemIndex = index - startIndex;
-    final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
-    final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
-    final isInitialFocus = focusManager.lastFocusedIndex == -1;
-    final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
-    focusManager.lastFocusedIndex = index;
+  final itemIndex = index - startIndex;
+  final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
+  final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
+  final isInitialFocus = focusManager.lastFocusedIndex == -1;
+  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
+  focusManager.lastFocusedIndex = index;
 
-    final channelDrawerState = state is _ChannelDrawerPageState
-        ? state
-        : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
-    if (channelDrawerState == null) return;
+  final channelDrawerState = state is _ChannelDrawerPageState
+      ? state
+      : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
+  if (channelDrawerState == null) return;
 
-    if (currentGroup == 0) return;
+  if (currentGroup == 0) return;
 
-    final viewportHeight = channelDrawerState._drawerHeight;
-    final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
-    final fullItemsInViewport = (viewportHeight / itemHeight).floor();
+  final viewportHeight = channelDrawerState._drawerHeight;
+  final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+  final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
-    if (length <= fullItemsInViewport) {
-      channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
-      return;
-    }
+  if (length <= fullItemsInViewport) {
+    channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
+    return;
+  }
 
-    final currentOffset = scrollController.offset;
-    final itemTop = itemIndex * itemHeight;
-    final itemBottom = itemTop + itemHeight;
+  final currentOffset = scrollController.offset;
+  final itemTop = itemIndex * itemHeight;
+  final itemBottom = itemTop + itemHeight;
 
-    double? alignment;
-    if (itemIndex == 0) {
-      alignment = 0.0;
-    } else if (itemIndex == length - 1) {
-      alignment = 1.0;
-    } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-      alignment = 2.0;
-      channelDrawerState.scrollTo(
-        targetList: _getTargetList(currentGroup),
-        index: itemIndex,
-        alignment: alignment,
-      );
-      return;
-    } else if (!isMovingDown && itemTop < currentOffset) {
-      alignment = 0.0;
-      channelDrawerState.scrollTo(
-        targetList: _getTargetList(currentGroup),
-        index: itemIndex,
-        alignment: alignment,
-      );
-      return;
-    } else {
-      return;
-    }
-
+  double? alignment;
+  if (itemIndex == 0) {
+    alignment = 0.0;
+  } else if (itemIndex == length - 1) {
+    alignment = 1.0;
+  } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+    alignment = 2.0;
     channelDrawerState.scrollTo(
       targetList: _getTargetList(currentGroup),
       index: itemIndex,
       alignment: alignment,
     );
-  });
+    return;
+  } else if (!isMovingDown && itemTop < currentOffset) {
+    alignment = 0.0;
+    channelDrawerState.scrollTo(
+      targetList: _getTargetList(currentGroup),
+      index: itemIndex,
+      alignment: alignment,
+    );
+    return;
+  } else {
+    return;
+  }
+
+  channelDrawerState.scrollTo(
+    targetList: _getTargetList(currentGroup),
+    index: itemIndex,
+    alignment: alignment,
+  );
 }
 
 // 根据组索引返回目标列表名称
@@ -880,6 +874,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool isPortrait = true; // 是否竖屏
   bool _isSystemAutoSelected = false; // 系统自动选中标志
   bool _isChannelAutoSelected = false; // 频道自动选中标志
+  Timer? _epgDebounceTimer; // 新增：用于防抖的定时器
 
   final GlobalKey _viewPortKey = GlobalKey(); // 视口全局键
   List<String> _categories = []; // 分类列表
@@ -995,7 +990,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     updateFocusLogic(true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_shouldLoadEpg()) _loadEPGMsg(widget.playModel);
+      if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel); // 修改为防抖版本
       getItemHeight(context);
     });
   }
@@ -1043,6 +1038,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _scrollChannelController.dispose();
     _categoryScrollController.dispose();
     _epgItemScrollController.dispose();
+    _epgDebounceTimer?.cancel(); // 新增：清理防抖定时器
     focusManager.dispose();
     super.dispose();
   }
@@ -1173,6 +1169,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 更新焦点逻辑，初始化或动态调整焦点节点
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
+    // 修改：添加 _isUpdating 控制
+    focusManager._isUpdating = true;
     focusManager.lastFocusedIndex = -1;
 
     if (isInitial) {
@@ -1227,9 +1225,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.releaseResources();
         int safeIndex = initialIndexOverride != null && initialIndexOverride < focusManager.focusNodes.length ? initialIndexOverride : 0;
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-        _reInitializeFocusListeners();
+        _reInitializeFocusListeners(); // 第一次调用，因 _isUpdating == true 跳过
       }
     }
+
+    // 修改：在更新完成时重置 _isUpdating 并第二次调用 _reInitializeFocusListeners
+    focusManager._isUpdating = false;
+    _reInitializeFocusListeners(); // 第二次调用，绑定监听器
   }
 
   // 处理分类点击事件
@@ -1354,7 +1356,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadEPGMsg(newModel, channelKey: newModel?.title ?? '');
+      _loadEPGMsgWithDebounce(newModel, channelKey: newModel?.title ?? ''); // 修改为防抖版本
     });
   }
 
@@ -1362,6 +1364,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void _adjustScrollPositions() {
     scrollTo(targetList: 'group', index: _groupIndex, alignment: null);
     scrollTo(targetList: 'channel', index: _channelIndex, alignment: null);
+  }
+
+  // 新增：带有防抖的 EPG 加载方法
+  void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
+    _epgDebounceTimer?.cancel(); // 取消之前的定时器
+    _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
+      _loadEPGMsg(playModel, channelKey: channelKey); // 执行实际加载
+    });
   }
 
   // 加载EPG信息，支持缓存
