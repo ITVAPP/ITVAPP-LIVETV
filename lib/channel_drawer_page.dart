@@ -384,7 +384,7 @@ Widget buildListItem({
       : content;
 }
 
-// 修改部分：抽象列表组件基类 - 定义通用属性和抽象方法
+// 抽象列表组件基类 - 定义通用属性和抽象方法
 abstract class BaseListWidget<T> extends StatefulWidget {
   final ScrollController scrollController; // 滚动控制器
   final bool isTV; // 是否为TV模式
@@ -407,7 +407,7 @@ abstract class BaseListWidget<T> extends StatefulWidget {
   BaseListState<T> createState();
 }
 
-// 修改部分：抽象列表状态基类 - 管理焦点监听和构建内容
+// 抽象列表状态基类 - 管理焦点监听和构建内容
 abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   @override
   void initState() {
@@ -432,8 +432,8 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   }
 }
 
-// 修改部分：分类列表组件 - 显示分类并支持选中和点击
-class CategoryList extends BaseListWidget {
+// 分类列表组件 - 显示分类并支持选中和点击
+class CategoryList extends BaseListWidget<String> {
   final List<String> categories; // 分类列表
   final int selectedCategoryIndex; // 当前选中分类索引
   final Function(int index) onCategoryTap; // 分类点击回调
@@ -487,10 +487,11 @@ class CategoryList extends BaseListWidget {
   _CategoryListState createState() => _CategoryListState();
 }
 
-class _CategoryListState extends BaseListState<CategoryList> {}
+// 分类列表状态类
+class _CategoryListState extends BaseListState<String> {}
 
-// 修改部分：分组列表组件 - 显示分组并支持选中和点击
-class GroupList extends BaseListWidget {
+// 分组列表组件 - 显示分组并支持选中和点击
+class GroupList extends BaseListWidget<String> { 
   final List<String> keys; // 分组键列表
   final int selectedGroupIndex; // 当前选中分组索引
   final Function(int index) onGroupTap; // 分组点击回调
@@ -563,10 +564,11 @@ class GroupList extends BaseListWidget {
   _GroupListState createState() => _GroupListState();
 }
 
-class _GroupListState extends BaseListState<GroupList> {}
+// 分组列表状态类
+class _GroupListState extends BaseListState<String> {}
 
-// 修改部分：频道列表组件 - 显示频道并支持选中和点击
-class ChannelList extends BaseListWidget {
+// 频道列表组件 - 显示频道并支持选中和点击
+class ChannelList extends BaseListWidget<Map<String, PlayModel>> { 
   final Map<String, PlayModel> channels; // 频道数据映射
   final Function(PlayModel?) onChannelTap; // 频道点击回调
   final String? selectedChannelName; // 当前选中频道名称
@@ -632,9 +634,10 @@ class ChannelList extends BaseListWidget {
   _ChannelListState createState() => _ChannelListState();
 }
 
-class _ChannelListState extends BaseListState<ChannelList> {}
+// 频道列表状态类
+class _ChannelListState extends BaseListState<Map<String, PlayModel>> {}
 
-// EPG列表组件 - 显示节目单并支持滚动到选中项
+// EPG列表组件 - 显示节目单并滚动到选中项
 class EPGList extends StatefulWidget {
   final List<EpgData>? epgData; // EPG数据列表
   final int selectedIndex; // 当前选中索引
@@ -843,7 +846,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _categoryIndex = -1; // 当前分类索引
   int _categoryStartIndex = 0; // 分类焦点起始索引
   int _groupStartIndex = 0; // 分组焦点起始索引
-  int _channelStartIndex =  0; // 频道焦点起始索引
+  int _channelStartIndex = 0; // 频道焦点起始索引
 
   double _drawerHeight = 0.0; // 抽屉高度
 
