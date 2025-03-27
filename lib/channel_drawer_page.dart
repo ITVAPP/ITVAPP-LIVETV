@@ -12,12 +12,12 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 是否在非TV模式下启用TV模式的焦点逻辑（用于调试）
-const bool enableFocusInNonTVMode = true; // 默认开启
+// 是否在非TV模式下启用TV焦点逻辑（调试用）
+const bool enableFocusInNonTVMode = true;
 
-// 垂直分割线样式 - 加粗并添加渐变效果
+// 定义垂直分割线样式
 final verticalDivider = Container(
-  width: 1.5, // 加粗
+  width: 1.5,
   decoration: BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
@@ -31,7 +31,7 @@ final verticalDivider = Container(
   ),
 );
 
-// 水平分割线样式 - 带渐变和阴影
+// 定义水平分割线样式
 final horizontalDivider = Container(
   height: 1,
   decoration: BoxDecoration(
@@ -52,14 +52,14 @@ final horizontalDivider = Container(
   ),
 );
 
-// 默认文字样式 - 设置字体大小、行高和颜色
+// 定义默认文字样式
 const defaultTextStyle = TextStyle(
   fontSize: 16,
   height: 1.4,
   color: Colors.white,
 );
 
-// 选中文字样式 - 加粗并添加阴影
+// 定义选中文字样式
 const selectedTextStyle = TextStyle(
   fontWeight: FontWeight.w600,
   color: Colors.white,
@@ -72,14 +72,14 @@ const selectedTextStyle = TextStyle(
   ],
 );
 
-// 列表项最小高度
+// 定义列表项最小高度
 const defaultMinHeight = 42.0;
 
-// 列表项高度常量 - 包含和不包含分割线的情况
-const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 1.0; // 43.0
-const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight; // 42.0
+// 定义带分割线和不带分割线的列表项高度常量
+const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 1.0;
+const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight;
 
-// 默认背景渐变色 - 从深灰到中灰
+// 定义默认背景渐变色
 final defaultBackgroundColor = LinearGradient(
   colors: [
     Color(0xFF1A1A1A),
@@ -89,14 +89,33 @@ final defaultBackgroundColor = LinearGradient(
   end: Alignment.bottomRight,
 );
 
-// 默认水平内边距
-const defaultPadding = EdgeInsets.symmetric(horizontal: 6.0);
+// 定义默认水平内边距
+const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
 
-// 选中和焦点颜色常量
-const Color selectedColor = Color(0xFFEB144C); // 选中颜色
-const Color focusColor = Color(0xFFDFA02A); // 焦点颜色
+// 定义选中和焦点颜色常量
+const Color selectedColor = Color(0xFFEB144C);
+const Color focusColor = Color(0xFFDFA02A);
 
-// 构建列表项装饰 - 根据状态设置渐变、边框和阴影
+// 获取渐变色逻辑，基于焦点和选中状态
+LinearGradient? _getGradientColor({
+  required bool useFocus,
+  required bool hasFocus,
+  required bool isSelected,
+  required bool isSystemAutoSelected,
+}) {
+  if (useFocus && hasFocus) {
+    return LinearGradient(
+      colors: [focusColor.withOpacity(0.9), focusColor.withOpacity(0.7)],
+    );
+  } else if (isSelected && !isSystemAutoSelected) {
+    return LinearGradient(
+      colors: [selectedColor.withOpacity(0.9), selectedColor.withOpacity(0.7)],
+    );
+  }
+  return null;
+}
+
+// 构建列表项装饰样式，处理焦点和选中效果
 BoxDecoration buildItemDecoration({
   required bool isTV,
   required bool hasFocus,
@@ -104,19 +123,13 @@ BoxDecoration buildItemDecoration({
   required bool isSystemAutoSelected,
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
-  LinearGradient? gradient;
-  if (useFocus && hasFocus) {
-    gradient = LinearGradient(
-      colors: [focusColor.withOpacity(0.9), focusColor.withOpacity(0.7)],
-    );
-  } else if (isSelected && !isSystemAutoSelected) {
-    gradient = LinearGradient(
-      colors: [selectedColor.withOpacity(0.9), selectedColor.withOpacity(0.7)],
-    );
-  }
-
   return BoxDecoration(
-    gradient: gradient,
+    gradient: _getGradientColor(
+      useFocus: useFocus,
+      hasFocus: hasFocus,
+      isSelected: isSelected,
+      isSystemAutoSelected: isSystemAutoSelected,
+    ),
     border: Border.all(
       color: hasFocus || (isSelected && !isSystemAutoSelected)
           ? Colors.white.withOpacity(0.3)
@@ -136,54 +149,64 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 焦点状态管理类 - 单例模式管理焦点节点和状态
+// 焦点状态管理类，单例模式管理焦点节点
 class FocusStateManager {
   static final FocusStateManager _instance = FocusStateManager._internal();
   factory FocusStateManager() => _instance;
   FocusStateManager._internal();
 
-  List<FocusNode> focusNodes = []; // 焦点节点列表
-  Map<int, bool> focusStates = {}; // 焦点状态映射
-  int lastFocusedIndex = -1; // 上次聚焦的索引
+  List<FocusNode> focusNodes = []; // 存储所有焦点节点
+  Map<int, bool> focusStates = {}; // 记录焦点状态
+  int lastFocusedIndex = -1; // 上次焦点索引
   Map<int, int> focusGroupIndices = {}; // 焦点组索引映射
+  List<FocusNode> categoryFocusNodes = []; // 分类焦点节点
+  bool _isUpdating = false; // 更新状态锁
 
-  List<FocusNode> categoryFocusNodes = []; // 保存分类列表的固定焦点节点
-
-  // 初始化焦点节点 - 分类节点单独初始化，分组和频道动态更新
+  // 初始化焦点管理器，创建分类焦点节点
   void initialize(int categoryCount) {
-    // 初始化分类焦点节点，仅在首次调用时生成
-    if (categoryFocusNodes.isEmpty) {
-      categoryFocusNodes = List.generate(categoryCount, (index) => FocusNode(debugLabel: 'CategoryNode$index'));
+    if (_isUpdating) return;
+    _isUpdating = true;
+    try {
+      if (categoryFocusNodes.isEmpty) {
+        categoryFocusNodes = List.generate(categoryCount, (index) => FocusNode(debugLabel: 'CategoryNode$index'));
+      }
+      focusNodes.clear();
+      focusStates.clear();
+      lastFocusedIndex = -1;
+      focusGroupIndices.clear();
+      focusNodes.addAll(categoryFocusNodes);
+    } finally {
+      _isUpdating = false;
     }
-    focusNodes.clear();
-    focusStates.clear();
-    lastFocusedIndex = -1;
-    focusGroupIndices.clear();
   }
 
-  // 更新动态焦点节点 - 分组和频道部分
+  // 更新动态焦点节点，适应分组和频道数量
   void updateDynamicNodes(int groupCount, int channelCount) {
-    // 清空现有焦点节点，但保留分类节点
-    focusNodes.clear();
-    focusNodes.addAll(categoryFocusNodes); // 复用分类节点
+    if (_isUpdating) return;
+    _isUpdating = true;
+    try {
+      focusNodes.clear();
+      focusNodes.addAll(categoryFocusNodes);
+      final totalDynamicNodes = groupCount + channelCount;
+      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+      focusNodes.addAll(dynamicNodes);
 
-    // 添加分组和频道的焦点节点
-    final totalDynamicNodes = groupCount + channelCount;
-    final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
-    focusNodes.addAll(dynamicNodes);
-
-    // 更新焦点组索引
-    focusGroupIndices.clear();
-    for (int i = 0; i < categoryFocusNodes.length; i++) {
-      focusGroupIndices[i] = 0; // 分类组
-    }
-    for (int i = 0; i < groupCount; i++) {
-      focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
-    }
-    for (int i = 0; i < channelCount; i++) {
-      focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
+      focusGroupIndices.clear();
+      for (int i = 0; i < categoryFocusNodes.length; i++) {
+        focusGroupIndices[i] = 0; // 分类组
+      }
+      for (int i = 0; i < groupCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
+      }
+      for (int i = 0; i < channelCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
+      }
+    } finally {
+      _isUpdating = false;
     }
   }
+
+  bool get isUpdating => _isUpdating; // 获取更新状态
 
   // 释放所有焦点节点资源
   void dispose() {
@@ -199,13 +222,13 @@ class FocusStateManager {
   }
 }
 
-final focusManager = FocusStateManager(); // 全局焦点管理实例
+final focusManager = FocusStateManager(); // 全局焦点管理器实例
 
-// 用于动态获取列表项高度的全局键和变量
-final GlobalKey _itemKey = GlobalKey(); // 获取分类列表项高度的键
-double? _dynamicItemHeight; // 动态存储列表项高度
+// 定义全局键和变量，用于动态获取列表项高度
+final GlobalKey _itemKey = GlobalKey();
+double? _dynamicItemHeight;
 
-// 获取动态列表项高度 - 从渲染对象获取或使用默认值
+// 获取列表项动态高度，失败时使用默认值
 void getItemHeight(BuildContext context) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
@@ -218,7 +241,7 @@ void getItemHeight(BuildContext context) {
   });
 }
 
-// 添加焦点监听器 - 为指定范围的焦点节点添加状态监听
+// 为指定范围的焦点节点添加监听器
 void addFocusListeners(
   int startIndex,
   int length,
@@ -254,68 +277,73 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑
+// 处理焦点切换时的滚动逻辑，带防抖机制
+Timer? _scrollDebounceTimer;
+
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
-  final itemIndex = index - startIndex;
-  final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
-  final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
-  final isInitialFocus = focusManager.lastFocusedIndex == -1;
-  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
-  focusManager.lastFocusedIndex = index;
+  _scrollDebounceTimer?.cancel();
+  _scrollDebounceTimer = Timer(Duration(milliseconds: 500), () {
+    final itemIndex = index - startIndex;
+    final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
+    final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
+    final isInitialFocus = focusManager.lastFocusedIndex == -1;
+    final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
+    focusManager.lastFocusedIndex = index;
 
-  final channelDrawerState = state is _ChannelDrawerPageState
-      ? state
-      : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
-  if (channelDrawerState == null) return;
+    final channelDrawerState = state is _ChannelDrawerPageState
+        ? state
+        : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
+    if (channelDrawerState == null) return;
 
-  if (currentGroup == 0) return; // 分类组不滚动
+    if (currentGroup == 0) return;
 
-  final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
-  final fullItemsInViewport = (viewportHeight / itemHeight).floor();
+    final viewportHeight = channelDrawerState._drawerHeight;
+    final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+    final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
-  if (length <= fullItemsInViewport) {
-    channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
-    return;
-  }
+    if (length <= fullItemsInViewport) {
+      channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
+      return;
+    }
 
-  final currentOffset = scrollController.offset;
-  final itemTop = itemIndex * itemHeight;
-  final itemBottom = itemTop + itemHeight;
+    final currentOffset = scrollController.offset;
+    final itemTop = itemIndex * itemHeight;
+    final itemBottom = itemTop + itemHeight;
 
-  double? alignment;
-  if (itemIndex == 0) {
-    alignment = 0.0; // 第一个项顶部对齐
-  } else if (itemIndex == length - 1) {
-    alignment = 1.0; // 最后一个项底部对齐
-  } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-    alignment = 2.0; // 下移超出视窗，底部对齐
+    double? alignment;
+    if (itemIndex == 0) {
+      alignment = 0.0;
+    } else if (itemIndex == length - 1) {
+      alignment = 1.0;
+    } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+      alignment = 2.0;
+      channelDrawerState.scrollTo(
+        targetList: _getTargetList(currentGroup),
+        index: itemIndex,
+        alignment: alignment,
+      );
+      return;
+    } else if (!isMovingDown && itemTop < currentOffset) {
+      alignment = 0.0;
+      channelDrawerState.scrollTo(
+        targetList: _getTargetList(currentGroup),
+        index: itemIndex,
+        alignment: alignment,
+      );
+      return;
+    } else {
+      return;
+    }
+
     channelDrawerState.scrollTo(
       targetList: _getTargetList(currentGroup),
       index: itemIndex,
       alignment: alignment,
     );
-    return;
-  } else if (!isMovingDown && itemTop < currentOffset) {
-    alignment = 0.0; // 上移超出顶部，顶部对齐
-    channelDrawerState.scrollTo(
-      targetList: _getTargetList(currentGroup),
-      index: itemIndex,
-      alignment: alignment,
-    );
-    return;
-  } else {
-    return; // 项目在视窗内，无需滚动
-  }
-
-  channelDrawerState.scrollTo(
-    targetList: _getTargetList(currentGroup),
-    index: itemIndex,
-    alignment: alignment,
-  );
+  });
 }
 
-// 根据组索引获取目标列表名称
+// 根据组索引返回目标列表名称
 String _getTargetList(int groupIndex) {
   switch (groupIndex) {
     case 0:
@@ -329,7 +357,7 @@ String _getTargetList(int groupIndex) {
   }
 }
 
-// 移除焦点监听器 - 清理指定范围的监听和状态
+// 移除指定范围的焦点监听器
 void removeFocusListeners(int startIndex, int length) {
   if (startIndex < 0 || startIndex >= focusManager.focusNodes.length) {
     LogUtil.e('removeFocusListeners: startIndex 超出范围: $startIndex');
@@ -342,7 +370,7 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
-// 构建列表项 - 支持焦点、选中样式和点击事件
+// 构建通用列表项，支持焦点和选中样式
 Widget buildListItem({
   required String title,
   required bool isSelected,
@@ -359,13 +387,7 @@ Widget buildListItem({
   Key? key,
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
-  FocusNode? focusNode;
-  try {
-    focusNode = (index != null && index >= 0 && index < focusManager.focusNodes.length) ? focusManager.focusNodes[index] : null;
-  } catch (e, stackTrace) {
-    LogUtil.e('获取焦点节点失败: index=$index, focusNodes.length=${focusManager.focusNodes.length}', e, stackTrace);
-    focusNode = null;
-  }
+  final focusNode = (index != null && index >= 0 && index < focusManager.focusNodes.length) ? focusManager.focusNodes[index] : null;
   final hasFocus = focusNode?.hasFocus ?? false;
 
   final textStyle = useFocus
@@ -412,7 +434,7 @@ Widget buildListItem({
       : content;
 }
 
-// 抽象列表组件基类 - 定义通用属性和抽象方法
+// 抽象列表组件基类，定义通用属性和方法
 abstract class BaseListWidget<T> extends StatefulWidget {
   final ScrollController scrollController; // 滚动控制器
   final bool isTV; // 是否为TV模式
@@ -425,17 +447,14 @@ abstract class BaseListWidget<T> extends StatefulWidget {
     this.startIndex = 0,
   });
 
-  // 抽象方法：获取列表项总数
-  int getItemCount();
-
-  // 抽象方法：构建列表内容
-  Widget buildContent(BuildContext context);
+  int getItemCount(); // 获取列表项数量
+  Widget buildContent(BuildContext context); // 构建列表内容
 
   @override
   BaseListState<T> createState();
 }
 
-// 抽象列表状态基类 - 管理焦点监听和构建内容
+// 抽象列表状态基类，管理焦点和生命周期
 abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   @override
   void initState() {
@@ -460,7 +479,7 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   }
 }
 
-// 分类列表组件 - 显示分类并支持选中和点击
+// 分类列表组件，展示分类并处理选择
 class CategoryList extends BaseListWidget<String> {
   final List<String> categories; // 分类列表
   final int selectedCategoryIndex; // 当前选中分类索引
@@ -515,11 +534,10 @@ class CategoryList extends BaseListWidget<String> {
   _CategoryListState createState() => _CategoryListState();
 }
 
-// 分类列表状态类
 class _CategoryListState extends BaseListState<String> {}
 
-// 分组列表组件 - 显示分组并支持选中和点击
-class GroupList extends BaseListWidget<String> { 
+// 分组列表组件，展示分组并处理选择
+class GroupList extends BaseListWidget<String> {
   final List<String> keys; // 分组键列表
   final int selectedGroupIndex; // 当前选中分组索引
   final Function(int index) onGroupTap; // 分组点击回调
@@ -592,12 +610,11 @@ class GroupList extends BaseListWidget<String> {
   _GroupListState createState() => _GroupListState();
 }
 
-// 分组列表状态类
 class _GroupListState extends BaseListState<String> {}
 
-// 频道列表组件 - 显示频道并支持选中和点击
-class ChannelList extends BaseListWidget<Map<String, PlayModel>> { 
-  final Map<String, PlayModel> channels; // 频道数据映射
+// 频道列表组件，展示频道并处理选择
+class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
+  final Map<String, PlayModel> channels; // 频道数据
   final Function(PlayModel?) onChannelTap; // 频道点击回调
   final String? selectedChannelName; // 当前选中频道名称
   final bool isSystemAutoSelected; // 是否系统自动选中
@@ -662,12 +679,11 @@ class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
   _ChannelListState createState() => _ChannelListState();
 }
 
-// 频道列表状态类
 class _ChannelListState extends BaseListState<Map<String, PlayModel>> {}
 
-// EPG列表组件 - 显示节目单并滚动到选中项
+// EPG列表组件，展示节目单并支持滚动
 class EPGList extends StatefulWidget {
-  final List<EpgData>? epgData; // EPG数据列表
+  final List<EpgData>? epgData; // EPG数据
   final int selectedIndex; // 当前选中索引
   final bool isTV; // 是否为TV模式
   final ScrollController epgScrollController; // EPG滚动控制器
@@ -687,7 +703,7 @@ class EPGList extends StatefulWidget {
 }
 
 class EPGListState extends State<EPGList> {
-  bool _shouldScroll = true; // 标记是否需要滚动
+  bool _shouldScroll = true; // 是否需要滚动
 
   @override
   void initState() {
@@ -699,19 +715,19 @@ class EPGListState extends State<EPGList> {
   void didUpdateWidget(covariant EPGList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
-      _shouldScroll = true; // 数据或选中项变化时标记需要滚动
+      _shouldScroll = true;
       setState(() {});
     }
   }
 
-  // 调度滚动，确保在布局完成后执行
+  // 调度滚动到选中项
   void _scheduleScroll() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _shouldScroll && widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         if (state != null && state._epgItemScrollController.hasClients) {
           state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null);
-          _shouldScroll = false; // 滚动成功后重置
+          _shouldScroll = false;
           LogUtil.i('EPG 滚动完成: index=${widget.selectedIndex}');
         }
       }
@@ -722,7 +738,7 @@ class EPGListState extends State<EPGList> {
   Widget build(BuildContext context) {
     if (widget.epgData == null || widget.epgData!.isEmpty) return const SizedBox.shrink();
 
-    _scheduleScroll(); // 确保每次构建时检查滚动需求
+    _scheduleScroll();
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
       child: Column(
@@ -773,11 +789,11 @@ class EPGListState extends State<EPGList> {
   }
 }
 
-// 主组件 - 频道抽屉页面，管理分类、分组、频道和EPG显示
+// 主组件 - 频道抽屉页面，管理分类、分组、频道和EPG
 class ChannelDrawerPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 播放列表数据
   final PlayModel? playModel; // 当前播放模型
-  final bool isLandscape; // 是否为横屏
+  final bool isLandscape; // 是否横屏
   final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
   final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated; // TV导航状态创建回调
@@ -859,13 +875,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   final ScrollController _categoryScrollController = ScrollController(); // 分类滚动控制器
   final ScrollController _epgItemScrollController = ScrollController(); // EPG滚动控制器
   TvKeyNavigationState? _tvKeyNavigationState; // TV导航状态
-  List<EpgData>? _epgData; // 当前EPG数据
+  List<EpgData>? _epgData; // EPG数据
   int _selEPGIndex = 0; // 选中EPG索引
-  bool isPortrait = true; // 是否为竖屏
-  bool _isSystemAutoSelected = false; // 是否系统自动选中分组
-  bool _isChannelAutoSelected = false; // 是否系统自动选中频道
+  bool isPortrait = true; // 是否竖屏
+  bool _isSystemAutoSelected = false; // 系统自动选中标志
+  bool _isChannelAutoSelected = false; // 频道自动选中标志
 
-  final GlobalKey _viewPortKey = GlobalKey(); // 视口键
+  final GlobalKey _viewPortKey = GlobalKey(); // 视口全局键
   List<String> _categories = []; // 分类列表
   List<String> _keys = []; // 分组键列表
   List<Map<String, PlayModel>> _values = []; // 频道值列表
@@ -878,22 +894,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   double _drawerHeight = 0.0; // 抽屉高度
 
-  int _categoryListFirstIndex = 0; // 分类列表首个焦点索引
-  int _groupListFirstIndex = -1; // 分组列表首个焦点索引
-  int _channelListLastIndex = -1; // 频道列表最后一个焦点索引
-  int _categoryListLastIndex = -1; // 分类列表最后一个焦点索引
-  int _groupListLastIndex = -1; // 分组列表最后一个焦点索引
-  int _channelListFirstIndex = -1; // 频道列表首个焦点索引
+  int _categoryListFirstIndex = 0; // 分类列表首索引
+  int _groupListFirstIndex = -1; // 分组列表首索引
+  int _channelListLastIndex = -1; // 频道列表末索引
+  int _categoryListLastIndex = -1; // 分类列表末索引
+  int _groupListLastIndex = -1; // 分组列表末索引
+  int _channelListFirstIndex = -1; // 频道列表首索引
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {}; // 分组焦点缓存
 
-  // 获取状态栏高度 - 根据设备像素比计算
+  // 获取状态栏高度
   double getStatusBarHeight() {
     final height = appui.window.viewPadding.top / appui.window.devicePixelRatio;
     return height;
   }
 
-  // 计算抽屉高度 - 根据屏幕方向调整
+  // 计算抽屉高度，适配横竖屏
   void _calculateDrawerHeight() {
     final double screenHeight = MediaQuery.of(context).size.height;
     final double statusBarHeight = getStatusBarHeight();
@@ -909,7 +925,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 滚动到指定列表位置 - 支持动画和对齐方式
+  // 滚动到指定列表项
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -927,8 +943,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     };
 
     final config = scrollConfig[targetList];
-    if (config == null) {
-      LogUtil.e('无效的滚动目标: $targetList');
+    if (config == null || !mounted) {
+      LogUtil.w('滚动目标无效或组件已销毁: $targetList');
       return;
     }
 
@@ -936,8 +952,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final itemCount = config['count'] as int;
     final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
 
-    if (index < 0 || index >= itemCount || !scrollController.hasClients) {
-      LogUtil.e('$targetList 滚动索引越界或未附着: index=$index, itemCount=$itemCount');
+    if (itemCount == 0 || !scrollController.hasClients) {
+      LogUtil.w('$targetList 数据未准备好或控制器未附着');
+      return;
+    }
+
+    if (index < 0 || index >= itemCount) {
+      LogUtil.w('$targetList 索引超出范围: index=$index, itemCount=$itemCount');
       return;
     }
 
@@ -957,16 +978,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
-
-    try {
-      await scrollController.animateTo(
-        targetOffset,
-        duration: duration,
-        curve: Curves.easeInOut,
-      );
-    } catch (e, stackTrace) {
-      LogUtil.e('滚动动画失败: $targetList, index=$index', e, stackTrace);
-    }
+    await scrollController.animateTo(
+      targetOffset,
+      duration: duration,
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -981,7 +997,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_shouldLoadEpg()) _loadEPGMsg(widget.playModel);
       getItemHeight(context);
-      setState(() {});
     });
   }
 
@@ -995,14 +1010,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 初始化所有数据 - 包括分类和频道
+  // 初始化分类、频道数据和焦点逻辑
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
     await updateFocusLogic(true);
   }
 
-  // 计算焦点节点总数 - 包括分类、分组和频道
+  // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
     int totalFocusNodes = _categories.length;
     if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
@@ -1016,7 +1031,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
-  // 判断是否需要加载EPG数据
+  // 判断是否需要加载EPG
   bool _shouldLoadEpg() {
     return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
   }
@@ -1050,13 +1065,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 处理TV导航状态创建 - 更新状态并调用回调
+  // 处理TV导航状态创建
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
   }
 
-  // 初始化分类数据 - 设置当前分类、分组和频道索引
+  // 初始化分类数据，确定当前分类索引
   void _initializeCategoryData() {
     _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
     _categoryIndex = -1;
@@ -1095,7 +1110,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 初始化频道数据 - 根据选中分类设置分组和频道
+  // 初始化频道数据，确定分组和频道索引
   void _initializeChannelData() {
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
       _resetChannelData();
@@ -1126,7 +1141,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _isChannelAutoSelected = _groupIndex == 0 && _channelIndex == 0;
   }
 
-  // 重置频道数据 - 清空分组和频道信息
+  // 重置频道相关数据
   void _resetChannelData() {
     _keys = [];
     _values = [];
@@ -1135,7 +1150,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _selEPGIndex = 0;
   }
 
-  // 重新初始化焦点监听器 - 为所有节点添加监听
+  // 重新初始化焦点监听器
   void _reInitializeFocusListeners() {
     for (var node in focusManager.focusNodes) {
       node.removeListener(() {});
@@ -1156,22 +1171,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新焦点逻辑 - 复用分类焦点，动态更新分组和频道焦点
+  // 更新焦点逻辑，初始化或动态调整焦点节点
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     focusManager.lastFocusedIndex = -1;
 
-    // 初始化或复用分类焦点节点
     if (isInitial) {
       focusManager.initialize(_categories.length);
     }
 
-    // 更新动态焦点节点（分组和频道）
     final groupCount = _keys.length;
     final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
-    focusManager.focusStates.clear(); // 集中清理焦点状态
+    focusManager.focusStates.clear();
     focusManager.updateDynamicNodes(groupCount, channelCount);
 
-    // 更新索引
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
@@ -1206,29 +1218,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       };
     }
 
-    final groupFocusCacheLog = _groupFocusCache.map((key, value) => MapEntry(
-          key,
-          '{first: ${focusManager.focusNodes.indexOf(value['firstFocusNode']!)}, last: ${focusManager.focusNodes.indexOf(value['lastFocusNode']!)}}',
-        ));
     LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
         'channelStart=$_channelStartIndex');
 
-    await WidgetsBinding.instance.endOfFrame;
-
-    if (_tvKeyNavigationState != null && mounted) {
+    if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
       if (!isInitial) {
         _tvKeyNavigationState!.releaseResources();
-        int safeIndex = initialIndexOverride != null && initialIndexOverride >= 0 && initialIndexOverride < focusManager.focusNodes.length
-            ? initialIndexOverride
-            : 0;
+        int safeIndex = initialIndexOverride != null && initialIndexOverride < focusManager.focusNodes.length ? initialIndexOverride : 0;
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
         _reInitializeFocusListeners();
       }
     }
   }
 
-  // 处理分类点击 - 更新状态并滚动到相关位置
+  // 处理分类点击事件
   void _onCategoryTap(int index) async {
     if (_categoryIndex == index) return;
 
@@ -1292,7 +1296,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 处理分组点击 - 更新状态并滚动到相关频道
+  // 处理分组点击事件
   void _onGroupTap(int index) async {
     _groupIndex = index;
     _isSystemAutoSelected = false;
@@ -1314,23 +1318,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.activateFocusManagement();
-    }
-
-    setState(() {});
-    if (focusManager.focusNodes.isNotEmpty && _groupStartIndex + index >= 0 && _groupStartIndex + index < focusManager.focusNodes.length) {
-      try {
+      if (_groupStartIndex + index < focusManager.focusNodes.length) {
         focusManager.focusNodes[_groupStartIndex + index].requestFocus();
-      } catch (e, stackTrace) {
-        LogUtil.e('请求焦点失败: index=${_groupStartIndex + index}', e, stackTrace);
       }
     }
 
+    setState(() {});
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final currentPlayModel = widget.playModel;
-        final currentGroup = _keys[index];
         final isChannelInGroup = currentPlayModel != null && currentPlayModel.group == currentGroup;
-
         scrollTo(
           targetList: 'channel',
           index: isChannelInGroup ? _channelIndex : 0,
@@ -1340,7 +1337,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 处理频道点击 - 更新播放模型并加载EPG
+  // 处理频道点击事件
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
 
@@ -1361,51 +1358,41 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  // 调整滚动位置 - 将分组和频道滚动到可见区域
+  // 调整滚动位置
   void _adjustScrollPositions() {
     scrollTo(targetList: 'group', index: _groupIndex, alignment: null);
     scrollTo(targetList: 'channel', index: _channelIndex, alignment: null);
   }
 
-  // 加载EPG数据 - 从缓存或网络获取并更新状态
+  // 加载EPG信息，支持缓存
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
-    if (isPortrait || playModel == null) return;
-    try {
-      final currentTime = DateTime.now();
-      if (channelKey != null &&
-          epgCache.containsKey(channelKey) &&
-          epgCache[channelKey]!['timestamp'].day == currentTime.day) {
-        if (mounted) {
-          setState(() {
-            _epgData = epgCache[channelKey]!['data'];
-            _selEPGIndex = _getInitialSelectedIndex(_epgData);
-          });
-        }
-        return;
-      }
-      final res = await EpgUtil.getEpg(playModel);
-      if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
+    if (isPortrait || playModel == null || !mounted) return;
 
-      final selectedIndex = _getInitialSelectedIndex(res.epgData);
-
-      if (mounted) {
-        setState(() {
-          _epgData = res.epgData!;
-          _selEPGIndex = selectedIndex;
-        });
-        if (channelKey != null) {
-          epgCache[channelKey] = {
-            'data': res.epgData!,
-            'timestamp': currentTime,
-          };
-        }
-      }
-    } catch (e, stackTrace) {
-      LogUtil.e('加载EPG数据时出错', e, stackTrace);
+    final currentTime = DateTime.now();
+    if (channelKey != null &&
+        epgCache.containsKey(channelKey) &&
+        epgCache[channelKey]!['timestamp'].day == currentTime.day) {
+      _epgData = epgCache[channelKey]!['data'];
+      _selEPGIndex = _getInitialSelectedIndex(_epgData);
+      setState(() {});
+      return;
     }
+
+    final res = await EpgUtil.getEpg(playModel);
+    if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
+
+    _epgData = res.epgData!;
+    _selEPGIndex = _getInitialSelectedIndex(_epgData);
+    if (channelKey != null) {
+      epgCache[channelKey] = {
+        'data': res.epgData!,
+        'timestamp': currentTime,
+      };
+    }
+    if (mounted) setState(() {});
   }
 
-  // 获取初始选中EPG索引 - 基于当前时间
+  // 获取EPG初始选中索引
   int _getInitialSelectedIndex(List<EpgData>? epgData) {
     if (epgData == null || epgData.isEmpty) return 0;
 
@@ -1449,30 +1436,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isSystemAutoSelected: _isSystemAutoSelected,
     );
 
-    if (_keys.isNotEmpty) {
-      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        String? selectedChannelName;
-        if (_channelIndex >= 0 && _channelIndex < _values[_groupIndex].keys.length) {
-          selectedChannelName = _values[_groupIndex].keys.toList()[_channelIndex];
-        }
-        channelListWidget = ChannelList(
-          channels: _values[_groupIndex],
-          selectedChannelName: selectedChannelName,
-          onChannelTap: _onChannelTap,
-          isTV: useFocusNavigation,
-          scrollController: _scrollChannelController,
-          startIndex: _categories.length + _keys.length,
-          isSystemAutoSelected: _isChannelAutoSelected,
-        );
-
-        epgListWidget = EPGList(
-          epgData: _epgData,
-          selectedIndex: _selEPGIndex,
-          isTV: useFocusNavigation,
-          epgScrollController: _epgItemScrollController,
-          onCloseDrawer: widget.onCloseDrawer,
-        );
+    if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      String? selectedChannelName;
+      if (_channelIndex >= 0 && _channelIndex < _values[_groupIndex].keys.length) {
+        selectedChannelName = _values[_groupIndex].keys.toList()[_channelIndex];
       }
+      channelListWidget = ChannelList(
+        channels: _values[_groupIndex],
+        selectedChannelName: selectedChannelName,
+        onChannelTap: _onChannelTap,
+        isTV: useFocusNavigation,
+        scrollController: _scrollChannelController,
+        startIndex: _categories.length + _keys.length,
+        isSystemAutoSelected: _isChannelAutoSelected,
+      );
+
+      epgListWidget = EPGList(
+        epgData: _epgData,
+        selectedIndex: _selEPGIndex,
+        isTV: useFocusNavigation,
+        epgScrollController: _epgItemScrollController,
+        onCloseDrawer: widget.onCloseDrawer,
+      );
     }
 
     return TvKeyNavigation(
@@ -1486,7 +1471,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
-  // 构建抽屉布局 - 横向排列分类、分组、频道和EPG
+  // 构建抽屉布局，适配横竖屏
   Widget _buildOpenDrawer(
     bool isTV,
     Widget categoryListWidget,
