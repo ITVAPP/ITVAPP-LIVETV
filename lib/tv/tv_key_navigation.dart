@@ -242,7 +242,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     groupIndex ??= _getGroupIndex(widget.focusNodes[index]);
     FocusNode focusNode = _adjustIndexInGroup(index, groupIndex);
-    _tryRequestFocus(focusNode, index, groupIndex);
+    // 修改处：调用新的 _requestFocusSafely，替换原来的 _tryRequestFocus
+    _requestFocusSafely(focusNode, index, groupIndex, skipIfHasFocus: true);
   }
 
   /// 调整索引到组内范围
@@ -261,8 +262,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return widget.focusNodes[index];
   }
 
-  /// 尝试请求焦点并处理失败重试
-  void _tryRequestFocus(FocusNode focusNode, int index, int groupIndex) {
+  /// 新的合并方法：安全请求焦点
+  void _requestFocusSafely(FocusNode focusNode, int index, int groupIndex, {bool skipIfHasFocus = false}) {
     if (!focusNode.canRequestFocus || focusNode.context == null) {
       LogUtil.i('焦点节点不可用，索引: $index');
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -274,10 +275,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       });
       return;
     }
-    if (!focusNode.hasFocus) {
+    if (!skipIfHasFocus || !focusNode.hasFocus) {
       focusNode.requestFocus();
       _currentFocus = focusNode;
-      LogUtil.i('切换焦点到索引: $index, Group: $groupIndex');
     }
   }
 
@@ -386,7 +386,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final now = DateTime.now();
     if (_lastKeyProcessedTime != null && now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
-      LogUtil.i('按键被节流');
       return KeyEventResult.handled;
     }
     _lastKeyProcessedTime = now;
@@ -563,26 +562,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         action = '切换到前一焦点';
       }
     }
-    LogUtil.i('$action (索引: $nextIndex)');
     return nextIndex;
-  }
-
-  /// 安全请求焦点
-  void _safeRequestFocus(FocusNode targetNode, int index, int groupIndex) {
-    if (!targetNode.canRequestFocus || targetNode.context == null) {
-      LogUtil.i('焦点节点不可用，索引: $index');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (targetNode.canRequestFocus && targetNode.context != null) {
-          targetNode.requestFocus();
-          _currentFocus = targetNode;
-          LogUtil.i('延迟重试成功，焦点索引: $index, Group: $groupIndex');
-        }
-      });
-      return;
-    }
-    targetNode.requestFocus();
-    _currentFocus = targetNode;
-    LogUtil.i('焦点切换到索引: $index, Group: $groupIndex');
   }
 
   /// 导航焦点
@@ -603,19 +583,17 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     if (widget.cacheName == "ChannelDrawerPage") {
       String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
-      if (forward && currentIndex == lastFocusIndex) {
-        await ChannelDrawerPage.scroll(targetList: targetList, toTop: true);
-      } else if (!forward && currentIndex == firstFocusIndex) {
-        await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
-      }
-      _safeRequestFocus(widget.focusNodes[nextIndex], nextIndex, groupIndex);
+      // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
+      _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
       await WidgetsBinding.instance.endOfFrame; 
       if (_currentFocus != widget.focusNodes[nextIndex]) {
         LogUtil.i('焦点切换失败，强制重试: $nextIndex');
-        _safeRequestFocus(widget.focusNodes[nextIndex], nextIndex, groupIndex);
+        // 修改处：再次调用新的 _requestFocusSafely
+        _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
       }
     } else {
-      _safeRequestFocus(widget.focusNodes[nextIndex], nextIndex, groupIndex);
+      // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
+      _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
     }
   }
 
@@ -635,13 +613,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       int nextGroupIndex = key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft
           ? groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + groupIndices.length) % groupIndices.length]
           : groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % groupIndices.length];
-      LogUtil.i('跳转 Group $currentGroupIndex -> $nextGroupIndex');
       final nextGroupFocus = _groupFocusCache[nextGroupIndex];
       if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
         FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (nextFocusNode != null && nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
-            _safeRequestFocus(nextFocusNode, widget.focusNodes.indexOf(nextFocusNode), nextGroupIndex);
+            // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
+            _requestFocusSafely(nextFocusNode, widget.focusNodes.indexOf(nextFocusNode), nextGroupIndex);
             LogUtil.i('跳转到 Group $nextGroupIndex');
           }
         });
