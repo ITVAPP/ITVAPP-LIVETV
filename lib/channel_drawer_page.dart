@@ -1222,9 +1222,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (!isInitial) {
         _tvKeyNavigationState!.releaseResources();
         int safeIndex = initialIndexOverride ?? 0;
-        if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
-          safeIndex = 0;
-        }
         _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
         _reInitializeFocusListeners();
       }
