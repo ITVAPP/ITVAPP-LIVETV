@@ -161,6 +161,7 @@ class FocusStateManager {
   Map<int, int> focusGroupIndices = {}; // 焦点组索引映射
   List<FocusNode> categoryFocusNodes = []; // 分类焦点节点
   bool _isUpdating = false; // 更新状态锁
+  bool _isUpFocusing = false;
 
   // 初始化焦点管理器，创建分类焦点节点
   void initialize(int categoryCount) {
@@ -207,6 +208,7 @@ class FocusStateManager {
   }
 
   bool get isUpdating => _isUpdating; // 获取更新状态
+  bool get isUpFocusing => _isUpFocusing;
 
   // 释放所有焦点节点资源
   void dispose() {
@@ -219,6 +221,7 @@ class FocusStateManager {
     focusNodes.clear();
     categoryFocusNodes.clear();
     focusStates.clear();
+    _isUpFocusing = false;
   }
 }
 
@@ -268,7 +271,7 @@ void addFocusListeners(
       final currentFocus = focusManager.focusNodes[index].hasFocus;
       if (focusManager.focusStates[index] != currentFocus) {
         focusManager.focusStates[index] = currentFocus;
-        if (!focusManager.isUpdating) {
+        if (!focusManager.isUpFocusing) {
           state.setState(() {});
         }
         if (scrollController != null && currentFocus && scrollController.hasClients) {
@@ -1172,68 +1175,62 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 更新焦点逻辑，初始化或动态调整焦点节点
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
-    if (focusManager._isUpdating) return; // 防止并发调用
-    focusManager._isUpdating = true; // 开头设为 true
-    try {
-      focusManager.lastFocusedIndex = -1;
+    focusManager._isUpFocusing = true;	
+    focusManager.lastFocusedIndex = -1;
 
-      if (isInitial) {
-        focusManager.initialize(_categories.length);
+    if (isInitial) {
+      focusManager.initialize(_categories.length);
+    }
+
+    final groupCount = _keys.length;
+    final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
+    focusManager.focusStates.clear();
+    focusManager.updateDynamicNodes(groupCount, channelCount);
+
+    _categoryStartIndex = 0;
+    _groupStartIndex = _categories.length;
+    _channelStartIndex = _categories.length + _keys.length;
+
+    _categoryListFirstIndex = 0;
+    _groupListFirstIndex = _groupStartIndex;
+    _channelListFirstIndex = _channelStartIndex;
+
+    _categoryListLastIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
+    _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
+    _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
+        ? _channelStartIndex + _values[_groupIndex].length - 1
+        : -1;
+
+    _groupFocusCache.clear();
+    if (_categories.isNotEmpty) {
+      _groupFocusCache[0] = {
+        'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
+      };
+    }
+    if (_keys.isNotEmpty) {
+      _groupFocusCache[1] = {
+        'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_groupListLastIndex]
+      };
+    }
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      _groupFocusCache[2] = {
+        'firstFocusNode': focusManager.focusNodes[_channelListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_channelListLastIndex]
+      };
+    }
+
+   focusManager._isUpFocusing = false;
+
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
+      if (!isInitial) {
+        _tvKeyNavigationState!.releaseResources();
+        int safeIndex = initialIndexOverride != null && initialIndexOverride < focusManager.focusNodes.length ? initialIndexOverride : 0;
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+        _reInitializeFocusListeners();
       }
-
-      final groupCount = _keys.length;
-      final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
-      focusManager.focusStates.clear();
-      focusManager.updateDynamicNodes(groupCount, channelCount);
-
-      _categoryStartIndex = 0;
-      _groupStartIndex = _categories.length;
-      _channelStartIndex = _categories.length + _keys.length;
-
-      _categoryListFirstIndex = 0;
-      _groupListFirstIndex = _groupStartIndex;
-      _channelListFirstIndex = _channelStartIndex;
-
-      _categoryListLastIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
-      _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
-      _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
-          ? _channelStartIndex + _values[_groupIndex].length - 1
-          : -1;
-
-      _groupFocusCache.clear();
-      if (_categories.isNotEmpty) {
-        _groupFocusCache[0] = {
-          'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
-          'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
-        };
-      }
-      if (_keys.isNotEmpty) {
-        _groupFocusCache[1] = {
-          'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
-          'lastFocusNode': focusManager.focusNodes[_groupListLastIndex]
-        };
-      }
-      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        _groupFocusCache[2] = {
-          'firstFocusNode': focusManager.focusNodes[_channelListFirstIndex],
-          'lastFocusNode': focusManager.focusNodes[_channelListLastIndex]
-        };
-      }
-
-      LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-          'channelStart=$_channelStartIndex');
-
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
-        if (!isInitial) {
-          _tvKeyNavigationState!.releaseResources();
-          int safeIndex = initialIndexOverride != null && initialIndexOverride < focusManager.focusNodes.length ? initialIndexOverride : 0;
-          _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-          _reInitializeFocusListeners();
-        }
-      }
-    } finally {
-      focusManager._isUpdating = false; // 结尾设为 false
     }
   }
 
