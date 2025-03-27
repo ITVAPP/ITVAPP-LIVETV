@@ -944,7 +944,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     final config = scrollConfig[targetList];
     if (config == null || !mounted) {
-      LogUtil.w('滚动目标无效或组件已销毁: $targetList');
+      LogUtil.i('滚动目标无效或组件已销毁: $targetList');
       return;
     }
 
@@ -953,12 +953,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
 
     if (itemCount == 0 || !scrollController.hasClients) {
-      LogUtil.w('$targetList 数据未准备好或控制器未附着');
+      LogUtil.i('$targetList 数据未准备好或控制器未附着');
       return;
     }
 
     if (index < 0 || index >= itemCount) {
-      LogUtil.w('$targetList 索引超出范围: index=$index, itemCount=$itemCount');
+      LogUtil.i('$targetList 索引超出范围: index=$index, itemCount=$itemCount');
       return;
     }
 
