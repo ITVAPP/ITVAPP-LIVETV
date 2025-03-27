@@ -843,7 +843,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _categoryIndex = -1; // 当前分类索引
   int _categoryStartIndex = 0; // 分类焦点起始索引
   int _groupStartIndex = 0; // 分组焦点起始索引
-  int _channelStartIndex =  REVIEWED0; // 频道焦点起始索引
+  int _channelStartIndex =  0; // 频道焦点起始索引
 
   double _drawerHeight = 0.0; // 抽屉高度
 
