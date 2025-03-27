@@ -208,6 +208,7 @@ class FocusStateManager {
   }
 
   bool get isUpdating => _isUpdating; // 获取更新状态
+  bool get isUpFocusing => _isUpFocusing;
 
   // 释放所有焦点节点资源
   void dispose() {
