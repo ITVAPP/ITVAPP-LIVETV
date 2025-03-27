@@ -384,7 +384,7 @@ Widget buildListItem({
       : content;
 }
 
-// 抽象列表组件基类 - 定义通用属性和状态管理
+// 修改部分：抽象列表组件基类 - 定义通用属性和抽象方法
 abstract class BaseListWidget<T> extends StatefulWidget {
   final ScrollController scrollController; // 滚动控制器
   final bool isTV; // 是否为TV模式
@@ -397,39 +397,42 @@ abstract class BaseListWidget<T> extends StatefulWidget {
     this.startIndex = 0,
   });
 
+  // 抽象方法：获取列表项总数
+  int getItemCount();
+
+  // 抽象方法：构建列表内容
+  Widget buildContent(BuildContext context);
+
   @override
   BaseListState<T> createState();
 }
 
-// 抽象列表状态基类 - 管理焦点监听和构建内容
+// 修改部分：抽象列表状态基类 - 管理焦点监听和构建内容
 abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, getItemCount(), this, scrollController: widget.scrollController);
+    addFocusListeners(widget.startIndex, widget.getItemCount(), this, scrollController: widget.scrollController);
   }
 
   @override
   void dispose() {
     if (focusManager.focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < focusManager.focusNodes.length) {
-      removeFocusListeners(widget.startIndex, getItemCount());
+      removeFocusListeners(widget.startIndex, widget.getItemCount());
     }
     super.dispose();
   }
-
-  int getItemCount(); // 获取列表项总数
-  Widget buildContent(BuildContext context); // 构建列表内容
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor),
-      child: buildContent(context),
+      child: widget.buildContent(context),
     );
   }
 }
 
-// 分类列表组件 - 显示分类并支持选中和点击
+// 修改部分：分类列表组件 - 显示分类并支持选中和点击
 class CategoryList extends BaseListWidget {
   final List<String> categories; // 分类列表
   final int selectedCategoryIndex; // 当前选中分类索引
@@ -446,22 +449,17 @@ class CategoryList extends BaseListWidget {
   });
 
   @override
-  _CategoryListState createState() => _CategoryListState();
-}
-
-class _CategoryListState extends BaseListState<CategoryList> {
-  @override
-  int getItemCount() => widget.categories.length;
+  int getItemCount() => categories.length;
 
   @override
   Widget buildContent(BuildContext context) {
     return ListView(
-      controller: widget.scrollController,
+      controller: scrollController,
       children: [
         Group(
           groupIndex: 0,
-          children: List.generate(widget.categories.length, (index) {
-            final category = widget.categories[index];
+          children: List.generate(categories.length, (index) {
+            final category = categories[index];
             final displayTitle = category == Config.myFavoriteKey
                 ? S.of(context).myfavorite
                 : category == Config.allChannelsKey
@@ -470,13 +468,13 @@ class _CategoryListState extends BaseListState<CategoryList> {
 
             return buildListItem(
               title: displayTitle,
-              isSelected: widget.selectedCategoryIndex == index,
-              onTap: () => widget.onCategoryTap(index),
+              isSelected: selectedCategoryIndex == index,
+              onTap: () => onCategoryTap(index),
               isCentered: true,
-              isTV: widget.isTV,
+              isTV: isTV,
               context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == widget.categories.length - 1,
+              index: startIndex + index,
+              isLastItem: index == categories.length - 1,
               key: index == 0 ? _itemKey : null,
             );
           }),
@@ -484,9 +482,14 @@ class _CategoryListState extends BaseListState<CategoryList> {
       ],
     );
   }
+
+  @override
+  _CategoryListState createState() => _CategoryListState();
 }
 
-// 分组列表组件 - 显示分组并支持选中和点击
+class _CategoryListState extends BaseListState<CategoryList> {}
+
+// 修改部分：分组列表组件 - 显示分组并支持选中和点击
 class GroupList extends BaseListWidget {
   final List<String> keys; // 分组键列表
   final int selectedGroupIndex; // 当前选中分组索引
@@ -497,28 +500,23 @@ class GroupList extends BaseListWidget {
   const GroupList({
     super.key,
     required this.keys,
-    required this.scrollController,
     required this.selectedGroupIndex,
     required this.onGroupTap,
     required super.isTV,
     super.startIndex = 0,
+    required super.scrollController,
     this.isFavoriteCategory = false,
     required this.isSystemAutoSelected,
   });
 
   @override
-  _GroupListState createState() => _GroupListState();
-}
-
-class _GroupListState extends BaseListState<GroupList> {
-  @override
-  int getItemCount() => widget.keys.length;
+  int getItemCount() => keys.length;
 
   @override
   Widget buildContent(BuildContext context) {
-    if (widget.keys.isEmpty && widget.isFavoriteCategory) {
+    if (keys.isEmpty && isFavoriteCategory) {
       return ListView(
-        controller: widget.scrollController,
+        controller: scrollController,
         children: [
           Container(
             width: double.infinity,
@@ -538,31 +536,36 @@ class _GroupListState extends BaseListState<GroupList> {
     }
 
     return ListView(
-      controller: widget.scrollController,
+      controller: scrollController,
       children: [
         Group(
           groupIndex: 1,
-          children: List.generate(widget.keys.length, (index) {
+          children: List.generate(keys.length, (index) {
             return buildListItem(
-              title: widget.keys[index],
-              isSelected: widget.selectedGroupIndex == index,
-              onTap: () => widget.onGroupTap(index),
+              title: keys[index],
+              isSelected: selectedGroupIndex == index,
+              onTap: () => onGroupTap(index),
               isCentered: false,
-              isTV: widget.isTV,
+              isTV: isTV,
               minHeight: defaultMinHeight,
               context: context,
-              index: widget.startIndex + index,
-              isLastItem: index == widget.keys.length - 1,
-              isSystemAutoSelected: widget.isSystemAutoSelected,
+              index: startIndex + index,
+              isLastItem: index == keys.length - 1,
+              isSystemAutoSelected: isSystemAutoSelected,
             );
           }),
         ),
       ],
     );
   }
+
+  @override
+  _GroupListState createState() => _GroupListState();
 }
 
-// 频道列表组件 - 显示频道并支持选中和点击
+class _GroupListState extends BaseListState<GroupList> {}
+
+// 修改部分：频道列表组件 - 显示频道并支持选中和点击
 class ChannelList extends BaseListWidget {
   final Map<String, PlayModel> channels; // 频道数据映射
   final Function(PlayModel?) onChannelTap; // 频道点击回调
@@ -572,25 +575,20 @@ class ChannelList extends BaseListWidget {
   const ChannelList({
     super.key,
     required this.channels,
-    required this.scrollController,
     required this.onChannelTap,
     this.selectedChannelName,
     required super.isTV,
     super.startIndex = 0,
+    required super.scrollController,
     this.isSystemAutoSelected = false,
   });
 
   @override
-  _ChannelListState createState() => _ChannelListState();
-}
-
-class _ChannelListState extends BaseListState<ChannelList> {
-  @override
-  int getItemCount() => widget.channels.length;
+  int getItemCount() => channels.length;
 
   @override
   Widget buildContent(BuildContext context) {
-    final channelList = widget.channels.entries.toList();
+    final channelList = channels.entries.toList();
     if (channelList.isEmpty) return const SizedBox.shrink();
 
     final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
@@ -603,7 +601,7 @@ class _ChannelListState extends BaseListState<ChannelList> {
         : null;
 
     return ListView(
-      controller: widget.scrollController,
+      controller: scrollController,
       children: [
         Group(
           groupIndex: 2,
@@ -611,25 +609,30 @@ class _ChannelListState extends BaseListState<ChannelList> {
             final channelEntry = channelList[index];
             final channelName = channelEntry.key;
             final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-            final isSelect = isCurrentPlayingGroup && widget.selectedChannelName == channelName;
+            final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
             return buildListItem(
               title: channelName,
-              isSelected: !widget.isSystemAutoSelected && isSelect,
-              onTap: () => widget.onChannelTap(widget.channels[channelName]),
+              isSelected: !isSystemAutoSelected && isSelect,
+              onTap: () => onChannelTap(channels[channelName]),
               isCentered: false,
               minHeight: defaultMinHeight,
-              isTV: widget.isTV,
+              isTV: isTV,
               context: context,
-              index: widget.startIndex + index,
+              index: startIndex + index,
               isLastItem: index == channelList.length - 1,
-              isSystemAutoSelected: widget.isSystemAutoSelected,
+              isSystemAutoSelected: isSystemAutoSelected,
             );
           }),
         ),
       ],
     );
   }
+
+  @override
+  _ChannelListState createState() => _ChannelListState();
 }
+
+class _ChannelListState extends BaseListState<ChannelList> {}
 
 // EPG列表组件 - 显示节目单并支持滚动到选中项
 class EPGList extends StatefulWidget {
@@ -840,7 +843,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _categoryIndex = -1; // 当前分类索引
   int _categoryStartIndex = 0; // 分类焦点起始索引
   int _groupStartIndex = 0; // 分组焦点起始索引
-  int _channelStartIndex = 0; // 频道焦点起始索引
+  int _channelStartIndex =  REVIEWED0; // 频道焦点起始索引
 
   double _drawerHeight = 0.0; // 抽屉高度
 
