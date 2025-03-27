@@ -609,7 +609,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         await ChannelDrawerPage.scroll(targetList: targetList, toTop: false);
       }
       _safeRequestFocus(widget.focusNodes[nextIndex], nextIndex, groupIndex);
-      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame; 
       if (_currentFocus != widget.focusNodes[nextIndex]) {
         LogUtil.i('焦点切换失败，强制重试: $nextIndex');
         _safeRequestFocus(widget.focusNodes[nextIndex], nextIndex, groupIndex);
