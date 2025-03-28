@@ -1056,7 +1056,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _scrollChannelController.dispose();
     _categoryScrollController.dispose();
     _epgItemScrollController.dispose();
-    _epgDebounceTimer?.cancel(); // 清理防抖定时器
+    _epgDebounceTimer?.cancel();
     focusManager.dispose();
     super.dispose();
   }
@@ -1461,23 +1461,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (_channelIndex >= 0 && _channelIndex < _values[_groupIndex].keys.length) {
         selectedChannelName = _values[_groupIndex].keys.toList()[_channelIndex];
       }
-      channelListWidget = ChannelList(
-        channels: _values[_groupIndex],
-        selectedChannelName: selectedChannelName,
-        onChannelTap: _onChannelTap,
-        isTV: useFocusNavigation,
-        scrollController: _scrollChannelController,
-        startIndex: _categories.length + _keys.length,
-        isSystemAutoSelected: _isChannelAutoSelected,
+      channelListWidget = RepaintBoundary(
+        child: ChannelList(
+          channels: _values[_groupIndex],
+          selectedChannelName: selectedChannelName,
+          onChannelTap: _onChannelTap,
+          isTV: useFocusNavigation,
+          scrollController: _scrollChannelController,
+          startIndex: _channelStartIndex,
+          isSystemAutoSelected: _isSystemAutoSelected,
+        ),
       );
 
-      epgListWidget = EPGList(
-        epgData: _epgData,
-        selectedIndex: _selEPGIndex,
-        isTV: useFocusNavigation,
-        epgScrollController: _epgItemScrollController,
-        onCloseDrawer: widget.onCloseDrawer,
-      );
+      if (_epgData != null) {
+        epgListWidget = RepaintBoundary(
+          child: EPGList(
+            epgData: _epgData,
+            selectedIndex: _selEPGIndex,
+            isTV: useFocusNavigation,
+            epgScrollController: _epgItemScrollController,
+            onCloseDrawer: widget.onCloseDrawer,
+          ),
+        );
+      }
     }
 
     return TvKeyNavigation(
@@ -1501,18 +1507,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   ) {
     double categoryWidth = isPortrait ? 110 : 120;
     double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;
-    double channelListWidth = (groupListWidget != null && channelListWidget != null)
-        ? (isPortrait ? MediaQuery.of(context).size.width - categoryWidth - groupWidth : 160)
-        : 0;
-    double epgListWidth = (groupListWidget != null && channelListWidget != null && epgListWidget != null)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - channelListWidth
-        : 0;
+    double channelWidth = channelListWidget != null ? (isTV ? 160 : 150) : 0;
+    double epgWidth = epgListWidget != null ? 200 : 0;
 
     return Container(
       key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: widget.isLandscape
-          ? categoryWidth + groupWidth + channelListWidth + epgListWidth
+          ? categoryWidth + groupWidth + channelWidth + epgWidth
           : MediaQuery.of(context).size.width,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1551,15 +1553,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
               if (channelListWidget != null) ...[
                 verticalDivider,
                 SizedBox(
-                  width: channelListWidth,
+                  width: channelWidth,
                   height: constraints.maxHeight,
                   child: channelListWidget,
                 ),
               ],
               if (epgListWidget != null) ...[
                 verticalDivider,
-                Container(
-                  width: epgListWidth,
+                SizedBox(
+                  width: epgWidth,
+                  height: constraints.maxHeight,
                   child: epgListWidget,
                 ),
               ],
