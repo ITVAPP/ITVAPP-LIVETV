@@ -1018,7 +1018,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-@Override
+@override
 void didUpdateWidget(ChannelDrawerPage oldWidget) {
   super.didUpdateWidget(oldWidget);
   if (widget.videoMap != oldWidget.videoMap) {
