@@ -1011,7 +1011,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
 
     initializeData();
-    updateFocusLogic(true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel); // 移到 ChannelContent
@@ -1019,22 +1018,40 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  @override
-  void didUpdateWidget(ChannelDrawerPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.videoMap != oldWidget.videoMap) {
-      initializeData();
-      updateFocusLogic(false);
-      setState(() {});
-    }
-  }
-
-  // 初始化分类、频道数据和焦点逻辑
-  Future<void> initializeData() async {
+@override
+void didUpdateWidget(ChannelDrawerPage oldWidget) {
+  super.didUpdateWidget(oldWidget);
+  if (widget.videoMap != oldWidget.videoMap) {
     _initializeCategoryData();
     _initializeChannelData();
-    await updateFocusLogic(true);
+
+    // 暂停焦点管理
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.deactivateFocusManagement();
+    }
+
+    // 更新焦点逻辑，保留当前焦点位置
+    int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
+    if (_groupIndex >= 0 && _keys.isNotEmpty) {
+      initialFocusIndex = _groupStartIndex + _groupIndex;
+    }
+    await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
+
+    // 重新激活焦点管理
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+    }
+
+    setState(() {});
   }
+}
+
+// 初始化分类、频道数据和焦点逻辑
+Future<void> initializeData() async {
+  _initializeCategoryData();
+  _initializeChannelData();
+  await updateFocusLogic(true);
+}
 
   // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
