@@ -1018,18 +1018,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-@override
+@Override
 void didUpdateWidget(ChannelDrawerPage oldWidget) {
   super.didUpdateWidget(oldWidget);
   if (widget.videoMap != oldWidget.videoMap) {
     _initializeCategoryData();
     _initializeChannelData();
-    // 更新焦点逻辑，保留当前焦点位置
     int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
     if (_groupIndex >= 0 && _keys.isNotEmpty) {
       initialFocusIndex = _groupStartIndex + _groupIndex;
     }
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
+    }
     updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
+      }
       setState(() {});
     });
   }
