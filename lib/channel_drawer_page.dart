@@ -1044,7 +1044,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
+    focusManager.initialize(_categories.length); // 仅在初始化时调用一次
+    _initGroupFocusCacheForCategories(); // 初始化分类焦点缓存
     await updateFocusLogic(true);
+  }
+
+  // 仅初始化分类部分的焦点缓存
+  void _initGroupFocusCacheForCategories() {
+    if (_categories.isNotEmpty) {
+      _categoryListFirstIndex = 0;
+      _categoryListLastIndex = _categories.length - 1;
+      _groupFocusCache[0] = {
+        'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
+      };
+    }
   }
 
   // 计算总焦点节点数
@@ -1201,102 +1215,62 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新焦点逻辑（修改部分）
-Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
-  // 检查并直接更新 categoryMap
-  Map<String, Map<String, PlayModel>>? categoryMap;
-  if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-    final selectedCategory = _categories[_categoryIndex];
-    categoryMap = widget.videoMap?.playList?[selectedCategory];
-    if (categoryMap == null && widget.videoMap?.playList != null) {
-      // 若 categoryMap 为 null，但 playList 非空，调整到第一个有效分类
-      for (int i = 0; i < _categories.length; i++) {
-        categoryMap = widget.videoMap?.playList?[_categories[i]];
-        if (categoryMap != null && categoryMap.isNotEmpty) {
-          _categoryIndex = i;
-          break;
+  // 更新焦点逻辑
+  Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
+    if (isInitial) {
+      focusManager.lastFocusedIndex = -1; // 首次初始化时重置
+      // focusManager.initialize(_categories.length); // 已移到 initializeData
+    }
+
+    final groupCount = _keys.length;
+    final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
+    focusManager.focusStates.clear();
+    focusManager.updateDynamicNodes(groupCount, channelCount);
+
+    _categoryStartIndex = 0;
+    _groupStartIndex = _categories.length;
+    _channelStartIndex = _categories.length + _keys.length;
+
+    _groupListFirstIndex = _groupStartIndex;
+    _channelListFirstIndex = _channelStartIndex;
+
+    _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
+    _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
+        ? _channelStartIndex + _values[_groupIndex].length - 1
+        : -1;
+
+    // 只更新动态组的缓存，保留分类组缓存
+    _groupFocusCache.remove(1); // 清空分组组
+    _groupFocusCache.remove(2); // 清空频道组
+    if (_keys.isNotEmpty) {
+      _groupFocusCache[1] = {
+        'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_groupListLastIndex]
+      };
+    }
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      _groupFocusCache[2] = {
+        'firstFocusNode': focusManager.focusNodes[_channelListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_channelListLastIndex]
+      };
+    }
+
+    LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
+        'channelStart=$_channelStartIndex');
+
+    if (_tvKeyNavigationState != null) {
+      _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
+      if (!isInitial) {
+        _tvKeyNavigationState!.releaseResources(preserveFocus: true); // 保留焦点
+        int safeIndex = initialIndexOverride ?? 0;
+        if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
+          safeIndex = 0;
         }
-      }
-      // 如果仍未找到有效 categoryMap，重置
-      if (categoryMap == null) {
-        _categoryIndex = _categories.isNotEmpty ? 0 : -1;
-        categoryMap = _categories.isNotEmpty ? widget.videoMap?.playList?[_categories[0]] : null;
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+        _reInitializeFocusListeners();
       }
     }
-  } else if (_categories.isNotEmpty && _categoryIndex != 0) {
-    _categoryIndex = 0; // 索引无效时调整为第一个分类
-    categoryMap = widget.videoMap?.playList?[_categories[0]];
   }
-
-  // 更新 _keys 和 _values
-  if (categoryMap != null && categoryMap.isNotEmpty) {
-    _keys = categoryMap.keys.toList();
-    _values = categoryMap.values.toList();
-  } else {
-    _keys = [];
-    _values = [];
-  }
-
-  if (isInitial) {
-    focusManager.lastFocusedIndex = -1;
-    focusManager.initialize(_categories.length);
-  }
-
-  final groupCount = _keys.length;
-  final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
-  focusManager.focusStates.clear();
-  focusManager.updateDynamicNodes(groupCount, channelCount);
-
-  _categoryStartIndex = 0;
-  _groupStartIndex = _categories.length;
-  _channelStartIndex = _categories.length + _keys.length;
-
-  _categoryListFirstIndex = 0;
-  _groupListFirstIndex = _groupStartIndex;
-  _channelListFirstIndex = _channelStartIndex;
-
-  _categoryListLastIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
-  _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
-  _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
-      ? _channelStartIndex + _values[_groupIndex].length - 1
-      : -1;
-
-  _groupFocusCache.clear();
-  if (_categories.isNotEmpty) {
-    _groupFocusCache[0] = {
-      'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
-      'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
-    };
-  }
-  if (_keys.isNotEmpty) {
-    _groupFocusCache[1] = {
-      'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
-      'lastFocusNode': focusManager.focusNodes[_groupListLastIndex]
-    };
-  }
-  if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-    _groupFocusCache[2] = {
-      'firstFocusNode': focusManager.focusNodes[_channelListFirstIndex],
-      'lastFocusNode': focusManager.focusNodes[_channelListLastIndex]
-    };
-  }
-
-  LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-      'channelStart=$_channelStartIndex');
-
-  if (_tvKeyNavigationState != null) {
-    _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
-    if (!isInitial) {
-      _tvKeyNavigationState!.releaseResources(preserveFocus: true);
-      int safeIndex = initialIndexOverride ?? 0;
-      if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
-        safeIndex = 0;
-      }
-      _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
-      _reInitializeFocusListeners();
-    }
-  }
-}
 
   // 处理分类点击事件
   void _onCategoryTap(int index) async {
