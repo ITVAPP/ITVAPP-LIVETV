@@ -1018,34 +1018,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-@override
-void didUpdateWidget(ChannelDrawerPage oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  if (widget.videoMap != oldWidget.videoMap) {
+  @override
+  void didUpdateWidget(ChannelDrawerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.videoMap != oldWidget.videoMap) {
+      _initializeCategoryData();
+      _initializeChannelData();
+      int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
+      if (_groupIndex >= 0 && _keys.isNotEmpty) {
+        initialFocusIndex = _groupStartIndex + _groupIndex;
+      }
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
+      }
+      updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
+        if (_tvKeyNavigationState != null) {
+          _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
+        }
+        setState(() {});
+      });
+    }
+  }
+
+  // 初始化分类、频道数据和焦点逻辑
+  Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
-    int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
-    if (_groupIndex >= 0 && _keys.isNotEmpty) {
-      initialFocusIndex = _groupStartIndex + _groupIndex;
-    }
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
-    }
-    updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
-      }
-      setState(() {});
-    });
+    await updateFocusLogic(true);
   }
-}
-
-// 初始化分类、频道数据和焦点逻辑
-Future<void> initializeData() async {
-  _initializeCategoryData();
-  _initializeChannelData();
-  await updateFocusLogic(true);
-}
 
   // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
@@ -1201,8 +1201,37 @@ Future<void> initializeData() async {
     }
   }
 
-  // 更新焦点逻辑
+  // 更新焦点逻辑（修改部分）
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
+    // 在生成索引前检查和重新计算
+    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
+      final selectedCategory = _categories[_categoryIndex];
+      final categoryMap = widget.videoMap?.playList?[selectedCategory];
+      if (categoryMap == null) {
+        // 如果 categoryMap 为 null，重置数据
+        LogUtil.i('categoryMap 为 null，重置数据');
+        _keys = [];
+        _values = [];
+        _groupIndex = -1;
+        _channelIndex = -1;
+      } else if (_keys.isEmpty || _values.isEmpty || _groupIndex >= _keys.length) {
+        // 如果数据不一致，重新计算
+        _keys = categoryMap.keys.toList();
+        _values = categoryMap.values.toList();
+        _groupIndex = _keys.isEmpty ? -1 : 0;
+        _channelIndex = (_values.isNotEmpty && _groupIndex >= 0) ? 0 : -1;
+      }
+    } else {
+      // _categoryIndex 无效时重置
+      _keys = [];
+      _values = [];
+      _groupIndex = -1;
+      _channelIndex = -1;
+      if (_categories.isNotEmpty && _categoryIndex != 0) {
+        _categoryIndex = 0;
+      }
+    }
+
     if (isInitial) {
       focusManager.lastFocusedIndex = -1; // 首次初始化时重置
       focusManager.initialize(_categories.length);
