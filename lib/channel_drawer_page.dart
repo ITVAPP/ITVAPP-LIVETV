@@ -1010,7 +1010,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
 
-    initializeData(isInitial: true); // 首次初始化
+    initializeData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel); // 移到 ChannelContent
@@ -1021,38 +1021,43 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 @override
 void didUpdateWidget(ChannelDrawerPage oldWidget) {
   super.didUpdateWidget(oldWidget);
-
   if (widget.videoMap != oldWidget.videoMap) {
-    final oldFavorites = oldWidget.videoMap?.playList[Config.myFavoriteKey] ?? {};
-    final newFavorites = widget.videoMap?.playList[Config.myFavoriteKey] ?? {};
-    final oldCount = _countFavorites(oldFavorites);
-    final newCount = _countFavorites(newFavorites);
-    if (newCount > oldCount) {
-      // 添加收藏：重新初始化抽屉
-      initializeData(isInitial: true); // 非首次初始化
-    } 
-  }
-}
+    // 计算焦点索引
+    int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
 
-// 辅助方法：计算收藏总数
-int _countFavorites(Map<String, Map<String, PlayModel>> favorites) {
-  int count = 0;
-  favorites.forEach((group, channels) {
-    count += channels.length;
-  });
-  return count;
+    LogUtil.i('didUpdateWidget 触发, initialFocusIndex=${initialFocusIndex}');
+    
+    // 异步更新焦点
+    Future<void> updateFocus() async {
+      try {
+        _tvKeyNavigationState?.deactivateFocusManagement();
+        await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
+        if (mounted && _tvKeyNavigationState != null) {
+          LogUtil.i('激活焦点管理: initialFocusIndex=$initialFocusIndex');
+          _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+          await Future.microtask(() { // 确保更新完成
+            setState(() {});
+          });
+        } else {
+          LogUtil.i('组件已销毁或导航状态丢失，无法激活焦点管理');
+        }
+      } catch (e) {
+        LogUtil.e('更新焦点逻辑失败: $e');
+      }
+    }
+
+    updateFocus();
+  }
 }
 
   // 初始化分类、频道数据和焦点逻辑
-Future<void> initializeData({bool isInitial = false}) async {
-  _initializeCategoryData();
-  _initializeChannelData();
-  await updateFocusLogic(isInitial);
-  if (mounted && _tvKeyNavigationState != null) {
-    _tvKeyNavigationState!.activateFocusManagement();
-    setState(() {});
+  Future<void> initializeData() async {
+    _initializeCategoryData();
+    _initializeChannelData();
+    focusManager.initialize(_categories.length); // 仅在初始化时调用一次
+    _initGroupFocusCacheForCategories(); // 初始化分类焦点缓存
+    await updateFocusLogic(true);
   }
-}
 
   // 仅初始化分类部分的焦点缓存
   void _initGroupFocusCacheForCategories() {
@@ -1549,8 +1554,8 @@ class _ChannelContentState extends State<ChannelContent> {
   bool _isSystemAutoSelected = false; // 系统自动选中标志
   bool _isChannelAutoSelected = false; // 频道自动选中标志
   Timer? _epgDebounceTimer; // EPG加载防抖定时器
-  bool _isInitialLoad = true; // 标记是否首次加载
-
+  static bool _isInitialLoad = true; // 标记是否首次加载
+  
   @override
   void initState() {
     super.initState();
