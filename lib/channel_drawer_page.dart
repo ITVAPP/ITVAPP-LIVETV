@@ -814,18 +814,11 @@ class EPGListState extends State<EPGList> {
 
 // 主组件 - 频道抽屉页面，管理分类、分组、频道和EPG
 class ChannelDrawerPage extends StatefulWidget {
-  final PlaylistModel? videoMap; // 播放列表数据
-  final PlayModel? playModel; // 当前播放模型
-  final bool isLandscape; // 是否横屏
-  final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
-  final VoidCallback onCloseDrawer; // 关闭抽屉回调
-  final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated; // TV导航状态创建回调
-  final ValueKey<int>? refreshKey; // 刷新键
-
+  // 定义一个静态的 GlobalKey 用于固定 State
   static final GlobalKey<_ChannelDrawerPageState> _stateKey = GlobalKey<_ChannelDrawerPageState>();
 
   ChannelDrawerPage({
-    Key? key,
+    Key? key, // 保留 key 参数，但不直接使用
     this.videoMap,
     this.playModel,
     this.onTapChannel,
@@ -833,7 +826,15 @@ class ChannelDrawerPage extends StatefulWidget {
     required this.onCloseDrawer,
     this.onTvKeyNavigationStateCreated,
     this.refreshKey,
-  }) : super(key: key ?? _stateKey);
+  }) : super(key: _stateKey); // 强制使用静态的 _stateKey，忽略传入的 key
+
+  final PlaylistModel? videoMap; // 播放列表数据
+  final PlayModel? playModel; // 当前播放模型
+  final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
+  final bool isLandscape; // 是否横屏
+  final VoidCallback onCloseDrawer; // 关闭抽屉回调
+  final Function(TvKeyNavigationState state)? onTvKeyNavigationStateCreated; // TV导航状态创建回调
+  final ValueKey<int>? refreshKey; // 刷新键，作为普通属性传入
 
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
@@ -1018,59 +1019,59 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-@override
-void didUpdateWidget(ChannelDrawerPage oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  LogUtil.i('didUpdateWidget 开始: refreshKey=${widget.refreshKey?.value}, oldRefreshKey=${oldWidget.refreshKey?.value}, '
-      'videoMap=${widget.videoMap != null ? "有数据" : "null"}, oldVideoMap=${oldWidget.videoMap != null ? "有数据" : "null"}');
+  @override
+  void didUpdateWidget(ChannelDrawerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    LogUtil.i('didUpdateWidget 开始: refreshKey=${widget.refreshKey?.value}, oldRefreshKey=${oldWidget.refreshKey?.value}, '
+        'videoMap=${widget.videoMap != null ? "有数据" : "null"}, oldVideoMap=${oldWidget.videoMap != null ? "有数据" : "null"}');
 
-  // 检查 refreshKey 或 videoMap 是否变化
-  if (widget.refreshKey != oldWidget.refreshKey || widget.videoMap != oldWidget.videoMap) {
-    LogUtil.i('检测到变化: refreshKey变化=${widget.refreshKey != oldWidget.refreshKey}, '
-        'videoMap变化=${widget.videoMap != oldWidget.videoMap}');
+    // 检查 refreshKey 或 videoMap 是否变化
+    if (widget.refreshKey != oldWidget.refreshKey || widget.videoMap != oldWidget.videoMap) {
+      LogUtil.i('检测到变化: refreshKey变化=${widget.refreshKey != oldWidget.refreshKey}, '
+          'videoMap变化=${widget.videoMap != oldWidget.videoMap}');
 
-    initializeData().then((_) {
-      LogUtil.i('initializeData 完成: categories=${_categories.length}, keys=${_keys.length}, '
-          'values=${_values.isNotEmpty ? _values[_groupIndex]?.length ?? 0 : 0}, '
-          'categoryIndex=$_categoryIndex, groupIndex=$_groupIndex');
+      initializeData().then((_) {
+        LogUtil.i('initializeData 完成: categories=${_categories.length}, keys=${_keys.length}, '
+            'values=${_values.isNotEmpty ? _values[_groupIndex]?.length ?? 0 : 0}, '
+            'categoryIndex=$_categoryIndex, groupIndex=$_groupIndex');
 
-      int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
-      LogUtil.i('计算 initialFocusIndex: $initialFocusIndex, categoryStartIndex=$_categoryStartIndex');
+        int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
+        LogUtil.i('计算 initialFocusIndex: $initialFocusIndex, categoryStartIndex=$_categoryStartIndex');
 
-      Future<void> updateFocus() async {
-        try {
-          LogUtil.i('updateFocus 开始: _tvKeyNavigationState=${_tvKeyNavigationState != null ? "存在" : "null"}');
-          _tvKeyNavigationState?.deactivateFocusManagement();
-          LogUtil.i('deactivateFocusManagement 调用完成');
+        Future<void> updateFocus() async {
+          try {
+            LogUtil.i('updateFocus 开始: _tvKeyNavigationState=${_tvKeyNavigationState != null ? "存在" : "null"}');
+            _tvKeyNavigationState?.deactivateFocusManagement();
+            LogUtil.i('deactivateFocusManagement 调用完成');
 
-          await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
-          LogUtil.i('updateFocusLogic 完成: focusNodes.length=${focusManager.focusNodes.length}, '
-              'focusStates=${focusManager.focusStates.length}');
+            await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
+            LogUtil.i('updateFocusLogic 完成: focusNodes.length=${focusManager.focusNodes.length}, '
+                'focusStates=${focusManager.focusStates.length}');
 
-          if (mounted && _tvKeyNavigationState != null) {
-            LogUtil.i('准备激活焦点管理: mounted=$mounted, initialFocusIndex=$initialFocusIndex');
-            _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
-            LogUtil.i('activateFocusManagement 调用完成');
-            setState(() {
-              LogUtil.i('setState 执行: UI 将重新构建');
-            });
-          } else {
-            LogUtil.i('无法激活焦点管理: mounted=$mounted, _tvKeyNavigationState=${_tvKeyNavigationState != null ? "存在" : "null"}');
+            if (mounted && _tvKeyNavigationState != null) {
+              LogUtil.i('准备激活焦点管理: mounted=$mounted, initialFocusIndex=$initialFocusIndex');
+              _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+              LogUtil.i('activateFocusManagement 调用完成');
+              setState(() {
+                LogUtil.i('setState 执行: UI 将重新构建');
+              });
+            } else {
+              LogUtil.i('无法激活焦点管理: mounted=$mounted, _tvKeyNavigationState=${_tvKeyNavigationState != null ? "存在" : "null"}');
+            }
+          } catch (e) {
+            LogUtil.e('updateFocus 失败: $e, stackTrace=${StackTrace.current}');
           }
-        } catch (e) {
-          LogUtil.e('updateFocus 失败: $e, stackTrace=${StackTrace.current}');
         }
-      }
 
-      LogUtil.i('调用 updateFocus');
-      updateFocus();
-    }).catchError((e) {
-      LogUtil.e('initializeData 失败: $e, stackTrace=${StackTrace.current}');
-    });
-  } else {
-    LogUtil.i('未检测到变化，无需更新: refreshKey 和 videoMap 未变');
+        LogUtil.i('调用 updateFocus');
+        updateFocus();
+      }).catchError((e) {
+        LogUtil.e('initializeData 失败: $e, stackTrace=${StackTrace.current}');
+      });
+    } else {
+      LogUtil.i('未检测到变化，无需更新: refreshKey 和 videoMap 未变');
+    }
   }
-}
 
   // 初始化分类、频道数据和焦点逻辑
   Future<void> initializeData() async {
