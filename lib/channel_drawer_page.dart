@@ -663,27 +663,27 @@ class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
       controller: scrollController,
       children: [
         RepaintBoundary(
-        Group(
-          groupIndex: 2,
-          children: List.generate(channelList.length, (index) {
-            final channelEntry = channelList[index];
-            final channelName = channelEntry.key;
-            final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-            final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
-            return buildListItem(
-              title: channelName,
-              isSelected: !isSystemAutoSelected && isSelect,
-              onTap: () => onChannelTap(channels[channelName]),
-              isCentered: false,
-              minHeight: defaultMinHeight,
-              isTV: isTV,
-              context: context,
-              index: startIndex + index,
-              isLastItem: index == channelList.length - 1,
-              isSystemAutoSelected: isSystemAutoSelected,
-            );
-          }),
-        ),
+          child: Group(
+            groupIndex: 2,
+            children: List.generate(channelList.length, (index) {
+              final channelEntry = channelList[index];
+              final channelName = channelEntry.key;
+              final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+              final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
+              return buildListItem(
+                title: channelName,
+                isSelected: !isSystemAutoSelected && isSelect,
+                onTap: () => onChannelTap(channels[channelName]),
+                isCentered: false,
+                minHeight: defaultMinHeight,
+                isTV: isTV,
+                context: context,
+                index: startIndex + index,
+                isLastItem: index == channelList.length - 1,
+                isSystemAutoSelected: isSystemAutoSelected,
+              );
+            }),
+          ),
         ),
       ],
     );
@@ -950,7 +950,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'controller': _scrollChannelController,
         'count': _values.isNotEmpty && _groupIndex >= 0 ? _values[_groupIndex].length : 0
       },
-      'epg': {'controller': _epgItemScrollController, 'count': _epgData?.length ?? 0}, // 注意：_epgData 已移除，可根据需要调整
     };
 
     final config = scrollConfig[targetList];
@@ -1393,6 +1392,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         epgScrollController: _epgItemScrollController,
         onCloseDrawer: widget.onCloseDrawer,
         channelStartIndex: _channelStartIndex,
+        epgCache: epgCache,
       );
     }
 
@@ -1488,6 +1488,7 @@ class ChannelContent extends StatefulWidget {
   final ScrollController epgScrollController; // EPG滚动控制器
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
   final int channelStartIndex; // 频道焦点起始索引
+  final Map<String, Map<String, dynamic>> epgCache;
 
   const ChannelContent({
     Key? key,
@@ -1501,6 +1502,7 @@ class ChannelContent extends StatefulWidget {
     required this.epgScrollController,
     required this.onCloseDrawer,
     required this.channelStartIndex,
+    required this.epgCache,
   }) : super(key: key);
 
   @override
@@ -1568,7 +1570,7 @@ class _ChannelContentState extends State<ChannelContent> {
 
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel();
-    _epgDebounceTimer = Timer(Duration(Durationmilliseconds: 300), () {
+    _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
       _loadEPGMsg(playModel, channelKey: channelKey);
     });
   }
@@ -1578,10 +1580,10 @@ class _ChannelContentState extends State<ChannelContent> {
 
     final currentTime = DateTime.now();
     if (channelKey != null &&
-        epgCache.containsKey(channelKey) &&
-        epgCache[channelKey]!['timestamp'].day == currentTime.day) {
+        widget.epgCache.containsKey(channelKey) &&
+        widget.epgCache[channelKey]!['timestamp'].day == currentTime.day) {
       setState(() {
-        _epgData = epgCache[channelKey]!['data'];
+        _epgData = widget.epgCache[channelKey]!['data'];
         _selEPGIndex = _getInitialSelectedIndex(_epgData);
       });
       return;
@@ -1594,7 +1596,7 @@ class _ChannelContentState extends State<ChannelContent> {
       _epgData = res.epgData!;
       _selEPGIndex = _getInitialSelectedIndex(_epgData);
       if (channelKey != null) {
-        epgCache[channelKey] = {
+        widget.epgCache[channelKey] = {
           'data': res.epgData!,
           'timestamp': currentTime,
         };
