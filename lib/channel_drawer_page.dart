@@ -1267,7 +1267,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     await updateFocusLogic(false, initialIndexOverride: index);
 
     if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.activateFocusManagement();
+      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: index);
     }
 
     setState(() {});
@@ -1316,7 +1316,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     await updateFocusLogic(false, initialIndexOverride: _groupStartIndex + index);
 
     if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.activateFocusManagement();
+      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: _groupStartIndex + index);
     }
 
     setState(() {});
