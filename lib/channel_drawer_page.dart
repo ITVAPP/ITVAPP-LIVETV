@@ -1018,35 +1018,49 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-@override
-void didUpdateWidget(ChannelDrawerPage oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  if (widget.videoMap != oldWidget.videoMap) {
+  @override
+  void didUpdateWidget(ChannelDrawerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.videoMap != oldWidget.videoMap) {
+      _initializeCategoryData();
+      _initializeChannelData();
+      // int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
+      // if (_groupIndex >= 0 && _keys.isNotEmpty) {
+      //   initialFocusIndex = _groupStartIndex + _groupIndex;
+     //  }
+     int initialFocusIndex =  0 ;
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
+      }
+      updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
+        if (_tvKeyNavigationState != null) {
+          _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
+        }
+        setState(() {});
+      });
+    }
+  }
+
+  // 初始化分类、频道数据和焦点逻辑
+  Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
-    int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
-    if (_groupIndex >= 0 && _keys.isNotEmpty) {
-      initialFocusIndex = _groupStartIndex + _groupIndex;
-    }
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
-    }
-    updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
-      if (_tvKeyNavigationState != null) {
-      	_reInitializeFocusListeners();
-        _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
-      }
-      setState(() {});
-    });
+    focusManager.initialize(_categories.length); // 仅在初始化时调用一次
+    _initGroupFocusCacheForCategories(); // 初始化分类焦点缓存
+    await updateFocusLogic(true);
   }
-}
 
-// 初始化分类、频道数据和焦点逻辑
-Future<void> initializeData() async {
-  _initializeCategoryData();
-  _initializeChannelData();
-  await updateFocusLogic(true);
-}
+  // 仅初始化分类部分的焦点缓存
+  void _initGroupFocusCacheForCategories() {
+    if (_categories.isNotEmpty) {
+      _categoryListFirstIndex = 0;
+      _categoryListLastIndex = _categories.length - 1;
+      _groupFocusCache[0] = {
+        'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
+        'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
+      };
+    }
+  }
 
   // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
@@ -1206,7 +1220,7 @@ Future<void> initializeData() async {
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
       focusManager.lastFocusedIndex = -1; // 首次初始化时重置
-      focusManager.initialize(_categories.length);
+      // focusManager.initialize(_categories.length); // 已移到 initializeData
     }
 
     final groupCount = _keys.length;
@@ -1218,23 +1232,17 @@ Future<void> initializeData() async {
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
 
-    _categoryListFirstIndex = 0;
     _groupListFirstIndex = _groupStartIndex;
     _channelListFirstIndex = _channelStartIndex;
 
-    _categoryListLastIndex = _categories.isNotEmpty ? _categories.length - 1 : -1;
     _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
     _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
         ? _channelStartIndex + _values[_groupIndex].length - 1
         : -1;
 
-    _groupFocusCache.clear();
-    if (_categories.isNotEmpty) {
-      _groupFocusCache[0] = {
-        'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
-        'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
-      };
-    }
+    // 只更新动态组的缓存，保留分类组缓存
+    _groupFocusCache.remove(1); // 清空分组组
+    _groupFocusCache.remove(2); // 清空频道组
     if (_keys.isNotEmpty) {
       _groupFocusCache[1] = {
         'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
