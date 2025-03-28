@@ -15,33 +15,30 @@ import 'package:itvapp_live_tv/config.dart';
 // 是否在非TV模式下启用TV焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
-// 定义垂直分割线样式
+// 创建垂直分割线渐变样式
+LinearGradient createDividerGradient({required double opacityStart, required double opacityEnd}) {
+  return LinearGradient(
+    colors: [
+      Colors.white.withOpacity(opacityStart),
+      Colors.white.withOpacity((opacityStart + opacityEnd) / 2),
+      Colors.white.withOpacity(opacityEnd),
+    ],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+}
+
+// 定义垂直分割线组件
 final verticalDivider = Container(
   width: 1.5,
-  decoration: BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        Colors.white.withOpacity(0.05),
-        Colors.white.withOpacity(0.25),
-        Colors.white.withOpacity(0.05),
-      ],
-    ),
-  ),
+  decoration: BoxDecoration(gradient: createDividerGradient(opacityStart: 0.05, opacityEnd: 0.25)),
 );
 
-// 定义水平分割线样式
+// 定义水平分割线组件，带阴影效果
 final horizontalDivider = Container(
   height: 1,
   decoration: BoxDecoration(
-    gradient: LinearGradient(
-      colors: [
-        Colors.white.withOpacity(0.05),
-        Colors.white.withOpacity(0.15),
-        Colors.white.withOpacity(0.05),
-      ],
-    ),
+    gradient: createDividerGradient(opacityStart: 0.05, opacityEnd: 0.15),
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(0.1),
@@ -59,7 +56,7 @@ const defaultTextStyle = TextStyle(
   color: Colors.white,
 );
 
-// 定义选中文字样式
+// 定义选中状态的文字样式，带阴影
 const selectedTextStyle = TextStyle(
   fontWeight: FontWeight.w600,
   color: Colors.white,
@@ -75,7 +72,7 @@ const selectedTextStyle = TextStyle(
 // 定义列表项最小高度
 const defaultMinHeight = 42.0;
 
-// 定义带分割线和不带分割线的列表项高度常量
+// 定义带分割线和不带分割线的列表项高度
 const double ITEM_HEIGHT_WITH_DIVIDER = defaultMinHeight + 1.0;
 const double ITEM_HEIGHT_WITHOUT_DIVIDER = defaultMinHeight;
 
@@ -96,7 +93,7 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
 const Color selectedColor = Color(0xFFEB144C);
 const Color focusColor = Color(0xFFDFA02A);
 
-// 获取渐变色逻辑，基于焦点和选中状态
+// 根据焦点和选中状态获取渐变色
 LinearGradient? _getGradientColor({
   required bool useFocus,
   required bool hasFocus,
@@ -149,25 +146,25 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 焦点状态管理类，单例模式管理焦点节点
+// 焦点状态管理类，单例模式管理全局焦点节点
 class FocusStateManager {
   static final FocusStateManager _instance = FocusStateManager._internal();
   factory FocusStateManager() => _instance;
   FocusStateManager._internal();
 
   List<FocusNode> focusNodes = []; // 存储所有焦点节点
-  Map<int, bool> focusStates = {}; // 记录焦点状态
-  int lastFocusedIndex = -1; // 上次焦点索引
+  Map<int, bool> focusStates = {}; // 记录每个焦点节点的状态
+  int lastFocusedIndex = -1; // 上次焦点节点索引
   Map<int, int> focusGroupIndices = {}; // 焦点组索引映射
-  List<FocusNode> categoryFocusNodes = []; // 分类焦点节点
-  bool _isUpdating = false; // 更新状态锁
+  List<FocusNode> categoryFocusNodes = []; // 分类焦点节点列表
+  bool _isUpdating = false; // 防止并发更新锁
 
   // 初始化焦点管理器，创建分类焦点节点
   void initialize(int categoryCount) {
     if (_isUpdating) return;
     _isUpdating = true;
     try {
-      if (categoryFocusNodes.isEmpty) {
+      if (categoryFocusNodes.isEmpty && categoryCount > 0) {
         categoryFocusNodes = List.generate(categoryCount, (index) => FocusNode(debugLabel: 'CategoryNode$index'));
       }
       focusNodes.clear();
@@ -180,7 +177,7 @@ class FocusStateManager {
     }
   }
 
-  // 更新动态焦点节点，适应分组和频道数量
+  // 更新动态焦点节点，适应分组和频道变化
   void updateDynamicNodes(int groupCount, int channelCount) {
     if (_isUpdating) return;
     _isUpdating = true;
@@ -188,7 +185,7 @@ class FocusStateManager {
       focusNodes.clear();
       focusNodes.addAll(categoryFocusNodes);
       final totalDynamicNodes = groupCount + channelCount;
-      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+      final dynamicNodes = List.generate(total согласиNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
       focusNodes.addAll(dynamicNodes);
 
       focusGroupIndices.clear();
@@ -206,9 +203,9 @@ class FocusStateManager {
     }
   }
 
-  bool get isUpdating => _isUpdating; // 获取更新状态
+  bool get isUpdating => _isUpdating;
 
-  // 释放所有焦点节点资源
+  // 释放焦点节点资源并重置状态
   void dispose() {
     for (var node in focusNodes) {
       node.dispose();
@@ -219,10 +216,14 @@ class FocusStateManager {
     focusNodes.clear();
     categoryFocusNodes.clear();
     focusStates.clear();
+    lastFocusedIndex = -1;
+    focusGroupIndices.clear();
+    _isUpdating = false;
   }
 }
 
-final focusManager = FocusStateManager(); // 全局焦点管理器实例
+// 全局焦点管理器实例
+final focusManager = FocusStateManager();
 
 // 定义全局键和变量，用于动态获取列表项高度
 final GlobalKey _itemKey = GlobalKey();
@@ -241,7 +242,7 @@ void getItemHeight(BuildContext context) {
   });
 }
 
-// 为指定范围的焦点节点添加监听器
+// 为指定范围的焦点节点添加监听器，避免重复绑定
 void addFocusListeners(
   int startIndex,
   int length,
@@ -259,6 +260,7 @@ void addFocusListeners(
 
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
+    focusManager.focusNodes[index].removeListener(() {});
     focusManager.focusStates[index] ??= focusManager.focusNodes[index].hasFocus;
   }
 
@@ -277,7 +279,7 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑，去除防抖机制
+// 处理焦点切换时的滚动逻辑
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
   final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
@@ -365,6 +367,20 @@ void removeFocusListeners(int startIndex, int length) {
   }
 }
 
+// 获取列表项文字样式，基于焦点和选中状态
+TextStyle getItemTextStyle({
+  required bool useFocus,
+  required bool hasFocus,
+  required bool isSelected,
+  required bool isSystemAutoSelected,
+}) {
+  return useFocus
+      ? (hasFocus
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle))
+      : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle);
+}
+
 // 构建通用列表项，支持焦点和选中样式
 Widget buildListItem({
   required String title,
@@ -385,11 +401,12 @@ Widget buildListItem({
   final focusNode = (index != null && index >= 0 && index < focusManager.focusNodes.length) ? focusManager.focusNodes[index] : null;
   final hasFocus = focusNode?.hasFocus ?? false;
 
-  final textStyle = useFocus
-      ? (hasFocus
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle))
-      : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle);
+  final textStyle = getItemTextStyle(
+    useFocus: useFocus,
+    hasFocus: hasFocus,
+    isSelected: isSelected,
+    isSystemAutoSelected: isSystemAutoSelected,
+  );
 
   Widget content = Column(
     key: key,
@@ -875,7 +892,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool isPortrait = true; // 是否竖屏
   bool _isSystemAutoSelected = false; // 系统自动选中标志
   bool _isChannelAutoSelected = false; // 频道自动选中标志
-  Timer? _epgDebounceTimer; // 新增：用于防抖的定时器
+  Timer? _epgDebounceTimer; // EPG加载防抖定时器
 
   final GlobalKey _viewPortKey = GlobalKey(); // 视口全局键
   List<String> _categories = []; // 分类列表
@@ -991,7 +1008,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     updateFocusLogic(true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel); // 修改为防抖版本
+      if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel);
       getItemHeight(context);
     });
   }
@@ -1039,7 +1056,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _scrollChannelController.dispose();
     _categoryScrollController.dispose();
     _epgItemScrollController.dispose();
-    _epgDebounceTimer?.cancel(); // 新增：清理防抖定时器
+    _epgDebounceTimer?.cancel(); // 清理防抖定时器
     focusManager.dispose();
     super.dispose();
   }
@@ -1171,7 +1188,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 更新焦点逻辑
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
-      focusManager.lastFocusedIndex = -1; // 仅在首次初始化时重置
+      focusManager.lastFocusedIndex = -1; // 首次初始化时重置
       focusManager.initialize(_categories.length);
     }
 
@@ -1349,7 +1366,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadEPGMsgWithDebounce(newModel, channelKey: newModel?.title ?? ''); // 修改为防抖版本
+      _loadEPGMsgWithDebounce(newModel, channelKey: newModel?.title ?? '');
     });
   }
 
@@ -1359,7 +1376,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     scrollTo(targetList: 'channel', index: _channelIndex, alignment: null);
   }
 
-  // 新增：带有防抖的 EPG 加载方法
+  // 带有防抖的EPG加载方法
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel(); // 取消之前的定时器
     _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
