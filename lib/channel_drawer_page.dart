@@ -1035,14 +1035,13 @@ void didUpdateWidget(ChannelDrawerPage oldWidget) {
     if (_groupIndex >= 0 && _keys.isNotEmpty) {
       initialFocusIndex = _groupStartIndex + _groupIndex;
     }
-    await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
-
-    // 重新激活焦点管理
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
-    }
-
-    setState(() {});
+    updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
+      // 重新激活焦点管理
+      if (_tvKeyNavigationState != null) {
+        _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+      }
+      setState(() {});
+    });
   }
 }
 
