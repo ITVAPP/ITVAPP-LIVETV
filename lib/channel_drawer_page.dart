@@ -112,7 +112,7 @@ LinearGradient? _getGradientColor({
   return null;
 }
 
-// 构建列表项装饰样式，处理焦点和选中效果
+// 构建列表项装饰样式，焦点和选中效果
 BoxDecoration buildItemDecoration({
   required bool isTV,
   required bool hasFocus,
