@@ -1529,7 +1529,7 @@ class _ChannelContentState extends State<ChannelContent> {
   @override
   void didUpdateWidget(ChannelContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.groupIndex != widget.groupIndex || oldWidget.playModel != widget.playModel) {
+    if (oldWidget.groupIndex != widget.groupIndex) {
       _initializeChannelIndex();
       if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel);
     }
