@@ -15,6 +15,15 @@ import 'package:itvapp_live_tv/config.dart';
 // 是否在非TV模式下启用TV焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
+// 定义宽度常量，方便后续修改
+const double defaultCategoryWidthPortrait = 110.0; // 竖屏分类宽度
+const double defaultCategoryWidthLandscape = 120.0; // 横屏分类宽度
+const double defaultGroupWidthPortrait = 120.0; // 竖屏分组宽度
+const double defaultGroupWidthLandscape = 130.0; // 横屏分组宽度
+const double defaultChannelWidthTV = 160.0; // TV模式频道宽度
+const double defaultChannelWidthNonTV = 150.0; // 非TV模式频道宽度
+const double defaultEpgWidth = 200.0; // EPG宽度
+
 // 创建垂直分割线渐变样式
 LinearGradient createDividerGradient({required double opacityStart, required double opacityEnd}) {
   return LinearGradient(
@@ -1414,11 +1423,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget? groupListWidget,
     Widget? channelContentWidget, // 修改为单个参数
   ) {
-    double categoryWidth = isPortrait ? 110 : 120;
-    double groupWidth = groupListWidget != null ? (isPortrait ? 120 : 130) : 0;
-    double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
+    final double categoryWidth = isPortrait ? defaultCategoryWidthPortrait : defaultCategoryWidthLandscape;
+    final double groupWidth = groupListWidget != null ? (isPortrait ? defaultGroupWidthPortrait : defaultGroupWidthLandscape) : 0.0;
+    final double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth
-        : 0;
+        : 0.0;
 
     return Container(
       key: _viewPortKey,
@@ -1630,11 +1639,13 @@ class _ChannelContentState extends State<ChannelContent> {
       selectedChannelName = widget.values[widget.groupIndex].keys.toList()[_channelIndex];
     }
 
+    final double channelWidth = widget.isTV ? defaultChannelWidthTV : defaultChannelWidthNonTV;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: widget.isTV ? 160 : 150,
+          width: channelWidth,
           child: ChannelList(
             channels: widget.values[widget.groupIndex],
             selectedChannelName: selectedChannelName,
@@ -1648,7 +1659,7 @@ class _ChannelContentState extends State<ChannelContent> {
         if (_epgData != null) ...[
           verticalDivider,
           SizedBox(
-            width: 200,
+            width: defaultEpgWidth,
             child: EPGList(
               epgData: _epgData,
               selectedIndex: _selEPGIndex,
