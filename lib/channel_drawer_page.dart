@@ -1013,7 +1013,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.videoMap != oldWidget.videoMap || widget.playModel != oldWidget.playModel) {
+    if (widget.videoMap != oldWidget.videoMap) {
       initializeData();
       updateFocusLogic(false);
       setState(() {});
