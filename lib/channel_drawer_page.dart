@@ -1018,26 +1018,37 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
-  @override
-  void didUpdateWidget(ChannelDrawerPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.videoMap != oldWidget.videoMap) {
-      _initializeCategoryData();
-      _initializeChannelData();
-      // int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
-      // if (_groupIndex >= 0 && _keys.isNotEmpty) {
-      //   initialFocusIndex = _groupStartIndex + _groupIndex;
-     //  }
-     int initialFocusIndex =  0 ;
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
+@override
+void didUpdateWidget(ChannelDrawerPage oldWidget) {
+  super.didUpdateWidget(oldWidget);
+  if (widget.videoMap != oldWidget.videoMap || widget.refreshKey != oldWidget.refreshKey) {
+    LogUtil.i('didUpdateWidget 触发: videoMap=${widget.videoMap != oldWidget.videoMap}, refreshKey=${widget.refreshKey != oldWidget.refreshKey}');
+    _initializeCategoryData();
+    _initializeChannelData();
+
+    // 计算焦点索引
+    int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
+
+    // 异步更新焦点
+    Future<void> updateFocus() async {
+      try {
+        _tvKeyNavigationState?.deactivateFocusManagement();
+        await updateFocusLogic(false, initialIndexOverride: initialFocusIndex);
+        if (mounted && _tvKeyNavigationState != null) {
+          LogUtil.i('激活焦点管理: initialFocusIndex=$initialFocusIndex');
+          _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+          setState(() {});
+        } else {
+          LogUtil.w('组件已销毁或导航状态丢失，无法激活焦点管理');
+        }
+      } catch (e) {
+        LogUtil.e('更新焦点逻辑失败: $e');
       }
-      updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
-          _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
-        setState(() {});
-      });
     }
+
+    updateFocus();
   }
+}
 
   // 初始化分类、频道数据和焦点逻辑
   Future<void> initializeData() async {
