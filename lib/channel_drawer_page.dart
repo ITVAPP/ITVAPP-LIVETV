@@ -1021,14 +1021,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 @override
 void didUpdateWidget(ChannelDrawerPage oldWidget) {
   super.didUpdateWidget(oldWidget);
-  if (widget.videoMap != oldWidget.videoMap || widget.refreshKey != oldWidget.refreshKey) {
-    LogUtil.i('didUpdateWidget 触发: videoMap=${widget.videoMap != oldWidget.videoMap}, refreshKey=${widget.refreshKey != oldWidget.refreshKey}');
-    _initializeCategoryData();
-    _initializeChannelData();
-
+  if (widget.videoMap != oldWidget.videoMap) {
     // 计算焦点索引
     int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
 
+    LogUtil.i('didUpdateWidget 触发: videoMap=${widget.videoMap != oldWidget.videoMap}, refreshKey=${widget.refreshKey != oldWidget.refreshKey}, initialFocusIndex=${initialFocusIndex}');
+    
     // 异步更新焦点
     Future<void> updateFocus() async {
       try {
@@ -1039,7 +1037,7 @@ void didUpdateWidget(ChannelDrawerPage oldWidget) {
           _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
           setState(() {});
         } else {
-          LogUtil.w('组件已销毁或导航状态丢失，无法激活焦点管理');
+          LogUtil.i('组件已销毁或导航状态丢失，无法激活焦点管理');
         }
       } catch (e) {
         LogUtil.e('更新焦点逻辑失败: $e');
