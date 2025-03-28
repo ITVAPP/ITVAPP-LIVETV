@@ -1220,7 +1220,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_tvKeyNavigationState != null) {
       _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
       if (!isInitial) {
-        _tvKeyNavigationState!.releaseResources();
+        _tvKeyNavigationState!.releaseResources(preserveFocus: true); // 保留焦点
         int safeIndex = initialIndexOverride ?? 0;
         if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
           safeIndex = 0;
