@@ -1024,22 +1024,12 @@ void didUpdateWidget(ChannelDrawerPage oldWidget) {
   if (widget.videoMap != oldWidget.videoMap) {
     _initializeCategoryData();
     _initializeChannelData();
-
-    // 暂停焦点管理
-    if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.deactivateFocusManagement();
-    }
-
     // 更新焦点逻辑，保留当前焦点位置
     int initialFocusIndex = _categoryIndex >= 0 ? _categoryIndex : 0;
     if (_groupIndex >= 0 && _keys.isNotEmpty) {
       initialFocusIndex = _groupStartIndex + _groupIndex;
     }
     updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
-      // 重新激活焦点管理
-      if (_tvKeyNavigationState != null) {
-        _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
-      }
       setState(() {});
     });
   }
@@ -1541,13 +1531,18 @@ class _ChannelContentState extends State<ChannelContent> {
   bool _isSystemAutoSelected = false; // 系统自动选中标志
   bool _isChannelAutoSelected = false; // 频道自动选中标志
   Timer? _epgDebounceTimer; // EPG加载防抖定时器
+  bool _isInitialLoad = true; // 标记是否首次加载
 
   @override
   void initState() {
     super.initState();
     _initializeChannelIndex();
+    // 首次加载时加载当前频道的 EPG
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel);
+      if (_isInitialLoad && widget.playModel != null) {
+        _loadEPGMsgWithDebounce(widget.playModel, channelKey: widget.playModel?.title ?? '');
+        _isInitialLoad = false; // 标记为非首次加载
+      }
     });
   }
 
@@ -1556,7 +1551,6 @@ class _ChannelContentState extends State<ChannelContent> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.groupIndex != widget.groupIndex) {
       _initializeChannelIndex();
-      if (_shouldLoadEpg()) _loadEPGMsgWithDebounce(widget.playModel);
     }
   }
 
@@ -1588,6 +1582,7 @@ class _ChannelContentState extends State<ChannelContent> {
       _selEPGIndex = 0;
     });
 
+    // 频道切换时加载新频道的 EPG
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadEPGMsgWithDebounce(newModel, channelKey: newModel?.title ?? '');
     });
