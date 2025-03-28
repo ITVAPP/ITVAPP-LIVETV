@@ -1033,9 +1033,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         _tvKeyNavigationState!.deactivateFocusManagement(); // 停用现有导航
       }
       updateFocusLogic(false, initialIndexOverride: initialFocusIndex).then((_) {
-        if (_tvKeyNavigationState != null) {
           _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex); // 激活导航
-        }
         setState(() {});
       });
     }
