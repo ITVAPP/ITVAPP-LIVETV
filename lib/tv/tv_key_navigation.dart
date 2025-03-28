@@ -120,12 +120,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 释放资源，清理焦点和观察者
-  void releaseResources() {
+  void releaseResources({bool preserveFocus = false}) {
     try {
       if (!mounted) return;
       if (_currentFocus != null && _currentFocus!.canRequestFocus) {
         if (widget.frameType == "parent") _lastParentFocusIndex = widget.focusNodes.indexOf(_currentFocus!);
-        if (_currentFocus!.hasFocus) _currentFocus!.unfocus();
+        if (!preserveFocus && _currentFocus!.hasFocus) {
+          _currentFocus!.unfocus(); // 仅当 preserveFocus 为 false 时移除焦点
+        }
         _currentFocus = null;
       }
       if (widget.frameType == "child" || !widget.isFrame) _groupFocusCache.clear();
@@ -156,42 +158,48 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 初始化焦点逻辑，支持指定初始焦点
-void initializeFocusLogic({int? initialIndexOverride}) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    try {
-      if (widget.focusNodes.isEmpty) {
-        LogUtil.i('focusNodes 为空，无法初始化');
-        return;
+  void initializeFocusLogic({int? initialIndexOverride}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        if (widget.focusNodes.isEmpty) {
+          LogUtil.i('focusNodes 为空，无法初始化');
+          return;
+        }
+        LogUtil.i('初始化焦点，节点数: ${widget.focusNodes.length}');
+        // 在设置新焦点前移除旧焦点（如果有）
+        if (_currentFocus != null && _currentFocus!.hasFocus) {
+          LogUtil.i('移除旧焦点: ${widget.focusNodes.indexOf(_currentFocus!)}');
+          _currentFocus!.unfocus();
+          _currentFocus = null;
+        }
+        if (widget.groupFocusCache != null) {
+          _groupFocusCache = Map.from(widget.groupFocusCache!);
+          LogUtil.i('使用传入的 groupFocusCache');
+          updateNamedCache(cache: _groupFocusCache);
+        } else if (widget.cacheName == "ChannelDrawerPage") {
+          ChannelDrawerPage.initializeData();
+          ChannelDrawerPage.updateFocusLogic(true);
+          LogUtil.i('处理 ChannelDrawerPage 初始化');
+        } else {
+          LogUtil.i('执行分组查找逻辑');
+          _cacheGroupFocusNodes();
+        }
+        int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
+        if (initialIndex < 0 || initialIndex >= widget.focusNodes.length) {
+          LogUtil.i('初始索引无效 ($initialIndex)，回退到 0');
+          initialIndex = 0; // 回退到 0
+        }
+        _requestFocusSafely(
+          widget.focusNodes[initialIndex],
+          initialIndex,
+          _getGroupIndex(widget.focusNodes[initialIndex]),
+        );
+        LogUtil.i('焦点初始化到索引: $initialIndex');
+      } catch (e) {
+        LogUtil.i('焦点初始化失败: $e');
       }
-      LogUtil.i('初始化焦点，节点数: ${widget.focusNodes.length}');
-      if (widget.groupFocusCache != null) {
-        _groupFocusCache = Map.from(widget.groupFocusCache!);
-        LogUtil.i('使用传入的 groupFocusCache');
-        updateNamedCache(cache: _groupFocusCache);
-      } else if (widget.cacheName == "ChannelDrawerPage") {
-        ChannelDrawerPage.initializeData();
-        ChannelDrawerPage.updateFocusLogic(true);
-        LogUtil.i('处理 ChannelDrawerPage 初始化');
-      } else {
-        LogUtil.i('执行分组查找逻辑');
-        _cacheGroupFocusNodes();
-      }
-      int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
-      if (initialIndex < 0 || initialIndex >= widget.focusNodes.length) {
-        LogUtil.i('初始索引无效 ($initialIndex)，回退到 0');
-        initialIndex = 0; // 回退到 0
-      }
-      _requestFocusSafely(
-        widget.focusNodes[initialIndex],
-        initialIndex,
-        _getGroupIndex(widget.focusNodes[initialIndex]),
-      );
-      LogUtil.i('焦点初始化到索引: $initialIndex');
-    } catch (e) {
-      LogUtil.i('焦点初始化失败: $e');
-    }
-  });
-}
+    });
+  }
 
   /// 处理错误并记录日志
   void _handleError(String message, dynamic error, StackTrace stackTrace) {
