@@ -185,7 +185,7 @@ class FocusStateManager {
       focusNodes.clear();
       focusNodes.addAll(categoryFocusNodes);
       final totalDynamicNodes = groupCount + channelCount;
-      final dynamicNodes = List.generate(total согласиNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
       focusNodes.addAll(dynamicNodes);
 
       focusGroupIndices.clear();
