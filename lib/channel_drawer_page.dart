@@ -25,20 +25,27 @@ const double defaultChannelWidthNonTV = 150.0; // 非TV模式频道宽度
 const double defaultEpgWidth = 200.0; // EPG宽度
 
 // 修改代码开始
-// 定义通用渐变生成函数
-LinearGradient createGradient(List<double> opacities, {Alignment begin = Alignment.topCenter, Alignment end = Alignment.bottomCenter}) {
-  return LinearGradient(
-    colors: opacities.map((opacity) => Colors.white.withOpacity(opacity)).toList(),
-    begin: begin,
-    end: end,
-  );
-}
+// 定义垂直分割线渐变样式为常量
+const verticalDividerGradient = LinearGradient(
+  colors: [
+    Color.fromRGBO(255, 255, 255, 0.05),
+    Color.fromRGBO(255, 255, 255, 0.15),
+    Color.fromRGBO(255, 255, 255, 0.25),
+  ],
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+);
 
-// 定义垂直分割线渐变样式为常量，避免重复创建
-const verticalDividerGradient = createGradient([0.05, 0.15, 0.25]);
-
-// 定义水平分割线渐变样式为常量，避免重复创建
-const horizontalDividerGradient = createGradient([0.05, 0.10, 0.15]);
+// 定义水平分割线渐变样式为常量
+const horizontalDividerGradient = LinearGradient(
+  colors: [
+    Color.fromRGBO(255, 255, 255, 0.05),
+    Color.fromRGBO(255, 255, 255, 0.10),
+    Color.fromRGBO(255, 255, 255, 0.15),
+  ],
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+);
 
 // 定义垂直分割线组件，使用常量渐变
 final verticalDivider = Container(
@@ -722,7 +729,7 @@ class EPGList extends StatefulWidget {
   final ScrollController epgScrollController; // EPG滚动控制器
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
 
-  const EPGList({
+  const EPG dwells({
     super.key,
     required this.epgData,
     required this.selectedIndex,
