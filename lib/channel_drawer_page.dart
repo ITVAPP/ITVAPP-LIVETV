@@ -114,8 +114,7 @@ const Color selectedColor = Color(0xFFEB144C);
 const Color focusColor = Color(0xFFDFA02A);
 
 // 修改焦点和选中状态渐变色，使用通用函数消除重复
-// 优化开始：重命名为 getGradientColor，逻辑保持不变
-LinearGradient? getGradientColor({
+LinearGradient? _getGradientColor({
   required bool useFocus,
   required bool hasFocus,
   required bool isSelected,
@@ -128,7 +127,6 @@ LinearGradient? getGradientColor({
   }
   return null;
 }
-// 优化结束：仅改名，逻辑一致性已验证
 
 // 构建列表项装饰样式，焦点和选中效果
 BoxDecoration buildItemDecoration({
@@ -139,7 +137,7 @@ BoxDecoration buildItemDecoration({
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
   return BoxDecoration(
-    gradient: getGradientColor(
+    gradient: _getGradientColor(
       useFocus: useFocus,
       hasFocus: hasFocus,
       isSelected: isSelected,
@@ -177,44 +175,49 @@ class FocusStateManager {
   List<FocusNode> categoryFocusNodes = []; // 分类焦点节点列表
   bool _isUpdating = false; // 防止并发更新锁
 
-  // 优化开始：合并 initialize 和 updateDynamicNodes 逻辑
-  void setupFocusNodes({
-    required int categoryCount,
-    int groupCount = 0,
-    int channelCount = 0,
-  }) {
+  // 初始化焦点管理器，创建分类焦点节点
+  void initialize(int categoryCount) {
     if (_isUpdating) return;
     _isUpdating = true;
     try {
-      _resetState();
-      if (categoryCount > 0 && categoryFocusNodes.isEmpty) {
+      if (categoryFocusNodes.isEmpty && categoryCount > 0) {
         categoryFocusNodes = List.generate(categoryCount, (index) => FocusNode(debugLabel: 'CategoryNode$index'));
       }
+      focusNodes.clear();
+      focusStates.clear();
+      lastFocusedIndex = -1;
+      focusGroupIndices.clear();
       focusNodes.addAll(categoryFocusNodes);
-      _addDynamicNodes(groupCount, channelCount);
     } finally {
       _isUpdating = false;
     }
   }
 
-  void _resetState() {
-    focusNodes.clear();
-    focusStates.clear();
-    lastFocusedIndex = -1;
-    focusGroupIndices.clear();
-  }
+  // 更新动态焦点节点，适应分组和频道变化
+  void updateDynamicNodes(int groupCount, int channelCount) {
+    if (_isUpdating) return;
+    _isUpdating = true;
+    try {
+      focusNodes.clear();
+      focusNodes.addAll(categoryFocusNodes);
+      final totalDynamicNodes = groupCount + channelCount;
+      final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
+      focusNodes.addAll(dynamicNodes);
 
-  void _addDynamicNodes(int groupCount, int channelCount) {
-    final totalDynamicNodes = groupCount + channelCount;
-    final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
-    focusNodes.addAll(dynamicNodes);
-
-    focusGroupIndices.clear();
-    for (int i = 0; i < categoryFocusNodes.length; i++) focusGroupIndices[i] = 0;
-    for (int i = 0; i < groupCount; i++) focusGroupIndices[categoryFocusNodes.length + i] = 1;
-    for (int i = 0; i < channelCount; i++) focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2;
+      focusGroupIndices.clear();
+      for (int i = 0; i < categoryFocusNodes.length; i++) {
+        focusGroupIndices[i] = 0; // 分类组
+      }
+      for (int i = 0; i < groupCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
+      }
+      for (int i = 0; i < channelCount; i++) {
+        focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
+      }
+    } finally {
+      _isUpdating = false;
+    }
   }
-  // 优化结束：逻辑与原 initialize 和 updateDynamicNodes 一致，仅合并为单一入口
 
   bool get isUpdating => _isUpdating;
 
@@ -282,17 +285,23 @@ void addFocusListeners(
 }
 
 // 优化滚动逻辑，通过缓存 itemHeight 并简化条件判断提高效率
-// 优化开始：简化条件判断，移除冗余变量
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
   final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
-  if (currentGroup == 0) return;
+  final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
+  final isInitialFocus = focusManager.lastFocusedIndex == -1;
+  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
+  focusManager.lastFocusedIndex = index;
 
-  final channelDrawerState = state is _ChannelDrawerPageState ? state : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
+  final channelDrawerState = state is _ChannelDrawerPageState
+      ? state
+      : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
+  if (currentGroup == 0) return;
+
   final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = channelDrawerState._cachedItemHeight;
+  final itemHeight = channelDrawerState._cachedItemHeight; // 使用缓存的动态高度
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   if (length <= fullItemsInViewport) {
@@ -304,14 +313,21 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   final itemTop = itemIndex * itemHeight;
   final itemBottom = itemTop + itemHeight;
 
-  if (itemBottom > currentOffset + viewportHeight) {
-    channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 2.0);
-  } else if (itemTop < currentOffset) {
-    channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: itemIndex, alignment: 0.0);
+  // 简化滚动条件判断
+  if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+    channelDrawerState.scrollTo(
+      targetList: _getTargetList(currentGroup),
+      index: itemIndex,
+      alignment: 2.0,
+    );
+  } else if (!isMovingDown && itemTop < currentOffset) {
+    channelDrawerState.scrollTo(
+      targetList: _getTargetList(currentGroup),
+      index: itemIndex,
+      alignment: 0.0,
+    );
   }
-  focusManager.lastFocusedIndex = index;
 }
-// 优化结束：滚动行为与原逻辑一致，减少了冗余判断
 
 // 根据组索引返回目标列表名称
 String _getTargetList(int groupIndex) {
@@ -733,7 +749,7 @@ class EPGListState extends State<EPGList> {
           Container(
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
-            padding: const Edge наруEdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -889,22 +905,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   double _cachedItemHeight = ITEM_HEIGHT_WITH_DIVIDER; // 缓存 itemHeight，提高滚动效率
 
-  // 优化开始：添加分类和分组索引缓存
-  Map<String, Map<String, int>> _categoryGroupIndexCache = {};
-
-  void _buildCategoryGroupIndexCache() {
-    _categoryGroupIndexCache.clear();
-    final videoMap = widget.videoMap?.playList;
-    if (videoMap == null) return;
-
-    videoMap.forEach((category, groups) {
-      final groupMap = <String, int>{};
-      groups.keys.toList().asMap().forEach((index, group) => groupMap[group] = index);
-      _categoryGroupIndexCache[category] = groupMap;
-    });
-  }
-  // 优化结束：用于加速索引查找
-
   // 获取并缓存列表项高度，避免重复计算
   void getItemHeight(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1041,11 +1041,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
-    focusManager.setupFocusNodes(
-      categoryCount: _categories.length,
-      groupCount: _keys.length,
-      channelCount: (_values.isNotEmpty && _groupIndex >= 0) ? _values[_groupIndex].length : 0,
-    );
+    focusManager.initialize(_categories.length);
+    _initGroupFocusCacheForCategories();
     await updateFocusLogic(true);
   }
 
@@ -1110,36 +1107,43 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 初始化分类数据，确定当前分类索引
-  // 优化开始：使用缓存加速索引查找
   void _initializeCategoryData() {
-    _categories = widget.videoMap?.playList?.playList?.keys.toList() ?? <String>[];
+    _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
     _categoryIndex = -1;
     _groupIndex = -1;
     _channelIndex = -1;
 
-    _buildCategoryGroupIndexCache();
-    final playModel = widget.playModel;
-    if (playModel != null && _categoryGroupIndexCache.containsKey(playModel.category)) {
-      final groupMap = _categoryGroupIndexCache[playModel.category]!;
-      if (groupMap.containsKey(playModel.group)) {
-        _categoryIndex = _categories.indexOf(playModel.category);
-        _groupIndex = groupMap[playModel.group]!;
-        _channelIndex = widget.videoMap?.playList[playModel.category]?[playModel.group]?.keys.toList().indexOf(playModel.title ?? '') ?? -1;
-        return;
+    for (int i = 0; i < _categories.length; i++) {
+      final category = _categories[i];
+      final categoryMap = widget.videoMap?.playList[category];
+
+      if (categoryMap is Map<String, Map<String, PlayModel>>) {
+        for (int groupIndex = 0; groupIndex < categoryMap.keys.length; groupIndex++) {
+          final group = categoryMap.keys.toList()[groupIndex];
+          final channelMap = categoryMap[group];
+
+          if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
+            _categoryIndex = i;
+            _groupIndex = groupIndex;
+            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? '');
+            return;
+          }
+        }
       }
     }
 
-    for (int i = 0; i < _categories.length; i++) {
-      final categoryMap = widget.videoMap?.playList[_categories[i]];
-      if (categoryMap != null && categoryMap.isNotEmpty) {
-        _categoryIndex = i;
-        _groupIndex = 0;
-        _channelIndex = 0;
-        break;
+    if (_categoryIndex == -1) {
+      for (int i = 0; i < _categories.length; i++) {
+        final categoryMap = widget.videoMap?.playList[_categories[i]];
+        if (categoryMap != null && categoryMap.isNotEmpty) {
+          _categoryIndex = i;
+          _groupIndex = 0;
+          _channelIndex = 0;
+          break;
+        }
       }
     }
   }
-  // 优化结束：逻辑与原代码一致，仅优化查找效率
 
   // 初始化频道数据，确定分组和频道索引
   void _initializeChannelData() {
