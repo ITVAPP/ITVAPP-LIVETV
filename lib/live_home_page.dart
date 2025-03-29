@@ -57,7 +57,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
   static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
-  static const int listenerThrottleSeconds = 2; // 新增常量：监听器节流间隔时间（秒）
+  static const int listenerThrottleSeconds = 1; // 监听器节流间隔时间（秒）
 
   // 缓冲区检查相关变量
   List<Map<String, dynamic>> _bufferedHistory = [];
