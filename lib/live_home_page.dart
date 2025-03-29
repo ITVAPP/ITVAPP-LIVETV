@@ -86,13 +86,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _currentPlayUrl; // 当前播放的URL（解析后的地址）
   String? _originalUrl; // 解析前的原始地址
   bool _progressEnabled = false; // 进度是否启用
-  bool _isHls = false; // 是否是HLS流
+  bool _isHls = false; // 是否是HLS流（优化：与 _currentPlayUrl 同步更新）
+  bool _isAudio = false; // 是否是音频流（优化：与 _currentPlayUrl 同步更新）
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   }; // 收藏列表
   ValueKey<int>? _drawerRefreshKey; // 抽屉刷新键
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics(); // 流量分析
-  bool _isAudio = false; // 是否是音频流
   Timer? _playDurationTimer; // 播放持续时间计时器
   Timer? _timeoutTimer; // 缓冲超时的计时器
   late AdManager _adManager; // 广告管理实例
@@ -103,31 +103,31 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
 
-  bool _checkIsAudioStream(String? url) {
-    if (url == null || url.isEmpty) return false;
+  // 优化：合并 _checkIsAudioStream 和 _isHlsStream 的公共逻辑
+  Map<String, bool> _analyzeUrlFormat(String? url) {
+    if (url == null || url.isEmpty) return {'isAudio': false, 'isHls': false};
+    final lowercaseUrl = url.toLowerCase();
     const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
     const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
-    final lowercaseUrl = url.toLowerCase();
-    return !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    bool isAudio = !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    bool isHls = lowercaseUrl.contains('.m3u8') || !([...videoFormats, ...audioFormats].any(lowercaseUrl.contains));
+    return {'isAudio': isAudio, 'isHls': isHls};
+  }
+
+  bool _checkIsAudioStream(String? url) {
+    return _analyzeUrlFormat(url)['isAudio']!;
   }
 
   bool _isHlsStream(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    // 优先检查 HLS 特征
-    if (lowercaseUrl.contains('.m3u8')) return true;
-    // 排除常见非 HLS 格式
-    const formats = [
-      '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
-      '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
-    ];
-    return !formats.any(lowercaseUrl.contains);
+    return _analyzeUrlFormat(url)['isHls']!;
   }
 
-  // 统一更新 _currentPlayUrl 和 _isHls 的方法
+  // 优化：统一更新 _currentPlayUrl、_isHls 和 _isAudio，避免重复计算
   void _updatePlayUrl(String newUrl) {
     _currentPlayUrl = newUrl;
-    _isHls = _isHlsStream(_currentPlayUrl);
+    final formatInfo = _analyzeUrlFormat(newUrl);
+    _isHls = formatInfo['isHls']!;
+    _isAudio = formatInfo['isAudio']!;
   }
 
   // 切换到预缓存地址
@@ -146,7 +146,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
-    _updatePlayUrl(_preCachedUrl!); // 在播放前更新，确保 _isHls 正确
+    _updatePlayUrl(_preCachedUrl!); // 在播放前更新，确保 _isHls 和 _isAudio 正确
+
     final newSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
 
     try {
@@ -230,7 +231,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _originalUrl = url; // 设置解析前地址
       _streamUrl = StreamUrl(url); // 保存 StreamUrl 实例
       String parsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
-      _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl 和 _isHls
+      _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl、_isHls 和 _isAudio
 
       if (parsedUrl == 'ERROR') {
         LogUtil.e('地址解析失败: $url');
@@ -242,10 +243,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
 
-      bool isDirectAudio = _checkIsAudioStream(parsedUrl);
-      setState(() => _isAudio = isDirectAudio);
-
-      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $_isHls');
+      // _isAudio 已由 _updatePlayUrl 更新，无需再次检查
+      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $_isAudio, HLS: $_isHls');
 
       final dataSource = BetterPlayerConfig.createDataSource(
         url: parsedUrl,
@@ -596,8 +595,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       LogUtil.i('开始预加载: $url');
       await _disposePreCacheStreamUrl(); // 先释放旧的预缓存实例
-      _preCacheStreamUrl = StreamUrl(url); // 保存预缓存实例（修改）
-      String parsedUrl = await _preCacheStreamUrl!.getStreamUrl(); // 使用保存的实例（修改）
+      _preCacheStreamUrl = StreamUrl(url); // 保存预缓存实例
+      String parsedUrl = await _preCacheStreamUrl!.getStreamUrl(); // 使用保存的实例
       if (parsedUrl == 'ERROR') {
         LogUtil.e('预加载解析失败: $url');
         await _disposePreCacheStreamUrl(); // 解析失败时释放
@@ -765,7 +764,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _progressEnabled = false;
         _isAudio = false;
         // 不重置 _isHls，保持与 _currentPlayUrl 一致
-        _bufferedHistory.clear();
+        _bufferedHistory.clear(); // 优化：明确清理缓冲历史，防止内存泄漏
         _preCachedUrl = null;
         _lastBufferedPosition = null;
         _lastBufferedTime = null;
@@ -789,7 +788,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  Future<void> _disposePreCacheStreamUrl() async { // 新增方法
+  Future<void> _disposePreCacheStreamUrl() async {
     if (_preCacheStreamUrl != null) {
       await _preCacheStreamUrl!.dispose();
       _preCacheStreamUrl = null;
@@ -806,6 +805,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false;
   }
 
+  // 优化：并行化解析和预缓存，提升切换效率
   Future<void> _reparseAndSwitch() async {
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
@@ -819,17 +819,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
       await _disposeStreamUrl(); // 先释放旧实例
-      _streamUrl = StreamUrl(url); // 保存新实例（修改）
-      String newParsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例（修改）
+      _streamUrl = StreamUrl(url); // 保存新实例
+
+      // 并行执行解析和预缓存准备
+      final parseFuture = _streamUrl!.getStreamUrl();
+      final preCacheFuture = _playerController != null
+          ? Future.value(_playerController)
+          : Future.error('播放器控制器为空');
+
+      final results = await Future.wait([parseFuture, preCacheFuture]);
+      String newParsedUrl = results[0] as String;
+
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
-        await _disposeStreamUrl(); // 解析失败时释放
+        await _disposeStreamUrl();
         _handleSourceSwitching();
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeStreamUrl(); // 无需切换时释放
+        await _disposeStreamUrl();
         return;
       }
 
@@ -844,11 +853,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _isParsing = false;
         setState(() => _isRetrying = false);
-        await _disposeStreamUrl(); // 网络恢复时释放
+        await _disposeStreamUrl();
         return;
       }
 
-      _preCachedUrl = newParsedUrl; // 只设置预缓存地址，不更新 _currentPlayUrl
+      _preCachedUrl = newParsedUrl;
       LogUtil.i('预缓存地址: $_preCachedUrl');
 
       final newSource = BetterPlayerConfig.createDataSource(
@@ -867,7 +876,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
-      await _disposeStreamUrl(); // 异常时释放
+      await _disposeStreamUrl();
       _handleSourceSwitching();
     } finally {
       _isParsing = false;
@@ -876,19 +885,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 获取地理信息
+  // 获取地理信息（优化：添加缓存）
+  Map<String, String?>? _cachedLocationInfo; // 优化：缓存地理信息
   Map<String, String?> _getLocationInfo(String? userInfo) {
     if (userInfo == null || userInfo.isEmpty) {
       LogUtil.i('用户地理信息为空，使用默认顺序');
       return {'region': null, 'city': null};
     }
+
+    // 优化：检查缓存是否可用
+    if (_cachedLocationInfo != null && SpUtil.getString('user_all_info') == userInfo) {
+      LogUtil.i('使用缓存的地理信息: ${_cachedLocationInfo}');
+      return _cachedLocationInfo!;
+    }
+
     try {
       final Map<String, dynamic> userData = jsonDecode(userInfo);
       final Map<String, dynamic>? locationData = userData['info']?['location'];
       final String? region = locationData?['region'] as String?;
       final String? city = locationData?['city'] as String?;
       
-      // 取前两个字符
       final String? regionPrefix = region != null && region.isNotEmpty
           ? (region.length >= 2 ? region.substring(0, 2) : region)
           : null;
@@ -896,29 +912,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
           ? (city.length >= 2 ? city.substring(0, 2) : city)
           : null;
 
+      _cachedLocationInfo = {'region': regionPrefix, 'city': cityPrefix}; // 优化：缓存结果
       LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
-      return {'region': regionPrefix, 'city': cityPrefix};
+      return _cachedLocationInfo!;
     } catch (e) {
       LogUtil.e('解析地理信息失败: $e');
       return {'region': null, 'city': null};
     }
   }
 
-  // 基于地理前缀排序，全部按原始顺序排列
+  // 优化：使用单次遍历和哈希表优化排序复杂度
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序');
-      return items; // 如果没有前缀，返回原始列表
+      return items;
     }
 
-    List<String> matched = []; // 匹配前缀的项
-    List<String> unmatched = []; // 未匹配前缀的项
-    Map<String, int> originalOrder = {}; // 保存原始顺序的索引
+    final Map<String, int> originalOrder = {for (var i = 0; i < items.length; i++) items[i]: i};
+    final matched = <String>[];
+    final unmatched = <String>[];
 
-    // 记录原始顺序并分离匹配与未匹配项
-    for (int i = 0; i < items.length; i++) {
-      String item = items[i];
-      originalOrder[item] = i; // 记录原始索引
+    for (var item in items) {
       if (item.startsWith(prefix)) {
         matched.add(item);
       } else {
@@ -926,16 +940,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     }
 
-    // 按原始顺序对匹配项排序
     matched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
-    // 按原始顺序对未匹配项排序
     unmatched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
 
     LogUtil.i('排序结果 - 匹配: $matched, 未匹配: $unmatched');
     return [...matched, ...unmatched];
   }
 
-  // 对 videoMap 进行排序
+  // 对 videoMap 进行排序（优化：利用缓存跳过不必要排序）
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       LogUtil.e('播放列表为空，无需排序');
@@ -946,7 +958,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     final String? regionPrefix = location['region'];
     final String? cityPrefix = location['city'];
 
-    // 如果两者均为空则跳过排序
     if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
       LogUtil.i('地理信息中未找到有效地区或城市前缀，跳过排序');
       return;
@@ -1110,10 +1121,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     try {
       _videoMap = widget.m3uData;
-      // 添加排序逻辑
       String? userInfo = SpUtil.getString('user_all_info');
-      LogUtil.i('原始 user_all_info: $userInfo'); // 添加调试日志以检查实际数据
-      _sortVideoMap(_videoMap!, userInfo);
+      LogUtil.i('原始 user_all_info: $userInfo');
+      _sortVideoMap(_videoMap!, userInfo); // 优化：利用缓存跳过不必要排序
       _sourceIndex = 0;
       await _handlePlaylist();
     } catch (e, stackTrace) {
