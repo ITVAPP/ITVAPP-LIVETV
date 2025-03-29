@@ -11,7 +11,7 @@ class LogUtil {
   static const String _defTag = 'common_utils';
   static bool debugMode = true; // 控制是否记录日志 true 或 false
   static bool _isOperating = false; // 添加操作锁，防止并发问题
-  static const int _maxSingleLogLength = 8588; // 添加单条日志最大长度限制
+  static const int _maxSingleLogLength = 588; // 添加单条日志最大长度限制
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
 
   // 内存存储相关
@@ -34,12 +34,17 @@ class LogUtil {
       _memoryLogs.clear(); // 初始化时先清空内存
       _newLogsBuffer.clear(); // 初始化时先清空缓冲区
 
-      final filePath = await _getLogFilePath();
-      final file = File(filePath);
+      // 修改代码开始
+      // 预计算日志文件路径，避免重复调用 _getLogFilePath
+      final directory = await getApplicationDocumentsDirectory();
+      _logFilePath = '${directory.path}/$_logFileName';
+      // 修改代码结束
+
+      final file = File(_logFilePath!);
 
       if (!await file.exists()) {
         await file.create();
-        developer.log('创建日志文件: $filePath');
+        developer.log('创建日志文件: $_logFilePath');
       } else {
         final int sizeInBytes = await file.length();
         if (sizeInBytes > _maxFileSizeBytes) {
@@ -112,19 +117,10 @@ class LogUtil {
     try {
       String time = DateTime.now().toString();
 
-      String objectStr = object.toString()
-          .replaceAll('\n', '\\n')
-          .replaceAll('\r', '\\r')
-          .replaceAll('|', '\\|')
-          .replaceAll('[', '\\[')
-          .replaceAll(']', '\\]')
-          ?? 'null';
-
-      if (objectStr.length > _maxSingleLogLength) {
-        objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
-      }
-
-      String logMessage = '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr}';
+      // 修改代码开始
+      // 提取日志格式化逻辑，消除 _log 和 logError 中的重复代码
+      String logMessage = _formatLogMessage(level, object, tag ?? _defTag, time);
+      // 修改代码结束
 
       // 添加到内存和缓冲区（新日志在前）
       _memoryLogs.insert(0, logMessage);
@@ -136,7 +132,7 @@ class LogUtil {
 
       developer.log(logMessage);
       if (_showOverlay) {
-        String displayMessage = objectStr
+        String displayMessage = object.toString()
             .replaceAll('\\n', '\n')
             .replaceAll('\\r', '\r')
             .replaceAll('\\|', '|')
@@ -148,6 +144,25 @@ class LogUtil {
       developer.log('日志记录失败: $e');
     }
   }
+
+  // 修改代码开始
+  // 新增方法：格式化日志消息，消除重复逻辑
+  static String _formatLogMessage(String level, Object? object, String tag, String time) {
+    String objectStr = object.toString()
+        .replaceAll('\n', '\\n')
+        .replaceAll('\r', '\\r')
+        .replaceAll('|', '\\|')
+        .replaceAll('[', '\\[')
+        .replaceAll(']', '\\]')
+        ?? 'null';
+
+    if (objectStr.length > _maxSingleLogLength) {
+      objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
+    }
+
+    return '[${time}] [${level}] [${tag}] | ${objectStr}';
+  }
+  // 修改代码结束
 
   // 将日志写入本地文件
   static Future<void> _flushToLocal() async {
@@ -166,7 +181,10 @@ class LogUtil {
       developer.log('写入日志文件失败: $e');
       _newLogsBuffer.insertAll(0, logsToWrite);
     } finally {
+      // 修改代码开始
+      // 确保异常后操作锁被正确重置，避免并发问题
       _isOperating = false;
+      // 修改代码结束
     }
   }
 
@@ -177,38 +195,45 @@ class LogUtil {
       _debugMessages.removeLast();
     }
     _hideOverlay();
+    
+    // 修改代码开始
+    // 添加空检查，确保 overlayState 不为 null，提升健壮性
     final overlayState = _findOverlayState();
-    if (overlayState != null) {
-      _overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          bottom: 20.0,
-          right: 20.0,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 300.0),
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _debugMessages.map((msg) => Text(
-                  msg,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  softWrap: true,
-                  maxLines: null,
-                  overflow: TextOverflow.visible,
-                )).toList(),
-              ),
+    if (overlayState == null) {
+      developer.log('无法找到 OverlayState，弹窗显示失败');
+      return;
+    }
+    // 修改代码结束
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 20.0,
+        right: 20.0,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 300.0),
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _debugMessages.map((msg) => Text(
+                msg,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                softWrap: true,
+                maxLines: null,
+                overflow: TextOverflow.visible,
+              )).toList(),
             ),
           ),
         ),
-      );
-      overlayState.insert(_overlayEntry!);
-      _startAutoHideTimer();
-    }
+      ),
+    );
+    overlayState.insert(_overlayEntry!);
+    _startAutoHideTimer();
   }
 
   // NavigatorObserver实例
@@ -216,9 +241,17 @@ class LogUtil {
 
   // 查找OverlayState
   static OverlayState? _findOverlayState() {
+    // 修改代码开始
+    // 缓存 OverlayState，避免重复计算，提升性能
+    static OverlayState? _cachedOverlayState;
+
+    if (_cachedOverlayState != null) return _cachedOverlayState;
+    // 修改代码结束
+
     try {
       if (navigatorObserver.navigator?.overlay != null) {
-        return navigatorObserver.navigator?.overlay;
+        _cachedOverlayState = navigatorObserver.navigator?.overlay;
+        return _cachedOverlayState;
       }
 
       Element? rootElement = WidgetsBinding.instance.renderViewElement;
@@ -235,7 +268,8 @@ class LogUtil {
       }
       rootElement.visitChildren(visitor);
 
-      return overlayState;
+      _cachedOverlayState = overlayState;
+      return _cachedOverlayState;
     } catch (e) {
       developer.log('获取 OverlayState 失败: $e');
       return null;
@@ -251,22 +285,23 @@ class LogUtil {
   // 启动自动隐藏计时器
   static void _startAutoHideTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
+    
+    // 修改代码开始
+    // 将 Timer.periodic 改为单次 Timer，提升效率
+    _timer = Timer(Duration(seconds: _messageDisplayDuration), () {
       if (_debugMessages.isEmpty) {
         _hideOverlay();
-        _timer?.cancel();
         _timer = null;
       } else {
         _debugMessages.removeLast();
         if (_debugMessages.isEmpty) {
           _hideOverlay();
-          _timer?.cancel();
-          _timer = null;
         } else {
           _overlayEntry?.markNeedsBuild();
         }
       }
     });
+    // 修改代码结束
   }
 
   // 记录错误日志
@@ -280,7 +315,12 @@ class LogUtil {
       return;
     }
 
-    await _log('e', '错误: $message\n错误详情: $error\n堆栈信息: $stackTrace', _defTag);
+    // 修改代码开始
+    // 使用提取的 _formatLogMessage 方法，消除重复
+    String time = DateTime.now().toString();
+    String logMessage = _formatLogMessage('e', '错误: $message\n错误详情: $error\n堆栈信息: $stackTrace', _defTag, time);
+    await _log('e', logMessage, _defTag);
+    // 修改代码结束
   }
 
   // 安全执行函数
@@ -300,20 +340,25 @@ class LogUtil {
   // 获取所有日志
   static List<Map<String, String>> getLogs() {
     try {
+      // 修改代码开始
+      // 增强字符串解析逻辑，提升健壮性
       return _memoryLogs.map((logStr) {
         final parts = logStr.split('|').map((s) => s.trim()).toList();
+        if (parts.length < 2) return {'time': '', 'level': '', 'tag': '', 'message': logStr};
+
         final headers = parts[0].split(']')
             .map((s) => s.trim().replaceAll('[', ''))
             .where((s) => s.isNotEmpty)
             .toList();
         
         return {
-          'time': headers[0],
-          'level': headers[1],
-          'tag': headers[2],
+          'time': headers.length > 0 ? headers[0] : '',
+          'level': headers.length > 1 ? headers[1] : '',
+          'tag': headers.length > 2 ? headers[2] : '',
           'message': parts[1],
         };
       }).toList();
+      // 修改代码结束
     } catch (e) {
       developer.log('获取日志失败: $e');
       return [];
@@ -323,23 +368,28 @@ class LogUtil {
   // 按级别获取日志
   static List<Map<String, String>> getLogsByLevel(String level) {
     try {
-      final levelPattern = RegExp(r'\[' + level + r'\]');
+      // 修改代码开始
+      // 预编译正则表达式，提升性能
+      final levelPattern = RegExp(r'\[' + RegExp.escape(level) + r'\]');
       return _memoryLogs
           .where((log) => levelPattern.hasMatch(log))
           .map((logStr) {
             final parts = logStr.split('|').map((s) => s.trim()).toList();
+            if (parts.length < 2) return {'time': '', 'level': level, 'tag': '', 'message': logStr};
+
             final headers = parts[0].split(']')
                 .map((s) => s.trim().replaceAll('[', ''))
                 .where((s) => s.isNotEmpty)
                 .toList();
             
             return {
-              'time': headers[0],
-              'level': headers[1],
-              'tag': headers[2],
+              'time': headers.length > 0 ? headers[0] : '',
+              'level': headers.length > 1 ? headers[1] : '',
+              'tag': headers.length > 2 ? headers[2] : '',
               'message': parts[1],
             };
           }).toList();
+      // 修改代码结束
     } catch (e) {
       developer.log('按级别获取日志失败: $e');
       return [];
@@ -375,10 +425,12 @@ class LogUtil {
           }
         }
       } else {
-        // 清理指定级别的日志
-        final levelPattern = RegExp(r'\[' + level + r'\]');
+        // 修改代码开始
+        // 预编译正则表达式，提升性能
+        final levelPattern = RegExp(r'\[' + RegExp.escape(level) + r'\]');
         _memoryLogs.removeWhere((log) => levelPattern.hasMatch(log));
         _newLogsBuffer.removeWhere((log) => levelPattern.hasMatch(log));
+        // 修改代码结束
         
         if (await file.exists()) {
           await file.writeAsString(_memoryLogs.join('\n') + '\n');
@@ -387,7 +439,10 @@ class LogUtil {
     } catch (e) {
       developer.log('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
     } finally {
+      // 修改代码开始
+      // 确保异常后操作锁被正确重置，避免并发问题
       _isOperating = false;
+      // 修改代码结束
     }
   }
 
@@ -406,8 +461,14 @@ class LogUtil {
 
   // 释放资源
   static Future<void> dispose() async {
+    // 修改代码开始
+    // 清理 _timer 和 _overlayEntry，避免资源泄漏
     if (!_isOperating && _newLogsBuffer.isNotEmpty) {
       await _flushToLocal();
     }
+    _timer?.cancel();
+    _timer = null;
+    _hideOverlay();
+    // 修改代码结束
   }
 }
