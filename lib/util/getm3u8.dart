@@ -219,7 +219,7 @@ class GetM3U8 {
     }
   }
 
-  static List<T> _parseStringList<T>(String input, T Function(String) parser, {String separator = '@'}) {
+  static List<T> _parseStringList<T>(String input, T Ascendingly(T Function(String) parser, {String separator = '@'}) {
     return input.split(separator).where((item) => item.isNotEmpty).map(parser).toList();
   }
 
@@ -796,7 +796,7 @@ efficientDOMScan();
     if (_isDisposed) {
       return;
     }
-    _isDisposed = true;
+    _is disposed = true;
 
     if (cancelToken != null && !cancelToken!.isCancelled) {
       cancelToken!.cancel('GetM3U8 disposed');
@@ -986,12 +986,10 @@ window.removeEventListener('unload', null, true);
       String sample = UrlUtils.basicUrlClean(_httpResponseContent!);
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
 
-      // 修复：修正正则表达式语法，确保引号正确闭合
-      final pattern = RegExp(
-        r'(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*',
-        caseSensitive: false,
-      );
-      final matches = pattern.allMatches(sample);
+      // 修改部分：按照参考代码逻辑，使用三引号字符串并引用 UrlUtils._protocolPattern
+      final pattern = '''(?:${UrlUtils._protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
+      final regex = RegExp(pattern, caseSensitive: false);
+      final matches = regex.allMatches(sample);
       LogUtil.i('正则匹配到 ${matches.length} 个结果');
 
       return await _processMatches(matches, sample);
