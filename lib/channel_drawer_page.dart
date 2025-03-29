@@ -179,7 +179,7 @@ class FocusStateManager {
   List<FocusNode> categoryFocusNodes = []; // 分类焦点节点列表
   bool _isUpdating = false; // 防止并发更新锁
 
-  // 重置并更新焦点节点，合并 initialize 和 updateDynamicNodes
+  // 重置并更新焦点节点，合并 initialize 和 updateDynamicNodes（修改部分）
   void resetAndUpdateNodes(int categoryCount, int groupCount, int channelCount) {
     if (_isUpdating) return;
     _isUpdating = true;
@@ -201,6 +201,11 @@ class FocusStateManager {
       for (int i = 0; i < categoryCount; i++) focusGroupIndices[i] = 0;
       for (int i = 0; i < groupCount; i++) focusGroupIndices[categoryCount + i] = 1;
       for (int i = 0; i < channelCount; i++) focusGroupIndices[categoryCount + groupCount + i] = 2;
+
+      // 预初始化 focusStates
+      for (int i = 0; i < focusNodes.length; i++) {
+        focusStates[i] = focusNodes[i].hasFocus;
+      }
     } catch (e) {
       LogUtil.e('焦点节点重置失败: $e');
     } finally {
@@ -255,7 +260,12 @@ void getItemHeight(BuildContext context) {
   });
 }
 
-// 为指定范围的焦点节点添加监听器，避免重复绑定
+// 缓存 itemHeight 的全局函数（新增部分）
+double getItemHeightCached() {
+  return _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+}
+
+// 为指定范围的焦点节点添加监听器，避免重复绑定（修改部分）
 void addFocusListeners(
   int startIndex,
   int length,
@@ -275,7 +285,7 @@ void addFocusListeners(
   for (var i = 0; i < safeLength; i++) {
     final index = startIndex + i;
     focusManager.focusNodes[index].removeListener(() {});
-    focusManager.focusStates[index] ??= focusManager.focusNodes[index].hasFocus;
+    // 移除 focusStates[index] ??= ...，已在 resetAndUpdateNodes 中初始化
   }
 
   for (var i = 0; i < safeLength; i++) {
@@ -284,7 +294,8 @@ void addFocusListeners(
       final currentFocus = focusManager.focusNodes[index].hasFocus;
       if (focusManager.focusStates[index] != currentFocus) {
         focusManager.focusStates[index] = currentFocus;
-        if (scrollController != null && currentFocus && scrollController.hasClients) {
+        final channelDrawerState = state as _ChannelDrawerPageState; // 直接强转
+        if (scrollController != null && currentFocus && (scrollController == channelDrawerState._scrollController ? channelDrawerState._groupScrollReady : channelDrawerState._channelScrollReady)) {
           _handleScroll(index, startIndex, state, scrollController, safeLength);
         }
         // 仅在必要时调用 setState
@@ -294,19 +305,17 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑，复用 scrollTo
+// 处理焦点切换时的滚动逻辑，复用 scrollTo（修改部分）
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
   final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
   if (currentGroup == 0) return;
 
-  final channelDrawerState = state is _ChannelDrawerPageState
-      ? state
-      : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
+  final channelDrawerState = state as _ChannelDrawerPageState; // 直接强转
   if (channelDrawerState == null) return;
 
-  final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
+  final viewportHeight = channelDrawerState.viewportHeight; // 使用缓存值
+  final itemHeight = getItemHeightCached(); // 使用缓存函数
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   double? alignment;
@@ -336,18 +345,15 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   focusManager.lastFocusedIndex = index;
 }
 
-// 根据组索引返回目标列表名称
+// 根据组索引返回目标列表名称（修改部分）
+const Map<int, String> _targetListMap = {
+  0: 'category',
+  1: 'group',
+  2: 'channel',
+};
+
 String _getTargetList(int groupIndex) {
-  switch (groupIndex) {
-    case 0:
-      return 'category';
-    case 1:
-      return 'group';
-    case 2:
-      return 'channel';
-    default:
-      return 'category';
-  }
+  return _targetListMap[groupIndex] ?? 'category';
 }
 
 // 移除指定范围的焦点监听器
@@ -912,6 +918,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {}; // 分组焦点缓存
 
+  // 新增缓存变量（修改部分）
+  bool _groupScrollReady = false; // 分组滚动控制器状态
+  bool _channelScrollReady = false; // 频道滚动控制器状态
+  double get viewportHeight => _drawerHeight; // 缓存 viewportHeight
+  int get categoryCount => _categories.length; // 缓存分类数量
+  int get keyCount => _keys.length; // 缓存分组数量
+
   // 获取状态栏高度
   double getStatusBarHeight() {
     final height = appui.window.viewPadding.top / appui.window.devicePixelRatio;
@@ -999,6 +1012,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
 
+    // 初始化 ScrollController 状态（修改部分）
+    _scrollController.addListener(() => _groupScrollReady = _scrollController.hasClients);
+    _scrollChannelController.addListener(() => _channelScrollReady = _scrollChannelController.hasClients);
+
     initializeData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1062,7 +1079,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   void dispose() {
-    // 修改代码开始
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     _scrollChannelController.dispose();
@@ -1071,7 +1087,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     focusManager.dispose();
     _groupFocusCache.clear(); // 清理焦点缓存，防止内存泄漏
     super.dispose();
-    // 修改代码结束
   }
 
   @override
@@ -1186,16 +1201,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     ], this, scrollController: _scrollChannelController);
   }
 
-  // 更新焦点逻辑
+  // 更新焦点逻辑（修改部分）
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
       focusManager.lastFocusedIndex = -1; // 首次初始化时重置
     }
 
-    final groupCount = _keys.length;
+    final groupCount = keyCount; // 使用缓存值
     final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
     focusManager.focusStates.clear();
-    focusManager.resetAndUpdateNodes(_categories.length, groupCount, channelCount);
+    focusManager.resetAndUpdateNodes(categoryCount, groupCount, channelCount); // 使用缓存值
 
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
@@ -1242,7 +1257,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 处理分类点击事件
+  // 处理分类点击事件（修改部分）
   void _onCategoryTap(int index) async {
     if (_categoryIndex == index) return;
 
@@ -1281,32 +1296,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: index);
     }
 
-    setState(() {});
+    if (_keys.isNotEmpty) {
+      final currentPlayModel = widget.playModel;
+      final categoryMap = widget.videoMap?.playList[_categories[_categoryIndex]];
+      final isChannelInCategory = currentPlayModel != null && categoryMap != null && categoryMap.containsKey(currentPlayModel.group);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_keys.isNotEmpty) {
-        final currentPlayModel = widget.playModel;
-        final categoryMap = widget.videoMap?.playList[_categories[_categoryIndex]];
-        final isChannelInCategory = currentPlayModel != null && categoryMap != null && categoryMap.containsKey(currentPlayModel.group);
+      await scrollTo(
+        targetList: 'group',
+        index: isChannelInCategory ? _groupIndex : 0,
+        alignment: isChannelInCategory ? null : 0.0,
+      );
 
-        scrollTo(
-          targetList: 'group',
-          index: isChannelInCategory ? _groupIndex : 0,
+      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+        await scrollTo(
+          targetList: 'channel',
+          index: isChannelInCategory ? _channelIndex : 0,
           alignment: isChannelInCategory ? null : 0.0,
         );
-
-        if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-          scrollTo(
-            targetList: 'channel',
-            index: isChannelInCategory ? _channelIndex : 0,
-            alignment: isChannelInCategory ? null : 0.0,
-          );
-        }
       }
-    });
+      setState(() {}); // 滚动完成后更新 UI
+    }
   }
 
-  // 处理分组点击事件
+  // 处理分组点击事件（修改部分）
   void _onGroupTap(int index) async {
     _groupIndex = index;
     _isSystemAutoSelected = false;
@@ -1330,18 +1342,15 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: _groupStartIndex + index);
     }
 
-    setState(() {});
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
-        final isChannelInGroup = currentPlayModel != null && currentPlayModel.group == currentGroup;
-        scrollTo(
-          targetList: 'channel',
-          index: isChannelInGroup ? _channelIndex : 0,
-          alignment: isChannelInGroup ? null : 0.0,
-        );
-      }
-    });
+    if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
+      final isChannelInGroup = currentPlayModel != null && currentPlayModel.group == currentGroup;
+      await scrollTo(
+        targetList: 'channel',
+        index: isChannelInGroup ? _channelIndex : 0,
+        alignment: isChannelInGroup ? null : 0.0,
+      );
+      setState(() {}); // 滚动完成后更新 UI
+    }
   }
 
   // 调整滚动位置
@@ -1374,7 +1383,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isTV: useFocusNavigation,
       scrollController: _scrollController,
       isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
-      startIndex: _categories.length,
+      startIndex: categoryCount, // 使用缓存值
       isSystemAutoSelected: _isSystemAutoSelected,
     );
 
