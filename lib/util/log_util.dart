@@ -28,6 +28,11 @@ class LogUtil {
   static Timer? _timer;
   static const int _messageDisplayDuration = 3;
 
+  // 修改代码开始
+  // 将 _cachedOverlayState 移到类级别，作为静态变量，用于缓存 OverlayState，避免语法错误
+  static OverlayState? _cachedOverlayState;
+  // 修改代码结束
+
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
@@ -242,9 +247,7 @@ class LogUtil {
   // 查找OverlayState
   static OverlayState? _findOverlayState() {
     // 修改代码开始
-    // 缓存 OverlayState，避免重复计算，提升性能
-    static OverlayState? _cachedOverlayState;
-
+    // 使用类级别的 _cachedOverlayState，避免重复计算，提升性能
     if (_cachedOverlayState != null) return _cachedOverlayState;
     // 修改代码结束
 
