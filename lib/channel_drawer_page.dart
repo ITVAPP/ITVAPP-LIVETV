@@ -173,7 +173,7 @@ BoxDecoration buildItemDecoration({
 
 // 焦点状态管理类，单例模式管理全局焦点节点，增强并发控制
 class FocusStateManager {
-  static final FocusStateManager _instance =.FocusStateManager._internal();
+  static final FocusStateManager _instance = FocusStateManager._internal();
   factory FocusStateManager() => _instance;
   FocusStateManager._internal();
 
