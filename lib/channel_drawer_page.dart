@@ -179,55 +179,44 @@ class FocusStateManager {
   List<FocusNode> categoryFocusNodes = []; // 分类焦点节点列表
   bool _isUpdating = false; // 防止并发更新锁
 
-  // 初始化焦点管理器，创建分类焦点节点
-  void initialize(int categoryCount) {
+  // 重置并更新焦点节点，合并 initialize 和 updateDynamicNodes
+  void resetAndUpdateNodes(int categoryCount, int groupCount, int channelCount) {
     if (_isUpdating) return;
     _isUpdating = true;
     try {
+      focusNodes.clear();
+      focusStates.clear();
+      focusGroupIndices.clear();
+      lastFocusedIndex = -1;
+
       if (categoryFocusNodes.isEmpty && categoryCount > 0) {
         categoryFocusNodes = List.generate(categoryCount, (index) => FocusNode(debugLabel: 'CategoryNode$index'));
       }
-      focusNodes.clear();
-      focusStates.clear();
-      lastFocusedIndex = -1;
-      focusGroupIndices.clear();
       focusNodes.addAll(categoryFocusNodes);
-    } catch (e) {
-      LogUtil.e('焦点管理器初始化失败: $e');
-    } finally {
-      _isUpdating = false;
-    }
-  }
 
-  // 更新动态焦点节点，适应分组和频道变化
-  void updateDynamicNodes(int groupCount, int channelCount) {
-    if (_isUpdating) return;
-    _isUpdating = true;
-    try {
-      focusNodes.clear();
-      focusNodes.addAll(categoryFocusNodes);
       final totalDynamicNodes = groupCount + channelCount;
       final dynamicNodes = List.generate(totalDynamicNodes, (index) => FocusNode(debugLabel: 'DynamicNode$index'));
       focusNodes.addAll(dynamicNodes);
 
-      focusGroupIndices.clear();
-      for (int i = 0; i < categoryFocusNodes.length; i++) {
-        focusGroupIndices[i] = 0; // 分类组
-      }
-      for (int i = 0; i < groupCount; i++) {
-        focusGroupIndices[categoryFocusNodes.length + i] = 1; // 分组组
-      }
-      for (int i = 0; i < channelCount; i++) {
-        focusGroupIndices[categoryFocusNodes.length + groupCount + i] = 2; // 频道组
-      }
+      for (int i = 0; i < categoryCount; i++) focusGroupIndices[i] = 0;
+      for (int i = 0; i < groupCount; i++) focusGroupIndices[categoryCount + i] = 1;
+      for (int i = 0; i < channelCount; i++) focusGroupIndices[categoryCount + groupCount + i] = 2;
     } catch (e) {
-      LogUtil.e('更新动态焦点节点失败: $e');
+      LogUtil.e('焦点节点重置失败: $e');
     } finally {
       _isUpdating = false;
     }
   }
 
-  bool get isUpdating => _isUpdating;
+  // 重新初始化焦点监听器
+  void reinitializeListeners(List<Map<String, int>> ranges, State state, {ScrollController? scrollController}) {
+    for (var node in focusNodes) {
+      node.removeListener(() {});
+    }
+    for (var range in ranges) {
+      addFocusListeners(range['start']!, range['length']!, state, scrollController: scrollController);
+    }
+  }
 
   // 释放焦点节点资源并重置状态
   void dispose() {
@@ -305,58 +294,37 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑
+// 处理焦点切换时的滚动逻辑，复用 scrollTo
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
   final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
-  final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
-  final isInitialFocus = focusManager.lastFocusedIndex == -1;
-  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
-  focusManager.lastFocusedIndex = index;
+  if (currentGroup == 0) return;
 
   final channelDrawerState = state is _ChannelDrawerPageState
       ? state
       : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
-  if (currentGroup == 0) return;
-
   final viewportHeight = channelDrawerState._drawerHeight;
   final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
-  if (length <= fullItemsInViewport) {
-    channelDrawerState.scrollTo(targetList: _getTargetList(currentGroup), index: 0);
-    return;
-  }
-
-  final currentOffset = scrollController.offset;
-  final itemTop = itemIndex * itemHeight;
-  final itemBottom = itemTop + itemHeight;
-
   double? alignment;
-  if (itemIndex == 0) {
+  if (length <= fullItemsInViewport) {
+    alignment = 0.0;
+  } else if (itemIndex == 0) {
     alignment = 0.0;
   } else if (itemIndex == length - 1) {
     alignment = 1.0;
-  } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-    alignment = 2.0;
-    channelDrawerState.scrollTo(
-      targetList: _getTargetList(currentGroup),
-      index: itemIndex,
-      alignment: alignment,
-    );
-    return;
-  } else if (!isMovingDown && itemTop < currentOffset) {
-    alignment = 0.0;
-    channelDrawerState.scrollTo(
-      targetList: _getTargetList(currentGroup),
-      index: itemIndex,
-      alignment: alignment,
-    );
-    return;
   } else {
-    return;
+    final currentOffset = scrollController.offset;
+    final itemTop = itemIndex * itemHeight;
+    final itemBottom = itemTop + itemHeight;
+    if (itemBottom > currentOffset + viewportHeight) {
+      alignment = 2.0;
+    } else if (itemTop < currentOffset) {
+      alignment = 0.0;
+    }
   }
 
   channelDrawerState.scrollTo(
@@ -364,6 +332,8 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     index: itemIndex,
     alignment: alignment,
   );
+
+  focusManager.lastFocusedIndex = index;
 }
 
 // 根据组索引返回目标列表名称
@@ -729,7 +699,7 @@ class EPGList extends StatefulWidget {
   final ScrollController epgScrollController; // EPG滚动控制器
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
 
-  const EPG dwells({
+  const EPGList({
     super.key,
     required this.epgData,
     required this.selectedIndex,
@@ -1068,7 +1038,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
-    focusManager.initialize(_categories.length); // 仅在初始化时调用一次
+    focusManager.resetAndUpdateNodes(_categories.length, 0, 0); // 初始仅设置分类节点
     _initGroupFocusCacheForCategories(); // 初始化分类焦点缓存
     await updateFocusLogic(true);
   }
@@ -1083,20 +1053,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
       };
     }
-  }
-
-  // 计算总焦点节点数
-  int _calculateTotalFocusNodes() {
-    int totalFocusNodes = _categories.length;
-    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-      if (_keys.isNotEmpty) {
-        totalFocusNodes += _keys.length;
-        if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
-          totalFocusNodes += _values[_groupIndex].length;
-        }
-      }
-    }
-    return totalFocusNodes;
   }
 
   // 判断是否需要加载EPG
@@ -1222,36 +1178,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 重新初始化焦点监听器
   void _reInitializeFocusListeners() {
-    for (var node in focusManager.focusNodes) {
-      node.removeListener(() {});
-    }
-
-    addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController);
-
-    if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController);
-      if (_values.isNotEmpty && _groupIndex >= 0) {
-        addFocusListeners(
-          _categories.length + _keys.length,
-          _values[_groupIndex].length,
-          this,
-          scrollController: _scrollChannelController,
-        );
-      }
-    }
+    focusManager.reinitializeListeners([
+      {'start': 0, 'length': _categories.length},
+      {'start': _categories.length, 'length': _keys.length},
+      if (_values.isNotEmpty && _groupIndex >= 0)
+        {'start': _categories.length + _keys.length, 'length': _values[_groupIndex].length},
+    ], this, scrollController: _scrollChannelController);
   }
 
   // 更新焦点逻辑
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
       focusManager.lastFocusedIndex = -1; // 首次初始化时重置
-      // focusManager.initialize(_categories.length); // 已移到 initializeData
     }
 
     final groupCount = _keys.length;
     final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
     focusManager.focusStates.clear();
-    focusManager.updateDynamicNodes(groupCount, channelCount);
+    focusManager.resetAndUpdateNodes(_categories.length, groupCount, channelCount);
 
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
