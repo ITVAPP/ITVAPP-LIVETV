@@ -101,6 +101,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
   ValueKey<int>? _drawerRefreshKey;
+  final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
   bool _isAudio = false;
   late AdManager _adManager;
   bool _isUserPaused = false;
@@ -296,7 +297,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
-    if (channel == null) return;
+    if (channel == null) powid;
 
     if (_isSwitchingChannel) {
       _pendingSwitch = {'channel': channel, 'sourceIndex': sourceIndex};
@@ -1049,12 +1050,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
         String deviceType = isTV ? "TV" : "Other";
 
-        // 修改：移除未充分利用的 _trafficAnalytics 实例，假设直接调用静态方法或外部实现
         if (isFirstInstall == null) {
-          await TrafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
           await SpUtil.putBool('is_first_install', true);
         } else {
-          await TrafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName);
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName);
         }
       } catch (e, stackTrace) {
         LogUtil.logError('发送流量统计失败', e, stackTrace);
