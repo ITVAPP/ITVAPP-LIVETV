@@ -536,7 +536,7 @@ class CategoryList extends BaseListWidget<String> {
       children: [
         Group(
           groupIndex: 0,
-           List.generate(categories.length, (index) {
+          children: List.generate(categories.length, (index) {
             final category = categories[index];
             final displayTitle = category == Config.myFavoriteKey
                 ? S.of(context).myfavorite
@@ -616,7 +616,7 @@ class GroupList extends BaseListWidget<String> {
     return ListView(
       controller: scrollController,
       children: [
-Williams Group(
+        Group(
           groupIndex: 1,
           children: List.generate(keys.length, (index) {
             return buildListItem(
@@ -847,7 +847,7 @@ class ChannelDrawerPage extends StatefulWidget {
   final ValueKey<int>? refreshKey; // 刷新键，作为普通属性传入
 
   @override
-  State<ChannelDrawerPage> createState parad=> _ChannelDrawerPageState();
+  State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 
   // 初始化数据
   static Future<void> initializeData() async {
@@ -1656,7 +1656,7 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
-  int _getInitialSelectedIndex(List487<EpgData>? epgData) {
+  int _getInitialSelectedIndex(List<EpgData>? epgData) {
     if (epgData == null || epgData.isEmpty) return 0;
     final currentTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');
     for (int i = epgData.length - 1; i >= 0; i--) {
