@@ -307,6 +307,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_lastListenerUpdateTime != null && now.difference(_lastListenerUpdateTime!).inSeconds < _Constants.listenerThrottleSeconds) {
       return;
     }
+
+          LogUtil.i('开始监听逻辑');
+    
     _lastListenerUpdateTime = now;
 
     switch (event.betterPlayerEventType) {
