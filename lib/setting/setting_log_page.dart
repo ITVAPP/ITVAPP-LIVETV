@@ -55,7 +55,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void dispose() {
     _scrollController.dispose(); // 释放滚动控制器资源
     _focusNodes.forEach((node) => node.dispose()); // 释放所有焦点节点资源
-    LogUtil.safeExecute(() => LogUtil.log('资源释放完成', level: 'd'), '资源释放日志记录失败'); // 记录资源释放日志
+
+    LogUtil.safeExecute(() => LogUtil.d('资源释放完成'), '资源释放日志记录失败'); // 记录资源释放日志
     super.dispose();
   }
 
@@ -73,10 +74,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   List<Map<String, String>> getLimitedLogs() { // 获取有限日志并排序，带缓存和异常处理
     final now = DateTime.now();
-    final currentLogs = LogUtil.safeExecute(
-          () => _selectedLevel == 'all' ? LogUtil.getLogs() : LogUtil.getLogsByLevel(_selectedLevel),
-          '获取日志失败',
-        ) ?? [];
+    List<Map<String, String>> currentLogs = [];
+    LogUtil.safeExecute(
+      () {
+        currentLogs = _selectedLevel == 'all' ? LogUtil.getLogs() : LogUtil.getLogsByLevel(_selectedLevel);
+      },
+      '获取日志失败',
+    );
+    // 如果 safeExecute 执行失败，currentLogs 保持空列表，避免后续操作出错
     if (_cachedLogs != null && _lastLogUpdate != null && // 检查缓存是否有效
         now.difference(_lastLogUpdate!) <= _logCacheTimeout &&
         currentLogs.length == _cachedLogs!.length) {
@@ -170,13 +175,17 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
+                                      // 修改 3: 明确 map 中的 option 类型为 Map<String, dynamic>
                                       ...[
                                         {'level': 'all', 'label': S.of(context).filterAll, 'index': 1},
                                         {'level': 'v', 'label': S.of(context).filterVerbose, 'index': 2},
                                         {'level': 'e', 'label': S.of(context).filterError, 'index': 3},
                                         {'level': 'i', 'label': S.of(context).filterInfo, 'index': 4},
                                         {'level': 'd', 'label': S.of(context).filterDebug, 'index': 5},
-                                      ].map((option) => _buildFilterButton(option['level']!, option['label']!, option['index']!)),
+                                      ].map((Map<String, dynamic> option) => _buildFilterButton(
+                                          option['level'] as String, 
+                                          option['label'] as String, 
+                                          option['index'] as int)),
                                     ],
                                   ),
                                 ),
