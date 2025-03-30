@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'package:itvapp_live_tv/generated/l10n.dart';
+import '../generated/l10n.dart';
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
@@ -39,10 +39,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 将 _focusNodes 移至类变量初始化，避免重复创建，提升性能
   final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
-  // 修改代码开始
   // 将按钮样式缓存为类变量，使用 ButtonStyle 类型，避免类型未找到的问题
   late final Map<String, ButtonStyle> _buttonStyles;
-  // 修改代码结束
 
   // 添加日志缓存相关变量
   List<Map<String, String>>? _cachedLogs;
@@ -297,7 +295,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                             children: [
                                                               Text(
                                                                 log['formattedTime']!, // 使用缓存的格式化时间
-                                                                style LunaLogTimeStyle,
+                                                                style: _logTimeStyle, // 修正语法错误
                                                               ),
                                                               if (!isTV)
                                                                 IconButton(
@@ -433,4 +431,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
     );
   }
+}
+
+// 定义 darkenColor 函数
+Color darkenColor(Color color, [double amount = 0.1]) {
+  final hsl = HSLColor.fromColor(color);
+  final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return darkened.toColor();
 }
