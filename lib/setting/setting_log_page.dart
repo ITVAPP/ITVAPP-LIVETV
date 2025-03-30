@@ -37,27 +37,93 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
-  // 设置焦点节点
+  // 修改代码开始
+  // 将 _focusNodes 移至类变量初始化，避免重复创建，提升性能
   final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
+  // 将按钮样式缓存为类变量，避免重复创建
+  late final Map<String, OutlinedButtonStyle> _buttonStyles;
+  // 修改代码结束
 
   // 添加日志缓存相关变量
   List<Map<String, String>>? _cachedLogs;
   DateTime? _lastLogUpdate;
+  String? _lastSelectedLevel; // 新增：记录上一次的筛选条件
   static const _logCacheTimeout = Duration(seconds: 1);
+
+  // 修改代码开始
+  // 提前缓存 ThemeProvider 和 MediaQuery 数据，避免重复调用
+  late ThemeProvider _themeProvider;
+  late MediaQueryData _mediaQuery;
+  // 修改代码结束
+
+  // 修改代码开始
+  // 初始化按钮样式，减少运行时计算
+  void _initButtonStyles() {
+    _buttonStyles = {
+      'all': OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+        shape: _buttonShape,
+        backgroundColor: _selectedLevel == 'all' ? selectedColor : unselectedColor,
+        side: BorderSide.none,
+      ),
+      'v': OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+        shape: _buttonShape,
+        backgroundColor: _selectedLevel == 'v' ? selectedColor : unselectedColor,
+        side: BorderSide.none,
+      ),
+      'e': OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+        shape: _buttonShape,
+        backgroundColor: _selectedLevel == 'e' ? selectedColor : unselectedColor,
+        side: BorderSide.none,
+      ),
+      'i': OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+        shape: _buttonShape,
+        backgroundColor: _selectedLevel == 'i' ? selectedColor : unselectedColor,
+        side: BorderSide.none,
+      ),
+      'd': OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+        shape: _buttonShape,
+        backgroundColor: _selectedLevel == 'd' ? selectedColor : unselectedColor,
+        side: BorderSide.none,
+      ),
+    };
+  }
+  // 修改代码结束
 
   @override
   void initState() {
     super.initState();
-    // 监听焦点变化，焦点变化时触发重绘
+    // 修改代码开始
+    // 初始化缓存数据
+    _themeProvider = context.read<ThemeProvider>();
+    _mediaQuery = MediaQuery.of(context);
+    _initButtonStyles(); // 初始化按钮样式
+    // 优化 FocusNode 监听，仅在焦点变化影响 UI 时触发 setState
     for (var focusNode in _focusNodes) {
       focusNode.addListener(() {
-        // 检查组件是否已挂载，避免在卸载后调用 setState 导致异常
-        if (mounted) {
-          setState(() {}); // 焦点变化时触发setState来重绘UI
+        if (mounted && focusNode.hasFocus) { // 仅在焦点实际变化且影响 UI 时重绘
+          setState(() {});
         }
       });
     }
+    // 修改代码结束
   }
+
+  // 修改代码开始
+  @override
+  void didUpdateWidget(covariant SettinglogPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 检查 _selectedLevel 是否变化，仅在必要时更新缓存
+    if (_lastSelectedLevel != _selectedLevel) {
+      clearLogCache();
+      getLimitedLogs(); // 提前更新缓存
+    }
+  }
+  // 修改代码结束
 
   @override
   void dispose() {
@@ -69,36 +135,31 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 获取有限的日志并按日期排序（添加缓存机制）
   List<Map<String, String>> getLimitedLogs() {
     final now = DateTime.now();
-    // 修改代码开始
-    // 优化缓存逻辑：当筛选条件变化或超时时重新计算，并缓存格式化时间
     if (_cachedLogs == null ||
         _lastLogUpdate == null ||
+        _lastSelectedLevel != _selectedLevel || // 检查筛选条件是否变化
         now.difference(_lastLogUpdate!) > _logCacheTimeout) {
       List<Map<String, String>> logs = _selectedLevel == 'all'
           ? LogUtil.getLogs()
           : LogUtil.getLogsByLevel(_selectedLevel);
 
-      // 检查日志数量是否变化，避免重复排序
-      if (_cachedLogs == null || logs.length != _cachedLogs!.length) {
-        // 按时间降序排序
-        logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
-        // 限制最多88条
-        List<Map<String, String>> limitedLogs = logs.length > _logLimit ? logs.sublist(0, _logLimit) : logs;
-        
-        // 为每条日志添加格式化后的时间字段，避免重复计算
-        _cachedLogs = limitedLogs.map((log) {
-          return {
-            'time': log['time']!,
-            'message': log['message']!,
-            'fileInfo': log['fileInfo']!,
-            'formattedTime': formatDateTime(log['time']!), // 缓存格式化时间
-          };
-        }).toList();
-      }
+      // 按时间降序排序
+      logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
+      // 限制最多88条
+      List<Map<String, String>> limitedLogs = logs.length > _logLimit ? logs.sublist(0, _logLimit) : logs;
+
+      // 为每条日志添加格式化后的时间字段，避免重复计算
+      _cachedLogs = limitedLogs.map((log) {
+        return {
+          'time': log['time']!,
+          'message': log['message']!,
+          'fileInfo': log['fileInfo']!,
+          'formattedTime': formatDateTime(log['time']!), // 缓存格式化时间
+        };
+      }).toList();
       _lastLogUpdate = now;
+      _lastSelectedLevel = _selectedLevel; // 更新上一次筛选条件
     }
-    // 注意：此方法通过缓存减少重复排序、截取和时间格式化操作，提升性能
-    // 修改代码结束
     return _cachedLogs!;
   }
 
@@ -114,21 +175,18 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void clearLogCache() {
     _cachedLogs = null; // 清除日志缓存
     _lastLogUpdate = null; // 重置缓存时间
-    // 注意：此方法统一处理缓存清除逻辑，确保一致性
+    _lastSelectedLevel = null; // 重置上一次筛选条件
   }
 
   @override
   Widget build(BuildContext context) {
     // 修改代码开始
-    // 提前获取 ThemeProvider 和 MediaQuery 数据，避免重复调用导致性能问题
-    final themeProvider = context.watch<ThemeProvider>(); // 单次获取 ThemeProvider
-    final bool isTV = themeProvider.isTV;
-    final bool isLogOn = themeProvider.isLogOn;
-    final mediaQuery = MediaQuery.of(context); // 单次获取 MediaQuery
-    final screenWidth = mediaQuery.size.width;
+    // 使用缓存的 ThemeProvider 和 MediaQuery 数据
+    final bool isTV = _themeProvider.isTV;
+    final bool isLogOn = _themeProvider.isLogOn;
+    final screenWidth = _mediaQuery.size.width;
     // 修改代码结束
 
-    List<Map<String, String>> logs = getLimitedLogs();
     double maxContainerWidth = 580;
 
     return Scaffold(
@@ -217,67 +275,77 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               ],
                             ),
                             Flexible(
-                              child: logs.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.info_outline, size: 50, color: Colors.grey),
-                                          SizedBox(height: 10),
-                                          Text(S.of(context).noLogs,
-                                              style: TextStyle(fontSize: 18, color: Colors.grey)),
-                                        ],
-                                      ),
-                                    )
-                                  : Scrollbar(
-                                      thumbVisibility: true,
-                                      controller: _scrollController,
-                                      child: SingleChildScrollView(
-                                        controller: _scrollController,
-                                        scrollDirection: Axis.vertical,
-                                        child: Column(
-                                          children: logs
-                                              .map((log) => Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Row(
-                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              child: Builder(
+                                builder: (context) {
+                                  List<Map<String, String>> logs = getLimitedLogs();
+                                  return logs.isEmpty
+                                      ? Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.info_outline, size: 50, color: Colors.grey),
+                                              SizedBox(height: 10),
+                                              Text(S.of(context).noLogs,
+                                                  style: TextStyle(fontSize: 18, color: Colors.grey)),
+                                            ],
+                                          ),
+                                        )
+                                      : Scrollbar(
+                                          thumbVisibility: true,
+                                          controller: _scrollController,
+                                          child: SingleChildScrollView(
+                                            controller: _scrollController,
+                                            scrollDirection: Axis.vertical,
+                                            child: Column(
+                                              children: logs
+                                                  .map((
+                                                    log,
+                                                  ) =>
+                                                      Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
                                                         children: [
-                                                          Text(
-                                                            log['formattedTime']!, // 修改代码开始：使用缓存的格式化时间
-                                                            style: _logTimeStyle,
+                                                          Row(
+                                                            mainAxisAlignment:
+                                                                MainAxisAlignment.spaceBetween,
+                                                            children: [
+                                                              Text(
+                                                                log['formattedTime']!, // 使用缓存的格式化时间
+                                                                style: _logTimeStyle,
+                                                              ),
+                                                              if (!isTV)
+                                                                IconButton(
+                                                                  icon: Icon(Icons.copy, color: Colors.grey),
+                                                                  onPressed: () {
+                                                                    String logContent =
+                                                                        '${log['formattedTime']!}\n${LogUtil.parseLogMessage(log['message']!)}\n${log['fileInfo']!}';
+                                                                    Clipboard.setData(
+                                                                        ClipboardData(text: logContent));
+                                                                    CustomSnackBar.showSnackBar(
+                                                                      context,
+                                                                      S.of(context).logCopied,
+                                                                      duration: Duration(seconds: 4),
+                                                                    );
+                                                                  },
+                                                                ),
+                                                            ],
                                                           ),
-                                                          if (!isTV)
-                                                            IconButton(
-                                                              icon: Icon(Icons.copy, color: Colors.grey),
-                                                              onPressed: () {
-                                                                String logContent =
-                                                                    '${log['formattedTime']!}\n${LogUtil.parseLogMessage(log['message']!)}\n${log['fileInfo']!}';
-                                                                Clipboard.setData(ClipboardData(text: logContent));
-                                                                CustomSnackBar.showSnackBar(
-                                                                  context,
-                                                                  S.of(context).logCopied,
-                                                                  duration: Duration(seconds: 4),
-                                                                );
-                                                              },
-                                                            ),
+                                                          SelectableText(
+                                                            LogUtil.parseLogMessage(log['message']!),
+                                                            style: _logMessageStyle,
+                                                          ),
+                                                          Text(
+                                                            log['fileInfo']!,
+                                                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                                                          ),
+                                                          const Divider(),
                                                         ],
-                                                      ),
-                                                      SelectableText(
-                                                        LogUtil.parseLogMessage(log['message']!),
-                                                        style: _logMessageStyle,
-                                                      ),
-                                                      Text(
-                                                        log['fileInfo']!,
-                                                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                                                      ),
-                                                      const Divider(),
-                                                    ],
-                                                  ))
-                                              .toList(),
-                                        ),
-                                      ),
-                                    ),
+                                                      ))
+                                                  .toList(),
+                                            ),
+                                          ),
+                                        );
+                                },
+                              ),
                             ),
                             Group(
                               groupIndex: 2, // 清空日志按钮分组
@@ -288,20 +356,22 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                     focusNode: _focusNodes[6], // 为清空日志按钮添加焦点节点
                                     child: ElevatedButton(
                                       onPressed: () {
-                                        setState(() {
-                                          if (_selectedLevel == 'all') {
-                                            LogUtil.clearLogs();
-                                            clearLogCache(); // 使用提取的方法清除缓存
-                                          } else {
-                                            LogUtil.clearLogs(level: _selectedLevel);
-                                            clearLogCache(); // 使用提取的方法清除缓存
-                                          }
-                                        });
-                                        CustomSnackBar.showSnackBar(
-                                          context,
-                                          S.of(context).logCleared,
-                                          duration: Duration(seconds: 4),
-                                        );
+                                        if (mounted) { // 检查 mounted
+                                          setState(() {
+                                            if (_selectedLevel == 'all') {
+                                              LogUtil.clearLogs();
+                                              clearLogCache(); // 使用提取的方法清除缓存
+                                            } else {
+                                              LogUtil.clearLogs(level: _selectedLevel);
+                                              clearLogCache(); // 使用提取的方法清除缓存
+                                            }
+                                          });
+                                          CustomSnackBar.showSnackBar(
+                                            context,
+                                            S.of(context).logCleared,
+                                            duration: Duration(seconds: 4),
+                                          );
+                                        }
                                       },
                                       child: Text(
                                         S.of(context).clearLogs,
@@ -337,31 +407,24 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 构建过滤按钮，增加焦点节点参数
+  // 修改代码开始
+  // 构建过滤按钮，使用缓存的样式并简化参数
   Widget _buildFilterButton(String level, String label, int focusIndex) {
-    // 提取按钮样式为局部变量，减少重复定义
-    final buttonStyle = OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
-      shape: _buttonShape,
-      backgroundColor: _focusNodes[focusIndex].hasFocus
-          ? darkenColor(_selectedLevel == level ? selectedColor : unselectedColor)
-          : (_selectedLevel == level ? selectedColor : unselectedColor),
-      side: BorderSide.none,
-    );
-
     return Padding(
       padding: EdgeInsets.symmetric(
-        // 使用提前提取的 mediaQuery 数据，避免重复调用
-        horizontal: MediaQuery.of(context).orientation == Orientation.landscape ? 5.0 : 2.0,
+        horizontal: _mediaQuery.orientation == Orientation.landscape ? 5.0 : 2.0,
       ),
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex],
         child: OutlinedButton(
           onPressed: () {
-            setState(() {
-              _selectedLevel = level;
-              clearLogCache(); // 使用提取的方法清除缓存，确保切换筛选条件时更新数据
-            });
+            if (mounted) {
+              setState(() {
+                _selectedLevel = level;
+                clearLogCache(); // 清除缓存并触发更新
+                _initButtonStyles(); // 更新按钮样式
+              });
+            }
           },
           child: Text(
             label,
@@ -372,9 +435,17 @@ class _SettinglogPageState extends State<SettinglogPage> {
             ),
             textAlign: TextAlign.center,
           ),
-          style: buttonStyle, // 使用提取的样式
+          style: _buttonStyles[level]!.copyWith(
+            backgroundColor: MaterialStateProperty.resolveWith((states) {
+              if (_focusNodes[focusIndex].hasFocus) {
+                return darkenColor(_selectedLevel == level ? selectedColor : unselectedColor);
+              }
+              return _selectedLevel == level ? selectedColor : unselectedColor;
+            }),
+          ),
         ),
       ),
     );
   }
+  // 修改代码结束
 }
