@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 日志查看页面 - 显示和管理应用程序日志
 class SettinglogPage extends StatefulWidget {
