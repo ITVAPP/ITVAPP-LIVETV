@@ -101,7 +101,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   Widget _buildLogItem(Map<String, String> log, bool isTV) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSpacing: 4.0, // 控制子项之间的垂直间距为4dp
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -120,7 +119,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
         ),
         SelectableText(LogUtil.parseLogMessage(log['message']!), style: _logMessageStyle), // 显示可选择的日志消息
         Text(log['fileInfo']!, style: TextStyle(fontSize: 12, color: Colors.grey)), // 显示文件信息
-        const Divider(height: 8.0, thickness: 1.0), // 分隔线高度为8dp，厚度为1dp
+        const Divider(), // 分隔线
       ],
     );
   }
