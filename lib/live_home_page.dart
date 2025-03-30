@@ -476,6 +476,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
         else if (_isHls) _retryPlayback();
         else _handleNoMoreSources();
         break;
+
+      default:
+      // 处理未显式列出的事件（如 seekTo）
+      if (event.betterPlayerEventType != BetterPlayerEventType.changedPlayerVisibility) {
+        LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
+      }
+      break;
     }
 
     // 统一执行 setState，减少调用次数
