@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 日志查看页面
 class SettinglogPage extends StatefulWidget {
@@ -37,11 +37,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时背景颜色
 
-  // 修改代码开始
   // 将 _focusNodes 移至类变量初始化，避免重复创建，提升性能
   final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode());
-  // 将按钮样式缓存为类变量，避免重复创建
-  late final Map<String, OutlinedButtonStyle> _buttonStyles;
+  // 修改代码开始
+  // 将按钮样式缓存为类变量，使用 ButtonStyle 类型，避免类型未找到的问题
+  late final Map<String, ButtonStyle> _buttonStyles;
   // 修改代码结束
 
   // 添加日志缓存相关变量
@@ -50,13 +50,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
   String? _lastSelectedLevel; // 新增：记录上一次的筛选条件
   static const _logCacheTimeout = Duration(seconds: 1);
 
-  // 修改代码开始
   // 提前缓存 ThemeProvider 和 MediaQuery 数据，避免重复调用
   late ThemeProvider _themeProvider;
   late MediaQueryData _mediaQuery;
-  // 修改代码结束
 
-  // 修改代码开始
   // 初始化按钮样式，减少运行时计算
   void _initButtonStyles() {
     _buttonStyles = {
@@ -92,12 +89,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
     };
   }
-  // 修改代码结束
 
   @override
   void initState() {
     super.initState();
-    // 修改代码开始
     // 初始化缓存数据
     _themeProvider = context.read<ThemeProvider>();
     _mediaQuery = MediaQuery.of(context);
@@ -110,10 +105,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
         }
       });
     }
-    // 修改代码结束
   }
 
-  // 修改代码开始
   @override
   void didUpdateWidget(covariant SettinglogPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -123,7 +116,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
       getLimitedLogs(); // 提前更新缓存
     }
   }
-  // 修改代码结束
 
   @override
   void dispose() {
@@ -180,12 +172,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 修改代码开始
     // 使用缓存的 ThemeProvider 和 MediaQuery 数据
     final bool isTV = _themeProvider.isTV;
     final bool isLogOn = _themeProvider.isLogOn;
     final screenWidth = _mediaQuery.size.width;
-    // 修改代码结束
 
     double maxContainerWidth = 580;
 
@@ -298,10 +288,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                             scrollDirection: Axis.vertical,
                                             child: Column(
                                               children: logs
-                                                  .map((
-                                                    log,
-                                                  ) =>
-                                                      Column(
+                                                  .map((log) => Column(
                                                         crossAxisAlignment: CrossAxisAlignment.start,
                                                         children: [
                                                           Row(
@@ -310,7 +297,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                                             children: [
                                                               Text(
                                                                 log['formattedTime']!, // 使用缓存的格式化时间
-                                                                style: _logTimeStyle,
+                                                                style LunaLogTimeStyle,
                                                               ),
                                                               if (!isTV)
                                                                 IconButton(
@@ -407,7 +394,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 修改代码开始
   // 构建过滤按钮，使用缓存的样式并简化参数
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     return Padding(
@@ -447,5 +433,4 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
     );
   }
-  // 修改代码结束
 }
