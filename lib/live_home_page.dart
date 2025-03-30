@@ -57,6 +57,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
   static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
+  static const int listenerThrottleSeconds = 1; // 监听器节流间隔秒数，添加常量以控制节流时间
 
   // 缓冲区检查相关变量
   List<Map<String, dynamic>> _bufferedHistory = [];
@@ -99,6 +100,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isUserPaused = false; // 是否为用户触发的暂停
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
+  DateTime? _lastListenerUpdateTime; // 上次监听器更新时间，添加变量以实现节流
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -318,6 +320,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _isDisposing) return;
+
+    // 添加1秒节流逻辑，与参考代码一致
+    final now = DateTime.now();
+    if (_lastListenerUpdateTime != null && 
+        now.difference(_lastListenerUpdateTime!).inSeconds < listenerThrottleSeconds) {
+      return;
+    }
+    LogUtil.i('开始监听逻辑');
+    _lastListenerUpdateTime = now;
 
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
@@ -1070,6 +1081,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _playDurationTimer = null;
     _timeoutTimer?.cancel(); // 清理超时计时器
     _timeoutTimer = null; // 重置为 null
+    _lastListenerUpdateTime = null; // 清空监听器更新时间
     _adManager.dispose(); // 清理广告资源
     super.dispose();
   }
