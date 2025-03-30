@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:collection';
 import 'package:sp_util/sp_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,11 +58,11 @@ class _Constants {
   static const int cleanupDelayMilliseconds = 500; // 清理控制器延迟毫秒数
   static const int snackBarDurationSeconds = 4; // 提示显示时长秒数
   static const int bufferingStartSeconds = 15; // 缓冲超时秒数
-  static const int listenerThrottleSeconds = 1; // 监听器节流间隔秒数
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
-  Queue<Map<String, dynamic>> _bufferedHistory = Queue(); // 缓冲历史记录队列
+  late List<Map<String, dynamic>> _bufferedHistory; // 缓冲历史记录数组
+  int _bufferedHistoryIndex = 0; // 当前写入索引
   String? _preCachedUrl; // 预缓存的视频 URL
   bool _isParsing = false; // 是否正在解析视频地址
   Duration? _lastBufferedPosition; // 上次缓冲的播放位置
@@ -74,7 +73,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap; // 视频播放列表数据
   PlayModel? _currentChannel; // 当前播放的频道
   int _sourceIndex = 0; // 当前播放源的索引
-  int _lastProgressTime = 0; // 上次播放进度时间
+  int _lastProgressTime = 0; // 上次播放进度时间（未使用，已标记移除）
   BetterPlayerController? _playerController; // 视频播放器控制器
   bool isBuffering = false; // 是否正在缓冲
   bool isPlaying = false; // 是否正在播放
@@ -103,7 +102,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isUserPaused = false; // 是否为用户主动暂停
   bool _showPlayIcon = false; // 是否显示播放图标
   bool _showPauseIconFromListener = false; // 是否显示监听器触发的暂停图标
-  DateTime? _lastListenerUpdateTime; // 上次监听器更新时间
   Map<String, dynamic>? _pendingSwitch; // 待处理的频道切换请求队列
 
   /// 检查视频 URL 是否为音频流
@@ -303,14 +301,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _isDisposing) return;
 
-    final now = DateTime.now();
-    // if (_lastListenerUpdateTime != null && now.difference(_lastListenerUpdateTime!).inSeconds < _Constants.listenerThrottleSeconds) {
-    //   return;
-    // }
-
-          LogUtil.i('开始监听逻辑');
-    
-    _lastListenerUpdateTime = now;
+    // 缓存状态更新，减少不必要的 setState 调用
+    String? newToastString;
+    bool? newIsBuffering;
+    bool? newIsPlaying;
+    bool? newShowPlayIcon;
+    bool? newShowPauseIconFromListener;
 
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
@@ -335,19 +331,28 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.bufferingStart:
-        setState(() {
-          isBuffering = true;
-          toastString = S.current.loading;
-        });
+        newIsBuffering = true;
+        newToastString = S.current.loading;
+
+        // 仅在视频已开始播放后启用缓冲超时检查
         if (isPlaying) {
-          _timeoutTimer?.cancel();
-          _timeoutTimer = Timer(const Duration(seconds: _Constants.bufferingStartSeconds), () {
-            if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) return;
-            if (_playerController?.isPlaying() != true) {
-              LogUtil.e('播放中缓冲超过10秒，提出重试');
-              _retryPlayback(resetRetryCount: true);
-            }
-          });
+          _startTimeoutCheck(
+            Duration(seconds: _Constants.bufferingStartSeconds),
+            onTimeout: () {
+              // 检查额外状态以避免不必要触发
+              if (_isParsing || _pendingSwitch != null) {
+                LogUtil.i('缓冲超时检查被阻止: isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
+                return;
+              }
+              if (_playerController?.isPlaying() != true) {
+                LogUtil.e('播放中缓冲超过${_Constants.bufferingStartSeconds}秒，触发重试');
+                _retryPlayback(resetRetryCount: true);
+              }
+            },
+            switchSourceOnTimeout: false, // 禁用默认切换源行为
+          );
+        } else {
+          LogUtil.i('初始缓冲，不启用${_Constants.bufferingStartSeconds}秒超时');
         }
         break;
 
@@ -360,6 +365,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
               try {
                 _lastBufferedPosition = lastBuffer.end as Duration;
                 _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
+                  // 调试才开启下面日志
+                  // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
               } catch (e) {
                 LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
                 _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
@@ -377,11 +384,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       case BetterPlayerEventType.bufferingEnd:
-        setState(() {
-          isBuffering = false;
-          toastString = 'HIDE_CONTAINER';
-          if (!_isUserPaused) _showPauseIconFromListener = false;
-        });
+        newIsBuffering = false;
+        newToastString = 'HIDE_CONTAINER';
+        if (!_isUserPaused) newShowPauseIconFromListener = false;
         _timeoutTimer?.cancel();
         _timeoutTimer = null;
         _cleanupTimers();
@@ -389,14 +394,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       case BetterPlayerEventType.play:
         if (!isPlaying) {
-          setState(() {
-            isPlaying = true;
-            if (!isBuffering) toastString = 'HIDE_CONTAINER';
-            _progressEnabled = false;
-            _showPlayIcon = false;
-            _showPauseIconFromListener = false;
-            _isUserPaused = false;
-          });
+          newIsPlaying = true;
+          if (!isBuffering) newToastString = 'HIDE_CONTAINER';
+          _progressEnabled = false;
+          newShowPlayIcon = false;
+          newShowPauseIconFromListener = false;
+          _isUserPaused = false;
           _timeoutTimer?.cancel();
           _timeoutTimer = null;
           if (_playDurationTimer == null || !_playDurationTimer!.isActive) _startPlayDurationTimer();
@@ -405,12 +408,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       case BetterPlayerEventType.pause:
         if (isPlaying) {
-          setState(() {
-            isPlaying = false;
-            toastString = S.current.playpause;
-            if (_isUserPaused) _showPlayIcon = true;
-            else _showPauseIconFromListener = true;
-          });
+          newIsPlaying = false;
+          newToastString = S.current.playpause;
+          if (_isUserPaused) newShowPlayIcon = true;
+          else newShowPauseIconFromListener = true;
           LogUtil.i('播放暂停，用户触发: $_isUserPaused');
         }
         break;
@@ -424,26 +425,30 @@ class _LiveHomePageState extends State<LiveHomePage> {
             final timeSinceLastUpdate = (timestamp - _lastBufferedTime!) / 1000.0;
             final remainingBuffer = _lastBufferedPosition! - position;
 
-            _bufferedHistory.add({
+            _bufferedHistory[_bufferedHistoryIndex] = {
               'buffered': _lastBufferedPosition!,
               'position': position,
               'timestamp': timestamp,
               'remainingBuffer': remainingBuffer,
-            });
-            if (_bufferedHistory.length > _Constants.bufferHistorySize) _bufferedHistory.removeFirst(); // 使用 Queue 的高效移除
+            };
+            _bufferedHistoryIndex = (_bufferedHistoryIndex + 1) % _Constants.bufferHistorySize;
 
             if (_isHls && !_isParsing) {
               final remainingTime = duration - position;
+                // 调试才开启下面日志
+                // LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
               if (_preCachedUrl != null && remainingTime.inSeconds <= _Constants.hlsSwitchThresholdSeconds) {
                 await _switchToPreCachedUrl('HLS 剩余时间少于 ${_Constants.hlsSwitchThresholdSeconds} 秒');
-              } else if (_bufferedHistory.length >= _Constants.bufferHistorySize) {
+              } else if (_bufferedHistory.where((e) => e.isNotEmpty).length >= _Constants.bufferHistorySize) {
                 int positionIncreaseCount = 0;
                 int remainingBufferLowCount = 0;
-                for (int i = _bufferedHistory.length - _Constants.positionIncreaseThreshold; i < _bufferedHistory.length; i++) {
-                  final prev = _bufferedHistory.elementAt(i - 1);
-                  final curr = _bufferedHistory.elementAt(i);
-                  if (curr['position'] > prev['position']) positionIncreaseCount++;
-                  if ((curr['remainingBuffer'] as Duration).inSeconds < _Constants.minRemainingBufferSeconds) remainingBufferLowCount++;
+                for (int i = 0; i < _Constants.positionIncreaseThreshold; i++) {
+                  final prevIndex = (_bufferedHistoryIndex - _Constants.positionIncreaseThreshold + i - 1 + _Constants.bufferHistorySize) % _Constants.bufferHistorySize;
+                  final currIndex = (_bufferedHistoryIndex - _Constants.positionIncreaseThreshold + i + _Constants.bufferHistorySize) % _Constants.bufferHistorySize;
+                  final prev = _bufferedHistory[prevIndex];
+                  final curr = _bufferedHistory[currIndex];
+                  if (prev.isNotEmpty && curr.isNotEmpty && curr['position'] > prev['position']) positionIncreaseCount++;
+                  if (curr.isNotEmpty && (curr['remainingBuffer'] as Duration).inSeconds < _Constants.minRemainingBufferSeconds) remainingBufferLowCount++;
                 }
                 if (positionIncreaseCount == _Constants.positionIncreaseThreshold &&
                     remainingBufferLowCount >= _Constants.lowBufferThresholdCount &&
@@ -471,12 +476,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
         else if (_isHls) _retryPlayback();
         else _handleNoMoreSources();
         break;
+    }
 
-      default:
-        if (event.betterPlayerEventType != BetterPlayerEventType.changedPlayerVisibility) {
-          LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
-        }
-        break;
+    // 统一执行 setState，减少调用次数
+    if (newToastString != null || newIsBuffering != null || newIsPlaying != null || newShowPlayIcon != null || newShowPauseIconFromListener != null) {
+      setState(() {
+        if (newToastString != null) toastString = newToastString;
+        if (newIsBuffering != null) isBuffering = newIsBuffering;
+        if (newIsPlaying != null) isPlaying = newIsPlaying;
+        if (newShowPlayIcon != null) _showPlayIcon = newShowPlayIcon;
+        if (newShowPauseIconFromListener != null) _showPauseIconFromListener = newShowPauseIconFromListener;
+      });
     }
   }
 
@@ -521,18 +531,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 启动超时检查以切换视频源
-  void _startTimeoutCheck() {
+  void _startTimeoutCheck(Duration timeout, {VoidCallback? onTimeout, bool switchSourceOnTimeout = true}) {
     if (_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) return;
     _timeoutActive = true;
-    Timer(Duration(seconds: _Constants.defaultTimeoutSeconds), () {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(timeout, () {
       if (!mounted || !_timeoutActive || _playerController?.videoPlayerController == null) {
-        _handleSourceSwitching();
+        if (switchSourceOnTimeout) {
+          _handleSourceSwitching(); // 仅在 switchSourceOnTimeout 为 true 时切换源
+        }
         _timeoutActive = false;
         return;
       }
       if (isBuffering) {
-        LogUtil.e('缓冲超时，切换下一源');
-        _handleSourceSwitching();
+        LogUtil.e('缓冲超时 (${timeout.inSeconds}秒)，执行超时操作');
+        if (onTimeout != null) {
+          onTimeout(); // 执行自定义回调
+        } else if (switchSourceOnTimeout) {
+          _handleSourceSwitching(); // 默认切换源，仅在 switchSourceOnTimeout 为 true 时执行
+        }
       }
       _timeoutActive = false;
     });
@@ -601,7 +618,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _sourceIndex = 0;
       isBuffering = false;
       isPlaying = false;
-      _isRetrying = false;
+      _isRetrying = false; 
       _retryCount = 0;
       _showPlayIcon = false;
       _showPauseIconFromListener = false;
@@ -624,21 +641,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (controller == null) return;
     _isDisposing = true;
     try {
-      _cleanupTimers();
+      _cleanupTimers(); 
       controller.removeEventsListener(_videoListener);
       if (controller.isPlaying() ?? false) {
         await controller.pause();
         await controller.setVolume(0);
       }
+      controller.videoPlayerController?.dispose(); // 先释放核心播放器对象
       await _disposeStreamUrlInstance(_streamUrl);
       await _disposeStreamUrlInstance(_preCacheStreamUrl);
-      controller.videoPlayerController?.dispose();
       controller.dispose();
       setState(() {
         _playerController = null; // 确保引用置空，避免内存泄漏
         _progressEnabled = false;
         _isAudio = false;
-        _bufferedHistory.clear();
+        _bufferedHistory = List.generate(_Constants.bufferHistorySize, (_) => <String, dynamic>{});
+        _bufferedHistoryIndex = 0;
         _preCachedUrl = null;
         _lastBufferedPosition = null;
         _lastBufferedTime = null;
@@ -666,18 +684,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 清理所有计时器资源
   void _cleanupTimers() {
-    if (_retryTimer != null) {
-      _retryTimer!.cancel();
-      _retryTimer = null;
-    }
-    if (_playDurationTimer != null) {
-      _playDurationTimer!.cancel();
-      _playDurationTimer = null;
-    }
-    if (_timeoutTimer != null) {
-      _timeoutTimer!.cancel();
-      _timeoutTimer = null;
-    }
+    [_retryTimer, _playDurationTimer, _timeoutTimer].forEach((timer) {
+      timer?.cancel();
+    });
+    _retryTimer = null;
+    _playDurationTimer = null;
+    _timeoutTimer = null;
     _timeoutActive = false;
   }
 
@@ -762,15 +774,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 根据地理前缀对列表进行排序
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) return items;
-    List<String> matched = [];
-    List<String> unmatched = [];
-    Map<String, int> originalOrder = {};
-    for (int i = 0; i < items.length; i++) {
-      String item = items[i];
-      originalOrder[item] = i;
-      if (item.startsWith(prefix)) matched.add(item);
-      else unmatched.add(item);
-    }
+    final matched = <String>[];
+    final unmatched = <String>[];
+    final originalOrder = items.asMap(); // 保留原始顺序
+    items.forEach((item) {
+      if (item.startsWith(prefix)) {
+        matched.add(item);
+      } else {
+        unmatched.add(item);
+      }
+    });
     matched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
     unmatched.sort((a, b) => originalOrder[a]!.compareTo(originalOrder[b]!));
     return [...matched, ...unmatched];
@@ -854,6 +867,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _adManager = AdManager(); // 初始化广告管理实例
     _adManager.loadAdData(); // 加载广告数据
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden); // 设置非移动设备标题栏样式
+    _bufferedHistory = List.generate(_Constants.bufferHistorySize, (_) => <String, dynamic>{});
     _loadData(); // 加载初始数据
     _extractFavoriteList(); // 提取收藏列表
   }
@@ -870,7 +884,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _playDurationTimer = null;
     _timeoutTimer?.cancel(); // 取消超时计时器
     _timeoutTimer = null;
-    _lastListenerUpdateTime = null; // 清空监听器更新时间
     _adManager.dispose(); // 释放广告管理资源
     super.dispose(); // 调用父类释放方法
   }
@@ -896,7 +909,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 加载初始数据并初始化播放列表
   Future<void> _loadData() async {
     setState(() {
-      _isRetrying = false;
+      _isRetrying = false; 
       _cleanupTimers();
       _retryCount = 0;
       _isAudio = false;
@@ -931,7 +944,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       setState(() {
         _currentChannel = null;
         toastString = 'UNKNOWN';
-        _isRetrying = false;
+        _isRetrying = false; 
       });
     }
   }
