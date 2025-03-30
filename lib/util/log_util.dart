@@ -277,7 +277,7 @@ class LogUtil {
   static Future<void> logError(String message, dynamic error, [StackTrace? stackTrace]) async {
     if (!debugMode) return;
     stackTrace ??= StackTrace.current;
-    if (message?.isNotEmpty !=  != true || error == null) {
+    if (message?.isNotEmpty != true || error == null) {
       await LogUtil.e('参数不匹配或为空: $message, $error, 堆栈信息: $stackTrace');
       return;
     }
