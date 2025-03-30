@@ -19,7 +19,7 @@ class LogUtil {
   static final List<String> _newLogsBuffer = [];
   static const int _writeThreshold = 5; // 累积5条日志才写入本地
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
-  static String? _logFilePath; // 恢复为可空类型，避免未初始化问题
+  static String? _logFilePath; // 可空类型，确保路径缓存
 
   // 弹窗相关属性
   static bool _showOverlay = false; // 控制是否显示弹窗
@@ -53,7 +53,7 @@ class LogUtil {
     }
   }
 
-  // 获取日志文件路径（恢复异步逻辑并优化缓存）
+  // 获取日志文件路径（异步逻辑+缓存）
   static Future<String> _getLogFilePath() async {
     if (_logFilePath != null) return _logFilePath!;
     final directory = await getApplicationDocumentsDirectory();
@@ -117,7 +117,7 @@ class LogUtil {
           .replaceAll('\n', '\\n')
           .replaceAll('\r', '\\r')
           .replaceAll('|', '\\|')
-          .placeAll('[', '\\[')
+          .replaceAll('[', '\\[')
           .replaceAll(']', '\\]')
           ?? 'null';
 
@@ -128,10 +128,8 @@ class LogUtil {
       String logMessage =
           '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 添加到内存和缓冲区（新日志在前），设置上限 1000 条
-      if (_memoryLogs.length >= 1000) _memoryLogs.removeLast();
+      // 添加到内存和缓冲区（新日志在前），移除上限限制
       _memoryLogs.insert(0, logMessage);
-      if (_newLogsBuffer.length >= 1000) _newLogsBuffer.removeLast();
       _newLogsBuffer.insert(0, logMessage);
 
       if (_newLogsBuffer.length >= _writeThreshold) {
@@ -226,11 +224,28 @@ class LogUtil {
   // NavigatorObserver实例
   static final navigatorObserver = NavigatorObserver();
 
-  // 查找OverlayState（优化为直接获取）
+  // 查找OverlayState（恢复原始递归遍历逻辑）
   static OverlayState? _findOverlayState() {
     try {
-      return navigatorObserver.navigator?.overlay ??
-          WidgetsBinding.instance.rootElement?.findAncestorStateOfType<OverlayState>();
+      if (navigatorObserver.navigator?.overlay != null) {
+        return navigatorObserver.navigator?.overlay;
+      }
+
+      Element? rootElement = WidgetsBinding.instance.renderViewElement;
+      if (rootElement == null) return null;
+
+      OverlayState? overlayState;
+      void visitor(Element element) {
+        if (overlayState != null) return;
+        if (element is StatefulElement && element.state is OverlayState) {
+          overlayState = element.state as OverlayState;
+          return;
+        }
+        element.visitChildren(visitor);
+      }
+      rootElement.visitChildren(visitor);
+
+      return overlayState;
     } catch (e) {
       developer.log('获取 OverlayState 失败: $e');
       return null;
