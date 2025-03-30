@@ -351,8 +351,8 @@ class LogUtil {
     return 'Unknown';
   }
 
-  // 获取所有日志
-  static List<Map<String, String>> getLogs() {  // 修改返回类型
+  // 获取所有日志 - 修改后的逻辑，确保 message 只包含日志内容
+  static List<Map<String, String>> getLogs() {
     try {
       return _memoryLogs.map((logStr) {
         final parts = logStr.split('|').map((s) => s.trim()).toList();
@@ -362,11 +362,11 @@ class LogUtil {
             .toList();
         
         return {
-          'time': headers[0],
-          'level': headers[1],
-          'tag': headers[2],
-          'message': '${parts[1]}\n${parts[2]}',
-          'fileInfo': parts[2]
+          'time': headers[0],   // 时间戳
+          'level': headers[1],  // 日志级别
+          'tag': headers[2],    // 日志标签
+          'message': parts[1],  // 仅包含日志消息内容，不拼接 fileInfo
+          'fileInfo': parts[2]  // 文件名和行号
         };
       }).toList();
     } catch (e) {
@@ -375,8 +375,8 @@ class LogUtil {
     }
   }
 
-  // 按级别获取日志
-  static List<Map<String, String>> getLogsByLevel(String level) {  // 修改返回类型
+  // 按级别获取日志 - 修改后的逻辑，确保 message 只包含日志内容
+  static List<Map<String, String>> getLogsByLevel(String level) {
     try {
       final levelPattern = RegExp(r'\[' + level + r'\]');
       return _memoryLogs
@@ -389,11 +389,11 @@ class LogUtil {
             .toList();
         
         return {
-          'time': headers[0],
-          'level': headers[1],
-          'tag': headers[2],
-          'message': '${parts[1]}\n${parts[2]}',
-          'fileInfo': parts[2]
+          'time': headers[0],   // 时间戳
+          'level': headers[1],  // 日志级别
+          'tag': headers[2],    // 日志标签
+          'message': parts[1],  // 仅包含日志消息内容，不拼接 fileInfo
+          'fileInfo': parts[2]  // 文件名和行号
         };
       }).toList();
     } catch (e) {
