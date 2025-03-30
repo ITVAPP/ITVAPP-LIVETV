@@ -15,8 +15,7 @@ class LogUtil {
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
 
   // 内存存储相关
-  static final List<String> _memoryLogs = [];
-  static final List<String> _newLogsBuffer = [];
+  static final List<String> _newLogsBuffer = []; // 删除 _memoryLogs，仅保留 _newLogsBuffer
   static const int _writeThreshold = 5; // 累积5条日志才写入本地
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
   static String _logFilePath = ''; // 修改为非空类型，初始化为空
@@ -31,8 +30,7 @@ class LogUtil {
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
-      _memoryLogs.clear(); // 初始化时先清空内存
-      _newLogsBuffer.clear(); // 初始化时先清空缓冲区
+      _newLogsBuffer.clear(); // 初始化时清空缓冲区，移除 _memoryLogs 相关代码
 
       final directory = await getApplicationDocumentsDirectory();
       _logFilePath = '${directory.path}/$_logFileName'; // 直接赋值
@@ -126,13 +124,10 @@ class LogUtil {
       String logMessage =
           '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 添加到内存和缓冲区（新日志在前）
-      _memoryLogs.insert(0, logMessage);
+      // 只更新 _newLogsBuffer，移除 _memoryLogs 相关代码
       _newLogsBuffer.insert(0, logMessage);
-
-      // 限制 _memoryLogs 为 5 条
-      if (_memoryLogs.length > _writeThreshold) {
-        _memoryLogs.removeRange(_writeThreshold, _memoryLogs.length);
+      if (_newLogsBuffer.length > _writeThreshold) {
+        _newLogsBuffer.removeRange(_writeThreshold, _newLogsBuffer.length);
       }
 
       if (_newLogsBuffer.length >= _writeThreshold) {
@@ -155,15 +150,14 @@ class LogUtil {
     }
   }
 
-  // 将日志写入本地文件（改为增量写入，只写 5 条，追加模式）
+  // 将日志写入本地文件（增量写入，只写 5 条，追加模式）
   static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
     List<String> logsToWrite = [];
     try {
       logsToWrite = List.from(_newLogsBuffer);
-      _newLogsBuffer.clear();
-      _memoryLogs.clear(); // 写入后清空 _memoryLogs
+      _newLogsBuffer.clear(); // 只清空 _newLogsBuffer，移除 _memoryLogs 相关代码
 
       final file = File(_logFilePath);
       await file.writeAsString(logsToWrite.join('\n') + '\n', mode: FileMode.append); // 增量写入，追加模式
@@ -353,33 +347,33 @@ class LogUtil {
     }
   }
 
-  // 获取所有日志（复用解析逻辑）
+  // 获取所有日志（使用 _newLogsBuffer）
   static List<Map<String, String>> getLogs() {
     try {
-      return _memoryLogs.map(_parseLogString).toList();
+      return _newLogsBuffer.map(_parseLogString).toList(); // 修改为使用 _newLogsBuffer
     } catch (e) {
       developer.log('获取日志失败: $e');
       return [];
     }
   }
 
-  // 按级别获取日志（复用解析逻辑并缓存正则表达式）
+  // 按级别获取日志（使用 _newLogsBuffer）
   static final Map<String, RegExp> _levelPatterns = {};
 
   static List<Map<String, String>> getLogsByLevel(String level) {
     try {
       _levelPatterns[level] ??= RegExp(r'\[' + level + r'\]');
-      return _memoryLogs
+      return _newLogsBuffer
           .where((log) => _levelPatterns[level]!.hasMatch(log))
           .map(_parseLogString)
-          .toList();
+          .toList(); // 修改为使用 _newLogsBuffer
     } catch (e) {
       developer.log('按级别获取日志失败: $e');
       return [];
     }
   }
 
-  // 清理日志（增强并发控制）
+  // 清理日志（移除 _memoryLogs 相关代码）
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
     if (_isOperating) return; // 一致性检查
     _isOperating = true;
@@ -389,8 +383,7 @@ class LogUtil {
 
       if (level == null) {
         // 清理所有日志
-        _memoryLogs.clear();
-        _newLogsBuffer.clear();
+        _newLogsBuffer.clear(); // 只清空 _newLogsBuffer
 
         if (await file.exists()) {
           if (isAuto) {
@@ -409,11 +402,10 @@ class LogUtil {
       } else {
         // 清理指定级别的日志
         final levelPattern = RegExp(r'\[' + level + r'\]');
-        _memoryLogs.removeWhere((log) => levelPattern.hasMatch(log));
         _newLogsBuffer.removeWhere((log) => levelPattern.hasMatch(log));
 
         if (await file.exists()) {
-          await file.writeAsString(_memoryLogs.join('\n') + '\n');
+          await file.writeAsString(_newLogsBuffer.join('\n') + '\n');
         }
       }
     } catch (e) {
