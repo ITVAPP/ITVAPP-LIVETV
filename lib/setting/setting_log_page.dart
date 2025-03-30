@@ -232,7 +232,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   : Scrollbar(
                                       thumbVisibility: true,
                                       controller: _scrollController,
-                                      child: lectureSingleChildScrollView(
+                                      child: SingleChildScrollView(
                                         controller: _scrollController,
                                         scrollDirection: Axis.vertical,
                                         child: Column(
