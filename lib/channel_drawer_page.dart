@@ -212,16 +212,15 @@ class FocusStateManager {
 
   bool get isUpdating => _isUpdating;
 
-  // 资源释放
   void dispose() {
     if (_isUpdating) return;
     _isUpdating = true;
     for (var node in focusNodes) {
-      node.removeListener(() {}); // 移除所有监听器
+      node.removeListener(() {});
       node.dispose();
     }
     for (var node in categoryFocusNodes) {
-      node.removeListener(() {}); // 移除分类节点的监听器
+      node.removeListener(() {});
       node.dispose();
     }
     focusNodes.clear();
@@ -289,18 +288,40 @@ void addFocusListeners(
 // 处理焦点切换时的滚动逻辑
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
-  final currentGroup = focusManager.focusGroupIndices[index] ?? -1;
-  final lastGroup = focusManager.lastFocusedIndex != -1 ? (focusManager.focusGroupIndices[focusManager.lastFocusedIndex] ?? -1) : -1;
-  final isInitialFocus = focusManager.lastFocusedIndex == -1;
-  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
-  focusManager.lastFocusedIndex = index;
-
   final channelDrawerState = state is _ChannelDrawerPageState
       ? state
       : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
-  if (currentGroup == 0) return;
+  int currentGroup;
+  if (index >= channelDrawerState._categoryStartIndex && index < channelDrawerState._groupStartIndex) {
+    currentGroup = 0; // Category
+  } else if (index >= channelDrawerState._groupStartIndex && index < channelDrawerState._channelStartIndex) {
+    currentGroup = 1; // Group
+  } else if (index >= channelDrawerState._channelStartIndex) {
+    currentGroup = 2; // Channel
+  } else {
+    currentGroup = -1; // 无效分组
+  }
+
+  int lastGroup = -1;
+  if (focusManager.lastFocusedIndex != -1) {
+    if (focusManager.lastFocusedIndex >= channelDrawerState._categoryStartIndex &&
+        focusManager.lastFocusedIndex < channelDrawerState._groupStartIndex) {
+      lastGroup = 0;
+    } else if (focusManager.lastFocusedIndex >= channelDrawerState._groupStartIndex &&
+        focusManager.lastFocusedIndex < channelDrawerState._channelStartIndex) {
+      lastGroup = 1;
+    } else if (focusManager.lastFocusedIndex >= channelDrawerState._channelStartIndex) {
+      lastGroup = 2;
+    }
+  }
+
+  final isInitialFocus = focusManager.lastFocusedIndex == -1;
+  final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
+  focusManager.lastFocusedIndex = index;
+
+  if (currentGroup == 0) return; // Category 不需要滚动
 
   final viewportHeight = channelDrawerState._drawerHeight;
   final itemHeight = _dynamicItemHeight ?? ITEM_HEIGHT_WITH_DIVIDER;
@@ -902,7 +923,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   List<String> _keys = [];
   List<Map<String, PlayModel>> _values = [];
   int _groupIndex = -1;
-  int _channelIndex = -1; 
+  int _channelIndex = -1; // 仅用于初始化
   int _categoryIndex = -1;
   int _categoryStartIndex = 0;
   int _groupStartIndex = 0;
@@ -1610,7 +1631,7 @@ class _ChannelContentState extends State<ChannelContent> {
     if (channelKey != null &&
         widget.epgCache.containsKey(channelKey) &&
         widget.epgCache[channelKey]!['timestamp'] != null &&
-        currentTime.difference(widget.epgCache[channelKey]!['timestamp']).inHours < 24) { // 缓存有效期为24小时
+        currentTime.difference(widget.epgCache[channelKey]!['timestamp']).inHours < 24) {
       setState(() {
         _epgData = widget.epgCache[channelKey]!['data'];
         _selEPGIndex = _getInitialSelectedIndex(_epgData);
