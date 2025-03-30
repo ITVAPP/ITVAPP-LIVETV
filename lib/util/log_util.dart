@@ -11,7 +11,7 @@ class LogUtil {
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 是否开启日志记录
   static bool _isOperating = false; // 操作锁，避免并发问题
-  static const int _maxSingleLogLength = 8588; // 单条日志最大长度
+  static const int _maxSingleLogLength = 588; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大限制5MB
 
   // 内存存储相关
