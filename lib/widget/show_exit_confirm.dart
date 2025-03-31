@@ -85,7 +85,7 @@ class ShowExitConfirm {
                             CustomPaint(
                               painter: CircleProgressPainter(
                                 controller!.value, // 使用 AnimationController 的进度值
-                                strokeWidth: _strokeWidth, // 使用常量控制粗细
+                                strokeWidth: _strokeWidth, // 显式传递常量值
                               ),
                               child: Container(
                                 width: 118, // logo区域大小
@@ -159,7 +159,7 @@ class CircleProgressPainter extends CustomPainter {
   final double progress; // 当前进度值（0.0 到 1.0）
   final double strokeWidth; // 圆环粗细
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = _strokeWidth}); // 默认使用常量粗细
+  CircleProgressPainter(this.progress, {required this.strokeWidth});
 
   @override
   void paint(Canvas canvas, Size size) {
