@@ -100,7 +100,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         'top': 190 * scale,
         'width': 150 * scale,
         'height': 3 * scale,
-        'is  'isLeftSide': false,
+        'isLeftSide': false,
         'dotLeft': screenCenter - 275 * scale,
         'dotTop': 188 * scale,
         'dotSize': 8 * scale,
@@ -127,7 +127,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       {
         'left': screenCenter + 50 * scale,
         'top': 150 * scale,
-a': 235 * scale,
+        'width': 235 * scale,
         'height': 3 * scale,
         'isLeftSide': true,
         'dotLeft': screenCenter + 282 * scale,
@@ -542,6 +542,18 @@ class RemoteControlPainter extends CustomPainter {
       ..strokeWidth = width * 0.01; // 描边宽度
 
     final radius = width * 0.08; // 圆的半径
+    canvas.drawCircle(center, radius, paint); // 绘制圆
+
+    // 绘制箭头
+    paint.strokeWidth = width * 0.02; // 重新设置描边宽度
+    final arrowSize = radius * 0.5; // 箭头尺寸
+    final path = Path()
+      ..moveTo(center.dx - arrowSize, center.dy - arrowSize) // 箭头左上角
+      ..lineTo(center.dx - arrowSize, center.dy + arrowSize) // 向下
+      ..lineTo(center.dx + arrowSize, center.dy + arrowSize); // 向右
+
+    canvas.save(); // 保存当前画布状态
+    canvas.translate(center.dx, center.dy); //  ascended
     canvas.drawCircle(center, radius, paint); // 绘制圆
 
     // 绘制箭头
