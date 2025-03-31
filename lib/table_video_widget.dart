@@ -290,8 +290,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 构建视频播放器组件，使用缓存结果
   Widget _buildVideoPlayer(double containerHeight) {
-    // 确保缓存存在
-    _cachedVideoPlayer ??= _updateCachedVideoPlayer();
+    // 如果缓存不存在，则初始化
+    if (_cachedVideoPlayer == null) {
+      _updateCachedVideoPlayer();
+    }
     return _cachedVideoPlayer!;
   }
 
@@ -534,7 +536,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                       ),
                     if (uiState.showPauseIcon || widget.showPauseIconFromListener)
                       _buildControlIcon(icon: Icons.pause),
-                    if                     if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
+                    if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                       Positioned(
                         left: 0,
                         right: 0,
