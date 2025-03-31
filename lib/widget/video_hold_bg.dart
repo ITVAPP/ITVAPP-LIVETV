@@ -236,7 +236,7 @@ class BackgroundTransition extends StatelessWidget {
       decoration: BoxDecoration(
         image: DecorationImage(
           fit: BoxFit.cover,
-          image: FileImage(File(path)), // 已导入 dart:io
+          image: FileImage(File(path)),
         ),
       ),
     );
@@ -419,6 +419,9 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
+  // 修改代码开始
+  // 优化 _loadBingBackgrounds，预加载更多图片并添加注释
+  /// 加载 Bing 背景图片并初始化切换逻辑
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
@@ -438,7 +441,10 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           isTransitionLocked: false,
         );
 
-        precacheImage(FileImage(File(paths[0])), context); // 已导入 dart:io
+        // 预加载前两张图片，提升切换流畅度
+        for (int i = 0; i < min(2, paths.length); i++) {
+          await precacheImage(FileImage(File(paths[i])), context);
+        }
 
         _timer?.cancel();
         _isTimerActive = true;
@@ -469,7 +475,11 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       }
     }
   }
+  // 修改代码结束
 
+  // 修改代码开始
+  // 优化 _startImageTransition，添加状态回退和注释
+  /// 开始图片切换动画，确保状态一致性
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -478,7 +488,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
 
       precacheImage(
-        FileImage(File(currentState.imageUrls[nextIndex])), // 已导入 dart:io
+        FileImage(File(currentState.imageUrls[nextIndex])),
         context,
         onError: (e, stackTrace) {
           LogUtil.logError('预加载图片失败', e);
@@ -496,9 +506,11 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       });
     } catch (e) {
       LogUtil.logError('开始图片切换时发生错误', e);
+      // 异常时回退状态，确保一致性
       _backgroundState.value = currentState.copyWith(isTransitionLocked: false);
     }
   }
+  // 修改代码结束
 
   Widget _buildLocalBg() {
     return Container(
@@ -524,7 +536,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           decoration: BoxDecoration(
             image: DecorationImage(
               fit: BoxFit.cover,
-              image: FileImage(File(state.imageUrls[state.currentIndex])), // 已导入 dart:io
+              image: FileImage(File(state.imageUrls[state.currentIndex])),
             ),
           ),
         ),
@@ -547,7 +559,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
                 final nextNextIndex =
                     (currentState.nextIndex + 1) % currentState.imageUrls.length;
                 precacheImage(
-                  FileImage(File(currentState.imageUrls[nextNextIndex])), // 已导入 dart:io
+                  FileImage(File(currentState.imageUrls[nextNextIndex])),
                   context,
                 );
               }
@@ -621,6 +633,8 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
+  // 修改代码开始
+  // 优化 dispose，确保 _timer 被正确清理
   @override
   void dispose() {
     final currentState = _backgroundState.value;
@@ -630,9 +644,12 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     );
 
     _isTimerActive = false;
-    _timer?.cancel();
-    _timer = null;
+    if (_timer != null) {
+      _timer!.cancel();
+      _timer = null;
+    }
 
     super.dispose();
   }
+  // 修改代码结束
 }
