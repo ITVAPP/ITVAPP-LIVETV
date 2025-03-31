@@ -621,8 +621,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         ),
         // 滚动文字广告，只有在有广告内容时显示
         _buildStaticOverlay(),
-        // if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
-        if (false && widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
+        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
           Positioned(
             top: widget.isLandscape ? 50.0 : 80.0,
             left: 0,
