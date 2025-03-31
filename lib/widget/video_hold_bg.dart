@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:io'; 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
@@ -14,9 +15,8 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/music_bars.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-/// 背景图片状态管理类
 class BingBackgroundState {
-  final List<String> imageUrls; // 改为本地文件路径列表
+  final List<String> imageUrls;
   final int currentIndex;
   final int nextIndex;
   final bool isAnimating;
@@ -215,7 +215,7 @@ class AudioBarsWrapper extends StatelessWidget {
 }
 
 class BackgroundTransition extends StatelessWidget {
-  final String imageUrl; // 改为本地文件路径
+  final String imageUrl;
   final int animationType;
   final VoidCallback? onTransitionComplete;
 
@@ -236,7 +236,7 @@ class BackgroundTransition extends StatelessWidget {
       decoration: BoxDecoration(
         image: DecorationImage(
           fit: BoxFit.cover,
-          image: FileImage(File(path)), // 修改为使用本地文件
+          image: FileImage(File(path)), // 已导入 dart:io
         ),
       ),
     );
@@ -419,7 +419,6 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  /// 修改：加载Bing背景图片，从本地读取或网络下载
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
@@ -439,8 +438,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           isTransitionLocked: false,
         );
 
-        // 预加载第一张图片到内存
-        precacheImage(FileImage(File(paths[0])), context);
+        precacheImage(FileImage(File(paths[0])), context); // 已导入 dart:io
 
         _timer?.cancel();
         _isTimerActive = true;
@@ -472,7 +470,6 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  /// 修改：开始背景图片切换动画，使用本地路径
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -481,7 +478,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
 
       precacheImage(
-        FileImage(File(currentState.imageUrls[nextIndex])),
+        FileImage(File(currentState.imageUrls[nextIndex])), // 已导入 dart:io
         context,
         onError: (e, stackTrace) {
           LogUtil.logError('预加载图片失败', e);
@@ -527,7 +524,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           decoration: BoxDecoration(
             image: DecorationImage(
               fit: BoxFit.cover,
-              image: FileImage(File(state.imageUrls[state.currentIndex])), // 使用本地文件
+              image: FileImage(File(state.imageUrls[state.currentIndex])), // 已导入 dart:io
             ),
           ),
         ),
@@ -550,7 +547,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
                 final nextNextIndex =
                     (currentState.nextIndex + 1) % currentState.imageUrls.length;
                 precacheImage(
-                  FileImage(File(currentState.imageUrls[nextNextIndex])),
+                  FileImage(File(currentState.imageUrls[nextNextIndex])), // 已导入 dart:io
                   context,
                 );
               }
