@@ -474,38 +474,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 将静态 UI 部分抽取为单独的方法，减少 ValueListenableBuilder 的重建范围
+  // 修改：修正静态 UI 部分的实现，避免使用模式变量声明
   Widget _buildStaticOverlay() {
-    // 修改：添加 const 关键字，标记为静态组件
+    // 移除不合法的模式变量声明，直接返回空 Stack，因为非横屏按钮已移到 build 中动态处理
     return const Stack(
-      children: [
-        // 修改：将非横屏时的按钮移到单独的 const 方法中
-        _StaticVerticalControls(),
-      ],
+      children: [],
     );
   }
-
-  // 新增：静态纵向控制按钮组件
-  static const _StaticVerticalControls({Key? key}) = _StaticVerticalControlsWidget();
-
-  // 新增：静态纵向控制按钮的具体实现
-  static const _StaticVerticalControlsWidget({Key? key}) = SizedBox(
-    child: Positioned(
-      right: 9,
-      bottom: 9,
-      child: SizedBox(
-        width: 32,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 注意：这里不能直接调用 buildFavoriteButton，因为它依赖动态状态
-            SizedBox(height: 5),
-            SizedBox(height: 5),
-          ],
-        ),
-      ),
-    ),
-  );
 
   // 使用 ValueListenableBuilder 动态监听 UI 状态变化，并根据状态重建 UI
   @override
@@ -613,7 +588,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                                       context,
                                       MaterialPageRoute(builder: (context) => SettingPage()),
                                     );
-                                  }, '进入设置页面发生错误');
+                                    }, '进入设置页面发生错误');
                                 },
                               ),
                               const SizedBox(width: 8),
