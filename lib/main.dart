@@ -198,9 +198,8 @@ class _MyAppState extends State<MyApp> {
       return _themeCache[fontFamily]!; // 返回缓存字体
     }
 
-    // 修改部分：背景为深灰色，AppBar 无渐变，确保删除无法继承的样式
     final theme = ThemeData(
-      brightness: Brightness.dark, // 确保暗色主题
+      brightness: Brightness.dark, // 暗色主题
       scaffoldBackgroundColor: const Color(0xFF1A1A1A), // 深灰色背景，无渐变
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFF1A1A1A), // 深灰色，与背景一致
