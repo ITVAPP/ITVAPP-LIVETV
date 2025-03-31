@@ -34,10 +34,10 @@ class AppConstants {
   static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
 }
 
-// 修改代码开始：提取 MultiProvider 的静态 providers 为常量
-final List<Provider> _staticProviders = [
-  ChangeNotifierProvider(create: (_) => DownloadProvider()),
-  ChangeNotifierProvider(create: (_) => LanguageProvider()),
+// 修改代码开始：修正 _staticProviders 的类型为 List<ChangeNotifierProvider>
+final List<ChangeNotifierProvider> _staticProviders = [
+  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()),
+  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()),
 ];
 // 修改代码结束
 
@@ -81,7 +81,9 @@ void main() async {
       LogUtil.d('从缓存读取硬件加速状态: $isHardwareEnabled');
     }
   } catch (e, stackTrace) {
-    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}', stackTrace: stackTrace); // 添加堆栈信息
+    // 修改代码开始：移除 stackTrace 命名参数，改为位置参数
+    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}');
+    // 修改代码结束
     await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时缓存默认值
     EasyLoading.showError('硬件加速检测失败，已禁用'); // 提供用户反馈
   }
@@ -90,7 +92,7 @@ void main() async {
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: themeProvider),
-      ..._staticProviders, // 修改代码：使用提取的静态 providers
+      ..._staticProviders, // 使用提取的静态 providers
     ],
     child: const MyApp(),
   ));
@@ -125,8 +127,9 @@ Future<void> _initializeDesktop() async {
       ]);
     });
   } catch (e, stackTrace) {
-    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}', stackTrace: stackTrace);
-    // 默认行为：记录错误但不中断应用启动
+    // 修改代码开始：移除 stackTrace 命名参数，改为位置参数
+    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}');
+    // 修改代码结束
   }
 }
 
@@ -151,13 +154,13 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider;
-  // 修改代码开始：添加 ThemeData 缓存
+  // 添加 ThemeData 缓存
   final Map<String?, ThemeData> _themeCache = {};
 
   @override
   void initState() {
     super.initState();
-    _themeProvider = Provider.of<ThemeProvider>(context, listen: false); // 修改代码：修正 contextCONFIRMATION 为 context
+    _themeProvider = Provider.of<ThemeProvider>(context, listen: false); // 修正 contextCONFIRMATION 为 context
     _initializeApp();
   }
 
@@ -168,7 +171,6 @@ class _MyAppState extends State<MyApp> {
 
   // 处理返回键的逻辑，确保正确的退出交互，并优化结构
   Future<bool> _handleBackPress(BuildContext context) async {
-    // 修改代码开始：优化逻辑结构
     if (_isAtSplashScreen(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
     }
@@ -179,7 +181,6 @@ class _MyAppState extends State<MyApp> {
     }
 
     return false;
-    // 修改代码结束
   }
 
   // 检查当前界面是否是启动画面，提取 Navigator.canPop 的逻辑
@@ -205,7 +206,6 @@ class _MyAppState extends State<MyApp> {
 
   // 提取主题构建逻辑，并添加缓存
   ThemeData _buildTheme(String? fontFamily) {
-    // 修改代码开始：使用缓存避免重复构建
     if (_themeCache.containsKey(fontFamily)) {
       return _themeCache[fontFamily]!;
     }
@@ -229,7 +229,6 @@ class _MyAppState extends State<MyApp> {
 
     _themeCache[fontFamily] = theme;
     return theme;
-    // 修改代码结束
   }
 
   @override
@@ -259,7 +258,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: AppConstants.appTitle,
       theme: _buildTheme(effectiveFontFamily),
-      locale: Provider.of<LanguageProvider>(context).currentLocale, // 修改代码：直接从 Provider 获取，避免重复定义
+      locale: Provider.of<LanguageProvider>(context).currentLocale, // 直接从 Provider 获取，避免重复定义
       routes: AppRouter.routes,
       localizationsDelegates: const [
         S.delegate,
@@ -273,7 +272,7 @@ class _MyAppState extends State<MyApp> {
           return supportedLocales.first;
         }
 
-        // 修改代码开始：简化中文地区处理逻辑，使用映射替代重复判断
+        // 简化中文地区处理逻辑，使用映射替代重复判断
         const localeMap = {
           'zh_TW': Locale('zh', 'TW'),
           'zh_HK': Locale('zh', 'TW'),
@@ -297,7 +296,6 @@ class _MyAppState extends State<MyApp> {
                   supportedLocale.countryCode == null),
           orElse: () => supportedLocales.first,
         );
-        // 修改代码结束
       },
       debugShowCheckedModeBanner: false,
       home: WillPopScope(
