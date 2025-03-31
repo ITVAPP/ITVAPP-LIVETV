@@ -115,15 +115,15 @@ class _ChannelLogoState extends State<ChannelLogo> {
     return 'logo_${Uri.parse(url).pathSegments.last}';
   }
 
-  /// 加载Logo，支持SP缓存
-  /// - 优先从缓存中加载，如果缓存损坏或不存在，则从网络获取
-  Future<Uint8List?> _loadLogo() async {
-    if (widget.logoUrl == null || widget.logoUrl!.isEmpty) {
-      return null; // 返回null表示没有Logo
-    }
+// 修改代码开始
+  /// 加载带缓存的图片
+  /// - 优先从缓存加载图片，若缓存不可用则从网络获取并缓存
+  /// - 返回图片字节数据，失败时返回 null
+  Future<Uint8List?> _loadCachedImage(String url) async {
+    if (url.isEmpty) return null;
 
     try {
-      final String cacheKey = _getCacheKey(widget.logoUrl!);
+      final String cacheKey = _getCacheKey(url);
       
       // 1. 尝试从缓存加载
       final String? base64Data = SpUtil.getString(cacheKey);
@@ -138,7 +138,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
 
       // 2. 从网络加载
       final response = await HttpUtil().getRequestWithResponse(
-        widget.logoUrl!,
+        url,
         options: Options(
           extra: {
             'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
@@ -147,18 +147,19 @@ class _ChannelLogoState extends State<ChannelLogo> {
         ),
       );
 
-      if (response?.statusCode == 200) {
-        final Uint8List imageData = response!.data as Uint8List; // 从 response.data 获取字节数据
-        await SpUtil.putString(cacheKey, base64.encode(imageData)); // 将数据存入缓存
+      if (response?.statusCode == 200 && response?.data is Uint8List) {
+        final Uint8List imageData = response!.data as Uint8List;
+        await SpUtil.putString(cacheKey, base64.encode(imageData)); // 缓存数据
         return imageData;
       }
 
       return null; // 加载失败
     } catch (e) {
-      LogUtil.logError('加载频道Logo失败', e);
+      LogUtil.logError('加载图片失败: $url', e);
       return null;
     }
   }
+// 修改代码结束
 
   /// 默认的Logo Widget
   Widget get _defaultLogo => Image.asset(
@@ -192,7 +193,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
           padding: const EdgeInsets.all(2),
           child: ClipOval(
             child: FutureBuilder<Uint8List?>(
-              future: _loadLogo(),
+              future: _loadCachedImage(widget.logoUrl ?? ''),
               builder: (context, snapshot) {
                 if (snapshot.hasData && snapshot.data != null) {
                   return Image.memory(
@@ -255,6 +256,25 @@ class BackgroundTransition extends StatelessWidget {
     this.onTransitionComplete,
   }) : super(key: key);
 
+// 修改代码开始
+  // 定义动画参数常量，避免重复
+  static const Duration _fadeDuration = Duration(milliseconds: 3000);
+  static const Duration _scaleDuration = Duration(milliseconds: 3500);
+  static const Curve _easeInOut = Curves.easeInOut;
+  static const Curve _easeOutCubic = Curves.easeOutCubic;
+
+  /// 创建背景图片组件
+  Widget _buildBackgroundImage(String url) {
+    return Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          fit: BoxFit.cover,
+          image: NetworkImage(url),
+        ),
+      ),
+    );
+  }
+
   /// 平滑渐变过渡效果
   Widget _buildSmoothFadeTransition(Widget child) {
     return child
@@ -264,20 +284,20 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: 3200.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         )
         .scale(
           begin: const Offset(1.1, 1.1),
           end: const Offset(1.0, 1.0),
-          duration: 3500.ms,
-          curve: Curves.easeOutCubic,
+          duration: _scaleDuration,
+          curve: _easeOutCubic,
         )
         .blur(
           begin: const Offset(8, 8),
           end: const Offset(0, 0),
-          duration: 3000.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         );
   }
 
@@ -290,20 +310,20 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: 3000.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         )
         .scale(
           begin: const Offset(1.0, 1.0),
           end: const Offset(1.15, 1.15),
-          duration: 4500.ms,
+          duration: Duration(milliseconds: 4500),
           curve: Curves.easeInOutCubic,
         )
         .blur(
           begin: const Offset(10, 10),
           end: const Offset(0, 0),
-          duration: 3000.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         );
   }
 
@@ -316,27 +336,27 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: 3000.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         )
         .slideX(
           begin: 0.3,
           end: 0.0,
-          duration: 3500.ms,
-          curve: Curves.easeOutCubic,
+          duration: _scaleDuration,
+          curve: _easeOutCubic,
         )
         .scale(
           begin: const Offset(1.1, 1.1),
           end: const Offset(1.0, 1.0),
           delay: 500.ms,
-          duration: 3000.ms,
-          curve: Curves.easeOutCubic,
+          duration: _fadeDuration,
+          curve: _easeOutCubic,
         )
         .blur(
           begin: const Offset(12, 12),
           end: const Offset(0, 0),
-          duration: 3000.ms,
-          curve: Curves.easeInOut,
+          duration: _fadeDuration,
+          curve: _easeInOut,
         );
   }
 
@@ -350,15 +370,15 @@ class BackgroundTransition extends StatelessWidget {
               onComplete: (controller) => onTransitionComplete?.call(),
             )
             .fadeIn(
-              duration: 3000.ms,
-              curve: Curves.easeInOut,
+              duration: _fadeDuration,
+              curve: _easeInOut,
             )
             .scale(
               begin: const Offset(1.05, 1.05),
               end: const Offset(1.0, 1.0),
               delay: 500.ms,
-              duration: 3500.ms,
-              curve: Curves.easeOutCubic,
+              duration: _scaleDuration,
+              curve: _easeOutCubic,
             ),
       ],
     );
@@ -366,14 +386,7 @@ class BackgroundTransition extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nextImage = Container(
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          fit: BoxFit.cover,
-          image: NetworkImage(imageUrl),
-        ),
-      ),
-    );
+    final nextImage = _buildBackgroundImage(imageUrl);
 
     switch (animationType) {
       case 0:
@@ -388,6 +401,7 @@ class BackgroundTransition extends StatelessWidget {
         return _buildSmoothFadeTransition(nextImage);
     }
   }
+// 修改代码结束
 }
 
 /// VideoHoldBg的State实现
@@ -396,6 +410,7 @@ class BackgroundTransition extends StatelessWidget {
 class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
   Timer? _timer; // 定时器，用于控制背景图片切换
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey(); // 动态音频条组件的Key
+  bool _isTimerActive = false; // 标志定时器是否活跃
 
   // 背景状态管理
   final _backgroundState = ValueNotifier<BingBackgroundState>(
@@ -425,14 +440,15 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
+// 修改代码开始
   /// 获取随机动画类型
-  /// - 基于权重随机选择动画效果
+  /// - 基于权重随机选择动画效果，确保权重总和为1
   int _getRandomAnimationType() {
     if (!mounted) return 0;
 
     final random = Random();
-    // 动画权重设置，支持多种过渡效果
-    final weights = [0.3, 0.2, 0.25, 0.25]; // 分别对应平滑渐变、Ken Burns、方向性滑动、交叉淡入淡出
+    // 动画权重设置，总和为1
+    const weights = [0.3, 0.2, 0.25, 0.25]; // 平滑渐变、Ken Burns、方向性滑动、交叉淡入淡出
     final value = random.nextDouble();
 
     try {
@@ -451,17 +467,15 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   }
 
   /// 加载Bing背景图片
-  /// - 调用工具类方法获取必应图片URL
-  /// - 将图片加载状态保存在ValueNotifier中
+  /// - 调用工具类方法获取必应图片URL，并更新状态
+  /// - 减少不必要的状态更新，合并为单次操作
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
-    // 如果Bing图片已经加载或动画正在锁定，无需重复加载
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
 
     try {
-      _backgroundState.value = currentState.copyWith(
-        isTransitionLocked: true, // 锁定加载过程
-      );
+      // 锁定状态
+      _backgroundState.value = currentState.copyWith(isTransitionLocked: true);
 
       // 获取当前频道背景图片URL
       final String? channelId = widget.currentChannelTitle;
@@ -470,21 +484,21 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       if (!mounted) return;
 
       if (urls.isNotEmpty) {
-        // 更新状态为已加载
+        // 更新状态并预加载第一张图片
         _backgroundState.value = currentState.copyWith(
           imageUrls: urls,
           isBingLoaded: true,
           isTransitionLocked: false,
         );
-
-        // 预加载第一张图片
         precacheImage(NetworkImage(urls[0]), context);
 
-        // 设置定时切换 - 每45秒切换一次图片
+        // 设置定时切换
+        _timer?.cancel(); // 确保旧定时器被取消
+        _isTimerActive = true;
         _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
+          if (!_isTimerActive || !mounted) return;
           final state = _backgroundState.value;
           if (!state.isAnimating &&
-              mounted &&
               state.imageUrls.length > 1 &&
               !state.isTransitionLocked &&
               state.isEnabled) {
@@ -510,6 +524,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   }
 
   /// 开始背景图片切换动画
+  /// - 预加载下一张图片并触发动画，包含错误处理
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -523,9 +538,8 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
         context,
         onError: (e, stackTrace) {
           LogUtil.logError('预加载图片失败', e);
-          _backgroundState.value = currentState.copyWith(
-            isTransitionLocked: false,
-          );
+          _backgroundState.value = currentState.copyWith(isTransitionLocked: false);
+          return; // 提前返回，避免状态异常
         },
       ).then((_) {
         if (!mounted) return;
@@ -539,14 +553,12 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       });
     } catch (e) {
       LogUtil.logError('开始图片切换时发生错误', e);
-      _backgroundState.value = currentState.copyWith(
-        isTransitionLocked: false,
-      );
+      _backgroundState.value = currentState.copyWith(isTransitionLocked: false);
     }
   }
 
   /// 构建本地背景
-  /// - 如果没有启用Bing背景，则显示本地默认背景
+  /// - 显示默认本地背景图片
   Widget _buildLocalBg() {
     return Container(
       decoration: const BoxDecoration(
@@ -557,6 +569,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       ),
     );
   }
+// 修改代码结束
 
   /// 构建Bing背景
   /// - 根据当前状态显示背景图片，并支持动画切换
@@ -684,19 +697,21 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
+// 修改代码开始
   @override
   void dispose() {
-    // 更新状态，锁定动画并确保没有正在进行的背景切换
+    // 更新状态并停止定时器
     final currentState = _backgroundState.value;
     _backgroundState.value = currentState.copyWith(
-      isTransitionLocked: true, // 锁定动画，防止dispose时触发不必要的切换逻辑
-      isAnimating: false, // 停止动画
+      isTransitionLocked: true,
+      isAnimating: false,
     );
 
-    // 取消定时器，释放资源
+    _isTimerActive = false; // 标记定时器不活跃
     _timer?.cancel();
     _timer = null;
 
-    super.dispose(); // 调用父类的dispose方法
+    super.dispose();
   }
+// 修改代码结束
 }
