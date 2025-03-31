@@ -1,3 +1,4 @@
+// 修改代码开始
 /// 一些常用格式参照。可以自定义格式，例如：'yyyy/MM/dd HH:mm:ss'，'yyyy/M/d HH:mm:ss'。
 /// 格式要求
 /// year -> yyyy/yy   month -> MM/M    day -> dd/d
@@ -22,10 +23,10 @@ class DateFormats {
   static String zh_h_m = 'HH:mm';              // 修改：去掉了“时”、“分”
 }
 
-/// month->days.
-Map<int, int> MONTH_DAY = {
+/// month->days. 定义为 const Map，提升访问效率并防止运行时修改
+const Map<int, int> MONTH_DAY = {
   1: 31,
-  2: 28,
+  2: 28,  // 注意：闰年情况在计算中动态处理
   3: 31,
   4: 30,
   5: 31,
@@ -41,6 +42,9 @@ Map<int, int> MONTH_DAY = {
 /// Date Util.
 class DateUtil {
   /// get DateTime By DateStr.
+  /// [dateStr] 日期字符串
+  /// [isUtc] 是否转换为 UTC 时间
+  /// 返回解析后的 DateTime 对象，若解析失败则返回 null
   static DateTime? getDateTime(String dateStr, {bool? isUtc}) {
     DateTime? dateTime = DateTime.tryParse(dateStr);
     if (isUtc != null) {
@@ -54,56 +58,73 @@ class DateUtil {
   }
 
   /// get DateTime By Milliseconds.
+  /// [ms] 毫秒时间戳
+  /// [isUtc] 是否为 UTC 时间
+  /// 返回对应的 DateTime 对象
   static DateTime getDateTimeByMs(int ms, {bool isUtc = false}) {
     return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: isUtc);
   }
 
   /// get DateMilliseconds By DateStr.
+  /// [dateStr] 日期字符串
+  /// [isUtc] 是否转换为 UTC 时间
+  /// 返回毫秒时间戳，若解析失败则返回 null
   static int? getDateMsByTimeStr(String dateStr, {bool? isUtc}) {
     DateTime? dateTime = getDateTime(dateStr, isUtc: isUtc);
     return dateTime?.millisecondsSinceEpoch;
   }
 
   /// get Now Date Milliseconds.
+  /// 返回当前时间的毫秒时间戳
   static int getNowDateMs() {
     return DateTime.now().millisecondsSinceEpoch;
   }
 
   /// get Now Date Str.(yyyy-MM-dd HH:mm:ss)
+  /// 返回当前时间的格式化字符串，默认格式为 DateFormats.full
   static String getNowDateStr() {
     return formatDate(DateTime.now());
   }
 
   /// format date by milliseconds.
-  /// milliseconds 日期毫秒
+  /// [ms] 毫秒时间戳
+  /// [isUtc] 是否为 UTC 时间
+  /// [format] 自定义格式，默认为 DateFormats.full
   static String formatDateMs(int ms, {bool isUtc = false, String? format}) {
     return formatDate(getDateTimeByMs(ms, isUtc: isUtc), format: format);
   }
 
   /// format date by date str.
-  /// dateStr 日期字符串
+  /// [dateStr] 日期字符串
+  /// [isUtc] 是否转换为 UTC 时间
+  /// [format] 自定义格式，默认为 DateFormats.full
   static String formatDateStr(String dateStr, {bool? isUtc, String? format}) {
     return formatDate(getDateTime(dateStr, isUtc: isUtc), format: format);
   }
 
   /// format date by DateTime.
-  /// format 转换格式(已提供常用格式 DateFormats，可以自定义格式：'yyyy/MM/dd HH:mm:ss')
-  /// 格式要求
-  /// year -> yyyy/yy   month -> MM/M    day -> dd/d
-  /// hour -> HH/H      minute -> mm/m   second -> ss/s
+  /// [dateTime] 需要格式化的 DateTime 对象
+  /// [format] 转换格式，默认使用 DateFormats.full，支持自定义格式：'yyyy/MM/dd HH:mm:ss'
+  /// 返回格式化后的日期字符串，若 dateTime 为 null 则返回空字符串
   static String formatDate(DateTime? dateTime, {String? format}) {
     if (dateTime == null) return '';
+    // 使用 StringBuffer 优化字符串拼接性能
+    final buffer = StringBuffer();
     format = format ?? DateFormats.full;
-    if (format.contains('yy')) {
-      String year = dateTime.year.toString();
-      if (format.contains('yyyy')) {
-        format = format.replaceAll('yyyy', year);
-      } else {
-        format = format.replaceAll(
-            'yy', year.substring(year.length - 2, year.length));
-      }
-    }
 
+    // 处理年份
+    String year = dateTime.year.toString();
+    if (format.contains('yyyy')) {
+      buffer.write(format.replaceAll('yyyy', year));
+    } else if (format.contains('yy')) {
+      buffer.write(format.replaceAll('yy', year.substring(year.length - 2)));
+    } else {
+      buffer.write(format);
+    }
+    format = buffer.toString();
+    buffer.clear();
+
+    // 统一处理月份、日期、小时等字段
     format = _comFormat(dateTime.month, format, 'M', 'MM');
     format = _comFormat(dateTime.day, format, 'd', 'dd');
     format = _comFormat(dateTime.hour, format, 'H', 'HH');
@@ -115,17 +136,17 @@ class DateUtil {
   }
 
   /// com format.
-  static String _comFormat(
-      int value, String format, String single, String full) {
-    if (format.contains(single)) {
-      if (format.contains(full)) {
-        format =
-            format.replaceAll(full, value < 10 ? '0$value' : value.toString());
-      } else {
-        format = format.replaceAll(single, value.toString());
-      }
+  /// [value] 需要格式化的数值（如月份、日期等）
+  /// [format] 当前格式字符串
+  /// [single] 单字符占位（如 'M'）
+  /// [full] 双字符占位（如 'MM'）
+  /// 返回格式化后的字符串，确保数值正确填充到格式中
+  static String _comFormat(int value, String format, String single, String full) {
+    if (!format.contains(single)) return format;
+    if (format.contains(full)) {
+      return format.replaceAll(full, value < 10 ? '0$value' : '$value');
     }
-    return format;
+    return format.replaceAll(single, '$value');
   }
 
   /// get WeekDay.
@@ -181,10 +202,7 @@ class DateUtil {
     int month = dateTime.month;
     int days = dateTime.day;
     for (int i = 1; i < month; i++) {
-      days = days + MONTH_DAY[i]!;
-    }
-    if (isLeapYearByYear(year) && month > 2) {
-      days = days + 1;
+      days = days + (i == 2 && isLeapYearByYear(year) ? 29 : MONTH_DAY[i]!);
     }
     return days;
   }
@@ -199,11 +217,10 @@ class DateUtil {
   /// 是否是当天.
   static bool isToday(int? milliseconds, {bool isUtc = false, int? locMs}) {
     if (milliseconds == null || milliseconds == 0) return false;
-    DateTime old =
-        DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: isUtc);
+    DateTime old = getDateTimeByMs(milliseconds, isUtc: isUtc);
     DateTime now;
     if (locMs != null) {
-      now = DateUtil.getDateTimeByMs(locMs);
+      now = getDateTimeByMs(locMs, isUtc: isUtc);
     } else {
       now = isUtc ? DateTime.now().toUtc() : DateTime.now().toLocal();
     }
@@ -228,8 +245,7 @@ class DateUtil {
   /// is yesterday by millis.
   /// 是否是昨天.
   static bool isYesterdayByMs(int ms, int locMs) {
-    return isYesterday(DateTime.fromMillisecondsSinceEpoch(ms),
-        DateTime.fromMillisecondsSinceEpoch(locMs));
+    return isYesterday(getDateTimeByMs(ms), getDateTimeByMs(locMs));
   }
 
   /// is Week.
@@ -238,10 +254,10 @@ class DateUtil {
     if (ms == null || ms <= 0) {
       return false;
     }
-    DateTime _old = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: isUtc);
+    DateTime _old = getDateTimeByMs(ms, isUtc: isUtc);
     DateTime _now;
     if (locMs != null) {
-      _now = DateUtil.getDateTimeByMs(locMs, isUtc: isUtc);
+      _now = getDateTimeByMs(locMs, isUtc: isUtc);
     } else {
       _now = isUtc ? DateTime.now().toUtc() : DateTime.now().toLocal();
     }
@@ -264,8 +280,7 @@ class DateUtil {
   /// year is equal.
   /// 是否同年.
   static bool yearIsEqualByMs(int ms, int locMs) {
-    return yearIsEqual(DateTime.fromMillisecondsSinceEpoch(ms),
-        DateTime.fromMillisecondsSinceEpoch(locMs));
+    return yearIsEqual(getDateTimeByMs(ms), getDateTimeByMs(locMs));
   }
 
   /// Return whether it is leap year.
@@ -280,27 +295,37 @@ class DateUtil {
     return year % 4 == 0 && year % 100 != 0 || year % 400 == 0;
   }
 
+  /// 解析自定义格式的日期时间字符串
+  /// [dateTimeString] 输入格式示例：'20230315123045 +0800'
+  /// 返回解析后的 DateTime 对象，若格式错误则抛出异常
   static DateTime parseCustomDateTimeString(String dateTimeString) {
-    // 分离日期时间和时区
-    final parts = dateTimeString.split(' ');
-    final dateTimePart = parts[0];
-    final timeZonePart = parts[1];
+    try {
+      // 分离日期时间和时区
+      final parts = dateTimeString.split(' ');
+      if (parts.length != 2) {
+        throw FormatException('日期时间字符串格式错误，应包含日期和时区部分');
+      }
+      final dateTimePart = parts[0];
+      final timeZonePart = parts[1];
 
-    // 解析年月日时分秒
-    final year = int.parse(dateTimePart.substring(0, 4));
-    final month = int.parse(dateTimePart.substring(4, 6));
-    final day = int.parse(dateTimePart.substring(6, 8));
-    final hour = int.parse(dateTimePart.substring(8, 10));
-    final minute = int.parse(dateTimePart.substring(10, 12));
-    final second = int.parse(dateTimePart.substring(12, 14));
+      // 验证输入长度和格式
+      if (dateTimePart.length != 14 || timeZonePart.length != 5) {
+        throw FormatException('日期时间或时区部分长度不正确');
+      }
 
-    // 解析时区偏移
-    // final timeZoneOffset = Duration(
-    //   hours: int.parse(timeZonePart.substring(1, 3)),
-    //   minutes: int.parse(timeZonePart.substring(3, 5)),
-    // );
+      // 解析年月日时分秒
+      final year = int.parse(dateTimePart.substring(0, 4));
+      final month = int.parse(dateTimePart.substring(4, 6));
+      final day = int.parse(dateTimePart.substring(6, 8));
+      final hour = int.parse(dateTimePart.substring(8, 10));
+      final minute = int.parse(dateTimePart.substring(10, 12));
+      final second = int.parse(dateTimePart.substring(12, 14));
 
-    // 创建 DateTime 对象
-    return DateTime(year, month, day, hour, minute, second);
+      // 创建 DateTime 对象（暂不处理时区偏移，保持原有逻辑）
+      return DateTime(year, month, day, hour, minute, second);
+    } catch (e) {
+      throw FormatException('解析日期时间字符串失败: $e');
+    }
   }
 }
+// 修改代码结束
