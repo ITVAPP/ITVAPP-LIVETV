@@ -52,8 +52,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
         // 2. 并行获取用户信息和检查版本更新
         await Future.wait([
-          _fetchUserInfo(),
-          CheckVersionUtil.checkVersion(context, false, false, false),
+          _fetchUserInfo(), // 返回 Future<void>
+          Future<void>.value(CheckVersionUtil.checkVersion(context, false, false, false)), // 强制转换为 Future<void>
         ]);
 
         // 3. 所有数据就绪后跳转页面
@@ -147,9 +147,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     var orientation = MediaQuery.of(context).orientation; // 缓存屏幕方向
-    // 通过 ThemeProvider 获取动态主题色
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final primaryColor = themeProvider.isDarkMode ? Colors.white : _defaultPrimaryColor;
 
     return Scaffold(
       body: Stack(
@@ -172,7 +169,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ? FloatingActionButton(
               onPressed: () => _showErrorLogs(context),
               child: const Icon(Icons.bug_report),
-              backgroundColor: primaryColor, // 使用动态主题色
+              backgroundColor: _defaultPrimaryColor, // 使用默认主题色
             )
           : null,
     );
@@ -180,10 +177,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 构建动态提示界面（加载动画+文字）
   Widget _buildMessageUI(String message, {bool isLoading = false}) {
-    // 通过 ThemeProvider 获取动态主题色
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final primaryColor = themeProvider.isDarkMode ? Colors.white : _defaultPrimaryColor;
-
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
@@ -196,7 +189,7 @@ class _SplashScreenState extends State<SplashScreen> {
             if (isLoading) ...[
               // 加载动画组件
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
                 strokeWidth: 4.0,
               ),
               const SizedBox(height: 18),
