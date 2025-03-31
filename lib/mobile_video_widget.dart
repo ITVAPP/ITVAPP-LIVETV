@@ -193,9 +193,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     ];
 
     // 在 initState 中初始化 aspectRatio，避免 build 中重复计算，并添加默认值缓存
-    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio > 0
-        ? widget.aspectRatio
-        : 16 / 9; // 默认 16:9 作为缓存值
+    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? (widget.aspectRatio > 0 ? widget.aspectRatio : 16 / 9);
   }
 
   @override
