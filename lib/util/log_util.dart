@@ -11,7 +11,7 @@ class LogUtil {
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 调试模式开关
   static bool _isOperating = false; // 是否正在执行写操作的标志
-  static const int _maxSingleLogLength = 888; // 单条日志最大长度
+  static const int _maxSingleLogLength = 588; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
 
   static final List<String> _memoryLogs = []; // 内存中的日志缓存
@@ -20,7 +20,7 @@ class LogUtil {
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
   static String? _logFilePath; // 日志文件路径，可为空以增强容错性
   static File? _logFile; // 日志文件对象，可为空以增强容错性
-  static const int _maxMemoryLogSize = 1000; // 内存日志最大条数
+  static const int _maxMemoryLogSize = 100; // 内存日志最大条数
   static Timer? _memoryCleanupTimer; // 定时清理内存日志的定时器
 
   static bool _showOverlay = false; // 是否显示浮层调试信息
