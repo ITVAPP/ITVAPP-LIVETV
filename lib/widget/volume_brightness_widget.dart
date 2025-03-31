@@ -30,45 +30,57 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   AnimationController? _fadeAnimationController;  // 动画控制器，用于调节条的显隐动画
   Timer? _hideTimer;  // 定时器，用于控制调节条隐藏的时间
 
+  // 缓存屏幕参数
+  double? _screenWidth;
+  Orientation? _orientation;
+
   @override
   void initState() {
     super.initState();
-    _loadSystemData();  // 加载系统当前的音量和亮度
     _fadeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 500),  // 动画时长
       vsync: this,  // 绑定动画控制器
     );
+    _loadSystemData();  // 加载系统当前的音量和亮度
   }
 
-  // 异步加载系统的音量和亮度数据
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 更新缓存的屏幕参数
+    _screenWidth = MediaQuery.of(context).size.width;
+    _orientation = MediaQuery.of(context).orientation;
+  }
+
+  // 异步加载系统的音量和亮度数据，使用 Future.wait 批量处理
   Future<void> _loadSystemData() async {
     try {
-      // 获取当前亮度并转换为10级制
-      _brightness = (await ScreenBrightness().current).clamp(0.0, 1.0);
+      // 批量获取音量和亮度
+      final results = await Future.wait([
+        ScreenBrightness().current,
+        FlutterVolumeController.getVolume() ?? Future.value(0.6),
+        Future(() => FlutterVolumeController.showSystemUI = false),
+      ]);
+
+      // 处理亮度
+      _brightness = (results[0] as double).clamp(0.0, 1.0);
       _brightnessLevel = (_brightness * _maxLevel).round();
-    } catch (e) {
-      _brightness = 0.6;  // 获取失败时使用默认亮度
-      _brightnessLevel = 6;
-      LogUtil.e('读取亮度时发生错误：$e');
-    }
 
-    try {
-      // 获取当前音量并转换为10级制
-      _volume = ((await FlutterVolumeController.getVolume()) ?? 0.6).clamp(0.0, 1.0) as double;
+      // 处理音量
+      _volume = (results[1] as double).clamp(0.0, 1.0);
       _volumeLevel = (_volume * _maxLevel).round();
+
+      // 仅在 mounted 时更新状态
+      if (mounted) setState(() {});
     } catch (e) {
-      _volume = 0.6;  // 获取失败时使用默认音量
+      // 默认值和错误日志
+      _brightness = 0.6computationally expensive
+      _volume = 0.6;
       _volumeLevel = 6;
-      LogUtil.e('读取音量时发生错误：$e');
+      _brightnessLevel = 6;
+      LogUtil.e('加载系统数据时发生错误：$e');
+      if (mounted) setState(() {});
     }
-
-    try {
-      FlutterVolumeController.showSystemUI = false;  // 隐藏系统默认的音量UI
-    } catch (e) {
-      LogUtil.e('禁用系统音量UI时发生错误：$e');
-    }
-
-    if (mounted) setState(() {});  // 更新界面
   }
 
   // 组件销毁时，恢复系统音量UI并释放动画控制器
@@ -82,16 +94,10 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;  // 获取屏幕的宽度
-    Orientation orientation = MediaQuery.of(context).orientation;  // 获取当前屏幕方向
-
-    // 根据屏幕方向设置调节条宽度
-    double containerWidth;
-    if (orientation == Orientation.portrait) {
-      containerWidth = screenWidth * 0.5;  // 竖屏时调节条宽度
-    } else {
-      containerWidth = screenWidth * 0.3;  // 横屏时调节条宽度
-    }
+    // 使用缓存的屏幕宽度和方向
+    double containerWidth = _orientation == Orientation.portrait
+        ? _screenWidth! * 0.5  // 竖屏时调节条宽度
+        : _screenWidth! * 0.3;  // 横屏时调节条宽度
 
     return Padding(
       padding: const EdgeInsets.all(44),
@@ -102,7 +108,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
           _cancelCooldown();  // 取消冷却动画，保持调节条可见
           _hideTimer?.cancel();  // 取消隐藏定时器，避免过早隐藏
 
-          final width = MediaQuery.of(context).size.width;
+          final width = _screenWidth!;
           _controlType = details.localPosition.dx > width / 2 ? 2 : 1;  // 右侧控制音量，左侧控制亮度
           _isDragging = true;  // 标记为正在拖动
           _fadeAnimationController?.forward();  // 启动调节条显示动画
@@ -115,9 +121,9 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
           // 只有滑动超过灵敏度时才增加或减少级别
           if (_dragDistance.abs() >= _dragSensitivity) {
             if (_dragDistance < 0) {
-              _increaseLevel();  // 上滑增加一级
+              _changeLevel(1);  // 上滑增加一级
             } else if (_dragDistance > 0) {
-              _decreaseLevel();  // 下滑减少一级
+              _changeLevel(-1);  // 下滑减少一级
             }
             _dragDistance = 0.0;  // 重置累计滑动距离
           }
@@ -181,24 +187,13 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
     );
   }
 
-  // 调节音量或亮度增加一级
-  void _increaseLevel() {
+  // 统一调节级别的方法，direction 为 1（增加）或 -1（减少）
+  void _changeLevel(int direction) {
     if (_controlType == 2) {
-      _volumeLevel = (_volumeLevel + 1).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
+      _volumeLevel = (_volumeLevel + direction).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
       _updateVolume();
     } else if (_controlType == 1) {
-      _brightnessLevel = (_brightnessLevel + 1).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
-      _updateBrightness();
-    }
-  }
-
-  // 调节音量或亮度减少一级
-  void _decreaseLevel() {
-    if (_controlType == 2) {
-      _volumeLevel = (_volumeLevel - 1).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
-      _updateVolume();
-    } else if (_controlType == 1) {
-      _brightnessLevel = (_brightnessLevel - 1).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
+      _brightnessLevel = (_brightnessLevel + direction).clamp(_minLevel, _maxLevel);  // 确保级别在0到10之间
       _updateBrightness();
     }
   }
@@ -231,7 +226,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   void _startCooldown() {
     _hideTimer?.cancel();  // 取消之前的定时器，避免多次调用
     _hideTimer = Timer(const Duration(seconds: 2), () {
-      if (!_isDragging && !_isCooldown) {
+      if (!_isDragging && !_isCooldown && _fadeAnimationController?.isCompleted == true) {
         _isCooldown = true;  // 进入冷却期
         _fadeAnimationController?.reverse();  // 启动隐藏调节条的动画
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -248,7 +243,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
 
   // 取消冷却期逻辑，手指按下时取消调节条的隐藏
   void _cancelCooldown() {
-    if (_isCooldown) {  // 只有在冷却期时才取消隐藏定时器
+    if (_isCooldown && _fadeAnimationController?.isDismissed == true) {  // 只有在冷却期且动画已隐藏时才取消
       _hideTimer?.cancel();  // 取消隐藏定时器
       _isCooldown = false;  // 取消冷却状态
       _fadeAnimationController?.forward();  // 启动显示调节条的动画
