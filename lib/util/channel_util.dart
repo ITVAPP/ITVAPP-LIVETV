@@ -221,10 +221,7 @@ ButtonStyle getButtonStyle({
 
   return _styleCache.putIfAbsent(key, () {
     Color backgroundColor = isSelected ? selectedColor : unselectedColor; // 根据状态设置背景颜色
-    if (isFocused) {
-      // 如果 darkenColor 未定义，提供默认实现：降低亮度10%
-      backgroundColor = backgroundColor.withLightness((backgroundColor.computeLuminance() - 0.1).clamp(0.0, 1.0));
-    }
+    if (isFocused) backgroundColor = darkenColor(backgroundColor); // 使用外部定义的 darkenColor
 
     return OutlinedButton.styleFrom(
       padding: _buttonPadding, // 设置按钮内边距
@@ -235,5 +232,5 @@ ButtonStyle getButtonStyle({
     );
   });
   // 修改代码结束
-  // 注释：此函数根据选中状态和焦点状态生成按钮样式，使用缓存避免重复创建；若外部未定义 darkenColor，提供默认颜色加深逻辑
+  // 注释：此函数根据选中状态和焦点状态生成按钮样式，使用缓存避免重复创建；焦点状态下调用外部定义的 darkenColor
 }
