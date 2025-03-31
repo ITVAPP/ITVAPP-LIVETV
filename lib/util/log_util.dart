@@ -20,6 +20,8 @@ class LogUtil {
   static const int _writeThreshold = 5; // 累积5条日志才写入本地
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
   static String? _logFilePath; // 可空类型，确保路径缓存
+  static File? _logFile; // 缓存 File 对象，避免重复构造
+  static const int _maxMemoryLogSize = 1000; // 新增：限制 _memoryLogs 最大容量为 1000 条
 
   // 弹窗相关属性
   static bool _showOverlay = false; // 控制是否显示弹窗
@@ -35,13 +37,13 @@ class LogUtil {
       _newLogsBuffer.clear(); // 初始化时先清空缓冲区
 
       _logFilePath ??= await _getLogFilePath(); // 确保路径在 init 时初始化
-      final file = File(_logFilePath!);
+      _logFile ??= File(_logFilePath!); // 缓存 File 对象
 
-      if (!await file.exists()) {
-        await file.create();
+      if (!await _logFile!.exists()) {
+        await _logFile!.create();
         developer.log('创建日志文件: $_logFilePath');
       } else {
-        final int sizeInBytes = await file.length();
+        final int sizeInBytes = await _logFile!.length();
         if (sizeInBytes > _maxFileSizeBytes) {
           developer.log('日志文件超过大小限制，执行清理');
           await clearLogs(isAuto: true); // 修改为命名参数
@@ -106,31 +108,58 @@ class LogUtil {
     await _log('d', object, tag);
   }
 
+  // 格式化日志字符串（提取公共逻辑）
+  static String _formatLogString(String logMessage) {
+    return logMessage
+        .replaceAll('\n', '\\n')
+        .replaceAll('\r', '\\r')
+        .replaceAll('|', '\\|')
+        .replaceAll('[', '\\[')
+        .replaceAll(']', '\\]');
+  }
+
+  // 反格式化日志字符串（提取公共逻辑）
+  static String _unformatLogString(String logMessage) {
+    return logMessage
+        .replaceAll('\\n', '\n')
+        .replaceAll('\\r', '\r')
+        .replaceAll('\\|', '|')
+        .replaceAll('\\[', '[')
+        .replaceAll('\\]', ']');
+  }
+
   // 记录日志的通用方法
   static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
     try {
+      // 修改代码开始
+      // 检查 _isOperating，确保并发安全
+      if (_isOperating) {
+        await Future.delayed(Duration(milliseconds: 50)); // 短暂等待后重试
+        if (_isOperating) return; // 若仍被占用则跳过，避免死锁
+      }
+      // 修改代码结束
+
       String time = DateTime.now().toString();
       String fileInfo = _extractStackInfo();
 
-      String objectStr = object.toString()
-          .replaceAll('\n', '\\n')
-          .replaceAll('\r', '\\r')
-          .replaceAll('|', '\\|')
-          .replaceAll('[', '\\[')
-          .replaceAll(']', '\\]')
-          ?? 'null';
-
+      String objectStr = object.toString();
       if (objectStr.length > _maxSingleLogLength) {
         objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
       }
+      objectStr = _formatLogString(objectStr); // 使用提取的格式化方法
 
       String logMessage =
           '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 添加到内存和缓冲区（新日志在前），移除上限限制
+      // 修改代码开始
+      // 添加到内存和缓冲区，并限制 _memoryLogs 大小
       _memoryLogs.insert(0, logMessage);
+      if (_memoryLogs.length > _maxMemoryLogSize) {
+        _memoryLogs.removeLast(); // 移除最旧的日志
+      }
       _newLogsBuffer.insert(0, logMessage);
+      // 修改代码结束
 
       if (_newLogsBuffer.length >= _writeThreshold) {
         await _flushToLocal();
@@ -138,13 +167,7 @@ class LogUtil {
 
       developer.log(logMessage);
       if (_showOverlay) {
-        String displayMessage = objectStr
-            .replaceAll('\\n', '\n')
-            .replaceAll('\\r', '\r')
-            .replaceAll('\\|', '|')
-            .replaceAll('\\[', '[')
-            .replaceAll('\\]', ']');
-
+        String displayMessage = _unformatLogString(objectStr); // 使用提取的反格式化方法
         _showDebugMessage('[${level}] $displayMessage');
       }
     } catch (e) {
@@ -152,7 +175,7 @@ class LogUtil {
     }
   }
 
-  // 将日志写入本地文件（保留全量写入逻辑）
+  // 将日志写入本地文件（改为增量写入 _newLogsBuffer）
   static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
@@ -161,13 +184,25 @@ class LogUtil {
       logsToWrite = List.from(_newLogsBuffer);
       _newLogsBuffer.clear();
 
-      final filePath = await _getLogFilePath(); // 确保路径可用
-      final file = File(filePath);
-
-      await file.writeAsString(_memoryLogs.join('\n') + '\n');
+      // 修改代码开始
+      // 使用缓存的 _logFile 并改为增量追加
+      if (_logFile == null) {
+        _logFile = File(await _getLogFilePath());
+      }
+      await _logFile!.writeAsString(
+        logsToWrite.join('\n') + '\n',
+        mode: FileMode.append, // 使用追加模式而不是覆盖
+      );
+      // 修改代码结束
     } catch (e) {
       developer.log('写入日志文件失败: $e');
+      // 修改代码开始
+      // 增强异常处理，确保日志不丢失
       _newLogsBuffer.insertAll(0, logsToWrite);
+      if (e is IOException) {
+        developer.log('IO异常，可能是权限或空间不足: $e');
+      }
+      // 修改代码结束
     } finally {
       _isOperating = false;
     }
@@ -258,25 +293,17 @@ class LogUtil {
     _overlayEntry = null;
   }
 
-  // 启动自动隐藏计时器（优化资源清理）
+  // 启动自动隐藏计时器（优化为单次触发）
   static void _startAutoHideTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
-      if (_debugMessages.isEmpty) {
-        _hideOverlay();
-        timer.cancel();
-        _timer = null;
-      } else {
-        _debugMessages.removeLast();
-        if (_debugMessages.isEmpty) {
-          _hideOverlay();
-          timer.cancel();
-          _timer = null;
-        } else {
-          _overlayEntry?.markNeedsBuild();
-        }
-      }
+    // 修改代码开始
+    // 使用单次 Timer 替代 periodic
+    _timer = Timer(Duration(seconds: _messageDisplayDuration * _debugMessages.length), () {
+      _debugMessages.clear();
+      _hideOverlay();
+      _timer = null;
     });
+    // 修改代码结束
   }
 
   // 记录错误日志
@@ -313,13 +340,14 @@ class LogUtil {
     }
   }
 
-  // 提取堆栈信息（合并 _getFileAndLine 和 _processStackTrace）
+  // 提取堆栈信息（添加正则缓存）
+  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)');
   static String _extractStackInfo({StackTrace? stackTrace}) {
     try {
       final frames = (stackTrace ?? StackTrace.current).toString().split('\n');
       for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
-        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
+        final match = _stackFramePattern.firstMatch(frame);
         if (match != null && !frame.contains('log_util.dart')) {
           return '${match.group(1)}:${match.group(2)}';
         }
@@ -385,42 +413,44 @@ class LogUtil {
     }
   }
 
-  // 清理日志
+  // 清理日志（添加正则缓存）
+  static final Map<String, RegExp> _clearLevelPatterns = {};
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
     if (_isOperating) return;
     _isOperating = true;
 
     try {
-      final filePath = await _getLogFilePath(); // 确保路径可用
-      final file = File(filePath);
+      if (_logFile == null) {
+        _logFile = File(await _getLogFilePath());
+      }
 
       if (level == null) {
         // 清理所有日志
         _memoryLogs.clear();
         _newLogsBuffer.clear();
 
-        if (await file.exists()) {
+        if (await _logFile!.exists()) {
           if (isAuto) {
             // 自动清理时保留前半部分
-            final lines = await file.readAsLines();
+            final lines = await _logFile!.readAsLines();
             if (lines.isNotEmpty) {
               final endIndex = lines.length ~/ 2;
               final remainingLogs = lines.sublist(0, endIndex);
-              await file.writeAsString(remainingLogs.join('\n') + '\n');
+              await _logFile!.writeAsString(remainingLogs.join('\n') + '\n');
             }
           } else {
             // 手动清理时直接删除
-            await file.delete();
+            await _logFile!.delete();
           }
         }
       } else {
         // 清理指定级别的日志
-        final levelPattern = RegExp(r'\[' + level + r'\]');
-        _memoryLogs.removeWhere((log) => levelPattern.hasMatch(log));
-        _newLogsBuffer.removeWhere((log) => levelPattern.hasMatch(log));
+        _clearLevelPatterns[level] ??= RegExp(r'\[' + level + r'\]');
+        _memoryLogs.removeWhere((log) => _clearLevelPatterns[level]!.hasMatch(log));
+        _newLogsBuffer.removeWhere((log) => _clearLevelPatterns[level]!.hasMatch(log));
 
-        if (await file.exists()) {
-          await file.writeAsString(_memoryLogs.join('\n') + '\n');
+        if (await _logFile!.exists()) {
+          await _logFile!.writeAsString(_memoryLogs.join('\n') + '\n');
         }
       }
     } catch (e) {
