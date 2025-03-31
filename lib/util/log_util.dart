@@ -2,9 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:collection' show Queue; // 修复：导入 dart:collection 以使用 Queue
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show compute; // 修复：导入 foundation 以使用 compute
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -17,24 +15,25 @@ class LogUtil {
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
 
   // 内存存储相关
-  // 修改：使用 Queue 替代 List 以优化移除操作
-  static final Queue<String> _memoryLogs = Queue<String>();
+  static final List<String> _memoryLogs = [];
   static final List<String> _newLogsBuffer = [];
   static const int _writeThreshold = 5; // 累积5条日志才写入本地
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
-  // 修改：在类级别静态初始化日志文件路径，避免重复构造
-  static late String _logFilePath; // 使用 late 确保初始化时赋值
-  static File? _logFile; // 缓存 File 对象，避免重复构造
+  static late String _logFilePath; // 修改：使用 late 初始化，静态缓存路径
+  static late File _logFile; // 修改：使用 late 初始化，静态缓存 File 对象
   static const int _maxMemoryLogSize = 1000; // 限制 _memoryLogs 最大容量为 1000 条
+  static Timer? _memoryCleanupTimer; // 新增：定时清理内存日志
 
   // 弹窗相关属性
   static bool _showOverlay = false; // 控制是否显示弹窗
   static OverlayEntry? _overlayEntry; // 修改为单个 OverlayEntry
   static final List<String> _debugMessages = [];
+  static ValueNotifier<List<String>> _debugMessagesNotifier = ValueNotifier([]); // 新增：动态更新调试消息
   static Timer? _timer;
   static const int _messageDisplayDuration = 3;
+  static OverlayState? _cachedOverlayState; // 新增：缓存 OverlayState
 
-  // 修改：预生成所有级别的正则表达式，避免运行时重复创建
+  // 预编译正则表达式
   static final Map<String, RegExp> _levelPatterns = {
     'v': RegExp(r'\[v\]'),
     'e': RegExp(r'\[e\]'),
@@ -48,37 +47,51 @@ class LogUtil {
     'd': RegExp(r'\[d\]'),
   };
 
+  // 修改：静态替换字符映射，避免重复构造
+  static final Map<String, String> _replacements = {
+    '\n': '\\n',
+    '\r': '\\r',
+    '|': '\\|',
+    '[': '\\[',
+    ']': '\\]'
+  };
+
   // 初始化方法，在应用启动时调用
   static Future<void> init() async {
     try {
       _memoryLogs.clear(); // 初始化时先清空内存
       _newLogsBuffer.clear(); // 初始化时先清空缓冲区
 
-      // 修改：静态初始化 _logFilePath，避免重复调用 _getLogFilePath
-      final directory = await getApplicationDocumentsDirectory();
-      _logFilePath = '${directory.path}/$_logFileName';
-      _logFile ??= File(_logFilePath); // 缓存 File 对象
+      // 修改：静态初始化 _logFilePath 和 _logFile
+      _logFilePath = await _getLogFilePath();
+      _logFile = File(_logFilePath);
 
-      if (!await _logFile!.exists()) {
-        await _logFile!.create();
-        developer.log('创建日志文件: $_logFilePath');
+      if (!await _logFile.exists()) {
+        await _logFile.create();
+        _logInternal('创建日志文件: $_logFilePath');
       } else {
-        final int sizeInBytes = await _logFile!.length();
+        final int sizeInBytes = await _logFile.length();
         if (sizeInBytes > _maxFileSizeBytes) {
-          developer.log('日志文件超过大小限制，执行清理');
-          await clearLogs(isAuto: true); // 修改为命名参数
+          _logInternal('日志文件超过大小限制，执行清理');
+          await clearLogs(isAuto: true);
         }
       }
+
+      // 新增：启动内存清理定时器，每 30 秒检查一次
+      _memoryCleanupTimer?.cancel();
+      _memoryCleanupTimer = Timer.periodic(Duration(seconds: 30), (_) {
+        _cleanupMemoryLogs();
+      });
     } catch (e) {
-      developer.log('日志初始化失败: $e');
-      await clearLogs(isAuto: true); // 修改为命名参数
+      _logInternal('日志初始化失败: $e');
+      await clearLogs(isAuto: true);
     }
   }
 
   // 获取日志文件路径（异步逻辑+缓存）
   static Future<String> _getLogFilePath() async {
-    // 修改：直接返回静态缓存的 _logFilePath，无需重复构造
-    return _logFilePath;
+    final directory = await getApplicationDocumentsDirectory();
+    return '${directory.path}/$_logFileName';
   }
 
   // 设置调试模式
@@ -126,20 +139,15 @@ class LogUtil {
     await _log('d', object, tag);
   }
 
-  // 修改：使用正则表达式优化特殊字符替换，减少多次遍历
+  // 修改：提取公共的字符串替换逻辑，使用静态映射
   static String _replaceSpecialChars(String input, bool isFormat) {
-    final pattern = RegExp(r'[\n\r\|\[\]]');
-    final replacements = {
-      '\n': '\\n',
-      '\r': '\\r',
-      '|': '\\|',
-      '[': '\\[',
-      ']': '\\]',
-    };
-    return input.replaceAllMapped(pattern, (match) {
-      final char = match.group(0)!;
-      return isFormat ? replacements[char]! : char.replaceAll('\\', '');
+    String result = input;
+    _replacements.forEach((key, value) {
+      result = isFormat
+          ? result.replaceAll(key, value)
+          : result.replaceAll(value, key);
     });
+    return result;
   }
 
   static String _formatLogString(String logMessage) {
@@ -150,7 +158,7 @@ class LogUtil {
     return _replaceSpecialChars(logMessage, false);
   }
 
-  // 修改：优化日志记录方法，提取公共逻辑并异步写入
+  // 修改：优化日志记录方法，添加封装的日志输出
   static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
     try {
@@ -158,69 +166,67 @@ class LogUtil {
       String fileInfo = _extractStackInfo();
 
       String objectStr = object.toString();
-      // 处理长日志分段
       if (objectStr.length > _maxSingleLogLength) {
         final chunks = _splitLogIntoChunks(objectStr, _maxSingleLogLength);
         for (var chunk in chunks.reversed) {
-          await _processLogChunk(level, time, tag, chunk, fileInfo);
+          String formattedChunk = _formatLogString(chunk);
+          String logMessage =
+              '[${time}] [${level}] [${tag ?? _defTag}] | ${formattedChunk} | ${fileInfo}';
+          _addLogToBuffers(logMessage);
+          _logInternal(logMessage);
+          if (_showOverlay) {
+            _showDebugMessage('[${level}] ${_unformatLogString(formattedChunk)}');
+          }
         }
       } else {
-        // 正常日志处理
-        await _processLogChunk(level, time, tag, objectStr, fileInfo);
+        objectStr = _formatLogString(objectStr);
+        String logMessage =
+            '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
+        _addLogToBuffers(logMessage);
+        _logInternal(logMessage);
+        if (_showOverlay) {
+          String displayMessage = _unformatLogString(objectStr);
+          _showDebugMessage('[${level}] $displayMessage');
+        }
       }
 
-      // 检查并触发写入
-      developer.log('当前缓冲区大小: ${_newLogsBuffer.length}');
+      _logInternal('当前缓冲区大小: ${_newLogsBuffer.length}');
       if (_newLogsBuffer.length >= _writeThreshold && !_isOperating) {
-        // 修改：将 _flushToLocal 放入 compute 异步执行，避免阻塞 UI
-        await compute(_flushToLocalCompute, null);
+        await _flushToLocal();
       }
     } catch (e) {
-      developer.log('日志记录失败: $e');
+      _logInternal('日志记录失败: $e');
     }
   }
 
-  // 新增：提取公共日志处理逻辑
-  static Future<void> _processLogChunk(String level, String time, String? tag, String chunk, String fileInfo) async {
-    String formattedChunk = _formatLogString(chunk);
-    String logMessage = '[${time}] [${level}] [${tag ?? _defTag}] | ${formattedChunk} | ${fileInfo}';
-    _addLogToBuffers(logMessage);
-    developer.log(logMessage);
-    if (_showOverlay) {
-      _showDebugMessage('[${level}] ${_unformatLogString(formattedChunk)}');
-    }
-  }
-
-  // 修改：使用 StringBuffer 优化长日志分段
+  // 辅助方法，将长日志分段
   static List<String> _splitLogIntoChunks(String log, int maxLength) {
     List<String> chunks = [];
-    StringBuffer buffer = StringBuffer();
-    int start = 0;
-
-    while (start < log.length) {
-      int end = start + maxLength;
+    for (int i = 0; i < log.length; i += maxLength) {
+      int end = i + maxLength;
       if (end > log.length) end = log.length;
-      buffer.write(log.substring(start, end));
-      if (end < log.length) {
-        buffer.write(' ... (续)');
-      }
-      chunks.add(buffer.toString());
-      buffer.clear();
-      start = end;
+      chunks.add(log.substring(i, end) + (end < log.length ? ' ... (续)' : ''));
     }
     return chunks;
   }
 
-  // 修改：优化缓冲区添加逻辑，使用 Queue
+  // 提取公共逻辑，将日志添加到内存和缓冲区
   static void _addLogToBuffers(String logMessage) {
-    _memoryLogs.addLast(logMessage);
+    _memoryLogs.add(logMessage);
     _newLogsBuffer.add(logMessage);
+    // 修改：移除手动范围删除，依赖定时器清理
+  }
+
+  // 新增：内存日志清理方法
+  static void _cleanupMemoryLogs() {
     if (_memoryLogs.length > _maxMemoryLogSize) {
-      _memoryLogs.removeFirst(); // Queue 的移除操作复杂度为 O(1)
+      int excess = _memoryLogs.length - _maxMemoryLogSize;
+      _memoryLogs.removeRange(0, excess);
+      _logInternal('定时清理内存日志，移除 $excess 条');
     }
   }
 
-  // 未修改：保留原始 _flushToLocal 方法，但新增 compute 包装函数
+  // 未修改：保留原始 _flushToLocal 方法
   static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
@@ -234,7 +240,7 @@ class LogUtil {
       }
       await _logFile!.writeAsString(
         logsToWrite.join('\n') + '\n',
-        mode: FileMode.append, // 使用追加模式而不是覆盖
+        mode: FileMode.append,
       );
     } catch (e) {
       developer.log('写入日志文件失败: $e');
@@ -247,12 +253,7 @@ class LogUtil {
     }
   }
 
-  // 新增：compute 包装函数，用于异步执行 _flushToLocal
-  static Future<void> _flushToLocalCompute(dynamic _) async {
-    await _flushToLocal();
-  }
-
-  // 显示调试消息
+  // 修改：优化调试消息显示，使用 ValueNotifier 和缓存 OverlayState
   static void _showDebugMessage(String message) {
     final parsedLog = _parseLogString('[未知时间] [未知级别] [$_defTag] | $message | 未知文件');
     String displayMessage = '${parsedLog['time']}\n${parsedLog['message']}\n${parsedLog['fileInfo']}';
@@ -261,40 +262,44 @@ class LogUtil {
     if (_debugMessages.length > 6) {
       _debugMessages.removeLast();
     }
+    _debugMessagesNotifier.value = List.from(_debugMessages); // 更新通知
+
     _hideOverlay();
-    final overlayState = _findOverlayState();
-    if (overlayState != null) {
+    _cachedOverlayState ??= _findOverlayState();
+    if (_cachedOverlayState != null && _overlayEntry == null) {
       _overlayEntry = OverlayEntry(
         builder: (context) => Positioned(
           bottom: 20.0,
           right: 20.0,
           child: Material(
             color: Colors.transparent,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 300.0),
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _debugMessages
-                    .map((msg) => Text(
-                          msg,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14),
-                          softWrap: true,
-                          maxLines: null,
-                          overflow: TextOverflow.visible,
-                        ))
-                    .toList(),
+            child: ValueListenableBuilder<List<String>>(
+              valueListenable: _debugMessagesNotifier,
+              builder: (context, messages, child) => Container(
+                constraints: const BoxConstraints(maxWidth: 300.0),
+                padding: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: messages
+                      .map((msg) => Text(
+                            msg,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            softWrap: true,
+                            maxLines: null,
+                            overflow: TextOverflow.visible,
+                          ))
+                      .toList(),
+                ),
               ),
             ),
           ),
         ),
       );
-      overlayState.insert(_overlayEntry!);
+      _cachedOverlayState!.insert(_overlayEntry!);
       _startAutoHideTimer();
     }
   }
@@ -324,7 +329,7 @@ class LogUtil {
 
       return overlayState;
     } catch (e) {
-      developer.log('获取 OverlayState 失败: $e');
+      _logInternal('获取 OverlayState 失败: $e');
       return null;
     }
   }
@@ -338,9 +343,17 @@ class LogUtil {
     _timer?.cancel();
     _timer = Timer(Duration(seconds: _messageDisplayDuration * _debugMessages.length), () {
       _debugMessages.clear();
+      _debugMessagesNotifier.value = [];
       _hideOverlay();
       _timer = null;
     });
+  }
+
+  // 新增：封装 developer.log，仅在 debugMode 下输出
+  static void _logInternal(String message) {
+    if (debugMode) {
+      developer.log(message);
+    }
   }
 
   static Future<void> logError(String message, dynamic error,
@@ -380,7 +393,7 @@ class LogUtil {
     try {
       final frames = (stackTrace ?? StackTrace.current).toString().split('\n');
       String frameInfo = frames.join('\n');
-      developer.log('堆栈信息:\n$frameInfo');
+      _logInternal('堆栈信息:\n$frameInfo');
 
       for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
@@ -412,7 +425,7 @@ class LogUtil {
         'fileInfo': parts[2],
       };
     } catch (e) {
-      developer.log('解析日志失败: $e');
+      _logInternal('解析日志失败: $e');
       return {
         'time': '未知时间',
         'level': '未知级别',
@@ -425,24 +438,22 @@ class LogUtil {
 
   static List<Map<String, String>> getLogs() {
     try {
-      return _memoryLogs.toList().reversed.map(_parseLogString).toList();
+      return _memoryLogs.reversed.map(_parseLogString).toList();
     } catch (e) {
-      developer.log('获取日志失败: $e');
+      _logInternal('获取日志失败: $e');
       return [];
     }
   }
 
   static List<Map<String, String>> getLogsByLevel(String level) {
     try {
-      // 修改：使用预生成的正则表达式
-      final pattern = _levelPatterns[level];
-      if (pattern == null) return [];
-      return _memoryLogs
+      final pattern = _levelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
+      return _memoryLogs.reversed
           .where((log) => pattern.hasMatch(log))
           .map(_parseLogString)
           .toList();
     } catch (e) {
-      developer.log('按级别获取日志失败: $e');
+      _logInternal('按级别获取日志失败: $e');
       return [];
     }
   }
@@ -452,41 +463,33 @@ class LogUtil {
     _isOperating = true;
 
     try {
-      if (_logFile == null) {
-        _logFile = File(await _getLogFilePath());
-      }
-
       if (level == null) {
         _memoryLogs.clear();
         _newLogsBuffer.clear();
 
-        if (await _logFile!.exists()) {
+        if (await _logFile.exists()) {
           if (isAuto) {
-            final lines = await _logFile!.readAsLines();
+            final lines = await _logFile.readAsLines();
             if (lines.isNotEmpty) {
               final endIndex = lines.length ~/ 2;
               final remainingLogs = lines.sublist(0, endIndex);
-              await _logFile!.writeAsString(remainingLogs.join('\n') + '\n');
+              await _logFile.writeAsString(remainingLogs.join('\n') + '\n');
             }
           } else {
-            await _logFile!.delete();
+            await _logFile.delete();
           }
         }
       } else {
-        // 修改：使用预生成的正则表达式
-        final pattern = _clearLevelPatterns[level];
-        if (pattern != null) {
-          _memoryLogs.removeWhere((log) => pattern.hasMatch(log));
-          _newLogsBuffer.removeWhere((log) => pattern.hasMatch(log));
-        }
+        final pattern = _clearLevelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
+        _memoryLogs.removeWhere((log) => pattern.hasMatch(log));
+        _newLogsBuffer.removeWhere((log) => pattern.hasMatch(log));
 
-        if (await _logFile!.exists()) {
-          await _logFile!.writeAsString(_memoryLogs.join('\n') + '\n');
+        if (await _logFile.exists()) {
+          await _logFile.writeAsString(_memoryLogs.join('\n') + '\n');
         }
       }
     } catch (e) {
-      developer.log(
-          '${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
+      _logInternal('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
     } finally {
       _isOperating = false;
     }
@@ -499,7 +502,7 @@ class LogUtil {
         return parts[1].trim();
       }
     } catch (e) {
-      developer.log('解析日志消息失败: $e');
+      _logInternal('解析日志消息失败: $e');
     }
     return logLine;
   }
@@ -510,10 +513,14 @@ class LogUtil {
     }
     _timer?.cancel();
     _timer = null;
+    _memoryCleanupTimer?.cancel(); // 新增：清理定时器
+    _memoryCleanupTimer = null;
     _hideOverlay();
     _memoryLogs.clear();
     _newLogsBuffer.clear();
     _debugMessages.clear();
+    _debugMessagesNotifier.value = [];
+    _cachedOverlayState = null; // 新增：清理缓存
     _isOperating = false;
   }
 }
