@@ -12,10 +12,10 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class CheckVersionUtil {
   static const version = Config.version;  // 当前应用版本号
-  static const versionHost = EnvUtil.checkVersionHost();  // 版本检查的API地址（改为常量，避免重复计算）
-  static const downloadLink = EnvUtil.sourceDownloadHost();  // 应用下载链接的基础URL（改为常量）
-  static const releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL（改为常量）
-  static const homeLink = EnvUtil.sourceHomeHost();  // 应用主页URL（改为常量）
+  static final versionHost = EnvUtil.checkVersionHost();  // 版本检查的API地址（改为 final，避免重复计算）
+  static final downloadLink = EnvUtil.sourceDownloadHost();  // 应用下载链接的基础URL（改为 final）
+  static final releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL（改为 final）
+  static final homeLink = EnvUtil.sourceHomeHost();  // 应用主页URL（改为 final）
   static VersionEntity? latestVersionEntity;  // 存储最新的版本信息
   static const String _lastPromptDateKey = 'lastPromptDate';  // 存储键名常量
   static const int oneDayInMillis = 24 * 60 * 60 * 1000;  // 一天的毫秒数，提高可读性
