@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart'; 
 import 'package:path_provider/path_provider.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
@@ -8,8 +9,8 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 class BingUtil {
   static List<String> bingImgUrls = [];
   static String? bingImgUrl;
-  static const _maxRetries = 2; // 最大重试次数
-  static const _maxImages = 8; // 最多下载8张图片
+  static const _maxRetries = 2;
+  static const _maxImages = 8;
 
   static Future<String> _getLocalStoragePath() async {
     final directory = await getApplicationDocumentsDirectory();
@@ -40,7 +41,6 @@ class BingUtil {
       ..sort();
   }
 
-  /// 修改：添加重试机制
   static Future<void> _deleteOldImages() async {
     final dirPath = await _getLocalStoragePath();
     final dir = Directory(dirPath);
@@ -70,7 +70,7 @@ class BingUtil {
     try {
       final response = await HttpUtil().getRequestWithResponse(
         url,
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(responseType: ResponseType.bytes), // 使用 dio 的 Options
       );
       if (response?.statusCode == 200 && response?.data is List<int>) {
         final dirPath = await _getLocalStoragePath();
