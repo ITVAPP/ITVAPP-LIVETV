@@ -237,14 +237,3 @@ ButtonStyle getButtonStyle({
   // 修改代码结束
   // 注释：此函数根据选中状态和焦点状态生成按钮样式，使用缓存避免重复创建；若外部未定义 darkenColor，提供默认颜色加深逻辑
 }
-
-// 修改代码开始
-/// 扩展 Color 类以支持亮度调整（若 darkenColor 未定义时使用）
-extension ColorExtension on Color {
-  Color withLightness(double lightness) {
-    final hsl = HSLColor.fromColor(this);
-    return hsl.withLightness(lightness).toColor();
-  }
-}
-// 修改代码结束
-// 注释：为 Color 类添加亮度调整方法，确保 darkenColor 缺省时仍能正常运行
