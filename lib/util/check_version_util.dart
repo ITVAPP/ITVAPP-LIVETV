@@ -3,21 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import 'package:sp_util/sp_util.dart';
-import 'env_util.dart';
-import 'http_util.dart';
-import 'log_util.dart';
-import 'dialog_util.dart'; 
-import '../config.dart'; 
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/util/env_util.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/dialog_util.dart'; 
+import 'package:itvapp_live_tv/config.dart'; 
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class CheckVersionUtil {
   static const version = Config.version;  // 当前应用版本号
-  static final versionHost = EnvUtil.checkVersionHost();  // 版本检查的API地址
-  static final downloadLink = EnvUtil.sourceDownloadHost();  // 应用下载链接的基础URL
-  static final releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL
-  static final homeLink = EnvUtil.sourceHomeHost();  // 应用主页URL
+  static const versionHost = EnvUtil.checkVersionHost();  // 版本检查的API地址（改为常量，避免重复计算）
+  static const downloadLink = EnvUtil.sourceDownloadHost();  // 应用下载链接的基础URL（改为常量）
+  static const releaseLink = EnvUtil.sourceReleaseHost();  // 应用发布页面URL（改为常量）
+  static const homeLink = EnvUtil.sourceHomeHost();  // 应用主页URL（改为常量）
   static VersionEntity? latestVersionEntity;  // 存储最新的版本信息
   static const String _lastPromptDateKey = 'lastPromptDate';  // 存储键名常量
+  static const int oneDayInMillis = 24 * 60 * 60 * 1000;  // 一天的毫秒数，提高可读性
 
   // 保存最后一次弹出提示的日期
   static Future<void> saveLastPromptDate() async {
@@ -56,8 +57,8 @@ class CheckVersionUtil {
       final lastTime = int.parse(lastPromptTimestamp);  // 解析时间戳
       final currentTime = DateTime.now().millisecondsSinceEpoch;  // 获取当前时间戳
 
-      // 检查是否超过1天（24小时 = 24 * 60 * 60 * 1000 毫秒）
-      return (currentTime - lastTime) >= (24 * 60 * 60 * 1000);  // 使用毫秒计算更精确
+      // 检查是否超过1天，使用常量提高可读性
+      return (currentTime - lastTime) >= oneDayInMillis;  // 使用毫秒计算更精确
     } catch (e, stackTrace) {
       LogUtil.logError('检查提示间隔失败', e, stackTrace);  // 错误处理
       return true;  // 发生错误时，默认返回 true，确保用户仍会收到提示
@@ -66,20 +67,27 @@ class CheckVersionUtil {
 
   // 检查最新版本，并返回版本信息
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
-    if (latestVersionEntity != null) return latestVersionEntity;  // 如果已有版本信息，则直接返回
+    // 如果已有版本信息，则直接返回，避免重复请求
+    if (latestVersionEntity != null) return latestVersionEntity;
+
     try {
       final res = await HttpUtil().getRequest(versionHost);  // 发送网络请求检查最新版本
-      if (res != null) {
-        final latestVersion = res['tag_name'] as String?;  // 获取最新版本号
-        final latestMsg = res['body'] as String?;  // 获取最新版本的更新日志
-        if (latestVersion != null && latestVersion.compareTo(version) > 0) {
-          latestVersionEntity = VersionEntity(latestVersion: latestVersion, latestMsg: latestMsg);  // 存储新版本信息
-          return latestVersionEntity;  // 返回最新版本信息
-        } else {
-          if (isShowLatestToast) EasyLoading.showToast(S.current.latestVersion);  // 如果是最新版本，显示提示
-        }
+      if (res == null) return null;  // 请求结果为空，直接返回 null
+
+      // 增加类型检查，避免类型转换异常
+      final latestVersion = res['tag_name'] is String ? res['tag_name'] as String : null;
+      final latestMsg = res['body'] is String ? res['body'] as String : null;
+
+      if (latestVersion != null && latestVersion.compareTo(version) > 0) {
+        // 如果发现新版本，更新 latestVersionEntity
+        latestVersionEntity = VersionEntity(latestVersion: latestVersion, latestMsg: latestMsg);
+        return latestVersionEntity;  // 返回最新版本信息
+      } else {
+        // 如果当前已是最新版本，重置 latestVersionEntity 并提示
+        latestVersionEntity = null;  // 重置缓存，避免使用过时数据
+        if (isShowLatestToast) EasyLoading.showToast(S.current.latestVersion);  // 显示最新版本提示
       }
-      return null;  // 如果没有新版本，返回 null
+      return null;  // 没有新版本，返回 null
     } catch (e, stackTrace) {
       LogUtil.logError('版本检查失败', e, stackTrace);  // 错误处理
       return null;  // 网络请求失败时返回 null
@@ -90,7 +98,7 @@ class CheckVersionUtil {
   static Future<bool?> showUpdateDialog(BuildContext context) async {
     if (latestVersionEntity == null) return null;
 
-    // 直接传递 UpdateDownloadBtn 作为对话框的一部分
+    // 显示更新对话框，包含新版本信息和下载按钮
     return DialogUtil.showCustomDialog(
       context,
       title: '${S.current.findNewVersion}🚀',
@@ -131,7 +139,7 @@ class CheckVersionUtil {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);  // 使用外部浏览器打开链接
     } catch (e, stackTrace) {
-      LogUtil.logError('打开浏览器失败', e, stackTrace);  // 错误处理
+      LogUtil.logError('打开浏览器失败: URL=$url', e, stackTrace);  // 增加具体错误信息，提高调试效率
     }
   }
 }
