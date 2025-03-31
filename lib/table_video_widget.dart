@@ -632,7 +632,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                                 _buildControlButton(
                                   icon: Icons.fit_screen_outlined,
                                   tooltip: S.of(context).fullScreen,
-                                  showBackground:-true,
+                                  showBackground:true,
                                   onPressed: () async {
                                     LogUtil.safeExecute(() async {
                                       final isFullScreen = await windowManager.isFullScreen();
