@@ -66,7 +66,7 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  // AppBar 分割线 - 优化为渐变效果并添加阴影
+  // AppBar 分割线 - 优化为静态常量
   static final _appBarDivider = PreferredSize(
     preferredSize: Size.fromHeight(1),
     child: Container(
@@ -90,18 +90,37 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     ),
   );
 
+  // AppBar 的 flexibleSpace 装饰 - 提取为静态常量
+  static final _appBarDecoration = BoxDecoration(
+    gradient: LinearGradient(
+      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: Offset(0, 2),
+      ),
+    ],
+  );
+
   // 抽离logo组件到非静态变量
   late final Widget _appBarLogo;
 
   // 通用方法：执行导航操作并处理播放暂停和标题栏显示
   Future<void> _executeWithPauseAndNavigation(String routeName, String errorMessage) async {
     LogUtil.safeExecute(() async {
+      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
+
       if (!EnvUtil.isMobile) {
-        // 隐藏标题栏（如果不是移动设备）
+        // 合并标题栏状态变更，减少多次调用
         windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
       }
 
-      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
       if (wasPlaying) {
         widget.controller?.pause(); // 当前播放中，则暂停播放以节省资源
         widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
@@ -114,7 +133,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       }
 
       if (!EnvUtil.isMobile) {
-        // 恢复标题栏显示（如果不是移动设备）
+        // 恢复标题栏显示
         windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
       }
     }, errorMessage); // 记录错误日志
@@ -138,8 +157,8 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   // 延迟初始化变量，减少不必要的计算
   late final List<Widget> _appBarIcons;
   late bool _isLandscape; // 修改为非 final，便于在 didChangeDependencies 中初始化
-  late final double _playerHeight;
-  late final double _finalAspectRatio; // 新增：提前确定 aspectRatio
+  double? _playerHeight; // 修改为可空类型，支持动态更新
+  late final double _finalAspectRatio; // 新增：提前确定 aspectRatio 并缓存
 
   @override
   void initState() {
@@ -162,16 +181,8 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
     );
 
-    // 初始化操作按钮列表 - 无动画
+    // 初始化操作按钮列表 - 无动画，清理冗余注释代码
     _appBarIcons = [
-      // 暂时注释掉用户自己添加播放列表的功能
-      // IconButton(
-      //   padding: EdgeInsets.zero,
-      //   visualDensity: VisualDensity.compact,
-      //   icon: const Icon(Icons.add, size: 24, color: Colors.white), // 白色图标
-      //   onPressed: _handleAddPressed,
-      // ),
-      // const SizedBox(width: 8),
       IconButton(
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
@@ -181,87 +192,87 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       const SizedBox(width: 8),
     ];
 
-    // 在 initState 中初始化 aspectRatio，避免 build 中重复计算
-    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio;
-    // 使用 widget.aspectRatio 动态计算高度，并添加边界检查
-    _playerHeight = MediaQuery.of(context).size.width / (_finalAspectRatio > 0 ? _finalAspectRatio : 16 / 9);
+    // 在 initState 中初始化 aspectRatio，避免 build 中重复计算，并添加默认值缓存
+    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio > 0
+        ? widget.aspectRatio
+        : 16 / 9; // 默认 16:9 作为缓存值
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 在 didChangeDependencies 中初始化 _isLandscape，确保 MediaQuery 数据可用
+    // 在 didChangeDependencies 中初始化 _isLandscape 和 _playerHeight，确保 MediaQuery 数据可用
     _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
+    _updatePlayerHeight(); // 动态更新播放器高度
+  }
+
+  // 新增方法：动态更新播放器高度
+  void _updatePlayerHeight() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    _playerHeight = screenWidth / _finalAspectRatio;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, // 透明背景以显示渐变
-        elevation: 0,
-        toolbarHeight: 48.0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        title: _appBarLogo,
-        bottom: _appBarDivider,
-        actions: _appBarIcons,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient( // 深灰色渐变
-              colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    // 使用 OrientationBuilder 监听方向变化，动态更新高度和状态
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        _isLandscape = orientation == Orientation.landscape;
+        _updatePlayerHeight(); // 每次方向变化时更新高度
+
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent, // 透明背景以显示渐变
+            elevation: 0,
+            toolbarHeight: 48.0,
+            centerTitle: true,
+            automaticallyImplyLeading: false,
+            title: _appBarLogo,
+            bottom: _appBarDivider,
+            actions: _appBarIcons,
+            flexibleSpace: Container(
+              decoration: _appBarDecoration, // 使用静态常量装饰
             ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)), // 顶部圆角
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 10,
-                spreadRadius: 2,
-                offset: Offset(0, 2),
+          ),
+          body: Column(
+            children: [
+              Container(
+                color: Colors.black,
+                width: double.infinity,
+                height: _playerHeight ?? 0, // 使用动态高度，添加空值保护
+                child: TableVideoWidget(
+                  controller: widget.controller,
+                  toastString: widget.toastString,
+                  isLandscape: _isLandscape,
+                  aspectRatio: _finalAspectRatio, // 使用提前确定的 aspectRatio
+                  isBuffering: widget.isBuffering,
+                  isPlaying: widget.isPlaying,
+                  drawerIsOpen: false,
+                  toggleFavorite: widget.toggleFavorite,
+                  isChannelFavorite: widget.isChannelFavorite,
+                  currentChannelId: widget.currentChannelId,
+                  currentChannelLogo: widget.currentChannelLogo,
+                  currentChannelTitle: widget.currentChannelTitle,
+                  changeChannelSources: widget.changeChannelSources,
+                  isAudio: widget.isAudio,
+                  adManager: widget.adManager,
+                  showPlayIcon: widget.showPlayIcon, // 新增：传递播放图标状态
+                  showPauseIconFromListener: widget.showPauseIconFromListener, // 新增：传递暂停图标状态
+                  isHls: widget.isHls, // 新增：传递 HLS 状态
+                  onUserPaused: widget.onUserPaused, // 新增：用户暂停回调
+                  onRetry: widget.onRetry, // 新增：HLS 重试回调
+                ),
+              ),
+              Flexible(
+                // 如果提示信息为 'UNKNOWN', 显示空页面，并提供刷新回调
+                child: widget.toastString == 'UNKNOWN'
+                    ? EmptyPage(onRefresh: widget.onChangeSubSource)
+                    : widget.drawChild, // 否则显示传入的自定义子组件
               ),
             ],
           ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Container(
-            color: Colors.black,
-            width: double.infinity,
-            height: _playerHeight,
-            child: TableVideoWidget(
-              controller: widget.controller,
-              toastString: widget.toastString,
-              isLandscape: _isLandscape,
-              aspectRatio: _finalAspectRatio, // 使用提前确定的 aspectRatio
-              isBuffering: widget.isBuffering,
-              isPlaying: widget.isPlaying,
-              drawerIsOpen: false,
-              toggleFavorite: widget.toggleFavorite,
-              isChannelFavorite: widget.isChannelFavorite,
-              currentChannelId: widget.currentChannelId,
-              currentChannelLogo: widget.currentChannelLogo,
-              currentChannelTitle: widget.currentChannelTitle,
-              changeChannelSources: widget.changeChannelSources,
-              isAudio: widget.isAudio,
-              adManager: widget.adManager,
-              showPlayIcon: widget.showPlayIcon, // 新增：传递播放图标状态
-              showPauseIconFromListener: widget.showPauseIconFromListener, // 新增：传递暂停图标状态
-              isHls: widget.isHls, // 新增：传递 HLS 状态
-              onUserPaused: widget.onUserPaused, // 新增：用户暂停回调
-              onRetry: widget.onRetry, // 新增：HLS 重试回调
-            ),
-          ),
-          Flexible(
-            // 如果提示信息为 'UNKNOWN', 显示空页面，并提供刷新回调
-            child: widget.toastString == 'UNKNOWN'
-                ? EmptyPage(onRefresh: widget.onChangeSubSource)
-                : widget.drawChild, // 否则显示传入的自定义子组件
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
