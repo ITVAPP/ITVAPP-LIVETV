@@ -9,6 +9,13 @@ import 'package:itvapp_live_tv/util/dialog_util.dart';
 import '../generated/l10n.dart';
 
 class ShowExitConfirm {
+  // 定义常量
+  static const _totalSteps = 100; // 动画总步数（100个百分点）
+  static const _stepDuration = Duration(milliseconds: 50); // 每步持续时间，总计5秒
+  static const _strokeWidth = 5.0; // 圆环粗细
+  static const _gradientColors = [Colors.blue, Colors.purple, Color(0xFFEB144C)]; // 渐变颜色
+  static const _gradientStops = [0.0, 0.5, 1.0]; // 渐变停止点
+
   // 退出确认对话框逻辑
   static Future<bool> ExitConfirm(BuildContext context) async {
     bool? exitConfirmed = await DialogUtil.showCustomDialog(
@@ -26,22 +33,37 @@ class ShowExitConfirm {
       isDismissible: false,  // 点击对话框外部不关闭弹窗
     );
    
-    // 如果用户确认退出，执行退出逻辑
+    // 如果用户确认退出，执行退出动画和退出逻辑
     if (exitConfirmed == true) {
       try {
-        final overlayState = Overlay.of(context);
-        final completer = Completer<void>();
-        
-        // 定义总步数和时间间隔
-        const totalSteps = 100; // 100个百分点
-        const stepDuration = 50; // 每步50毫秒，总共5000毫秒
-        
-        int currentStep = 0;
-        Timer? timer;
-        OverlayEntry? overlayEntry;
+        await _showExitAnimation(context); // 显示退出动画
+        FlutterExitApp.exitApp(); // 动画完成后退出应用
+      } catch (e) {
+        LogUtil.e('退出应用错误: $e');  // 记录错误日志
+        FlutterExitApp.exitApp(); // 确保即使出错也能退出
+      }
+    }
+    return exitConfirmed ?? false;  // 返回非空的 bool 值，如果为空则返回 false
+  }
 
-        overlayEntry = OverlayEntry(
-          builder: (context) => Stack(
+  // 显示退出动画的独立方法
+  static Future<void> _showExitAnimation(BuildContext context) async {
+    final overlayState = Overlay.of(context);
+    final completer = Completer<void>();
+    OverlayEntry? overlayEntry;
+    AnimationController? controller;
+
+    // 使用 AnimationController 替代 Timer.periodic
+    controller = AnimationController(
+      duration: _stepDuration * _totalSteps, // 总动画时长
+      vsync: Navigator.of(context), // 使用 Navigator 提供的 vsync
+    );
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => AnimatedBuilder(
+        animation: controller!,
+        builder: (context, child) {
+          return Stack(
             children: [
               // 添加全屏半透明背景
               Container(
@@ -62,8 +84,8 @@ class ShowExitConfirm {
                             // 圆环进度条
                             CustomPaint(
                               painter: CircleProgressPainter(
-                                currentStep / totalSteps, // 转换为0-1的进度值
-                                strokeWidth: 5.0, // 通过参数控制圆环粗细
+                                controller!.value, // 使用 AnimationController 的进度值
+                                strokeWidth: _strokeWidth, // 使用常量控制粗细
                               ),
                               child: Container(
                                 width: 118, // logo区域大小
@@ -103,79 +125,73 @@ class ShowExitConfirm {
                 ),
               ),
             ],
-          ),
-        );
-       
-        // 使用 WidgetsBinding 确保在下一帧渲染时开始动画
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          );
+        },
+      ),
+    );
+
+    try {
+      // 在下一帧渲染时插入 OverlayEntry 并开始动画
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
           overlayState.insert(overlayEntry!);
-          
-          // 使用Timer.periodic更新进度
-          timer = Timer.periodic(Duration(milliseconds: stepDuration), (timer) {
-            currentStep++;
-            if (currentStep >= totalSteps) {
-              timer.cancel();
-              completer.complete();
-            }
-            overlayEntry?.markNeedsBuild();
+          controller!.forward().then((_) {
+            completer.complete(); // 动画完成时标记完成
           });
-        });
-        
-        // 等待动画完成
-        await completer.future;
-        
-        // 清理资源并退出
-        timer?.cancel();
-        overlayEntry?.remove();
-        FlutterExitApp.exitApp();  // 直接调用插件退出应用
-       
-      } catch (e) {
-        LogUtil.e('退出应用错误: $e');  // 记录日志
-        FlutterExitApp.exitApp(); // 确保在出错时也能退出
-      }
+        } catch (e) {
+          LogUtil.e('退出动画插入失败: $e'); // 捕获回调中的异常
+          completer.complete(); // 出错时也完成动画
+        }
+      });
+
+      // 等待动画完成
+      await completer.future;
+    } finally {
+      // 确保资源被清理
+      controller?.dispose(); // 释放 AnimationController
+      overlayEntry?.remove(); // 移除 OverlayEntry
+      overlayEntry = null; // 置空引用，避免重复使用
     }
-    return exitConfirmed ?? false;  // 返回非空的 bool 值，如果为空则返回 false
   }
 }
 
 class CircleProgressPainter extends CustomPainter {
-  final double progress;
-  final double strokeWidth; // 添加圆环粗细参数
+  final double progress; // 当前进度值（0.0 到 1.0）
+  final double strokeWidth; // 圆环粗细
 
-  CircleProgressPainter(this.progress, {this.strokeWidth = 5.0}); // 默认粗细
+  CircleProgressPainter(this.progress, {this.strokeWidth = _strokeWidth}); // 默认使用常量粗细
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = (size.width - strokeWidth) / 2; // 考虑线宽来计算半径
+    final radius = (size.width - strokeWidth) / 2; // 考虑线宽计算半径
 
-    final paint = Paint()
+    // 绘制背景圆环
+    final backgroundPaint = Paint()
       ..color = Colors.grey.withOpacity(0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth // 使用传入的粗细参数
       ..strokeCap = StrokeCap.round; // 添加圆角效果
+    canvas.drawCircle(center, radius, backgroundPaint);
 
-    // 绘制背景圆环
-    canvas.drawCircle(center, radius, paint);
-
-    // 绘制渐变进度
+    // 绘制渐变进度圆环
     final gradientPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
-        colors: [Colors.blue, Colors.purple, Color(0xFFEB144C)],
-        stops: const [0.0, 0.5, 1.0], // 添加渐变停止点使颜色过渡更均匀
+        colors: ShowExitConfirm._gradientColors, // 使用常量渐变颜色
+        stops: ShowExitConfirm._gradientStops, // 使用常量渐变停止点
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth // 使用传入的粗细参数
       ..strokeCap = StrokeCap.round;
 
-    // 绘制进度
+    // 绘制进度弧
     final arcRect = Rect.fromCircle(center: center, radius: radius);
     canvas.drawArc(
       arcRect,
-      90 * (3.14159 / 180), 
-      360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 正值使其顺时针方向绘制
+      90 * (3.14159 / 180), // 起始角度（垂直向上）
+      360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 顺时针绘制进度弧
       false,
       gradientPaint,
     );
