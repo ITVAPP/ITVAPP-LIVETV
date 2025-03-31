@@ -2,8 +2,9 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'package:collection/collection.dart' show Queue;
+import 'dart:collection' show Queue; // 修复：导入 dart:collection 以使用 Queue
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show compute; // 修复：导入 foundation 以使用 compute
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
