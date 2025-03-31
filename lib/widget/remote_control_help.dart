@@ -553,18 +553,6 @@ class RemoteControlPainter extends CustomPainter {
       ..lineTo(center.dx + arrowSize, center.dy + arrowSize); // 向右
 
     canvas.save(); // 保存当前画布状态
-    canvas.translate(center.dx, center.dy); //  ascended
-    canvas.drawCircle(center, radius, paint); // 绘制圆
-
-    // 绘制箭头
-    paint.strokeWidth = width * 0.02; // 重新设置描边宽度
-    final arrowSize = radius * 0.5; // 箭头尺寸
-    final path = Path()
-      ..moveTo(center.dx - arrowSize, center.dy - arrowSize) // 箭头左上角
-      ..lineTo(center.dx - arrowSize, center.dy + arrowSize) // 向下
-      ..lineTo(center.dx + arrowSize, center.dy + arrowSize); // 向右
-
-    canvas.save(); // 保存当前画布状态
     canvas.translate(center.dx, center.dy); // 移动到箭头位置
     canvas.rotate(45 * 3.14159 / 180); // 顺时针旋转45度
     canvas.translate(-center.dx, -center.dy); // 还原中心点位置
