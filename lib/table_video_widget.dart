@@ -169,7 +169,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '注册窗口监听器发生错误');
   }
 
-  // 将播放器高度和进度条宽度的计算移到 didChangeDependencies 中，并考虑横竖屏变化
+  // *** 修改 1: 优化 didChangeDependencies 中的重复计算 ***
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -177,11 +177,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final newPlayerHeight = mediaQuery.size.width / (widget.isLandscape ? 16 / 9 : 9 / 16);
     final newProgressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5;
 
-    // 仅在尺寸变化时更新缓存值
-    if (_playerHeight != newPlayerHeight || _progressBarWidth != newProgressBarWidth) {
+    // 仅在值变化时更新缓存并触发播放器更新
+    bool shouldUpdate = false;
+    if (_playerHeight != newPlayerHeight) {
       _playerHeight = newPlayerHeight;
+      shouldUpdate = true;
+    }
+    if (_progressBarWidth != newProgressBarWidth) {
       _progressBarWidth = newProgressBarWidth;
-      _updateCachedVideoPlayer(); // 更新缓存的播放器组件
+      shouldUpdate = true;
+    }
+    if (shouldUpdate) {
+      _updateCachedVideoPlayer(); // 仅在必要时更新缓存
     }
   }
 
@@ -288,14 +295,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
-  // 构建视频播放器组件，使用缓存结果
-  Widget _buildVideoPlayer(double containerHeight) {
-    // 如果缓存不存在，则初始化
-    if (_cachedVideoPlayer == null) {
-      _updateCachedVideoPlayer();
-    }
-    return _cachedVideoPlayer!;
-  }
+  // *** 修改 2: 删除 _buildVideoPlayer，直接在 build 中使用 _cachedVideoPlayer ***
 
   // 处理播放逻辑
   Future<void> _playVideo() async {
@@ -315,18 +315,19 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     widget.onUserPaused?.call(); // 通知 LiveHomePage 用户触发暂停
   }
 
-  // 处理播放/暂停选择事件，重构为更清晰的逻辑
+  // *** 修改 3: 优化 _handleSelectPress 的定时器逻辑 ***
   Future<void> _handleSelectPress() async {
     if (widget.controller == null) return; // 控制器为空时直接返回
 
     final isPlaying = widget.controller!.isPlaying() ?? false;
     if (isPlaying) {
-      if (!(_pauseIconTimer?.isActive ?? false)) {
-        // 显示暂停图标 3 秒
+      if (_pauseIconTimer == null || !_pauseIconTimer!.isActive) {
+        // 显示暂停图标 3 秒，仅在无活动定时器时创建
         _updateUIState(showPauseIcon: true);
         _pauseIconTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) {
             _updateUIState(showPauseIcon: false);
+            _pauseIconTimer = null; // 完成后置为 null
           }
         });
       } else {
@@ -504,6 +505,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         ValueListenableBuilder<VideoUIState>(
           valueListenable: _uiStateNotifier,
           builder: (context, uiState, child) {
+            // *** 修改 4: 直接使用 _cachedVideoPlayer ***
+            if (_cachedVideoPlayer == null) {
+              _updateCachedVideoPlayer(); // 确保缓存存在
+            }
+
             return GestureDetector(
               onTap: uiState.drawerIsOpen ? null : () => _handleSelectPress(),
               onDoubleTap: uiState.drawerIsOpen
@@ -528,7 +534,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    _buildVideoPlayer(_playerHeight!), // 使用缓存的播放器
+                    _cachedVideoPlayer!, // 直接使用缓存的播放器
                     if (uiState.showPlayIcon) // 使用内部状态控制播放图标
                       _buildControlIcon(
                         icon: Icons.play_arrow,
@@ -626,7 +632,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                                 _buildControlButton(
                                   icon: Icons.fit_screen_outlined,
                                   tooltip: S.of(context).fullScreen,
-                                  showBackground: true,
+                                  showBackground:-true,
                                   onPressed: () async {
                                     LogUtil.safeExecute(() async {
                                       final isFullScreen = await windowManager.isFullScreen();
