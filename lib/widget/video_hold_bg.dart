@@ -370,6 +370,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   Timer? _timer;
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey();
   bool _isTimerActive = false;
+  final Set<String> _precachedImages = {}; // 新增：记录已预加载的图片
 
   final _backgroundState = ValueNotifier<BingBackgroundState>(
     BingBackgroundState(
@@ -419,7 +420,6 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  /// 加载 Bing 背景图片并初始化切换逻辑
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
@@ -434,9 +434,12 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
 
       if (paths.isNotEmpty) {
         for (int i = 0; i < min(2, paths.length); i++) {
-          await precacheImage(FileImage(File(paths[i])), context, onError: (e, stackTrace) {
-            LogUtil.logError('预加载第 $i 张图片失败: ${paths[i]}', e, stackTrace);
-          });
+          if (!_precachedImages.contains(paths[i])) {
+            await precacheImage(FileImage(File(paths[i])), context, onError: (e, stackTrace) {
+              LogUtil.logError('预加载第 $i 张图片失败: ${paths[i]}', e, stackTrace);
+            });
+            _precachedImages.add(paths[i]);
+          }
         }
 
         _updateBackgroundState(currentState.copyWith(
@@ -447,8 +450,11 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
 
         _timer?.cancel();
         _isTimerActive = true;
-        // 根据图片数量动态调整切换间隔，最短 30 秒，最长 60 秒
-        final interval = Duration(seconds: 30 + (paths.length > 1 ? (30 ~/ paths.length) : 0));
+        // 新增：根据动画时长动态调整间隔
+        const maxAnimationDuration = 4500; // 取最长动画时长（KenBurnsTransition）
+        final interval = Duration(
+          seconds: max(30, (maxAnimationDuration ~/ 1000) + (paths.length > 1 ? (30 ~/ paths.length) : 0)),
+        );
         _timer = Timer.periodic(interval, (Timer timer) {
           if (!_isTimerActive || !mounted) return;
           final state = _backgroundState.value;
@@ -477,14 +483,12 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  /// 更新背景状态，封装重复逻辑
   void _updateBackgroundState(BingBackgroundState newState) {
     if (mounted) {
       _backgroundState.value = newState;
     }
   }
 
-  /// 开始图片切换动画，确保状态一致性并添加详细注释
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -492,23 +496,32 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     try {
       final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
 
-      precacheImage(
-        FileImage(File(currentState.imageUrls[nextIndex])),
-        context,
-        onError: (e, stackTrace) {
-          LogUtil.logError('预加载下一张图片失败: ${currentState.imageUrls[nextIndex]}', e, stackTrace);
-          _updateBackgroundState(currentState.copyWith(isTransitionLocked: false));
-        },
-      ).then((_) {
-        if (!mounted) return;
-
+      if (!_precachedImages.contains(currentState.imageUrls[nextIndex])) {
+        precacheImage(
+          FileImage(File(currentState.imageUrls[nextIndex])),
+          context,
+          onError: (e, stackTrace) {
+            LogUtil.logError('预加载下一张图片失败: ${currentState.imageUrls[nextIndex]}', e, stackTrace);
+            _updateBackgroundState(currentState.copyWith(isTransitionLocked: false));
+          },
+        ).then((_) {
+          if (!mounted) return;
+          _precachedImages.add(currentState.imageUrls[nextIndex]);
+          _updateBackgroundState(currentState.copyWith(
+            isAnimating: true,
+            nextIndex: nextIndex,
+            isTransitionLocked: true,
+            currentAnimationType: _getRandomAnimationType(),
+          ));
+        });
+      } else {
         _updateBackgroundState(currentState.copyWith(
           isAnimating: true,
           nextIndex: nextIndex,
           isTransitionLocked: true,
           currentAnimationType: _getRandomAnimationType(),
         ));
-      });
+      }
     } catch (e) {
       LogUtil.logError('开始图片切换时发生错误', e);
       _updateBackgroundState(currentState.copyWith(isTransitionLocked: false));
@@ -560,10 +573,12 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
               if (currentState.imageUrls.length > 1) {
                 final nextNextIndex =
                     (currentState.nextIndex + 1) % currentState.imageUrls.length;
-                precacheImage(
-                  FileImage(File(currentState.imageUrls[nextNextIndex])),
-                  context,
-                );
+                if (!_precachedImages.contains(currentState.imageUrls[nextNextIndex])) {
+                  precacheImage(
+                    FileImage(File(currentState.imageUrls[nextNextIndex])),
+                    context,
+                  ).then((_) => _precachedImages.add(currentState.imageUrls[nextNextIndex]));
+                }
               }
             },
           ),
@@ -641,7 +656,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     _updateBackgroundState(currentState.copyWith(
       isTransitionLocked: true,
       isAnimating: false,
-      imageUrls: [], // 清理图片列表
+      imageUrls: [],
     ));
 
     _isTimerActive = false;
@@ -649,6 +664,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
       _timer!.cancel();
       _timer = null;
     }
+    _precachedImages.clear(); // 新增：清理预加载记录
 
     super.dispose();
   }
