@@ -14,13 +14,18 @@ class BingUtil {
   static const int _deleteRetries = 3; // 删除文件重试次数常量
   static const Duration _retryDelay = Duration(milliseconds: 100); // 重试延迟常量
 
+  static String? _cachedLocalStoragePath;
   static Future<String> _getLocalStoragePath() async {
+    if (_cachedLocalStoragePath != null) {
+      return _cachedLocalStoragePath!;
+    }
     final directory = await getApplicationDocumentsDirectory();
     final bingDir = Directory('${directory.path}/bing_images');
     if (!await bingDir.exists()) {
       await bingDir.create(recursive: true);
     }
-    return bingDir.path;
+    _cachedLocalStoragePath = bingDir.path;
+    return _cachedLocalStoragePath!;
   }
 
   static String _generateFileName(int index) {
@@ -30,68 +35,67 @@ class BingUtil {
     return '$dateStr$seqStr';
   }
 
-  // 修改代码开始
-  // 抽取 _getLocalImagesForToday 为静态变量缓存，避免重复调用
-  static List<String>? _cachedLocalImages;
-  static DateTime? _lastCacheTime;
-
   static Future<List<String>> _getLocalImagesForToday() async {
-    final now = DateTime.now();
-    // 检查缓存是否有效（同一天内有效）
-    if (_cachedLocalImages != null && 
-        _lastCacheTime != null && 
-        now.day == _lastCacheTime!.day && 
-        now.month == _lastCacheTime!.month && 
-        now.year == _lastCacheTime!.year) {
-      return _cachedLocalImages!;
-    }
-
     final dirPath = await _getLocalStoragePath();
-    final dir = Directory(dirPath);
     final todayPrefix = _generateFileName(0).substring(0, 8);
-    final files = await dir.list().toList();
+    final files = await _listDirectoryFiles(dirPath);
     
-    _cachedLocalImages = files
+    final localImages = files
         .where((file) => file.path.contains(todayPrefix) && file.path.endsWith('.jpg'))
         .map((file) => file.path)
         .toList()
       ..sort();
-    _lastCacheTime = now;
+    return localImages;
+  }
 
-    return _cachedLocalImages!;
+  // 修改代码开始
+  // 新增方法：获取所有本地图片（包括旧日期）
+  static Future<List<String>> _getAllLocalImages() async {
+    final dirPath = await _getLocalStoragePath();
+    final files = await _listDirectoryFiles(dirPath);
+    
+    final allImages = files
+        .where((file) => file.path.endsWith('.jpg'))
+        .map((file) => file.path)
+        .toList()
+      ..sort(); // 按文件名排序，旧日期在前，新日期在后
+    return allImages;
   }
   // 修改代码结束
 
-  // 修改代码开始
-  // 优化 _deleteOldImages，添加清理逻辑和异常处理
+  static Future<List<FileSystemEntity>> _listDirectoryFiles(String dirPath) async {
+    final dir = Directory(dirPath);
+    return await dir.list().toList();
+  }
+
   static Future<void> _deleteOldImages() async {
     final dirPath = await _getLocalStoragePath();
-    final dir = Directory(dirPath);
     final todayPrefix = _generateFileName(0).substring(0, 8);
-    final files = await dir.list().toList();
+    final files = await _listDirectoryFiles(dirPath);
 
+    final deleteTasks = <Future<void>>[];
     for (final file in files) {
       if (file is File && !file.path.contains(todayPrefix)) {
-        for (int retry = 0; retry < _deleteRetries; retry++) {
-          try {
-            await file.delete();
-            LogUtil.i('删除旧图片: ${file.path}');
-            break;
-          } catch (e) {
-            if (retry == _deleteRetries - 1) {
-              LogUtil.logError('删除旧图片失败: ${file.path}，已达最大重试次数', e);
-            } else {
-              await Future.delayed(_retryDelay); // 使用常量延迟
+        deleteTasks.add((() async {
+          for (int retry = 0; retry < _deleteRetries; retry++) {
+            try {
+              await file.delete();
+              LogUtil.i('删除旧图片: ${file.path}');
+              break;
+            } catch (e) {
+              if (retry == _deleteRetries - 1) {
+                LogUtil.logError('删除旧图片失败: ${file.path}，已达最大重试次数', e);
+              } else {
+                await Future.delayed(_retryDelay);
+              }
             }
           }
-        }
+        })());
       }
     }
+    await Future.wait(deleteTasks); // 异步批量删除
   }
-  // 修改代码结束
 
-  // 修改代码开始
-  // 优化 _downloadAndSaveImage，避免重复下载并检查文件存在
   static Future<String?> _downloadAndSaveImage(String url, String fileName) async {
     try {
       final dirPath = await _getLocalStoragePath();
@@ -118,10 +122,9 @@ class BingUtil {
       return null;
     }
   }
-  // 修改代码结束
 
   // 修改代码开始
-  // 优化 getBingImgUrls，明确类型并添加注释
+  // 优化 getBingImgUrls，新图片下载成功后再删除旧图片，否则回退使用旧图片
   static Future<List<String>> getBingImgUrls({String? channelId}) async {
     try {
       List<String> localImages = await _getLocalImagesForToday();
@@ -131,46 +134,61 @@ class BingUtil {
         return bingImgUrls;
       }
 
-      await _deleteOldImages();
-
-      // 使用 List<Future<String?>> 明确类型
-      List<Future<String?>> requests = [];
-      for (int i = 0; i < _maxImages; i++) {
-        requests.add(_fetchBingImageUrlWithRetry(i, 0, channelId).then((url) async {
-          if (url != null) {
-            final fileName = _generateFileName(i);
-            return await _downloadAndSaveImage(url, fileName);
-          }
-          return null;
-        }));
+      // 不提前删除旧图片，先尝试下载新图片
+      const int batchSize = 4;
+      List<Future<List<String?>>> batches = [];
+      for (int i = 0; i < _maxImages; i += batchSize) {
+        final batchEnd = (i + batchSize).clamp(0, _maxImages);
+        final batchRequests = <Future<String?>>[];
+        for (int j = i; j < batchEnd; j++) {
+          batchRequests.add(_fetchBingImageUrlWithRetry(j, 0, channelId).then((url) async {
+            if (url != null) {
+              final fileName = _generateFileName(j);
+              return await _downloadAndSaveImage(url, fileName);
+            }
+            return null;
+          }));
+        }
+        batches.add(Future.wait(batchRequests));
       }
 
-      final paths = (await Future.wait(requests))
+      final results = await Future.wait(batches);
+      final paths = results
+          .expand((batch) => batch)
           .where((path) => path != null)
           .cast<String>()
           .toList();
 
       if (paths.isNotEmpty) {
+        // 新图片下载成功后删除旧图片
+        await _deleteOldImages();
         bingImgUrls = paths;
+        LogUtil.i('新图片下载成功，已更新 bingImgUrls');
       } else {
-        LogUtil.e('未能获取到 Bing 图片');
+        // 下载失败，回退到所有本地图片
+        final allLocalImages = await _getAllLocalImages();
+        if (allLocalImages.isNotEmpty) {
+          bingImgUrls = allLocalImages;
+          LogUtil.i('新图片下载失败，回退使用本地已有图片');
+        } else {
+          LogUtil.e('未能获取到 Bing 图片，且无本地图片可用');
+          bingImgUrls = [];
+        }
       }
 
       return bingImgUrls;
     } catch (e, stackTrace) {
       LogUtil.logError('获取 Bing 图片时发生错误', e, stackTrace);
-      return await _getLocalImagesForToday();
+      final allLocalImages = await _getAllLocalImages();
+      if (allLocalImages.isNotEmpty) {
+        bingImgUrls = allLocalImages;
+        return bingImgUrls;
+      }
+      return [];
     }
   }
   // 修改代码结束
 
-  // 修改代码开始
-  // 优化 _fetchBingImageUrlWithRetry，添加 URL 验证和注释
-  /// 获取 Bing 图片 URL，支持重试机制
-  /// [idx] 图片索引
-  /// [retryCount] 当前重试次数
-  /// [channelId] 可选的频道 ID
-  /// 返回有效的图片 URL 或 null
   static Future<String?> _fetchBingImageUrlWithRetry(int idx, [int retryCount = 0, String? channelId]) async {
     try {
       final baseUrl = 'https://bing.biturl.top/?resolution=1366&format=json&index=$idx';
@@ -193,8 +211,9 @@ class BingUtil {
       return null;
     }
   }
-  // 修改代码结束
 
+  // 修改代码开始
+  // 优化 getBingImgUrl，新图片下载成功后再删除旧图片，否则回退使用旧图片
   static Future<String?> getBingImgUrl({String? channelId}) async {
     try {
       final localImages = await _getLocalImagesForToday();
@@ -203,25 +222,43 @@ class BingUtil {
         return bingImgUrl;
       }
 
-      await _deleteOldImages();
       final url = await _fetchBingImageUrlWithRetry(0, 0, channelId);
       if (url != null) {
         final fileName = _generateFileName(0);
         bingImgUrl = await _downloadAndSaveImage(url, fileName);
+        if (bingImgUrl != null) {
+          await _deleteOldImages(); // 单张下载成功后删除旧图片
+        }
         return bingImgUrl;
       }
-      LogUtil.e('未能获取 Bing 图片');
+
+      // 下载失败，回退到所有本地图片
+      final allLocalImages = await _getAllLocalImages();
+      if (allLocalImages.isNotEmpty) {
+        bingImgUrl = allLocalImages.first;
+        LogUtil.i('新图片下载失败，回退使用本地已有图片');
+        return bingImgUrl;
+      }
+
+      LogUtil.e('未能获取 Bing 图片，且无本地图片可用');
       return null;
     } catch (e, stackTrace) {
       LogUtil.logError('获取 Bing 图片时发生错误', e, stackTrace);
+      final allLocalImages = await _getAllLocalImages();
+      if (allLocalImages.isNotEmpty) {
+        bingImgUrl = allLocalImages.first;
+        return bingImgUrl;
+      }
       return null;
     }
   }
+  // 修改代码结束
 
   static Future<void> clearCache() async {
     try {
-      bingImgUrls = [];
+      bingImgUrls = []; // 重置为新空列表
       bingImgUrl = null;
+      _cachedLocalStoragePath = null; // 清理路径缓存
       final dirPath = await _getLocalStoragePath();
       final dir = Directory(dirPath);
       if (await dir.exists()) {
