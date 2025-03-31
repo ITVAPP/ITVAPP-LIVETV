@@ -93,8 +93,8 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   // 抽离logo组件到非静态变量
   late final Widget _appBarLogo;
 
-  // 抽离回调方法，减少在build函数中重复生成不必要的新闭包
-  Future<void> _handleAddPressed() async {
+  // 通用方法：执行导航操作并处理播放暂停和标题栏显示
+  Future<void> _executeWithPauseAndNavigation(String routeName, String errorMessage) async {
     LogUtil.safeExecute(() async {
       if (!EnvUtil.isMobile) {
         // 隐藏标题栏（如果不是移动设备）
@@ -107,60 +107,43 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
         widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
       }
 
-      await Navigator.of(context).pushNamed(RouterKeys.subScribe); // 推送至订阅页面
+      await Navigator.of(context).pushNamed(routeName); // 导航至指定页面
 
       if (wasPlaying) {
         widget.controller?.play(); // 返回时恢复播放
-      }
-
-      final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 返回 String?
-      // 修改：处理空安全问题
-      if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
-        widget.onChangeSubSource(); // 数据无效则触发数据源变更回调
       }
 
       if (!EnvUtil.isMobile) {
         // 恢复标题栏显示（如果不是移动设备）
         windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
       }
-    }, '执行操作按钮发生错误'); // 错误记录日志
+    }, errorMessage); // 记录错误日志
   }
 
+  // 处理“添加”按钮点击事件
+  Future<void> _handleAddPressed() async {
+    await _executeWithPauseAndNavigation(RouterKeys.subScribe, '执行操作按钮发生错误');
+    final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 返回 String?
+    // 检查 M3U 数据是否有效，无效则触发数据源变更
+    if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
+      widget.onChangeSubSource();
+    }
+  }
+
+  // 处理“设置”按钮点击事件
   Future<void> _handleSettingsPressed() async {
-    LogUtil.safeExecute(() async {
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-      }
-
-      final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查播放器当前是否播放中
-      if (wasPlaying) {
-        widget.controller?.pause(); // 暂停播放
-        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
-      }
-
-      await Navigator.of(context).pushNamed(RouterKeys.setting); // 推送至设置页面
-
-      if (wasPlaying) {
-        widget.controller?.play(); // 恢复播放
-      }
-
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true); // 恢复标题栏
-      }
-    }, '执行操作设置按钮发生错误'); // 错误记录日志
+    await _executeWithPauseAndNavigation(RouterKeys.setting, '执行操作设置按钮发生错误');
   }
 
   // 延迟初始化变量，减少不必要的计算
   late final List<Widget> _appBarIcons;
-  late final bool _isLandscape;
+  late bool _isLandscape; // 修改为非 final，便于在 didChangeDependencies 中初始化
   late final double _playerHeight;
+  late final double _finalAspectRatio; // 新增：提前确定 aspectRatio
 
   @override
   void initState() {
     super.initState();
-    _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
-    _playerHeight = MediaQuery.of(context).size.width / (16 / 9);
-
     // 初始化logo - 添加微妙阴影
     _appBarLogo = Container(
       decoration: BoxDecoration(
@@ -197,6 +180,18 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       const SizedBox(width: 8),
     ];
+
+    // 在 initState 中初始化 aspectRatio，避免 build 中重复计算
+    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio;
+    // 使用 widget.aspectRatio 动态计算高度，并添加边界检查
+    _playerHeight = MediaQuery.of(context).size.width / (_finalAspectRatio > 0 ? _finalAspectRatio : 16 / 9);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 在 didChangeDependencies 中初始化 _isLandscape，确保 MediaQuery 数据可用
+    _isLandscape = widget.isLandscape ?? MediaQuery.of(context).orientation == Orientation.landscape;
   }
 
   @override
@@ -240,7 +235,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
               controller: widget.controller,
               toastString: widget.toastString,
               isLandscape: _isLandscape,
-              aspectRatio: widget.controller?.videoPlayerController?.value.aspectRatio ?? widget.aspectRatio,
+              aspectRatio: _finalAspectRatio, // 使用提前确定的 aspectRatio
               isBuffering: widget.isBuffering,
               isPlaying: widget.isPlaying,
               drawerIsOpen: false,
@@ -270,8 +265,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     );
   }
 
-  // 判断 m3u 数据是否有效，检查其是否包含 M3U 文件必要的标识符
+  // 判断 M3U 数据是否有效，增强逻辑以提高准确性
   bool isValidM3U(String data) {
-    return data.contains('#EXTM3U');
+    // 检查是否为空、是否包含 #EXTM3U 标识符，以及是否至少有一个有效条目（如 #EXTINF）
+    return data.isNotEmpty && data.contains('#EXTM3U') && data.contains('#EXTINF');
   }
 }
