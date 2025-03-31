@@ -7,18 +7,19 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
 class BingUtil {
-  static List<String> bingImgUrls = [];
-  static String? bingImgUrl;
-  static const int _maxRetries = 2; // 将魔法数字抽取为常量
-  static const int _maxImages = 8;
-  static const int _deleteRetries = 2; // 删除文件重试次数常量
-  static const Duration _retryDelay = Duration(milliseconds: 100); // 重试延迟常量
-  static const int _maxConcurrentDeletes = 3; // 新增：限制并发删除数量
+  static List<String> bingImgUrls = []; // 存储所有 Bing 图片的本地路径
+  static String? bingImgUrl; // 存储单张 Bing 图片的本地路径
+  static const int _maxRetries = 2; // 最大重试次数
+  static const int _maxImages = 8; // 最大图片数量
+  static const int _deleteRetries = 2; // 删除文件最大重试次数
+  static const Duration _retryDelay = Duration(milliseconds: 300); // 重试延迟时间
+  static const int _maxConcurrentDeletes = 3; // 最大并发删除任务数
 
-  static String? _cachedLocalStoragePath;
-  static List<String>? _cachedTodayImages; // 新增：缓存当天的图片列表
-  static List<String>? _cachedAllImages; // 新增：缓存所有图片列表
+  static String? _cachedLocalStoragePath; // 缓存本地存储路径
+  static List<String>? _cachedTodayImages; // 缓存当天的图片列表
+  static List<String>? _cachedAllImages; // 缓存所有图片列表
 
+  // 获取本地存储路径，若不存在则创建
   static Future<String> _getLocalStoragePath() async {
     if (_cachedLocalStoragePath != null) {
       return _cachedLocalStoragePath!;
@@ -32,6 +33,7 @@ class BingUtil {
     return _cachedLocalStoragePath!;
   }
 
+  // 根据日期和序号生成文件名
   static String _generateFileName(int index) {
     final now = DateTime.now();
     final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
@@ -39,6 +41,7 @@ class BingUtil {
     return '$dateStr$seqStr';
   }
 
+  // 获取当天本地图片列表，支持缓存
   static Future<List<String>> _getLocalImagesForToday() async {
     if (_cachedTodayImages != null) {
       LogUtil.i('使用缓存的当天图片列表');
@@ -56,6 +59,7 @@ class BingUtil {
     return _cachedTodayImages!;
   }
 
+  // 获取所有本地图片列表，支持缓存
   static Future<List<String>> _getAllLocalImages() async {
     if (_cachedAllImages != null) {
       LogUtil.i('使用缓存的所有图片列表');
@@ -72,11 +76,13 @@ class BingUtil {
     return _cachedAllImages!;
   }
 
+  // 列出指定目录下的所有文件
   static Future<List<FileSystemEntity>> _listDirectoryFiles(String dirPath) async {
     final dir = Directory(dirPath);
     return await dir.list().toList();
   }
 
+  // 删除非当天的旧图片，限制并发删除数量
   static Future<void> _deleteOldImages() async {
     final dirPath = await _getLocalStoragePath();
     final todayPrefix = _generateFileName(0).substring(0, 8);
@@ -103,21 +109,20 @@ class BingUtil {
       }
     }
 
-    // 新增：限制并发删除数量
     for (int i = 0; i < deleteTasks.length; i += _maxConcurrentDeletes) {
       final batch = deleteTasks.sublist(i, (i + _maxConcurrentDeletes).clamp(0, deleteTasks.length));
       await Future.wait(batch);
     }
-    // 清理缓存
-    _cachedTodayImages = null;
-    _cachedAllImages = null;
+    _cachedTodayImages = null; // 清理当天图片缓存
+    _cachedAllImages = null; // 清理所有图片缓存
   }
 
+  // 下载并保存图片到本地，返回文件路径
   static Future<String?> _downloadAndSaveImage(String url, String fileName) async {
     try {
       final dirPath = await _getLocalStoragePath();
       final filePath = '$dirPath/$fileName.jpg';
-      LogUtil.i('开始下载图片: $url 到 $filePath'); // 新增：记录下载开始
+      LogUtil.i('开始下载图片: $url 到 $filePath');
 
       final response = await HttpUtil().getRequestWithResponse(
         url,
@@ -127,9 +132,8 @@ class BingUtil {
         final file = File(filePath);
         await file.writeAsBytes(response!.data as List<int>);
         LogUtil.i('图片下载并保存成功: $filePath');
-        // 更新缓存
-        _cachedTodayImages = null;
-        _cachedAllImages = null;
+        _cachedTodayImages = null; // 清理缓存
+        _cachedAllImages = null; // 清理缓存
         return filePath;
       }
       return null;
@@ -139,7 +143,7 @@ class BingUtil {
     }
   }
 
-  // 新增：抽取公共回退逻辑
+  // 当下载失败时回退到本地已有图片
   static Future<List<String>> _fallbackToLocalImages() async {
     final allLocalImages = await _getAllLocalImages();
     if (allLocalImages.isNotEmpty) {
@@ -151,6 +155,7 @@ class BingUtil {
     return [];
   }
 
+  // 获取多张 Bing 图片 URL 并下载
   static Future<List<String>> getBingImgUrls({String? channelId}) async {
     try {
       List<String> localImages = await _getLocalImagesForToday();
@@ -160,8 +165,7 @@ class BingUtil {
         return bingImgUrls;
       }
 
-      // 动态调整并发任务数，基于最大图片数
-      const int maxConcurrentDownloads = 4; // 可根据设备性能调整
+      const int maxConcurrentDownloads = 4; // 最大并发下载数
       List<Future<List<String?>>> batches = [];
       for (int i = 0; i < _maxImages; i += maxConcurrentDownloads) {
         final batchEnd = (i + maxConcurrentDownloads).clamp(0, _maxImages);
@@ -200,6 +204,7 @@ class BingUtil {
     }
   }
 
+  // 获取单张 Bing 图片 URL，支持重试机制
   static Future<String?> _fetchBingImageUrlWithRetry(int idx, [int retryCount = 0, String? channelId]) async {
     try {
       final baseUrl = 'https://bing.biturl.top/?resolution=1366&format=json&index=$idx';
@@ -222,6 +227,7 @@ class BingUtil {
     }
   }
 
+  // 获取单张 Bing 图片并下载，优先使用本地缓存
   static Future<String?> getBingImgUrl({String? channelId}) async {
     try {
       final localImages = await _getLocalImagesForToday();
@@ -260,13 +266,14 @@ class BingUtil {
     }
   }
 
+  // 清除所有缓存和本地图片
   static Future<void> clearCache() async {
     try {
       bingImgUrls = [];
       bingImgUrl = null;
       _cachedLocalStoragePath = null;
-      _cachedTodayImages = null; // 新增：清理缓存
-      _cachedAllImages = null; // 新增：清理缓存
+      _cachedTodayImages = null; // 清理当天图片缓存
+      _cachedAllImages = null; // 清理所有图片缓存
       final dirPath = await _getLocalStoragePath();
       final dir = Directory(dirPath);
       if (await dir.exists()) {
@@ -278,4 +285,3 @@ class BingUtil {
     }
   }
 }
-
