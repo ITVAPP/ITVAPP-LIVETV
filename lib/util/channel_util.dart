@@ -6,69 +6,62 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 缓存按钮样式
+// 缓存按钮样式，避免重复创建以提升性能
 final Map<String, ButtonStyle> _styleCache = {};
 
-// 定义常量边距和圆角
-const EdgeInsets _padding = EdgeInsets.all(10);
-const BorderRadius _borderRadius = BorderRadius.all(Radius.circular(16));
-const EdgeInsets _buttonPadding = EdgeInsets.symmetric(vertical: 2, horizontal: 6);
+// 定义常量边距和圆角，提高代码可读性与复用性
+const EdgeInsets _padding = EdgeInsets.all(10);  // 弹窗外边距
+const BorderRadius _borderRadius = BorderRadius.all(Radius.circular(16));  // 弹窗和按钮的圆角
+const EdgeInsets _buttonPadding = EdgeInsets.symmetric(vertical: 2, horizontal: 6);  // 按钮内边距
 
-/// 显示底部弹出框以选择不同的视频源
+/// 显示底部弹出框以选择不同的视频源，返回用户选择的索引
 Future<int?> changeChannelSources(
   BuildContext context,
   List<String>? sources, // 视频源列表
   int currentSourceIndex, // 当前选中的视频源索引
 ) async {
-  // 如果 sources 为空或未找到有效的视频源，记录日志并返回 null
-  if (sources == null || sources.isEmpty) {
-    LogUtil.e('未找到有效的视频源');
-    return null;
+  if (sources == null || sources.isEmpty) {  // 检查视频源是否有效
+    LogUtil.e('未找到有效的视频源');  // 记录错误日志
+    return null;  // 返回null表示无有效视频源
   }
 
-  // 创建 FocusNode 列表，即使 sources 为空也初始化为空列表以避免未定义行为
-  final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());
+  final List<FocusNode> focusNodes = List.generate(sources.length, (index) => FocusNode());  // 为每个视频源创建焦点节点
 
-  // 定义选中与未选中的颜色变量
-  final Color selectedColor = const Color(0xFFEB144C); // 选中时的按钮背景颜色
-  final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时的按钮背景颜色
+  final Color selectedColor = const Color(0xFFEB144C);  // 选中时的背景颜色
+  final Color unselectedColor = const Color(0xFFDFA02A);  // 未选中时的背景颜色
 
   try {
-    // 获取屏幕的方向和相关尺寸信息
-    var orientation = MediaQuery.of(context).orientation;
-    final widthFactor = orientation == Orientation.landscape ? 0.78 : 0.88; // 根据横竖屏动态调整宽度
-    final bottomOffset = orientation == Orientation.landscape ? 48.0 : 58.0; // 动态调整底部间距
+    var orientation = MediaQuery.of(context).orientation;  // 获取屏幕方向
+    final widthFactor = orientation == Orientation.landscape ? 0.78 : 0.88;  // 根据屏幕方向调整宽度比例
+    final bottomOffset = orientation == Orientation.landscape ? 48.0 : 58.0;  // 根据屏幕方向调整底部间距
 
-    // 提前计算尺寸约束，用于设置弹窗的最大宽高
-    final double maxWidth = MediaQuery.of(context).size.width * widthFactor;
-    final double maxHeight = MediaQuery.of(context).size.height * 0.7;
+    final double maxWidth = MediaQuery.of(context).size.width * widthFactor;  // 计算弹窗最大宽度
+    final double maxHeight = MediaQuery.of(context).size.height * 0.7;  // 计算弹窗最大高度
 
-    // 弹出底部弹窗，用户可以选择视频源
     final selectedIndex = await showModalBottomSheet<int>(
       context: context,
-      isScrollControlled: true, // 支持滚动内容
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.transparent,
+      isScrollControlled: true,  // 启用滚动以适应内容
+      backgroundColor: Colors.transparent,  // 弹窗背景透明
+      barrierColor: Colors.transparent,  // 遮罩层透明
       builder: (BuildContext context) {
         return TvKeyNavigation(
-          focusNodes: focusNodes, // 键盘导航支持
-          initialIndex: currentSourceIndex, // 设置初始焦点
+          focusNodes: focusNodes,  // 支持键盘导航
+          initialIndex: currentSourceIndex,  // 设置初始焦点索引
           child: Padding(
-            padding: EdgeInsets.only(bottom: bottomOffset), // 调整弹窗的底部间距
+            padding: EdgeInsets.only(bottom: bottomOffset),  // 设置弹窗底部间距
             child: Container(
               width: maxWidth,
-              padding: _padding,
+              padding: _padding,  // 设置弹窗内边距
               decoration: BoxDecoration(
-                color: Colors.black54, // 半透明背景颜色
-                borderRadius: _borderRadius,
+                color: Colors.black54,  // 弹窗背景为半透明黑色
+                borderRadius: _borderRadius,  // 设置圆角
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: maxWidth,
-                  maxHeight: maxHeight, // 限制最大宽高
+                  maxWidth: maxWidth,  // 限制弹窗最大宽度
+                  maxHeight: maxHeight,  // 限制弹窗最大高度
                 ),
-                // 构建视频源按钮组
-                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes, selectedColor, unselectedColor),
+                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes, selectedColor, unselectedColor),  // 构建按钮组
               ),
             ),
           ),
@@ -76,59 +69,43 @@ Future<int?> changeChannelSources(
       },
     );
 
-    return selectedIndex; // 返回用户选择的视频源索引
+    return selectedIndex;  // 返回用户选择的视频源索引
   } catch (modalError, modalStackTrace) {
-    LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);
-    return null;
+    LogUtil.logError('弹出窗口时出错', modalError, modalStackTrace);  // 记录弹窗错误日志
+    return null;  // 返回null表示弹窗失败
   } finally {
-    // 销毁 FocusNode，释放资源
-    for (var node in focusNodes) {
-      node.dispose();
-    }
-    // 修改代码开始
-    // 清理样式缓存，防止内存占用持续增加
-    _styleCache.clear();
-    // 修改代码结束
-    // 注释：弹窗关闭后清理缓存，优化长期运行时的内存使用
+    for (var node in focusNodes) node.dispose();  // 释放所有焦点节点资源
+    _styleCache.clear();  // 清理样式缓存，优化内存使用
   }
 }
 
-/// 获取线路显示名称
+/// 获取线路显示名称，根据URL格式动态生成
 String _getLineDisplayName(String url, int index) {
-  // 修改代码开始
-  // 检查是否包含 $，并解析 URL 以提取显示名称
-  if (url.contains('\$')) {
-    // 分割字符串并返回后半部分作为显示名称，确保 trim() 去除多余空格
-    return url.split('\$')[1].trim();
+  if (url.contains('\$')) {  // 检查URL是否包含自定义名称标记
+    return url.split('\$')[1].trim();  // 提取$后的名称并去除多余空格
   }
-  // 如果不包含 $，则返回默认的线路序号（如“线路1”）
-  return S.current.lineIndex(index + 1);
-  // 修改代码结束
-  // 注释：此函数根据 URL 格式动态生成线路名称，支持带 $ 的自定义名称和默认序号两种情况
+  return S.current.lineIndex(index + 1);  // 返回默认线路名称，如“线路1”
 }
 
-/// 构建视频源按钮组
+/// 构建视频源按钮组，支持动态显示和焦点管理
 Widget buildSourceButtons(
   BuildContext context,
   List<String> sources, // 视频源列表
   int currentSourceIndex, // 当前选中索引
-  List<FocusNode> focusNodes, // 键盘导航的焦点节点
+  List<FocusNode> focusNodes, // 焦点节点列表
   Color selectedColor, // 选中时的颜色
   Color unselectedColor, // 未选中时的颜色
 ) {
-  // 使用 ValueNotifier 来管理焦点索引
-  final ValueNotifier<int> focusedIndex = ValueNotifier(-1);
+  final ValueNotifier<int> focusedIndex = ValueNotifier(-1);  // 管理当前焦点索引
 
   return ValueListenableBuilder<int>(
-    valueListenable: focusedIndex, // 监听焦点变化
+    valueListenable: focusedIndex,  // 监听焦点变化
     builder: (context, value, child) {
       return Wrap(
-        spacing: 8, // 按钮之间的水平间距
-        runSpacing: 8, // 按钮之间的垂直间距
+        spacing: 8,  // 按钮水平间距
+        runSpacing: 8,  // 按钮垂直间距
         children: List.generate(sources.length, (index) {
-          // 修改代码开始
-          // 将按钮构建逻辑抽取为独立小部件，减少 Wrap 重建范围
-          return SourceButton(
+          return SourceButton(  // 使用独立小部件构建按钮
             context: context,
             source: sources[index],
             index: index,
@@ -138,24 +115,22 @@ Widget buildSourceButtons(
             unselectedColor: unselectedColor,
             focusedIndex: focusedIndex,
           );
-          // 修改代码结束
         }),
       );
     },
   );
 }
 
-// 修改代码开始
-/// 独立的小部件，用于构建单个视频源按钮
+/// 视频源按钮小部件，封装单个按钮的样式和交互逻辑
 class SourceButton extends StatelessWidget {
   final BuildContext context;
-  final String source;
-  final int index;
-  final bool isSelected;
-  final FocusNode focusNode;
-  final Color selectedColor;
-  final Color unselectedColor;
-  final ValueNotifier<int> focusedIndex;
+  final String source;  // 视频源URL
+  final int index;  // 按钮索引
+  final bool isSelected;  // 是否选中
+  final FocusNode focusNode;  // 焦点节点
+  final Color selectedColor;  // 选中颜色
+  final Color unselectedColor;  // 未选中颜色
+  final ValueNotifier<int> focusedIndex;  // 焦点索引监听器
 
   const SourceButton({
     required this.context,
@@ -170,67 +145,57 @@ class SourceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 如果是当前选中项，显示 "重试"，否则显示线路名称
-    String displayName = isSelected ? S.current.playReconnect : _getLineDisplayName(source, index);
+    String displayName = isSelected ? S.current.playReconnect : _getLineDisplayName(source, index);  // 动态设置按钮文本
 
-    // 监听焦点变化，当按钮获得焦点时更新 focusedIndex
-    focusNode.addListener(() {
-      if (focusNode.hasFocus) {
-        focusedIndex.value = index;
-      }
+    focusNode.addListener(() {  // 监听焦点变化
+      if (focusNode.hasFocus) focusedIndex.value = index;  // 更新焦点索引
     });
 
     return FocusableItem(
-      focusNode: focusNode, // 关联焦点节点
+      focusNode: focusNode,  // 绑定焦点节点
       child: OutlinedButton(
-        style: getButtonStyle(
-          isSelected: isSelected, // 是否被选中
-          isFocused: focusNode.hasFocus, // 是否获得焦点
-          selectedColor: selectedColor, // 选中时的颜色
-          unselectedColor: unselectedColor, // 未选中时的颜色
+        style: getButtonStyle(  // 获取按钮样式
+          isSelected: isSelected,
+          isFocused: focusNode.hasFocus,
+          selectedColor: selectedColor,
+          unselectedColor: unselectedColor,
         ),
         onPressed: () {
-          Navigator.pop(context, index); // 返回选中的索引并关闭弹窗
+          Navigator.pop(context, index);  // 点击后关闭弹窗并返回索引
         },
         child: Text(
-          displayName, // 使用动态显示名称
+          displayName,  // 显示按钮文本
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
             color: Colors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中项加粗
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
           ),
         ),
       ),
     );
   }
 }
-// 修改代码结束
-// 注释：将按钮逻辑抽取为独立小部件，减少 Wrap 重建时的性能开销，提升渲染效率
 
-/// 获取按钮样式
+/// 获取按钮样式，支持选中和焦点状态的动态调整
 ButtonStyle getButtonStyle({
-  required bool isSelected, // 是否被选中
+  required bool isSelected, // 是否选中
   required bool isFocused, // 是否获得焦点
   required Color selectedColor, // 选中时的颜色
   required Color unselectedColor, // 未选中时的颜色
 }) {
-  // 修改代码开始
-  // 优化缓存键设计，包含颜色值以确保不同颜色组合的样式唯一
-  final String key = '${isSelected}_${isFocused}_${selectedColor.value}_${unselectedColor.value}';
+  final String key = '${isSelected}_${isFocused}_${selectedColor.value}_${unselectedColor.value}';  // 生成唯一缓存键
 
-  return _styleCache.putIfAbsent(key, () {
-    Color backgroundColor = isSelected ? selectedColor : unselectedColor; // 根据状态设置背景颜色
-    if (isFocused) backgroundColor = darkenColor(backgroundColor); // 使用外部定义的 darkenColor
+  return _styleCache.putIfAbsent(key, () {  // 从缓存获取或创建样式
+    Color backgroundColor = isSelected ? selectedColor : unselectedColor;  // 设置背景颜色
+    if (isFocused) backgroundColor = darkenColor(backgroundColor);  // 焦点状态下加深颜色
 
     return OutlinedButton.styleFrom(
-      padding: _buttonPadding, // 设置按钮内边距
-      backgroundColor: backgroundColor, // 按钮背景颜色
+      padding: _buttonPadding,  // 设置内边距
+      backgroundColor: backgroundColor,  // 设置背景颜色
       shape: RoundedRectangleBorder(
-        borderRadius: _borderRadius, // 设置按钮的圆角
+        borderRadius: _borderRadius,  // 设置圆角
       ),
     );
   });
-  // 修改代码结束
-  // 注释：此函数根据选中状态和焦点状态生成按钮样式，使用缓存避免重复创建；焦点状态下调用外部定义的 darkenColor
 }
