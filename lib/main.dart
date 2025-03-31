@@ -198,35 +198,15 @@ class _MyAppState extends State<MyApp> {
       return _themeCache[fontFamily]!; // 返回缓存字体
     }
 
+    // 修改部分：背景为深灰色，AppBar 无渐变，确保删除无法继承的样式
     final theme = ThemeData(
-      brightness: Brightness.dark, // 暗色主题
-      scaffoldBackgroundColor: const Color(0xFF1A1A1A), // 深灰色背景
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent, // 透明背景
+      brightness: Brightness.dark, // 确保暗色主题
+      scaffoldBackgroundColor: const Color(0xFF1A1A1A), // 深灰色背景，无渐变
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1A1A1A), // 深灰色，与背景一致
         foregroundColor: Colors.white, // 前景色为白色，确保图标和文字高对比度
         elevation: 0, // 无阴影
         centerTitle: true, // 标题居中
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFF1A1A1A), // 深灰色渐变起始色
-                Color(0xFF2C2C2C), // 深灰色渐变结束色
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(12)), // 顶部圆角
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26, // 阴影颜色
-                blurRadius: 10, // 模糊半径
-                spreadRadius: 2, // 扩展范围
-                offset: Offset(0, 2), // 阴影偏移
-              ),
-            ],
-          ),
-        ),
       ),
       useMaterial3: true, // 保留 Material 3 支持
       fontFamily: fontFamily, // 支持动态字体
