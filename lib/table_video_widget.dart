@@ -24,7 +24,7 @@ class VideoUIState {
   const VideoUIState({
     this.showMenuBar = true, // 默认菜单栏显示
     this.showPauseIcon = false, // 默认暂停图标隐藏
-    this.showPlayIcon = false, // 默认播放图标隐藏 popping
+    this.showPlayIcon = false, // 默认播放图标隐藏
     this.drawerIsOpen = false, // 默认抽屉关闭
   });
 
@@ -120,8 +120,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 缓存视频播放器组件，避免重复构建
   Widget? _cachedVideoPlayer;
 
-  // *** 修改 1: 合并并缓存静态装饰样式，删除 _controlIconDecoration ***
-  static const _iconDecoration = BoxDecoration(
+  // 预定义控制图标的装饰样式，避免重复创建，提高性能
+  static const _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
     color: Colors.black45,
     boxShadow: [
@@ -169,7 +169,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '注册窗口监听器发生错误');
   }
 
-  // *** 修改 2: 优化 didChangeDependencies 中的重复计算 ***
+  // 将播放器高度和进度条宽度的计算移到 didChangeDependencies 中，并考虑横竖屏变化
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -177,18 +177,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final newPlayerHeight = mediaQuery.size.width / (widget.isLandscape ? 16 / 9 : 9 / 16);
     final newProgressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5;
 
-    // 仅在值变化时更新缓存并触发播放器更新
-    bool shouldUpdate = false;
-    if (_playerHeight != newPlayerHeight) {
+    // 仅在尺寸变化时更新缓存值
+    if (_playerHeight != newPlayerHeight || _progressBarWidth != newProgressBarWidth) {
       _playerHeight = newPlayerHeight;
-      shouldUpdate = true;
-    }
-    if (_progressBarWidth != newProgressBarWidth) {
       _progressBarWidth = newProgressBarWidth;
-      shouldUpdate = true;
-    }
-    if (shouldUpdate) {
-      _updateCachedVideoPlayer(); // 仅在必要时更新缓存
+      _updateCachedVideoPlayer(); // 更新缓存的播放器组件
     }
   }
 
@@ -228,14 +221,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   void dispose() {
-    // *** 修改 3: 完善内存管理 ***
+    // 销毁资源，确保定时器被清理，避免内存泄漏
     _uiStateNotifier.dispose();
     _pauseIconTimer?.cancel();
     _pauseIconTimer = null; // 显式置为 null
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
-    widget.adManager.dispose(); // 确保 AdManager 资源释放
+    widget.adManager.dispose();
     super.dispose();
   }
 
@@ -295,7 +288,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
-  // *** 删除 _buildVideoPlayer，直接在 build 中使用 _cachedVideoPlayer ***
+  // 构建视频播放器组件，使用缓存结果
+  Widget _buildVideoPlayer(double containerHeight) {
+    // 如果缓存不存在，则初始化
+    if (_cachedVideoPlayer == null) {
+      _updateCachedVideoPlayer();
+    }
+    return _cachedVideoPlayer!;
+  }
 
   // 处理播放逻辑
   Future<void> _playVideo() async {
@@ -315,19 +315,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     widget.onUserPaused?.call(); // 通知 LiveHomePage 用户触发暂停
   }
 
-  // *** 修改 4: 优化 _handleSelectPress 的定时器逻辑 ***
+  // 处理播放/暂停选择事件，重构为更清晰的逻辑
   Future<void> _handleSelectPress() async {
     if (widget.controller == null) return; // 控制器为空时直接返回
 
     final isPlaying = widget.controller!.isPlaying() ?? false;
     if (isPlaying) {
-      if (_pauseIconTimer == null || !_pauseIconTimer!.isActive) {
-        // 显示暂停图标 3 秒，仅在无活动定时器时创建
+      if (!(_pauseIconTimer?.isActive ?? false)) {
+        // 显示暂停图标 3 秒
         _updateUIState(showPauseIcon: true);
         _pauseIconTimer = Timer(const Duration(seconds: 3), () {
           if (mounted) {
             _updateUIState(showPauseIcon: false);
-            _pauseIconTimer = null; // 完成后置为 null
           }
         });
       } else {
@@ -353,66 +352,82 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
-  // *** 修改 5: 合并 _buildControlIcon 和 _buildIconButton 为单一方法 ***
-  Widget _buildUnifiedIcon({
+  // 优化控制图标的构建方法，使用预定义的装饰样式，避免重复创建
+  Widget _buildControlIcon({
+    required IconData icon,
+    Color backgroundColor = Colors.black,
+    Color iconColor = Colors.white,
+    VoidCallback? onTap,
+  }) {
+    Widget iconWidget = Center(
+      child: Container(
+        decoration: _controlIconDecoration,
+        padding: const EdgeInsets.all(10.0),
+        child: Icon(
+          icon,
+          size: 68,
+          color: iconColor.withOpacity(0.85),
+        ),
+      ),
+    );
+    return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
+  }
+
+  // 通用的图标按钮构建方法，消除重复代码
+  Widget _buildIconButton({
     required IconData icon,
     required String tooltip,
-    Color backgroundColor = Colors.black45,
-    Color iconColor = Colors.white,
-    double iconSize = 24,
-    VoidCallback? onTap,
-    bool useCircleBackground = false, // 是否使用圆形背景
+    required VoidCallback onPressed,
+    Color? iconColor,
+    bool showBackground = false,
     double width = 32,
     double height = 32,
   }) {
-    Widget iconWidget = Container(
+    return Container(
       width: width,
       height: height,
-      decoration: useCircleBackground ? _iconDecoration : null,
-      padding: useCircleBackground ? const EdgeInsets.all(10.0) : EdgeInsets.zero,
-      child: Icon(
-        icon,
-        size: useCircleBackground ? 68 : iconSize,
-        color: iconColor.withOpacity(useCircleBackground ? 0.85 : 1.0),
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        style: showBackground
+            ? IconButton.styleFrom(
+                backgroundColor: _backgroundColor,
+                side: _iconBorderSide,
+              )
+            : null,
+        icon: Icon(
+          icon,
+          color: iconColor ?? _iconColor,
+          size: 24,
+        ),
+        onPressed: onPressed,
       ),
     );
-
-    return onTap != null
-        ? GestureDetector(
-            onTap: onTap,
-            child: Tooltip(
-              message: tooltip,
-              child: iconWidget,
-            ),
-          )
-        : Tooltip(
-            message: tooltip,
-            child: iconWidget,
-          );
   }
 
-  // 收藏按钮，使用统一方法构建
+  // 收藏按钮，使用通用方法构建
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
     final isFavorite = widget.isChannelFavorite(currentChannelId);
-    return _buildUnifiedIcon(
+    return _buildIconButton(
       icon: isFavorite ? Icons.favorite : Icons.favorite_border,
       tooltip: isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
       iconColor: isFavorite ? Colors.red : _iconColor,
-      useCircleBackground: showBackground,
-      onTap: () {
+      showBackground: showBackground,
+      onPressed: () {
         widget.toggleFavorite(currentChannelId);
         setState(() {}); // 更新 UI
       },
     );
   }
 
-  // 切换频道源按钮，使用统一方法构建
+  // 切换频道源按钮，使用通用方法构建
   Widget buildChangeChannelSourceButton(bool showBackground) {
-    return _buildUnifiedIcon(
+    return _buildIconButton(
       icon: Icons.legend_toggle,
       tooltip: S.of(context).tipChangeLine,
-      useCircleBackground: showBackground,
-      onTap: () {
+      showBackground: showBackground,
+      onPressed: () {
         if (widget.isLandscape) {
           _closeDrawerIfOpen();
           _updateUIState(showMenuBar: false);
@@ -422,7 +437,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 构建控制按钮，使用统一方法
+  // 构建控制按钮，使用通用方法
   Widget _buildControlButton({
     required IconData icon,
     required String tooltip,
@@ -430,12 +445,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     Color? iconColor,
     bool showBackground = false,
   }) {
-    return _buildUnifiedIcon(
+    return _buildIconButton(
       icon: icon,
       tooltip: tooltip,
-      iconColor: iconColor ?? _iconColor,
-      useCircleBackground: showBackground,
-      onTap: onPressed,
+      onPressed: onPressed ?? () {},
+      iconColor: iconColor,
+      showBackground: showBackground,
     );
   }
 
@@ -489,11 +504,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         ValueListenableBuilder<VideoUIState>(
           valueListenable: _uiStateNotifier,
           builder: (context, uiState, child) {
-            // *** 修改 6: 直接使用 _cachedVideoPlayer ***
-            if (_cachedVideoPlayer == null) {
-              _updateCachedVideoPlayer(); // 确保缓存存在
-            }
-
             return GestureDetector(
               onTap: uiState.drawerIsOpen ? null : () => _handleSelectPress(),
               onDoubleTap: uiState.drawerIsOpen
@@ -518,20 +528,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    _cachedVideoPlayer!, // 直接使用缓存的播放器
+                    _buildVideoPlayer(_playerHeight!), // 使用缓存的播放器
                     if (uiState.showPlayIcon) // 使用内部状态控制播放图标
-                      _buildUnifiedIcon(
+                      _buildControlIcon(
                         icon: Icons.play_arrow,
-                        tooltip: '播放',
-                        useCircleBackground: true,
                         onTap: () => _handleSelectPress(),
                       ),
                     if (uiState.showPauseIcon || widget.showPauseIconFromListener)
-                      _buildUnifiedIcon(
-                        icon: Icons.pause,
-                        tooltip: '暂停',
-                        useCircleBackground: true,
-                      ),
+                      _buildControlIcon(icon: Icons.pause),
                     if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                       Positioned(
                         left: 0,
