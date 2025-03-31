@@ -134,6 +134,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     ],
   );
 
+  // 新增：缓存收藏状态，避免频繁调用 widget.isChannelFavorite
+  late bool _isFavorite;
+
+  // 新增：防抖标志，避免快速点击导致状态竞争
+  bool _isHandlingPress = false;
+
   // 更新 UI 状态的方法，支持部分属性更新
   void _updateUIState({
     bool? showMenuBar,
@@ -163,6 +169,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 初始化文字广告动画
     widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
 
+    // 初始化收藏状态
+    _isFavorite = widget.isChannelFavorite(widget.currentChannelId);
+
     // 非移动端时注册窗口监听器，处理窗口事件
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
@@ -177,7 +186,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final newPlayerHeight = mediaQuery.size.width / (widget.isLandscape ? 16 / 9 : 9 / 16);
     final newProgressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5;
 
-    // 仅在尺寸变化时更新缓存值
+    // 修改：仅在值发生变化时更新，减少不必要赋值
     if (_playerHeight != newPlayerHeight || _progressBarWidth != newProgressBarWidth) {
       _playerHeight = newPlayerHeight;
       _progressBarWidth = newProgressBarWidth;
@@ -199,6 +208,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       _pauseIconTimer?.cancel();
       _pauseIconTimer = null;
       _updateCachedVideoPlayer(); // 更新缓存的播放器组件
+      _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 更新收藏状态
     } else {
       // 同步外部状态
       if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
@@ -315,32 +325,39 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     widget.onUserPaused?.call(); // 通知 LiveHomePage 用户触发暂停
   }
 
-  // 处理播放/暂停选择事件，重构为更清晰的逻辑
+  // 修改：拆分 _handleSelectPress 为更清晰的逻辑，并添加防抖
   Future<void> _handleSelectPress() async {
-    if (widget.controller == null) return; // 控制器为空时直接返回
+    if (_isHandlingPress || widget.controller == null) return; // 防抖检查
+    _isHandlingPress = true;
 
     final isPlaying = widget.controller!.isPlaying() ?? false;
     if (isPlaying) {
-      if (!(_pauseIconTimer?.isActive ?? false)) {
-        // 显示暂停图标 3 秒
-        _updateUIState(showPauseIcon: true);
-        _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) {
-            _updateUIState(showPauseIcon: false);
-          }
-        });
-      } else {
-        // 用户主动暂停
-        await _pauseVideo();
-      }
+      await _handlePlayingState();
     } else {
-      // 从暂停恢复播放
       await _playVideo();
     }
 
     // 横屏模式下切换菜单栏显示状态
     if (widget.isLandscape) {
       _updateUIState(showMenuBar: !_currentState.showMenuBar);
+    }
+
+    _isHandlingPress = false;
+  }
+
+  // 新增：处理播放状态下的逻辑
+  Future<void> _handlePlayingState() async {
+    if (!(_pauseIconTimer?.isActive ?? false)) {
+      // 显示暂停图标 3 秒
+      _updateUIState(showPauseIcon: true);
+      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          _updateUIState(showPauseIcon: false);
+        }
+      });
+    } else {
+      // 用户主动暂停
+      await _pauseVideo();
     }
   }
 
@@ -359,14 +376,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     Color iconColor = Colors.white,
     VoidCallback? onTap,
   }) {
+    // 修改：将 Icon 样式定义为常量，进一步减少运行时开销
+    const iconStyle = IconThemeData(size: 68, opacity: 0.85);
     Widget iconWidget = Center(
       child: Container(
         decoration: _controlIconDecoration,
         padding: const EdgeInsets.all(10.0),
         child: Icon(
           icon,
-          size: 68,
-          color: iconColor.withOpacity(0.85),
+          color: iconColor,
         ),
       ),
     );
@@ -408,15 +426,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 收藏按钮，使用通用方法构建
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
-    final isFavorite = widget.isChannelFavorite(currentChannelId);
+    // 修改：使用缓存的 _isFavorite，避免重复调用
     return _buildIconButton(
-      icon: isFavorite ? Icons.favorite : Icons.favorite_border,
-      tooltip: isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
-      iconColor: isFavorite ? Colors.red : _iconColor,
+      icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+      tooltip: _isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
+      iconColor: _isFavorite ? Colors.red : _iconColor,
       showBackground: showBackground,
       onPressed: () {
         widget.toggleFavorite(currentChannelId);
-        setState(() {}); // 更新 UI
+        setState(() {
+          _isFavorite = widget.isChannelFavorite(currentChannelId); // 更新缓存
+        });
       },
     );
   }
@@ -456,44 +476,36 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 将静态 UI 部分抽取为单独的方法，减少 ValueListenableBuilder 的重建范围
   Widget _buildStaticOverlay() {
-    return Stack(
+    // 修改：添加 const 关键字，标记为静态组件
+    return const Stack(
       children: [
-        if (!widget.isLandscape)
-          Positioned(
-            right: 9,
-            bottom: 9,
-            child: Container(
-              width: 32,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildFavoriteButton(widget.currentChannelId, false),
-                  const SizedBox(height: 5),
-                  buildChangeChannelSourceButton(false),
-                  const SizedBox(height: 5),
-                  _buildControlButton(
-                    icon: Icons.screen_rotation,
-                    tooltip: S.of(context).landscape,
-                    onPressed: () async {
-                      if (EnvUtil.isMobile) {
-                        SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.landscapeLeft,
-                          DeviceOrientation.landscapeRight
-                        ]);
-                        return;
-                      }
-                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+        // 修改：将非横屏时的按钮移到单独的 const 方法中
+        _StaticVerticalControls(),
       ],
     );
   }
+
+  // 新增：静态纵向控制按钮组件
+  static const _StaticVerticalControls({Key? key}) = _StaticVerticalControlsWidget();
+
+  // 新增：静态纵向控制按钮的具体实现
+  static const _StaticVerticalControlsWidget({Key? key}) = SizedBox(
+    child: Positioned(
+      right: 9,
+      bottom: 9,
+      child: SizedBox(
+        width: 32,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 注意：这里不能直接调用 buildFavoriteButton，因为它依赖动态状态
+            SizedBox(height: 5),
+            SizedBox(height: 5),
+          ],
+        ),
+      ),
+    ),
+  );
 
   // 使用 ValueListenableBuilder 动态监听 UI 状态变化，并根据状态重建 UI
   @override
@@ -645,8 +657,41 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             );
           },
         ),
-        // 静态部分
+        // 修改：将静态部分移到外部 Stack，并动态插入非横屏按钮
         _buildStaticOverlay(),
+        if (!widget.isLandscape)
+          Positioned(
+            right: 9,
+            bottom: 9,
+            child: Container(
+              width: 32,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildFavoriteButton(widget.currentChannelId, false),
+                  const SizedBox(height: 5),
+                  buildChangeChannelSourceButton(false),
+                  const SizedBox(height: 5),
+                  _buildControlButton(
+                    icon: Icons.screen_rotation,
+                    tooltip: S.of(context).landscape,
+                    onPressed: () async {
+                      if (EnvUtil.isMobile) {
+                        SystemChrome.setPreferredOrientations([
+                          DeviceOrientation.landscapeLeft,
+                          DeviceOrientation.landscapeRight
+                        ]);
+                        return;
+                      }
+                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         // 滚动文字广告
         if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
           Positioned(
