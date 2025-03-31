@@ -11,7 +11,7 @@ class LogUtil {
   static const String _defTag = 'common_utils';
   static bool debugMode = true; // 控制是否记录日志 true 或 false
   static bool _isOperating = false; // 添加操作锁，防止并发问题
-  static const int _maxSingleLogLength = 588; // 添加单条日志最大长度限制
+  static const int _maxSingleLogLength = 888; // 添加单条日志最大长度限制
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 最大日志限制5MB
 
   // 内存存储相关
@@ -104,10 +104,7 @@ class LogUtil {
 
   // 记录info级别日志
   static Future<void> i(Object? object, {String? tag}) async {
-    // 修改代码开始
-    // 修复语法错误，原代码中的 hands 未定义且括号未闭合
     await _log('i', object, tag);
-    // 修改代码结束
   }
 
   // 记录debug级别日志
@@ -146,38 +143,31 @@ class LogUtil {
   static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
     try {
-      // 修改代码开始
-      // 增强并发控制，使用 while 循环等待而不是简单的延迟重试
       while (_isOperating) {
         await Future.delayed(Duration(milliseconds: 50)); // 等待操作完成
       }
       _isOperating = true;
-      // 修改代码结束
 
       String time = DateTime.now().toString();
-      String fileInfo = _extractStackInfo();
+      String fileInfo = _getFileAndLine(); // 修改为参考代码的方式
 
       String objectStr = object.toString();
       if (objectStr.length > _maxSingleLogLength) {
         objectStr = objectStr.substring(0, _maxSingleLogLength) + '... (日志已截断)';
       }
-      objectStr = _formatLogString(objectStr); // 使用合并的格式化方法
+      objectStr = _formatLogString(objectStr);
 
       String logMessage =
           '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 添加到内存和缓冲区，并限制大小
       _memoryLogs.insert(0, logMessage);
       if (_memoryLogs.length > _maxMemoryLogSize) {
         _memoryLogs.removeLast(); // 移除最旧的日志
       }
       _newLogsBuffer.insert(0, logMessage);
-      // 修改代码开始
-      // 新增：限制 _newLogsBuffer 大小，达到上限时强制写入
       if (_newLogsBuffer.length >= _maxBufferLogSize) {
         await _flushToLocal();
       }
-      // 修改代码结束
 
       if (_newLogsBuffer.length >= _writeThreshold) {
         await _flushToLocal();
@@ -185,20 +175,17 @@ class LogUtil {
 
       developer.log(logMessage);
       if (_showOverlay) {
-        String displayMessage = _unformatLogString(objectStr); // 使用合并的反格式化方法
+        String displayMessage = _unformatLogString(objectStr);
         _showDebugMessage('[${level}] $displayMessage');
       }
     } catch (e) {
       developer.log('日志记录失败: $e');
     } finally {
-      // 修改代码开始
-      // 确保并发锁在异常时也能释放
       _isOperating = false;
-      // 修改代码结束
     }
   }
 
-  // 将日志写入本地文件（优化为流式写入）
+  // 将日志写入本地文件（修复为可靠写入）
   static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
@@ -207,23 +194,35 @@ class LogUtil {
       logsToWrite = List.from(_newLogsBuffer);
       _newLogsBuffer.clear();
 
-      // 使用缓存的 _logFile 并改为流式写入
+      // 使用缓存的 _logFile
       if (_logFile == null) {
         _logFile = File(await _getLogFilePath());
       }
-      // 修改代码开始
-      // 使用 IOSink 替换 writeAsString，提升高频写入性能
-      final sink = _logFile!.openWrite(mode: FileMode.append);
-      for (var log in logsToWrite) {
-        sink.writeln(log);
+
+      const int maxRetries = 3;
+      int retryCount = 0;
+      bool success = false;
+      while (!success && retryCount < maxRetries) {
+        try {
+          await _logFile!.writeAsString(
+            logsToWrite.join('\n') + '\n',
+            mode: FileMode.append,
+          );
+          success = true;
+        } catch (e) {
+          retryCount++;
+          developer.log('第 $retryCount 次尝试写入日志文件失败: $e');
+          if (retryCount < maxRetries) {
+            await Future.delayed(Duration(milliseconds: 100)); // 短暂等待后重试
+          } else {
+            developer.log('日志写入失败超过最大重试次数，保留日志到缓冲区: $e');
+            _newLogsBuffer.insertAll(0, logsToWrite); // 失败时保留日志
+          }
+        }
       }
-      await sink.flush();
-      await sink.close();
-      // 修改代码结束
     } catch (e) {
       developer.log('写入日志文件失败: $e');
-      // 增强异常处理，确保日志不丢失
-      _newLogsBuffer.insertAll(0, logsToWrite);
+      _newLogsBuffer.insertAll(0, logsToWrite); // 异常时保留日志
       if (e is IOException) {
         developer.log('IO异常，可能是权限或空间不足: $e');
       }
@@ -289,14 +288,11 @@ class LogUtil {
         return navigatorObserver.navigator?.overlay;
       }
 
-      // 修改代码开始
-      // 增强边界检查，避免空指针异常
       Element? rootElement = WidgetsBinding.instance.renderViewElement;
       if (rootElement == null) {
         developer.log('根元素不可用，无法查找 OverlayState');
         return null;
       }
-      // 修改代码结束
 
       OverlayState? overlayState;
       void visitor(Element element) {
@@ -325,8 +321,6 @@ class LogUtil {
   // 启动自动隐藏计时器（优化为逐条移除）
   static void _startAutoHideTimer() {
     _timer?.cancel();
-    // 修改代码开始
-    // 改为固定单条消息显示时间，逐条移除
     _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
       if (_debugMessages.isNotEmpty) {
         _debugMessages.removeLast();
@@ -372,7 +366,6 @@ class LogUtil {
         _timer = null;
       }
     });
-    // 修改代码结束
   }
 
   // 记录错误日志
@@ -389,7 +382,7 @@ class LogUtil {
     }
 
     await _log('e',
-        '错误: $message\n错误详情: $error\n堆栈信息: ${_extractStackInfo(stackTrace: stackTrace)}',
+        '错误: $message\n错误详情: $error\n堆栈信息: ${_getFileAndLine(stackTrace: stackTrace)}', // 修改为参考代码方式
         _defTag);
   }
 
@@ -409,33 +402,32 @@ class LogUtil {
     }
   }
 
-  // 提取堆栈信息（优化以提供更多帧）
-  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+):?\d*');
-  static String _extractStackInfo({StackTrace? stackTrace}) {
+  // 修改代码开始
+  // 按参考代码方式获取文件名和行号，仅返回单一帧，从第 3 帧开始遍历
+  static String _getFileAndLine({StackTrace? stackTrace}) {
     try {
       final frames = (stackTrace ?? StackTrace.current).toString().split('\n');
-      // 修改代码开始
-      // 返回前 3 个有效帧，减少 Unknown 的出现
-      List<String> validFrames = [];
-      for (int i = 0; i < frames.length && validFrames.length < 3; i++) {
+
+      // 记录完整堆栈信息到日志，便于调试
+      String frameInfo = frames.join('\n');
+      developer.log('堆栈信息:\n$frameInfo');
+
+      // 从第 3 帧（索引 2）开始遍历，跳过日志框架本身的调用
+      for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
-        if (frame.isEmpty || frame.contains('log_util.dart')) continue;
-        final match = _stackFramePattern.firstMatch(frame);
-        if (match != null) {
-          validFrames.add('${match.group(1)}:${match.group(2)}');
+        // 使用参考代码的正则表达式，忽略列号
+        final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
+        // 过滤掉 LogUtil 自身的堆栈帧
+        if (match != null && !frame.contains('log_util.dart')) {
+          return '${match.group(1)}:${match.group(2)}';
         }
       }
-      if (validFrames.isEmpty) {
-        developer.log('未找到有效堆栈帧，返回 Unknown，完整堆栈: ${frames.join('\n')}');
-        return 'Unknown';
-      }
-      return validFrames.join(' -> ');
-      // 修改代码结束
     } catch (e) {
-      developer.log('提取堆栈信息失败: $e');
-      return 'Unknown';
+      return 'Unknown'; // 异常时返回 Unknown，不记录额外日志
     }
+    return 'Unknown';
   }
+  // 修改代码结束
 
   // 解析日志字符串
   static Map<String, String> _parseLogString(String logStr) {
