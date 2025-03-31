@@ -8,7 +8,7 @@ import 'package:sp_util/sp_util.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
-import 'provider/download_provider.dart';
+import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
@@ -26,249 +26,272 @@ import 'package:itvapp_live_tv/setting/setting_page.dart';
 
 // 添加应用常量类
 class AppConstants {
-  static const String appTitle = 'ITVAPP LIVETV';
-  static const Duration screenCheckDuration = Duration(milliseconds: 500);
-  static const Size defaultWindowSize = Size(414, 414 * 16 / 9);
-  static const Size minimumWindowSize = Size(300, 300 * 9 / 16);
-  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
+  static const double aspectRatio = 16 / 9; // 定义统一的宽高比常量，避免重复计算
+  static const String appTitle = 'ITVAPP LIVETV'; // 应用程序标题常量
+  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕检查延迟时间常量
+  static const Size defaultWindowSize = Size(414, 414 * aspectRatio); // 使用宽高比计算默认窗口大小
+  static const Size minimumWindowSize = Size(300, 300 * aspectRatio); // 使用宽高比计算最小窗口大小
+  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速状态的缓存键
 }
 
-// 应用程序的入口函数，使用 async 关键字以确保异步操作可以在启动时完成
+// 定义全局状态管理器列表，提供下载和语言功能的静态提供者
+final List<ChangeNotifierProvider> _staticProviders = [
+  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()), // 下载功能的状态提供者
+  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言切换的状态提供者
+];
+
+// 应用程序入口函数，异步初始化以确保启动时完成必要操作
 void main() async {
-  // 错误处理初始化
+  // 初始化 Flutter 错误处理，记录未捕获的异常
   FlutterError.onError = (FlutterErrorDetails details) {
-    // 记录错误到日志中
-    LogUtil.logError('Uncaught Flutter error', details.exception, details.stack);
-    // 继续使用Flutter默认的错误报告
-    FlutterError.dumpErrorToConsole(details);
+    LogUtil.logError('Uncaught Flutter error', details.exception, details.stack); // 记录异常到日志
+    FlutterError.dumpErrorToConsole(details); // 输出错误到控制台
   };
 
-  // 确保 WidgetsFlutterBinding 已经初始化，必要时会为应用的生命周期提供必要的绑定
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 使用 Future.wait 优化并行初始化操作
-  await Future.wait([
-    WakelockPlus.enable(),
-    SpUtil.getInstance(),
-  ]);
+  WidgetsFlutterBinding.ensureInitialized(); // 确保 Flutter 绑定初始化完成
 
   // 初始化主题提供者并确保正确初始化完成
   ThemeProvider themeProvider = ThemeProvider();
-  await themeProvider.initialize();
+  // 并行执行初始化操作以优化启动时间
+  await Future.wait([
+    WakelockPlus.enable(), // 启用屏幕常亮功能
+    SpUtil.getInstance(),  // 初始化本地存储工具
+    themeProvider.initialize(), // 初始化主题提供者
+  ]);
 
-  // 如果当前环境不是移动端
-  if (!EnvUtil.isMobile) {
-    await _initializeDesktop();
+  if (!EnvUtil.isMobile) { // 判断是否为非移动端环境
+    await _initializeDesktop(); // 初始化桌面端窗口设置
   }
 
-  // 硬件加速检测和缓存逻辑
+  // 检查并缓存硬件加速状态，提供错误处理和用户反馈
   try {
-    // 检查缓存中是否已有硬件加速状态
-    bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey);
+    bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey); // 从缓存获取硬件加速状态
     if (isHardwareEnabled == null) {
-      // 如果缓存中没有值，则检测并存入缓存
-      isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled();
-      await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled);
-      LogUtil.d('首次检测硬件加速支持，结果: $isHardwareEnabled，已存入缓存');
+      isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled(); // 检测硬件加速支持
+      await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled); // 存入缓存
+      LogUtil.d('首次检测硬件加速支持，结果: $isHardwareEnabled，已存入缓存'); // 记录检测结果
     } else {
-      LogUtil.d('从缓存读取硬件加速状态: $isHardwareEnabled');
+      LogUtil.d('从缓存读取硬件加速状态: $isHardwareEnabled'); // 记录缓存读取结果
     }
-  } catch (e) {
-    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}');
-    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时缓存默认值
+  } catch (e, stackTrace) {
+    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}'); // 记录硬件加速检测错误
+    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
+    EasyLoading.showError('硬件加速检测失败，已禁用'); // 显示错误提示
   }
 
-  // 运行应用，并使用 MultiProvider 进行全局状态管理
+  // 启动应用并配置全局状态管理
   runApp(MultiProvider(
     providers: [
-      ChangeNotifierProvider.value(value: themeProvider),
-      ChangeNotifierProvider(create: (_) => DownloadProvider()),
-      ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ChangeNotifierProvider.value(value: themeProvider), // 提供主题状态管理
+      ..._staticProviders, // 扩展静态提供者列表
     ],
-    child: const MyApp(),
+    child: const MyApp(), // 加载主应用界面
   ));
 
-  // 如果当前平台是 Android，设置状态栏为透明
-  if (Platform.isAndroid) {
+  // 设置移动端状态栏为透明，确保跨平台一致性
+  if (Platform.isAndroid || Platform.isIOS) {
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(statusBarColor: Colors.transparent)
+      const SystemUiOverlayStyle(statusBarColor: Colors.transparent), // 设置透明状态栏
     );
   }
 }
 
-// 提取桌面端初始化的逻辑以提高代码的维护性
+// 初始化桌面端窗口配置，包含错误处理
 Future<void> _initializeDesktop() async {
-  await windowManager.ensureInitialized();
-  final windowOptions = WindowOptions(
-    size: AppConstants.defaultWindowSize,
-    minimumSize: AppConstants.minimumWindowSize,
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-    title: AppConstants.appTitle,
-  );
+  try {
+    await windowManager.ensureInitialized(); // 确保窗口管理器初始化完成
+    final windowOptions = WindowOptions(
+      size: AppConstants.defaultWindowSize, // 设置默认窗口大小
+      minimumSize: AppConstants.minimumWindowSize, // 设置最小窗口大小
+      center: true, // 窗口居中显示
+      backgroundColor: Colors.transparent, // 窗口背景透明
+      skipTaskbar: false, // 显示在任务栏
+      titleBarStyle: TitleBarStyle.hidden, // 隐藏标题栏
+      title: AppConstants.appTitle, // 设置窗口标题
+    );
 
-  // 等待窗口准备好再显示，可并行执行显示和聚焦操作
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await Future.wait([
-      windowManager.show(),
-      windowManager.focus(),
-    ]);
-  });
+    // 等待窗口准备好后显示并聚焦
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await Future.wait([
+        windowManager.show(), // 显示窗口
+        windowManager.focus(), // 聚焦窗口
+      ]);
+    });
+  } catch (e, stackTrace) {
+    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}'); // 记录窗口初始化错误
+  }
 }
 
-// 提取路由配置以提高代码的维护性
+// 定义应用路由表，管理页面跳转
 class AppRouter {
   static final Map<String, WidgetBuilder> routes = {
-    RouterKeys.subScribe: (BuildContext context) => const SubScribePage(),
-    RouterKeys.setting: (BuildContext context) => const SettingPage(),
-    RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),
-    RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(),
-    RouterKeys.settinglog: (BuildContext context) => SettinglogPage(),
+    RouterKeys.subScribe: (BuildContext context) => const SubScribePage(), // 订阅页面路由
+    RouterKeys.setting: (BuildContext context) => const SettingPage(), // 设置页面路由
+    RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(), // 字体设置页面路由
+    RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(), // 美化设置页面路由
+    RouterKeys.settinglog: (BuildContext context) => SettinglogPage(), // 日志设置页面路由
   };
 }
 
-// 主应用界面
+// 主应用界面类，管理应用状态和主题
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key}); // 构造函数，接收可选键值
 
   @override
-  _MyAppState createState() => _MyAppState();
+  _MyAppState createState() => _MyAppState(); // 创建状态对象
 }
 
 class _MyAppState extends State<MyApp> {
-  late final ThemeProvider _themeProvider;
+  late final ThemeProvider _themeProvider; // 延迟初始化主题提供者
+  final Map<String?, ThemeData> _themeCache = {}; // 主题数据缓存
 
   @override
   void initState() {
     super.initState();
-    _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    _initializeApp();
+    _themeProvider = Provider.of<ThemeProvider>(context, listen: false); // 获取主题提供者实例
+    _initializeApp(); // 执行应用初始化
   }
 
-  // 应用初始化操作
+  // 异步初始化应用，检查设备类型
   Future<void> _initializeApp() async {
-    await _themeProvider.checkAndSetIsTV(); // 检查并设置设备是否为电视
+    await _themeProvider.checkAndSetIsTV(); // 检查并设置是否为电视设备
   }
 
-  // 处理返回键的逻辑，确保正确的退出交互
+  // 处理返回键逻辑，决定是否退出应用
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_isAtSplashScreen(context)) {
+    if (_isAtSplashScreen(context)) { // 判断是否在启动界面
       return await ShowExitConfirm.ExitConfirm(context); // 显示退出确认对话框
     }
-    
-    final orientationChanged = await _checkOrientationChange(context);
-    if (!orientationChanged && !Navigator.canPop(context)) {
-      return await ShowExitConfirm.ExitConfirm(context); // 仅在非方向更改和不可弹出导航时退出
+
+    final orientationChanged = await _checkOrientationChange(context); // 检查屏幕方向变化
+    if (!orientationChanged && !_canPop(context)) { // 无方向变化且无法返回
+      return await ShowExitConfirm.ExitConfirm(context); // 显示退出确认
     }
-    
-    return false; // 默认返回 false，不处理返回键
+
+    return false; // 允许正常返回
   }
 
-  // 检查当前界面是否是启动画面
+  // 判断当前是否为启动界面
   bool _isAtSplashScreen(BuildContext context) {
-    final currentRoute = ModalRoute.of(context)?.settings.name;
-    return currentRoute == SplashScreen().toString() || !Navigator.canPop(context);
+    final currentRoute = ModalRoute.of(context)?.settings.name; // 获取当前路由名称
+    return currentRoute == SplashScreen().toString() || !_canPop(context); // 检查是否启动页
   }
 
-  // 检查设备方向是否改变
+  // 检查导航器是否可返回上一页
+  bool _canPop(BuildContext context) {
+    return Navigator.canPop(context); // 返回导航器可弹出状态
+  }
+
+  // 检查设备方向变化并延迟确认
   Future<bool> _checkOrientationChange(BuildContext context) async {
-    final initialOrientation = MediaQuery.of(context).orientation;
-    await Future.delayed(AppConstants.screenCheckDuration);
-    return MediaQuery.of(context).orientation != initialOrientation;
+    final initialOrientation = MediaQuery.of(context).orientation; // 获取初始方向
+    if (MediaQuery.of(context).orientation == initialOrientation) { // 方向未变
+      return false; // 返回无变化
+    }
+    await Future.delayed(AppConstants.screenCheckDuration); // 延迟检查
+    return MediaQuery.of(context).orientation != initialOrientation; // 返回方向是否改变
   }
 
-  // 提取主题构建逻辑，提高代码的可维护性
+  // 构建主题数据并使用缓存优化性能
   ThemeData _buildTheme(String? fontFamily) {
-    return ThemeData(
-      brightness: Brightness.dark, // 设置亮度为暗色
-      fontFamily: fontFamily,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.redAccent, // 使用种子颜色生成颜色方案
-        brightness: Brightness.dark
-      ),
-      scaffoldBackgroundColor: Colors.black, // 设置背景色为黑色
+    if (_themeCache.containsKey(fontFamily)) { // 检查缓存中是否已有字体
+      return _themeCache[fontFamily]!; // 返回缓存字体
+    }
+
+    final theme = ThemeData(
+      brightness: Brightness.dark, // 暗色主题
+      scaffoldBackgroundColor: const Color(0xFF1A1A1A), // 深灰色背景，无渐变
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: Color(0xFF1A1A1A), // 深灰色，与背景一致
+        foregroundColor: Colors.white, // 前景色为白色，确保图标和文字高对比度
+        elevation: 0, // 无阴影
         centerTitle: true, // 标题居中
       ),
-      useMaterial3: true, // 使用Material3设计规范
+      useMaterial3: true, // 保留 Material 3 支持
+      fontFamily: fontFamily, // 支持动态字体
     );
+
+    _themeCache[fontFamily] = theme; // 缓存新构建的主题
+    return theme; // 返回主题数据
   }
 
   @override
   Widget build(BuildContext context) {
     return Selector<LanguageProvider, Locale>(
-      selector: (_, provider) => provider.currentLocale,
+      selector: (_, provider) => provider.currentLocale, // 选择当前语言环境
       builder: (context, locale, _) {
         return Selector<ThemeProvider, ({String fontFamily, double textScaleFactor})>(
           selector: (_, provider) => (
-            fontFamily: provider.fontFamily,
-            textScaleFactor: provider.textScaleFactor
+            fontFamily: provider.fontFamily, // 选择字体
+            textScaleFactor: provider.textScaleFactor // 选择文本缩放比例
           ),
-          builder: _buildMaterialApp, // 使用提取的构建逻辑
+          builder: _buildMaterialApp, // 构建 MaterialApp
         );
       },
     );
   }
 
-  // 提取 MaterialApp 的构建逻辑以提高代码维护性
+  // 构建 MaterialApp，提供应用核心界面
   Widget _buildMaterialApp(
     BuildContext context,
     ({String fontFamily, double textScaleFactor}) data,
     Widget? child
   ) {
-    final languageProvider = Provider.of<LanguageProvider>(context);
-    final String? effectiveFontFamily = data.fontFamily == 'system' ? null : data.fontFamily;
-    
+    final String? effectiveFontFamily = data.fontFamily == 'system' ? null : data.fontFamily; // 处理字体选择
+
     return MaterialApp(
-      title: AppConstants.appTitle,
-      theme: _buildTheme(effectiveFontFamily),
-      locale: languageProvider.currentLocale,
-      routes: AppRouter.routes,
+      title: AppConstants.appTitle, // 设置应用标题
+      theme: _buildTheme(effectiveFontFamily), // 应用主题配置
+      locale: Provider.of<LanguageProvider>(context).currentLocale, // 设置当前语言环境
+      routes: AppRouter.routes, // 配置路由表
       localizationsDelegates: const [
-        S.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate
+        S.delegate, // 本地化代理
+        GlobalMaterialLocalizations.delegate, // Material 本地化
+        GlobalCupertinoLocalizations.delegate, // Cupertino 本地化
+        GlobalWidgetsLocalizations.delegate // Widgets 本地化
       ],
-      supportedLocales: S.delegate.supportedLocales,
+      supportedLocales: S.delegate.supportedLocales, // 支持的语言环境列表
       localeResolutionCallback: (locale, supportedLocales) {
-        if (locale != null) {
-          // 针对中文地区的特殊处理
-          if (locale.languageCode == 'zh' &&
-              (locale.countryCode == 'TW' || locale.countryCode == 'HK' || locale.countryCode == 'MO')) {
-            return const Locale('zh', 'TW');
-          }
-          if (locale.languageCode == 'zh' &&
-              (locale.countryCode == 'CN' || locale.countryCode == null)) {
-            return const Locale('zh', 'CN');
-          }
-          // 查找支持的地区并返回匹配的地区
-          return supportedLocales.firstWhere(
-            (supportedLocale) =>
-                supportedLocale.languageCode == locale.languageCode &&
-                (supportedLocale.countryCode == locale.countryCode ||
-                    supportedLocale.countryCode == null),
-            orElse: () => supportedLocales.first,
-          );
+        if (locale == null) { // 如果语言环境为空
+          return supportedLocales.first; // 返回默认语言
         }
-        return supportedLocales.first; // 默认返回第一个支持的地区
+
+        // 处理中文地区的语言映射
+        const localeMap = {
+          'zh_TW': Locale('zh', 'TW'), // 繁体中文（台湾）
+          'zh_HK': Locale('zh', 'TW'), // 繁体中文（香港）
+          'zh_MO': Locale('zh', 'TW'), // 繁体中文（澳门）
+          'zh_CN': Locale('zh', 'CN'), // 简体中文（中国）
+          'zh': Locale('zh', 'CN'), // 默认简体中文
+        };
+
+        final key = locale.countryCode != null
+            ? '${locale.languageCode}_${locale.countryCode}' // 构建语言代码
+            : locale.languageCode;
+
+        if (localeMap.containsKey(key)) { // 检查映射表
+          return localeMap[key]; // 返回映射语言
+        }
+
+        return supportedLocales.firstWhere(
+          (supportedLocale) =>
+              supportedLocale.languageCode == locale.languageCode && // 匹配语言代码
+              (supportedLocale.countryCode == locale.countryCode || // 匹配国家代码
+                  supportedLocale.countryCode == null),
+          orElse: () => supportedLocales.first, // 默认返回首个支持语言
+        );
       },
-      debugShowCheckedModeBanner: false, // 关闭调试模式标志
+      debugShowCheckedModeBanner: false, // 隐藏调试横幅
       home: WillPopScope(
-        onWillPop: () => _handleBackPress(context), // 绑定返回键处理函数
-        child: SplashScreen(), // 启动画面
+        onWillPop: () => _handleBackPress(context), // 处理返回键事件
+        child: SplashScreen(), // 设置启动页面
       ),
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(data.textScaleFactor) // 设置文本缩放因子
+            textScaler: TextScaler.linear(data.textScaleFactor) // 设置文本缩放比例
           ),
-          child: FlutterEasyLoading(child: child), // 包裹子组件以显示加载动画
+          child: FlutterEasyLoading(child: child), // 添加加载指示器
         );
       },
     );
