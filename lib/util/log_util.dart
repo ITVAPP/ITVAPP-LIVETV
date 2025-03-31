@@ -17,10 +17,9 @@ class LogUtil {
   // 内存存储相关
   static final List<String> _memoryLogs = [];
   static final List<String> _newLogsBuffer = [];
-  static const int _writeThreshold = 5; // _newLogsBuffer 累积5条日志才写入本地
-  static const int _memoryLogLimit = 100; // _memoryLogs 限制为 100 条
+  static const int _writeThreshold = 5; // 累积5条日志才写入本地
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
-  static String _logFilePath = ''; // 修改为非空类型，初始化为空
+  static String? _logFilePath; // 可空类型，确保路径缓存
 
   // 弹窗相关属性
   static bool _showOverlay = false; // 控制是否显示弹窗
@@ -35,9 +34,8 @@ class LogUtil {
       _memoryLogs.clear(); // 初始化时先清空内存
       _newLogsBuffer.clear(); // 初始化时先清空缓冲区
 
-      final directory = await getApplicationDocumentsDirectory();
-      _logFilePath = '${directory.path}/$_logFileName'; // 直接赋值
-      final file = File(_logFilePath);
+      _logFilePath ??= await _getLogFilePath(); // 确保路径在 init 时初始化
+      final file = File(_logFilePath!);
 
       if (!await file.exists()) {
         await file.create();
@@ -57,7 +55,10 @@ class LogUtil {
 
   // 获取日志文件路径（异步逻辑+缓存）
   static Future<String> _getLogFilePath() async {
-    return _logFilePath; // 直接返回，无需重复计算
+    if (_logFilePath != null) return _logFilePath!;
+    final directory = await getApplicationDocumentsDirectory();
+    _logFilePath = '${directory.path}/$_logFileName';
+    return _logFilePath!;
   }
 
   // 设置调试模式
@@ -127,15 +128,10 @@ class LogUtil {
       String logMessage =
           '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
 
-      // 添加到 _newLogsBuffer（新日志在前）
+      // 添加到内存和缓冲区（新日志在前），移除上限限制
+      _memoryLogs.insert(0, logMessage);
       _newLogsBuffer.insert(0, logMessage);
 
-      // 限制 _newLogsBuffer 为 5 条
-      if (_newLogsBuffer.length > _writeThreshold) {
-        _newLogsBuffer.removeRange(_writeThreshold, _newLogsBuffer.length);
-      }
-
-      // 当 _newLogsBuffer 满 5 条时触发写入
       if (_newLogsBuffer.length >= _writeThreshold) {
         await _flushToLocal();
       }
@@ -156,33 +152,19 @@ class LogUtil {
     }
   }
 
-  // 将日志写入本地文件（追加模式，处理 _memoryLogs 和 _newLogsBuffer）
+  // 将日志写入本地文件（保留全量写入逻辑）
   static Future<void> _flushToLocal() async {
     if (_newLogsBuffer.isEmpty || _isOperating) return;
     _isOperating = true;
     List<String> logsToWrite = [];
     try {
       logsToWrite = List.from(_newLogsBuffer);
-
-      // 将 _newLogsBuffer 的 5 条追加到 _memoryLogs
-      _memoryLogs.insertAll(0, logsToWrite);
-
-      // 限制 _memoryLogs 为 100 条，移除最早的日志
-      if (_memoryLogs.length > _memoryLogLimit) {
-        _memoryLogs.removeRange(_memoryLogLimit, _memoryLogs.length);
-      }
-
-      // 删除 _memoryLogs 前 5 条（最早的 5 条）
-      if (_memoryLogs.length > _writeThreshold) {
-        _memoryLogs.removeRange(_memoryLogs.length - _writeThreshold, _memoryLogs.length);
-      }
-
-      // 写入文件（追加模式）
-      final file = File(_logFilePath);
-      await file.writeAsString(logsToWrite.join('\n') + '\n', mode: FileMode.append);
-
-      // 清空 _newLogsBuffer
       _newLogsBuffer.clear();
+
+      final filePath = await _getLogFilePath(); // 确保路径可用
+      final file = File(filePath);
+
+      await file.writeAsString(_memoryLogs.join('\n') + '\n');
     } catch (e) {
       developer.log('写入日志文件失败: $e');
       _newLogsBuffer.insertAll(0, logsToWrite);
@@ -191,9 +173,10 @@ class LogUtil {
     }
   }
 
-  // 显示调试消息（复用 _parseLogString）
+  // 显示调试消息
   static void _showDebugMessage(String message) {
-    final parsedLog = _parseLogString('[${DateTime.now()}] [未知级别] [$_defTag] | $message | ${_extractStackInfo()}');
+    // 使用公共解析方法
+    final parsedLog = _parseLogString('[未知时间] [未知级别] [$_defTag] | $message | 未知文件');
     String displayMessage = '${parsedLog['time']}\n${parsedLog['message']}\n${parsedLog['fileInfo']}';
 
     _debugMessages.insert(0, displayMessage);
@@ -275,13 +258,24 @@ class LogUtil {
     _overlayEntry = null;
   }
 
-  // 启动自动隐藏计时器（优化为单次 Timer）
+  // 启动自动隐藏计时器（优化资源清理）
   static void _startAutoHideTimer() {
     _timer?.cancel();
-    _timer = Timer(Duration(seconds: _messageDisplayDuration * _debugMessages.length), () {
-      _debugMessages.clear();
-      _hideOverlay();
-      _timer = null;
+    _timer = Timer.periodic(Duration(seconds: _messageDisplayDuration), (timer) {
+      if (_debugMessages.isEmpty) {
+        _hideOverlay();
+        timer.cancel();
+        _timer = null;
+      } else {
+        _debugMessages.removeLast();
+        if (_debugMessages.isEmpty) {
+          _hideOverlay();
+          timer.cancel();
+          _timer = null;
+        } else {
+          _overlayEntry?.markNeedsBuild();
+        }
+      }
     });
   }
 
@@ -319,25 +313,21 @@ class LogUtil {
     }
   }
 
-  // 提取堆栈信息（添加缓存）
-  static String _lastStackInfo = 'Unknown'; // 缓存最近堆栈信息
-
+  // 提取堆栈信息（合并 _getFileAndLine 和 _processStackTrace）
   static String _extractStackInfo({StackTrace? stackTrace}) {
-    if (stackTrace == null) return _lastStackInfo; // 使用缓存
     try {
-      final frames = stackTrace.toString().split('\n');
+      final frames = (stackTrace ?? StackTrace.current).toString().split('\n');
       for (int i = 2; i < frames.length; i++) {
         final frame = frames[i];
         final match = RegExp(r'([^/\\]+\.dart):(\d+)').firstMatch(frame);
         if (match != null && !frame.contains('log_util.dart')) {
-          _lastStackInfo = '${match.group(1)}:${match.group(2)}';
-          return _lastStackInfo;
+          return '${match.group(1)}:${match.group(2)}';
         }
       }
     } catch (e) {
-      return _lastStackInfo;
+      return 'Unknown';
     }
-    return _lastStackInfo;
+    return 'Unknown';
   }
 
   // 解析日志字符串（提取公共逻辑）
@@ -395,13 +385,14 @@ class LogUtil {
     }
   }
 
-  // 清理日志（增强并发控制）
+  // 清理日志
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
-    if (_isOperating) return; // 一致性检查
+    if (_isOperating) return;
     _isOperating = true;
 
     try {
-      final file = File(_logFilePath);
+      final filePath = await _getLogFilePath(); // 确保路径可用
+      final file = File(filePath);
 
       if (level == null) {
         // 清理所有日志
