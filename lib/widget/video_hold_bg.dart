@@ -2,29 +2,30 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'dart:io'; 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:itvapp_live_tv/util/bing_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/music_bars.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 定义背景状态类，管理 Bing 图片切换相关属性
+/// 背景图片状态管理类
+/// - 此类封装了背景图片的相关状态，比如当前图片索引、动画状态、是否启用Bing背景等
+/// - 支持通过 `copyWith` 方法生成新状态对象，保持状态不可变性
 class BingBackgroundState {
-  final List<String> imageUrls; // 图片 URL 列表
-  final int currentIndex; // 当前显示图片索引
-  final int nextIndex; // 下一张图片索引
-  final bool isAnimating; // 是否正在执行动画
-  final bool isTransitionLocked; // 是否锁定切换状态
-  final int currentAnimationType; // 当前动画类型
-  final bool isBingLoaded; // Bing 图片是否加载完成
-  final bool isEnabled; // 是否启用 Bing 背景
+  final List<String> imageUrls; // 图片URL列表，存储从Bing加载的背景图片URL
+  final int currentIndex; // 当前显示的图片索引
+  final int nextIndex; // 即将显示的下一张图片索引
+  final bool isAnimating; // 标志是否正在执行背景切换动画
+  final bool isTransitionLocked; // 标志是否锁定背景切换，避免冲突
+  final int currentAnimationType; // 当前使用的背景切换动画类型
+  final bool isBingLoaded; // 标志是否成功加载了Bing图片
+  final bool isEnabled; // 标志是否启用了Bing背景功能
 
   const BingBackgroundState({
     required this.imageUrls,
@@ -37,7 +38,8 @@ class BingBackgroundState {
     required this.isEnabled,
   });
 
-  // 创建新状态副本，支持部分属性更新
+  /// 创建状态副本，支持更新特定字段
+  /// - 参数为可选类型，传入新值时会替换对应字段
   BingBackgroundState copyWith({
     List<String>? imageUrls,
     int? currentIndex,
@@ -61,12 +63,21 @@ class BingBackgroundState {
   }
 }
 
-// 视频占位背景组件，支持显示 Bing 图片或默认背景
+/// 视频占位背景组件
+/// - 该组件用于显示频道信息、Bing背景图等
+/// - 支持可选的Bing背景模式
 class VideoHoldBg extends StatefulWidget {
-  final String? toastString; // 提示文本
-  final String? currentChannelLogo; // 当前频道标志 URL
-  final String? currentChannelTitle; // 当前频道标题
-  final bool showBingBackground; // 是否显示 Bing 背景
+  /// Toast提示文本
+  final String? toastString;
+  
+  /// 当前频道logo
+  final String? currentChannelLogo;
+  
+  /// 当前频道标题
+  final String? currentChannelTitle;
+  
+  /// 是否显示必应背景
+  final bool showBingBackground;
 
   const VideoHoldBg({
     Key? key,
@@ -80,10 +91,11 @@ class VideoHoldBg extends StatefulWidget {
   VideoHoldBgState createState() => VideoHoldBgState();
 }
 
-// 频道标志组件，支持加载远程图片或默认标志
+/// 频道Logo组件
+/// - 用于显示频道Logo，支持从网络加载和缓存机制
 class ChannelLogo extends StatefulWidget {
-  final String? logoUrl; // 标志图片 URL
-  final bool isPortrait; // 是否为竖屏模式
+  final String? logoUrl; // 频道Logo的URL
+  final bool isPortrait; // 是否为纵向模式
 
   const ChannelLogo({
     Key? key,
@@ -96,53 +108,59 @@ class ChannelLogo extends StatefulWidget {
 }
 
 class _ChannelLogoState extends State<ChannelLogo> {
-  static const double maxLogoSize = 58.0; // 标志最大尺寸
+  static const double maxLogoSize = 58.0; // Logo的最大尺寸
 
-  // 生成缓存键基于 URL 的路径部分
+  /// 根据URL生成缓存的Key
   String _getCacheKey(String url) {
     return 'logo_${Uri.parse(url).pathSegments.last}';
   }
 
-  // 加载缓存或下载标志图片
-  Future<Uint8List?> _loadCachedImage(String url) async {
-    if (url.isEmpty) return null;
+  /// 加载Logo，支持SP缓存
+  /// - 优先从缓存中加载，如果缓存损坏或不存在，则从网络获取
+  Future<Uint8List?> _loadLogo() async {
+    if (widget.logoUrl == null || widget.logoUrl!.isEmpty) {
+      return null; // 返回null表示没有Logo
+    }
 
     try {
-      final String cacheKey = _getCacheKey(url);
+      final String cacheKey = _getCacheKey(widget.logoUrl!);
+      
+      // 1. 尝试从缓存加载
       final String? base64Data = SpUtil.getString(cacheKey);
       if (base64Data != null && base64Data.isNotEmpty) {
         try {
-          return base64.decode(base64Data);
+          return base64.decode(base64Data); // 解码Base64数据
         } catch (e) {
-          await SpUtil.remove(cacheKey);
+          await SpUtil.remove(cacheKey); // 缓存损坏，移除无效数据
           LogUtil.logError('缓存的Logo数据已损坏，已删除', e);
         }
       }
 
+      // 2. 从网络加载
       final response = await HttpUtil().getRequestWithResponse(
-        url,
+        widget.logoUrl!,
         options: Options(
           extra: {
-            'connectTimeout': const Duration(seconds: 5),
-            'receiveTimeout': const Duration(seconds: 12),
+            'connectTimeout': const Duration(seconds: 5),  // 连接超时 5 秒
+            'receiveTimeout': const Duration(seconds: 12), // 下载超时 12 秒
           },
         ),
       );
 
-      if (response?.statusCode == 200 && response?.data is Uint8List) {
-        final Uint8List imageData = response!.data as Uint8List;
-        await SpUtil.putString(cacheKey, base64.encode(imageData));
+      if (response?.statusCode == 200) {
+        final Uint8List imageData = response!.data as Uint8List; // 从 response.data 获取字节数据
+        await SpUtil.putString(cacheKey, base64.encode(imageData)); // 将数据存入缓存
         return imageData;
       }
 
-      return null;
+      return null; // 加载失败
     } catch (e) {
-      LogUtil.logError('加载图片失败: $url', e);
+      LogUtil.logError('加载频道Logo失败', e);
       return null;
     }
   }
 
-  // 默认标志图片
+  /// 默认的Logo Widget
   Widget get _defaultLogo => Image.asset(
         'assets/images/logo-2.png',
         fit: BoxFit.cover,
@@ -174,7 +192,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
           padding: const EdgeInsets.all(2),
           child: ClipOval(
             child: FutureBuilder<Uint8List?>(
-              future: _loadCachedImage(widget.logoUrl ?? ''),
+              future: _loadLogo(),
               builder: (context, snapshot) {
                 if (snapshot.hasData && snapshot.data != null) {
                   return Image.memory(
@@ -193,10 +211,11 @@ class _ChannelLogoState extends State<ChannelLogo> {
   }
 }
 
-// 音频条包装组件，控制音频可视化效果显示
+/// 音频可视化组件
+/// - 包裹音频可视化条，控制显示与隐藏
 class AudioBarsWrapper extends StatelessWidget {
-  final GlobalKey<DynamicAudioBarsState> audioBarKey; // 音频条状态键
-  final bool isActive; // 是否激活音频条
+  final GlobalKey<DynamicAudioBarsState> audioBarKey; // 动态音频条组件的Key
+  final bool isActive; // 是否激活音频条显示
 
   const AudioBarsWrapper({
     Key? key,
@@ -206,13 +225,13 @@ class AudioBarsWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!isActive) return const SizedBox.shrink();
+    if (!isActive) return const SizedBox.shrink(); // 如果未激活，返回空组件
 
     return Positioned(
       left: 0,
       right: 0,
       bottom: 0,
-      height: MediaQuery.of(context).size.height * 0.3,
+      height: MediaQuery.of(context).size.height * 0.3, // 音频条高度为屏幕高度的30%
       child: RepaintBoundary(
         child: DynamicAudioBars(
           key: audioBarKey,
@@ -222,11 +241,12 @@ class AudioBarsWrapper extends StatelessWidget {
   }
 }
 
-// 背景切换动画组件，支持多种过渡效果
+/// 背景动画组件
+/// - 根据指定的动画类型实现背景切换的过渡效果
 class BackgroundTransition extends StatelessWidget {
-  final String imageUrl; // 图片 URL
+  final String imageUrl; // 图片URL
   final int animationType; // 动画类型
-  final VoidCallback? onTransitionComplete; // 动画完成回调
+  final VoidCallback? onTransitionComplete; // 动画完成后的回调
 
   const BackgroundTransition({
     Key? key,
@@ -235,24 +255,7 @@ class BackgroundTransition extends StatelessWidget {
     this.onTransitionComplete,
   }) : super(key: key);
 
-  static const Duration _fadeDuration = Duration(milliseconds: 3000); // 淡入淡出持续时间
-  static const Duration _scaleDuration = Duration(milliseconds: 3500); // 缩放持续时间
-  static const Curve _easeInOut = Curves.easeInOut; // 缓入缓出曲线
-  static const Curve _easeOutCubic = Curves.easeOutCubic; // 缓出立方曲线
-
-  // 构建背景图片容器
-  Widget _buildBackgroundImage(String path) {
-    return Container(
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          fit: BoxFit.cover,
-          image: FileImage(File(path)),
-        ),
-      ),
-    );
-  }
-
-  // 平滑淡入过渡效果
+  /// 平滑渐变过渡效果
   Widget _buildSmoothFadeTransition(Widget child) {
     return child
         .animate(
@@ -261,24 +264,24 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3200.ms,
+          curve: Curves.easeInOut,
         )
         .scale(
           begin: const Offset(1.1, 1.1),
           end: const Offset(1.0, 1.0),
-          duration: _scaleDuration,
-          curve: _easeOutCubic,
+          duration: 3500.ms,
+          curve: Curves.easeOutCubic,
         )
         .blur(
           begin: const Offset(8, 8),
           end: const Offset(0, 0),
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3000.ms,
+          curve: Curves.easeInOut,
         );
   }
 
-  // Ken Burns 风格过渡效果
+  /// Ken Burns 动画效果
   Widget _buildKenBurnsTransition(Widget child) {
     return child
         .animate(
@@ -287,24 +290,24 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3000.ms,
+          curve: Curves.easeInOut,
         )
         .scale(
           begin: const Offset(1.0, 1.0),
           end: const Offset(1.15, 1.15),
-          duration: Duration(milliseconds: 4500),
+          duration: 4500.ms,
           curve: Curves.easeInOutCubic,
         )
         .blur(
           begin: const Offset(10, 10),
           end: const Offset(0, 0),
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3000.ms,
+          curve: Curves.easeInOut,
         );
   }
 
-  // 方向性过渡效果
+  /// 方向性滑动切换效果
   Widget _buildDirectionalTransition(Widget child) {
     return child
         .animate(
@@ -313,31 +316,31 @@ class BackgroundTransition extends StatelessWidget {
         .fade(
           begin: 0.0,
           end: 1.0,
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3000.ms,
+          curve: Curves.easeInOut,
         )
         .slideX(
           begin: 0.3,
           end: 0.0,
-          duration: _scaleDuration,
-          curve: _easeOutCubic,
+          duration: 3500.ms,
+          curve: Curves.easeOutCubic,
         )
         .scale(
           begin: const Offset(1.1, 1.1),
           end: const Offset(1.0, 1.0),
           delay: 500.ms,
-          duration: _fadeDuration,
-          curve: _easeOutCubic,
+          duration: 3000.ms,
+          curve: Curves.easeOutCubic,
         )
         .blur(
           begin: const Offset(12, 12),
           end: const Offset(0, 0),
-          duration: _fadeDuration,
-          curve: _easeInOut,
+          duration: 3000.ms,
+          curve: Curves.easeInOut,
         );
   }
 
-  // 交叉淡入过渡效果
+  /// 交叉淡入淡出效果
   Widget _buildCrossFadeTransition(Widget child) {
     return Stack(
       fit: StackFit.expand,
@@ -347,15 +350,15 @@ class BackgroundTransition extends StatelessWidget {
               onComplete: (controller) => onTransitionComplete?.call(),
             )
             .fadeIn(
-              duration: _fadeDuration,
-              curve: _easeInOut,
+              duration: 3000.ms,
+              curve: Curves.easeInOut,
             )
             .scale(
               begin: const Offset(1.05, 1.05),
               end: const Offset(1.0, 1.0),
               delay: 500.ms,
-              duration: _scaleDuration,
-              curve: _easeOutCubic,
+              duration: 3500.ms,
+              curve: Curves.easeOutCubic,
             ),
       ],
     );
@@ -363,7 +366,14 @@ class BackgroundTransition extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nextImage = _buildBackgroundImage(imageUrl);
+    final nextImage = Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          fit: BoxFit.cover,
+          image: NetworkImage(imageUrl),
+        ),
+      ),
+    );
 
     switch (animationType) {
       case 0:
@@ -380,13 +390,14 @@ class BackgroundTransition extends StatelessWidget {
   }
 }
 
+/// VideoHoldBg的State实现
+/// - 负责管理背景显示、频道Logo及音频可视化等逻辑
+/// - 实现必应背景图片的加载和定时切换
 class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin {
-  Timer? _timer; // 定时器，用于图片切换
-  final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey(); // 音频条状态键
-  bool _isTimerActive = false; // 定时器是否激活
-  final Set<String> _precachedImages = {}; // 已预加载图片集合
+  Timer? _timer; // 定时器，用于控制背景图片切换
+  final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey(); // 动态音频条组件的Key
 
-  // 背景状态通知器
+  // 背景状态管理
   final _backgroundState = ValueNotifier<BingBackgroundState>(
     BingBackgroundState(
       imageUrls: [],
@@ -404,21 +415,24 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   void initState() {
     super.initState();
 
+    // 如果需要显示必应背景图片，则在初始化完成后加载背景图片
     if (widget.showBingBackground) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _loadBingBackgrounds(); // 初始化加载 Bing 背景
+          _loadBingBackgrounds();
         }
       });
     }
   }
 
-  // 随机选择动画类型，基于权重分布
+  /// 获取随机动画类型
+  /// - 基于权重随机选择动画效果
   int _getRandomAnimationType() {
     if (!mounted) return 0;
 
     final random = Random();
-    const weights = [0.3, 0.2, 0.25, 0.25];
+    // 动画权重设置，支持多种过渡效果
+    final weights = [0.3, 0.2, 0.25, 0.25]; // 分别对应平滑渐变、Ken Burns、方向性滑动、交叉淡入淡出
     final value = random.nextDouble();
 
     try {
@@ -429,52 +443,48 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           return i;
         }
       }
-      return 0;
+      return 0; // 默认返回平滑渐变效果
     } catch (e) {
       LogUtil.logError('动画类型选择错误', e);
       return 0;
     }
   }
 
-  // 加载 Bing 背景图片并设置定时切换
+  /// 加载Bing背景图片
+  /// - 调用工具类方法获取必应图片URL
+  /// - 将图片加载状态保存在ValueNotifier中
   Future<void> _loadBingBackgrounds() async {
     final currentState = _backgroundState.value;
+    // 如果Bing图片已经加载或动画正在锁定，无需重复加载
     if (currentState.isBingLoaded || currentState.isTransitionLocked) return;
 
     try {
-      _updateBackgroundState(currentState.copyWith(isTransitionLocked: true));
+      _backgroundState.value = currentState.copyWith(
+        isTransitionLocked: true, // 锁定加载过程
+      );
 
+      // 获取当前频道背景图片URL
       final String? channelId = widget.currentChannelTitle;
-      final List<String> paths = await BingUtil.getBingImgUrls(channelId: channelId);
+      final List<String> urls = await BingUtil.getBingImgUrls(channelId: channelId);
 
       if (!mounted) return;
 
-      if (paths.isNotEmpty) {
-        for (int i = 0; i < min(2, paths.length); i++) {
-          if (!_precachedImages.contains(paths[i])) {
-            await precacheImage(FileImage(File(paths[i])), context, onError: (e, stackTrace) {
-              LogUtil.logError('预加载第 $i 张图片失败: ${paths[i]}', e, stackTrace);
-            });
-            _precachedImages.add(paths[i]);
-          }
-        }
-
-        _updateBackgroundState(currentState.copyWith(
-          imageUrls: paths,
+      if (urls.isNotEmpty) {
+        // 更新状态为已加载
+        _backgroundState.value = currentState.copyWith(
+          imageUrls: urls,
           isBingLoaded: true,
           isTransitionLocked: false,
-        ));
-
-        _timer?.cancel();
-        _isTimerActive = true;
-        const maxAnimationDuration = 4500; // 最长动画时长
-        final interval = Duration(
-          seconds: max(30, (maxAnimationDuration ~/ 1000) + (paths.length > 1 ? (30 ~/ paths.length) : 0)),
         );
-        _timer = Timer.periodic(interval, (Timer timer) {
-          if (!_isTimerActive || !mounted) return;
+
+        // 预加载第一张图片
+        precacheImage(NetworkImage(urls[0]), context);
+
+        // 设置定时切换 - 每45秒切换一次图片
+        _timer = Timer.periodic(const Duration(seconds: 45), (Timer timer) {
           final state = _backgroundState.value;
           if (!state.isAnimating &&
+              mounted &&
               state.imageUrls.length > 1 &&
               !state.isTransitionLocked &&
               state.isEnabled) {
@@ -482,31 +492,24 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           }
         });
       } else {
-        LogUtil.e('未获取到任何Bing图片路径');
-        _updateBackgroundState(currentState.copyWith(
+        LogUtil.e('未获取到任何Bing图片URL');
+        _backgroundState.value = currentState.copyWith(
           isBingLoaded: true,
           isTransitionLocked: false,
-        ));
+        );
       }
     } catch (e) {
       LogUtil.logError('加载Bing图片时发生错误', e);
       if (mounted) {
-        _updateBackgroundState(currentState.copyWith(
+        _backgroundState.value = currentState.copyWith(
           isBingLoaded: true,
           isTransitionLocked: false,
-        ));
+        );
       }
     }
   }
 
-  // 更新背景状态
-  void _updateBackgroundState(BingBackgroundState newState) {
-    if (mounted) {
-      _backgroundState.value = newState;
-    }
-  }
-
-  // 开始图片切换动画
+  /// 开始背景图片切换动画
   void _startImageTransition() {
     final currentState = _backgroundState.value;
     if (currentState.isAnimating || !currentState.isEnabled) return;
@@ -514,56 +517,49 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     try {
       final nextIndex = (currentState.currentIndex + 1) % currentState.imageUrls.length;
 
-      if (!_precachedImages.contains(currentState.imageUrls[nextIndex])) {
-        precacheImage(
-          FileImage(File(currentState.imageUrls[nextIndex])),
-          context,
-          onError: (e, stackTrace) {
-            LogUtil.logError('预加载下一张图片失败: ${currentState.imageUrls[nextIndex]}', e, stackTrace);
-            _updateBackgroundState(currentState.copyWith(isTransitionLocked: false));
-          },
-        ).then((_) {
-          if (!mounted) return;
-          _precachedImages.add(currentState.imageUrls[nextIndex]);
-          _updateBackgroundState(currentState.copyWith(
-            isAnimating: true,
-            nextIndex: nextIndex,
-            isTransitionLocked: true,
-            currentAnimationType: _getRandomAnimationType(),
-          ));
-        });
-      } else {
-        _updateBackgroundState(currentState.copyWith(
+      // 预加载下一张图片
+      precacheImage(
+        NetworkImage(currentState.imageUrls[nextIndex]),
+        context,
+        onError: (e, stackTrace) {
+          LogUtil.logError('预加载图片失败', e);
+          _backgroundState.value = currentState.copyWith(
+            isTransitionLocked: false,
+          );
+        },
+      ).then((_) {
+        if (!mounted) return;
+
+        _backgroundState.value = currentState.copyWith(
           isAnimating: true,
           nextIndex: nextIndex,
           isTransitionLocked: true,
           currentAnimationType: _getRandomAnimationType(),
-        ));
-      }
+        );
+      });
     } catch (e) {
       LogUtil.logError('开始图片切换时发生错误', e);
-      _updateBackgroundState(currentState.copyWith(isTransitionLocked: false));
+      _backgroundState.value = currentState.copyWith(
+        isTransitionLocked: false,
+      );
     }
   }
 
-  // 构建背景装饰
-  Decoration _buildBackgroundDecoration(ImageProvider image) {
-    return BoxDecoration(
-      image: DecorationImage(
-        fit: BoxFit.cover,
-        image: image,
+  /// 构建本地背景
+  /// - 如果没有启用Bing背景，则显示本地默认背景
+  Widget _buildLocalBg() {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          fit: BoxFit.cover,
+          image: AssetImage('assets/images/video_bg.png'),
+        ),
       ),
     );
   }
 
-  // 构建本地默认背景
-  Widget _buildLocalBg() {
-    return Container(
-      decoration: _buildBackgroundDecoration(const AssetImage('assets/images/video_bg.png')),
-    );
-  }
-
-  // 构建 Bing 背景，支持动画切换
+  /// 构建Bing背景
+  /// - 根据当前状态显示背景图片，并支持动画切换
   Widget _buildBingBg() {
     final state = _backgroundState.value;
     if (state.imageUrls.isEmpty || !state.isEnabled) {
@@ -573,9 +569,17 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     return Stack(
       fit: StackFit.expand,
       children: [
+        // 当前图片层
         Container(
-          decoration: _buildBackgroundDecoration(FileImage(File(state.imageUrls[state.currentIndex]))),
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              fit: BoxFit.cover,
+              image: NetworkImage(state.imageUrls[state.currentIndex]),
+            ),
+          ),
         ),
+
+        // 动画过渡层
         if (state.isAnimating)
           BackgroundTransition(
             imageUrl: state.imageUrls[state.nextIndex],
@@ -584,22 +588,21 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
               if (!mounted) return;
 
               final currentState = _backgroundState.value;
-              _updateBackgroundState(currentState.copyWith(
+              _backgroundState.value = currentState.copyWith(
                 isAnimating: false,
                 currentIndex: currentState.nextIndex,
                 currentAnimationType: _getRandomAnimationType(),
                 isTransitionLocked: false,
-              ));
+              );
 
+              // 预加载下一个即将显示的图片
               if (currentState.imageUrls.length > 1) {
                 final nextNextIndex =
                     (currentState.nextIndex + 1) % currentState.imageUrls.length;
-                if (!_precachedImages.contains(currentState.imageUrls[nextNextIndex])) {
-                  precacheImage(
-                    FileImage(File(currentState.imageUrls[nextNextIndex])),
-                    context,
-                  ).then((_) => _precachedImages.add(currentState.imageUrls[nextNextIndex]));
-                }
+                precacheImage(
+                  NetworkImage(currentState.imageUrls[nextNextIndex]),
+                  context,
+                );
               }
             },
           ),
@@ -614,12 +617,13 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     return Selector<ThemeProvider, bool>(
       selector: (_, provider) => provider.isBingBg,
       builder: (context, isBingBg, child) {
+        // 当 isBingBg 改变时更新状态
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final currentState = _backgroundState.value;
           if (currentState.isEnabled != isBingBg) {
-            _updateBackgroundState(currentState.copyWith(
+            _backgroundState.value = currentState.copyWith(
               isEnabled: isBingBg,
-            ));
+            );
           }
         });
 
@@ -628,6 +632,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           child: Stack(
             fit: StackFit.expand,
             children: [
+              // 背景图片
               (widget.showBingBackground && isBingBg)
                   ? ValueListenableBuilder<BingBackgroundState>(
                       valueListenable: _backgroundState,
@@ -636,10 +641,14 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
                       },
                     )
                   : _buildLocalBg(),
+
+              // 音频可视化层
               if (widget.showBingBackground)
                 AudioBarsWrapper(
                   audioBarKey: _audioBarKey,
                 ),
+
+              // Logo层
               if (widget.showBingBackground && widget.currentChannelLogo != null)
                 ChannelLogo(
                   logoUrl: widget.currentChannelLogo,
@@ -656,10 +665,14 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   void didUpdateWidget(VideoHoldBg oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // 处理Bing背景显示状态的变化
+    // - 如果新组件启用了Bing背景，而旧组件未启用，则加载背景图片
     if (widget.showBingBackground) {
-      _loadBingBackgrounds();
+      _loadBingBackgrounds(); // 调用加载Bing背景的方法
     }
 
+    // 处理音频条动画的状态更新
+    // - 当Toast文本内容变化时，决定音频条动画是暂停还是恢复
     if (widget.showBingBackground) {
       if (oldWidget.toastString != widget.toastString) {
         if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) {
@@ -673,20 +686,17 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
 
   @override
   void dispose() {
+    // 更新状态，锁定动画并确保没有正在进行的背景切换
     final currentState = _backgroundState.value;
-    _updateBackgroundState(currentState.copyWith(
-      isTransitionLocked: true,
-      isAnimating: false,
-      imageUrls: [],
-    ));
+    _backgroundState.value = currentState.copyWith(
+      isTransitionLocked: true, // 锁定动画，防止dispose时触发不必要的切换逻辑
+      isAnimating: false, // 停止动画
+    );
 
-    _isTimerActive = false;
-    if (_timer != null) {
-      _timer!.cancel();
-      _timer = null;
-    }
-    _precachedImages.clear(); // 清理预加载图片记录
+    // 取消定时器，释放资源
+    _timer?.cancel();
+    _timer = null;
 
-    super.dispose();
+    super.dispose(); // 调用父类的dispose方法
   }
 }
