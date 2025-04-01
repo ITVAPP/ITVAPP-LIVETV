@@ -9,9 +9,26 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class DialogUtil {
+  // 优化焦点节点管理，使用 final 提升性能
+  static final List<FocusNode> _focusNodes = [];
+  static int focusIndex = 0;
+
   // 颜色定义
   static const Color selectedColor = Color(0xFFEB144C);
   static const Color unselectedColor = Color(0xFFDFA02A);
+
+  // 初始化焦点节点的方法，优化为复用已有节点
+  static void _initFocusNodes(int count) {
+    // 如果已有节点数量足够，则复用，否则补充
+    while (_focusNodes.length < count) {
+      _focusNodes.add(FocusNode());
+    }
+    // 清理多余的节点
+    while (_focusNodes.length > count) {
+      _focusNodes.removeLast().dispose();
+    }
+    focusIndex = 1; // 重置焦点索引
+  }
 
   // 优化日志处理逻辑
   static String _processLogs(String content) {
@@ -44,7 +61,7 @@ class DialogUtil {
     content = content != null ? _processLogs(content) : null;
     
     // 计算所需焦点节点数量
-    int focusNodeCount = 1; // 关闭按钮
+    int focusNodeCount = 1;
     if (positiveButtonLabel != null) focusNodeCount++;
     if (negativeButtonLabel != null) focusNodeCount++;
     if (isCopyButton) focusNodeCount++;
@@ -53,25 +70,7 @@ class DialogUtil {
     if (closeButtonLabel != null) focusNodeCount++;
     
     // 初始化焦点节点
-    final List<FocusNode> focusNodes = List.generate(focusNodeCount, (_) => FocusNode());
-    int focusIndex = 0; // 从 0 开始计数
-
-    // 提前分配焦点节点
-    final closeFocusNode = focusNodes[focusIndex++]; // 关闭按钮
-    final childFocusNode = child != null ? focusNodes[focusIndex++] : null;
-    final updateButtonFocusNode = ShowUpdateButton != null ? focusNodes[focusIndex++] : null;
-    final positiveFocusNode = positiveButtonLabel != null ? focusNodes[focusIndex++] : null;
-    final negativeFocusNode = negativeButtonLabel != null ? focusNodes[focusIndex++] : null;
-    final copyFocusNode = isCopyButton ? focusNodes[focusIndex++] : null;
-    final closeButtonFocusNode = closeButtonLabel != null ? focusNodes[focusIndex++] : null;
-
-    // 释放焦点节点资源
-    void disposeFocusNodes() {
-      for (var node in focusNodes) {
-        node.dispose();
-      }
-      focusNodes.clear();
-    }
+    _initFocusNodes(focusNodeCount);
 
     return showDialog<bool>(
       context: context,
@@ -85,6 +84,8 @@ class DialogUtil {
             final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;
             final maxDialogHeight = screenHeight * 0.8;
 
+            // 修改代码开始
+            // 使用 WillPopScope 确保对话框关闭时清理焦点节点
             return WillPopScope(
               onWillPop: () async {
                 disposeFocusNodes(); // 关闭对话框时释放焦点节点
@@ -104,12 +105,12 @@ class DialogUtil {
                     ),
                   ),
                   child: TvKeyNavigation(
-                    focusNodes: focusNodes,
+                    focusNodes: _focusNodes,
                     initialIndex: 1,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildDialogHeader(context, title: title, closeFocusNode: closeFocusNode),
+                        _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
                         if (content != null || child != null)
                           Flexible(
                             child: SingleChildScrollView(
@@ -122,7 +123,7 @@ class DialogUtil {
                                     const SizedBox(height: 10),
                                     if (child != null) 
                                       FocusableItem(
-                                        focusNode: childFocusNode!,
+                                        focusNode: _focusNodes[focusIndex++],
                                         child: child,
                                       ),
                                   ],
@@ -133,61 +134,18 @@ class DialogUtil {
                         const SizedBox(height: 10),
                         if (child == null)
                           if (ShowUpdateButton != null)
-                            Consumer<DownloadProvider>(
-                              builder: (context, provider, _) {
-                                final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-                                final btnWidth = isLandscape ? 380.0 : 220.0;
-                                return provider.isDownloading
-                                    ? _buildDownloadProgress(provider, btnWidth)
-                                    : _buildFocusableButton(
-                                        focusNode: updateButtonFocusNode!,
-                                        onPressed: () => _handleDownload(context, ShowUpdateButton),
-                                        label: S.current.update,
-                                        width: btnWidth,
-                                        isDownloadButton: true,
-                                      );
-                              },
-                            )
+                            _buildUpdateDownloadBtn(ShowUpdateButton)
                           else
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (negativeButtonLabel != null)
-                                  _buildFocusableButton(
-                                    focusNode: negativeFocusNode!,
-                                    onPressed: onNegativePressed,
-                                    label: negativeButtonLabel,
-                                  ),
-                                if (positiveButtonLabel != null)
-                                  const SizedBox(width: 20),
-                                if (positiveButtonLabel != null)
-                                  _buildFocusableButton(
-                                    focusNode: positiveFocusNode!,
-                                    onPressed: onPositivePressed,
-                                    label: positiveButtonLabel,
-                                  ),
-                                if (isCopyButton && content != null)
-                                  _buildFocusableButton(
-                                    focusNode: copyFocusNode!,
-                                    onPressed: () {
-                                      // 处理 content 的空安全
-                                      Clipboard.setData(ClipboardData(text: content ?? ''));
-                                      CustomSnackBar.showSnackBar(
-                                        context,
-                                        S.current.copyok,
-                                        duration: Duration(seconds: 4),
-                                      );
-                                    },
-                                    label: S.current.copy,
-                                  ),
-                                if (closeButtonLabel != null)
-                                  _buildFocusableButton(
-                                    focusNode: closeButtonFocusNode!,
-                                    onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
-                                    label: closeButtonLabel,
-                                    autofocus: true,
-                                  ),
-                              ],
+                            _buildActionButtons(
+                              context,
+                              positiveButtonLabel: positiveButtonLabel,
+                              onPositivePressed: onPositivePressed,
+                              negativeButtonLabel: negativeButtonLabel,
+                              onNegativePressed: onNegativePressed,
+                              closeButtonLabel: closeButtonLabel,
+                              onClosePressed: onClosePressed,
+                              content: content,
+                              isCopyButton: isCopyButton,
                             ),
                         const SizedBox(height: 20),
                       ],
@@ -196,15 +154,18 @@ class DialogUtil {
                 ),
               ),
             );
+            // 修改代码结束
           },
         );
       },
     ).whenComplete(() {
+      // 修改代码开始
       disposeFocusNodes(); // 确保对话框关闭后清理焦点节点
+      // 修改代码结束
     });
   }
  
-  // 封装的 UpdateDownloadBtn 方法（未修改，仅供参考，未在 showCustomDialog 中直接调用）
+  // 封装的 UpdateDownloadBtn 方法
   static Widget _buildUpdateDownloadBtn(String apkUrl) {
     return Consumer<DownloadProvider>(
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
@@ -214,11 +175,11 @@ class DialogUtil {
         return provider.isDownloading
             ? _buildDownloadProgress(provider, btnWidth)
             : _buildFocusableButton(
-                focusNode: FocusNode(), // 临时修复，若直接调用需传入正确焦点节点
+                focusNode: _focusNodes[focusIndex++],
                 onPressed: () => _handleDownload(context, apkUrl),
                 label: S.current.update,
                 width: btnWidth,
-                isDownloadButton: true,
+                isDownloadButton: true, // 标记为下载按钮以应用特定样式
               );
       },
     );
@@ -255,14 +216,15 @@ class DialogUtil {
     );
   }
 
-  // 统一按钮构建方法
+  // 修改代码开始
+  // 统一按钮构建方法，合并 _buildDownloadButton 和 _buildFocusableButton
   static Widget _buildFocusableButton({
     required FocusNode focusNode,
     required VoidCallback? onPressed,
     required String label,
     double? width,
     bool autofocus = false,
-    bool isDownloadButton = false,
+    bool isDownloadButton = false, // 是否为下载按钮，应用不同样式
   }) {
     return FocusableItem(
       focusNode: focusNode,
@@ -286,7 +248,7 @@ class DialogUtil {
     );
   }
 
-  // 统一按钮样式方法
+  // 统一按钮样式方法，合并 _buttonStyle 和 _DownloadBtnStyle
   static ButtonStyle _buttonStyle(bool hasFocus, {double? width, bool isDownloadButton = false}) {
     return ElevatedButton.styleFrom(
       fixedSize: width != null ? Size(width, 48) : null,
@@ -304,12 +266,14 @@ class DialogUtil {
       alignment: Alignment.center,
     );
   }
+  // 修改代码结束
 
-  // 优化下载逻辑处理，改为异步操作
-  static Future<void> _handleDownload(BuildContext context, String apkUrl) async {
+  // 修改代码开始
+  // 优化下载逻辑处理，增加错误反馈
+  static void _handleDownload(BuildContext context, String apkUrl) {
     if (Platform.isAndroid) {
       try {
-        await context.read<DownloadProvider>().downloadApk(apkUrl);
+        context.read<DownloadProvider>().downloadApk(apkUrl);
       } catch (e, stackTrace) {
         LogUtil.logError('下载时发生错误', e, stackTrace);
         CustomSnackBar.showSnackBar(
@@ -331,6 +295,7 @@ class DialogUtil {
       }
     }
   }
+  // 修改代码结束
 
   // 封装的标题部分，包含右上角关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
@@ -368,15 +333,14 @@ class DialogUtil {
     );
   }
 
-  // 优化内容部分，管理 TextEditingController 的生命周期
+  // 封装的内容部分，允许选择和复制功能
   static Widget _buildDialogContent({String? content}) {
-    final controller = TextEditingController(text: content ?? '');
-    final column = Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         TextField(
-          controller: controller,
+          controller: TextEditingController(text: content ?? ''),
           readOnly: true,
           maxLines: null,
           textAlign: TextAlign.start,
@@ -388,15 +352,9 @@ class DialogUtil {
         ),
       ],
     );
-    // 在 TextEditingController 上添加监听器以释放资源
-    controller.addListener(() {
-      // 此处仅用于监听变化，通常不直接释放
-      // 实际释放应在 disposeFocusNodes 或 showDialog 完成时处理
-    });
-    return column;
   }
 
-  // 动态生成按钮，并增加点击效果（未在 showCustomDialog 中直接调用，临时修复）
+  // 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
     BuildContext context, {
     String? positiveButtonLabel,
@@ -413,7 +371,7 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: FocusNode(), // 临时修复，若直接调用需传入正确焦点节点
+            focusNode: _focusNodes[focusIndex++],
             onPressed: onNegativePressed,
             label: negativeButtonLabel,
           ),
@@ -421,15 +379,15 @@ class DialogUtil {
           const SizedBox(width: 20),
         if (positiveButtonLabel != null)
           _buildFocusableButton(
-            focusNode: FocusNode(),
+            focusNode: _focusNodes[focusIndex++],
             onPressed: onPositivePressed,
             label: positiveButtonLabel,
           ),
         if (isCopyButton && content != null)
           _buildFocusableButton(
-            focusNode: FocusNode(),
+            focusNode: _focusNodes[focusIndex++],
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: content ?? ''));
+              Clipboard.setData(ClipboardData(text: content));
               CustomSnackBar.showSnackBar(
                 context,
                 S.current.copyok,
@@ -440,7 +398,7 @@ class DialogUtil {
           ),
         if (closeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: FocusNode(),
+            focusNode: _focusNodes[focusIndex++],
             onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
             label: closeButtonLabel,
             autofocus: true,
@@ -454,11 +412,12 @@ class DialogUtil {
     return hasFocus ? selectedColor : Colors.white;
   }
 
-  // 用于 darkenColor 的辅助方法
-  static Color darkenColor(Color color, [double amount = 0.1]) {
-    assert(amount >= 0 && amount <= 1);
-    final hsl = HSLColor.fromColor(color);
-    final hslDark = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    return hslDark.toColor();
+  // 释放焦点节点资源
+  static void disposeFocusNodes() {
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    _focusNodes.clear();
   }
+
 }
