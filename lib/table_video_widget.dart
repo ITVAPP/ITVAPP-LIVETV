@@ -188,6 +188,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       // 取消暂停图标定时器
       _pauseIconTimer?.cancel();
       _pauseIconTimer = null;
+      widget.adManager.reset(); // 重置广告状态
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen);
     } else if (widget.isLandscape != oldWidget.isLandscape) { // 新增：检测横竖屏切换
