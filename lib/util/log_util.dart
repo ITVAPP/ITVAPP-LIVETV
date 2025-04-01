@@ -98,28 +98,22 @@ class LogUtil {
       String fileInfo = _extractStackInfo(); // 提取调用栈信息
 
       String objectStr = object.toString();
-      if (objectStr.length > _maxSingleLogLength) { // 长日志分片处理
-        final chunks = _splitLogIntoChunks(objectStr, _maxSingleLogLength);
-        for (var chunk in chunks.reversed) {
-          String formattedChunk = _formatLogString(chunk);
-          String logMessage =
-              '[${time}] [${level}] [${tag ?? _defTag}] | ${formattedChunk} | ${fileInfo}';
-          _addLogToBuffers(logMessage);
-          _logInternal(logMessage);
-          if (_showOverlay) {
-            _showDebugMessage('[${level}] ${_unformatLogString(formattedChunk)}');
-          }
-        }
-      } else { // 短日志直接处理
-        objectStr = _formatLogString(objectStr);
-        String logMessage =
-            '[${time}] [${level}] [${tag ?? _defTag}] | ${objectStr} | ${fileInfo}';
-        _addLogToBuffers(logMessage);
-        _logInternal(logMessage);
-        if (_showOverlay) {
-          String displayMessage = _unformatLogString(objectStr);
-          _showDebugMessage('[${level}] $displayMessage');
-        }
+      String logContent;
+      if (objectStr.length > _maxSingleLogLength) { // 超长日志截断处理
+        logContent = objectStr.substring(0, _maxSingleLogLength) + ' (截断) ...';
+      } else { // 未超长直接使用
+        logContent = objectStr;
+      }
+
+      // 格式化日志内容
+      logContent = _formatLogString(logContent);
+      String logMessage =
+          '[${time}] [${level}] [${tag ?? _defTag}] | ${logContent} | ${fileInfo}';
+      _addLogToBuffers(logMessage);
+      _logInternal(logMessage);
+      if (_showOverlay) {
+        String displayMessage = _unformatLogString(logContent);
+        _showDebugMessage('[${level}] $displayMessage');
       }
 
       _logInternal('当前缓冲区大小: ${_newLogsBuffer.length}');
@@ -231,17 +225,6 @@ class LogUtil {
   // 反格式化日志字符串，恢复特殊字符
   static String _unformatLogString(String logMessage) {
     return _replaceSpecialChars(logMessage, false);
-  }
-
-  // 将超长日志拆分为指定长度的分片
-  static List<String> _splitLogIntoChunks(String log, int maxLength) {
-    List<String> chunks = [];
-    for (int i = 0; i < log.length; i += maxLength) {
-      int end = i + maxLength;
-      if (end > log.length) end = log.length;
-      chunks.add(log.substring(i, end) + (end < log.length ? ' ... (续)' : ''));
-    }
-    return chunks;
   }
 
   // 将日志添加到内存和缓冲区
