@@ -173,7 +173,7 @@ class PlaylistModel {
         String category = entry.key.isNotEmpty ? entry.key : Config.allChannelsKey;
         var groupMapJson = entry.value;
         if (groupMapJson is! Map) {
-          LogUtil.w('跳过无效组映射: $category -> $groupMapJson');
+          LogUtil.i('跳过无效组映射: $category -> $groupMapJson');
           continue;
         }
         result[category] = _handleEmptyMap(groupMapJson, (groupMap) {
@@ -182,7 +182,7 @@ class PlaylistModel {
             String groupTitle = groupEntry.key.toString();
             var channelMapJson = groupEntry.value;
             if (channelMapJson is! Map) {
-              LogUtil.w('跳过无效频道映射: $groupTitle -> $channelMapJson');
+              LogUtil.i('跳过无效频道映射: $groupTitle -> $channelMapJson');
               continue;
             }
             groupMapResult[groupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
@@ -213,7 +213,7 @@ class PlaylistModel {
       json.forEach((groupTitle, channelMapJson) {
         String sanitizedGroupTitle = groupTitle.toString();
         if (channelMapJson is! Map) {
-          LogUtil.w('跳过无效频道映射: $sanitizedGroupTitle -> $channelMapJson');
+          LogUtil.i('跳过无效频道映射: $sanitizedGroupTitle -> $channelMapJson');
           return;
         }
         result[sanitizedGroupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
