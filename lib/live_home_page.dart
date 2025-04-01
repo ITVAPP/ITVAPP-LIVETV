@@ -798,18 +798,40 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 根据地理位置对播放列表进行排序
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
-    if (videoMap.playList == null || videoMap.playList!.isEmpty) return;
+    if (videoMap.playList == null || videoMap.playList!.isEmpty) {
+      LogUtil.w('播放列表为空，无需排序');
+      return;
+    }
     final location = _getLocationInfo(userInfo);
-    if ((location['region'] == null || location['region']!.isEmpty) && (location['city'] == null || location['city']!.isEmpty)) return;
+    if ((location['region'] == null || location['region']!.isEmpty) && 
+        (location['city'] == null || location['city']!.isEmpty)) {
+      LogUtil.i('地理信息无效，跳过排序');
+      return;
+    }
     videoMap.playList!.forEach((category, groups) {
+      if (groups is! Map<String, Map<String, PlayModel>>) {
+        LogUtil.w('跳过无效组: $category -> $groups');
+        return;
+      }
       final groupList = groups.keys.toList();
       final sortedGroups = _sortByGeoPrefix(groupList, location['region']);
       final newGroups = <String, Map<String, PlayModel>>{};
       for (var group in sortedGroups) {
-        final channels = groups[group]!;
+        final channels = groups[group];
+        if (channels == null) {
+          LogUtil.w('跳过 null 组: $group');
+          continue;
+        }
         final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), location['city']);
         final newChannels = <String, PlayModel>{};
-        for (var channel in sortedChannels) newChannels[channel] = channels[channel]!;
+        for (var channel in sortedChannels) {
+          final playModel = channels[channel];
+          if (playModel == null) {
+            LogUtil.w('跳过 null 频道: $channel');
+            continue;
+          }
+          newChannels[channel] = playModel;
+        }
         newGroups[group] = newChannels;
       }
       videoMap.playList![category] = newGroups;
