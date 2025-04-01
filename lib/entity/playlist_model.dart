@@ -2,37 +2,37 @@ import 'dart:convert';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-  /// 构造函数，用于创建一个 [PlaylistModel] 实例。
-  /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
-  /// [playList] 是一个三层嵌套的Map，其中：
-  /// - 第一层 `String` 键是分类（例如：“区域”或“语言”）
-  ///   - 示例：对于 M3U 中未指定分类信息的情况，使用默认分类。
-  ///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用默认分类。
-  /// - 第二层 `String` 键是组的标题（例如："体育"，"新闻"），从 `group-title` 提取。
-  ///   - 示例：`group-title="央视频道"`，提取 "央视频道" 作为第二层键。
-  /// - 第三层 `Map` 将频道名称（`String`）与对应的 [PlayModel] 实例关联。
-  ///   - 示例：`CCTV-1 综合` 作为第三层键，值是 `PlayModel` 对象。
-  /// 
-  /// ### M3U 播放列表示例：
-  /// ```
-  /// #EXTM3U x-tvg-url=" http://example.com/e.xml"
-  ///
-  /// #CATEGORY:央视频道
-  /// #EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1 综合" tvg-logo=" http://example.com/CCTV1.png" group-title="央视频道",CCTV-1 综合
-  /// http://example.com/cctv1.m3u8
-  /// 
-  /// #CATEGORY:央视频道
-  /// #EXTINF:-1 tvg-id="CCTV2" tvg-name="CCTV-2 财经" tvg-logo=" http://example.com/CCTV2.png" group-title="央视频道",CCTV-2 财经
-  /// http://example.com/cctv2.m3u8
-  ///
-  /// #CATEGORY:娱乐频道
-  /// #EXTINF:-1 tvg-id="HunanTV" tvg-name="湖南卫视" tvg-logo=" http://example.com/HunanTV.png" group-title="娱乐频道",湖南卫视
-  /// http://example.com/hunantv.m3u8
-  ///
-  /// #CATEGORY:体育频道
-  /// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
-  /// http://example.com/cctv5.m3u8
-  /// ```
+/// 构造函数，用于创建一个 [PlaylistModel] 实例。
+/// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
+/// [playList] 是一个三层嵌套的Map，其中：
+/// - 第一层 `String` 键是分类（例如：“区域”或“语言”）
+///   - 示例：对于 M3U 中未指定分类信息的情况，使用默认分类。
+///   - 从 M3U 文件的 `#EXTINF` 标签中，如果没有独立的分类标签，使用默认分类。
+/// - 第二层 `String` 键是组的标题（例如："体育"，"新闻"），从 `group-title` 提取。
+///   - 示例：`group-title="央视频道"`，提取 "央视频道" 作为第二层键。
+/// - 第三层 `Map` 将频道名称（`String`）与对应的 [PlayModel] 实例关联。
+///   - 示例：`CCTV-1 综合` 作为第三层键，值是 `PlayModel` 对象。
+/// 
+/// ### M3U 播放列表示例：
+/// ```
+/// #EXTM3U x-tvg-url=" http://example.com/e.xml"
+///
+/// #CATEGORY:央视频道
+/// #EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1 综合" tvg-logo=" http://example.com/CCTV1.png" group-title="央视频道",CCTV-1 综合
+/// http://example.com/cctv1.m3u8
+/// 
+/// #CATEGORY:央视频道
+/// #EXTINF:-1 tvg-id="CCTV2" tvg-name="CCTV-2 财经" tvg-logo=" http://example.com/CCTV2.png" group-title="央视频道",CCTV-2 财经
+/// http://example.com/cctv2.m3u8
+///
+/// #CATEGORY:娱乐频道
+/// #EXTINF:-1 tvg-id="HunanTV" tvg-name="湖南卫视" tvg-logo=" http://example.com/HunanTV.png" group-title="娱乐频道",湖南卫视
+/// http://example.com/hunantv.m3u8
+///
+/// #CATEGORY:体育频道
+/// #EXTINF:-1 tvg-id="CCTV5" tvg-name="CCTV-5 体育" tvg-logo=" http://example.com/CCTV5.png" group-title="体育频道",CCTV-5 体育
+/// http://example.com/cctv5.m3u8
+/// ```
 
 /// 播放列表模型类，包含EPG URL和按分类及组组织的频道列表
 class PlaylistModel {
@@ -117,12 +117,16 @@ class PlaylistModel {
         LogUtil.i('空的播放列表结构，返回默认三层结构');
         return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
       }
-      if (_isThreeLayerStructure(json)) {
+      Map<String, dynamic> sanitizedJson = {};
+      json.forEach((key, value) {
+        sanitizedJson[key.toString()] = value;
+      });
+      if (_isThreeLayerStructure(sanitizedJson)) {
         LogUtil.i('处理三层结构的播放列表');
-        return _parseThreeLayer(json);
+        return _parseThreeLayer(sanitizedJson);
       }
       LogUtil.i('处理两层结构的播放列表，转换为三层');
-      return _parseThreeLayer({Config.allChannelsKey: _parseTwoLayer(json)});
+      return _parseThreeLayer({Config.allChannelsKey: _parseTwoLayer(sanitizedJson)});
     } catch (e, stackTrace) {
       LogUtil.logError('解析播放列表结构时出错', e, stackTrace);
       return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
@@ -168,28 +172,38 @@ class PlaylistModel {
       for (var entry in json.entries) {
         String category = entry.key.isNotEmpty ? entry.key : Config.allChannelsKey;
         var groupMapJson = entry.value;
+        if (groupMapJson is! Map) {
+          LogUtil.w('跳过无效组映射: $category -> $groupMapJson');
+          continue;
+        }
         result[category] = _handleEmptyMap(groupMapJson, (groupMap) {
-          Map<String, Map<String, PlayModel>> groupMap = {};
+          Map<String, Map<String, PlayModel>> groupMapResult = {};
           for (var groupEntry in groupMap.entries) {
-            var groupTitle = groupEntry.key;
+            String groupTitle = groupEntry.key.toString();
             var channelMapJson = groupEntry.value;
-            groupMap[groupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
+            if (channelMapJson is! Map) {
+              LogUtil.w('跳过无效频道映射: $groupTitle -> $channelMapJson');
+              continue;
+            }
+            groupMapResult[groupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
               Map<String, PlayModel> channels = {};
-              channelMap.forEach((channelName, channelData) {
-                channels[channelName] = channelData is Map && channelData.isEmpty
-                    ? PlayModel()
-                    : PlayModel.fromJson(channelData);
-              });
+              for (var channelEntry in channelMap.entries) {
+                String channelName = channelEntry.key.toString();
+                var channelData = channelEntry.value;
+                channels[channelName] = channelData is Map<String, dynamic>
+                    ? PlayModel.fromJson(channelData)
+                    : PlayModel();
+              }
               return channels;
             });
           }
-          return groupMap;
+          return groupMapResult;
         });
       }
     } catch (e, stackTrace) {
       LogUtil.logError('解析三层播放列表时出错', e, stackTrace);
     }
-    return result;
+    return result.isEmpty ? {Config.allChannelsKey: <String, Map<String, PlayModel>>{}} : result;
   }
 
   /// 解析两层结构播放列表，返回组-频道映射
@@ -197,10 +211,16 @@ class PlaylistModel {
     Map<String, Map<String, PlayModel>> result = {};
     try {
       json.forEach((groupTitle, channelMapJson) {
-        result[groupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
+        String sanitizedGroupTitle = groupTitle.toString();
+        if (channelMapJson is! Map) {
+          LogUtil.w('跳过无效频道映射: $sanitizedGroupTitle -> $channelMapJson');
+          return;
+        }
+        result[sanitizedGroupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
           Map<String, PlayModel> channels = {};
           channelMap.forEach((channelName, channelData) {
-            channels[channelName] = channelData is Map<String, dynamic>
+            String sanitizedChannelName = channelName.toString();
+            channels[sanitizedChannelName] = channelData is Map<String, dynamic>
                 ? PlayModel.fromJson(channelData)
                 : PlayModel();
           });
@@ -210,7 +230,7 @@ class PlaylistModel {
     } catch (e, stackTrace) {
       LogUtil.logError('解析两层播放列表时出错', e, stackTrace);
     }
-    return result;
+    return result.isEmpty ? <String, Map<String, PlayModel>>{} : result;
   }
 
   /// 搜索匹配关键字的频道，使用缓存提升性能
