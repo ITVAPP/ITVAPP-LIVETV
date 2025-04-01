@@ -141,7 +141,7 @@ class PlaylistModel {
       // 优先检查默认分类
       if (playList.containsKey(Config.allChannelsKey)) {
         var defaultCategory = playList[Config.allChannelsKey];
-        if (defaultCategory is Map<String, Map<String, PlayModel>> && 
+        if (defaultCategory is Map<String, Map<String, PlayModel>> &&
             defaultCategory.containsKey(group)) {
           return defaultCategory[group]?[channelName];
         }
@@ -165,7 +165,7 @@ class PlaylistModel {
     return null;
   }
 
-  /// 解析三层结构播放列表，返回分类-组-频道映射
+  /// 解析三层结构播放列表，返回分类-组-频道映射（修改部分）
   static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(Map<String, dynamic> json) {
     Map<String, Map<String, Map<String, PlayModel>>> result = {};
     try {
@@ -176,7 +176,7 @@ class PlaylistModel {
           LogUtil.i('跳过无效组映射: $category -> $groupMapJson');
           continue;
         }
-        result[category] = _handleEmptyMap(groupMapJson, (groupMap) {
+        result[category] = _handleEmptyMap<Map<String, Map<String, PlayModel>>>(groupMapJson, (groupMap) {
           Map<String, Map<String, PlayModel>> groupMapResult = {};
           for (var groupEntry in groupMap.entries) {
             String groupTitle = groupEntry.key.toString();
@@ -185,7 +185,7 @@ class PlaylistModel {
               LogUtil.i('跳过无效频道映射: $groupTitle -> $channelMapJson');
               continue;
             }
-            groupMapResult[groupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
+            groupMapResult[groupTitle] = _handleEmptyMap<Map<String, PlayModel>>(channelMapJson, (channelMap) {
               Map<String, PlayModel> channels = {};
               for (var channelEntry in channelMap.entries) {
                 String channelName = channelEntry.key.toString();
@@ -206,7 +206,7 @@ class PlaylistModel {
     return result.isEmpty ? {Config.allChannelsKey: <String, Map<String, PlayModel>>{}} : result;
   }
 
-  /// 解析两层结构播放列表，返回组-频道映射
+  /// 解析两层结构播放列表，返回组-频道映射（修改部分）
   static Map<String, Map<String, PlayModel>> _parseTwoLayer(Map<String, dynamic> json) {
     Map<String, Map<String, PlayModel>> result = {};
     try {
@@ -216,7 +216,7 @@ class PlaylistModel {
           LogUtil.i('跳过无效频道映射: $sanitizedGroupTitle -> $channelMapJson');
           return;
         }
-        result[sanitizedGroupTitle] = _handleEmptyMap(channelMapJson, (channelMap) {
+        result[sanitizedGroupTitle] = _handleEmptyMap<Map<String, PlayModel>>(channelMapJson, (channelMap) {
           Map<String, PlayModel> channels = {};
           channelMap.forEach((channelName, channelData) {
             String sanitizedChannelName = channelName.toString();
@@ -248,9 +248,16 @@ class PlaylistModel {
         (channel.group?.contains(keyword) ?? false)).toList();
   }
 
-  /// 统一处理空Map逻辑，返回指定类型结果
+  /// 统一处理空Map逻辑，返回指定类型结果（修改部分）
   static T _handleEmptyMap<T>(dynamic input, T Function(Map<String, dynamic>) parser) {
-    if (input is! Map || input.isEmpty) return {} as T;
+    if (input is! Map || input.isEmpty) {
+      if (T == Map<String, Map<String, PlayModel>>) {
+        return <String, Map<String, PlayModel>>{} as T;
+      } else if (T == Map<String, PlayModel>) {
+        return <String, PlayModel>{} as T;
+      }
+      throw Exception('Unsupported type for _handleEmptyMap: $T');
+    }
     return parser(input as Map<String, dynamic>);
   }
 
