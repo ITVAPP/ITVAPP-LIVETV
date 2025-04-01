@@ -799,7 +799,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 根据地理位置对播放列表进行排序
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
-      LogUtil.w('播放列表为空，无需排序');
+      LogUtil.i('播放列表为空，无需排序');
       return;
     }
     final location = _getLocationInfo(userInfo);
@@ -810,7 +810,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     videoMap.playList!.forEach((category, groups) {
       if (groups is! Map<String, Map<String, PlayModel>>) {
-        LogUtil.w('跳过无效组: $category -> $groups');
+        LogUtil.i('跳过无效组: $category -> $groups');
         return;
       }
       final groupList = groups.keys.toList();
@@ -819,7 +819,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       for (var group in sortedGroups) {
         final channels = groups[group];
         if (channels == null) {
-          LogUtil.w('跳过 null 组: $group');
+          LogUtil.i('跳过 null 组: $group');
           continue;
         }
         final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), location['city']);
@@ -827,7 +827,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         for (var channel in sortedChannels) {
           final playModel = channels[channel];
           if (playModel == null) {
-            LogUtil.w('跳过 null 频道: $channel');
+            LogUtil.i('跳过 null 频道: $channel');
             continue;
           }
           newChannels[channel] = playModel;
