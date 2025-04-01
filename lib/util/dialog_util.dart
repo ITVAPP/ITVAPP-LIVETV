@@ -6,7 +6,7 @@ import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'package:itvapp_live_tvgenerated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class DialogUtil {
   // 焦点节点管理
