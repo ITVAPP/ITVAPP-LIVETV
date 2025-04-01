@@ -798,46 +798,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 根据地理位置对播放列表进行排序
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
-    if (videoMap.playList == null || videoMap.playList!.isEmpty) {
-      LogUtil.i('播放列表为空或未初始化，无需排序');
-      return;
-    }
-
+    if (videoMap.playList == null || videoMap.playList!.isEmpty) return;
     final location = _getLocationInfo(userInfo);
-    if ((location['region'] == null || location['region']!.isEmpty) && 
-        (location['city'] == null || location['city']!.isEmpty)) {
-      LogUtil.i('地理信息无效，跳过排序');
-      return;
-    }
-
-    final playList = videoMap.playList as Map<String, dynamic>;
-    playList.forEach((category, groups) {
-      if (groups is! Map<String, Map<String, PlayModel>>) {
-        LogUtil.i('跳过无效组: $category -> $groups');
-        return;
-      }
+    if ((location['region'] == null || location['region']!.isEmpty) && (location['city'] == null || location['city']!.isEmpty)) return;
+    videoMap.playList!.forEach((category, groups) {
       final groupList = groups.keys.toList();
       final sortedGroups = _sortByGeoPrefix(groupList, location['region']);
       final newGroups = <String, Map<String, PlayModel>>{};
       for (var group in sortedGroups) {
-        final channels = groups[group];
-        if (channels == null || channels.isEmpty) {
-          LogUtil.i('跳过空组: $group');
-          continue;
-        }
+        final channels = groups[group]!;
         final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), location['city']);
         final newChannels = <String, PlayModel>{};
-        for (var channel in sortedChannels) {
-          final playModel = channels[channel];
-          if (playModel == null) {
-            LogUtil.i('跳过 null 频道: $channel');
-            continue;
-          }
-          newChannels[channel] = playModel;
-        }
+        for (var channel in sortedChannels) newChannels[channel] = channels[channel]!;
         newGroups[group] = newChannels;
       }
-      playList[category] = newGroups;
+      videoMap.playList![category] = newGroups;
     });
     LogUtil.i('按地理位置排序完成');
   }
@@ -946,17 +921,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryCount = 0;
       _isAudio = false;
     });
-
     if (widget.m3uData.playList == null || widget.m3uData.playList!.isEmpty) {
       setState(() => toastString = S.current.getDefaultError);
-      LogUtil.i('初始播放列表为空或未设置');
       return;
     }
-
     try {
       _videoMap = widget.m3uData;
       String? userInfo = SpUtil.getString('user_all_info');
-      _sortVideoMap(_videoMap!, userInfo); // 这里确保 _videoMap 非空
+      _sortVideoMap(_videoMap!, userInfo);
       _sourceIndex = 0;
       await _handlePlaylist();
     } catch (e, stackTrace) {
@@ -984,40 +956,32 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 从播放列表中提取首个有效频道（优化版，直接查找 urls）
+  /// 从播放列表中提取首个有效频道
   PlayModel? _getChannelFromPlaylist(Map<String, dynamic> playList) {
     try {
-      PlayModel? findUrls(Map<String, dynamic> data) {
-        for (final key in data.keys) {
-          final value = data[key];
-          if (key == 'urls' && value is List<String> && value.isNotEmpty) {
-            // 找到 urls 时，从当前 Map 提取其他字段
-            LogUtil.i('找到第一个有效 urls: $value, 标题: ${data['title'] ?? 'Unknown Channel'}');
-            return PlayModel(
-              id: data['id'] as String? ?? 'unknown',
-              title: data['title'] as String? ?? 'Unknown Channel',
-              urls: value,
-              group: data['group'] as String?,
-              logo: data['logo'] as String?,
-            );
-          } else if (value is Map<String, dynamic>) {
-            // 递归检查嵌套 Map
-            final result = findUrls(value);
-            if (result != null) return result;
+      for (final categoryEntry in playList.entries) {
+        final categoryData = categoryEntry.value;
+        if (categoryData is Map<String, Map<String, PlayModel>>) {
+          for (final groupEntry in categoryData.entries) {
+            final channelMap = groupEntry.value;
+            for (final channel in channelMap.values) {
+              if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+                return channel;
+              }
+            }
+          }
+        } else if (categoryData is Map<String, PlayModel>) {
+          for (final channel in categoryData.values) {
+            if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+              return channel;
+            }
           }
         }
-        return null;
       }
-
-      final result = findUrls(playList);
-      if (result == null) {
-        LogUtil.i('播放列表中未找到包含有效 urls 的频道');
-      }
-      return result;
     } catch (e, stackTrace) {
       LogUtil.logError('提取频道失败', e, stackTrace);
-      return null;
     }
+    return null;
   }
 
   /// 从播放列表中提取收藏列表
