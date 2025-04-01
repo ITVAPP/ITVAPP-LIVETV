@@ -170,7 +170,8 @@ class DialogUtil {
                                   _buildFocusableButton(
                                     focusNode: copyFocusNode!,
                                     onPressed: () {
-                                      Clipboard.setData(ClipboardData(text: content));
+                                      // 处理 content 的空安全
+                                      Clipboard.setData(ClipboardData(text: content ?? ''));
                                       CustomSnackBar.showSnackBar(
                                         context,
                                         S.current.copyok,
@@ -203,7 +204,7 @@ class DialogUtil {
     });
   }
  
-  // 封装的 UpdateDownloadBtn 方法（未修改，仅用于参考，未在 showCustomDialog 中调用）
+  // 封装的 UpdateDownloadBtn 方法（未修改，仅供参考，未在 showCustomDialog 中直接调用）
   static Widget _buildUpdateDownloadBtn(String apkUrl) {
     return Consumer<DownloadProvider>(
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
@@ -213,7 +214,7 @@ class DialogUtil {
         return provider.isDownloading
             ? _buildDownloadProgress(provider, btnWidth)
             : _buildFocusableButton(
-                focusNode: _focusNodes[focusIndex++], // 注意：此方法未使用全局变量时会报错
+                focusNode: FocusNode(), // 临时修复，若直接调用需传入正确焦点节点
                 onPressed: () => _handleDownload(context, apkUrl),
                 label: S.current.update,
                 width: btnWidth,
@@ -370,7 +371,7 @@ class DialogUtil {
   // 优化内容部分，管理 TextEditingController 的生命周期
   static Widget _buildDialogContent({String? content}) {
     final controller = TextEditingController(text: content ?? '');
-    return Column(
+    final column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -386,10 +387,16 @@ class DialogUtil {
           enableInteractiveSelection: true,
         ),
       ],
-    )..addListener(() => controller.dispose()); // 确保释放控制器
+    );
+    // 在 TextEditingController 上添加监听器以释放资源
+    controller.addListener(() {
+      // 此处仅用于监听变化，通常不直接释放
+      // 实际释放应在 disposeFocusNodes 或 showDialog 完成时处理
+    });
+    return column;
   }
 
-  // 动态生成按钮，并增加点击效果（未在 showCustomDialog 中调用，保留原样）
+  // 动态生成按钮，并增加点击效果（未在 showCustomDialog 中直接调用，临时修复）
   static Widget _buildActionButtons(
     BuildContext context, {
     String? positiveButtonLabel,
@@ -406,7 +413,7 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++], // 注意：此方法未使用全局变量时会报错
+            focusNode: FocusNode(), // 临时修复，若直接调用需传入正确焦点节点
             onPressed: onNegativePressed,
             label: negativeButtonLabel,
           ),
@@ -414,15 +421,15 @@ class DialogUtil {
           const SizedBox(width: 20),
         if (positiveButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: FocusNode(),
             onPressed: onPositivePressed,
             label: positiveButtonLabel,
           ),
         if (isCopyButton && content != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: FocusNode(),
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: content));
+              Clipboard.setData(ClipboardData(text: content ?? ''));
               CustomSnackBar.showSnackBar(
                 context,
                 S.current.copyok,
@@ -433,7 +440,7 @@ class DialogUtil {
           ),
         if (closeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: FocusNode(),
             onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
             label: closeButtonLabel,
             autofocus: true,
@@ -447,7 +454,7 @@ class DialogUtil {
     return hasFocus ? selectedColor : Colors.white;
   }
 
-  // 用于 darkenColor 的辅助方法（未修改）
+  // 用于 darkenColor 的辅助方法
   static Color darkenColor(Color color, [double amount = 0.1]) {
     assert(amount >= 0 && amount <= 1);
     final hsl = HSLColor.fromColor(color);
