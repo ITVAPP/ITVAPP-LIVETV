@@ -230,7 +230,9 @@ class AdManager with ChangeNotifier {
   // 重置状态
   void reset() {
     _cleanupAdController();
-    _showTextAd = false; // 仅清理状态，不触发文字广告显示
+   _textAdDelayTimer?.cancel();
+   _textAdDelayTimer = null;
+   _showTextAd = false; // 仅清理状态，不触发文字广告显示
   }
 
   // 显式释放所有资源
