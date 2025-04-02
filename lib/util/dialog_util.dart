@@ -84,8 +84,6 @@ class DialogUtil {
             final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;
             final maxDialogHeight = screenHeight * 0.8;
 
-            // 修改代码开始
-            // 使用 WillPopScope 确保对话框关闭时清理焦点节点
             return WillPopScope(
               onWillPop: () async {
                 disposeFocusNodes(); // 关闭对话框时释放焦点节点
@@ -154,14 +152,11 @@ class DialogUtil {
                 ),
               ),
             );
-            // 修改代码结束
           },
         );
       },
     ).whenComplete(() {
-      // 修改代码开始
       disposeFocusNodes(); // 确保对话框关闭后清理焦点节点
-      // 修改代码结束
     });
   }
  
@@ -216,7 +211,6 @@ class DialogUtil {
     );
   }
 
-  // 修改代码开始
   // 统一按钮构建方法，合并 _buildDownloadButton 和 _buildFocusableButton
   static Widget _buildFocusableButton({
     required FocusNode focusNode,
@@ -266,14 +260,34 @@ class DialogUtil {
       alignment: Alignment.center,
     );
   }
-  // 修改代码结束
 
-  // 修改代码开始
-  // 优化下载逻辑处理，增加错误反馈
+  // 修改后的 _handleDownload 方法，添加 context.mounted 检查
   static void _handleDownload(BuildContext context, String apkUrl) {
     if (Platform.isAndroid) {
       try {
-        context.read<DownloadProvider>().downloadApk(apkUrl);
+        void onDownloadComplete() {
+          if (context.mounted) Navigator.of(context).pop(); // 关闭当前弹窗
+        }
+
+        void onDownloadFailed(String errorMessage) {
+          if (context.mounted) {
+            Navigator.of(context).pop(); // 关闭当前弹窗
+            showCustomDialog(
+              context,
+              title: S.current.downloading,
+              content: '${S.current.filterError}: $errorMessage',
+              positiveButtonLabel: S.current.ok,
+              onPositivePressed: () => Navigator.of(context).pop(),
+              isDismissible: true,
+            );
+          }
+        }
+
+        context.read<DownloadProvider>().downloadApk(
+          apkUrl,
+          onComplete: onDownloadComplete,
+          onFailed: onDownloadFailed,
+        );
       } catch (e, stackTrace) {
         LogUtil.logError('下载时发生错误', e, stackTrace);
         CustomSnackBar.showSnackBar(
@@ -295,7 +309,6 @@ class DialogUtil {
       }
     }
   }
-  // 修改代码结束
 
   // 封装的标题部分，包含右上角关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
