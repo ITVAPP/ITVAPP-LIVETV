@@ -19,12 +19,12 @@ class HttpUtil {
   static const int downloadReceiveTimeoutSeconds = 298; // 文件下载的接收超时时间（秒）
   static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
   static const int successStatusCode = 200; // 成功的状态码
-  static const bool defaultIgnoreBadCertificate = true ; // 默认是否忽略不安全证书，false 表示不忽略
+  static const bool defaultIgnoreBadCertificate = true; // 默认是否忽略不安全证书，false 表示不忽略
 
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
-  CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌
+  CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌（将被优化为按请求分配）
 
   factory HttpUtil() => _instance;
 
@@ -48,6 +48,30 @@ class HttpUtil {
         return client;
       };
     }
+
+    // 添加拦截器以动态调整超时设置
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final connectTimeout = _getTimeout(
+          options.extra['connectTimeout'] as Duration?,
+          _dio.options.connectTimeout,
+        );
+        final receiveTimeout = _getTimeout(
+          options.extra['receiveTimeout'] as Duration?,
+          _dio.options.receiveTimeout,
+        );
+        options.connectTimeout = connectTimeout;
+        options.receiveTimeout = receiveTimeout;
+        handler.next(options);
+      },
+    ));
+  }
+
+  // 添加 dispose 方法以清理资源
+  void dispose() {
+    cancelToken.cancel('HttpUtil disposed');
+    _dio.close();
+    LogUtil.i('HttpUtil 已释放资源');
   }
 
   // 超时设置的工具函数
@@ -76,19 +100,8 @@ class HttpUtil {
     final contentEncoding = response.headers.value('content-encoding')?.toLowerCase() ?? '';
     final contentType = response.headers.value('content-type')?.toLowerCase() ?? '';
 
-    // 处理 Brotli 压缩的内容
-    if (contentEncoding.contains('br')) {
-      try {
-        final decodedBytes = brotliDecode(Uint8List.fromList(bytes));
-        response.data = _decodeContent(decodedBytes, contentType); // 提取解码逻辑
-        LogUtil.i('成功解码 Brotli 压缩内容');
-      } catch (e, stackTrace) {
-        LogUtil.logError('Brotli 解压缩失败', e, stackTrace);
-        response.data = _decodeFallback(bytes, contentType); // 回退解码
-      }
-    } else {
-      response.data = _decodeFallback(bytes, contentType); // 非 Brotli 内容解码
-    }
+    // 处理 Brotli 压缩或回退解码
+    response.data = _decodeBytes(bytes, contentEncoding, contentType);
 
     // 统一处理字符串 trim，避免重复代码
     if (response.data is String) {
@@ -97,49 +110,34 @@ class HttpUtil {
     return response;
   }
 
-  // 提取空内容处理逻辑为独立函数，减少重复
-  dynamic _handleEmptyContent(String contentType, {bool isJson = false}) {
-    LogUtil.v('内容为空，返回默认值');
-    if (isJson) {
-      return contentType.contains('array') ? [] : {};
-    }
-    return '';
-  }
-
-  // 内容解码逻辑
-  dynamic _decodeContent(List<int> bytes, String contentType) {
+  // 合并后的解码函数，处理 Brotli 和回退逻辑
+  dynamic _decodeBytes(List<int> bytes, String contentEncoding, String contentType) {
     if (bytes.isEmpty) {
-      return _handleEmptyContent(contentType);
+      LogUtil.v('内容为空，返回默认值');
+      if (contentType.contains('json')) {
+        return contentType.contains('array') ? [] : {};
+      }
+      return '';
     }
-    
-    final text = utf8.decode(bytes, allowMalformed: true);
-    if (contentType.contains('json')) {
+
+    List<int> decodedBytes = bytes;
+    if (contentEncoding.contains('br')) {
       try {
-        if (text.isEmpty) {
-          return _handleEmptyContent(contentType, isJson: true);
-        }
-        return jsonDecode(text);
-      } catch (e) {
-        LogUtil.e('JSON 解析失败: $e');
-        return text;
+        decodedBytes = brotliDecode(Uint8List.fromList(bytes));
+        LogUtil.i('成功解码 Brotli 压缩内容');
+      } catch (e, stackTrace) {
+        LogUtil.logError('Brotli 解压缩失败', e, stackTrace);
+        decodedBytes = bytes; // 解压失败时使用原始字节
       }
     }
-    return text;
-  }
 
-  // 回退解码逻辑，处理非 Brotli 或解压失败的情况
-  dynamic _decodeFallback(List<int> bytes, String contentType) {
-    if (bytes.isEmpty) {
-      return _handleEmptyContent(contentType);
-    }
-    
     try {
-      final text = utf8.decode(bytes, allowMalformed: true);
+      final text = utf8.decode(decodedBytes, allowMalformed: true);
       if (contentType.contains('json')) {
+        if (text.isEmpty) {
+          return contentType.contains('array') ? [] : {};
+        }
         try {
-          if (text.isEmpty) {
-            return _handleEmptyContent(contentType, isJson: true);
-          }
           return jsonDecode(text);
         } catch (e) {
           LogUtil.e('JSON 解析失败: $e');
@@ -150,31 +148,30 @@ class HttpUtil {
     } catch (e) {
       LogUtil.e('UTF-8 解码失败，尝试其他编码: $e');
       try {
-        return latin1.decode(bytes);
+        return latin1.decode(decodedBytes);
       } catch (e) {
         LogUtil.e('所有解码尝试均失败: $e');
-        return bytes; // 保留原始字节数据
+        return decodedBytes; // 保留原始字节数据
       }
     }
   }
 
-  // 优化类型转换逻辑，简化代码
+  // 优化后的类型转换逻辑
   T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
     if (data == null) return null;
-    
+
+    // 提前处理常见类型，减少不必要检查
+    if (T == String && data is String) return data.trim() as T;
     if (data is List && data.isEmpty) {
       LogUtil.v('_parseResponseData: 数据为空数组');
       return null;
     }
-    
-    if (data is String) {
-      data = data.trim();
-      if (data.isEmpty) {
-        LogUtil.v('_parseResponseData: 数据为空字符串');
-        return null;
-      }
+    if (data is String && data.trim().isEmpty) {
+      LogUtil.v('_parseResponseData: 数据为空字符串');
+      return null;
     }
 
+    // 自定义解析优先执行
     if (parseData != null) {
       try {
         return parseData(data);
@@ -184,83 +181,32 @@ class HttpUtil {
       }
     }
 
+    // 处理特定类型转换
     if (T == String) {
-      if (data is String) return data as T;
       if (data is Map || data is List) return jsonEncode(data) as T;
       if (data is num || data is bool) return data.toString() as T;
       LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})');
       return null;
     }
 
-    return data is T ? data : null; // 直接使用类型检查
+    return data is T ? data : null; // 直接类型检查
   }
 
-  // 修改代码开始
-  // 合并 GET 和 POST 请求逻辑，修复超时设置问题并添加详细注释
-  Future<R?> _performRequest<R>({
-    required bool isPost, // 使用布尔值区分请求类型
+  // 提取重试逻辑为独立函数
+  Future<R?> _retryRequest<R>({
+    required Future<R?> Function() request,
     required String path,
-    Map<String, dynamic>? queryParameters,
-    dynamic data,
-    Options? options,
-    CancelToken? cancelToken,
-    ProgressCallback? onSendProgress,
-    ProgressCallback? onReceiveProgress,
+    required bool isPost,
     int retryCount = defaultRetryCount,
     Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
-    required R? Function(Response response) onSuccess,
   }) async {
     Response? response;
     int currentAttempt = 0;
 
-    options = options ?? Options();
-
     while (currentAttempt < retryCount) {
       try {
-        // 获取请求头，优先使用 options.headers
-        final headers = options.headers?.isNotEmpty == true
-            ? options.headers!
-            : HeadersConfig.generateHeaders(url: path);
-
-        // 获取超时设置，避免修改全局 _dio.options
-        final connectTimeout = _getTimeout(
-          options.extra?['connectTimeout'] as Duration?,
-          _dio.options.connectTimeout,
-        );
-        final receiveTimeout = _getTimeout(
-          options.extra?['receiveTimeout'] as Duration?,
-          _dio.options.receiveTimeout,
-        );
-
-        // 配置局部请求选项，仅包含 headers 和必要的配置
-        final requestOptions = Options(
-          headers: headers,
-          // 注意：connectTimeout 和 receiveTimeout 不能直接设置在这里，
-          // 需要在 BaseOptions 中配置或通过拦截器实现动态调整
-        );
-
-        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST
-        response = await (isPost
-            ? _dio.post(
-                path,
-                data: data,
-                queryParameters: queryParameters,
-                options: requestOptions,
-                cancelToken: cancelToken ?? this.cancelToken,
-                onSendProgress: onSendProgress,
-                onReceiveProgress: onReceiveProgress,
-              )
-            : _dio.get(
-                path,
-                queryParameters: queryParameters,
-                options: requestOptions,
-                cancelToken: cancelToken ?? this.cancelToken,
-                onReceiveProgress: onReceiveProgress,
-              ));
-
-        // 处理响应，包括解压缩和类型转换
-        response = _processResponse(response);
-        return onSuccess(response);
+        response = await request();
+        return response as R?;
       } on DioException catch (e, stackTrace) {
         currentAttempt++;
         LogUtil.logError(
@@ -277,14 +223,70 @@ class HttpUtil {
           return null;
         }
 
-        // 重试前等待指定延迟时间
         await Future.delayed(retryDelay);
         LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
       }
     }
     return null;
   }
-  // 修改代码结束
+
+  // 合并 GET 和 POST 请求逻辑，使用拦截器动态调整超时
+  Future<R?> _performRequest<R>({
+    required bool isPost,
+    required String path,
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+    int retryCount = defaultRetryCount,
+    Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
+    required R? Function(Response response) onSuccess,
+  }) async {
+    options = options ?? Options();
+    final headers = options.headers?.isNotEmpty == true
+        ? options.headers!
+        : HeadersConfig.generateHeaders(url: path);
+
+    // 为每个请求创建独立的 CancelToken，避免全局竞争
+    final requestCancelToken = cancelToken ?? CancelToken();
+
+    final requestOptions = Options(
+      headers: headers,
+      extra: {
+        'connectTimeout': options.extra?['connectTimeout'] as Duration?,
+        'receiveTimeout': options.extra?['receiveTimeout'] as Duration?,
+      },
+    );
+
+    return _retryRequest<R>(
+      request: () async {
+        final response = await (isPost
+            ? _dio.post(
+                path,
+                data: data,
+                queryParameters: queryParameters,
+                options: requestOptions,
+                cancelToken: requestCancelToken,
+                onSendProgress: onSendProgress,
+                onReceiveProgress: onReceiveProgress,
+              )
+            : _dio.get(
+                path,
+                queryParameters: queryParameters,
+                options: requestOptions,
+                cancelToken: requestCancelToken,
+                onReceiveProgress: onReceiveProgress,
+              ));
+        return _processResponse(response);
+      },
+      path: path,
+      isPost: isPost,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+    ).then(onSuccess);
+  }
 
   // GET 请求方法，精简参数
   Future<T?> getRequest<T>(
@@ -388,7 +390,7 @@ class HttpUtil {
     );
   }
 
-  // 文件下载方法
+  // 文件下载方法，添加节流机制
   Future<int?> downloadFile(
     String url,
     String savePath, {
@@ -396,6 +398,9 @@ class HttpUtil {
   }) async {
     try {
       final headers = HeadersConfig.generateHeaders(url: url);
+      DateTime? lastUpdate;
+      double lastProgress = 0.0;
+
       final response = await _dio.download(
         url,
         savePath,
@@ -404,9 +409,23 @@ class HttpUtil {
           headers: headers,
         ),
         onReceiveProgress: (received, total) {
-          if (total > 0) progressCallback?.call(received / total);
+          if (total <= 0 || progressCallback == null) return;
+
+          final progress = received / total;
+          final now = DateTime.now();
+          // 每 500ms 更新一次进度
+          if (lastUpdate == null || now.difference(lastUpdate!).inMilliseconds >= 500) {
+            progressCallback(progress);
+            lastUpdate = now;
+            lastProgress = progress;
+          }
         },
       );
+
+      // 确保最后一次进度更新为 1.0
+      if (progressCallback != null && lastProgress < 1.0) {
+        progressCallback(1.0);
+      }
 
       if (response.statusCode != successStatusCode) {
         throw DioException(
