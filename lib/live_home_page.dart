@@ -111,7 +111,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
     const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
     final lowercaseUrl = url.toLowerCase();
-    return !videoFormats.any(lowV(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    return !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
   }
 
   bool _isHlsStream(String? url) {
@@ -1327,7 +1327,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   child: GestureDetector(
                     onTap: () => setState(() => _drawerIsOpen = false),
                     child: ChannelDrawerPage(
-                     多元key: _drawerRefreshKey,
+                      key: _drawerRefreshKey,
                       refreshKey: _drawerRefreshKey,
                       videoMap: _videoMap,
                       playModel: _currentChannel,
