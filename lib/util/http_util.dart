@@ -193,7 +193,7 @@ class HttpUtil {
   }
 
   // 提取重试逻辑为独立函数
-  Future<R?> _retryRequest<R>({
+  Future<R?> _retryRequest<R extends Response<dynamic>>({
     required Future<R?> Function() request,
     required String path,
     required bool isPost,
@@ -260,9 +260,9 @@ class HttpUtil {
       },
     );
 
-    return _retryRequest<R>(
+    return _retryRequest<Response<dynamic>>(
       request: () async {
-        final response = await (isPost
+        return await (isPost
             ? _dio.post(
                 path,
                 data: data,
@@ -279,13 +279,12 @@ class HttpUtil {
                 cancelToken: requestCancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
-        return _processResponse(response);
       },
       path: path,
       isPost: isPost,
       retryCount: retryCount,
       retryDelay: retryDelay,
-    ).then(onSuccess);
+    ).then((response) => response != null ? onSuccess(_processResponse(response)) : null);
   }
 
   // GET 请求方法，精简参数
