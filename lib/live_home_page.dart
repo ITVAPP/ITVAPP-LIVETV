@@ -934,45 +934,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
     LogUtil.i('原地排序结果: $items');
   }
 
-  // 修改：修复地理排序，确保排序顺序反映在 Map 中
-  void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
-    if (videoMap.playList == null || videoMap.playList!.isEmpty) {
-      LogUtil.e('播放列表为空，无需排序');
-      return;
-    }
-
-    final location = _getLocationInfo(userInfo);
-    final String? regionPrefix = location['region'];
-    final String? cityPrefix = location['city'];
-
-    if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
-      LogUtil.i('地理信息中未找到有效地区或城市前缀，跳过排序');
-      return;
-    }
-
-    final sortedPlayList = <String, Map<String, Map<String, PlayModel>>>{};
-    videoMap.playList!.forEach((category, groups) {
-      final groupList = groups.keys.toList();
-      if (regionPrefix != null) _sortByGeoPrefix(groupList, regionPrefix);
-      
-      final sortedGroups = <String, Map<String, PlayModel>>{};
-      for (var group in groupList) {
-        final channels = groups[group]!;
-        final channelList = channels.keys.toList();
-        if (cityPrefix != null) _sortByGeoPrefix(channelList, cityPrefix);
-        
-        final sortedChannels = <String, PlayModel>{};
-        for (var channel in channelList) {
-          sortedChannels[channel] = channels[channel]!;
-        }
-        sortedGroups[group] = sortedChannels;
+void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
+  final sortedPlayList = LinkedHashMap<String, Map<String, Map<String, PlayModel>>>();
+  videoMap.playList!.forEach((category, groups) {
+    final groupList = groups.keys.toList();
+    if (regionPrefix != null) _sortByGeoPrefix(groupList, regionPrefix);
+    final sortedGroups = LinkedHashMap<String, Map<String, PlayModel>>();
+    for (var group in groupList) {
+      final channels = groups[group]!;
+      final channelList = channels.keys.toList();
+      if (cityPrefix != null) _sortByGeoPrefix(channelList, cityPrefix);
+      final sortedChannels = LinkedHashMap<String, PlayModel>();
+      for (var channel in channelList) {
+        sortedChannels[channel] = channels[channel]!;
       }
-      sortedPlayList[category] = sortedGroups;
-    });
-
-    videoMap.playList = sortedPlayList;
-    LogUtil.i('按地理位置排序完成');
-  }
+      sortedGroups[group] = sortedChannels;
+    }
+    sortedPlayList[category] = sortedGroups;
+  });
+  videoMap.playList = sortedPlayList;
+}
 
   Future<void> _onTapChannel(PlayModel? model) async {
     if (model == null) return;
