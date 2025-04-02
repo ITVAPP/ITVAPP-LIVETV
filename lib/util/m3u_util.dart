@@ -104,10 +104,18 @@ class M3uUtil {
     }
   }
 
-  /// 解密 M3U 文件
+  /// 解密 M3U 文件内容
+  /// [encryptedContent] 是从 assets/playlists.m3u 加载的加密字符串（Base64 编码后 XOR 加密）
+  /// 返回解密后的明文 M3U 数据，若解密失败则返回原文
   static String _decodeEntireFile(String encryptedContent) {
     try {
-      // 先进行 base64 解码
+      // 验证输入是否为有效的 Base64 字符串
+      if (encryptedContent.isEmpty || !RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(encryptedContent)) {
+        LogUtil.logError('解密 M3U 文件失败', '输入不是有效的 Base64 字符串');
+        return encryptedContent;
+      }
+
+      // 先进行 Base64 解码
       String xorStr = utf8.decode(base64Decode(encryptedContent));
       String decrypted = "";
       // 使用 XOR 解密文件内容
@@ -197,11 +205,12 @@ class M3uUtil {
   }
 
   /// 更新收藏列表中的频道播放地址
+  /// 使用单次映射构建 ID 到 URL 的查找表，降低时间复杂度
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
     final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
 
-    // 构建远程播放列表的 ID 到 URL 的映射表，提高查找效率
+    // 构建远程播放列表的 ID 到 URL 的映射表（单次遍历）
     final Map<String, List<String>> remoteIdToUrls = {};
     remotePlaylist.playList?.forEach((category, groups) {
       groups.forEach((groupTitle, channels) {
@@ -213,7 +222,7 @@ class M3uUtil {
       });
     });
 
-    // 遍历收藏列表中的频道，更新其播放地址
+    // 更新收藏列表中的频道播放地址（单次遍历）
     favoriteCategory.forEach((groupTitle, channels) {
       channels.forEach((channelName, favoriteChannel) {
         if (favoriteChannel.id != null && remoteIdToUrls.containsKey(favoriteChannel.id!)) {
@@ -231,6 +240,7 @@ class M3uUtil {
   }
 
   /// 请求重试机制，支持最大超时限制
+  /// [request] 是需要执行的异步请求函数
   /// [retries] 最大重试次数，默认为3次
   /// [retryDelay] 重试间隔时间，默认为2秒
   /// [maxTimeout] 最大总超时时间，默认为30秒
@@ -241,17 +251,26 @@ class M3uUtil {
       Duration maxTimeout = const Duration(seconds: 30),
       Function(int attempt, int remaining)? onRetry}) async {
     final stopwatch = Stopwatch()..start();
-    for (int attempt = 0; attempt < retries; attempt++) {
+    int attempt = 0;
+
+    while (attempt < retries && stopwatch.elapsed <= maxTimeout) {
       try {
-        return await request().timeout(maxTimeout); // 设置单次请求的超时时间
+        // 在剩余时间内执行请求，超时时间为 maxTimeout 减去已用时间
+        Duration remainingTimeout = maxTimeout - stopwatch.elapsed;
+        if (remainingTimeout.inMilliseconds <= 0) {
+          LogUtil.logError('请求超过最大超时时间', '总时间已用尽');
+          return null;
+        }
+        return await request().timeout(remainingTimeout);
       } catch (e, stackTrace) {
+        attempt++;
         LogUtil.logError('请求失败，重试第 $attempt 次...', e, stackTrace);
         if (onRetry != null) {
-          onRetry(attempt + 1, retries - attempt - 1); // 传递当前尝试次数和剩余次数
+          onRetry(attempt, retries - attempt); // 传递当前尝试次数和剩余次数
         }
-        // 检查是否超过最大重试次数或总超时时间
-        if (attempt >= retries - 1 || stopwatch.elapsed > maxTimeout) {
-          return null; // 超过限制，返回 null
+        if (attempt >= retries || stopwatch.elapsed > maxTimeout) {
+          LogUtil.logError('重试次数耗尽或超时', '尝试次数: $attempt, 已用时间: ${stopwatch.elapsed}');
+          return null;
         }
         await Future.delayed(retryDelay); // 等待一段时间后重试
       }
@@ -271,13 +290,14 @@ class M3uUtil {
   }
 
   /// 获取远程播放列表数据
-  static Future<String> _fetchData() async {
+  /// 合并了原 _fetchData 和 _fetchM3uData 的功能，支持可选超时和 URL 参数
+  static Future<String?> _fetchData({String? url, Duration timeout = const Duration(seconds: 8)}) async {
     try {
-      final defaultM3u = EnvUtil.videoDefaultChannelHost();
+      final targetUrl = url ?? EnvUtil.videoDefaultChannelHost();
       // 添加时间参数以避免缓存
       final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
-      final urlWithTimeParam = '$defaultM3u?time=$timeParam';
-      final res = await HttpUtil().getRequest(urlWithTimeParam);
+      final urlWithTimeParam = '$targetUrl?time=$timeParam';
+      final res = await HttpUtil().getRequest(urlWithTimeParam).timeout(timeout);
       return res ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
@@ -290,7 +310,7 @@ class M3uUtil {
     try {
       // 按分隔符拆分多个URL
       List<String> urls = url.split('||');
-      final results = await Future.wait(urls.map(_fetchM3uData));
+      final results = await Future.wait(urls.map((u) => _fetchData(url: u)));
       final playlists = <PlaylistModel>[];
 
       // 解析每个成功获取的M3U数据
@@ -308,19 +328,6 @@ class M3uUtil {
       return _mergePlaylists(playlists);
     } catch (e, stackTrace) {
       LogUtil.logError('合并播放列表失败', e, stackTrace);
-      return null;
-    }
-  }
-
-  /// 获取远程播放列表，设置8秒的超时时间，并使用重试机制
-  static Future<String?> _fetchM3uData(String url) async {
-    try {
-      return await _retryRequest<String>(
-        () async => await HttpUtil().getRequest(url).timeout(
-          Duration(seconds: 8), // 单个请求的超时时间
-        ));
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取远程播放列表失败', e, stackTrace);
       return null;
     }
   }
@@ -393,6 +400,7 @@ class M3uUtil {
   }
 
   /// 解析 M3U 文件并转换为 PlaylistModel 格式
+  /// 使用正则表达式优化解析效率，支持标准和非标准 M3U 格式
   static PlaylistModel _parseM3u(String m3u) {
     try {
       final lines = m3u.split(RegExp(r'\r?\n'));
@@ -402,6 +410,11 @@ class M3uUtil {
       bool hasCategory = false;
       String tempGroupTitle = '';
       String tempChannelName = '';
+
+      // 正则表达式用于解析 #EXTINF 行
+      final extInfRegex = RegExp(
+          r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
+      final paramRegex = RegExp(r'(\w+[-\w]*)=["']?([^"'\s]+)["']?');
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         for (int i = 0; i < lines.length; i++) {
@@ -421,20 +434,27 @@ class M3uUtil {
             currentCategory = line.substring(10).trim().isNotEmpty ? line.substring(10).trim() : Config.allChannelsKey;
             hasCategory = true;
           } else if (line.startsWith('#EXTINF:')) {
-            if (line.startsWith('#EXTINF:-1,')) line = line.replaceFirst('#EXTINF:-1,', '#EXTINF:-1 ');
-            final lineList = line.split(',');
-            if (lineList.length < 2) continue; // 跳过格式错误的行
-            final params = lineList.first.replaceAll('"', '').split(' ');
+            final match = extInfRegex.firstMatch(line);
+            if (match == null) continue;
+
+            final paramsStr = match.group(1) ?? '';
+            final channelName = match.group(2) ?? '';
+            if (channelName.isEmpty) continue;
+
             String groupTitle = S.current.defaultText;
             String tvgLogo = '';
             String tvgId = '';
             String tvgName = '';
 
+            // 解析参数
+            final params = paramRegex.allMatches(paramsStr);
             for (var param in params) {
-              if (param.startsWith('group-title=')) groupTitle = param.substring(12);
-              else if (param.startsWith('tvg-logo=')) tvgLogo = param.substring(9);
-              else if (param.startsWith('tvg-id=')) tvgId = param.substring(7);
-              else if (param.startsWith('tvg-name=')) tvgName = param.substring(9);
+              final key = param.group(1)!;
+              final value = param.group(2)!;
+              if (key == 'group-title') groupTitle = value;
+              else if (key == 'tvg-logo') tvgLogo = value;
+              else if (key == 'tvg-id') tvgId = value;
+              else if (key == 'tvg-name') tvgName = value;
             }
 
             if (tvgId.isEmpty && tvgName.isNotEmpty) tvgId = tvgName;
@@ -442,7 +462,7 @@ class M3uUtil {
             if (!hasCategory) currentCategory = Config.allChannelsKey;
 
             tempGroupTitle = groupTitle;
-            tempChannelName = lineList.last;
+            tempChannelName = channelName;
 
             playListModel.playList![currentCategory] ??= <String, Map<String, PlayModel>>{};
             playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
