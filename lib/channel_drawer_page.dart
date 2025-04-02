@@ -542,6 +542,7 @@ class CategoryList extends BaseListWidget<String> {
   Widget buildContent(BuildContext context) {
     return ListView(
       controller: scrollController,
+      shrinkWrap: true, // 添加 shrinkWrap 以确保有限约束
       children: [
         Group(
           groupIndex: 0,
@@ -1045,10 +1046,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
 
-    initializeData();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      getItemHeight(context);
+    // 修改：等待 initializeData 完成后再调用 getItemHeight
+    initializeData().then((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        getItemHeight(context);
+      });
     });
   }
 
@@ -1137,7 +1139,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           isPortrait = newOrientation;
           _dynamicItemHeight = null;
           getItemHeight(context);
-          _adjustScrollPositions();
         });
       }
     });
