@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:collection';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:sp_util/sp_util.dart';
 import 'package:intl/intl.dart';
@@ -11,7 +12,6 @@ import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'dart:collection';
 
 /// 封装 M3U 数据返回结果
 class M3uResult {
