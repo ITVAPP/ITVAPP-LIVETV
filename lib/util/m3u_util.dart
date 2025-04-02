@@ -414,7 +414,7 @@ class M3uUtil {
       // 正则表达式用于解析 #EXTINF 行
       final extInfRegex = RegExp(
           r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-      final paramRegex = RegExp(r'(\w+[-\w]*)=["']?([^"'\s]+)["']?');
+      final paramRegex = RegExp(r'(\w+[\w-]*)=["']?([^"'\s]+)["']?');
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         for (int i = 0; i < lines.length; i++) {
