@@ -244,7 +244,7 @@ void getItemHeight(BuildContext context) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) {
-      LogUtil.w('RenderBox 为 null，可能 CategoryList 未渲染');
+      LogUtil.i('RenderBox 为 null，可能 CategoryList 未渲染');
       _dynamicItemHeight = ITEM_HEIGHT_WITH_DIVIDER;
     } else {
       _dynamicItemHeight = renderBox.size.height;
@@ -1039,7 +1039,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _initializeCategoryData();
     _initializeChannelData();
     if (_categories.isEmpty) {
-      LogUtil.w('分类列表为空，无法绑定 _itemKey');
+      LogUtil.i('分类列表为空，无法绑定 _itemKey');
       _dynamicItemHeight = ITEM_HEIGHT_WITH_DIVIDER;
       return;
     }
