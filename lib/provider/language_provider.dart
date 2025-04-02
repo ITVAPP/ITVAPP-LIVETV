@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
-import '../util/log_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 
 /// 语言管理类，通过 ChangeNotifier 提供语言变更通知
 class LanguageProvider with ChangeNotifier {
@@ -19,88 +19,90 @@ class LanguageProvider with ChangeNotifier {
 
   // 私有构造函数，初始化单例并加载已保存的语言设置
   LanguageProvider._internal() {
-    // 从系统窗口获取默认语言环境，如果获取失败则默认为英文
+    // 从系统窗口获取默认语言，若失败则设为英文
     _currentLocale = WidgetsBinding.instance.window.locale ?? const Locale('en');
-    _loadSavedLanguage(); // 尝试加载用户已保存的语言设置
+    _loadSavedLanguage(); // 加载用户保存的语言设置
+  }
+
+  /// 创建 Locale 对象，统一处理语言代码和国家代码
+  Locale _createLocale(String languageCode, [String? countryCode]) {
+    // 若国家代码非空，则创建带国家代码的 Locale
+    if (countryCode != null && countryCode.isNotEmpty) {
+      return Locale(languageCode, countryCode);
+    }
+    return Locale(languageCode); // 否则仅使用语言代码
   }
 
   /// 异步加载已保存的语言设置
   Future<void> _loadSavedLanguage() async {
-    // 如果已初始化过，则直接返回
-    if (_isInitialized) return;
+    if (_isInitialized) return; // 已初始化则跳过
 
     try {
-      // 从持久化存储中读取语言代码和国家代码
+      // 从持久化存储读取语言和国家代码
       String? languageCode = SpUtil.getString('languageCode');
       String? countryCode = SpUtil.getString('countryCode');
 
-      // 如果存在语言代码，尝试恢复语言环境
       if (languageCode != null && languageCode.isNotEmpty) {
-        if (countryCode != null && countryCode.isNotEmpty) {
-          // 如果国家代码存在，则使用完整的 Locale
-          _currentLocale = Locale(languageCode, countryCode);
-        } else {
-          // 仅有语言代码时，使用简化的 Locale
-          _currentLocale = Locale(languageCode);
+        // 若语言代码有效，恢复保存的语言环境
+        Locale newLocale = _createLocale(languageCode, countryCode);
+        if (newLocale != _currentLocale) {
+          _currentLocale = newLocale; // 更新语言环境
+          notifyListeners(); // 通知监听者
         }
-        // 通知所有监听者语言已更改
-        notifyListeners();
         LogUtil.v('语言加载成功: $languageCode${countryCode != null ? "_$countryCode" : ""}');
       } else {
-        // 未找到已保存的语言设置，使用系统默认语言
-        LogUtil.v('未找到已保存的语言设置，使用系统默认语言');
+        LogUtil.v('未找到保存语言，使用系统默认');
       }
-      _isInitialized = true; // 标记已完成初始化
+      _isInitialized = true; // 标记初始化完成
     } catch (e, stackTrace) {
-      // 捕获异常并记录日志
-      LogUtil.logError('从 SpUtil 加载语言设置时发生错误', e, stackTrace);
+      LogUtil.logError('加载语言设置失败', e, stackTrace); // 记录加载异常
     }
   }
 
-  /// 更改应用语言设置并保存到持久化存储
+  /// 更改应用语言并保存到持久化存储
+  /// [languageCode] 如 "en" 或 "zh_CN"
   Future<void> changeLanguage(String languageCode) async {
-    // 验证语言代码是否有效
-    if (languageCode.isEmpty || languageCode.length < 2) {
+    // 验证语言代码格式是否有效
+    if (languageCode.isEmpty || languageCode.length < 2 || !RegExp(r'^[a-zA-Z_]+$').hasMatch(languageCode)) {
       LogUtil.v('语言代码无效: $languageCode');
       return;
     }
 
     try {
-      // 如果语言代码包含下划线，尝试解析为完整的 Locale
+      Locale newLocale;
       if (languageCode.contains('_')) {
+        // 解析带国家代码的语言格式
         final parts = languageCode.split('_');
         if (parts.length == 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
-          _currentLocale = Locale(parts[0], parts[1]);
+          newLocale = _createLocale(parts[0], parts[1]);
+        } else {
+          LogUtil.v('语言代码格式错误: $languageCode');
+          return;
         }
       } else {
-        // 否则仅使用语言代码创建 Locale
-        _currentLocale = Locale(languageCode);
+        newLocale = _createLocale(languageCode); // 仅语言代码
       }
 
-      // 通知所有监听者语言已更改
-      notifyListeners();
+      if (newLocale != _currentLocale) {
+        _currentLocale = newLocale; // 更新语言环境
+        notifyListeners(); // 通知监听者
+      }
       LogUtil.v('语言已更改为: $languageCode');
 
       try {
-        // 将语言设置保存到持久化存储
+        // 保存语言设置到持久化存储
         if (_currentLocale.countryCode?.isNotEmpty == true) {
-          // 如果国家代码存在，则保存国家代码
-          await SpUtil.putString('countryCode', _currentLocale.countryCode!);
+          await SpUtil.putString('countryCode', _currentLocale.countryCode!); // 保存国家代码
         } else {
-          // 否则移除已保存的国家代码
-          await SpUtil.remove('countryCode');
+          await SpUtil.remove('countryCode'); // 移除无用国家代码
         }
-        // 保存语言代码
-        await SpUtil.putString('languageCode', _currentLocale.languageCode);
-
+        await SpUtil.putString('languageCode', _currentLocale.languageCode); // 保存语言代码
         LogUtil.v('语言设置已保存到 SpUtil');
       } catch (e, stackTrace) {
-        // 捕获保存时的异常并记录日志
-        LogUtil.logError('保存语言设置到 SpUtil 时发生错误', e, stackTrace);
+        LogUtil.logError('保存语言设置失败', e, stackTrace); // 记录保存异常
       }
     } catch (e, stackTrace) {
-      // 捕获更改语言设置的异常并记录日志
-      LogUtil.logError('更改语言设置时发生错误', e, stackTrace);
+      LogUtil.logError('更改语言设置失败', e, stackTrace); // 记录更改异常
     }
   }
 }
