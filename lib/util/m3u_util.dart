@@ -414,7 +414,14 @@ class M3uUtil {
       // 正则表达式用于解析 #EXTINF 行
       final extInfRegex = RegExp(
           r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-      final paramRegex = RegExp(r'(\w+[\w-]*)=["']?([^"'\s]+)["']?');
+      // 修改后的 paramRegex，使用多行字符串避免解析问题
+      final paramRegex = RegExp(
+        r'(\w+[\w-]*)' // 匹配参数名：字母数字下划线开头，可包含连字符
+        r'='           // 等号
+        r'["']?'       // 可选的开引号（单引号或双引号）
+        r'([^"\'\s]+)' // 匹配值：不含引号或空格的字符
+        r'["']?',      // 可选的闭引号
+      );
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         for (int i = 0; i < lines.length; i++) {
