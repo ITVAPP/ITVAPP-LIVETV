@@ -59,8 +59,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
 
   // 缓冲区检查相关变量
-  // 修改：使用固定长度队列优化内存使用
-  List<Map<String, dynamic>> _bufferedHistory = List.filled(bufferHistorySize, {}, growable: false);
+  // 修改：优化初始化，使用空 Map 替代默认值，确保内存高效
+  List<Map<String, dynamic>> _bufferedHistory = List.generate(bufferHistorySize, (_) => {}, growable: false);
   int _bufferedHistoryIndex = 0; // 追踪当前插入位置
   String? _preCachedUrl; // 预缓存的URL
   bool _isParsing = false; // 是否正在解析
@@ -88,19 +88,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _currentPlayUrl; // 当前播放的URL（解析后的地址）
   String? _originalUrl; // 解析前的原始地址
   bool _progressEnabled = false; // 进度是否启用
-  bool _isHls = false; // 是否是HLS流
+  bool _isHls = false; // 是否是HLS流（已缓存）
+  bool _isAudio = false; // 是否是音频流（已缓存）
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   }; // 收藏列表
   ValueKey<int>? _drawerRefreshKey; // 抽屉刷新键
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics(); // 流量分析
-  bool _isAudio = false; // 是否是音频流
   Timer? _playDurationTimer; // 播放持续时间计时器
   Timer? _timeoutTimer; // 缓冲超时的计时器
   late AdManager _adManager; // 广告管理实例
   bool _isUserPaused = false; // 是否为用户触发的暂停
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
+  String? _nextVideoUrl; // 缓存的下一源 URL
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -110,7 +111,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
     const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
     final lowercaseUrl = url.toLowerCase();
-    return !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    // 修改：直接返回结果并缓存到 _isAudio
+    _isAudio = !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    return _isAudio;
   }
 
   bool _isHlsStream(String? url) {
@@ -129,7 +132,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 统一更新 _currentPlayUrl 和 _isHls 的方法
   void _updatePlayUrl(String newUrl) {
     _currentPlayUrl = newUrl;
-    _isHls = _isHlsStream(_currentPlayUrl);
+    _isHls = _isHlsStream(_currentPlayUrl); // 修改：缓存 _isHls
   }
 
   // 切换到预缓存地址
@@ -187,21 +190,32 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _cleanupTimers(); // 清理计时器
     _adManager.reset(); // 重置广告状态
-    // 修改：合并重复的状态更新
-    _updateStateOnPlayStart(sourceName);
+    // 修改：合并状态更新为单次 setState
+    setState(() {
+      toastString = '${_currentChannel!.title} - $sourceName  ${S.current.loading}';
+      isPlaying = false;
+      isBuffering = false;
+      _progressEnabled = false;
+      _isSwitchingChannel = true;
+      _isUserPaused = false;
+      _showPlayIcon = false;
+      _showPauseIconFromListener = false;
+    });
 
     // 启动整个播放流程的超时计时
     _startTimeoutTimer();
 
     try {
-      // 仅在初次播放频道时检查并触发广告
+      // 修改：并行处理广告和播放器初始化
+      Future<void>? adFuture;
       if (!isRetry && !isSourceSwitch && _adManager.shouldPlayVideoAd()) {
-        await _adManager.playVideoAd(); // 等待广告播放完成
-        LogUtil.i('视频广告播放完成，准备播放频道');
-        _adManager.reset(); // 检查并可能显示文字广告
+        adFuture = _adManager.playVideoAd().then((_) {
+          LogUtil.i('视频广告播放完成，准备播放频道');
+          _adManager.reset(); // 检查并可能显示文字广告
+        });
       }
 
-      // 如果已有控制器，先暂停并重用，避免重复创建
+      // 如果已有控制器，先暂停并清理
       if (_playerController != null) {
         await _playerController!.pause();
         await _cleanupController(_playerController);
@@ -229,10 +243,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
 
-      bool isDirectAudio = _checkIsAudioStream(parsedUrl);
-      setState(() => _isAudio = isDirectAudio);
+      _checkIsAudioStream(parsedUrl); // 修改：缓存 _isAudio
 
-      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $_isHls');
+      LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $_isAudio, HLS: $_isHls');
 
       final dataSource = BetterPlayerConfig.createDataSource(
         url: parsedUrl,
@@ -251,6 +264,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         setState(() {
           _playerController = tempController;
         });
+        // 等待广告完成（如果有）
+        if (adFuture != null) await adFuture;
         await _playerController?.play();
         LogUtil.i('开始播放: $parsedUrl');
         _timeoutActive = false; // 播放成功后取消超时
@@ -285,7 +300,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改：提取状态更新逻辑，减少重复代码
+  // 修改：提取状态更新逻辑，合并为单次 setState
   void _updateStateOnPlayStart(String sourceName) {
     setState(() {
       toastString = '${_currentChannel!.title} - $sourceName  ${S.current.loading}';
@@ -535,9 +550,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改：新增方法优化缓冲历史记录管理
+  // 修改：优化缓冲历史记录管理，确保旧数据被覆盖
   void _updateBufferedHistory(Map<String, dynamic> entry) {
-    _bufferedHistory[_bufferedHistoryIndex] = entry;
+    _bufferedHistory[_bufferedHistoryIndex] = Map.from(entry); // 深拷贝新数据，避免引用旧对象
     _bufferedHistoryIndex = (_bufferedHistoryIndex + 1) % bufferHistorySize;
   }
 
@@ -686,7 +701,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (urls.isEmpty) return null;
     final nextSourceIndex = _sourceIndex + 1;
     if (nextSourceIndex >= urls.length) return null;
-    return urls[nextSourceIndex];
+    // 修改：缓存下一源 URL
+    _nextVideoUrl = urls[nextSourceIndex];
+    return _nextVideoUrl;
   }
 
   void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
@@ -761,7 +778,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playerController = null;
         _progressEnabled = false;
         _isAudio = false;
-        _bufferedHistory = List.filled(bufferHistorySize, {}, growable: false);
+        _bufferedHistory = List.generate(bufferHistorySize, (_) => {}, growable: false); // 修改：重置为新实例
         _bufferedHistoryIndex = 0;
         _preCachedUrl = null;
         _lastBufferedPosition = null;
@@ -899,15 +916,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改：优化排序逻辑，减少临时列表创建
-  List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
+  // 修改：优化为原地排序，减少内存分配
+  void _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
-      LogUtil.i('地理前缀为空，返回原始顺序');
-      return items;
+      LogUtil.i('地理前缀为空，保持原始顺序');
+      return;
     }
 
-    final List<String> result = List.from(items);
-    result.sort((a, b) {
+    items.sort((a, b) {
       final aMatches = a.startsWith(prefix);
       final bMatches = b.startsWith(prefix);
       if (aMatches && !bMatches) return -1;
@@ -915,10 +931,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return items.indexOf(a).compareTo(items.indexOf(b));
     });
 
-    LogUtil.i('排序结果: $result');
-    return result;
+    LogUtil.i('原地排序结果: $items');
   }
 
+  // 修改：优化为单次遍历，减少嵌套循环和临时列表
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       LogUtil.e('播放列表为空，无需排序');
@@ -934,26 +950,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
+    final sortedPlayList = <String, Map<String, Map<String, PlayModel>>>{};
     videoMap.playList!.forEach((category, groups) {
       final groupList = groups.keys.toList();
-      final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
-      final newGroups = <String, Map<String, PlayModel>>{};
+      if (regionPrefix != null) _sortByGeoPrefix(groupList, regionPrefix);
       
-      for (var group in sortedGroups) {
+      final sortedGroups = <String, Map<String, PlayModel>>{};
+      for (var group in groupList) {
         final channels = groups[group]!;
-        final sortedChannels = _sortByGeoPrefix(channels.keys.toList(), cityPrefix);
-        final newChannels = <String, PlayModel>{};
+        final channelList = channels.keys.toList();
+        if (cityPrefix != null) _sortByGeoPrefix(channelList, cityPrefix);
         
-        for (var channel in sortedChannels) {
-          newChannels[channel] = channels[channel]!;
+        final sortedChannels = <String, PlayModel>{};
+        for (var channel in channelList) {
+          sortedChannels[channel] = channels[channel]!;
         }
-        
-        newGroups[group] = newChannels;
+        sortedGroups[group] = sortedChannels;
       }
-      
-      videoMap.playList![category] = newGroups;
+      sortedPlayList[category] = sortedGroups;
     });
-    
+
+    videoMap.playList = sortedPlayList;
     LogUtil.i('按地理位置排序完成');
   }
 
