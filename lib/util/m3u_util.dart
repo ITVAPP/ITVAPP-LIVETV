@@ -415,7 +415,7 @@ static PlaylistModel _parseM3u(String m3u) {
     final extInfRegex = RegExp(
         r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
     // Fixed regex pattern - properly escaped single quote and brackets
-    final paramRegex = RegExp(r'(\w+[-\w]*)=["']?([^"'\s]+)["']?');
+    final paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
 
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
       for (int i = 0; i < lines.length; i++) {
