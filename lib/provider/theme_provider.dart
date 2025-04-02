@@ -60,7 +60,7 @@ class ThemeProvider extends ChangeNotifier {
         bool fontLoaded = await FontUtil().loadFont(_fontUrl, _fontFamily);
         if (!fontLoaded) {
           _fontFamily = Config.defaultFontFamily; // 回退到默认字体
-          LogUtil.w('字体加载失败，回退至: ${Config.defaultFontFamily}');
+          LogUtil.i('字体加载失败，回退至: ${Config.defaultFontFamily}');
         }
       }
 
@@ -135,7 +135,7 @@ class ThemeProvider extends ChangeNotifier {
           if (!fontLoaded) {
             _fontFamily = Config.defaultFontFamily;
             await SpUtil.putString('appFontFamily', _fontFamily);
-            LogUtil.w('字体加载失败，回退至: ${Config.defaultFontFamily}');
+            LogUtil.i('字体加载失败，回退至: ${Config.defaultFontFamily}');
           }
         }
 
