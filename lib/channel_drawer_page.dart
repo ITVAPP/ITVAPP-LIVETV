@@ -243,9 +243,16 @@ void getItemHeight(BuildContext context) {
   if (_dynamicItemHeight != null) return;
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final RenderBox? renderBox = _itemKey.currentContext?.findRenderObject() as RenderBox?;
-    _dynamicItemHeight = renderBox?.size.height ?? ITEM_HEIGHT_WITH_DIVIDER;
-    if (_dynamicItemHeight == ITEM_HEIGHT_WITH_DIVIDER) {
-      LogUtil.i('动态获取分类列表项高度失败，使用默认值: $_dynamicItemHeight');
+    if (renderBox == null) {
+      LogUtil.w('RenderBox 为 null，可能 CategoryList 未渲染');
+      _dynamicItemHeight = ITEM_HEIGHT_WITH_DIVIDER;
+    } else {
+      _dynamicItemHeight = renderBox.size.height;
+      if (_dynamicItemHeight == ITEM_HEIGHT_WITH_DIVIDER) {
+        LogUtil.i('动态获取分类列表项高度失败，使用默认值: $_dynamicItemHeight');
+      } else {
+        LogUtil.i('成功获取动态高度: $_dynamicItemHeight');
+      }
     }
   });
 }
@@ -868,45 +875,6 @@ class ChannelDrawerPage extends StatefulWidget {
     final state = _stateKey.currentState;
     if (state != null) await state.updateFocusLogic(isInitial, initialIndexOverride: initialIndexOverride);
   }
-
-  static Future<void> scroll({
-    required String targetList,
-    required bool toTop,
-    Duration duration = const Duration(milliseconds: 200),
-  }) async {
-    final state = _stateKey.currentState;
-    if (state == null) return;
-
-    int index;
-    double alignment;
-
-    switch (targetList) {
-      case 'category':
-        if (state._categories.isEmpty) return;
-        index = toTop ? 0 : state._categories.length - 1;
-        alignment = toTop ? 0.0 : 1.0;
-        break;
-      case 'group':
-        if (state._keys.isEmpty) return;
-        index = toTop ? 0 : state._keys.length - 1;
-        alignment = toTop ? 0.0 : 1.0;
-        break;
-      case 'channel':
-        if (state._values.isEmpty || state._groupIndex < 0) return;
-        index = toTop ? 0 : state._values[state._groupIndex].length - 1;
-        alignment = toTop ? 0.0 : 1.0;
-        break;
-      default:
-        return;
-    }
-
-    await state.scrollTo(
-      targetList: targetList,
-      index: index,
-      alignment: alignment,
-      duration: duration,
-    );
-  }
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
@@ -931,13 +899,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   int _channelStartIndex = 0;
 
   double _drawerHeight = 0.0;
-
-  int _categoryListFirstIndex = 0;
-  int _groupListFirstIndex = -1;
-  int _channelListLastIndex = -1;
-  int _categoryListLastIndex = -1;
-  int _groupListLastIndex = -1;
-  int _channelListFirstIndex = -1;
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
@@ -1045,13 +1006,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.initState();
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
-
-    // 修改：等待 initializeData 完成后再调用 getItemHeight
-    initializeData().then((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        getItemHeight(context);
-      });
-    });
+    initializeData(); // 修改：移除 then 中的 getItemHeight 调用
   }
 
   @override
@@ -1083,18 +1038,30 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
+    if (_categories.isEmpty) {
+      LogUtil.w('分类列表为空，无法绑定 _itemKey');
+      _dynamicItemHeight = ITEM_HEIGHT_WITH_DIVIDER;
+      return;
+    }
     focusManager.initialize(_categories.length);
     _initGroupFocusCacheForCategories();
     await updateFocusLogic(true);
+
+    // 新增：确保分类列表渲染后获取高度，只触发一次
+    if (_dynamicItemHeight == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          getItemHeight(context);
+        }
+      });
+    }
   }
 
   void _initGroupFocusCacheForCategories() {
     if (_categories.isNotEmpty) {
-      _categoryListFirstIndex = 0;
-      _categoryListLastIndex = _categories.length - 1;
       _groupFocusCache[0] = {
-        'firstFocusNode': focusManager.focusNodes[_categoryListFirstIndex],
-        'lastFocusNode': focusManager.focusNodes[_categoryListLastIndex]
+        'firstFocusNode': focusManager.focusNodes[0],
+        'lastFocusNode': focusManager.focusNodes[_categories.length - 1]
       };
     }
   }
@@ -1112,8 +1079,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
-  bool _shouldLoadEpg() {
-    return _keys.isNotEmpty && _values.isNotEmpty && _values[_groupIndex].isNotEmpty;
+  bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
+    return keys.isNotEmpty && values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length && values[groupIndex].isNotEmpty;
   }
 
   @override
@@ -1137,8 +1104,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       if (newOrientation != isPortrait || oldHeight != _drawerHeight) {
         setState(() {
           isPortrait = newOrientation;
-          _dynamicItemHeight = null;
-          getItemHeight(context);
+          // 修改：移除 _dynamicItemHeight = null 和 getItemHeight 调用
         });
       }
     });
@@ -1153,7 +1119,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
     _categoryIndex = -1;
     _groupIndex = -1;
-    _channelIndex = -1;
 
     for (int i = 0; i < _categories.length; i++) {
       final category = _categories[i];
@@ -1167,7 +1132,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           if (channelMap != null && channelMap.containsKey(widget.playModel?.title)) {
             _categoryIndex = i;
             _groupIndex = groupIndex;
-            _channelIndex = channelMap.keys.toList().indexOf(widget.playModel?.title ?? '');
             return;
           }
         }
@@ -1180,10 +1144,25 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         if (categoryMap != null && categoryMap.isNotEmpty) {
           _categoryIndex = i;
           _groupIndex = 0;
-          _channelIndex = 0;
           break;
         }
       }
+    }
+  }
+
+  void _updateIndicesFromPlayModel(PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
+    if (playModel?.group != null && categoryMap.containsKey(playModel?.group)) {
+      _groupIndex = _keys.indexOf(playModel!.group!);
+      if (_groupIndex != -1) {
+        _channelIndex = _values[_groupIndex].keys.toList().indexOf(playModel.title ?? '');
+        if (_channelIndex == -1) _channelIndex = 0;
+      } else {
+        _groupIndex = 0;
+        _channelIndex = 0;
+      }
+    } else {
+      _groupIndex = 0;
+      _channelIndex = 0;
     }
   }
 
@@ -1199,19 +1178,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _keys = categoryMap.keys.toList();
     _values = categoryMap.values.toList();
 
-    _groupIndex = 0;
-    _channelIndex = 0;
-
-    if (widget.playModel?.group != null && categoryMap.containsKey(widget.playModel?.group)) {
-      final groupIdx = _keys.indexOf(widget.playModel?.group ?? '');
-      if (groupIdx != -1) {
-        _groupIndex = groupIdx;
-        final channelIdx = _values[_groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
-        if (channelIdx != -1) {
-          _channelIndex = channelIdx;
-        }
-      }
-    }
+    _updateIndicesFromPlayModel(widget.playModel, categoryMap);
 
     _isSystemAutoSelected = widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
   }
@@ -1257,26 +1224,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _groupStartIndex = _categories.length;
     _channelStartIndex = _categories.length + _keys.length;
 
-    _groupListFirstIndex = _groupStartIndex;
-    _channelListFirstIndex = _channelStartIndex;
-
-    _groupListLastIndex = _keys.isNotEmpty ? _groupStartIndex + _keys.length - 1 : -1;
-    _channelListLastIndex = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
-        ? _channelStartIndex + _values[_groupIndex].length - 1
-        : -1;
-
     _groupFocusCache.remove(1);
     _groupFocusCache.remove(2);
     if (_keys.isNotEmpty) {
       _groupFocusCache[1] = {
-        'firstFocusNode': focusManager.focusNodes[_groupListFirstIndex],
-        'lastFocusNode': focusManager.focusNodes[_groupListLastIndex]
+        'firstFocusNode': focusManager.focusNodes[_groupStartIndex],
+        'lastFocusNode': focusManager.focusNodes[_groupStartIndex + _keys.length - 1]
       };
     }
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
       _groupFocusCache[2] = {
-        'firstFocusNode': focusManager.focusNodes[_channelListFirstIndex],
-        'lastFocusNode': focusManager.focusNodes[_channelListLastIndex]
+        'firstFocusNode': focusManager.focusNodes[_channelStartIndex],
+        'lastFocusNode': focusManager.focusNodes[_channelStartIndex + _values[_groupIndex].length - 1]
       };
     }
 
@@ -1307,22 +1266,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _resetChannelData();
       _isSystemAutoSelected = true;
     } else {
-      _initializeChannelData();
+      _keys = categoryMap.keys.toList();
+      _values = categoryMap.values.toList();
       final currentPlayModel = widget.playModel;
-      if (currentPlayModel != null && categoryMap.containsKey(currentPlayModel.group)) {
-        _groupIndex = _keys.indexOf(currentPlayModel.group!);
-        if (_groupIndex != -1) {
-          final channelList = _values[_groupIndex].keys.toList();
-          _channelIndex = channelList.indexOf(currentPlayModel.title ?? '');
-          if (_channelIndex == -1) _channelIndex = 0;
-        } else {
-          _groupIndex = 0;
-          _channelIndex = 0;
-        }
-      } else {
-        _groupIndex = 0;
-        _channelIndex = 0;
-      }
+      _updateIndicesFromPlayModel(currentPlayModel, categoryMap);
     }
 
     if (_tvKeyNavigationState != null) {
@@ -1395,11 +1342,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         );
       }
     });
-  }
-
-  void _adjustScrollPositions() {
-    scrollTo(targetList: 'group', index: _groupIndex, alignment: null);
-    scrollTo(targetList: 'channel', index: _channelIndex, alignment: null);
   }
 
   @override
@@ -1563,16 +1505,14 @@ class _ChannelContentState extends State<ChannelContent> {
   bool _isSystemAutoSelected = false;
   bool _isChannelAutoSelected = false;
   Timer? _epgDebounceTimer;
-  static bool _isInitialLoad = true;
 
   @override
   void initState() {
     super.initState();
     _initializeChannelIndex();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_isInitialLoad && widget.playModel != null) {
+      if (widget.playModel != null) {
         _loadEPGMsgWithDebounce(widget.playModel, channelKey: widget.playModel?.title ?? '');
-        _isInitialLoad = false;
       }
     });
   }
@@ -1595,8 +1535,8 @@ class _ChannelContentState extends State<ChannelContent> {
     }
   }
 
-  bool _shouldLoadEpg() {
-    return widget.keys.isNotEmpty && widget.values.isNotEmpty && widget.groupIndex >= 0;
+  bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
+    return keys.isNotEmpty && values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length && values[groupIndex].isNotEmpty;
   }
 
   void _onChannelTap(PlayModel? newModel) {
