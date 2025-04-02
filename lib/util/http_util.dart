@@ -23,35 +23,33 @@ class HttpUtil {
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
 
-  // 初始化 Dio 的基础配置，headers在具体请求时动态生成
-  BaseOptions options = BaseOptions(
-    connectTimeout: const Duration(seconds: defaultConnectTimeoutSeconds), // 设置默认连接超时时间
-    receiveTimeout: const Duration(seconds: defaultReceiveTimeoutSeconds), // 设置默认接收超时时间
-  );
-
   CancelToken cancelToken = CancelToken(); // 用于取消请求的全局令牌
 
   factory HttpUtil() => _instance;
 
-  // 构造函数
-  HttpUtil._() {
+  // 修改代码开始
+  // 构造函数：初始化 Dio 配置，移除多余的 options 成员，添加证书验证选项
+  HttpUtil._({bool ignoreBadCertificate = false}) {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: defaultConnectTimeoutSeconds), // 默认连接超时
       receiveTimeout: const Duration(seconds: defaultReceiveTimeoutSeconds), // 默认接收超时
       responseType: ResponseType.bytes, // 统一使用字节响应类型，避免重复设置
     ));
 
-    // 自定义 HttpClient 适配器，限制每个主机的最大连接数，允许不安全的证书
+    // 自定义 HttpClient 适配器，限制最大连接数，默认不忽略证书验证
     if (_dio.httpClientAdapter is IOHttpClientAdapter) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient()
           ..maxConnectionsPerHost = maxConnectionsPerHost
           ..autoUncompress = true
-          ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+          ..badCertificateCallback = ignoreBadCertificate
+              ? (X509Certificate cert, String host, int port) => true
+              : null; // 默认不忽略证书错误
         return client;
       };
     }
   }
+  // 修改代码结束
 
   // 超时设置的工具函数
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
@@ -100,21 +98,27 @@ class HttpUtil {
     return response;
   }
 
+  // 修改代码开始
+  // 提取空内容处理逻辑为独立函数，减少重复
+  dynamic _handleEmptyContent(String contentType, {bool isJson = false}) {
+    LogUtil.v('内容为空，返回默认值');
+    if (isJson) {
+      return contentType.contains('array') ? [] : {};
+    }
+    return '';
+  }
+
   // 内容解码逻辑
   dynamic _decodeContent(List<int> bytes, String contentType) {
-    // 添加空内容判断
     if (bytes.isEmpty) {
-      LogUtil.v('_decodeContent: 内容为空，返回空字符串');
-      return '';
+      return _handleEmptyContent(contentType);
     }
     
     final text = utf8.decode(bytes, allowMalformed: true);
     if (contentType.contains('json')) {
       try {
-        // 添加空字符串判断
         if (text.isEmpty) {
-          LogUtil.v('JSON内容为空字符串，返回空对象');
-          return contentType.contains('array') ? [] : {};
+          return _handleEmptyContent(contentType, isJson: true);
         }
         return jsonDecode(text);
       } catch (e) {
@@ -127,20 +131,16 @@ class HttpUtil {
 
   // 回退解码逻辑，处理非 Brotli 或解压失败的情况
   dynamic _decodeFallback(List<int> bytes, String contentType) {
-    // 添加空内容判断
     if (bytes.isEmpty) {
-      LogUtil.v('_decodeFallback: 内容为空，返回空字符串');
-      return '';
+      return _handleEmptyContent(contentType);
     }
     
     try {
       final text = utf8.decode(bytes, allowMalformed: true);
       if (contentType.contains('json')) {
         try {
-          // 添加空字符串判断
           if (text.isEmpty) {
-            LogUtil.v('JSON内容为空字符串，返回空对象');
-            return contentType.contains('array') ? [] : {};
+            return _handleEmptyContent(contentType, isJson: true);
           }
           return jsonDecode(text);
         } catch (e) {
@@ -160,28 +160,23 @@ class HttpUtil {
     }
   }
 
-  // 提取类型处理的公共函数，减少重复逻辑
+  // 优化类型转换逻辑，简化代码
   T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
-    // 添加null检查
     if (data == null) return null;
     
-    // 添加空数组和空字符串检查
     if (data is List && data.isEmpty) {
       LogUtil.v('_parseResponseData: 数据为空数组');
       return null;
     }
     
-    // 如果数据是字符串，去除前后的空格和换行符
     if (data is String) {
       data = data.trim();
-      // 检查空字符串
       if (data.isEmpty) {
         LogUtil.v('_parseResponseData: 数据为空字符串');
         return null;
       }
     }
 
-    // 如果提供了自定义解析函数，优先使用
     if (parseData != null) {
       try {
         return parseData(data);
@@ -191,27 +186,22 @@ class HttpUtil {
       }
     }
 
-    // 处理 String 类型
     if (T == String) {
       if (data is String) return data as T;
       if (data is Map || data is List) return jsonEncode(data) as T;
-      if (data is int || data is double || data is bool) return data.toString() as T;
+      if (data is num || data is bool) return data.toString() as T;
       LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})');
       return null;
     }
 
-    // 其他类型直接尝试转换
-    try {
-      return data is T ? data as T : null;
-    } catch (e) {
-      LogUtil.e('类型转换失败: $data无法转换为 $T');
-      return null;
-    }
+    return data is T ? data : null; // 直接使用类型检查
   }
+  // 修改代码结束
 
-  // 合并 GET 和 POST 请求逻辑，使用布尔值区分请求类型
+  // 修改代码开始
+  // 合并 GET 和 POST 请求逻辑，优化超时处理并添加详细注释
   Future<R?> _performRequest<R>({
-    required bool isPost, // 使用布尔值替代 method 字符串，简化逻辑
+    required bool isPost, // 使用布尔值区分请求类型
     required String path,
     Map<String, dynamic>? queryParameters,
     dynamic data,
@@ -226,17 +216,16 @@ class HttpUtil {
     Response? response;
     int currentAttempt = 0;
 
-    // 确保所有请求使用 ResponseType.bytes，避免重复设置
     options = options ?? Options();
 
     while (currentAttempt < retryCount) {
       try {
-        // 如果 options.headers 存在且不为空，则使用它；否则使用 HeadersConfig.generateHeaders
-        final headers = options.headers != null && options.headers!.isNotEmpty
+        // 获取请求头，优先使用 options.headers
+        final headers = options.headers?.isNotEmpty == true
             ? options.headers!
             : HeadersConfig.generateHeaders(url: path);
 
-        // 提取超时设置，使用局部配置副本，避免修改全局 _dio.options
+        // 获取超时设置，避免修改全局 _dio.options
         final connectTimeout = _getTimeout(
           options.extra?['connectTimeout'] as Duration?,
           _dio.options.connectTimeout,
@@ -246,19 +235,14 @@ class HttpUtil {
           _dio.options.receiveTimeout,
         );
 
-        // 临时修改 BaseOptions 的超时设置
-        final originalBaseOptions = _dio.options; // 保存原始 BaseOptions
-        _dio.options = _dio.options.copyWith(
-          connectTimeout: connectTimeout, // 设置动态连接超时
-          receiveTimeout: receiveTimeout, // 设置动态接收超时
-        );
-
-        // 使用局部选项配置，避免影响全局 _dio，仅处理 headers 等每请求设置
+        // 配置局部请求选项，包含超时和头信息
         final requestOptions = options.copyWith(
           headers: headers,
+          connectTimeout: connectTimeout,
+          receiveTimeout: receiveTimeout,
         );
 
-        // 执行请求，使用全局 cancelToken 或传入的 cancelToken
+        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST
         response = await (isPost
             ? _dio.post(
                 path,
@@ -277,10 +261,7 @@ class HttpUtil {
                 onReceiveProgress: onReceiveProgress,
               ));
 
-        // 恢复原始的 BaseOptions 设置
-        _dio.options = originalBaseOptions;
-
-        // 处理响应内容，包括 Brotli 解压缩和类型转换
+        // 处理响应，包括解压缩和类型转换
         response = _processResponse(response);
         return onSuccess(response);
       } on DioException catch (e, stackTrace) {
@@ -299,6 +280,7 @@ class HttpUtil {
           return null;
         }
 
+        // 重试前等待指定延迟时间
         await Future.delayed(retryDelay);
         LogUtil.i('等待 ${retryDelay.inSeconds} 秒后重试第 $currentAttempt 次');
       }
@@ -306,7 +288,7 @@ class HttpUtil {
     return null;
   }
 
-  // GET 请求方法
+  // GET 请求方法，精简参数
   Future<T?> getRequest<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
@@ -353,7 +335,7 @@ class HttpUtil {
     );
   }
 
-  // POST 请求方法
+  // POST 请求方法，精简参数
   Future<T?> postRequest<T>(
     String path, {
     dynamic data,
@@ -366,7 +348,6 @@ class HttpUtil {
     Duration retryDelay = const Duration(seconds: defaultRetryDelaySeconds),
     T? Function(dynamic data)? parseData,
   }) async {
-    // 调用合并后的 _performRequest 方法，传入 isPost: true
     return _performRequest<T>(
       isPost: true,
       path: path,
@@ -408,6 +389,7 @@ class HttpUtil {
       onSuccess: (response) => response,
     );
   }
+  // 修改代码结束
 
   // 文件下载方法
   Future<int?> downloadFile(
