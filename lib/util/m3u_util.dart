@@ -107,7 +107,7 @@ class M3uUtil {
 
   /// 解密 M3U 文件内容
   /// [encryptedContent] 是从 assets/playlists.m3u 加载的加密字符串（Base64 编码后 XOR 加密）
-  /// 返回解密后的明 W M3U 数据，若解密失败则返回原文
+  /// 返回解密后的明文 M3U 数据，若解密失败则返回原文
   static String _decodeEntireFile(String encryptedContent) {
     try {
       // 验证输入是否为有效的 Base64 字符串
@@ -233,7 +233,9 @@ class M3uUtil {
               .toList();
           // 只有当有有效链接时才更新
           if (validUrls.isNotEmpty) {
-            favoriteChannel.urls = validUrls;
+            favoriteChannel.urls = valid
+
+Urls;
           }
         }
       });
@@ -408,10 +410,15 @@ class M3uUtil {
     }
   }
 
+  // 修改说明：将正则表达式移到类级别，作为静态常量
+  static final RegExp extInfRegex = RegExp(
+      r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
+  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
+
   /// 解析 M3U 文件并转换为 PlaylistModel 格式
   /// 使用正则表达式优化解析效率，支持标准和非标准 M3U 格式
-  /// 修改说明：移除 hasCategory，预编译正则表达式，使用 StringBuffer
-  static PlaylistModel _parseM3u(String m3u) {
+  /// 修改说明：移除 hasCategory，使用类级别的正则表达式，使用 StringBuffer
+  static Future<PlaylistModel> _parseM3u(String m3u) async {
     try {
       final lines = m3u.split(RegExp(r'\r?\n'));
       final playListModel = PlaylistModel();
@@ -419,11 +426,6 @@ class M3uUtil {
       String currentCategory = Config.allChannelsKey; // 修改说明：默认分类无需额外标志
       String tempGroupTitle = '';
       String tempChannelName = '';
-
-      // 修改说明：预编译正则表达式为静态常量
-      static const extInfRegex = RegExp(
-          r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-      static const paramRegex = RegExp(r'(\w+[-\w]*)=["']?([^"'\s]+)["']?');
 
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         for (int i = 0; i < lines.length; i++) {
