@@ -13,6 +13,14 @@ class TrafficAnalytics {
   final String umamiUrl = 'https://ws.itvapp.net/api/send';
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
 
+  // 定义默认位置数据的常量，避免重复赋值
+  static const Map<String, String> _defaultLocationData = {
+    'ip': 'Unknown IP',
+    'city': 'Unknown City',
+    'region': 'Unknown Region',
+    'country': 'Unknown Country',
+  };
+
   /// 发送页面访问统计数据到Umami
   Future<void> sendPageView(BuildContext context, {String? referrer, String? additionalPath}) async { // 修改：将 referrer 改为可选参数
     try {
@@ -46,20 +54,13 @@ class TrafficAnalytics {
       String deviceInfo = userInfo['deviceInfo'] ?? 'Unknown Device'; // 设备信息默认值
       String userAgent = userInfo['userAgent'] ?? '${Config.packagename}/${Config.version} (Unknown Platform)'; // UA默认值
       
-      // 位置信息处理（兼容无效数据场景）
-      Map<String, dynamic> locationData = {};
+      // 位置信息处理（使用常量优化默认值）
+      Map<String, dynamic> locationData = _defaultLocationData; // 默认位置数据
       if (userInfo['location'] != null && userInfo['location'] is Map<String, dynamic>) {
-        locationData = userInfo['location'] as Map<String, dynamic>;
-      } else {
-        // 位置数据无效时的默认配置
-        locationData = {
-          'ip': 'Unknown IP',
-          'city': 'Unknown City',
-          'region': 'Unknown Region',
-          'country': 'Unknown Country',
-        };
+        locationData = Map<String, dynamic>.from(_defaultLocationData); // 复制默认值
+        locationData.addAll(userInfo['location'] as Map<String, dynamic>); // 覆盖有效数据
       }
-      // 构建地理位置字符串
+      // 构建地理位置字符串，统一从 locationData 获取
       String locationString = '${locationData['city']}, ${locationData['region']}, ${locationData['country']}';
 
       // 构造当前页面URL
@@ -87,9 +88,9 @@ class TrafficAnalytics {
           'screen': screenSize,
           'ip': locationData['ip'],
           'userAgent': userAgent, 
-          'country': locationData['country'] ?? 'Unknown Country', 
-          'region': locationData['region'] ?? 'Unknown Region',
-          'city': locationData['city'] ?? 'Unknown City',
+          'country': locationData['country'], // 统一从 locationData 获取
+          'region': locationData['region'],
+          'city': locationData['city'],
           'timestamp': (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString(),
           'data': {
             'device_info': deviceInfo, 
@@ -99,14 +100,12 @@ class TrafficAnalytics {
         'type': 'event',
       };
 
-      // 发送HTTP请求
-      final response = await HttpUtil().postRequest<String>(
+      // 发送HTTP请求，添加重试逻辑
+      final response = await _sendRequestWithRetry(
         umamiUrl,
-        data: jsonEncode(payload), // 数据序列化为JSON
-        options: Options(
-          receiveTimeout: const Duration(seconds: 10), // 设置10秒接收超时
-        ),
-        cancelToken: CancelToken(),
+        payload,
+        retries: 2, // 最多重试2次
+        delay: const Duration(seconds: 2), // 重试间隔2秒
       );
 
       // 处理响应结果
@@ -119,5 +118,37 @@ class TrafficAnalytics {
       // 全局异常捕获
       LogUtil.logError('发送页面访问数据时发生错误', error, stackTrace);
     }
+  }
+
+  /// 辅助方法：带重试机制的HTTP请求
+  Future<String?> _sendRequestWithRetry(
+    String url,
+    Map<String, dynamic> payload, {
+    required int retries,
+    required Duration delay,
+  }) async {
+    int attempt = 0;
+    while (attempt <= retries) {
+      try {
+        final response = await HttpUtil().postRequest<String>(
+          url,
+          data: jsonEncode(payload), // 数据序列化为JSON
+          options: Options(
+            receiveTimeout: const Duration(seconds: 10), // 设置10秒接收超时
+          ),
+          cancelToken: CancelToken(),
+        );
+        return response; // 成功则返回结果
+      } catch (e) {
+        attempt++;
+        if (attempt > retries) {
+          LogUtil.e('HTTP请求失败，已达最大重试次数: $e');
+          return null; // 达到最大重试次数，返回null
+        }
+        await Future.delayed(delay); // 等待后重试
+        LogUtil.i('HTTP请求失败，第 $attempt 次重试...');
+      }
+    }
+    return null; // 默认返回null
   }
 }
