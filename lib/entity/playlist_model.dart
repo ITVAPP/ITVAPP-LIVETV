@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-/// 构造函数，用于创建一个 [PlaylistModel] 实例。
 /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
 /// [playList] 是一个三层嵌套的Map，其中：
 /// - 第一层 `String` 键是分类（例如：“区域”或“语言”）
@@ -39,13 +38,16 @@ class PlaylistModel {
   PlaylistModel({
     this.epgUrl,
     Map<String, dynamic>? playList,
-  }) : playList = playList ?? {};
+  }) : playList = playList ?? {}, _cachedChannels = null; // 修改说明：初始化缓存
 
   /// EPG（电子节目指南）的URL，用于获取节目信息
   String? epgUrl;
 
   /// 存储播放列表，支持两层或三层结构
   Map<String, dynamic> playList;
+
+  /// 修改说明：添加频道缓存
+  List<PlayModel>? _cachedChannels;
 
   /// 从JSON数据创建实例，处理播放列表解析
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
@@ -114,7 +116,9 @@ class PlaylistModel {
     try {
       LogUtil.i('parsePlayList处理传入的键：${json.keys}');
       if (json.isEmpty) {
-        LogUtil.i('空的播放列表结构，返回默认三层结构');
+        LogUtil.i('空的播放列表结构，返回
+
+默认三层结构');
         return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
       }
       Map<String, dynamic> sanitizedJson = {};
@@ -165,7 +169,7 @@ class PlaylistModel {
     return null;
   }
 
-  /// 解析三层结构播放列表，返回分类-组-频道映射（修改部分）
+  /// 解析三层结构播放列表，返回分类-组-频道映射
   static Map<String, Map<String, Map<String, PlayModel>>> _parseThreeLayer(Map<String, dynamic> json) {
     Map<String, Map<String, Map<String, PlayModel>>> result = {};
     try {
@@ -206,7 +210,7 @@ class PlaylistModel {
     return result.isEmpty ? {Config.allChannelsKey: <String, Map<String, PlayModel>>{}} : result;
   }
 
-  /// 解析两层结构播放列表，返回组-频道映射（修改部分）
+  /// 解析两层结构播放列表，返回组-频道映射
   static Map<String, Map<String, PlayModel>> _parseTwoLayer(Map<String, dynamic> json) {
     Map<String, Map<String, PlayModel>> result = {};
     try {
@@ -235,20 +239,22 @@ class PlaylistModel {
 
   /// 搜索匹配关键字的频道，使用缓存提升性能
   List<PlayModel> searchChannels(String keyword) {
-    List<PlayModel> cachedChannels = [];
-    for (var groupMap in playList.values) {
-      if (groupMap is Map<String, Map<String, PlayModel>>) {
-        for (var channelMap in groupMap.values) {
-          cachedChannels.addAll(channelMap.values);
+    if (_cachedChannels == null) {
+      _cachedChannels = [];
+      for (var groupMap in playList.values) {
+        if (groupMap is Map<String, Map<String, PlayModel>>) {
+          for (var channelMap in groupMap.values) {
+            _cachedChannels!.addAll(channelMap.values);
+          }
         }
       }
     }
-    return cachedChannels.where((channel) =>
+    return _cachedChannels!.where((channel) =>
         (channel.title?.contains(keyword) ?? false) ||
         (channel.group?.contains(keyword) ?? false)).toList();
   }
 
-  /// 统一处理空Map逻辑，返回指定类型结果（修改部分）
+  /// 统一处理空Map逻辑，返回指定类型结果
   static T _handleEmptyMap<T>(dynamic input, T Function(Map<String, dynamic>) parser) {
     if (input is! Map || input.isEmpty) {
       if (T == Map<String, Map<String, PlayModel>>) {
