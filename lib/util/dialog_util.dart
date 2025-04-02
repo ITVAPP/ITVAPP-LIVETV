@@ -34,32 +34,32 @@ class DialogUtil {
   static String _processLogs(String content) {
     if (content == "showlog") {
       var logs = LogUtil.getLogs().reversed.toList();
-      return logs.map((log) => 
-        '${log['time']}\n${LogUtil.parseLogMessage(log['message']!)}')
-        .join('\n\n');
+      return logs.map((log) =>
+          '${log['time']}\n${LogUtil.parseLogMessage(log['message']!)}')
+          .join('\n\n');
     }
     return content;
   }
-  
+
   // 显示通用的弹窗方法
   static Future<bool?> showCustomDialog(
-    BuildContext context, {
-    String? title,
-    String? content,
-    String? positiveButtonLabel,
-    VoidCallback? onPositivePressed,
-    String? negativeButtonLabel,
-    VoidCallback? onNegativePressed,
-    String? closeButtonLabel,
-    VoidCallback? onClosePressed, 
-    bool isDismissible = true,
-    bool isCopyButton = false,
-    String? ShowUpdateButton,
-    Widget? child,
-  }) {
+      BuildContext context, {
+        String? title,
+        String? content,
+        String? positiveButtonLabel,
+        VoidCallback? onPositivePressed,
+        String? negativeButtonLabel,
+        VoidCallback? onNegativePressed,
+        String? closeButtonLabel,
+        VoidCallback? onClosePressed,
+        bool isDismissible = true,
+        bool isCopyButton = false,
+        String? ShowUpdateButton,
+        Widget? child,
+      }) {
     // 处理日志内容
     content = content != null ? _processLogs(content) : null;
-    
+
     // 计算所需焦点节点数量
     int focusNodeCount = 1;
     if (positiveButtonLabel != null) focusNodeCount++;
@@ -68,7 +68,7 @@ class DialogUtil {
     if (ShowUpdateButton != null) focusNodeCount++;
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;
-    
+
     // 初始化焦点节点
     _initFocusNodes(focusNodeCount);
 
@@ -84,6 +84,7 @@ class DialogUtil {
             final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;
             final maxDialogHeight = screenHeight * 0.8;
 
+            // 使用 WillPopScope 确保对话框关闭时清理焦点节点
             return WillPopScope(
               onWillPop: () async {
                 disposeFocusNodes(); // 关闭对话框时释放焦点节点
@@ -119,7 +120,7 @@ class DialogUtil {
                                   children: [
                                     if (content != null) _buildDialogContent(content: content),
                                     const SizedBox(height: 10),
-                                    if (child != null) 
+                                    if (child != null)
                                       FocusableItem(
                                         focusNode: _focusNodes[focusIndex++],
                                         child: child,
@@ -159,7 +160,7 @@ class DialogUtil {
       disposeFocusNodes(); // 确保对话框关闭后清理焦点节点
     });
   }
- 
+
   // 封装的 UpdateDownloadBtn 方法
   static Widget _buildUpdateDownloadBtn(String apkUrl) {
     return Consumer<DownloadProvider>(
@@ -170,12 +171,12 @@ class DialogUtil {
         return provider.isDownloading
             ? _buildDownloadProgress(provider, btnWidth)
             : _buildFocusableButton(
-                focusNode: _focusNodes[focusIndex++],
-                onPressed: () => _handleDownload(context, apkUrl),
-                label: S.current.update,
-                width: btnWidth,
-                isDownloadButton: true, // 标记为下载按钮以应用特定样式
-              );
+          focusNode: _focusNodes[focusIndex++],
+          onPressed: () => _handleDownload(context, apkUrl),
+          label: S.current.update,
+          width: btnWidth,
+          isDownloadButton: true, // 标记为下载按钮以应用特定样式
+        );
       },
     );
   }
@@ -261,51 +262,33 @@ class DialogUtil {
     );
   }
 
-  // 修改后的 _handleDownload 方法，添加 context.mounted 检查
   static void _handleDownload(BuildContext context, String apkUrl) {
     if (Platform.isAndroid) {
-      try {
-        void onDownloadComplete() {
-          if (context.mounted) Navigator.of(context).pop(); // 关闭当前弹窗
+      context.read<DownloadProvider>().downloadApk(apkUrl).then((_) {
+        if (context.mounted) {
+          Navigator.of(context).pop(); // 下载成功关闭弹窗
         }
-
-        void onDownloadFailed(String errorMessage) {
-          if (context.mounted) {
-            Navigator.of(context).pop(); // 关闭当前弹窗
-            showCustomDialog(
-              context,
-              title: S.current.downloading,
-              content: '${S.current.filterError}: $errorMessage',
-              positiveButtonLabel: S.current.ok,
-              onPositivePressed: () => Navigator.of(context).pop(),
-              isDismissible: true,
-            );
-          }
+      }).catchError((e, stackTrace) {
+        if (context.mounted) {
+          Navigator.of(context).pop(); // 下载失败关闭当前弹窗
+          LogUtil.logError('下载失败', e, stackTrace);
+          showCustomDialog(
+            context,
+            title: S.current.downloading,
+            content: S.current.filterError,
+            closeButtonLabel: S.current.cancelButton,
+            isDismissible: true,
+          ); // 显示失败提示
         }
-
-        context.read<DownloadProvider>().downloadApk(
-          apkUrl,
-          onComplete: onDownloadComplete,
-          onFailed: onDownloadFailed,
-        );
-      } catch (e, stackTrace) {
-        LogUtil.logError('下载时发生错误', e, stackTrace);
-        CustomSnackBar.showSnackBar(
-          context,
-          '下载失败，请稍后重试',
-          duration: const Duration(seconds: 4),
-        );
-      }
+      });
     } else {
-      try {
+      if (context.mounted) {
         Navigator.of(context).pop(true);
         CustomSnackBar.showSnackBar(
           context,
           '当前平台不支持下载，仅支持Android',
           duration: const Duration(seconds: 4),
         );
-      } catch (e, stackTrace) {
-        LogUtil.logError('关闭对话框时发生错误', e, stackTrace);
       }
     }
   }
@@ -369,16 +352,16 @@ class DialogUtil {
 
   // 动态生成按钮，并增加点击效果
   static Widget _buildActionButtons(
-    BuildContext context, {
-    String? positiveButtonLabel,
-    VoidCallback? onPositivePressed,
-    String? negativeButtonLabel,
-    VoidCallback? onNegativePressed,
-    String? closeButtonLabel,
-    VoidCallback? onClosePressed,
-    String? content,
-    bool isCopyButton = false,
-  }) {
+      BuildContext context, {
+        String? positiveButtonLabel,
+        VoidCallback? onPositivePressed,
+        String? negativeButtonLabel,
+        VoidCallback? onNegativePressed,
+        String? closeButtonLabel,
+        VoidCallback? onClosePressed,
+        String? content,
+        bool isCopyButton = false,
+      }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -420,7 +403,7 @@ class DialogUtil {
     );
   }
 
-  // 获取关闭按钮的颜色，动态设置焦点状态  
+  // 获取关闭按钮的颜色，动态设置焦点状态
   static Color _closeIconColor(bool hasFocus) {
     return hasFocus ? selectedColor : Colors.white;
   }
