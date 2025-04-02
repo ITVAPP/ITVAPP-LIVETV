@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 
+/// 构造函数，用于创建一个 [PlaylistModel] 实例。
 /// [epgUrl] 是一个可选的字符串，指向EPG数据源的URL。
 /// [playList] 是一个三层嵌套的Map，其中：
 /// - 第一层 `String` 键是分类（例如：“区域”或“语言”）
@@ -116,9 +117,7 @@ class PlaylistModel {
     try {
       LogUtil.i('parsePlayList处理传入的键：${json.keys}');
       if (json.isEmpty) {
-        LogUtil.i('空的播放列表结构，返回
-
-默认三层结构');
+        LogUtil.i('空的播放列表结构，返回默认三层结构'); // 修改说明：修复未闭合的字符串
         return {Config.allChannelsKey: <String, Map<String, PlayModel>>{}};
       }
       Map<String, dynamic> sanitizedJson = {};
@@ -238,6 +237,7 @@ class PlaylistModel {
   }
 
   /// 搜索匹配关键字的频道，使用缓存提升性能
+  /// 修改说明：使用 _cachedChannels 缓存结果
   List<PlayModel> searchChannels(String keyword) {
     if (_cachedChannels == null) {
       _cachedChannels = [];
@@ -258,7 +258,7 @@ class PlaylistModel {
   static T _handleEmptyMap<T>(dynamic input, T Function(Map<String, dynamic>) parser) {
     if (input is! Map || input.isEmpty) {
       if (T == Map<String, Map<String, PlayModel>>) {
-        return <String, Map<String, PlayModel>>{} as T;
+        return <String, Map<String, Map<String, PlayModel>>>{} as T;
       } else if (T == Map<String, PlayModel>) {
         return <String, PlayModel>{} as T;
       }
