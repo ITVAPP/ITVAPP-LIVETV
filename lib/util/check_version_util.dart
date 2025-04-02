@@ -93,7 +93,7 @@ class CheckVersionUtil {
       context,
       title: '${S.current.findNewVersion}🚀',  // 对话框标题，提示发现新版本
       content: CheckVersionUtil.latestVersionEntity!.latestMsg,  // 显示更新日志
-      ShowUpdateButton: 'https://github.com/aiyakuaile/easy_tv_live/releases/download/2.7.7/easyTV-2.7.7.apk',  // 下载链接
+      ShowUpdateButton: 'https://github.com/aiyakuaile/easy_tv_live/releases/download/2.7.7/easy.apk',  // 下载链接
       isDismissible: false,  // 禁止点击外部关闭对话框
     );
   }
