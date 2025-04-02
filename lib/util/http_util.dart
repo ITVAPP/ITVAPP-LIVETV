@@ -19,7 +19,7 @@ class HttpUtil {
   static const int downloadReceiveTimeoutSeconds = 298; // 文件下载的接收超时时间（秒）
   static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
   static const int successStatusCode = 200; // 成功的状态码
-  static const bool defaultIgnoreBadCertificate = true; // 默认是否忽略不安全证书，false 表示不忽略
+  static const bool defaultIgnoreBadCertificate = true ; // 默认是否忽略不安全证书，false 表示不忽略
 
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
@@ -232,21 +232,20 @@ class HttpUtil {
           _dio.options.receiveTimeout,
         );
 
-        // 配置局部请求选项，仅包含 headers，超时设置直接在请求中应用
-        final requestOptions = options.copyWith(
+        // 配置局部请求选项，仅包含 headers 和必要的配置
+        final requestOptions = Options(
           headers: headers,
+          // 注意：connectTimeout 和 receiveTimeout 不能直接设置在这里，
+          // 需要在 BaseOptions 中配置或通过拦截器实现动态调整
         );
 
-        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST，超时设置直接传入
+        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST
         response = await (isPost
             ? _dio.post(
                 path,
                 data: data,
                 queryParameters: queryParameters,
-                options: requestOptions.copyWith(
-                  connectTimeout: connectTimeout, // 直接设置超时
-                  receiveTimeout: receiveTimeout,
-                ),
+                options: requestOptions,
                 cancelToken: cancelToken ?? this.cancelToken,
                 onSendProgress: onSendProgress,
                 onReceiveProgress: onReceiveProgress,
@@ -254,10 +253,7 @@ class HttpUtil {
             : _dio.get(
                 path,
                 queryParameters: queryParameters,
-                options: requestOptions.copyWith(
-                  connectTimeout: connectTimeout, // 直接设置超时
-                  receiveTimeout: receiveTimeout,
-                ),
+                options: requestOptions,
                 cancelToken: cancelToken ?? this.cancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
