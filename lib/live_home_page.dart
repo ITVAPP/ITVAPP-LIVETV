@@ -934,7 +934,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     LogUtil.i('原地排序结果: $items');
   }
 
-  // 修改：优化为单次遍历，减少嵌套循环和临时列表
+  // 修改：修复地理排序，确保排序顺序反映在 Map 中
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       LogUtil.e('播放列表为空，无需排序');
