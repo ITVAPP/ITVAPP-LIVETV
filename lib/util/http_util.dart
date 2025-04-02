@@ -19,6 +19,7 @@ class HttpUtil {
   static const int downloadReceiveTimeoutSeconds = 298; // 文件下载的接收超时时间（秒）
   static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
   static const int successStatusCode = 200; // 成功的状态码
+  static const bool defaultIgnoreBadCertificate = true; // 默认是否忽略不安全证书，false 表示不忽略
 
   static final HttpUtil _instance = HttpUtil._(); // 单例模式的静态实例，确保 HttpUtil 全局唯一
   late final Dio _dio; // 使用 Dio 进行 HTTP 请求
@@ -27,29 +28,27 @@ class HttpUtil {
 
   factory HttpUtil() => _instance;
 
-  // 修改代码开始
-  // 构造函数：初始化 Dio 配置，移除多余的 options 成员，添加证书验证选项
-  HttpUtil._({bool ignoreBadCertificate = false}) {
+  // 构造函数：初始化 Dio 配置，支持通过参数覆盖默认的证书验证设置
+  HttpUtil._({bool? ignoreBadCertificate}) {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: defaultConnectTimeoutSeconds), // 默认连接超时
       receiveTimeout: const Duration(seconds: defaultReceiveTimeoutSeconds), // 默认接收超时
       responseType: ResponseType.bytes, // 统一使用字节响应类型，避免重复设置
     ));
 
-    // 自定义 HttpClient 适配器，限制最大连接数，默认不忽略证书验证
+    // 自定义 HttpClient 适配器，限制最大连接数，使用常量控制默认证书验证行为
     if (_dio.httpClientAdapter is IOHttpClientAdapter) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient()
           ..maxConnectionsPerHost = maxConnectionsPerHost
           ..autoUncompress = true
-          ..badCertificateCallback = ignoreBadCertificate
+          ..badCertificateCallback = (ignoreBadCertificate ?? defaultIgnoreBadCertificate)
               ? (X509Certificate cert, String host, int port) => true
-              : null; // 默认不忽略证书错误
+              : null; // 根据参数或常量决定是否忽略证书错误
         return client;
       };
     }
   }
-  // 修改代码结束
 
   // 超时设置的工具函数
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
@@ -98,7 +97,6 @@ class HttpUtil {
     return response;
   }
 
-  // 修改代码开始
   // 提取空内容处理逻辑为独立函数，减少重复
   dynamic _handleEmptyContent(String contentType, {bool isJson = false}) {
     LogUtil.v('内容为空，返回默认值');
@@ -196,10 +194,9 @@ class HttpUtil {
 
     return data is T ? data : null; // 直接使用类型检查
   }
-  // 修改代码结束
 
   // 修改代码开始
-  // 合并 GET 和 POST 请求逻辑，优化超时处理并添加详细注释
+  // 合并 GET 和 POST 请求逻辑，修复超时设置问题并添加详细注释
   Future<R?> _performRequest<R>({
     required bool isPost, // 使用布尔值区分请求类型
     required String path,
@@ -235,20 +232,21 @@ class HttpUtil {
           _dio.options.receiveTimeout,
         );
 
-        // 配置局部请求选项，包含超时和头信息
+        // 配置局部请求选项，仅包含 headers，超时设置直接在请求中应用
         final requestOptions = options.copyWith(
           headers: headers,
-          connectTimeout: connectTimeout,
-          receiveTimeout: receiveTimeout,
         );
 
-        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST
+        // 执行 HTTP 请求，根据 isPost 区分 GET 或 POST，超时设置直接传入
         response = await (isPost
             ? _dio.post(
                 path,
                 data: data,
                 queryParameters: queryParameters,
-                options: requestOptions,
+                options: requestOptions.copyWith(
+                  connectTimeout: connectTimeout, // 直接设置超时
+                  receiveTimeout: receiveTimeout,
+                ),
                 cancelToken: cancelToken ?? this.cancelToken,
                 onSendProgress: onSendProgress,
                 onReceiveProgress: onReceiveProgress,
@@ -256,7 +254,10 @@ class HttpUtil {
             : _dio.get(
                 path,
                 queryParameters: queryParameters,
-                options: requestOptions,
+                options: requestOptions.copyWith(
+                  connectTimeout: connectTimeout, // 直接设置超时
+                  receiveTimeout: receiveTimeout,
+                ),
                 cancelToken: cancelToken ?? this.cancelToken,
                 onReceiveProgress: onReceiveProgress,
               ));
@@ -287,6 +288,7 @@ class HttpUtil {
     }
     return null;
   }
+  // 修改代码结束
 
   // GET 请求方法，精简参数
   Future<T?> getRequest<T>(
@@ -389,7 +391,6 @@ class HttpUtil {
       onSuccess: (response) => response,
     );
   }
-  // 修改代码结束
 
   // 文件下载方法
   Future<int?> downloadFile(
