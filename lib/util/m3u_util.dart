@@ -207,6 +207,7 @@ class M3uUtil {
 
   /// 更新收藏列表中的频道播放地址
   /// 使用单次映射构建 ID 到 URL 的查找表，降低时间复杂度
+  /// 修改说明：修复 validUrls 的拼写错误，移除多余的 Urls
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
     final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
@@ -233,9 +234,7 @@ class M3uUtil {
               .toList();
           // 只有当有有效链接时才更新
           if (validUrls.isNotEmpty) {
-            favoriteChannel.urls = valid
-
-Urls;
+            favoriteChannel.urls = validUrls; // 修改说明：修复拼写错误，添加分号
           }
         }
       });
@@ -414,7 +413,7 @@ Urls;
   static final RegExp extInfRegex = RegExp(
       r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
   static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
-
+  
   /// 解析 M3U 文件并转换为 PlaylistModel 格式
   /// 使用正则表达式优化解析效率，支持标准和非标准 M3U 格式
   /// 修改说明：移除 hasCategory，使用类级别的正则表达式，使用 StringBuffer
