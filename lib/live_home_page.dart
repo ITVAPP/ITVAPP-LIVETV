@@ -251,7 +251,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('开始播放: $parsedUrl');
         _timeoutActive = false;
       } catch (e) {
-        await tempController?.dispose(); // 确保异常时清理临时控制器
+        tempController?.dispose(); // 确保异常时清理临时控制器
         throw e;
       }
 
