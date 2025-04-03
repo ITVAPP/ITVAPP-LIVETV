@@ -332,7 +332,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
         if (_shouldUpdateAspectRatio) {
-          final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? defaultAspectRatio;
+          final newAspectRatio = _playerController?.videoPlayer植物Controller?.value.aspectRatio ?? defaultAspectRatio;
           if (aspectRatio != newAspectRatio) {
             setState(() {
               aspectRatio = newAspectRatio;
@@ -910,40 +910,51 @@ class _LiveHomePageState extends State<LiveHomePage> {
     final String? regionPrefix = location['region'];
     final String? cityPrefix = location['city'];
 
-    if ((regionPrefix == null || regionPrefix.isEmpty) && (cityPrefix == null || cityPrefix.isEmpty)) {
-      LogUtil.i('地理信息中未找到有效地区或城市前缀，跳过排序');
+    if (regionPrefix == null || regionPrefix.isEmpty) {
+      LogUtil.i('地区前缀为空，跳过排序');
       return;
     }
 
     videoMap.playList!.forEach((category, groups) {
-      if (groups is! Map<String, dynamic>) {
+      if (groups is! Map<String, Map<String, PlayModel>>) {
         LogUtil.e('分类 $category 的 groups 类型无效: ${groups.runtimeType}');
-        return; // 跳过此分类
+        return;
       }
 
       final groupList = groups.keys.toList();
+      // Category 级别检查
+      bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix));
+      if (!categoryNeedsSort) {
+        LogUtil.i('分类 $category 不包含 $regionPrefix，跳过排序');
+        return;
+      }
+
+      // Group 排序
       LogUtil.i('排序前 groupList for $category: $groupList');
       final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
       final newGroups = <String, Map<String, PlayModel>>{};
 
       for (var group in sortedGroups) {
         final channels = groups[group];
-        if (channels is! Map<String, dynamic>) {
+        if (channels is! Map<String, PlayModel>) {
           LogUtil.e('组 $group 的 channels 类型无效: ${channels.runtimeType}');
-          continue; // 跳过此组
+          continue;
         }
 
         final channelList = channels.keys.toList();
-        LogUtil.i('排序前 channelList for $group: $channelList');
-        final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
         final newChannels = <String, PlayModel>{};
 
-        for (var channel in sortedChannels) {
-          final channelData = channels[channel];
-          if (channelData is PlayModel) {
-            newChannels[channel] = channelData;
-          } else {
-            LogUtil.e('频道 $channel 数据无效: ${channelData.runtimeType}');
+        // 仅对包含 regionPrefix 的 group 进行 channel 排序
+        if (group.contains(regionPrefix) && (cityPrefix != null && cityPrefix.isNotEmpty)) {
+          LogUtil.i('排序前 channelList for $group: $channelList');
+          final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
+          for (var channel in sortedChannels) {
+            newChannels[channel] = channels[channel]!;
+          }
+        } else {
+          LogUtil.i('组 $group 不包含 $regionPrefix，跳过 channel 排序');
+          for (var channel in channelList) {
+            newChannels[channel] = channels[channel]!;
           }
         }
         newGroups[group] = newChannels;
