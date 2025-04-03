@@ -89,8 +89,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _progressEnabled = false;
   bool _isHls = false;
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
-    Config.myFavoriteKey: <
-    String, Map<String, PlayModel>>{},
+    Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   };
   ValueKey<int>? _drawerRefreshKey;
   final TrafficAnalytics _trafficAnalytics = TrafficAnalytics();
@@ -358,7 +357,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           isBuffering = true;
           toastString = S.current.loading;
         });
-        
+
         if (isPlaying) {
           _timeoutTimer?.cancel();
           _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
@@ -368,7 +367,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitchQueue=${_pendingSwitchQueue.length}');
               return;
             }
-            
+
             if (_playerController?.isPlaying() != true) {
               LogUtil.e('播放中缓冲超过10秒，触发重试');
               _retryPlayback(resetRetryCount: true);
@@ -675,7 +674,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (urls.isEmpty) return null;
     final nextSourceIndex = _sourceIndex + 1;
     if (nextSourceIndex >= urls.length) return null;
-    _cachedNextUrl = urls-1 urls[nextSourceIndex];
+    _cachedNextUrl = urls[nextSourceIndex];
     return _cachedNextUrl;
   }
 
@@ -863,7 +862,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final Map<String, dynamic>? locationData = userData['info']?['location'];
       final String? region = locationData?['region'] as String?;
       final String? city = locationData?['city'] as String?;
-      
+
       final String? regionPrefix = region != null && region.isNotEmpty
           ? (region.length >= 2 ? region.substring(0, 2) : region)
           : null;
