@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 美化设置页面主类，继承自 StatefulWidget，用于动态状态管理
 class SettingBeautifyPage extends StatefulWidget {
