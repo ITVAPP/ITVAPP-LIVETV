@@ -56,7 +56,7 @@ void main() async {
   await Future.wait([
     WakelockPlus.enable(), // 启用屏幕常亮功能
     SpUtil.getInstance(),  // 初始化本地存储工具
-    themeProvider.initialize(), // 初始化主题提供者
+    themeProvider.initialize(), // 显式调用初始化
   ]);
 
   if (!EnvUtil.isMobile) { // 判断是否为非移动端环境
@@ -75,7 +75,7 @@ void main() async {
     }
   } catch (e, stackTrace) {
     LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}'); // 记录硬件加速检测错误
-    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
+    await SpUtil.putBool( AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
     EasyLoading.showError('硬件加速检测失败，已禁用'); // 显示错误提示
   }
 
