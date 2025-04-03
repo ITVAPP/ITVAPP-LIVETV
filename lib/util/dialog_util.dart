@@ -75,7 +75,14 @@ class DialogUtil {
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,
-      barrierColor: Colors.transparent, 
+      barrierColor: Colors.transparent, // 初始透明
+      useRootNavigator: true, // 使用根导航器，避免嵌套问题
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: animation, // 仅淡化对话框内容，不影响屏障
+          child: child,
+        );
+      },
       builder: (context) {
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -333,22 +340,29 @@ class DialogUtil {
     );
   }
 
-  // 封装的内容部分，允许选择和复制功能
+  // 封装的内容部分，允许选择和复制功能，添加文字颜色和背景隔离
   static Widget _buildDialogContent({String? content}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextField(
-          controller: TextEditingController(text: content ?? ''),
-          readOnly: true,
-          maxLines: null,
-          textAlign: TextAlign.start,
-          decoration: const InputDecoration(
-            border: InputBorder.none,
+        Container(
+          padding: const EdgeInsets.all(8.0), // 添加内边距
+          color: Colors.black.withOpacity(0.7), // 添加半透明背景隔离渐变
+          child: TextField(
+            controller: TextEditingController(text: content ?? ''),
+            readOnly: true,
+            maxLines: null,
+            textAlign: TextAlign.start,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+            ),
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.white, // 明确指定文字颜色为白色
+            ),
+            enableInteractiveSelection: true,
           ),
-          style: const TextStyle(fontSize: 18),
-          enableInteractiveSelection: true,
         ),
       ],
     );
