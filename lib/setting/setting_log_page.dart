@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 新增 SelectionState 类用于管理焦点和选中状态
+// SelectionState 类用于管理焦点和选中状态
 class SelectionState {
   final int focusedIndex; // 当前聚焦的索引
   final String selectedLevel; // 当前选中的日志级别
@@ -23,7 +23,7 @@ class SettinglogPage extends StatefulWidget {
 }
 
 class _SettinglogPageState extends State<SettinglogPage> {
-  // 定义静态常量样式，避免重复创建以提升性能
+  // 定义静态常量样式
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold); // 标题样式
   static const _logTimeStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 16); // 日志时间样式
   static const _logMessageStyle = TextStyle(fontSize: 14); // 日志消息样式
@@ -33,18 +33,19 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)); // 按钮统一圆角样式
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景颜色
-  late final List<FocusNode> _focusNodes; // 修改为 late final，集中管理
+  late List<FocusNode> _focusNodes; // 修改为 late，非 final，因为需要动态更新
   late SelectionState _logState; // 新增状态管理，移除 _selectedLevel
   late Map<String, ButtonStyle> _buttonStyles; // 缓存按钮样式，提升性能
+  late Map<int, Map<String, FocusNode>> _groupFocusCache; // 新增分组焦点缓存
 
   List<Map<String, String>>? _cachedLogs; // 缓存日志数据
   DateTime? _lastLogUpdate; // 上次日志更新时间
   String? _lastSelectedLevel; // 上次筛选的日志级别
   static const _logCacheTimeout = Duration(seconds: 1); // 日志缓存超时时间为1秒
 
-  // 按钮基础样式，统一配置以减少重复代码
+  // 按钮基础样式
   static final _baseButtonStyle = OutlinedButton.styleFrom(
-    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0), // 修复语法错误
+    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     side: BorderSide.none,
   );
@@ -74,17 +75,43 @@ class _SettinglogPageState extends State<SettinglogPage> {
     };
   }
 
+  // 生成焦点节点
+  List<FocusNode> _generateFocusNodes(int count) {
+    return List.generate(count, (index) {
+      final node = FocusNode();
+      node.addListener(_handleFocusChange); // 统一监听
+      return node;
+    });
+  }
+
+  // 动态生成分组焦点缓存
+  Map<int, Map<String, FocusNode>> _generateGroupFocusCache(bool isLogOn) {
+    final cache = <int, Map<String, FocusNode>>{};
+    cache[0] = {
+      'firstFocusNode': _focusNodes[0], // 开关的焦点节点
+      'lastFocusNode': _focusNodes[0],  // 开关只有一个节点
+    };
+    if (isLogOn) {
+      cache[1] = {
+        'firstFocusNode': _focusNodes[1], // 过滤按钮第一个节点
+        'lastFocusNode': _focusNodes[5],  // 过滤按钮最后一个节点
+      };
+      cache[2] = {
+        'firstFocusNode': _focusNodes[6], // 清空按钮的焦点节点
+        'lastFocusNode': _focusNodes[6],  // 清空按钮只有一个节点
+      };
+    }
+    return cache;
+  }
+
   @override
   void initState() {
     super.initState();
     _logState = SelectionState(-1, 'all'); // 初始化状态，默认选中 'all'
     _initButtonStyles(); // 初始化按钮样式
-    // 初始化焦点节点并绑定监听器
-    _focusNodes = List.generate(7, (index) {
-      final node = FocusNode();
-      node.addListener(_handleFocusChange); // 统一监听
-      return node;
-    });
+    // 初始化焦点节点（根据初始日志开关状态）
+    _focusNodes = _generateFocusNodes(context.read<ThemeProvider>().isLogOn ? 7 : 1);
+    _groupFocusCache = _generateGroupFocusCache(context.read<ThemeProvider>().isLogOn);
     // 异步加载初始日志数据
     _loadLogsAsync();
   }
@@ -177,6 +204,19 @@ class _SettinglogPageState extends State<SettinglogPage> {
     final screenWidth = mediaQuery.size.width; // 屏幕宽度
     double maxContainerWidth = 580; // 最大容器宽度
 
+    // 动态调整焦点节点和分组焦点缓存
+    final int requiredNodes = isLogOn ? 7 : 1;
+    if (_focusNodes.length != requiredNodes) {
+      // 释放旧的焦点节点
+      for (var node in _focusNodes) {
+        node.removeListener(_handleFocusChange);
+        node.dispose();
+      }
+      // 生成新的焦点节点
+      _focusNodes = _generateFocusNodes(requiredNodes);
+      _groupFocusCache = _generateGroupFocusCache(isLogOn);
+    }
+
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下设置背景色
       appBar: AppBar(
@@ -186,7 +226,8 @@ class _SettinglogPageState extends State<SettinglogPage> {
       ),
       body: FocusScope(
         child: TvKeyNavigation(
-          focusNodes: _focusNodes, // 提供焦点节点列表
+          focusNodes: _focusNodes, // 动态传递焦点节点
+          groupFocusCache: _groupFocusCache, // 动态传递分组焦点缓存
           isHorizontalGroup: true, // 启用横向焦点分组
           initialIndex: 0, // 初始焦点索引为0
           isFrame: isTV ? true : false, // TV模式启用框架导航
