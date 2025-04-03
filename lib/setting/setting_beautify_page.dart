@@ -6,7 +6,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 美化设置页面主类，继承自 StatefulWidget，用于动态状态管理
+// 背景设置页面主类，继承自 StatefulWidget，用于动态状态管理
 class SettingBeautifyPage extends StatefulWidget {
   const SettingBeautifyPage({super.key});
 
@@ -26,29 +26,52 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
   static const Color unselectedColor = Color(0xFFDFA02A); // 未选中时的背景颜色
   static const Color tvBackgroundColor = Color(0xFF1E2022); // TV 模式背景颜色
   final List<FocusNode> _focusNodes = List.generate(1, (index) => FocusNode());
-  
+  bool _isFocusUpdating = false; // 防止焦点监听重复触发 setState
+  late Map<String, Color> _trackColorCache; // 缓存轨道颜色计算结果
+
   @override
   void initState() {
     super.initState();
-    // 为焦点节点添加监听器，监听焦点变化
+    // 初始化轨道颜色缓存
+    _trackColorCache = {
+      'focused_active': selectedColor,
+      'focused_inactive': selectedColor,
+      'unfocused_active': unselectedColor,
+      'unfocused_inactive': Colors.grey,
+    };
+    // 为焦点节点添加监听器，优化刷新逻辑
     for (var focusNode in _focusNodes) {
       focusNode.addListener(() {
-        if (mounted) {
-          setState(() {}); // 仅在挂载时更新状态，避免内存泄漏
+        if (mounted && !_isFocusUpdating) {
+          _isFocusUpdating = true; // 标记正在更新
+          setState(() {}); // 仅在挂载时更新状态
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _isFocusUpdating = false; // 重置标记
+          });
         }
       });
     }
   }
-  
+
   @override
   void dispose() {
     _focusNodes.forEach((node) => node.dispose()); // 清理焦点节点，防止内存泄漏
     super.dispose();
   }
-  
+
+  // 使用缓存获取轨道颜色，避免重复计算
   Color _getTrackColor(bool hasFocus, bool isActive) {
-    // 根据焦点和激活状态返回轨道颜色
-    return hasFocus ? selectedColor : (isActive ? unselectedColor : Colors.grey);
+    final key = '${hasFocus ? 'focused' : 'unfocused'}_${isActive ? 'active' : 'inactive'}';
+    return _trackColorCache[key]!;
+  }
+
+  // 抽取错误页面为独立方法，减少冗余代码
+  Widget _buildErrorPage(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Text(S.of(context).errorLoadingPage), // 显示错误提示页面
+      ),
+    );
   }
 
   @override
@@ -58,24 +81,18 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
     const double maxContainerWidth = 580;
     final double containerWidth = screenWidth < maxContainerWidth ? screenWidth : maxContainerWidth;
 
-    // 获取是否为 TV 模式，细化异常处理
+    // 获取 ThemeProvider 实例，减少重复调用
+    late ThemeProvider themeProvider;
     bool isTV;
     try {
-      isTV = context.watch<ThemeProvider>().isTV; // 动态监听 TV 状态
+      themeProvider = context.watch<ThemeProvider>(); // 一次性获取并缓存
+      isTV = themeProvider.isTV; // 动态监听 TV 状态
     } on ProviderNotFoundException catch (e, stackTrace) {
       LogUtil.logError('未找到 ThemeProvider', e, stackTrace);
-      return Scaffold(
-        body: Center(
-          child: Text(S.of(context).errorLoadingPage), // 显示错误提示页面
-        ),
-      );
+      return _buildErrorPage(context); // 使用复用错误页面
     } catch (e, stackTrace) {
       LogUtil.logError('获取 ThemeProvider 的 isTV 状态时发生未知错误', e, stackTrace);
-      return Scaffold(
-        body: Center(
-          child: Text(S.of(context).errorLoadingPage), // 显示错误提示页面
-        ),
-      );
+      return _buildErrorPage(context); // 使用复用错误页面
     }
 
     // 构建页面主体，适配 TV 和非 TV 模式
@@ -123,17 +140,16 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                                 S.of(context).backgroundImageDescription, // 背景图片描述
                                 style: _switchSubtitleStyle, // 应用统一副标题样式
                               ),
-                              value: context.watch<ThemeProvider>().isBingBg, // 当前 Bing 背景状态
-                              onChanged: (value) {
-                                LogUtil.safeExecute(() {
-                                  context.read<ThemeProvider>().setBingBg(value); // 更新 Bing 背景设置
-                                  // 移除 setState，依赖 Provider 通知刷新
+                              value: themeProvider.isBingBg, // 使用缓存的 themeProvider 获取状态
+                              onChanged: (value) async {
+                                LogUtil.safeExecute(() async {
+                                  await themeProvider.setBingBg(value); // 异步更新状态
                                 }, '设置每日Bing背景时发生错误');
                               },
                               activeColor: Colors.white, // 激活时滑块颜色
-                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 激活时轨道颜色，修复笔误
+                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 使用缓存颜色
                               inactiveThumbColor: Colors.white, // 未激活时滑块颜色
-                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色
+                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 使用缓存颜色
                             ),
                           ),
                         ),
