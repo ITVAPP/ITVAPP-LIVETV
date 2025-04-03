@@ -1,3 +1,4 @@
+import 'dart:async'; // 新增导入用于防抖
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,14 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
+
+// 新增 SelectionState 类用于管理焦点和选中状态
+class SelectionState {
+  final int focusedIndex; // 当前聚焦的索引
+  final bool isSelected; // 当前选中状态（开关的布尔值）
+
+  SelectionState(this.focusedIndex, this.isSelected);
+}
 
 // 背景设置页面主类，继承自 StatefulWidget，用于动态状态管理
 class SettingBeautifyPage extends StatefulWidget {
@@ -25,13 +34,30 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
   static const Color selectedColor = Color(0xFFEB144C); // 选中时的背景颜色
   static const Color unselectedColor = Color(0xFFDFA02A); // 未选中时的背景颜色
   static const Color tvBackgroundColor = Color(0xFF1E2022); // TV 模式背景颜色
-  final List<FocusNode> _focusNodes = List.generate(1, (index) => FocusNode());
-  bool _isFocusUpdating = false; // 防止焦点监听重复触发 setState
+  late final List<FocusNode> _focusNodes; // 修改为 late final，集中管理
+  late SelectionState _switchState; // 新增状态管理
   late Map<String, Color> _trackColorCache; // 缓存轨道颜色计算结果
+
+  // 用于防抖的定时器和函数（新增）
+  Timer? _debounceTimer;
+  void _debounceSetState() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    // 初始化焦点节点并绑定监听器
+    _focusNodes = List.generate(1, (index) {
+      final node = FocusNode();
+      node.addListener(_handleFocusChange); // 统一监听
+      return node;
+    });
+    // 初始化状态，默认根据 ThemeProvider 的 isBingBg 设置
+    _switchState = SelectionState(-1, context.read<ThemeProvider>().isBingBg);
     // 初始化轨道颜色缓存
     _trackColorCache = {
       'focused_active': selectedColor,
@@ -39,23 +65,23 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
       'unfocused_active': unselectedColor,
       'unfocused_inactive': Colors.grey,
     };
-    // 为焦点节点添加监听器，优化刷新逻辑
-    for (var focusNode in _focusNodes) {
-      focusNode.addListener(() {
-        if (mounted && !_isFocusUpdating) {
-          _isFocusUpdating = true; // 标记正在更新
-          setState(() {}); // 仅在挂载时更新状态
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _isFocusUpdating = false; // 重置标记
-          });
-        }
-      });
-    }
+  }
+
+  // 统一处理焦点变化
+  void _handleFocusChange() {
+    final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
+    final themeProvider = context.read<ThemeProvider>();
+    _switchState = SelectionState(focusedIndex, themeProvider.isBingBg);
+    _debounceSetState(); // 使用防抖更新状态
   }
 
   @override
   void dispose() {
-    _focusNodes.forEach((node) => node.dispose()); // 清理焦点节点，防止内存泄漏
+    _debounceTimer?.cancel(); // 清理防抖定时器
+    for (var focusNode in _focusNodes) {
+      focusNode.removeListener(_handleFocusChange); // 统一移除监听器
+      focusNode.dispose(); // 清理焦点节点
+    }
     super.dispose();
   }
 
