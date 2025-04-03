@@ -129,12 +129,13 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                               onChanged: (value) {
                                 LogUtil.safeExecute(() {
                                   context.read<ThemeProvider>().setBingBg(value); // 更新 Bing 背景设置
+                                  setState(() {}); // 强制刷新 UI，确保焦点和开关状态同步
                                 }, '设置每日Bing背景时发生错误');
                               },
                               activeColor: Colors.white, // 激活时滑块颜色
-                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 激活时轨道颜色
+                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), [\"TrackColor\": _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色，确保正确应用
                               inactiveThumbColor: Colors.white, // 未激活时滑块颜色
-                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色
+                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色，确保正确应用
                             ),
                           ),
                         ),
