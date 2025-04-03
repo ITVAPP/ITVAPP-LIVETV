@@ -77,12 +77,6 @@ class DialogUtil {
       barrierDismissible: isDismissible,
       barrierColor: Colors.transparent, // 初始透明
       useRootNavigator: true, // 使用根导航器，避免嵌套问题
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(
-          opacity: animation, // 仅淡化对话框内容，不影响屏障
-          child: child,
-        );
-      },
       builder: (context) {
         return LayoutBuilder(
           builder: (context, constraints) {
