@@ -115,7 +115,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   void _updatePlayUrl(String newUrl) {
     _currentPlayUrl = newUrl;
-    // 修改 1: 提前检查缓存状态，避免重复调用 _checkUrlType
     if (!_isHlsCached || !_isAudioCached) {
       final urlType = _checkUrlType(_currentPlayUrl);
       _isHls = urlType['isHls']!;
@@ -134,7 +133,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_preCachedUrl == _currentPlayUrl) {
       LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，尝试重新解析');
       _preCachedUrl = null;
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       await _reparseAndSwitch();
       return;
     }
@@ -161,7 +160,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     } finally {
       _preCachedUrl = null;
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
     }
   }
 
@@ -203,15 +202,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       _originalUrl = url;
       _streamUrl = StreamUrl(url);
-      
-      // 修改 3: 并行执行广告加载和流地址解析
+
+      // 并行解析流地址，但不影响广告逻辑
       final parseFuture = _streamUrl!.getStreamUrl();
-      if (adFuture != null) {
-        await Future.wait([parseFuture, adFuture]); // 并行等待
-      } else {
-        await parseFuture;
-      }
-      final parsedUrl = await parseFuture;
+      String parsedUrl = await parseFuture; // 先解析地址以优化性能
       _isHlsCached = false;
       _isAudioCached = false;
       _updatePlayUrl(parsedUrl);
@@ -224,7 +218,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _isSwitchingChannel = false;
           });
         }
-        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+        await _disposeAllStreams();
         return;
       }
 
@@ -250,6 +244,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _playerController = tempController;
           });
         }
+        
+        // 确保视频广告播放完成才开始播放
+        if (adFuture != null) {
+          await adFuture;
+        }
         await _playerController?.play();
         LogUtil.i('开始播放: $parsedUrl');
         _timeoutActive = false;
@@ -259,7 +258,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       _handleSourceSwitching();
     } finally {
       if (mounted) {
@@ -323,7 +322,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _processPendingSwitchQueue() {
     if (_pendingSwitchQueue.isNotEmpty) {
       final nextRequest = _pendingSwitchQueue.last;
-      _pendingSwitchQueue.clear(); // 修改 4: 确保队列在处理后清空
+      _pendingSwitchQueue.clear();
       _currentChannel = nextRequest['channel'] as PlayModel?;
       _sourceIndex = nextRequest['sourceIndex'] as int;
       LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
@@ -537,7 +536,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _updateBufferedHistory(Map<String, dynamic> entry) {
     final timestamp = entry['timestamp'] as int;
     _bufferedHistory[timestamp] = entry;
-    // 修改 5: 添加历史记录大小限制
     if (_bufferedHistory.length > bufferHistorySize) {
       final oldestKey = _bufferedHistory.keys.reduce((a, b) => a < b ? a : b);
       _bufferedHistory.remove(oldestKey);
@@ -596,12 +594,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     try {
       LogUtil.i('开始预加载: $url');
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       _preCacheStreamUrl = StreamUrl(url);
       String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
       if (parsedUrl == 'ERROR') {
         LogUtil.e('预加载解析失败: $url');
-        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+        await _disposeAllStreams();
         return;
       }
       _preCachedUrl = parsedUrl;
@@ -617,7 +615,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('预加载失败: $url', e, stackTrace);
       _preCachedUrl = null;
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
     }
   }
 
@@ -746,7 +744,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     _isDisposing = true;
     try {
-      _timerManager.cancelAll(); // 修改 6: 清理所有定时器
+      _timerManager.cancelAll();
       _timeoutActive = false;
 
       controller.removeEventsListener(_videoListener);
@@ -756,7 +754,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await controller.setVolume(0);
       }
 
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       controller.videoPlayerController?.dispose();
       controller.dispose();
 
@@ -783,7 +781,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改 2: 合并 StreamUrl 清理逻辑
   Future<void> _disposeAllStreams() async {
     if (_streamUrl != null) {
       await _streamUrl!.dispose();
@@ -807,18 +804,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       _streamUrl = StreamUrl(url);
       String newParsedUrl = await _streamUrl!.getStreamUrl();
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
-        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+        await _disposeAllStreams();
         _handleSourceSwitching();
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+        await _disposeAllStreams();
         return;
       }
 
@@ -832,7 +829,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _isParsing = false;
         if (mounted) setState(() => _isRetrying = false);
-        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+        await _disposeAllStreams();
         return;
       }
 
@@ -854,12 +851,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
-      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+      await _disposeAllStreams();
       _handleSourceSwitching();
     } finally {
       _isParsing = false;
       if (mounted) setState(() => _isRetrying = false);
-      await _disposeAllStreams(); // 修改 7: 在 finally 中确保资源释放
+      await _disposeAllStreams();
       LogUtil.i('重新解析结束');
     }
   }
@@ -1063,8 +1060,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void dispose() {
     _isDisposing = true;
     _cleanupController(_playerController);
-    _disposeAllStreams(); // 修改 2: 使用合并的清理方法
-    _pendingSwitchQueue.clear(); // 修改 4: 确保队列在 dispose 时清空
+    _disposeAllStreams();
+    _pendingSwitchQueue.clear();
     _originalUrl = null;
     _adManager.dispose();
     _timerManager.dispose();
