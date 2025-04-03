@@ -1171,13 +1171,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 更新焦点逻辑
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
-      focusManager.lastFocusedIndex = -1;
+      focusManager.lastFocusedIndex = -1; // 重置焦点索引
     }
 
     final groupCount = _keys.length;
     final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
     focusManager.focusStates.clear();
-    focusManager.updateDynamicNodes(groupCount, channelCount);
+    focusManager.updateDynamicNodes(groupCount, channelCount); // 更新动态节点
 
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
@@ -1187,39 +1187,35 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _groupFocusCache.remove(2);
     if (_keys.isNotEmpty) {
       _groupFocusCache[1] = {
-        'firstFocusNode': focusManager.focusNodes[_groupStartIndex],
-        'lastFocusNode': focusManager.focusNodes[_groupStartIndex + _keys.length - 1]
+        'firstFocusNode': focusManager.focusNodes[_groupStartIndex], // 分组首焦点
+        'lastFocusNode': focusManager.focusNodes[_groupStartIndex + _keys.length - 1] // 分组尾焦点
       };
-      // 确保分组焦点激活
-      if (_groupIndex >= 0 && _groupIndex < _keys.length) {
-        focusManager.focusNodes[_groupStartIndex + _groupIndex].requestFocus();
-      }
     }
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
       _groupFocusCache[2] = {
-        'firstFocusNode': focusManager.focusNodes[_channelStartIndex],
-        'lastFocusNode': focusManager.focusNodes[_channelStartIndex + _values[_groupIndex].length - 1]
+        'firstFocusNode': focusManager.focusNodes[_channelStartIndex], // 频道首焦点
+        'lastFocusNode': focusManager.focusNodes[_channelStartIndex + _values[_groupIndex].length - 1] // 频道尾焦点
       };
     }
 
     LogUtil.i('焦点逻辑更新: categoryStart=$_categoryStartIndex, groupStart=$_groupStartIndex, '
-        'channelStart=$_channelStartIndex, activeFocus=${_groupIndex >= 0 ? focusManager.focusNodes[_groupStartIndex + _groupIndex].hasFocus : false}');
+        'channelStart=$_channelStartIndex');
 
     if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache);
+      _tvKeyNavigationState!.updateNamedCache(cache: _groupFocusCache); // 更新缓存
       if (!isInitial) {
         _tvKeyNavigationState!.releaseResources(preserveFocus: true);
-        int safeIndex = initialIndexOverride ?? (_groupStartIndex + _groupIndex);
+        int safeIndex = initialIndexOverride ?? 0;
         if (safeIndex < 0 || safeIndex >= focusManager.focusNodes.length) {
-          safeIndex = _groupStartIndex; // 默认聚焦第一个分组
+          safeIndex = 0;
         }
-        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex);
+        _tvKeyNavigationState!.initializeFocusLogic(initialIndexOverride: safeIndex); // 初始化焦点逻辑
         _reInitializeFocusListeners();
       }
     }
   }
 
-  // 处理分类点击（修改部分）
+  // 处理分类点击
   void _onCategoryTap(int index) async {
     if (_categoryIndex == index) return;
 
@@ -1234,25 +1230,20 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _values = categoryMap.values.toList();
       final currentPlayModel = widget.playModel;
       _updateIndicesFromPlayModel(currentPlayModel, categoryMap);
-      // 确保 _groupIndex 有效
-      if (_groupIndex < 0 || _groupIndex >= _keys.length) {
-        _groupIndex = 0; // 默认选中第一个分组
-      }
+      _isSystemAutoSelected = false; // 切换到非空分类时重置为 false
     }
 
     if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.deactivateFocusManagement();
+      _tvKeyNavigationState!.deactivateFocusManagement(); // 禁用焦点管理
     }
 
-    await updateFocusLogic(false, initialIndexOverride: _groupStartIndex + _groupIndex);
+    await updateFocusLogic(false, initialIndexOverride: index);
 
     if (_tvKeyNavigationState != null) {
-      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: _groupStartIndex + _groupIndex);
+      _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: index); // 激活焦点管理
     }
 
     setState(() {});
-
-    LogUtil.i('Switching category: index=$index, groupIndex=$_groupIndex, keys=$_keys');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_keys.isNotEmpty) {
@@ -1263,14 +1254,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollTo(
           targetList: 'group',
           index: isChannelInCategory ? _groupIndex : 0,
-          alignment: isChannelInCategory ? null : 0.0,
+          alignment: isChannelInCategory ? null : 0.0, // 滚动到分组
         );
 
         if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
           scrollTo(
             targetList: 'channel',
             index: isChannelInCategory ? _channelIndex : 0,
-            alignment: isChannelInCategory ? null : 0.0,
+            alignment: isChannelInCategory ? null : 0.0, // 滚动到频道
           );
         }
       }
