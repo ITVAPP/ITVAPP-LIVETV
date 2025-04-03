@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _fetchUserInfo() async {
     if (mounted) {
       try {
-        await _locationService.getUserAllInfo(context);
+        await _locationService.getUserAllInfo(context); // 获取用户位置和设备信息
         LogUtil.i('用户信息获取成功');
       } catch (error, stackTrace) {
         LogUtil.logError('获取用户信息时发生错误', error, stackTrace);
@@ -110,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final now = DateTime.now();
     if (_lastUpdateTime == null || now.difference(_lastUpdateTime!) >= _debounceDuration) {
       setState(() {
-        _message = message;
+        _message = message; // 更新提示信息
       });
       _lastUpdateTime = now;
     }
@@ -122,8 +122,8 @@ class _SplashScreenState extends State<SplashScreen> {
       DialogUtil.showCustomDialog(
         context,
         title: S.current.logtitle,
-        content: 'showlog',
-        isCopyButton: true,
+        content: 'showlog', // 显示日志内容
+        isCopyButton: true, // 支持复制日志
       );
     }
   }
@@ -135,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => LiveHomePage(m3uData: data),
+              builder: (context) => LiveHomePage(m3uData: data), // 跳转到主页
             ),
           );
         }
@@ -163,7 +163,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ? FloatingActionButton(
               onPressed: () => _showErrorLogs(context),
               child: const Icon(Icons.bug_report),
-              backgroundColor: _defaultPrimaryColor,
+              backgroundColor: _defaultPrimaryColor, // 调试按钮颜色
             )
           : null,
     );
@@ -190,7 +190,7 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isLoading) ...[
-              loadingIndicator,
+              loadingIndicator, // 显示加载指示器
               const SizedBox(height: 18), // 间距组件
             ],
             Text(
