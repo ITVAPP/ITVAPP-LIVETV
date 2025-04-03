@@ -693,7 +693,7 @@ class S {
 
   String get downloadSuccess {
     return Intl.message(
-      '下载新版本完成，请安装！',
+      '下载完成，请安装！',
       name: 'downloadSuccess',
       desc: '',
       args: [],
@@ -702,7 +702,7 @@ class S {
 
   String get downloadFailed {
     return Intl.message(
-      '下载新版本失败，请稍后重试',
+      '下载失败，请稍后重试',
       name: 'downloadFailed',
       desc: '',
       args: [],
@@ -711,7 +711,7 @@ class S {
 
   String get platformNotSupported {
     return Intl.message(
-      '当前系统不支持应用内更新',
+      '系统不支持应用内更新',
       name: 'platformNotSupported',
       desc: '',
       args: [],
