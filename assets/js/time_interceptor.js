@@ -1,23 +1,44 @@
-// 准确的北京时间注入
+// 修改代码开始
 (function() {
   if (window._timeInterceptorInitialized) return;
   window._timeInterceptorInitialized = true;
 
   const originalDate = window.Date;
-  // 使用占位符 TIME_OFFSET，由Dart代码动态替换
-  const timeOffset = TIME_OFFSET;
+  // 使用占位符 TIME_OFFSET，由Dart代码动态替换，若未替换则默认为0
+  const timeOffset = typeof TIME_OFFSET === 'number' ? TIME_OFFSET : 0;
   let timeRequested = false;
+  let perfTimeRequested = false;
+  let mediaTimeRequested = false;
 
-  // 核心时间调整函数
-  function getAdjustedTime() {
-    if (!timeRequested) {
-      timeRequested = true;
+  // 抽象发送时间请求的通用函数，避免重复代码
+  function requestTime(method) {
+    const requestedFlags = {
+      'Date': timeRequested,
+      'Date.now': timeRequested,
+      'performance.now': perfTimeRequested,
+      'media.currentTime': mediaTimeRequested
+    };
+    const setRequestedFlags = {
+      'Date': () => timeRequested = true,
+      'Date.now': () => timeRequested = true,
+      'performance.now': () => perfTimeRequested = true,
+      'media.currentTime': () => mediaTimeRequested = true
+    };
+
+    if (!requestedFlags[method] && window.TimeCheck) {
+      setRequestedFlags[method]();
       window.TimeCheck.postMessage(JSON.stringify({
         type: 'timeRequest',
-        method: 'Date'
+        method: method
       }));
     }
-    return new originalDate(new originalDate().getTime() + timeOffset);
+  }
+
+  // 核心时间调整函数，优化减少重复对象创建
+  function getAdjustedTime() {
+    requestTime('Date');
+    const now = new originalDate().getTime();
+    return new originalDate(now + timeOffset);
   }
 
   // 代理Date构造函数
@@ -28,13 +49,7 @@
   // 保持原型链和方法
   window.Date.prototype = originalDate.prototype;
   window.Date.now = () => {
-    if (!timeRequested) {
-      timeRequested = true;
-      window.TimeCheck.postMessage(JSON.stringify({
-        type: 'timeRequest',
-        method: 'Date.now'
-      }));
-    }
+    requestTime('Date.now');
     return getAdjustedTime().getTime();
   };
   window.Date.parse = originalDate.parse;
@@ -42,40 +57,30 @@
 
   // 拦截performance.now
   const originalPerformanceNow = window.performance.now.bind(window.performance);
-  let perfTimeRequested = false;
   window.performance.now = () => {
-    if (!perfTimeRequested) {
-      perfTimeRequested = true;
-      window.TimeCheck.postMessage(JSON.stringify({
-        type: 'timeRequest',
-        method: 'performance.now'
-      }));
-    }
+    requestTime('performance.now');
     return originalPerformanceNow() + timeOffset;
   };
 
-  // 媒体元素时间处理
-  let mediaTimeRequested = false;
+  // 媒体元素时间处理，添加兼容性检查
   function setupMediaElement(element) {
     if (element._timeProxied) return;
     element._timeProxied = true;
 
+    // 确保getRealCurrentTime和setRealCurrentTime可用
+    element.getRealCurrentTime = element.getRealCurrentTime || (() => element.currentTime || 0);
+    element.setRealCurrentTime = element.setRealCurrentTime || (value => element.currentTime = value);
+
     Object.defineProperty(element, 'currentTime', {
       get: () => {
-        if (!mediaTimeRequested) {
-          mediaTimeRequested = true;
-          window.TimeCheck.postMessage(JSON.stringify({
-            type: 'timeRequest',
-            method: 'media.currentTime'
-          }));
-        }
-        return (element.getRealCurrentTime?.() ?? 0) + (timeOffset / 1000);
+        requestTime('media.currentTime');
+        return element.getRealCurrentTime() + (timeOffset / 1000);
       },
-      set: value => element.setRealCurrentTime?.(value - (timeOffset / 1000))
+      set: value => element.setRealCurrentTime(value - (timeOffset / 1000))
     });
   }
 
-  // 监听新媒体元素
+  // 监听新媒体元素，缩小监听范围至body
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
@@ -84,7 +89,7 @@
     });
   });
 
-  observer.observe(document.documentElement, {
+  observer.observe(document.body || document.documentElement, {
     childList: true,
     subtree: true
   });
@@ -100,3 +105,4 @@
     delete window._timeInterceptorInitialized;
   };
 })();
+// 修改代码结束
