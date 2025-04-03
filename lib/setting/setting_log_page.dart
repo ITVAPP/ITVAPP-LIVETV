@@ -50,31 +50,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
     side: BorderSide.none,
   );
 
-  // 用于防抖的定时器和函数
-  Timer? _debounceTimer;
-  void _debounceSetState() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
-      if (mounted) setState(() {});
-    });
-  }
-
-  // 初始化按钮样式，仅在必要时更新
-  void _initButtonStyles() {
-    _buttonStyles = {
-      'all': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'all' ? selectedColor : unselectedColor)),
-      'v': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'v' ? selectedColor : unselectedColor)),
-      'e': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'e' ? selectedColor : unselectedColor)),
-      'i': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'i' ? selectedColor : unselectedColor)),
-      'd': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'd' ? selectedColor : unselectedColor)),
-    };
-  }
-
   // 生成焦点节点
   List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (index) {
@@ -119,8 +94,20 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 统一处理焦点变化
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
-    _logState = SelectionState(focusedIndex, _logState.selectedLevel); // 更新焦点状态
-    _debounceSetState(); // 使用防抖更新
+    if (focusedIndex != -1) {
+      _logState = SelectionState(focusedIndex, _logState.selectedLevel); // 更新焦点状态
+      if (mounted) setState(() {}); // 直接更新状态
+    } else {
+      // 若未找到焦点，延迟检查
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final newFocusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
+        if (newFocusedIndex != -1 && mounted) {
+          setState(() {
+            _logState = SelectionState(newFocusedIndex, _logState.selectedLevel);
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -135,7 +122,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   @override
   void dispose() {
-    _debounceTimer?.cancel(); // 清理防抖定时器
     _scrollController.dispose(); // 释放滚动控制器
     for (var node in _focusNodes) {
       node.removeListener(_handleFocusChange); // 统一移除监听器
@@ -145,9 +131,27 @@ class _SettinglogPageState extends State<SettinglogPage> {
     super.dispose();
   }
 
+  // 初始化按钮样式，仅在必要时更新
+  void _initButtonStyles() {
+    _buttonStyles = {
+      'all': _baseButtonStyle.copyWith(
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'all' ? selectedColor : unselectedColor)),
+      'v': _baseButtonStyle.copyWith(
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'v' ? selectedColor : unselectedColor)),
+      'e': _baseButtonStyle.copyWith(
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'e' ? selectedColor : unselectedColor)),
+      'i': _baseButtonStyle.copyWith(
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'i' ? selectedColor : unselectedColor)),
+      'd': _baseButtonStyle.copyWith(
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'd' ? selectedColor : unselectedColor)),
+    };
+  }
+
   // 异步获取有限日志，预计算格式化时间并缓存
   Future<List<Map<String, String>>> _getLimitedLogsAsync() async {
-    final now = DateTime.now();
+    final now = Date
+
+Time.now();
     if (_cachedLogs == null || _lastLogUpdate == null || _lastSelectedLevel != _logState.selectedLevel ||
         now.difference(_lastLogUpdate!) > _logCacheTimeout) {
       try {
@@ -419,8 +423,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
           onPressed: () {
             if (mounted) {
               setState(() {
-                _logState = SelectionState(_logState.focusedIndex, level); // 更新状态
+                _logState = SelectionState(focusIndex, level); // 更新状态并同步焦点
                 clearLogCache();
+                _focusNodes[focusIndex].requestFocus(); // 确保焦点切换
               });
             }
           },
