@@ -16,25 +16,25 @@ class SettingBeautifyPage extends StatefulWidget {
 
 // 美化设置页面的状态类，负责页面逻辑和 UI 更新
 class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
-  static const _titleStyle = TextStyle(
-    fontSize: 22,
-    fontWeight: FontWeight.bold,
-  );
+  // 定义常量样式，避免分散定义并提升复用性
+  static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold); // AppBar 标题样式
+  static const _switchTitleStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold); // 开关标题样式
+  static const _switchSubtitleStyle = TextStyle(fontSize: 18); // 开关副标题样式
 
-  final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景颜色
-  final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景颜色
-
-  // 初始化焦点节点列表，目前仅一个焦点，后续可扩展
+  // 定义颜色常量，避免重复定义并便于维护
+  static const Color selectedColor = Color(0xFFEB144C); // 选中时的背景颜色
+  static const Color unselectedColor = Color(0xFFDFA02A); // 未选中时的背景颜色
+  static const Color tvBackgroundColor = Color(0xFF1E2022); // TV 模式背景颜色
   final List<FocusNode> _focusNodes = List.generate(1, (index) => FocusNode());
   
   @override
   void initState() {
     super.initState();
+    // 为焦点节点添加监听器，监听焦点变化
     for (var focusNode in _focusNodes) {
       focusNode.addListener(() {
-        // 监听焦点变化，仅在挂载时更新状态
         if (mounted) {
-          setState(() {});
+          setState(() {}); // 仅在挂载时更新状态，避免内存泄漏
         }
       });
     }
@@ -45,27 +45,32 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
     _focusNodes.forEach((node) => node.dispose()); // 清理焦点节点，防止内存泄漏
     super.dispose();
   }
-
-  // 计算 SwitchListTile 轨道颜色，根据焦点和激活状态动态调整
+  
   Color _getTrackColor(bool hasFocus, bool isActive) {
-    if (isActive) {
-      return hasFocus ? selectedColor : unselectedColor; // 激活时区分焦点状态
-    } else {
-      return hasFocus ? selectedColor : Colors.grey; // 未激活时区分焦点状态
-    }
+    // 根据焦点和激活状态返回轨道颜色
+    return hasFocus ? selectedColor : (isActive ? unselectedColor : Colors.grey);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 获取屏幕宽度，用于布局适配
-    var screenWidth = MediaQuery.of(context).size.width;
+    // 获取屏幕宽度并直接计算最大宽度约束，避免重复调用
+    final double screenWidth = MediaQuery.of(context).size.width;
+    const double maxContainerWidth = 580;
+    final double containerWidth = screenWidth < maxContainerWidth ? screenWidth : maxContainerWidth;
 
-    // 获取是否为 TV 模式，包含异常处理
+    // 获取是否为 TV 模式，细化异常处理
     bool isTV;
     try {
       isTV = context.watch<ThemeProvider>().isTV; // 动态监听 TV 状态
+    } on ProviderNotFoundException catch (e, stackTrace) {
+      LogUtil.logError('未找到 ThemeProvider', e, stackTrace);
+      return Scaffold(
+        body: Center(
+          child: Text(S.of(context).errorLoadingPage), // 显示错误提示页面
+        ),
+      );
     } catch (e, stackTrace) {
-      LogUtil.logError('获取 ThemeProvider 的 isTV 状态时发生错误', e, stackTrace);
+      LogUtil.logError('获取 ThemeProvider 的 isTV 状态时发生未知错误', e, stackTrace);
       return Scaffold(
         body: Center(
           child: Text(S.of(context).errorLoadingPage), // 显示错误提示页面
@@ -73,18 +78,15 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
       );
     }
 
-    // 设置最大容器宽度为 580，适配大屏幕
-    const double maxContainerWidth = 580;
-
     // 构建页面主体，适配 TV 和非 TV 模式
     return Scaffold(
-      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置深色背景
+      backgroundColor: isTV ? tvBackgroundColor : null, // TV 模式下设置深色背景
       appBar: AppBar(
         title: Text(
           S.of(context).backgroundImageTitle, // 显示“背景图片”标题，随语言更新
           style: _titleStyle, // 应用预定义标题样式
         ),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV 模式下设置 AppBar 颜色
+        backgroundColor: isTV ? tvBackgroundColor : null, // TV 模式下设置 AppBar 颜色
         leading: isTV ? const SizedBox.shrink() : null, // TV 模式隐藏返回按钮
       ),
       body: FocusScope(
@@ -98,7 +100,7 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
             alignment: Alignment.center, // 内容居中对齐
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: screenWidth < maxContainerWidth ? screenWidth : maxContainerWidth, // 限制最大宽度
+                maxWidth: containerWidth, // 使用计算后的宽度限制
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // 设置内边距
@@ -115,24 +117,21 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                             child: SwitchListTile(
                               title: Text(
                                 S.of(context).dailyBing, // “每日 Bing”标题
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: _switchTitleStyle, // 应用统一标题样式
                               ),
                               subtitle: Text(
                                 S.of(context).backgroundImageDescription, // 背景图片描述
-                                style: const TextStyle(fontSize: 18),
+                                style: _switchSubtitleStyle, // 应用统一副标题样式
                               ),
                               value: context.watch<ThemeProvider>().isBingBg, // 当前 Bing 背景状态
                               onChanged: (value) {
                                 LogUtil.safeExecute(() {
                                   context.read<ThemeProvider>().setBingBg(value); // 更新 Bing 背景设置
-                                  setState(() {}); // 强制刷新 UI，确保焦点和开关状态同步
+                                  // 移除 setState，依赖 Provider 通知刷新
                                 }, '设置每日Bing背景时发生错误');
                               },
                               activeColor: Colors.white, // 激活时滑块颜色
-                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 激活时轨道颜色
+                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 激活时轨道颜色，修复笔误
                               inactiveThumbColor: Colors.white, // 未激活时滑块颜色
                               inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色
                             ),
