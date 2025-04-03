@@ -65,8 +65,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   int? _lastBufferedTime;
   bool _isRetrying = false;
   
-  // 修改 1: 集中管理定时器
-  final _timerManager = TimerManager(); // 新增定时器管理类
+  final _timerManager = TimerManager();
   
   String toastString = S.current.loading;
   PlaylistModel? _videoMap;
@@ -104,7 +103,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   final List<Map<String, dynamic>> _pendingSwitchQueue = [];
 
-  // 修改 2: 合并 URL 类型检查逻辑
   Map<String, bool> _checkUrlType(String? url) {
     if (url == null || url.isEmpty) return {'isAudio': false, 'isHls': false};
     final lowercaseUrl = url.toLowerCase();
@@ -117,6 +115,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   void _updatePlayUrl(String newUrl) {
     _currentPlayUrl = newUrl;
+    // 修改 1: 提前检查缓存状态，避免重复调用 _checkUrlType
     if (!_isHlsCached || !_isAudioCached) {
       final urlType = _checkUrlType(_currentPlayUrl);
       _isHls = urlType['isHls']!;
@@ -135,7 +134,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_preCachedUrl == _currentPlayUrl) {
       LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，尝试重新解析');
       _preCachedUrl = null;
-      await _disposePreCacheStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       await _reparseAndSwitch();
       return;
     }
@@ -162,11 +161,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     } finally {
       _preCachedUrl = null;
-      await _disposePreCacheStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
     }
   }
 
-  // 修改 3: 优化异步操作性能，修复资源泄漏
   Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
     if (_currentChannel == null || _currentChannel!.urls == null || _currentChannel!.urls!.isEmpty) {
       LogUtil.e('当前频道无效或无可用源');
@@ -206,8 +204,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _originalUrl = url;
       _streamUrl = StreamUrl(url);
       
-      // 并行执行解析和广告加载
+      // 修改 3: 并行执行广告加载和流地址解析
       final parseFuture = _streamUrl!.getStreamUrl();
+      if (adFuture != null) {
+        await Future.wait([parseFuture, adFuture]); // 并行等待
+      } else {
+        await parseFuture;
+      }
       final parsedUrl = await parseFuture;
       _isHlsCached = false;
       _isAudioCached = false;
@@ -221,7 +224,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _isSwitchingChannel = false;
           });
         }
-        await _disposeStreamUrl();
+        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
         return;
       }
 
@@ -251,14 +254,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('开始播放: $parsedUrl');
         _timeoutActive = false;
       } catch (e) {
-        tempController?.dispose(); // 确保异常时清理临时控制器
+        tempController?.dispose();
         throw e;
       }
-
-      if (adFuture != null) await adFuture;
     } catch (e, stackTrace) {
       LogUtil.logError('播放失败', e, stackTrace);
-      await _disposeStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       _handleSourceSwitching();
     } finally {
       if (mounted) {
@@ -274,7 +275,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改 4: 提取通用状态更新方法
   void _updateStateOnPlayStart(String sourceName) {
     if (!mounted) return;
     setState(() {
@@ -289,10 +289,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  // 修改 5: 使用定时器管理类
   void _startTimeoutTimer() {
     _timeoutActive = true;
-    _timerManager.cancel('timeout'); // 取消旧定时器
+    _timerManager.cancel('timeout');
     _timerManager.schedule('timeout', Duration(seconds: defaultTimeoutSeconds), () {
       if (!mounted || !_timeoutActive || _isRetrying || _isSwitchingChannel || _isDisposing) {
         _timeoutActive = false;
@@ -324,7 +323,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _processPendingSwitchQueue() {
     if (_pendingSwitchQueue.isNotEmpty) {
       final nextRequest = _pendingSwitchQueue.last;
-      _pendingSwitchQueue.clear();
+      _pendingSwitchQueue.clear(); // 修改 4: 确保队列在处理后清空
       _currentChannel = nextRequest['channel'] as PlayModel?;
       _sourceIndex = nextRequest['sourceIndex'] as int;
       LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
@@ -332,8 +331,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改 6: 添加详细中文注释
-  /// 视频播放事件监听器，处理播放器的各种状态变化
   void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _isDisposing) return;
 
@@ -540,6 +537,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _updateBufferedHistory(Map<String, dynamic> entry) {
     final timestamp = entry['timestamp'] as int;
     _bufferedHistory[timestamp] = entry;
+    // 修改 5: 添加历史记录大小限制
     if (_bufferedHistory.length > bufferHistorySize) {
       final oldestKey = _bufferedHistory.keys.reduce((a, b) => a < b ? a : b);
       _bufferedHistory.remove(oldestKey);
@@ -598,12 +596,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     try {
       LogUtil.i('开始预加载: $url');
-      await _disposePreCacheStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       _preCacheStreamUrl = StreamUrl(url);
       String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
       if (parsedUrl == 'ERROR') {
         LogUtil.e('预加载解析失败: $url');
-        await _disposePreCacheStreamUrl();
+        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
         return;
       }
       _preCachedUrl = parsedUrl;
@@ -619,7 +617,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('预加载失败: $url', e, stackTrace);
       _preCachedUrl = null;
-      await _disposePreCacheStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
     }
   }
 
@@ -743,13 +741,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  // 修改 7: 合并清理逻辑并修复资源泄漏
   Future<void> _cleanupController(BetterPlayerController? controller) async {
     if (controller == null) return;
 
     _isDisposing = true;
     try {
-      _timerManager.cancelAll(); // 清理所有定时器
+      _timerManager.cancelAll(); // 修改 6: 清理所有定时器
       _timeoutActive = false;
 
       controller.removeEventsListener(_videoListener);
@@ -759,7 +756,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await controller.setVolume(0);
       }
 
-      await _disposeAllStreams(); // 合并清理 StreamUrl
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       controller.videoPlayerController?.dispose();
       controller.dispose();
 
@@ -786,28 +783,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 修改 8: 合并 StreamUrl 清理
+  // 修改 2: 合并 StreamUrl 清理逻辑
   Future<void> _disposeAllStreams() async {
-    await _disposeStreamUrl();
-    await _disposePreCacheStreamUrl();
-  }
-
-  Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
       await _streamUrl!.dispose();
       _streamUrl = null;
     }
-  }
-
-  Future<void> _disposePreCacheStreamUrl() async {
     if (_preCacheStreamUrl != null) {
       await _preCacheStreamUrl!.dispose();
       _preCacheStreamUrl = null;
     }
   }
 
-  // 修改 9: 添加详细中文注释
-  /// 重新解析视频流地址并切换，确保播放连续性
   Future<void> _reparseAndSwitch() async {
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
@@ -820,18 +807,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
-      await _disposeStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       _streamUrl = StreamUrl(url);
       String newParsedUrl = await _streamUrl!.getStreamUrl();
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
-        await _disposeStreamUrl();
+        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
         _handleSourceSwitching();
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeStreamUrl();
+        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
         return;
       }
 
@@ -845,7 +832,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _isParsing = false;
         if (mounted) setState(() => _isRetrying = false);
-        await _disposeStreamUrl();
+        await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
         return;
       }
 
@@ -867,11 +854,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
-      await _disposeStreamUrl();
+      await _disposeAllStreams(); // 修改 2: 使用合并的清理方法
       _handleSourceSwitching();
     } finally {
       _isParsing = false;
       if (mounted) setState(() => _isRetrying = false);
+      await _disposeAllStreams(); // 修改 7: 在 finally 中确保资源释放
       LogUtil.i('重新解析结束');
     }
   }
@@ -917,7 +905,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final bMatches = b.startsWith(prefix);
       if (aMatches && !bMatches) return -1;
       if (!aMatches && bMatches) return 1;
-      return a.compareTo(b); // 改为自然排序
+      return a.compareTo(b);
     });
 
     LogUtil.i('排序结果: $items');
@@ -946,14 +934,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
 
       final groupList = groups.keys.toList();
-      // Category 级别检查
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix));
       if (!categoryNeedsSort) {
         LogUtil.i('分类 $category 不包含 $regionPrefix，跳过排序');
         return;
       }
 
-      // Group 排序
       LogUtil.i('排序前 groupList for $category: $groupList');
       final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
       final newGroups = <String, Map<String, PlayModel>>{};
@@ -968,7 +954,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final channelList = channels.keys.toList();
         final newChannels = <String, PlayModel>{};
 
-        // 仅对包含 regionPrefix 的 group 进行 channel 排序
         if (group.contains(regionPrefix) && (cityPrefix != null && cityPrefix.isNotEmpty)) {
           LogUtil.i('排序前 channelList for $group: $channelList');
           final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
@@ -1078,11 +1063,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void dispose() {
     _isDisposing = true;
     _cleanupController(_playerController);
-    _disposeAllStreams(); // 使用合并的清理方法
-    _pendingSwitchQueue.clear();
+    _disposeAllStreams(); // 修改 2: 使用合并的清理方法
+    _pendingSwitchQueue.clear(); // 修改 4: 确保队列在 dispose 时清空
     _originalUrl = null;
     _adManager.dispose();
-    _timerManager.dispose(); // 清理定时器管理器
+    _timerManager.dispose();
     super.dispose();
   }
 
@@ -1399,13 +1384,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 }
 
-
-// 定时器管理类
 class TimerManager {
   final Map<String, Timer> _timers = {};
 
   void schedule(String key, Duration duration, VoidCallback callback) {
-    cancel(key); // 取消旧定时器
+    cancel(key);
     _timers[key] = Timer(duration, callback);
   }
 
