@@ -63,6 +63,7 @@ class LiveHomePage extends StatefulWidget {
 // 主页面状态管理类，处理播放逻辑和界面更新
 class _LiveHomePageState extends State<LiveHomePage> {
   List<Map<String, dynamic>> _bufferedHistory = []; // 使用 List 替代 Map 管理缓冲历史
+  String? _lastTriggeredPlayUrl; // 记录上一次触发 _startPlayDurationTimer 的地址
   String? _preCachedUrl; // 预缓存的播放地址
   bool _isParsing = false; // 是否正在解析地址
   Duration? _lastBufferedPosition; // 上次缓冲位置
@@ -139,10 +140,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 更新当前播放地址并检查类型
   void _updatePlayUrl(String newUrl) {
-    _currentPlayUrl = newUrl;
-    final urlType = _checkUrlType(_currentPlayUrl);
-    _isHls = urlType['isHls']!;
-    _isAudio = urlType['isAudio']!;
+    if (_currentPlayUrl != newUrl) { // 仅在新地址不同时更新
+      _currentPlayUrl = newUrl;
+      final urlType = _checkUrlType(_currentPlayUrl);
+      _isHls = urlType['isHls']!;
+      _isAudio = urlType['isAudio']!;
+      
+      // 仅当新地址未触发过且播放器在播放状态时调用 _startPlayDurationTimer
+      if (_currentPlayUrl != _lastTriggeredPlayUrl && _playerController?.isPlaying() == true) {
+        LogUtil.i('更新 _currentPlayUrl 并触发 _startPlayDurationTimer: $_currentPlayUrl');
+        _startPlayDurationTimer();
+        _lastTriggeredPlayUrl = _currentPlayUrl; // 记录已触发地址
+      } else {
+        LogUtil.i('更新 _currentPlayUrl 但跳过触发: $_currentPlayUrl (已触发或未播放)');
+      }
+    }
   }
 
   // 切换到预缓存地址
@@ -172,7 +184,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await _playerController?.play();
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
         _progressEnabled = false;
-        _startPlayDurationTimer();
       } else {
         LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
       }
@@ -423,6 +434,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     'timestamp': _lastBufferedTime!,
                     'remainingBuffer': _lastBufferedPosition! - _playerController!.videoPlayerController!.value.position,
                   });
+                  // 调试日志，默认注释掉
+                  // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
                 } catch (e) {
                   LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
                   _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
@@ -439,6 +452,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 'timestamp': _lastBufferedTime!,
                 'remainingBuffer': _lastBufferedPosition! - _playerController!.videoPlayerController!.value.position,
               });
+              // 调试日志，始终输出
+              LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
             } else {
               LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
               _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
@@ -466,7 +481,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           stateUpdates['_showPauseIconFromListener'] = false;
           stateUpdates['_isUserPaused'] = false;
           _timerManager.cancel('timeout');
-          _startPlayDurationTimer();
         }
         break;
 
@@ -497,6 +511,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
               if (_isHls && !_isParsing) {
                 final remainingTime = duration - position;
+                // 调试日志，默认注释掉
+                // LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
                 if (_preCachedUrl != null && remainingTime.inSeconds <= PlaybackConstants.hlsSwitchThresholdSeconds) {
                   await _switchToPreCachedUrl('HLS 剩余时间少于 ${PlaybackConstants.hlsSwitchThresholdSeconds} 秒');
                 } else {
@@ -515,6 +531,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   await _switchToPreCachedUrl('非 HLS 剩余时间少于 ${PlaybackConstants.nonHlsSwitchThresholdSeconds} 秒');
                 }
               }
+            } else {
+              // 调试日志，默认注释掉
+              // LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
             }
           } else {
             LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
@@ -1129,6 +1148,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _disposeAllStreams(); // 释放流资源
     _pendingSwitchQueue.clear(); // 清空切换队列
     _originalUrl = null;
+    _lastTriggeredPlayUrl = null; // 清理记录的触发地址
     _adManager.dispose(); // 释放广告资源
     _timerManager.dispose(); // 释放定时器资源
     super.dispose();
@@ -1459,7 +1479,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 }
 
-// 定时器管理类，使用 Future.delayed 替代 Timer
+// 定时器管理类
 class TimerManager {
   final Map<String, Future<void>> _timers = {}; // 存储 Future 对象
   final Map<String, bool> _cancelFlags = {}; // 取消标志
