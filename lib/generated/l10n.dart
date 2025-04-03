@@ -691,6 +691,33 @@ class S {
     );
   }
 
+  String get downloadSuccess {
+    return Intl.message(
+      '下载新版本完成，请安装！',
+      name: 'downloadSuccess',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get downloadFailed {
+    return Intl.message(
+      '下载新版本失败，请稍后重试',
+      name: 'downloadFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  String get platformNotSupported {
+    return Intl.message(
+      '当前系统不支持应用内更新',
+      name: 'platformNotSupported',
+      desc: '',
+      args: [],
+    );
+  }
+
   String get fontTitle {
     return Intl.message(
       '字体',
