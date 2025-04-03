@@ -435,7 +435,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     'remainingBuffer': _lastBufferedPosition! - _playerController!.videoPlayerController!.value.position,
                   });
                   // 调试日志，默认注释掉
-                  // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
+                  LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
                 } catch (e) {
                   LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
                   _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
@@ -452,7 +452,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 'timestamp': _lastBufferedTime!,
                 'remainingBuffer': _lastBufferedPosition! - _playerController!.videoPlayerController!.value.position,
               });
-              // 调试日志，始终输出
+              // 调试日志，默认注释掉
               LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
             } else {
               LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
@@ -512,7 +512,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               if (_isHls && !_isParsing) {
                 final remainingTime = duration - position;
                 // 调试日志，默认注释掉
-                // LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
+                LogUtil.i('HLS 检查 - 当前位置: $position, 缓冲末尾: $_lastBufferedPosition, 时间差: $remainingTime, 历史记录: ${_bufferedHistory.map((e) => "${e['position']}->${e['buffered']}@${e['timestamp']}").toList()}');
                 if (_preCachedUrl != null && remainingTime.inSeconds <= PlaybackConstants.hlsSwitchThresholdSeconds) {
                   await _switchToPreCachedUrl('HLS 剩余时间少于 ${PlaybackConstants.hlsSwitchThresholdSeconds} 秒');
                 } else {
@@ -533,7 +533,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               }
             } else {
               // 调试日志，默认注释掉
-              // LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
+              LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
             }
           } else {
             LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
