@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -18,8 +17,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   static const _sectionTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
   static const _buttonPadding = EdgeInsets.symmetric(horizontal: 5, vertical: 6);
-  static const _maxContainerWidth = 580.0; // 提取最大宽度为常量
-  static const _sectionPadding = EdgeInsets.all(15.0); // 提取内边距为常量
 
   final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 字体缩放比例
   final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
@@ -35,70 +32,143 @@ class _SettingFontPageState extends State<SettingFontPage> {
   final _unselectedColor = const Color(0xFFDFA02A); // 未选中时颜色
 
   // 焦点节点列表（按顺序分配给字体和语言选择按钮）
-  late final List<FocusNode> _focusNodes;
-
-  // 用于防抖的定时器和函数
-  Timer? _debounceTimer;
-  void _debounceSetState() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
-      if (mounted) setState(() {});
-    });
-  }
+  final List<FocusNode> _focusNodes = List.generate(8, (index) => FocusNode());
 
   @override
   void initState() {
     super.initState();
-    // 初始化焦点节点并绑定监听器
-    _focusNodes = List<FocusNode>.generate(8, (index) {
-      final node = FocusNode();
-      // 注意：这里不再添加监听器，监听逻辑移到子组件
-      return node;
-    });
+    // 监听所有焦点节点的变化，焦点变化时触发 UI 更新
+    for (var focusNode in _focusNodes) {
+      focusNode.addListener(() {
+        if (mounted) setState(() {}); // 确保组件已挂载后再触发重绘
+      });
+    }
   }
 
   @override
   void dispose() {
-    _debounceTimer?.cancel(); // 清理防抖定时器
-    if (mounted) {
-      for (var node in _focusNodes) node.dispose(); // 确保 mounted 时释放资源
-    }
+    for (var node in _focusNodes) node.dispose(); // 释放所有焦点节点资源
     super.dispose();
   }
-
-  // 提取公共方法：创建 ChoiceChip 组件，统一处理样式和逻辑
-  Widget _buildChoiceChip({
-    required FocusNode focusNode,
-    required String labelText,
-    required bool isSelected,
-    required VoidCallback onSelected,
-    required bool isBold,
-  }) {
-    return ChoiceChip(
-      label: Text(
-        labelText,
-        style: TextStyle(
-          fontSize: 18,
-          color: Colors.white,
-          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+  
+Widget _buildFontSizeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          S.of(context).fontSizeTitle, // 字体大小标题
+          style: _sectionTitleStyle,
         ),
-      ),
-      selected: isSelected,
-      onSelected: (bool selected) => onSelected(),
-      selectedColor: focusNode.hasFocus ? darkenColor(_selectedColor) : _selectedColor,
-      backgroundColor: focusNode.hasFocus ? darkenColor(_unselectedColor) : _unselectedColor,
-      shape: _buttonShape,
-      padding: _buttonPadding,
+        const SizedBox(height: 10), // 间距
+        Group(
+          groupIndex: 0, // 分组 0：字体大小
+          children: [
+            Wrap(
+              spacing: 5,
+              runSpacing: 8, // 按钮排列方式
+              children: List.generate(
+                _fontScales.length,
+                (index) => FocusableItem(
+                  focusNode: _focusNodes[index], // 分配焦点节点
+                  child: ChoiceChip(
+                    label: Text(
+                      '${_fontScales[index]}', // 显示字体大小
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index]
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    selected: context.watch<ThemeProvider>().textScaleFactor == _fontScales[index],
+                    onSelected: (bool selected) {
+                      context.read<ThemeProvider>().setTextScale(_fontScales[index]); // 更新字体大小
+                    },
+                    selectedColor: _focusNodes[index].hasFocus 
+                        ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
+                        : _selectedColor,  // 选中但未聚焦时保持原色
+                    backgroundColor: _focusNodes[index].hasFocus
+                        ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
+                        : _unselectedColor,  // 未选中且未聚焦时保持原色
+                    shape: _buttonShape,
+                    padding: _buttonPadding,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
-
+  
+Widget _buildLanguageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          S.of(context).languageSelection, // 语言选择标题
+          style: _sectionTitleStyle,
+        ),
+        const SizedBox(height: 6), // 间距
+        Column(
+          children: List.generate(
+            _languages.length,
+            (index) => Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _languages[index], // 显示语言名称
+                  style: const TextStyle(fontSize: 18),
+                ),
+                Group(
+                  groupIndex: index + 1, // 分组索引递增
+                  children: [
+                    FocusableItem(
+                      focusNode: _focusNodes[index + 5], // 分配焦点节点
+                      child: ChoiceChip(
+                        label: Text(
+                          context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                              ? S.of(context).inUse
+                              : S.of(context).use,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index]
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        selected: context.watch<LanguageProvider>().currentLocale.toString() == _languageCodes[index],
+                        onSelected: (bool selected) {
+                          context.read<LanguageProvider>().changeLanguage(_languageCodes[index]); // 切换语言
+                        },
+                        selectedColor: _focusNodes[index + 5].hasFocus 
+                            ? darkenColor(_selectedColor)  // 选中且聚焦时变暗
+                            : _selectedColor,  // 选中但未聚焦时保持原色
+                        backgroundColor: _focusNodes[index + 5].hasFocus
+                            ? darkenColor(_unselectedColor)  // 未选中但聚焦时变暗
+                            : _unselectedColor,  // 未选中且未聚焦时保持原色
+                        shape: _buttonShape,
+                        padding: _buttonPadding,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
   @override
   Widget build(BuildContext context) {
-    // 缓存 build 中常用值
-    final screenWidth = MediaQuery.of(context).size.width;
-    final themeProvider = context.watch<ThemeProvider>();
-    final languageProvider = context.watch<LanguageProvider>();
-    final isTV = themeProvider.isTV;
+    var screenWidth = MediaQuery.of(context).size.width;
+    bool isTV = context.watch<ThemeProvider>().isTV;
+    double maxContainerWidth = 580;
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式下背景颜色
@@ -121,7 +191,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
             alignment: Alignment.center, // 内容居中
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity,
+                maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity,
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0),
@@ -129,24 +199,13 @@ class _SettingFontPageState extends State<SettingFontPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: _sectionPadding,
-                      child: FontSizeSection(
-                        focusNodes: _focusNodes.sublist(0, 5),
-                        fontScales: _fontScales,
-                        themeProvider: themeProvider,
-                        buildChoiceChip: _buildChoiceChip,
-                      ),
+                      padding: const EdgeInsets.all(15),
+                      child: _buildFontSizeSection(),
                     ),
                     const SizedBox(height: 12),
                     Padding(
-                      padding: _sectionPadding,
-                      child: LanguageSection(
-                        focusNodes: _focusNodes.sublist(5),
-                        languages: _languages,
-                        languageCodes: _languageCodes,
-                        languageProvider: languageProvider,
-                        buildChoiceChip: _buildChoiceChip,
-                      ),
+                      padding: const EdgeInsets.all(15),
+                      child: _buildLanguageSection(),
                     ),
                   ],
                 ),
@@ -155,184 +214,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// 新增独立的 FontSizeSection 组件，减少重绘范围
-class FontSizeSection extends StatefulWidget {
-  final List<FocusNode> focusNodes;
-  final List<double> fontScales;
-  final ThemeProvider themeProvider;
-  final Widget Function({
-    required FocusNode focusNode,
-    required String labelText,
-    required bool isSelected,
-    required VoidCallback onSelected,
-    required bool isBold,
-  }) buildChoiceChip;
-
-  const FontSizeSection({
-    super.key,
-    required this.focusNodes,
-    required this.fontScales,
-    required this.themeProvider,
-    required this.buildChoiceChip,
-  });
-
-  @override
-  State<FontSizeSection> createState() => _FontSizeSectionState();
-}
-
-class _FontSizeSectionState extends State<FontSizeSection> {
-  @override
-  void initState() {
-    super.initState();
-    // 为每个焦点节点添加监听器，触发局部 setState
-    for (var node in widget.focusNodes) {
-      node.addListener(() {
-        if (mounted) setState(() {});
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    // 移除监听器并清理资源
-    for (var node in widget.focusNodes) {
-      node.removeListener(() {});
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          S.of(context).fontSizeTitle, // 字体大小标题
-          style: _SettingFontPageState._sectionTitleStyle,
-        ),
-        const SizedBox(height: 10), // 间距
-        Group(
-          groupIndex: 0, // 分组 0：字体大小
-          children: [
-            Wrap(
-              spacing: 5,
-              runSpacing: 8, // 按钮排列方式
-              children: List.generate(
-                widget.fontScales.length,
-                (index) => FocusableItem(
-                  focusNode: widget.focusNodes[index], // 分配焦点节点
-                  child: widget.buildChoiceChip(
-                    focusNode: widget.focusNodes[index],
-                    labelText: '${widget.fontScales[index]}',
-                    isSelected: widget.themeProvider.textScaleFactor == widget.fontScales[index],
-                    onSelected: () => widget.themeProvider.setTextScale(widget.fontScales[index]),
-                    isBold: widget.themeProvider.textScaleFactor == widget.fontScales[index],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// 新增独立的 LanguageSection 组件，减少重绘范围
-class LanguageSection extends StatefulWidget {
-  final List<FocusNode> focusNodes;
-  final List<String> languages;
-  final List<String> languageCodes;
-  final LanguageProvider languageProvider;
-  final Widget Function({
-    required FocusNode focusNode,
-    required String labelText,
-    required bool isSelected,
-    required VoidCallback onSelected,
-    required bool isBold,
-  }) buildChoiceChip;
-
-  const LanguageSection({
-    super.key,
-    required this.focusNodes,
-    required this.languages,
-    required this.languageCodes,
-    required this.languageProvider,
-    required this.buildChoiceChip,
-  });
-
-  @override
-  State<LanguageSection> createState() => _LanguageSectionState();
-}
-
-class _LanguageSectionState extends State<LanguageSection> {
-  @override
-  void initState() {
-    super.initState();
-    // 为每个焦点节点添加监听器，触发局部 setState
-    for (var node in widget.focusNodes) {
-      node.addListener(() {
-        if (mounted) setState(() {});
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    // 移除监听器并清理资源
-    for (var node in widget.focusNodes) {
-      node.removeListener(() {});
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentLocale = widget.languageProvider.currentLocale.toString();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          S.of(context).languageSelection, // 语言选择标题
-          style: _SettingFontPageState._sectionTitleStyle,
-        ),
-        const SizedBox(height: 6), // 间距
-        Column(
-          children: List.generate(
-            widget.languages.length,
-            (index) => Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.languages[index], // 显示语言名称
-                  style: const TextStyle(fontSize: 18),
-                ),
-                Group(
-                  groupIndex: index + 1, // 分组索引递增
-                  children: [
-                    FocusableItem(
-                      focusNode: widget.focusNodes[index], // 分配焦点节点
-                      child: widget.buildChoiceChip(
-                        focusNode: widget.focusNodes[index],
-                        labelText: currentLocale == widget.languageCodes[index]
-                            ? S.of(context).inUse
-                            : S.of(context).use,
-                        isSelected: currentLocale == widget.languageCodes[index],
-                        onSelected: () => widget.languageProvider.changeLanguage(widget.languageCodes[index]),
-                        isBold: currentLocale == widget.languageCodes[index],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
