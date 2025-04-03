@@ -118,7 +118,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 显示调试日志对话框，仅调试模式生效
   void _showErrorLogs(BuildContext context) {
-    if (isDebugMode) {
+    if (isDebugMode && mounted) { // 检查挂载状态，确保上下文安全
       DialogUtil.showCustomDialog(
         context,
         title: S.current.logtitle,
@@ -128,14 +128,18 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 跳转到主页，传递播放列表数据
+  /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   void _navigateToHome(PlaylistModel data) {
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => LiveHomePage(m3uData: data),
-        ),
-      );
+      Future.delayed(const Duration(milliseconds: 100), () { // 延迟 100ms
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => LiveHomePage(m3uData: data),
+            ),
+          );
+        }
+      });
     }
   }
 
