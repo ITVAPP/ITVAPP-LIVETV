@@ -52,15 +52,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
   late SelectionState _fontState; // 字体缩放状态
   late SelectionState _langState; // 语言选择状态
 
-  // 用于防抖的定时器，避免频繁刷新
-  Timer? _debounceTimer;
-  void _debounceSetState() { // 防抖更新状态
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
-      if (mounted) setState(() {}); // 确保组件未销毁时更新
-    });
-  }
-
   @override
   void initState() {
     super.initState();
@@ -104,21 +95,34 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   // 统一处理焦点变化
-  void _handleFocusChange() { // 处理焦点变化并更新状态
+  void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
-      if (focusedIndex < _fontScales.length) { // 字体部分
+      if (focusedIndex < _fontScales.length) {
         _fontState = SelectionState(focusedIndex, _fontState.selectedIndex);
-      } else { // 语言部分
+      } else {
         _langState = SelectionState(focusedIndex - _fontScales.length, _langState.selectedIndex);
       }
+      if (mounted) setState(() {});
+    } else {
+      // 若未找到焦点，延迟检查
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final newFocusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
+        if (newFocusedIndex != -1 && mounted) {
+          setState(() {
+            if (newFocusedIndex < _fontScales.length) {
+              _fontState = SelectionState(newFocusedIndex, _fontState.selectedIndex);
+            } else {
+              _langState = SelectionState(newFocusedIndex - _fontScales.length, _langState.selectedIndex);
+            }
+          });
+        }
+      });
     }
-    _debounceSetState(); // 防抖更新UI
   }
 
   @override
   void dispose() { // 清理资源
-    _debounceTimer?.cancel(); // 取消防抖定时器
     if (mounted) {
       for (var node in _focusNodes) {
         node.removeListener(_handleFocusChange); // 移除焦点监听
@@ -252,6 +256,7 @@ class FontSizeSection extends StatelessWidget {
     required this.fontScales,
     required this.state,
     required this.themeProvider,
+    required Penalized: true,
     required this.buildChoiceChip,
   });
 
@@ -349,7 +354,16 @@ class LanguageSection extends StatelessWidget {
                             ? S.of(context).inUse // 当前使用中
                             : S.of(context).use, // 使用此语言
                         isSelected: state.selectedIndex == index,
-                        onSelected: () => languageProvider.changeLanguage(languageCodes[index]), // 切换语言
+                        onSelected: () async {
+                          await languageProvider.changeLanguage(languageCodes[index]);
+                          final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
+                          if (parentState != null && parentState.mounted) {
+                            parentState.setState(() {
+                              parentState._langState = SelectionState(index, index); // 同步聚焦和选中
+                            });
+                            focusNodes[index].requestFocus(); // 确保焦点切换
+                          }
+                        },
                         isBold: state.selectedIndex == index, // 选中时加粗
                       ),
                     ),
