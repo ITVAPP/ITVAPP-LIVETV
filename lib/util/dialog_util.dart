@@ -262,6 +262,7 @@ class DialogUtil {
     );
   }
 
+  // 修改后的 _handleDownload 方法，确保下载失败时显示弹窗
   static void _handleDownload(BuildContext context, String apkUrl) {
     if (Platform.isAndroid) {
       context.read<DownloadProvider>().downloadApk(apkUrl).then((_) {
@@ -270,15 +271,15 @@ class DialogUtil {
         }
       }).catchError((e, stackTrace) {
         if (context.mounted) {
-          Navigator.of(context).pop(); // 下载失败关闭当前弹窗
-          LogUtil.logError('下载失败', e, stackTrace);
-          showCustomDialog(
+          Navigator.of(context).pop(); // 关闭当前弹窗
+          // 显示下载失败的弹窗
+          DialogUtil.showCustomDialog(
             context,
-            title: S.current.downloading,
-            content: S.current.filterError,
-            closeButtonLabel: S.current.cancelButton,
+            title: S.current.downloading, // "下载"
+            content: '${S.current.filterError}: $e', // "错误: [具体错误信息]"
+            closeButtonLabel: S.current.cancelButton, // "取消"
             isDismissible: true,
-          ); // 显示失败提示
+          );
         }
       });
     } else {
