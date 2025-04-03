@@ -6,7 +6,7 @@ import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 新增 SelectionState 类用于管理焦点和选中状态
+// SelectionState 类用于管理焦点和选中状态
 class SelectionState {
   final int focusedIndex; // 当前聚焦的索引
   final int selectedIndex; // 当前选中的索引
@@ -61,7 +61,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   @override
   void initState() {
     super.initState();
-    // 初始化焦点节点并绑定统一的监听器
+    // 初始化焦点节点并绑定监听器
     _focusNodes = List<FocusNode>.generate(8, (index) {
       final node = FocusNode();
       node.addListener(_handleFocusChange); // 统一监听焦点变化
@@ -91,7 +91,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
     _debounceTimer?.cancel(); // 清理防抖定时器
     if (mounted) {
       for (var node in _focusNodes) {
-        node.removeListener(_handleFocusChange); // 统一移除监听器
+        node.removeListener(_handleFocusChange); // 统一移除监听
         node.dispose(); // 释放焦点节点
       }
     }
