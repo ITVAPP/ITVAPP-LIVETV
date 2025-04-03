@@ -1,3 +1,4 @@
+import 'dart:async'; // 新增导入用于防抖
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,14 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
+
+// 新增 SelectionState 类用于管理焦点和选中状态
+class SelectionState {
+  final int focusedIndex; // 当前聚焦的索引
+  final String selectedLevel; // 当前选中的日志级别
+
+  SelectionState(this.focusedIndex, this.selectedLevel);
+}
 
 /// 日志查看页面，展示和管理应用日志
 class SettinglogPage extends StatefulWidget {
@@ -19,15 +28,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
   static const _logTimeStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 16); // 日志时间样式
   static const _logMessageStyle = TextStyle(fontSize: 14); // 日志消息样式
 
-  String _selectedLevel = 'all'; // 当前选中的日志级别，默认为“全部”
   static const int _logLimit = 88; // 限制显示的日志条数为88条
   final ScrollController _scrollController = ScrollController(); // 控制日志列表的滚动
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)); // 按钮统一圆角样式
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景颜色
   final Color unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景颜色
-  final List<FocusNode> _focusNodes = List.generate(7, (index) => FocusNode()); // 初始化7个焦点节点
+  late final List<FocusNode> _focusNodes; // 修改为 late final，集中管理
+  late SelectionState _logState; // 新增状态管理，移除 _selectedLevel
   late Map<String, ButtonStyle> _buttonStyles; // 缓存按钮样式，提升性能
-  bool _isFocusUpdating = false; // 防止焦点监听重复触发 setState
 
   List<Map<String, String>>? _cachedLogs; // 缓存日志数据
   DateTime? _lastLogUpdate; // 上次日志更新时间
@@ -36,51 +44,63 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 按钮基础样式，统一配置以减少重复代码
   static final _baseButtonStyle = OutlinedButton.styleFrom(
-    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
+    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical [vertical: 1.0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     side: BorderSide.none,
   );
+
+  // 用于防抖的定时器和函数（新增）
+  Timer? _debounceTimer;
+  void _debounceSetState() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) setState(() {});
+    });
+  }
 
   // 初始化按钮样式，仅在必要时更新
   void _initButtonStyles() {
     _buttonStyles = {
       'all': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_selectedLevel == 'all' ? selectedColor : unselectedColor)),
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'all' ? selectedColor : unselectedColor)),
       'v': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_selectedLevel == 'v' ? selectedColor : unselectedColor)),
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'v' ? selectedColor : unselectedColor)),
       'e': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_selectedLevel == 'e' ? selectedColor : unselectedColor)),
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'e' ? selectedColor : unselectedColor)),
       'i': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_selectedLevel == 'i' ? selectedColor : unselectedColor)),
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'i' ? selectedColor : unselectedColor)),
       'd': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_selectedLevel == 'd' ? selectedColor : unselectedColor)),
+          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'd' ? selectedColor : unselectedColor)),
     };
   }
 
   @override
   void initState() {
     super.initState();
+    _logState = SelectionState(-1, 'all'); // 初始化状态，默认选中 'all'
     _initButtonStyles(); // 初始化按钮样式
-    for (var i = 0; i < _focusNodes.length; i++) {
-      _focusNodes[i].addListener(() {
-        if (mounted && _focusNodes[i].hasFocus && !_isFocusUpdating && (i == 0 || i == 6 || (i >= 1 && i <= 5))) {
-          _isFocusUpdating = true; // 标记正在更新
-          setState(() {});
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _isFocusUpdating = false; // 重置标记
-          });
-        }
-      });
-    }
+    // 初始化焦点节点并绑定监听器
+    _focusNodes = List.generate(7, (index) {
+      final node = FocusNode();
+      node.addListener(_handleFocusChange); // 统一监听
+      return node;
+    });
     // 异步加载初始日志数据
     _loadLogsAsync();
+  }
+
+  // 统一处理焦点变化
+  void _handleFocusChange() {
+    final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
+    _logState = SelectionState(focusedIndex, _logState.selectedLevel); // 更新焦点状态
+    _debounceSetState(); // 使用防抖更新
   }
 
   @override
   void didUpdateWidget(covariant SettinglogPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     // 日志级别变化时异步更新缓存和界面
-    if (_lastSelectedLevel != _selectedLevel) {
+    if (_lastSelectedLevel != _logState.selectedLevel) {
       clearLogCache();
       _loadLogsAsync();
     }
@@ -88,8 +108,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel(); // 清理防抖定时器
     _scrollController.dispose(); // 释放滚动控制器
-    _focusNodes.forEach((node) => node.dispose()); // 释放所有焦点节点
+    for (var node in _focusNodes) {
+      node.removeListener(_handleFocusChange); // 统一移除监听器
+      node.dispose(); // 释放焦点节点
+    }
     _cachedLogs = null; // 释放日志缓存，避免内存占用
     super.dispose();
   }
@@ -97,12 +121,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 异步获取有限日志，预计算格式化时间并缓存
   Future<List<Map<String, String>>> _getLimitedLogsAsync() async {
     final now = DateTime.now();
-    if (_cachedLogs == null || _lastLogUpdate == null || _lastSelectedLevel != _selectedLevel ||
+    if (_cachedLogs == null || _lastLogUpdate == null || _lastSelectedLevel != _logState.selectedLevel ||
         now.difference(_lastLogUpdate!) > _logCacheTimeout) {
       try {
-        List<Map<String, String>> logs = _selectedLevel == 'all'
+        List<Map<String, String>> logs = _logState.selectedLevel == 'all'
             ? LogUtil.getLogs()
-            : LogUtil.getLogsByLevel(_selectedLevel); // 根据级别获取日志
+            : LogUtil.getLogsByLevel(_logState.selectedLevel); // 根据级别获取日志
 
         // 仅在数据变化时排序，避免重复计算
         logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!))); // 按时间降序排序
@@ -113,7 +137,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
               'formattedTime': formatDateTime(log['time']!), // 预计算并缓存格式化时间
             }).toList();
         _lastLogUpdate = now;
-        _lastSelectedLevel = _selectedLevel;
+        _lastSelectedLevel = _logState.selectedLevel;
       } catch (e) {
         LogUtil.e('获取日志失败: $e'); // 记录错误日志
         _cachedLogs = []; // 返回空列表以避免崩溃
@@ -307,7 +331,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                       onPressed: () {
                                         if (mounted) {
                                           setState(() {
-                                            _selectedLevel == 'all' ? LogUtil.clearLogs() : LogUtil.clearLogs(level: _selectedLevel); // 清空日志
+                                            _logState.selectedLevel == 'all' ? LogUtil.clearLogs() : LogUtil.clearLogs(level: _logState.selectedLevel); // 清空日志
                                             clearLogCache();
                                           });
                                           CustomSnackBar.showSnackBar(context, S.of(context).logCleared, duration: Duration(seconds: 4)); // 提示清空成功
@@ -340,7 +364,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 构建日志过滤按钮，动态更新样式和焦点状态
   Widget _buildFilterButton(String level, String label, int focusIndex) {
-    if (_selectedLevel == level) {
+    if (_logState.selectedLevel == level) {
       _buttonStyles[level] = _baseButtonStyle.copyWith(backgroundColor: MaterialStateProperty.all(selectedColor));
     } else {
       _buttonStyles[level] = _baseButtonStyle.copyWith(backgroundColor: MaterialStateProperty.all(unselectedColor));
@@ -354,7 +378,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           onPressed: () {
             if (mounted) {
               setState(() {
-                _selectedLevel = level; // 更新筛选级别
+                _logState = SelectionState(_logState.focusedIndex, level); // 更新状态
                 clearLogCache();
               });
             }
@@ -364,15 +388,15 @@ class _SettinglogPageState extends State<SettinglogPage> {
             style: TextStyle(
               fontSize: 16,
               color: Colors.white,
-              fontWeight: (_selectedLevel == level) ? FontWeight.bold : FontWeight.normal,
+              fontWeight: (_logState.selectedLevel == level) ? FontWeight.bold : FontWeight.normal,
             ),
             textAlign: TextAlign.center,
           ), // 按钮文本
           style: _buttonStyles[level]!.copyWith(
             backgroundColor: MaterialStateProperty.resolveWith((states) {
               return _focusNodes[focusIndex].hasFocus
-                  ? darkenColor(_selectedLevel == level ? selectedColor : unselectedColor)
-                  : (_selectedLevel == level ? selectedColor : unselectedColor); // 动态调整背景色
+                  ? darkenColor(_logState.selectedLevel == level ? selectedColor : unselectedColor)
+                  : (_logState.selectedLevel == level ? selectedColor : unselectedColor); // 动态调整背景色
             }),
           ),
         ),
