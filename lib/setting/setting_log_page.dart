@@ -24,7 +24,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
   final Color selectedColor = const Color(0xFFEB144C);
   final Color unselectedColor = const Color(0xFFDFA02A);
-  late List<FocusNode> _focusNodes; // 修改为 late，动态调整
+  late List<FocusNode> _focusNodes;
   late Map<String, ButtonStyle> _buttonStyles;
   bool _isFocusUpdating = false;
 
@@ -55,13 +55,13 @@ class _SettinglogPageState extends State<SettinglogPage> {
   }
 
   // 初始化或更新焦点节点
-  void _updateFocusNodes(bool isLogOn) {
-    // 先清理旧的焦点节点
+  void _updateFocusNodes(bool isTV, bool isLogOn) {
     if (_focusNodes != null) {
       _focusNodes.forEach((node) => node.dispose());
     }
-    // 根据开关状态调整焦点节点数量
-    _focusNodes = List.generate(isLogOn ? 7 : 1, (index) => FocusNode());
+    // 根据 isTV 和 isLogOn 调整焦点节点数量
+    int nodeCount = isTV ? (isLogOn ? 7 : 1) : (isLogOn ? 8 : 2);
+    _focusNodes = List.generate(nodeCount, (index) => FocusNode());
     for (var i = 0; i < _focusNodes.length; i++) {
       _focusNodes[i].addListener(() {
         if (mounted && _focusNodes[i].hasFocus && !_isFocusUpdating && (i == 0 || i == 6 || (i >= 1 && i <= 5))) {
@@ -79,7 +79,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void initState() {
     super.initState();
     _initButtonStyles();
-    _updateFocusNodes(true); // 初始时假设日志开启
+    // 初始时根据 context 获取 isTV 状态
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final themeProvider = context.read<ThemeProvider>();
+      _updateFocusNodes(themeProvider.isTV, true); // 初始假设日志开启
+    });
     _loadLogsAsync();
   }
 
@@ -136,7 +140,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   String formatDateTime(String dateTime) {
     DateTime parsedTime = DateTime.parse(dateTime);
-    return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} ${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
+    return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} ${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.to彼此: TextAlign.center.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
   }
 
   void clearLogCache() {
@@ -183,7 +187,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 5.0),
                           child: FocusableItem(
-                            focusNode: _focusNodes[0],
+                            focusNode: _focusNodes[0], // 返回按钮在非TV模式下占用 _focusNodes[0]
                             child: SwitchListTile(
                               title: Text(S.of(context).switchTitle, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                               subtitle: Text(S.of(context).logSubtitle, style: TextStyle(fontSize: 16)),
@@ -194,10 +198,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   if (!value) {
                                     LogUtil.clearLogs();
                                     clearLogCache();
-                                    _updateFocusNodes(false); // 开关关闭时更新焦点节点
+                                    _updateFocusNodes(isTV, false);
                                     setState(() {});
                                   } else {
-                                    _updateFocusNodes(true); // 开关开启时恢复焦点节点
+                                    _updateFocusNodes(isTV, true);
                                     setState(() {});
                                   }
                                 }, '设置日志开关状态时出错');
@@ -223,11 +227,11 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      _buildFilterButton('all', S.of(context).filterAll, 1),
-                                      _buildFilterButton('v', S.of(context).filterVerbose, 2),
-                                      _buildFilterButton('e', S.of(context).filterError, 3),
-                                      _buildFilterButton('i', S.of(context).filterInfo, 4),
-                                      _buildFilterButton('d', S.of(context).filterDebug, 5),
+                                      _buildFilterButton('all', S.of(context).filterAll, isTV ? 1 : 2),
+                                      _buildFilterButton('v', S.of(context).filterVerbose, isTV ? 2 : 3),
+                                      _buildFilterButton('e', S.of(context).filterError, isTV ? 3 : 4),
+                                      _buildFilterButton('i', S.of(context).filterInfo, isTV ? 4 : 5),
+                                      _buildFilterButton('d', S.of(context).filterDebug, isTV ? 5 : 6),
                                     ],
                                   ),
                                 ),
@@ -306,7 +310,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
                                   child: FocusableItem(
-                                    focusNode: _focusNodes[6],
+                                    focusNode: _focusNodes[isTV ? 6 : 7], // 清空按钮的索引根据模式调整
                                     child: ElevatedButton(
                                       onPressed: () {
                                         if (mounted) {
@@ -320,7 +324,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
                                       child: Text(S.of(context).clearLogs, style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center),
                                       style: ElevatedButton.styleFrom(
                                         shape: _buttonShape,
-                                        backgroundColor: _focusNodes[6].hasFocus ? darkenColor(unselectedColor) : unselectedColor,
+                                        backgroundColor: _focusNodes[isTV ? 6 : 7].hasFocus ? darkenColor(unselectedColor) : unselectedColor,
                                         side: BorderSide.none,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
                                       ),
