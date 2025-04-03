@@ -30,7 +30,7 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 常量类
+// 定义所有常量到一个集中类，便于管理
 class PlaybackConstants {
   static const int defaultMaxRetries = 1; // 默认最大重试次数
   static const int defaultTimeoutSeconds = 36; // 默认超时时间（秒）
@@ -49,43 +49,6 @@ class PlaybackConstants {
   static const int cleanupDelayMilliseconds = 500; // 清理延迟（毫秒）
   static const int snackBarDurationSeconds = 5; // SnackBar 显示时长（秒）
   static const int bufferingStartSeconds = 15; // 缓冲开始超时（秒）
-}
-
-// 定时器管理类，使用 Future.delayed 替代 Timer
-class TimerManager {
-  final Map<String, Future<void>> _timers = {}; // 存储 Future 对象
-  final Map<String, bool> _cancelFlags = {}; // 取消标志
-
-  // 调度定时器
-  void schedule(String key, Duration duration, VoidCallback callback) {
-    cancel(key);
-    _cancelFlags[key] = false;
-    _timers[key] = Future.delayed(duration, () {
-      if (!_cancelFlags[key]!) {
-        callback();
-      }
-    });
-  }
-
-  // 取消指定定时器
-  void cancel(String key) {
-    if (_timers.containsKey(key)) {
-      _cancelFlags[key] = true;
-      _timers.remove(key);
-    }
-  }
-
-  // 取消所有定时器
-  void cancelAll() {
-    _cancelFlags.keys.forEach((key) => _cancelFlags[key] = true);
-    _timers.clear();
-    _cancelFlags.clear();
-  }
-
-  // 释放资源
-  void dispose() {
-    cancelAll();
-  }
 }
 
 // 主页面组件，显示直播内容并管理播放状态
@@ -112,7 +75,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap; // 播放列表数据
   PlayModel? _currentChannel; // 当前播放频道
   int _sourceIndex = 0; // 当前源索引
-  int _lastProgressTime = 0; // 上次进度时间
   BetterPlayerController? _playerController; // 播放器控制器
   bool isBuffering = false; // 是否正在缓冲
   bool isPlaying = false; // 是否正在播放
@@ -126,8 +88,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl; // 当前流地址解析器
   StreamUrl? _preCacheStreamUrl; // 预缓存流地址解析器
   String? _currentPlayUrl; // 当前播放地址
-  bool _isHlsCached = false; // HLS 类型是否已缓存
-  bool _isAudioCached = false; // 音频类型是否已缓存
   String? _originalUrl; // 原始播放地址
   bool _progressEnabled = false; // 是否启用进度监听
   bool _isHls = false; // 是否为 HLS 流
@@ -177,15 +137,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return {'isAudio': isAudio, 'isHls': isHls};
   }
 
-  // 更新当前播放地址并缓存类型
+  // 更新当前播放地址并检查类型
   void _updatePlayUrl(String newUrl) {
     _currentPlayUrl = newUrl;
-    // 每次更新时都重新检查类型并更新缓存
     final urlType = _checkUrlType(_currentPlayUrl);
     _isHls = urlType['isHls']!;
     _isAudio = urlType['isAudio']!;
-    _isHlsCached = true;
-    _isAudioCached = true;
   }
 
   // 切换到预缓存地址
@@ -272,8 +229,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 并行解析流地址，但不影响广告逻辑
       final parseFuture = _streamUrl!.getStreamUrl();
       String parsedUrl = await parseFuture; // 先解析地址以优化性能
-      _isHlsCached = false;
-      _isAudioCached = false;
       _updatePlayUrl(parsedUrl);
 
       if (parsedUrl == 'ERROR') {
@@ -628,7 +583,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _updateBufferedHistory(Map<String, dynamic> entry) {
     _bufferedHistory.add(entry);
     if (_bufferedHistory.length > PlaybackConstants.bufferHistorySize) {
-      _bufferedHistory.removeAt(0); // FIFO 移除最旧数据
+      _bufferedHistory.removeAt(0); // FIFO removes oldest data
     }
   }
 
@@ -776,7 +731,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  String? _cachedNextUrl;
   // 获取下一视频源地址
   String? _getNextVideoUrl() {
     if (_currentChannel == null || _currentChannel!.urls == null) return null;
@@ -784,8 +738,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (urls.isEmpty) return null;
     final nextSourceIndex = _sourceIndex + 1;
     if (nextSourceIndex >= urls.length) return null;
-    _cachedNextUrl = urls[nextSourceIndex];
-    return _cachedNextUrl;
+    return urls[nextSourceIndex]; // 直接返回，不使用缓存变量
   }
 
   // 处理源切换逻辑
@@ -1173,7 +1126,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void dispose() {
     _isDisposing = true;
     _cleanupController(_playerController); // 清理播放器
-    _disposeAllStreams(); // 释放流资源，确保一次性清理
+    _disposeAllStreams(); // 释放流资源
     _pendingSwitchQueue.clear(); // 清空切换队列
     _originalUrl = null;
     _adManager.dispose(); // 释放广告资源
@@ -1503,5 +1456,42 @@ class _LiveHomePageState extends State<LiveHomePage> {
         },
       ),
     );
+  }
+}
+
+// 定时器管理类，使用 Future.delayed 替代 Timer
+class TimerManager {
+  final Map<String, Future<void>> _timers = {}; // 存储 Future 对象
+  final Map<String, bool> _cancelFlags = {}; // 取消标志
+
+  // 调度定时器
+  void schedule(String key, Duration duration, VoidCallback callback) {
+    cancel(key);
+    _cancelFlags[key] = false;
+    _timers[key] = Future.delayed(duration, () {
+      if (!_cancelFlags[key]!) {
+        callback();
+      }
+    });
+  }
+
+  // 取消指定定时器
+  void cancel(String key) {
+    if (_timers.containsKey(key)) {
+      _cancelFlags[key] = true;
+      _timers.remove(key);
+    }
+  }
+
+  // 取消所有定时器
+  void cancelAll() {
+    _cancelFlags.keys.forEach((key) => _cancelFlags[key] = true);
+    _timers.clear();
+    _cancelFlags.clear();
+  }
+
+  // 释放资源
+  void dispose() {
+    cancelAll();
   }
 }
