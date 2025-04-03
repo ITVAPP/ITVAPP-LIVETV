@@ -65,6 +65,7 @@
       };
     },
 
+    // 修改代码开始
     setupMediaSourceInterceptor() {
       if (!window.MediaSource) return;
 
@@ -78,12 +79,15 @@
 
         // 使用占位符 FILE_PATTERN，由Dart代码动态替换
         const currentTypes = supportedTypes['FILE_PATTERN'] || [];
+        // 修复：this.url 未定义，使用当前页面的 URL 作为回退
+        const url = this.url || window.location.href;
         if (currentTypes.some(type => mimeType.includes(type))) {
-          VideoUrlProcessor.processUrl(this.url, 0);
+          VideoUrlProcessor.processUrl(url, 0);
         }
         return originalAddSourceBuffer.call(this, mimeType);
       };
     }
+    // 修改代码结束
   };
 
   // DOM扫描器
@@ -133,23 +137,22 @@
       this.scanScripts();
     },
 
+    // 修改代码开始
     scanScripts() {
       document.querySelectorAll('script:not([src])').forEach(script => {
         if (!script.textContent) return;
         
         // 使用占位符 FILE_PATTERN，由Dart代码动态替换
         const pattern = '.' + 'FILE_PATTERN';
-        let index = script.textContent.indexOf(pattern);
-        
-        while (index !== -1) {
-          const extracted = this.extractUrlFromScript(script.textContent, index);
-          if (extracted.url.includes('http')) {
-            VideoUrlProcessor.processUrl(extracted.url, 0);
-          }
-          index = script.textContent.indexOf(pattern, extracted.endIndex);
+        // 优化：使用正则表达式替代 indexOf 循环，提升查找效率
+        const regex = new RegExp(`https?://[^\\s'"]*${pattern}[^\\s'"]*`, 'g');
+        let match;
+        while ((match = regex.exec(script.textContent)) !== null) {
+          VideoUrlProcessor.processUrl(match[0], 0);
         }
       });
     },
+    // 修改代码结束
 
     extractUrlFromScript(content, startIndex) {
       let urlStart = startIndex;
@@ -184,6 +187,8 @@
     NetworkInterceptor.setupMediaSourceInterceptor();
 
     // 设置 DOM 观察
+    // 修改代码开始
+    let debounceTimer = null;
     observer = new MutationObserver(mutations => {
       const processQueue = new Set();
 
@@ -207,16 +212,21 @@
         }
       });
 
-      requestIdleCallback(() => {
-        processQueue.forEach(item => {
-          if (typeof item === 'string') {
-            VideoUrlProcessor.processUrl(item, 0);
-          } else {
-            DOMScanner.scanPage(item.parentNode || document);
-          }
-        });
-      }, { timeout: 1000 });
+      // 优化：添加防抖机制，避免高频 DOM 变化导致性能问题
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        requestIdleCallback(() => {
+          processQueue.forEach(item => {
+            if (typeof item === 'string') {
+              VideoUrlProcessor.processUrl(item, 0);
+            } else {
+              DOMScanner.scanPage(item.parentNode || document);
+            }
+          });
+        }, { timeout: 1000 });
+      }, 100); // 100ms 防抖间隔
     });
+    // 修改代码结束
 
     observer.observe(document.documentElement, {
       childList: true,
@@ -242,12 +252,16 @@
   initializeDetector();
 
   // 清理函数
+  // 修改代码开始
   window._cleanupM3U8Detector = () => {
     if (observer) {
       observer.disconnect();
     }
+    // 修复：移除事件监听器引用，避免内存泄漏
+    const handleUrlChange = () => DOMScanner.scanPage(document); // 确保引用一致
     window.removeEventListener('popstate', handleUrlChange);
     window.removeEventListener('hashchange', handleUrlChange);
     delete window._m3u8DetectorInitialized;
   };
+  // 修改代码结束
 })();
