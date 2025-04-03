@@ -31,34 +31,42 @@ class _SettingPageState extends State<SettingPage> {
 
   static const _optionTextStyle = TextStyle(fontSize: 18);
 
+  // 定义默认的 trailing 箭头图标为静态常量，避免重复创建
+  static const _defaultTrailing = Icon(Icons.arrow_right);
+
   // 存储最新版本信息，可能为 null，由版本检查工具提供
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
 
   // 缓存容器宽度，避免重复计算以优化性能
   late double _containerWidth;
 
+  // 缓存 MediaQuery 数据，避免重复查询
+  late double _screenWidth;
+  late Orientation _orientation;
+
   @override
   void initState() {
     super.initState();
-    // 初始化时计算容器宽度，仅执行一次
+    // 初始化时缓存 MediaQuery 数据和容器宽度，仅执行一次
+    final mediaQuery = MediaQuery.of(context);
+    _screenWidth = mediaQuery.size.width;
+    _orientation = mediaQuery.orientation;
     _containerWidth = _calculateContainerWidth();
   }
 
   // 计算容器宽度，限制最大宽度为 580，适配不同屏幕尺寸
   double _calculateContainerWidth() {
-    var screenWidth = MediaQuery.of(context).size.width;
     double maxContainerWidth = 580;
-    return screenWidth > maxContainerWidth ? maxContainerWidth : double.infinity;
+    // 使用缓存的 _screenWidth，避免重复调用 MediaQuery
+    return _screenWidth > maxContainerWidth ? maxContainerWidth : _screenWidth; // 替换 double.infinity 为明确边界值
   }
 
   // 监听依赖变化（如语言），确保页面内容同步更新
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 检查挂载状态，避免在未挂载时调用 setState
-    if (mounted) {
-      // 当前依赖 Consumer 自动更新，无需额外逻辑
-    }
+    // 移除无用的 mounted 检查，因为当前逻辑无需 setState
+    // 当前依赖 Consumer 自动更新，无需额外逻辑
   }
 
   @override
@@ -66,7 +74,8 @@ class _SettingPageState extends State<SettingPage> {
     return Scaffold(
       appBar: AppBar(
         title: Consumer<LanguageProvider>(
-          builder: (context, languageProvider, child) {
+          // 移除未使用的 child 参数，简化代码
+          builder: (context, languageProvider, _) {
             return Text(
               S.of(context).settings,  // 显示“设置”标题，随语言动态更新
               style: _titleTextStyle,   // 应用预定义标题样式
@@ -81,7 +90,7 @@ class _SettingPageState extends State<SettingPage> {
               const SizedBox(height: 20), // 顶部留白，增强视觉层次
               Image.asset(
                 'assets/images/logo.png', // 显示应用 Logo
-                width: MediaQuery.of(context).orientation == Orientation.portrait ? 80 : 68, // 适配屏幕方向
+                width: _orientation == Orientation.portrait ? 80 : 68, // 使用缓存的 orientation
               ),
               const SizedBox(height: 12), // Logo 与名称间距
               Stack(
@@ -93,7 +102,7 @@ class _SettingPageState extends State<SettingPage> {
                   ),
                   Positioned(
                     top: 0,
-                    right: -45, // 版本号定位，右移避免重叠
+                    right: -(_screenWidth * 0.12), // 动态调整位置，替换硬编码 -45
                     child: Text(
                       'v${Config.version}', // 显示当前版本号
                       style: _versionTextStyle, // 应用预定义版本样式
@@ -140,7 +149,7 @@ class _SettingPageState extends State<SettingPage> {
                     ),
                   ),
                 const SizedBox(width: 10),
-                const Icon(Icons.arrow_right), // 默认右箭头
+                _defaultTrailing, // 使用静态常量箭头
               ],
             ),
             onTap: () async {
@@ -150,14 +159,14 @@ class _SettingPageState extends State<SettingPage> {
                 setState(() {
                   _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 更新版本信息
                 });
-              }
-              // 若无新版本，显示提示
-              if (_latestVersionEntity == null) {
-                CustomSnackBar.showSnackBar(
-                  context,
-                  S.of(context).latestVersion, // “已是最新版本”
-                  duration: const Duration(seconds: 4),
-                );
+                // 将提示逻辑移到 setState 后，提升可读性
+                if (_latestVersionEntity == null) {
+                  CustomSnackBar.showSnackBar(
+                    context,
+                    S.of(context).latestVersion, // “已是最新版本”
+                    duration: const Duration(seconds: 4),
+                  );
+                }
               }
             },
           ),
@@ -196,7 +205,7 @@ class _SettingPageState extends State<SettingPage> {
     required String title,        // 选项标题
     required double containerWidth, // 容器宽度
     required Function onTap,      // 点击回调
-    Widget? trailing,             // 右侧组件，默认为箭头
+    Widget? trailing,             // 右侧组件，默认为静态常量箭头
   }) {
     return Container(
       width: containerWidth, // 控制选项宽度
@@ -207,7 +216,7 @@ class _SettingPageState extends State<SettingPage> {
           style: _optionTextStyle, // 应用预定义选项样式
         ),
         leading: Icon(icon),        // 左侧图标
-        trailing: trailing ?? const Icon(Icons.arrow_right), // 右侧组件
+        trailing: trailing ?? _defaultTrailing, // 使用静态常量作为默认值
         onTap: () => onTap(),       // 执行点击回调
       ),
     );
