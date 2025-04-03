@@ -33,7 +33,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   String? _lastSelectedLevel; // 上次筛选的日志级别
   static const _logCacheTimeout = Duration(seconds: 1); // 日志缓存超时时间
 
-  late ThemeProvider _themeProvider; // 缓存主题提供者
   late MediaQueryData _mediaQuery; // 缓存媒体查询数据
 
   // 初始化按钮样式，仅执行一次
@@ -50,7 +49,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   @override
   void initState() {
     super.initState();
-    _themeProvider = context.read<ThemeProvider>(); // 初始化主题提供者
     _mediaQuery = MediaQuery.of(context); // 初始化媒体查询数据
     for (var i = 0; i < _focusNodes.length; i++) { // 为焦点节点添加监听
       _focusNodes[i].addListener(() {
@@ -110,8 +108,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isTV = _themeProvider.isTV; // 是否为TV模式
-    final bool isLogOn = _themeProvider.isLogOn; // 日志开关状态
+    final themeProvider = context.watch<ThemeProvider>(); // 使用 watch 监听变化
+    final bool isTV = themeProvider.isTV; // 是否为TV模式
+    final bool isLogOn = themeProvider.isLogOn; // 日志开关状态
     final screenWidth = _mediaQuery.size.width; // 屏幕宽度
     double maxContainerWidth = 580; // 最大容器宽度
 
@@ -149,11 +148,20 @@ class _SettinglogPageState extends State<SettinglogPage> {
                               title: Text(S.of(context).switchTitle, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), // 开关标题
                               subtitle: Text(S.of(context).logSubtitle, style: TextStyle(fontSize: 16)), // 开关副标题
                               value: isLogOn, // 当前开关状态
-                              onChanged: (value) => LogUtil.safeExecute(() => context.read<ThemeProvider>().setLogOn(value), '设置日志开关状态时出错'), // 更新日志状态
+                              onChanged: (value) {
+                                LogUtil.safeExecute(() {
+                                  themeProvider.setLogOn(value);
+                                  if (!value) { // 关闭时清空日志
+                                    LogUtil.clearLogs();
+                                    clearLogCache();
+                                    setState(() {}); // 强制刷新界面
+                                  }
+                                }, '设置日志开关状态时出错');
+                              },
                               activeColor: Colors.white, // 滑块颜色
-                              activeTrackColor: _focusNodes[0].hasFocus ? selectedColor : unselectedColor, // 聚焦/启动时轨道颜色
+                              activeTrackColor: _focusNodes[0].hasFocus ? selectedColor.withOpacity(0.8) : unselectedColor, // 聚焦/启动时轨道颜色
                               inactiveThumbColor: Colors.white, // 关闭时滑块颜色
-                              inactiveTrackColor: _focusNodes[0].hasFocus ? selectedColor : Colors.grey, // 聚焦/关闭时轨道颜色
+                              inactiveTrackColor: _focusNodes[0].hasFocus ? selectedColor.withOpacity(0.8) : Colors.grey[400], // 聚焦/关闭时轨道颜色
                             ),
                           ),
                         ),
@@ -228,9 +236,23 @@ class _SettinglogPageState extends State<SettinglogPage> {
       child: FocusableItem(
         focusNode: _focusNodes[focusIndex], // 按钮焦点节点
         child: OutlinedButton(
-          onPressed: () { if (mounted) { setState(() { _selectedLevel = level; clearLogCache(); _buttonStyles.forEach((key, style) { _buttonStyles[key] = style.copyWith(backgroundColor: MaterialStateProperty.all(key == _selectedLevel ? selectedColor : unselectedColor)); }); }); } }, // 更新筛选级别并刷新样式
+          onPressed: () { 
+            if (mounted) { 
+              setState(() { 
+                _selectedLevel = level; 
+                clearLogCache(); 
+              }); 
+            } 
+          }, // 更新筛选级别并刷新
           child: Text(label, style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: (_selectedLevel == level) ? FontWeight.bold : FontWeight.normal), textAlign: TextAlign.center), // 按钮文本
-          style: _buttonStyles[level]!.copyWith(backgroundColor: MaterialStateProperty.resolveWith((states) => _focusNodes[focusIndex].hasFocus ? darkenColor(_selectedLevel == level ? selectedColor : unselectedColor) : (_selectedLevel == level ? selectedColor : unselectedColor))), // 动态背景色
+          style: _buttonStyles[level]!.copyWith(
+            backgroundColor: MaterialStateProperty.resolveWith((states) {
+              if (_focusNodes[focusIndex].hasFocus) {
+                return darkenColor(_selectedLevel == level ? selectedColor : unselectedColor);
+              }
+              return _selectedLevel == level ? selectedColor : unselectedColor;
+            }),
+          ), // 动态背景色
         ),
       ),
     );
