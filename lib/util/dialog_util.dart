@@ -75,7 +75,7 @@ class DialogUtil {
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,
-      transitionDuration: Duration.zero, // 禁用关闭动画
+      barrierColor: Colors.transparent, 
       builder: (context) {
         return LayoutBuilder(
           builder: (context, constraints) {
