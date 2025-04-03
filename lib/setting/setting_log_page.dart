@@ -1,4 +1,4 @@
-import 'dart:async'; // 新增导入用于防抖
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -44,12 +44,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 按钮基础样式，统一配置以减少重复代码
   static final _baseButtonStyle = OutlinedButton.styleFrom(
-    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical [vertical: 1.0),
+    padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0), // 修复语法错误
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     side: BorderSide.none,
   );
 
-  // 用于防抖的定时器和函数（新增）
+  // 用于防抖的定时器和函数
   Timer? _debounceTimer;
   void _debounceSetState() {
     _debounceTimer?.cancel();
