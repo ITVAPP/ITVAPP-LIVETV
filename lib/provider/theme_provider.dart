@@ -25,10 +25,8 @@ class ThemeProvider extends ChangeNotifier {
   // 标记初始化状态
   bool _isInitialized = false;
 
-  // 私有构造函数，触发初始化
-  ThemeProvider._internal() {
-    initialize();
-  }
+  // 私有构造函数，不自动触发初始化
+  ThemeProvider._internal();
 
   // 公共 Getter 方法
   bool get isInitialized => _isInitialized;
