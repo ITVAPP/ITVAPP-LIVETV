@@ -880,7 +880,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
-      LogUtil.i('地理前缀为空，返回原始顺序');
+      LogUtil.i('地理前缀为空，返回原始顺序: $items');
+      return items;
+    }
+    if (items.isEmpty) {
+      LogUtil.i('待排序列表为空，返回空列表');
       return items;
     }
 
@@ -889,7 +893,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final bMatches = b.startsWith(prefix);
       if (aMatches && !bMatches) return -1;
       if (!aMatches && bMatches) return 1;
-      return items.indexOf(a).compareTo(items.indexOf(b));
+      return a.compareTo(b); // 改为自然排序
     });
 
     LogUtil.i('排序结果: $items');
@@ -912,22 +916,40 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     videoMap.playList!.forEach((category, groups) {
+      if (groups is! Map<String, dynamic>) {
+        LogUtil.e('分类 $category 的 groups 类型无效: ${groups.runtimeType}');
+        return; // 跳过此分类
+      }
+
       final groupList = groups.keys.toList();
-      _sortByGeoPrefix(groupList, regionPrefix);
+      LogUtil.i('排序前 groupList for $category: $groupList');
+      final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
       final newGroups = <String, Map<String, PlayModel>>{};
 
-      for (var group in groupList) {
-        final channels = groups[group]!;
+      for (var group in sortedGroups) {
+        final channels = groups[group];
+        if (channels is! Map<String, dynamic>) {
+          LogUtil.e('组 $group 的 channels 类型无效: ${channels.runtimeType}');
+          continue; // 跳过此组
+        }
+
         final channelList = channels.keys.toList();
-        _sortByGeoPrefix(channelList, cityPrefix);
+        LogUtil.i('排序前 channelList for $group: $channelList');
+        final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
         final newChannels = <String, PlayModel>{};
 
-        for (var channel in channelList) {
-          newChannels[channel] = channels[channel]!;
+        for (var channel in sortedChannels) {
+          final channelData = channels[channel];
+          if (channelData is PlayModel) {
+            newChannels[channel] = channelData;
+          } else {
+            LogUtil.e('频道 $channel 数据无效: ${channelData.runtimeType}');
+          }
         }
         newGroups[group] = newChannels;
       }
       videoMap.playList![category] = newGroups;
+      LogUtil.i('分类 $category 排序完成: ${newGroups.keys.toList()}');
     });
 
     LogUtil.i('按地理位置排序完成');
