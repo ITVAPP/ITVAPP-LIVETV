@@ -332,7 +332,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
         if (_shouldUpdateAspectRatio) {
-          final newAspectRatio = _playerController?.videoPlayer植物Controller?.value.aspectRatio ?? defaultAspectRatio;
+          final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? defaultAspectRatio;
           if (aspectRatio != newAspectRatio) {
             setState(() {
               aspectRatio = newAspectRatio;
