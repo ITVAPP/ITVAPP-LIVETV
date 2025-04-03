@@ -16,7 +16,6 @@ class SettingBeautifyPage extends StatefulWidget {
 
 // 美化设置页面的状态类，负责页面逻辑和 UI 更新
 class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
-  // 定义静态常量标题样式，避免重复创建以提升性能
   static const _titleStyle = TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.bold,
@@ -133,9 +132,9 @@ class _SettingBeautifyPageState extends State<SettingBeautifyPage> {
                                 }, '设置每日Bing背景时发生错误');
                               },
                               activeColor: Colors.white, // 激活时滑块颜色
-                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), [\"TrackColor\": _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色，确保正确应用
+                              activeTrackColor: _getTrackColor(_focusNodes[0].hasFocus, true), // 激活时轨道颜色
                               inactiveThumbColor: Colors.white, // 未激活时滑块颜色
-                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色，确保正确应用
+                              inactiveTrackColor: _getTrackColor(_focusNodes[0].hasFocus, false), // 未激活时轨道颜色
                             ),
                           ),
                         ),
