@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
-import 'dart:async';
 
 class SettingFontPage extends StatefulWidget {
   const SettingFontPage({super.key});
@@ -52,7 +52,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
     // 初始化焦点节点并绑定监听器
     _focusNodes = List<FocusNode>.generate(8, (index) {
       final node = FocusNode();
-      node.addListener(_debounceSetState); // 使用统一的防抖函数
+      // 注意：这里不再添加监听器，监听逻辑移到子组件
       return node;
     });
   }
@@ -186,6 +186,26 @@ class FontSizeSection extends StatefulWidget {
 
 class _FontSizeSectionState extends State<FontSizeSection> {
   @override
+  void initState() {
+    super.initState();
+    // 为每个焦点节点添加监听器，触发局部 setState
+    for (var node in widget.focusNodes) {
+      node.addListener(() {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // 移除监听器并清理资源
+    for (var node in widget.focusNodes) {
+      node.removeListener(() {});
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,6 +270,26 @@ class LanguageSection extends StatefulWidget {
 }
 
 class _LanguageSectionState extends State<LanguageSection> {
+  @override
+  void initState() {
+    super.initState();
+    // 为每个焦点节点添加监听器，触发局部 setState
+    for (var node in widget.focusNodes) {
+      node.addListener(() {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // 移除监听器并清理资源
+    for (var node in widget.focusNodes) {
+      node.removeListener(() {});
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentLocale = widget.languageProvider.currentLocale.toString();
