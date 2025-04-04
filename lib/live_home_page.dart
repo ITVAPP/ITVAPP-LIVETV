@@ -30,7 +30,7 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 定义媒体类型枚举，用于统一处理不同类型的媒体
+// 定义媒体类型枚举，用于统一处理不同类型的媒体 
 enum MediaType {
  hls,    // HLS 流媒体
  video,  // 普通视频文件
