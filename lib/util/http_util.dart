@@ -183,7 +183,7 @@ class HttpUtil {
         currentAttempt++;
         LogUtil.logError(
           '第 $currentAttempt 次${isPost ? 'POST' : 'GET'} 请求失败: $path\n'
-          '响应状态码: ${e.response?.statusCode}\n'
+          '响应状态码: ${e.response?.statusCode}\n',
           e,
           stackTrace,
         ); // 记录请求失败日志
