@@ -555,7 +555,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                           const SizedBox(width: 8),
                           _buildControlButton(
                             icon: Icons.settings,
-                            tooltip: S.of(context).setting,
+                            tooltip: S.of(context).settings,
                             showBackground: true,
                             onPressed: () {
                               _closeDrawerIfOpen();
