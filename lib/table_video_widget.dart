@@ -240,7 +240,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 构建视频播放器，区分控制器状态和音频模式
   Widget _buildVideoPlayer(double containerHeight) {
-    if (widget.controller == null || !widget.controller!.isVideoInitialized() || widget.isAudio) {
+    if (widget.controller == null || !(widget.controller!.isVideoInitialized() ?? false) || widget.isAudio) {
       return VideoHoldBg(
         currentChannelLogo: widget.currentChannelLogo,
         currentChannelTitle: widget.currentChannelTitle,
