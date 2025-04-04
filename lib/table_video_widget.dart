@@ -103,16 +103,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   final Color _backgroundColor = Colors.black45;
   final BorderSide _iconBorderSide = const BorderSide(color: Colors.white);
 
-  late final ValueNotifier<VideoUIState> _uiStateNotifier; // UI 状态管理器
-  Timer? _pauseIconTimer; // 暂停图标显示定时器
-  VideoUIState get _currentState => _uiStateNotifier.value; // 当前 UI 状态便捷访问
-
-  // 缓存变量，优化性能避免重复计算
-  double? _playerHeight; // 播放器高度
-  double? _progressBarWidth; // 进度条宽度
-  double? _adAnimationWidth; // 广告动画宽度
-  late bool _isFavorite; // 缓存收藏状态
-
   // 预定义控制图标样式，提高性能
   static const _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -126,8 +116,27 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     ],
   );
+  
+  // 添加常用 UI 元素常量，减少创建实例次数
+  static const _spacer8 = SizedBox(width: 8);
+  static const _spacer5 = SizedBox(height: 5);
+  static const _controlPadding = EdgeInsets.all(10.0);
+  static const _iconSize = 68.0;
+  static const _menuHeight = 32.0;
+  static const _horizontalPadding = EdgeInsets.symmetric(horizontal: 15);
 
-  // 更新 UI 状态，支持动态调整
+  late final ValueNotifier<VideoUIState> _uiStateNotifier; // UI 状态管理器
+  Timer? _pauseIconTimer; // 暂停图标显示定时器
+  VideoUIState get _currentState => _uiStateNotifier.value; // 当前 UI 状态便捷访问
+
+  // 缓存变量，优化性能避免重复计算
+  double? _playerHeight; // 播放器高度
+  double? _progressBarWidth; // 进度条宽度
+  double? _adAnimationWidth; // 广告动画宽度
+  late bool _isFavorite; // 缓存收藏状态
+  bool? _lastIsLandscape; // 缓存上次横屏状态
+  
+  // 更新 UI 状态，支持动态调整，优化状态更新逻辑
   void _updateUIState({
     bool? showMenuBar,
     bool? showPauseIcon,
@@ -135,11 +144,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     bool? drawerIsOpen,
   }) {
     final current = _currentState;
-    if ((showMenuBar != null && showMenuBar != current.showMenuBar) ||
-        (showPauseIcon != null && showPauseIcon != current.showPauseIcon) ||
-        (showPlayIcon != null && showPlayIcon != current.showPlayIcon) ||
-        (drawerIsOpen != null && drawerIsOpen != current.drawerIsOpen)) {
-      _uiStateNotifier.value = current.copyWith(
+    
+    // 检查是否有属性需要更新
+    bool needsUpdate = false;
+    if (showMenuBar != null && showMenuBar != current.showMenuBar) needsUpdate = true;
+    else if (showPauseIcon != null && showPauseIcon != current.showPauseIcon) needsUpdate = true;
+    else if (showPlayIcon != null && showPlayIcon != current.showPlayIcon) needsUpdate = true;
+    else if (drawerIsOpen != null && drawerIsOpen != current.drawerIsOpen) needsUpdate = true;
+    
+    if (needsUpdate) {
+      _uiStateNotifier.value = VideoUIState(
         showMenuBar: showMenuBar ?? current.showMenuBar,
         showPauseIcon: showPauseIcon ?? current.showPauseIcon,
         showPlayIcon: showPlayIcon ?? current.showPlayIcon,
@@ -159,6 +173,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       drawerIsOpen: widget.drawerIsOpen,
     ));
     _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化收藏状态
+    _lastIsLandscape = widget.isLandscape; // 初始化横屏状态缓存
     widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width); // 初始化广告动画
     // 非移动端注册窗口监听器
     LogUtil.safeExecute(() {
@@ -166,15 +181,32 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }, '注册窗口监听器发生错误');
   }
 
-  // 计算播放器高度和进度条宽度，避免 build 中重复计算
+  // 优化：计算播放器高度和进度条宽度，避免重复计算
+  void _updateDimensions() {
+    final mediaQuery = MediaQuery.of(context);
+    final width = mediaQuery.size.width;
+    final isWidthChanged = _adAnimationWidth != width;
+    
+    // 首次初始化或尺寸/方向变化时更新
+    if (isWidthChanged || _lastIsLandscape != widget.isLandscape || _playerHeight == null) {
+      _playerHeight = width / (16 / 9);
+      _progressBarWidth = widget.isLandscape ? width * 0.3 : width * 0.5;
+      
+      // 只有在宽度实际变化时才更新广告动画
+      if (isWidthChanged || _adAnimationWidth == null) {
+        _adAnimationWidth = width;
+        widget.adManager.updateTextAdAnimation(width);
+      }
+      
+      _lastIsLandscape = widget.isLandscape;
+    }
+  }
+
+  // 优化：使用 _updateDimensions 统一管理尺寸计算
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final mediaQuery = MediaQuery.of(context);
-    _playerHeight = mediaQuery.size.width / (16 / 9); // 计算播放器高度
-    _progressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5; // 计算进度条宽度
-    _adAnimationWidth = mediaQuery.size.width; // 缓存广告动画宽度
-    widget.adManager.updateTextAdAnimation(_adAnimationWidth!); // 更新广告动画
+    _updateDimensions();
   }
 
   @override
@@ -189,8 +221,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       widget.adManager.reset(); // 重置广告状态
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
-    } else if (widget.isLandscape != oldWidget.isLandscape) {
-      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width); // 横竖屏切换更新动画
+    } 
+    
+    // 更新尺寸计算（整合横竖屏切换逻辑）
+    if (widget.isLandscape != oldWidget.isLandscape) {
+      _updateDimensions();
     }
   }
 
@@ -199,6 +234,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 清理资源
     _uiStateNotifier.dispose();
     _pauseIconTimer?.cancel();
+    _pauseIconTimer = null;
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
@@ -211,7 +247,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 进入全屏时调整标题栏和动画
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
+      _updateDimensions(); // 使用集中管理的尺寸更新方法
     }, '进入全屏时发生错误');
   }
 
@@ -221,7 +257,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
       if (EnvUtil.isMobile) SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
+      _updateDimensions(); // 使用集中管理的尺寸更新方法
     }, '退出全屏时发生错误');
   }
 
@@ -231,7 +267,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
       _closeDrawerIfOpen();
-      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
+      _updateDimensions(); // 使用集中管理的尺寸更新方法
     }, '调整窗口大小时发生错误');
   }
 
@@ -255,7 +291,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 处理播放/暂停逻辑并切换菜单栏显示
+  // 优化：统一管理播放/暂停逻辑
   Future<void> _handleSelectPress() async {
     if (widget.controller?.isPlaying() ?? false) {
       await _handlePause();
@@ -265,13 +301,30 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _toggleMenuBar();
   }
 
-  // 处理暂停逻辑，显示暂停图标并设置定时隐藏
+  // 优化：集中管理暂停图标显示定时器
+  void _showPauseIconWithTimer({bool checkActive = true}) {
+    // 检查定时器是否活动（如果需要）
+    if (checkActive && (_pauseIconTimer?.isActive ?? false)) {
+      // 定时器活动时的特殊处理
+      _pauseIconTimer?.cancel();
+      _updateUIState(showPauseIcon: false);
+      widget.controller?.pause();
+      widget.onUserPaused?.call();
+      return;
+    }
+    
+    // 常规处理：取消旧定时器，显示图标，设置新定时器
+    _pauseIconTimer?.cancel();
+    _updateUIState(showPauseIcon: true);
+    _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) _updateUIState(showPauseIcon: false);
+    });
+  }
+
+  // 处理暂停逻辑，使用优化后的定时器管理
   Future<void> _handlePause() async {
     if (!(_pauseIconTimer?.isActive ?? false)) {
-      _updateUIState(showPauseIcon: true);
-      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) _updateUIState(showPauseIcon: false);
-      });
+      _showPauseIconWithTimer();
     } else {
       await widget.controller?.pause();
       _pauseIconTimer?.cancel();
@@ -303,6 +356,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
+  // 优化：处理双击播放/暂停事件
+  Future<void> _togglePlayPause() async {
+    try {
+      if (widget.isPlaying) {
+        await widget.controller?.pause();
+        widget.onUserPaused?.call();
+      } else {
+        if (widget.isHls) widget.onRetry?.call();
+        else await widget.controller?.play();
+      }
+    } catch (e) {
+      LogUtil.log('双击播放/暂停发生错误: $e');
+    }
+  }
+
   // 构建控制图标，使用预定义样式
   Widget _buildControlIcon({
     required IconData icon,
@@ -313,8 +381,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     Widget iconWidget = Center(
       child: Container(
         decoration: _controlIconDecoration,
-        padding: const EdgeInsets.all(10.0),
-        child: Icon(icon, size: 68, color: iconColor.withOpacity(0.85)),
+        padding: _controlPadding,
+        child: Icon(icon, size: _iconSize, color: iconColor.withOpacity(0.85)),
       ),
     );
     return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
@@ -400,211 +468,254 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 构建静态叠加层，减少重建范围
-  Widget _buildStaticOverlay() {
-    return Stack(
-      children: [
-        if (!widget.isLandscape) // 竖屏时显示右侧按钮组
-          Positioned(
-            right: 9,
-            bottom: 9,
-            child: Container(
-              width: 32,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildFavoriteButton(widget.currentChannelId, false),
-                  const SizedBox(height: 5),
-                  buildChangeChannelSourceButton(false),
-                  const SizedBox(height: 5),
-                  _buildControlButton(
-                    icon: Icons.screen_rotation,
-                    tooltip: S.of(context).landscape,
-                    onPressed: () async {
-                      if (EnvUtil.isMobile) {
-                        SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.landscapeLeft,
-                          DeviceOrientation.landscapeRight
-                        ]);
-                        return;
-                      }
-                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                    },
-                  ),
-                ],
-              ),
+  // 优化：检查是否应显示提示信息和进度条
+  bool get _shouldShowToast => 
+    widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString);
+
+  // 优化：检查是否应显示文本广告
+  bool get _shouldShowTextAd => 
+    widget.adManager.getShowTextAd() && 
+    widget.adManager.getAdData()?.textAdContent != null && 
+    widget.adManager.getTextAdAnimation() != null;
+
+  // 优化：构建提示信息和进度条组件
+  Widget _buildToastWithProgress() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GradientProgressBar(width: _progressBarWidth!, height: 5),
+            _spacer5,
+            ScrollingToastMessage(
+              message: widget.toastString!,
+              containerWidth: constraints.maxWidth,
+              isLandscape: widget.isLandscape,
             ),
-          ),
-        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null) // 显示广告文本动画
-          Positioned(
-            top: widget.isLandscape ? 50.0 : 80.0,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: widget.adManager.getTextAdAnimation()!,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
-                  child: Text(
-                    widget.adManager.getAdData()!.textAdContent!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
-  // 构建动态 UI，监听状态变化
+  // 优化：构建文本广告组件
+  Widget _buildTextAdWidget() {
+    final content = widget.adManager.getAdData()!.textAdContent!;
+    return Positioned(
+      top: widget.isLandscape ? 50.0 : 80.0,
+      left: 0,
+      right: 0,
+      child: AnimatedBuilder(
+        animation: widget.adManager.getTextAdAnimation()!,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
+            child: Text(
+              content,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // 优化：构建右侧按钮组（竖屏模式）
+  Widget _buildPortraitRightButtons() {
+    return Positioned(
+      right: 9,
+      bottom: 9,
+      child: Container(
+        width: 32,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildFavoriteButton(widget.currentChannelId, false),
+            _spacer5,
+            buildChangeChannelSourceButton(false),
+            _spacer5,
+            _buildControlButton(
+              icon: Icons.screen_rotation,
+              tooltip: S.of(context).landscape,
+              onPressed: () async {
+                if (EnvUtil.isMobile) {
+                  SystemChrome.setPreferredOrientations([
+                    DeviceOrientation.landscapeLeft,
+                    DeviceOrientation.landscapeRight
+                  ]);
+                  return;
+                }
+                await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 优化：构建菜单栏按钮（横屏模式）
+  List<Widget> _buildMenuBarButtons() {
+    return [
+      const Spacer(),
+      _buildControlButton(
+        icon: Icons.list_alt,
+        tooltip: S.of(context).tipChannelList,
+        showBackground: true,
+        onPressed: () {
+          LogUtil.safeExecute(() {
+            _updateUIState(showMenuBar: false);
+            widget.onToggleDrawer?.call();
+          }, '切换频道发生错误');
+        },
+      ),
+      _spacer8,
+      buildFavoriteButton(widget.currentChannelId, true),
+      _spacer8,
+      buildChangeChannelSourceButton(true),
+      _spacer8,
+      _buildControlButton(
+        icon: Icons.settings,
+        tooltip: S.of(context).settings,
+        showBackground: true,
+        onPressed: () {
+          _closeDrawerIfOpen();
+          LogUtil.safeExecute(() {
+            _updateUIState(showMenuBar: false);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
+          }, '进入设置页面发生错误');
+        },
+      ),
+      _spacer8,
+      _buildControlButton(
+        icon: Icons.screen_rotation,
+        tooltip: S.of(context).portrait,
+        showBackground: true,
+        onPressed: () async {
+          LogUtil.safeExecute(() async {
+            if (EnvUtil.isMobile) {
+              SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+            } else {
+              await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
+              await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+              Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+            }
+          }, '切换为竖屏时发生错误');
+        },
+      ),
+      if (!EnvUtil.isMobile) ...[
+        _spacer8,
+        _buildControlButton(
+          icon: Icons.fit_screen_outlined,
+          tooltip: S.of(context).fullScreen,
+          showBackground: true,
+          onPressed: () async {
+            LogUtil.safeExecute(() async {
+              final isFullScreen = await windowManager.isFullScreen();
+              windowManager.setFullScreen(!isFullScreen);
+            }, '切换为全屏时发生错误');
+          },
+        ),
+      ],
+    ];
+  }
+
+  // 优化：构建横屏菜单栏
+  Widget _buildLandscapeMenuBar(bool showMenuBar) {
+    return AnimatedPositioned(
+      left: 0,
+      right: 0,
+      bottom: showMenuBar ? 18 : -50,
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        height: _menuHeight,
+        padding: _horizontalPadding,
+        child: Row(
+          children: _buildMenuBarButtons(),
+        ),
+      ),
+    );
+  }
+
+  // 优化：构建播放器容器和核心控件
+  Widget _buildPlayerContainer(VideoUIState uiState) {
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.black,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _buildVideoPlayer(_playerHeight!),
+          if (widget.showPlayIcon) 
+            _buildControlIcon(icon: Icons.play_arrow, onTap: () => _handleSelectPress()),
+          if (uiState.showPauseIcon || widget.showPauseIconFromListener)
+            _buildControlIcon(icon: Icons.pause),
+          if (_shouldShowToast)
+            _buildToastWithProgress(),
+        ],
+      ),
+    );
+  }
+
+  // 优化：构建静态叠加层，使用 RepaintBoundary 减少重绘范围
+  Widget _buildStaticOverlay() {
+    return RepaintBoundary(
+      child: Stack(
+        children: [
+          if (!widget.isLandscape) _buildPortraitRightButtons(),
+          if (_shouldShowTextAd) _buildTextAdWidget(),
+        ],
+      ),
+    );
+  }
+
+  // 优化：构建播放器手势区域
+  Widget _buildPlayerGestureDetector(VideoUIState uiState) {
+    final isActive = !uiState.drawerIsOpen;
+    return GestureDetector(
+      onTap: isActive ? () => _handleSelectPress() : null,
+      onDoubleTap: isActive 
+        ? () => _togglePlayPause() 
+        : null,
+      child: _buildPlayerContainer(uiState),
+    );
+  }
+
+  // 优化：构建播放器和控件
+  Widget _buildVideoPlayerWithControls() {
+    return ValueListenableBuilder<VideoUIState>(
+      valueListenable: _uiStateNotifier,
+      builder: (context, uiState, _) {
+        return Stack(
+          children: [
+            _buildPlayerGestureDetector(uiState),
+            if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(),
+            if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) 
+              const DatePositionWidget(),
+            if (widget.isLandscape && !uiState.drawerIsOpen) 
+              _buildLandscapeMenuBar(uiState.showMenuBar),
+          ],
+        );
+      },
+    );
+  }
+
+  // 优化：整体 build 方法，拆分为更可管理的子组件
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        ValueListenableBuilder<VideoUIState>(
-          valueListenable: _uiStateNotifier,
-          builder: (context, uiState, child) {
-            return Stack(
-              children: [
-                GestureDetector(
-                  onTap: uiState.drawerIsOpen ? null : () => _handleSelectPress(),
-                  onDoubleTap: uiState.drawerIsOpen
-                      ? null
-                      : () {
-                          LogUtil.safeExecute(() async {
-                            if (widget.isPlaying) {
-                              await widget.controller?.pause();
-                              widget.onUserPaused?.call();
-                            } else {
-                              if (widget.isHls) widget.onRetry?.call();
-                              else await widget.controller?.play();
-                            }
-                          }, '双击播放/暂停发生错误');
-                        },
-                  child: Container(
-                    alignment: Alignment.center,
-                    color: Colors.black,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        _buildVideoPlayer(_playerHeight!),
-                        if (widget.showPlayIcon) // 显示播放图标
-                          _buildControlIcon(icon: Icons.play_arrow, onTap: () => _handleSelectPress()),
-                        if (uiState.showPauseIcon || widget.showPauseIconFromListener) // 显示暂停图标
-                          _buildControlIcon(icon: Icons.pause),
-                        if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) // 显示提示信息和进度条
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 12,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) => Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  GradientProgressBar(width: _progressBarWidth!, height: 5),
-                                  const SizedBox(height: 5),
-                                  ScrollingToastMessage(
-                                    message: widget.toastString!,
-                                    containerWidth: constraints.maxWidth,
-                                    isLandscape: widget.isLandscape,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(), // 显示音量亮度控件
-                if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(), // 横屏显示日期
-                if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) // 横屏显示菜单栏
-                  AnimatedPositioned(
-                    left: 0,
-                    right: 0,
-                    bottom: uiState.showMenuBar ? 18 : -50,
-                    duration: const Duration(milliseconds: 200),
-                    child: Container(
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      child: Row(
-                        children: [
-                          const Spacer(),
-                          _buildControlButton(
-                            icon: Icons.list_alt,
-                            tooltip: S.of(context).tipChannelList,
-                            showBackground: true,
-                            onPressed: () {
-                              LogUtil.safeExecute(() {
-                                _updateUIState(showMenuBar: false);
-                                widget.onToggleDrawer?.call();
-                              }, '切换频道发生错误');
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          buildFavoriteButton(widget.currentChannelId, true),
-                          const SizedBox(width: 8),
-                          buildChangeChannelSourceButton(true),
-                          const SizedBox(width: 8),
-                          _buildControlButton(
-                            icon: Icons.settings,
-                            tooltip: S.of(context).settings,
-                            showBackground: true,
-                            onPressed: () {
-                              _closeDrawerIfOpen();
-                              LogUtil.safeExecute(() {
-                                _updateUIState(showMenuBar: false);
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
-                              }, '进入设置页面发生错误');
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          _buildControlButton(
-                            icon: Icons.screen_rotation,
-                            tooltip: S.of(context).portrait,
-                            showBackground: true,
-                            onPressed: () async {
-                              LogUtil.safeExecute(() async {
-                                if (EnvUtil.isMobile) {
-                                  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-                                } else {
-                                  await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-                                  await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-                                  Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                                }
-                              }, '切换为竖屏时发生错误');
-                            },
-                          ),
-                          if (!EnvUtil.isMobile) ...[
-                            const SizedBox(width: 8),
-                            _buildControlButton(
-                              icon: Icons.fit_screen_outlined,
-                              tooltip: S.of(context).fullScreen,
-                              showBackground: true,
-                              onPressed: () async {
-                                LogUtil.safeExecute(() async {
-                                  final isFullScreen = await windowManager.isFullScreen();
-                                  windowManager.setFullScreen(!isFullScreen);
-                                }, '切换为全屏时发生错误');
-                              },
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        _buildStaticOverlay(), // 添加静态叠加层
+        _buildVideoPlayerWithControls(),
+        _buildStaticOverlay(),
       ],
     );
   }
