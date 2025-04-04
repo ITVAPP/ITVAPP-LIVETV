@@ -445,7 +445,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
     };
     navigationActions[key]?.call();
-    _triggerOnSelect(currentIndex);
     return KeyEventResult.handled;
   }
 
@@ -456,14 +455,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       deactivateFocusManagement();
       childNavigation.activateFocusManagement();
       LogUtil.i('切换到子页面');
-    }
-  }
-
-  /// 触发选择回调
-  void _triggerOnSelect(int currentIndex) {
-    if (_currentFocus != null && widget.onSelect != null) {
-      int newIndex = widget.focusNodes.indexOf(_currentFocus!);
-      if (newIndex != -1 && newIndex != currentIndex) widget.onSelect!(newIndex);
     }
   }
 
@@ -509,8 +500,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         _triggerActionsInFocusableItem(context);
         int newIndex = widget.focusNodes.indexOf(focusNode);
         if (newIndex != -1) {
-          widget.onSelect?.call(newIndex); // 通知选中事件
-          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode)); // 同步焦点
+          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
         }
       } else {
         LogUtil.i('未找到 FocusableItem');
