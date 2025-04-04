@@ -73,7 +73,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   // 动态生成分组焦点缓存
-  Map<int, Map<String, FocusNode>> _generateGroupFocusCache() { // 生成焦点分组缓存
+  Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
 
     // 分组 0：字体大小
@@ -122,7 +122,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   @override
-  void dispose() { // 清理资源
+  void dispose() {
     if (mounted) {
       for (var node in _focusNodes) {
         node.removeListener(_handleFocusChange); // 移除焦点监听
@@ -133,7 +133,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   // 计算按钮颜色
-  Color _getChipColor(bool isFocused, bool isSelected) { // 获取按钮颜色
+  Color _getChipColor(bool isFocused, bool isSelected) {
     if (isFocused) {
       return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
     }
@@ -141,7 +141,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   // 创建统一的 ChoiceChip 组件
-  Widget _buildChoiceChip({ // 构建选择按钮
+  Widget _buildChoiceChip({
     required FocusNode focusNode,
     required String labelText,
     required bool isSelected,
@@ -168,7 +168,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 
   @override
-  Widget build(BuildContext context) { // 构建页面UI
+  Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width; // 获取屏幕宽度
     final themeProvider = context.watch<ThemeProvider>(); // 主题提供者
     final languageProvider = context.watch<LanguageProvider>(); // 语言提供者
@@ -242,7 +242,7 @@ class FontSizeSection extends StatelessWidget {
   final List<double> fontScales; // 字体缩放比例
   final SelectionState state; // 当前状态
   final ThemeProvider themeProvider; // 主题提供者
-  final Widget Function({ // 按钮构建方法
+  final Widget Function({
     required FocusNode focusNode,
     required String labelText,
     required bool isSelected,
@@ -256,12 +256,11 @@ class FontSizeSection extends StatelessWidget {
     required this.fontScales,
     required this.state,
     required this.themeProvider,
-    required Penalized: true,
     required this.buildChoiceChip,
   });
 
   @override
-  Widget build(BuildContext context) { // 构建字体选择UI
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -304,7 +303,7 @@ class LanguageSection extends StatelessWidget {
   final List<String> languageCodes; // 语言代码列表
   final SelectionState state; // 当前状态
   final LanguageProvider languageProvider; // 语言提供者
-  final Widget Function({ // 按钮构建方法
+  final Widget Function({
     required FocusNode focusNode,
     required String labelText,
     required bool isSelected,
@@ -323,7 +322,7 @@ class LanguageSection extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) { // 构建语言选择UI
+  Widget build(BuildContext context) {
     final currentLocale = languageProvider.currentLocale.toString(); // 当前语言代码
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
