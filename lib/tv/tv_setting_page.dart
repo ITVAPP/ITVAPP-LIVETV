@@ -11,7 +11,7 @@ import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/remote_control_help.dart';
-import '../generated/l10n.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 电视设置主页面
 class TvSettingPage extends StatefulWidget {
@@ -38,7 +38,29 @@ class TvSettingPageState extends State<TvSettingPage> {
   final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时背景颜色
 
   static List<FocusNode> _generateFocusNodes(int count) {
-    return List.generate(count, (_) => FocusNode());
+    return List.generate(count, (index) {
+      final node = FocusNode();
+      return node;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 为每个 FocusNode 添加监听器
+    for (var node in focusNodes) {
+      node.addListener(_handleFocusChange);
+    }
+  }
+
+  // 处理焦点变化，更新 selectedIndex
+  void _handleFocusChange() {
+    final focusedIndex = focusNodes.indexWhere((node) => node.hasFocus);
+    if (focusedIndex != -1 && focusedIndex > 0) { // 排除返回按钮 (index 0)
+      setState(() {
+        selectedIndex = focusedIndex - 1; // 更新选中项索引，减去1与菜单匹配
+      });
+    }
   }
 
   @override
@@ -49,6 +71,7 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   void _disposeFocusNodes(List<FocusNode> focusNodes) {
     for (var focusNode in focusNodes) {
+      focusNode.removeListener(_handleFocusChange); // 移除监听器
       focusNode.dispose();
     }
   }
@@ -96,7 +119,7 @@ class TvSettingPageState extends State<TvSettingPage> {
   }) {
     final bool isSelected = _confirmedIndex == index;
     final bool hasFocus = focusNodes[index + 1].hasFocus;
-    
+
     return FocusableItem(
       focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
       child: ListTile(
@@ -139,7 +162,7 @@ class TvSettingPageState extends State<TvSettingPage> {
       case 3:
         return SettinglogPage(); // 日志页面
       case 4:
-      case 5:	
+      case 5:
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -166,17 +189,13 @@ class TvSettingPageState extends State<TvSettingPage> {
   Widget build(BuildContext context) {
     return FocusScope(
       child: TvKeyNavigation(
-        focusNodes: focusNodes, 
-        cacheName: 'TvSettingPage',  // 指定缓存名称
-        initialIndex: selectedIndex + 1, 
+        focusNodes: focusNodes,
+        cacheName: 'TvSettingPage', // 指定缓存名称
+        initialIndex: selectedIndex + 1,
         isFrame: true, // 启用框架模式
         frameType: "parent", // 设置为父框架
         isVerticalGroup: true, // 启用竖向分组
-        onSelect: (index) {
-          setState(() {
-            selectedIndex = index - 1; // 更新选中项索引，减去1与菜单匹配
-          });
-        },
+        // 移除 onSelect 回调，状态更新交给 _handleFocusChange
         child: Row(
           children: [
             // 左侧菜单部分
@@ -277,7 +296,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           });
                           // 使用 Future.microtask 来显示帮助界面
                           Future.microtask(() async {
-                              await RemoteControlHelp.show(context);
+                            await RemoteControlHelp.show(context);
                           });
                         },
                       ),
