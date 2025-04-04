@@ -192,13 +192,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
           initialIndex: 0, // 初始焦点索引
           isFrame: isTV ? true : false, // TV模式启用框架
           frameType: isTV ? "child" : null, // TV模式子页面类型
-          onSelect: (index) { // 添加 onSelect 回调
-            if (index >= _fontScales.length) {
-              setState(() {
-                _langState = SelectionState(index - _fontScales.length, _langState.selectedIndex);
-              });
-            }
-          },
+          // 移除 onSelect 回调，状态更新完全由 _handleFocusChange 处理
           child: Align(
             alignment: Alignment.center, // 内容居中对齐
             child: Container(
@@ -365,7 +359,7 @@ class LanguageSection extends StatelessWidget {
                           final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
                           if (parentState != null && parentState.mounted) {
                             parentState.setState(() {
-                              parentState._langState = SelectionState(index, index); // 仅更新状态
+                              parentState._langState = SelectionState(state.focusedIndex, index); // 只更新 selectedIndex
                             });
                           }
                         },
