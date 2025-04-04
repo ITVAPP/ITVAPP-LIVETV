@@ -44,76 +44,6 @@ class VideoUIState {
   }
 }
 
-// 静态叠加层组件，提取为单独的 StatelessWidget 以减少重建
-class _StaticOverlayWidget extends StatelessWidget {
-  final TableVideoWidget widget;
-
-  const _StaticOverlayWidget({required this.widget});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        if (!widget.isLandscape) // 竖屏时显示右侧按钮组
-          Positioned(
-            right: 9,
-            bottom: 9,
-            child: Container(
-              width: 32,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TableVideoWidgetState().buildFavoriteButton(widget.currentChannelId, false),
-                  const SizedBox(height: 5),
-                  _TableVideoWidgetState().buildChangeChannelSourceButton(false),
-                  const SizedBox(height: 5),
-                  _TableVideoWidgetState()._buildControlButton(
-                    icon: Icons.screen_rotation,
-                    tooltip: S.of(context).landscape,
-                    onPressed: () async {
-                      if (EnvUtil.isMobile) {
-                        SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.landscapeLeft,
-                          DeviceOrientation.landscapeRight
-                        ]);
-                        return;
-                      }
-                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null) // 显示广告文本动画
-          Positioned(
-            top: widget.isLandscape ? 50.0 : 80.0,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: widget.adManager.getTextAdAnimation()!,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
-                  child: Text(
-                    widget.adManager.getAdData()!.textAdContent!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 // 视频播放器 Widget，支持多种交互功能和 UI 状态管理
 class TableVideoWidget extends StatefulWidget {
   final BetterPlayerController? controller; // 视频播放控制器
@@ -182,7 +112,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   double? _progressBarWidth; // 进度条宽度
   double? _adAnimationWidth; // 广告动画宽度
   late bool _isFavorite; // 缓存收藏状态
-  late Size _screenSize; // 新增：缓存屏幕尺寸
 
   // 预定义控制图标样式，提高性能
   static const _controlIconDecoration = BoxDecoration(
@@ -198,7 +127,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     ],
   );
 
-  // 修改：优化 _updateUIState 的条件判断逻辑
+  // 更新 UI 状态，支持动态调整
   void _updateUIState({
     bool? showMenuBar,
     bool? showPauseIcon,
@@ -206,14 +135,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     bool? drawerIsOpen,
   }) {
     final current = _currentState;
-    final newState = VideoUIState(
-      showMenuBar: showMenuBar ?? current.showMenuBar,
-      showPauseIcon: showPauseIcon ?? current.showPauseIcon,
-      showPlayIcon: showPlayIcon ?? current.showPlayIcon,
-      drawerIsOpen: drawerIsOpen ?? current.drawerIsOpen,
-    );
-    if (newState != current) {
-      _uiStateNotifier.value = newState;
+    if ((showMenuBar != null && showMenuBar != current.showMenuBar) ||
+        (showPauseIcon != null && showPauseIcon != current.showPauseIcon) ||
+        (showPlayIcon != null && showPlayIcon != current.showPlayIcon) ||
+        (drawerIsOpen != null && drawerIsOpen != current.drawerIsOpen)) {
+      _uiStateNotifier.value = current.copyWith(
+        showMenuBar: showMenuBar ?? current.showMenuBar,
+        showPauseIcon: showPauseIcon ?? current.showPauseIcon,
+        showPlayIcon: showPlayIcon ?? current.showPlayIcon,
+        drawerIsOpen: drawerIsOpen ?? current.drawerIsOpen,
+      );
     }
   }
 
@@ -228,25 +159,21 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       drawerIsOpen: widget.drawerIsOpen,
     ));
     _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化收藏状态
-    // 修改：延迟初始化广告动画，等待屏幕尺寸可用
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
-    });
+    widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width); // 初始化广告动画
     // 非移动端注册窗口监听器
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this);
     }, '注册窗口监听器发生错误');
   }
 
-  // 修改：缓存屏幕尺寸并计算相关变量
+  // 计算播放器高度和进度条宽度，避免 build 中重复计算
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final mediaQuery = MediaQuery.of(context);
-    _screenSize = mediaQuery.size; // 缓存屏幕尺寸
-    _playerHeight = _screenSize.width / (16 / 9); // 计算播放器高度
-    _progressBarWidth = widget.isLandscape ? _screenSize.width * 0.3 : _screenSize.width * 0.5; // 计算进度条宽度
-    _adAnimationWidth = _screenSize.width; // 缓存广告动画宽度
+    _playerHeight = mediaQuery.size.width / (16 / 9); // 计算播放器高度
+    _progressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5; // 计算进度条宽度
+    _adAnimationWidth = mediaQuery.size.width; // 缓存广告动画宽度
     widget.adManager.updateTextAdAnimation(_adAnimationWidth!); // 更新广告动画
   }
 
@@ -263,18 +190,19 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
     } else if (widget.isLandscape != oldWidget.isLandscape) {
-      widget.adManager.updateTextAdAnimation(_screenSize.width); // 修改：使用缓存的屏幕宽度
+      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width); // 横竖屏切换更新动画
     }
   }
 
   @override
   void dispose() {
+    // 清理资源
     _uiStateNotifier.dispose();
     _pauseIconTimer?.cancel();
-    widget.adManager.dispose(); // 已有清理逻辑，足以清理所有资源
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this);
     }, '移除窗口监听器发生错误');
+    widget.adManager.dispose();
     super.dispose();
   }
 
@@ -283,7 +211,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 进入全屏时调整标题栏和动画
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-      widget.adManager.updateTextAdAnimation(_screenSize.width); // 修改：使用缓存的屏幕宽度
+      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
     }, '进入全屏时发生错误');
   }
 
@@ -293,21 +221,17 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
       if (EnvUtil.isMobile) SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      widget.adManager.updateTextAdAnimation(_screenSize.width); // 修改：使用缓存的屏幕宽度
+      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
     }, '退出全屏时发生错误');
   }
 
   @override
   void onWindowResize() {
-    // 修改：窗口调整时更新缓存的屏幕尺寸
+    // 窗口调整时更新标题栏和动画
     LogUtil.safeExecute(() {
       windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
       _closeDrawerIfOpen();
-      _screenSize = MediaQuery.of(context).size; // 更新缓存
-      _playerHeight = _screenSize.width / (16 / 9);
-      _progressBarWidth = widget.isLandscape ? _screenSize.width * 0.3 : _screenSize.width * 0.5;
-      _adAnimationWidth = _screenSize.width;
-      widget.adManager.updateTextAdAnimation(_adAnimationWidth!);
+      widget.adManager.updateTextAdAnimation(MediaQuery.of(context).size.width);
     }, '调整窗口大小时发生错误');
   }
 
@@ -341,42 +265,28 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _toggleMenuBar();
   }
 
-  // 修改：添加异步操作状态检查
-  bool _isPausing = false;
+  // 处理暂停逻辑，显示暂停图标并设置定时隐藏
   Future<void> _handlePause() async {
-    if (_isPausing) return; // 防止重复触发
-    _isPausing = true;
-    try {
-      if (!(_pauseIconTimer?.isActive ?? false)) {
-        _updateUIState(showPauseIcon: true);
-        _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) _updateUIState(showPauseIcon: false);
-        });
-      } else {
-        await widget.controller?.pause();
-        _pauseIconTimer?.cancel();
-        _updateUIState(showPauseIcon: false);
-        widget.onUserPaused?.call();
-      }
-    } finally {
-      _isPausing = false;
+    if (!(_pauseIconTimer?.isActive ?? false)) {
+      _updateUIState(showPauseIcon: true);
+      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) _updateUIState(showPauseIcon: false);
+      });
+    } else {
+      await widget.controller?.pause();
+      _pauseIconTimer?.cancel();
+      _updateUIState(showPauseIcon: false);
+      widget.onUserPaused?.call();
     }
   }
 
-  // 修改：添加异步操作状态检查
-  bool _isPlaying = false;
+  // 处理播放逻辑，支持 HLS 重试
   Future<void> _handlePlay() async {
-    if (_isPlaying) return; // 防止重复触发
-    _isPlaying = true;
-    try {
-      if (widget.isHls) {
-        widget.onRetry?.call();
-      } else {
-        await widget.controller?.play();
-        _updateUIState(showPlayIcon: false);
-      }
-    } finally {
-      _isPlaying = false;
+    if (widget.isHls) {
+      widget.onRetry?.call();
+    } else {
+      await widget.controller?.play();
+      _updateUIState(showPlayIcon: false);
     }
   }
 
@@ -487,6 +397,69 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       onPressed: onPressed,
       iconColor: iconColor ?? _iconColor,
       showBackground: showBackground,
+    );
+  }
+
+  // 构建静态叠加层，减少重建范围
+  Widget _buildStaticOverlay() {
+    return Stack(
+      children: [
+        if (!widget.isLandscape) // 竖屏时显示右侧按钮组
+          Positioned(
+            right: 9,
+            bottom: 9,
+            child: Container(
+              width: 32,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildFavoriteButton(widget.currentChannelId, false),
+                  const SizedBox(height: 5),
+                  buildChangeChannelSourceButton(false),
+                  const SizedBox(height: 5),
+                  _buildControlButton(
+                    icon: Icons.screen_rotation,
+                    tooltip: S.of(context).landscape,
+                    onPressed: () async {
+                      if (EnvUtil.isMobile) {
+                        SystemChrome.setPreferredOrientations([
+                          DeviceOrientation.landscapeLeft,
+                          DeviceOrientation.landscapeRight
+                        ]);
+                        return;
+                      }
+                      await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+                      await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+                      Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null) // 显示广告文本动画
+          Positioned(
+            top: widget.isLandscape ? 50.0 : 80.0,
+            left: 0,
+            right: 0,
+            child: AnimatedBuilder(
+              animation: widget.adManager.getTextAdAnimation()!,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
+                  child: Text(
+                    widget.adManager.getAdData()!.textAdContent!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 
@@ -631,7 +604,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             );
           },
         ),
-        _StaticOverlayWidget(widget: widget), // 修改：使用提取的静态组件
+        _buildStaticOverlay(), // 添加静态叠加层
       ],
     );
   }
