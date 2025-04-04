@@ -367,7 +367,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         else await widget.controller?.play();
       }
     } catch (e) {
-      LogUtil.log('双击播放/暂停发生错误: $e');
+      LogUtil.e('双击播放/暂停发生错误: $e');
     }
   }
 
