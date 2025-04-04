@@ -42,7 +42,7 @@ class TvKeyNavigation extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  TvKeyNavigationState createState() => Tv  TvKeyNavigationState();
+  TvKeyNavigationState createState() => TvKeyNavigationState();
 }
 
 /// TV 键盘导航的状态管理类
