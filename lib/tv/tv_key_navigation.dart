@@ -42,7 +42,7 @@ class TvKeyNavigation extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  TvKeyNavigationState createState() => TvKeyNavigationState();
+  TvKeyNavigationState createState() => Tv  TvKeyNavigationState();
 }
 
 /// TV 键盘导航的状态管理类
@@ -604,8 +604,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     if (widget.cacheName == "ChannelDrawerPage") {
       String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
-      _requestFocusSafely(widget.focus Wodes[index], nextIndex, groupIndex);
-      await WidgetsBinding.instance.endOfFrame; 
+      _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
+      await WidgetsBinding.instance.endOfFrame;
       if (_currentFocus != widget.focusNodes[nextIndex]) {
         LogUtil.i('焦点切换失败，强制重试: $nextIndex');
         _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
@@ -673,9 +673,7 @@ class Group extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return child != null ? child! : (children != null ? Column(children: children
-
-!) : SizedBox.shrink());
+    return child != null ? child! : (children != null ? Column(children: children!) : SizedBox.shrink());
   }
 }
 
