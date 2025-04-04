@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/remote_control_help.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 电视设置主页面
+// 电视设置主页面，管理左侧菜单和右侧内容显示
 class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key});
 
@@ -22,21 +22,22 @@ class TvSettingPage extends StatefulWidget {
 }
 
 class TvSettingPageState extends State<TvSettingPage> {
-  // 提取标题样式为静态常量
+  // 定义标题样式为静态常量，统一文本格式
   static const _titleStyle = TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.bold,
   );
 
-  int selectedIndex = 0; // 当前选中的菜单索引
-  int _confirmedIndex = 0; // 用户确认选择后显示的页面索引
-  VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 存储最新版本信息
+  int selectedIndex = 0; // 当前高亮的菜单索引
+  int _confirmedIndex = 0; // 用户确认后显示的页面索引
+  VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 缓存最新版本信息
 
-  final List<FocusNode> focusNodes = _generateFocusNodes(6); // 创建焦点节点列表，长度为6，返回按钮用0，菜单用1开始
+  final List<FocusNode> focusNodes = _generateFocusNodes(6); // 生成6个焦点节点，0为返回按钮，1-5为菜单项
 
-  final Color selectedColor = const Color(0xFFEB144C); // 选中时背景颜色
-  final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时背景颜色
+  final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
+  final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
 
+  // 生成指定数量的焦点节点列表
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (index) {
       final node = FocusNode();
@@ -47,120 +48,119 @@ class TvSettingPageState extends State<TvSettingPage> {
   @override
   void initState() {
     super.initState();
-    // 为每个 FocusNode 添加监听器
+    // 初始化时为每个焦点节点添加监听器，跟踪焦点变化
     for (var node in focusNodes) {
       node.addListener(_handleFocusChange);
     }
   }
 
-  // 处理焦点变化，更新 selectedIndex
+  // 处理焦点变化，更新高亮菜单索引
   void _handleFocusChange() {
     final focusedIndex = focusNodes.indexWhere((node) => node.hasFocus);
-    if (focusedIndex != -1 && focusedIndex > 0) { // 排除返回按钮 (index 0)
+    if (focusedIndex != -1 && focusedIndex > 0) { // 排除返回按钮（索引0）
       setState(() {
-        selectedIndex = focusedIndex - 1; // 更新选中项索引，减去1与菜单匹配
+        selectedIndex = focusedIndex - 1; // 调整索引与菜单项对齐
       });
     }
   }
 
   @override
   void dispose() {
-    _disposeFocusNodes(focusNodes); // 使用统一的焦点销毁方法
+    _disposeFocusNodes(focusNodes); // 清理所有焦点节点
     super.dispose();
   }
 
+  // 统一销毁焦点节点，移除监听并释放资源
   void _disposeFocusNodes(List<FocusNode> focusNodes) {
     for (var focusNode in focusNodes) {
-      focusNode.removeListener(_handleFocusChange); // 移除监听器
+      focusNode.removeListener(_handleFocusChange); // 移除焦点变化监听
       focusNode.dispose();
     }
   }
 
-  // 用于检查版本更新的逻辑
+  // 检查版本更新并显示结果提示
   Future<void> _checkForUpdates() async {
     try {
-      await CheckVersionUtil.checkVersion(context, true, true, true);
+      await CheckVersionUtil.checkVersion(context, true, true, true); // 执行版本检查
       setState(() {
-        _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
+        _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 更新版本信息
       });
 
-      // 如果有最新版本
+      // 根据版本检查结果显示提示
       if (_latestVersionEntity != null) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).newVersion(_latestVersionEntity!.latestVersion!),
+          S.of(context).newVersion(_latestVersionEntity!.latestVersion!), // 显示新版本号
           duration: Duration(seconds: 4),
         );
       } else {
-        // 没有最新版本
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).latestVersion,
+          S.of(context).latestVersion, // 提示已是最新版本
           duration: Duration(seconds: 4),
         );
       }
     } catch (e) {
-      LogUtil.e('Error checking for updates: $e'); // 添加日志记录
-      // 版本检查失败
+      LogUtil.e('Error checking for updates: $e'); // 记录版本检查错误日志
       CustomSnackBar.showSnackBar(
         context,
-        S.of(context).netReceiveTimeout,
+        S.of(context).netReceiveTimeout, // 提示网络超时
         duration: Duration(seconds: 4),
       );
     }
   }
 
-  // 通用方法：构建菜单项
+  // 构建通用菜单项，支持焦点和选中状态
   Widget buildListTile({
     required IconData icon,
     required String title,
     required int index,
     required VoidCallback onTap,
   }) {
-    final bool isSelected = _confirmedIndex == index;
-    final bool hasFocus = focusNodes[index + 1].hasFocus;
+    final bool isSelected = _confirmedIndex == index; // 判断是否为确认选中项
+    final bool hasFocus = focusNodes[index + 1].hasFocus; // 判断是否聚焦
 
     return FocusableItem(
-      focusNode: focusNodes[index + 1], // 菜单的FocusNode从索引1开始
+      focusNode: focusNodes[index + 1], // 绑定对应焦点节点（从1开始）
       child: ListTile(
         leading: Icon(
           icon,
           color: Colors.white,
-        ), // 图标
+        ), // 菜单项图标
         title: Text(
           title,
           style: TextStyle(
             fontSize: 22,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中时加粗
             color: Colors.white,
-          ), // 设置文字大小
-        ), // 标题
-        selected: isSelected, // 判断是否选中
-        tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 聚焦时显示黄色，选中时显示红色，否则透明
+          ),
+        ), // 菜单项标题
+        selected: isSelected, // 设置选中状态
+        tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 动态设置背景色
         onTap: () {
           if (selectedIndex != index) {
             setState(() {
-              selectedIndex = index; // 更新选中项索引
-              _confirmedIndex = index; // 用户按下确认键后更新右侧页面索引
+              selectedIndex = index; // 更新高亮索引
+              _confirmedIndex = index; // 更新确认索引
             });
           }
-          onTap(); // 触发传入的 onTap 事件
+          onTap(); // 执行点击回调
         },
       ),
     );
   }
 
-  // 根据确认选择的索引构建右侧页面
+  // 根据确认索引动态构建右侧内容页面
   Widget _buildRightPanel() {
     switch (_confirmedIndex) {
       case 0:
-        return const SubScribePage(); // 订阅页面
+        return const SubScribePage(); // 显示订阅页面
       case 1:
-        return const SettingFontPage(); // 字体设置页面
+        return const SettingFontPage(); // 显示字体设置页面
       case 2:
-        return const SettingBeautifyPage(); // 美化设置页面
+        return const SettingBeautifyPage(); // 显示美化设置页面
       case 3:
-        return SettinglogPage(); // 日志页面
+        return SettinglogPage(); // 显示日志页面
       case 4:
       case 5:
         return Center(
@@ -168,20 +168,20 @@ class TvSettingPageState extends State<TvSettingPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset(
-                'assets/images/logo.png', // 本地图像资源替换
-                width: 98, // 图像宽度
-                height: 98, // 图像高度
+                'assets/images/logo.png', // 显示应用Logo
+                width: 98,
+                height: 98,
               ),
               const SizedBox(height: 18),
               Text(
-                S.of(context).checkUpdate,
+                S.of(context).checkUpdate, // 显示“检查更新”文本
                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
             ],
           ),
         );
       default:
-        return Container(); // 空页面，避免未匹配的索引时出错
+        return Container(); // 默认返回空容器，避免索引错误
     }
   }
 
@@ -189,49 +189,47 @@ class TvSettingPageState extends State<TvSettingPage> {
   Widget build(BuildContext context) {
     return FocusScope(
       child: TvKeyNavigation(
-        focusNodes: focusNodes,
-        cacheName: 'TvSettingPage', // 指定缓存名称
-        initialIndex: selectedIndex + 1,
-        isFrame: true, // 启用框架模式
-        frameType: "parent", // 设置为父框架
-        isVerticalGroup: true, // 启用竖向分组
-        // 移除 onSelect 回调，状态更新交给 _handleFocusChange
+        focusNodes: focusNodes, // 绑定焦点节点列表
+        cacheName: 'TvSettingPage', // 设置页面缓存名称
+        initialIndex: selectedIndex + 1, // 初始焦点索引
+        isFrame: true, // 启用框架导航模式
+        frameType: "parent", // 设置为父级框架
+        isVerticalGroup: true, // 启用垂直分组导航
         child: Row(
           children: [
-            // 左侧菜单部分
+            // 左侧菜单区域
             SizedBox(
-              width: 228,
+              width: 228, // 固定菜单宽度
               child: Group(
-                groupIndex: 0, // 菜单分组
+                groupIndex: 0, // 菜单分组索引
                 child: Scaffold(
                   appBar: AppBar(
                     leading: FocusableItem(
-                      focusNode: focusNodes[0], // 返回按钮的 FocusNode
+                      focusNode: focusNodes[0], // 返回按钮焦点节点
                       child: ListTile(
                         leading: Icon(
                           Icons.arrow_back,
-                          color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时改变为黄色
+                          color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时变黄色
                         ),
                         onTap: () {
-                          Navigator.of(context).pop(); // 返回到上一个页面
+                          Navigator.of(context).pop(); // 点击返回上一页
                         },
                       ),
                     ),
                     title: Consumer<LanguageProvider>(
                       builder: (context, languageProvider, child) {
                         return Text(
-                          S.of(context).settings, // 页面标题
+                          S.of(context).settings, // 显示“设置”标题
                           style: _titleStyle,
                         );
                       },
                     ),
                   ),
-                  // 使用 Group 包裹所有 FocusableItem 分组
                   body: Column(
                     children: [
                       buildListTile(
                         icon: Icons.subscriptions,
-                        title: S.of(context).subscribe, // 订阅
+                        title: S.of(context).subscribe, // “订阅”菜单项
                         index: 0,
                         onTap: () {
                           setState(() {
@@ -242,7 +240,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                       ),
                       buildListTile(
                         icon: Icons.font_download,
-                        title: S.of(context).fontTitle, // 字体
+                        title: S.of(context).fontTitle, // “字体”菜单项
                         index: 1,
                         onTap: () {
                           setState(() {
@@ -253,7 +251,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                       ),
                       buildListTile(
                         icon: Icons.brush,
-                        title: S.of(context).backgroundImageTitle, // 背景图
+                        title: S.of(context).backgroundImageTitle, // “背景图”菜单项
                         index: 2,
                         onTap: () {
                           setState(() {
@@ -264,7 +262,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                       ),
                       buildListTile(
                         icon: Icons.view_list,
-                        title: S.of(context).slogTitle, // 日志
+                        title: S.of(context).slogTitle, // “日志”菜单项
                         index: 3,
                         onTap: () {
                           setState(() {
@@ -275,28 +273,27 @@ class TvSettingPageState extends State<TvSettingPage> {
                       ),
                       buildListTile(
                         icon: Icons.system_update,
-                        title: S.of(context).updateTitle, // 更新
+                        title: S.of(context).updateTitle, // “更新”菜单项
                         index: 4,
                         onTap: () {
                           setState(() {
                             selectedIndex = 4;
                             _confirmedIndex = 4;
                           });
-                          _checkForUpdates(); // 调用检查更新逻辑
+                          _checkForUpdates(); // 检查版本更新
                         },
                       ),
                       buildListTile(
                         icon: Icons.system_update,
-                        title: S.of(context).remotehelp, // 帮助
+                        title: S.of(context).remotehelp, // “帮助”菜单项
                         index: 5,
                         onTap: () {
                           setState(() {
                             selectedIndex = 5;
                             _confirmedIndex = 5;
                           });
-                          // 使用 Future.microtask 来显示帮助界面
                           Future.microtask(() async {
-                            await RemoteControlHelp.show(context);
+                            await RemoteControlHelp.show(context); // 显示遥控帮助界面
                           });
                         },
                       ),
@@ -305,9 +302,9 @@ class TvSettingPageState extends State<TvSettingPage> {
                 ),
               ),
             ),
-            // 右侧页面显示，默认显示根据初始索引的页面
+            // 右侧内容区域
             Expanded(
-              child: _buildRightPanel(), // 根据用户确认选择的索引显示页面
+              child: _buildRightPanel(), // 动态显示右侧页面
             ),
           ],
         ),
