@@ -44,7 +44,7 @@ class LiveHomePage extends StatefulWidget {
 class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1; // 默认最大重试次数，控制播放失败后尝试重新播放的最大次数
   static const int defaultTimeoutSeconds = 36; // 解析超时秒数，若超过此时间仍未完成，则视为解析失败
-  static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用进度事件监听（progress）
+  static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用事件（progress）
   static const int bufferUpdateTimeoutSeconds = 6; // 若缓冲区最后一次更新距现在超过此时间（秒），且其他条件满足，则触发重新解析
   static const int minRemainingBufferSeconds = 8; // 最小剩余缓冲秒数，HLS流中若缓冲区剩余时间低于此值，用于判断是否需要重新解析
   static const int networkRecoveryBufferSeconds = 7; // 重新解析后若缓冲区剩余时间超过此值（秒），认为网络已恢复，取消切换操作
@@ -571,8 +571,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _startM3u8CheckTimer() {
     _m3u8CheckTimer?.cancel();
     
-    // 只为 HLS 流启动检查
-    if (!_isHls) return;
+    // HLS 流且播放指定时间后启动检查
+    if (!_progressEnabled && !_isHls) return;
     
     _m3u8CheckTimer = Timer.periodic(const Duration(seconds: m3u8CheckIntervalSeconds), (_) async {
       if (!mounted || !_isHls || !isPlaying || _isDisposing) return;
@@ -594,8 +594,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (mounted && !_isRetrying && !_isSwitchingChannel && !_isDisposing) {
         LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始检查逻辑');
         
-        if (_isHls) {
-          // 仅当包含 timelimit 时检查 HLS 流有效性
+        if (_progressEnabled && _isHls) {
+          // 仅当播放指定时间后且包含 timelimit 时检查 HLS 流有效性
           if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
             _startM3u8CheckTimer();
             LogUtil.i('HLS 流包含 timelimit，启用 m3u8 检查定时器');
