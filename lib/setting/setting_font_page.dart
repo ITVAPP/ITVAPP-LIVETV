@@ -8,12 +8,13 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // SelectionState 类用于管理焦点和选中状态
 class SelectionState {
-  final int focusedIndex; // 当前聚焦的索引
-  final int selectedIndex; // 当前选中的索引
+  final int focusedIndex; // 当前聚焦的按钮索引
+  final int selectedIndex; // 当前选中的选项索引
 
   SelectionState(this.focusedIndex, this.selectedIndex);
 }
 
+// 字体设置页面主类，管理字体和语言设置
 class SettingFontPage extends StatefulWidget {
   const SettingFontPage({super.key});
 
@@ -21,31 +22,32 @@ class SettingFontPage extends StatefulWidget {
   State<SettingFontPage> createState() => _SettingFontPageState();
 }
 
+// 字体设置页面的状态类，处理逻辑和界面更新
 class _SettingFontPageState extends State<SettingFontPage> {
-  // 提取常用样式为静态常量，提升复用性
-  static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold); // 标题样式
+  // 定义静态常量样式，提升复用性
+  static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold); // 页面标题样式
   static const _sectionTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold); // 章节标题样式
   static const _buttonPadding = EdgeInsets.symmetric(horizontal: 5, vertical: 6); // 按钮内边距
   static const _maxContainerWidth = 580.0; // 容器最大宽度
   static const _sectionPadding = EdgeInsets.all(15.0); // 章节内边距
 
-  final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 可选字体缩放比例
+  final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 可选字体缩放比例列表
   final _languages = ['English', '简体中文', '正體中文']; // 可选语言显示名称
   final _languageCodes = ['en', 'zh_CN', 'zh_TW']; // 对应的语言代码
 
-  // 统一的圆角样式
+  // 统一按钮圆角样式
   final _buttonShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(16), // 按钮圆角半径
+    borderRadius: BorderRadius.circular(16), // 设置圆角半径
   );
 
-  // 按钮颜色定义
-  final _selectedColor = const Color(0xFFEB144C); // 选中状态颜色
-  final _unselectedColor = const Color(0xFFDFA02A); // 未选中状态颜色
+  // 定义按钮颜色
+  final _selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
+  final _unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景色（黄色）
 
-  // 焦点节点列表，按顺序分配给字体和语言按钮
+  // 焦点节点列表，管理字体和语言按钮的焦点
   late final List<FocusNode> _focusNodes;
 
-  // 分组焦点缓存，用于TV导航
+  // 分组焦点缓存，用于TV导航优化
   late final Map<int, Map<String, FocusNode>> _groupFocusCache;
 
   // 管理字体和语言的选择状态
@@ -56,7 +58,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   void initState() {
     super.initState();
 
-    // 动态生成焦点节点总数：字体 + 语言
+    // 初始化焦点节点总数：字体 + 语言
     final totalNodes = _fontScales.length + _languages.length;
     _focusNodes = List<FocusNode>.generate(totalNodes, (index) {
       final node = FocusNode();
@@ -68,25 +70,25 @@ class _SettingFontPageState extends State<SettingFontPage> {
     _groupFocusCache = _generateGroupFocusCache();
 
     // 初始化状态：默认选中字体 1.0 和 English
-    _fontState = SelectionState(-1, _fontScales.indexOf(1.0)); // 字体默认选中 1.0
-    _langState = SelectionState(-1, 0); // 语言默认选中 English
+    _fontState = SelectionState(-1, _fontScales.indexOf(1.0)); // 默认选中字体缩放 1.0
+    _langState = SelectionState(-1, 0); // 默认选中 English
   }
 
-  // 动态生成分组焦点缓存
+  // 生成分组焦点缓存，优化TV导航
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
 
-    // 分组 0：字体大小
+    // 分组 0：字体大小按钮
     cache[0] = {
-      'firstFocusNode': _focusNodes[0], // 字体第一个焦点
-      'lastFocusNode': _focusNodes[_fontScales.length - 1], // 字体最后一个焦点
+      'firstFocusNode': _focusNodes[0], // 字体组首个焦点
+      'lastFocusNode': _focusNodes[_fontScales.length - 1], // 字体组末尾焦点
     };
 
-    // 分组 1 及以上：语言选择
+    // 分组 1 及以上：语言选择按钮
     for (int i = 0; i < _languages.length; i++) {
       final nodeIndex = _fontScales.length + i;
       cache[i + 1] = {
-        'firstFocusNode': _focusNodes[nodeIndex], // 语言焦点起始
+        'firstFocusNode': _focusNodes[nodeIndex], // 语言按钮焦点
         'lastFocusNode': _focusNodes[nodeIndex], // 每个语言单节点
       };
     }
@@ -94,18 +96,18 @@ class _SettingFontPageState extends State<SettingFontPage> {
     return cache;
   }
 
-  // 统一处理焦点变化
+  // 处理焦点变化，更新状态
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
       if (focusedIndex < _fontScales.length) {
-        _fontState = SelectionState(focusedIndex, _fontState.selectedIndex);
+        _fontState = SelectionState(focusedIndex, _fontState.selectedIndex); // 更新字体焦点
       } else {
-        _langState = SelectionState(focusedIndex - _fontScales.length, _langState.selectedIndex);
+        _langState = SelectionState(focusedIndex - _fontScales.length, _langState.selectedIndex); // 更新语言焦点
       }
       if (mounted) setState(() {});
     } else {
-      // 若未找到焦点，延迟检查
+      // 未找到焦点时延迟检查
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final newFocusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
         if (newFocusedIndex != -1 && mounted) {
@@ -132,7 +134,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
     super.dispose();
   }
 
-  // 计算按钮颜色
+  // 计算按钮颜色，动态调整焦点和选中状态
   Color _getChipColor(bool isFocused, bool isSelected) {
     if (isFocused) {
       return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
@@ -140,7 +142,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
     return isSelected ? _selectedColor : _unselectedColor;
   }
 
-  // 创建统一的 ChoiceChip 组件
+  // 构建通用 ChoiceChip 组件
   Widget _buildChoiceChip({
     required FocusNode focusNode,
     required String labelText,
@@ -159,40 +161,39 @@ class _SettingFontPageState extends State<SettingFontPage> {
         ),
       ),
       selected: isSelected,
-      onSelected: (bool selected) => onSelected(), // 点击时触发回调
+      onSelected: (bool selected) => onSelected(), // 点击触发回调
       selectedColor: _getChipColor(isFocused, true),
       backgroundColor: _getChipColor(isFocused, false),
-      shape: _buttonShape, // 统一圆角样式
-      padding: _buttonPadding, // 统一内边距
+      shape: _buttonShape, // 应用统一圆角样式
+      padding: _buttonPadding, // 应用统一内边距
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width; // 获取屏幕宽度
-    final themeProvider = context.watch<ThemeProvider>(); // 主题提供者
-    final languageProvider = context.watch<LanguageProvider>(); // 语言提供者
-    final isTV = themeProvider.isTV; // 是否为TV模式
+    final themeProvider = context.watch<ThemeProvider>(); // 获取主题提供者
+    final languageProvider = context.watch<LanguageProvider>(); // 获取语言提供者
+    final isTV = themeProvider.isTV; // 判断是否为TV模式
 
     return Scaffold(
-      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式背景色
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置背景色
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
         title: Text(
-          S.of(context).fontTitle, // 页面标题
+          S.of(context).fontTitle, // 显示“字体设置”标题
           style: _titleStyle,
         ),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式标题栏颜色
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置标题栏颜色
       ),
       body: FocusScope(
         child: TvKeyNavigation(
-          focusNodes: _focusNodes, // 焦点节点列表
-          groupFocusCache: _groupFocusCache, // 分组焦点缓存
-          isHorizontalGroup: true, // 启用横向分组
+          focusNodes: _focusNodes, // 绑定焦点节点
+          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+          isHorizontalGroup: true, // 启用横向分组导航
           initialIndex: 0, // 初始焦点索引
-          isFrame: isTV ? true : false, // TV模式启用框架
-          frameType: isTV ? "child" : null, // TV模式子页面类型
-          // 移除 onSelect 回调，状态更新完全由 _handleFocusChange 处理
+          isFrame: isTV ? true : false, // TV模式启用框架导航
+          frameType: isTV ? "child" : null, // TV模式标记为子页面
           child: Align(
             alignment: Alignment.center, // 内容居中对齐
             child: Container(
@@ -239,9 +240,9 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
 // 无状态组件：字体大小选择部分
 class FontSizeSection extends StatelessWidget {
-  final List<FocusNode> focusNodes; // 焦点节点列表
-  final List<double> fontScales; // 字体缩放比例
-  final SelectionState state; // 当前状态
+  final List<FocusNode> focusNodes; // 字体按钮焦点节点
+  final List<double> fontScales; // 字体缩放比例列表
+  final SelectionState state; // 当前字体状态
   final ThemeProvider themeProvider; // 主题提供者
   final Widget Function({
     required FocusNode focusNode,
@@ -266,12 +267,12 @@ class FontSizeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          S.of(context).fontSizeTitle, // 字体大小标题
+          S.of(context).font  fontSizeTitle, // 显示“字体大小”标题
           style: _SettingFontPageState._sectionTitleStyle,
         ),
-        const SizedBox(height: 10), // 标题与内容间距
+        const SizedBox(height: 10), // 标题与按钮间距
         Group(
-          groupIndex: 0, // 分组索引：字体大小
+          groupIndex: 0, // 字体大小分组
           children: [
             Wrap(
               spacing: 5, // 按钮水平间距
@@ -279,7 +280,7 @@ class FontSizeSection extends StatelessWidget {
               children: List.generate(
                 fontScales.length,
                 (index) => FocusableItem(
-                  focusNode: focusNodes[index], // 分配焦点
+                  focusNode: focusNodes[index], // 绑定焦点节点
                   child: buildChoiceChip(
                     focusNode: focusNodes[index],
                     labelText: '${fontScales[index]}', // 显示缩放比例
@@ -299,10 +300,10 @@ class FontSizeSection extends StatelessWidget {
 
 // 无状态组件：语言选择部分
 class LanguageSection extends StatelessWidget {
-  final List<FocusNode> focusNodes; // 焦点节点列表
+  final List<FocusNode> focusNodes; // 语言按钮焦点节点
   final List<String> languages; // 语言名称列表
   final List<String> languageCodes; // 语言代码列表
-  final SelectionState state; // 当前状态
+  final SelectionState state; // 当前语言状态
   final LanguageProvider languageProvider; // 语言提供者
   final Widget Function({
     required FocusNode focusNode,
@@ -324,12 +325,12 @@ class LanguageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentLocale = languageProvider.currentLocale.toString(); // 当前语言代码
+    final currentLocale = languageProvider.currentLocale.toString(); // 获取当前语言代码
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          S.of(context).languageSelection, // 语言选择标题
+          S.of(context).languageSelection, // 显示“语言选择”标题
           style: _SettingFontPageState._sectionTitleStyle,
         ),
         const SizedBox(height: 6), // 标题与内容间距
@@ -344,10 +345,10 @@ class LanguageSection extends StatelessWidget {
                   style: const TextStyle(fontSize: 18),
                 ),
                 Group(
-                  groupIndex: index + 1, // 分组索引递增
+                  groupIndex: index + 1, // 语言分组索引
                   children: [
                     FocusableItem(
-                      focusNode: focusNodes[index], // 分配焦点
+                      focusNode: focusNodes[index], // 绑定焦点节点
                       child: buildChoiceChip(
                         focusNode: focusNodes[index],
                         labelText: currentLocale == languageCodes[index]
@@ -355,11 +356,11 @@ class LanguageSection extends StatelessWidget {
                             : S.of(context).use, // 使用此语言
                         isSelected: state.selectedIndex == index,
                         onSelected: () async {
-                          await languageProvider.changeLanguage(languageCodes[index]);
+                          await languageProvider.changeLanguage(languageCodes[index]); // 切换语言
                           final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
                           if (parentState != null && parentState.mounted) {
                             parentState.setState(() {
-                              parentState._langState = SelectionState(state.focusedIndex, index); // 只更新 selectedIndex
+                              parentState._langState = SelectionState(state.focusedIndex, index); // 更新语言选中状态
                             });
                           }
                         },
