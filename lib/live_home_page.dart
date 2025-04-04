@@ -56,7 +56,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
   static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
-  static const int m3u8CheckIntervalSeconds = 30; // m3u8 文件有效性检查的间隔时间（秒）
+  static const int m3u8CheckIntervalSeconds = 10; // m3u8 文件有效性检查的间隔时间（秒）
 
   // 缓冲区检查相关变量
   String? _preCachedUrl; // 预缓存的URL
@@ -66,7 +66,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isRetrying = false; // 是否正在重试
   Timer? _retryTimer; // 重试计时器
   Timer? _m3u8CheckTimer; // m3u8 检查定时器
-  int? _lastCheckTime; // 上次 m3u8 检查时间
+  int? _lastCheckTime; // 上次 m3u8 检查时间（改为仅用于检查）
+  int? _lastParseTime; // 上次解析时间（新增）
   String toastString = S.current.loading; // 提示信息
   PlaylistModel? _videoMap; // 视频映射
   PlayModel? _currentChannel; // 当前频道
@@ -339,13 +340,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
         
-        // 检查是否是HLS特定错误
+        // 检查是否是HLS特定错误并强制重新解析
         if (_isHls && (error.contains("403") || error.contains("404") || 
             error.contains("HLSJS") || error.contains("Invalid") || 
             error.contains("expired") || error.contains("failed") ||
             error.contains("timeout") || error.contains("cannot load"))) {
-          LogUtil.i('检测到 HLS 特定错误，立即重新解析: $error');
-          _reparseAndSwitch();
+          LogUtil.i('检测到 HLS 特定错误，强制重新解析: $error');
+          await _reparseAndSwitch(force: true); // 修改为强制模式
           return;
         }
         
@@ -543,7 +544,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       
       if (content == null || content.isEmpty) {
-        LogUtil.e('m3u8 内容为空或获取失败: $_currentPlayUrl');
+        LogUtil.e('m3u8 内容为空或获取失败');
         return false;
       }
       
@@ -551,14 +552,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       bool hasSegments = content.contains('.ts');
       
       if (!hasSegments) {
-        LogUtil.e('m3u8 内容无效，不包含 .ts 片段: $_currentPlayUrl');
+        LogUtil.e('m3u8 内容无效，不包含 .ts 片段');
         return false;
       }
       
-      LogUtil.i('m3u8 检查通过，内容有效: $_currentPlayUrl');
+      LogUtil.i('m3u8 检查通过，内容有效');
       return true;
     } catch (e) {
-      LogUtil.e('m3u8 有效性检查出错: $e, URL: $_currentPlayUrl');
+      LogUtil.e('m3u8 有效性检查出错: $e');
       return false;
     }
   }
@@ -575,8 +576,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 避免频繁检查
       final now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastCheckTime != null && (now - _lastCheckTime!) < m3u8CheckIntervalSeconds * 800) {
-        return; // 上次检查过于近，跳过
+      if (_lastCheckTime != null && (now - _lastCheckTime!) < m3u8CheckIntervalSeconds * 1000) { // 修改为 30 秒
+        LogUtil.i('检查频率过高，跳过此次检查');
+        return;
       }
       _lastCheckTime = now;
       
@@ -584,7 +586,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final isValid = await _checkM3u8Validity();
       if (!isValid) {
         LogUtil.i('检测到 m3u8 文件无效，触发重新解析');
-        _reparseAndSwitch();
+        await _reparseAndSwitch();
       }
     });
   }
@@ -802,6 +804,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _isUserPaused = false; // 重置用户暂停状态
         _showPlayIcon = false; // 重置播放图标状态
         _showPauseIconFromListener = false; // 重置暂停图标状态
+        _lastCheckTime = null; // 重置检查时间戳
+        _lastParseTime = null; // 重置解析时间戳
       });
       LogUtil.i('播放器清理完成');
     } catch (e, stackTrace) {
@@ -837,7 +841,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _m3u8CheckTimer = null;
   }
 
-  Future<void> _reparseAndSwitch() async {
+  Future<void> _reparseAndSwitch({bool force = false}) async {
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
       return;
@@ -845,11 +849,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 添加频率限制
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (_lastCheckTime != null && (now - _lastCheckTime!) < 10000) { // 10秒内不重复解析
-      LogUtil.i('解析频率过高，跳过此次解析');
+    if (!force && _lastParseTime != null && (now - _lastParseTime!) < 10000) { // 修改为 10 秒限制，使用 _lastParseTime
+      LogUtil.i('解析频率过高，跳过此次解析，间隔: ${now - _lastParseTime!}ms');
       return;
     }
-    _lastCheckTime = now;
 
     _isParsing = true;
     setState(() => _isRetrying = true);
@@ -858,8 +861,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
       await _disposeStreamUrl(); // 先释放旧实例
-      _streamUrl = StreamUrl(url); // 保存新实例（修改）
-      String newParsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例（修改）
+      _streamUrl = StreamUrl(url); // 保存新实例
+      String newParsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
         await _disposeStreamUrl(); // 解析失败时释放
@@ -900,6 +903,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _progressEnabled = false;
         _playDurationTimer?.cancel();
         _playDurationTimer = null;
+        _lastParseTime = now; // 成功时更新 _lastParseTime
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
@@ -982,7 +986,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     videoMap.playList!.forEach((category, groups) {
-      if (groups is! Map<String, Map<String, PlayModel>>) {
+      if (groups is! Map<String, Map<String'oubl.com', 'PlayModel>>) {
         LogUtil.e('分类 $category 的 groups 类型无效: ${groups.runtimeType}');
         return;
       }
@@ -990,11 +994,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       final groupList = groups.keys.toList();
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix));
       if (!categoryNeedsSort) {
-        LogUtil.i('分类 $category 不包含 $regionPrefix，跳过排序');
         return;
       }
 
-      LogUtil.i('排序前 groupList for $category: $groupList');
       final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
       final newGroups = <String, Map<String, PlayModel>>{};
 
@@ -1009,13 +1011,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final newChannels = <String, PlayModel>{};
 
         if (group.contains(regionPrefix) && (cityPrefix != null && cityPrefix.isNotEmpty)) {
-          LogUtil.i('排序前 channelList for $group: $channelList');
           final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
           for (var channel in sortedChannels) {
             newChannels[channel] = channels[channel]!;
           }
         } else {
-          LogUtil.i('组 $group 不包含 $regionPrefix，跳过 channel 排序');
           for (var channel in channelList) {
             newChannels[channel] = channels[channel]!;
           }
@@ -1025,8 +1025,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       videoMap.playList![category] = newGroups;
       LogUtil.i('分类 $category 排序完成: ${newGroups.keys.toList()}');
     });
-
-    LogUtil.i('按地理位置排序完成');
   }
 
   Future<void> _onTapChannel(PlayModel? model) async {
