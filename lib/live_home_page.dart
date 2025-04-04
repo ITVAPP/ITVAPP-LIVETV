@@ -57,6 +57,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
   static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 文件有效性检查的间隔时间（秒）
+  static const int reparseMinIntervalMilliseconds = 10000; // 重新解析的最小间隔（秒），避免频繁解析
+  static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 检查连接超时秒数
+  static const int m3u8ReceiveTimeoutSeconds = 10; // m3u8 检查接收超时秒数
 
   // 缓冲区检查相关变量
   String? _preCachedUrl; // 预缓存的URL
@@ -536,8 +539,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _currentPlayUrl!,
         options: Options(
           extra: {
-            'connectTimeout': const Duration(seconds: 5),
-            'receiveTimeout': const Duration(seconds: 10),
+            'connectTimeout': const Duration(seconds: m3u8ConnectTimeoutSeconds),
+            'receiveTimeout': const Duration(seconds: m3u8ReceiveTimeoutSeconds),
           }
         ),
         retryCount: 1, // 对于检查来说，单次重试足够
@@ -571,16 +574,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 只为 HLS 流启动检查
     if (!_isHls) return;
     
-    _m3u8CheckTimer = Timer.periodic(Duration(seconds: m3u8CheckIntervalSeconds), (_) async {
+    _m3u8CheckTimer = Timer.periodic(const Duration(seconds: m3u8CheckIntervalSeconds), (_) async {
       if (!mounted || !_isHls || !isPlaying || _isDisposing) return;
       
-      // 避免频繁检查
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastCheckTime != null && (now - _lastCheckTime!) < m3u8CheckIntervalSeconds * 1000) { // 修改为 30 秒
-        LogUtil.i('检查频率过高，跳过此次检查');
-        return;
-      }
-      _lastCheckTime = now;
+      _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
       
       // 检查 m3u8 有效性
       final isValid = await _checkM3u8Validity();
@@ -595,16 +592,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _playDurationTimer?.cancel();
     _playDurationTimer = Timer(const Duration(seconds: initialProgressDelaySeconds), () {
       if (mounted && !_isRetrying && !_isSwitchingChannel && !_isDisposing) {
-        LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始定期检查 m3u8 有效性');
+        LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始检查逻辑');
         
-        // 启动 m3u8 检查定时器，替代原有的 _progressEnabled 逻辑
         if (_isHls) {
-          _startM3u8CheckTimer();
-          
-          // 仍然需要为切换提前缓存而启用 progress 监听
+          // 仅当包含 timelimit 时检查 HLS 流有效性
           if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
-            _progressEnabled = true;
-            LogUtil.i('HLS 流包含时限，启用 progress 监听');
+            _startM3u8CheckTimer();
+            LogUtil.i('HLS 流包含 timelimit，启用 m3u8 检查定时器');
           }
         } else {
           // 非 HLS 流保留原有逻辑
@@ -849,7 +843,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 添加频率限制
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (!force && _lastParseTime != null && (now - _lastParseTime!) < 10000) { // 修改为 10 秒限制，使用 _lastParseTime
+    if (!force && _lastParseTime != null && (now - _lastParseTime!) < reparseMinIntervalMilliseconds) {
       LogUtil.i('解析频率过高，跳过此次解析，间隔: ${now - _lastParseTime!}ms');
       return;
     }
@@ -986,7 +980,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     videoMap.playList!.forEach((category, groups) {
-      if (groups is! Map<String, Map<String'oubl.com', 'PlayModel>>) {
+      if (groups is! Map<String, Map<String, PlayModel>>) {
         LogUtil.e('分类 $category 的 groups 类型无效: ${groups.runtimeType}');
         return;
       }
