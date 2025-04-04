@@ -157,6 +157,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool? showPauseIcon,
     bool? userPaused,
     bool? switchingChannel,
+    bool? progressEnabled, 
   }) {
     if (!mounted) return;
     
@@ -169,6 +170,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (showPauseIcon != null) _showPauseIconFromListener = showPauseIcon;
       if (userPaused != null) _isUserPaused = userPaused;
       if (switchingChannel != null) _isSwitchingChannel = switchingChannel;
+      if (progressEnabled != null) _progressEnabled = progressEnabled;
     });
   }
 
