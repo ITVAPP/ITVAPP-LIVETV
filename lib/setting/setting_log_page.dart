@@ -149,9 +149,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
   // 异步获取有限日志，预计算格式化时间并缓存
   Future<List<Map<String, String>>> _getLimitedLogsAsync() async {
-    final now = Date
-
-Time.now();
+    final now = DateTime.now();
     if (_cachedLogs == null || _lastLogUpdate == null || _lastSelectedLevel != _logState.selectedLevel ||
         now.difference(_lastLogUpdate!) > _logCacheTimeout) {
       try {
