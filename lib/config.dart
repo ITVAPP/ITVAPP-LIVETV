@@ -8,6 +8,9 @@ class Config {
   /// 当前应用包名（和 MainActivity.kt 设置的要一致）
   static const String packagename = "net.itvapp.livetv";
   
+  /// 升级检查地址
+  static const String upgradeUrl = 'https://cdn.itvapp.net/itvapp_live_tv/upgrade.json';
+  
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
 
