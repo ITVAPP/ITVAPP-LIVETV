@@ -267,7 +267,7 @@ class FontSizeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          S.of(context).font  fontSizeTitle, // 显示“字体大小”标题
+          S.of(context).fontSizeTitle, // 显示“字体大小”标题
           style: _SettingFontPageState._sectionTitleStyle,
         ),
         const SizedBox(height: 10), // 标题与按钮间距
