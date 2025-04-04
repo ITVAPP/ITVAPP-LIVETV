@@ -116,6 +116,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 添加缓存变量，用于预计算播放器高度和进度条宽度，避免重复计算
   double? _playerHeight;
   double? _progressBarWidth;
+  double? _adAnimationWidth; // 新增缓存变量，用于广告动画宽度
+  late bool _isFavorite; // 缓存收藏状态
 
   // 预定义控制图标的装饰样式，避免重复创建，提高性能
   static const _controlIconDecoration = BoxDecoration(
@@ -138,12 +140,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     bool? showPlayIcon,
     bool? drawerIsOpen,
   }) {
-    _uiStateNotifier.value = _currentState.copyWith(
-      showMenuBar: showMenuBar,
-      showPauseIcon: showPauseIcon,
-      showPlayIcon: showPlayIcon,
-      drawerIsOpen: drawerIsOpen,
-    );
+    final current = _currentState;
+    if ((showMenuBar != null && showMenuBar != current.showMenuBar) ||
+        (showPauseIcon != null && showPauseIcon != current.showPauseIcon) ||
+        (showPlayIcon != null && showPlayIcon != current.showPlayIcon) ||
+        (drawerIsOpen != null && drawerIsOpen != current.drawerIsOpen)) {
+      _uiStateNotifier.value = current.copyWith(
+        showMenuBar: showMenuBar ?? current.showMenuBar,
+        showPauseIcon: showPauseIcon ?? current.showPauseIcon,
+        showPlayIcon: showPlayIcon ?? current.showPlayIcon,
+        drawerIsOpen: drawerIsOpen ?? current.drawerIsOpen,
+      );
+    }
   }
 
   @override
@@ -156,6 +164,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       showPlayIcon: false,
       drawerIsOpen: widget.drawerIsOpen,
     ));
+    _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化缓存
 
     // 初始化文字广告动画
     widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
@@ -173,6 +182,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final mediaQuery = MediaQuery.of(context);
     _playerHeight = mediaQuery.size.width / (16 / 9);
     _progressBarWidth = widget.isLandscape ? mediaQuery.size.width * 0.3 : mediaQuery.size.width * 0.5;
+    _adAnimationWidth = mediaQuery.size.width; // 缓存广告动画宽度
+    widget.adManager.updateTextAdAnimation(_adAnimationWidth!); // 更新动画
   }
 
   @override
@@ -188,6 +199,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       // 取消暂停图标定时器
       _pauseIconTimer?.cancel();
       _pauseIconTimer = null;
+      _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 更新缓存
       widget.adManager.reset(); // 重置广告状态
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen);
@@ -267,34 +279,37 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 播放/暂停视频，支持菜单栏显示控制
   Future<void> _handleSelectPress() async {
     if (widget.controller?.isPlaying() ?? false) {
-      // 如果视频正在播放，显示暂停图标 3 秒
-      if (!(_pauseIconTimer?.isActive ?? false)) {
-        _updateUIState(
-          showPauseIcon: true,
-        );
-        _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) {
-            _updateUIState(showPauseIcon: false);
-          }
-        });
-      } else {
-        // 暂停视频，只隐藏暂停图标，播放图标由 _videoListener 控制
-        await widget.controller?.pause();
-        _pauseIconTimer?.cancel();
-        _updateUIState(showPauseIcon: false);
-        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户触发暂停
-      }
+      await _handlePause();
     } else {
-      // 暂停状态下恢复播放
-      if (widget.isHls) {
-        widget.onRetry?.call(); // HLS 触发重试
-      } else {
-        await widget.controller?.play();
-        _updateUIState(showPlayIcon: false); // 隐藏播放图标
-      }
+      await _handlePlay();
     }
+    _toggleMenuBar();
+  }
 
-    // 切换菜单栏显示状态（横屏模式下）
+  Future<void> _handlePause() async {
+    if (!(_pauseIconTimer?.isActive ?? false)) {
+      _updateUIState(showPauseIcon: true);
+      _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) _updateUIState(showPauseIcon: false);
+      });
+    } else {
+      await widget.controller?.pause();
+      _pauseIconTimer?.cancel();
+      _updateUIState(showPauseIcon: false);
+      widget.onUserPaused?.call();
+    }
+  }
+
+  Future<void> _handlePlay() async {
+    if (widget.isHls) {
+      widget.onRetry?.call();
+    } else {
+      await widget.controller?.play();
+      _updateUIState(showPlayIcon: false);
+    }
+  }
+
+  void _toggleMenuBar() {
     if (widget.isLandscape) {
       _updateUIState(showMenuBar: !_currentState.showMenuBar);
     }
@@ -329,7 +344,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
   }
 
-  // 修改代码开始
   // 通用按钮构建方法，保留每个按钮的独特样式和行为
   Widget buildIconButton({
     required IconData icon, // 按钮图标
@@ -364,6 +378,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         onPressed: isFavoriteButton && channelId != null
             ? () {
                 widget.toggleFavorite(channelId); // 收藏按钮的特殊逻辑
+                _isFavorite = widget.isChannelFavorite(channelId); // 同步更新
                 setState(() {}); // 更新 UI
               }
             : onPressed, // 其他按钮的回调
@@ -374,8 +389,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 重构后的收藏按钮
   Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
     return buildIconButton(
-      icon: widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
-      tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
+      icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+      tooltip: _isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
       onPressed: null, // 通过 isFavoriteButton 处理逻辑
       showBackground: showBackground,
       isFavoriteButton: true, // 标记为收藏按钮
@@ -415,7 +430,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       showBackground: showBackground,
     );
   }
-  // 修改代码结束
 
   // 将静态 UI 部分抽取为单独的方法，减少 ValueListenableBuilder 的重建范围
   Widget _buildStaticOverlay() {
@@ -454,6 +468,34 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               ),
             ),
           ),
+        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
+          Positioned(
+            top: widget.isLandscape ? 50.0 : 80.0,
+            left: 0,
+            right: 0,
+            child: AnimatedBuilder(
+              animation: widget.adManager.getTextAdAnimation()!,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
+                  child: Text(
+                    widget.adManager.getAdData()!.textAdContent!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(1.0, 1.0),
+                          blurRadius: 0.0,
+                          color: Colors.black,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -463,7 +505,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 将动态部分放入 ValueListenableBuilder，静态部分抽取到 _buildStaticOverlay
         ValueListenableBuilder<VideoUIState>(
           valueListenable: _uiStateNotifier,
           builder: (context, uiState, child) {
@@ -493,13 +534,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        _buildVideoPlayer(_playerHeight!), // 使用缓存的播放器高度
-                        if (widget.showPlayIcon) // 修改：使用外部传递的 showPlayIcon
+                        _buildVideoPlayer(_playerHeight!),
+                        if (widget.showPlayIcon)
                           _buildControlIcon(
                             icon: Icons.play_arrow,
                             onTap: () => _handleSelectPress(),
                           ),
-                        if (uiState.showPauseIcon || widget.showPauseIconFromListener) // 修改：添加外部控制的暂停图标
+                        if (uiState.showPauseIcon || widget.showPauseIconFromListener)
                           _buildControlIcon(icon: Icons.pause),
                         if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
                           Positioned(
@@ -511,7 +552,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   GradientProgressBar(
-                                    width: _progressBarWidth!, // 使用缓存的进度条宽度
+                                    width: _progressBarWidth!,
                                     height: 5,
                                   ),
                                   const SizedBox(height: 5),
@@ -612,36 +653,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             );
           },
         ),
-        // 滚动文字广告，只有在有广告内容时显示
         _buildStaticOverlay(),
-        if (widget.adManager.getShowTextAd() && widget.adManager.getAdData()?.textAdContent != null && widget.adManager.getTextAdAnimation() != null)
-          Positioned(
-            top: widget.isLandscape ? 50.0 : 80.0,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: widget.adManager.getTextAdAnimation()!,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
-                  child: Text(
-                    widget.adManager.getAdData()!.textAdContent!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      shadows: [
-                        Shadow(
-                          offset: Offset(1.0, 1.0),
-                          blurRadius: 0.0,
-                          color: Colors.black,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
       ],
     );
   }
