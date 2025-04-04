@@ -45,8 +45,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1; // 默认最大重试次数，控制播放失败后尝试重新播放的最大次数
   static const int defaultTimeoutSeconds = 36; // 解析超时秒数，若超过此时间仍未完成，则视为解析失败
   static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用事件（progress）
-  static const int bufferUpdateTimeoutSeconds = 6; // 若缓冲区最后一次更新距现在超过此时间（秒），且其他条件满足，则触发重新解析
-  static const int minRemainingBufferSeconds = 8; // 最小剩余缓冲秒数，HLS流中若缓冲区剩余时间低于此值，用于判断是否需要重新解析
   static const int networkRecoveryBufferSeconds = 7; // 重新解析后若缓冲区剩余时间超过此值（秒），认为网络已恢复，取消切换操作
   static const int retryDelaySeconds = 2; // 播放失败或切换源时，等待此时间（秒）后重新播放或加载新源，给予系统清理和准备的时间
   static const int hlsSwitchThresholdSeconds = 3; // 当HLS流剩余播放时间少于此值（秒）且有预缓存地址时，切换到预缓存地址
@@ -64,8 +62,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 缓冲区检查相关变量
   String? _preCachedUrl; // 预缓存的URL
   bool _isParsing = false; // 是否正在解析
-  Duration? _lastBufferedPosition; // 上次缓冲位置
-  int? _lastBufferedTime; // 上次缓冲时间戳（毫秒）
   bool _isRetrying = false; // 是否正在重试
   Timer? _retryTimer; // 重试计时器
   Timer? _m3u8CheckTimer; // m3u8 检查定时器
@@ -390,44 +386,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
 
-      case BetterPlayerEventType.bufferingUpdate:
-        if (_progressEnabled && isPlaying) { // 利用 _progressEnabled 控制监听
-          final bufferedData = event.parameters?["buffered"];
-          if (bufferedData != null) {
-            if (bufferedData is List<dynamic>) {
-              if (bufferedData.isNotEmpty) {
-                final lastBuffer = bufferedData.last; // 取最后一个元素
-                try {
-                  _lastBufferedPosition = lastBuffer.end as Duration;
-                  _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-                  // 调试才开启下面日志
-                  // LogUtil.i('缓冲区范围更新: $_lastBufferedPosition @ $_lastBufferedTime');
-                } catch (e) {
-                  LogUtil.i('无法解析缓冲对象: $lastBuffer, 错误: $e');
-                  // 即使解析失败，也更新时间戳，确保 progress 不使用过旧的时间
-                  _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-                }
-              } else {
-                // 保持 _lastBufferedPosition 不变，只更新时间戳
-                _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-              }
-            } else if (bufferedData is Duration) {
-              _lastBufferedPosition = bufferedData;
-              _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-              LogUtil.i('缓冲区更新: $_lastBufferedPosition @ $_lastBufferedTime');
-            } else {
-              LogUtil.i('未知的缓冲区数据类型: $bufferedData (类型: ${bufferedData.runtimeType})');
-              // 对于未知类型，更新时间戳
-              _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-            }
-          } else {
-            LogUtil.i('缓冲区数据为空');
-            // 如果数据为空，更新时间戳
-            _lastBufferedTime = DateTime.now().millisecondsSinceEpoch;
-          }
-        }
-        break;
-
       case BetterPlayerEventType.bufferingEnd:
         setState(() {
           isBuffering = false;
@@ -479,24 +437,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
           if (position != null && duration != null) {
-            if (_lastBufferedPosition != null && _lastBufferedTime != null) {
-              if (!_isHls && _isParsing) {
-                // 非 HLS 检查逻辑保持不变
-                final remainingTime = duration - position;
-                if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
-                  final nextUrl = _getNextVideoUrl();
-                  if (nextUrl != null && nextUrl != _preCachedUrl) {
-                    LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源: $nextUrl');
-                    _preloadNextVideo(nextUrl);
-                  }
-                }
-                if (remainingTime.inSeconds <= nonHlsSwitchThresholdSeconds && _preCachedUrl != null) {
-                  await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
+            if (!_isHls) { // 移除对 _lastBufferedPosition 和 _lastBufferedTime 的检查，修正 _isParsing 条件
+              final remainingTime = duration - position;
+              if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
+                final nextUrl = _getNextVideoUrl();
+                if (nextUrl != null && nextUrl != _preCachedUrl) {
+                  LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源: $nextUrl');
+                  _preloadNextVideo(nextUrl);
                 }
               }
-            } else {
-              // 调试才开启下面日志
-              // LogUtil.i('缓冲数据未准备好: _lastBufferedPosition=$_lastBufferedPosition, _lastBufferedTime=$_lastBufferedTime');
+              if (remainingTime.inSeconds <= nonHlsSwitchThresholdSeconds && _preCachedUrl != null) {
+                await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
+              }
             }
           } else {
             LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
@@ -572,7 +524,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _m3u8CheckTimer?.cancel();
     
     // HLS 流且播放指定时间后启动检查
-    if (!_progressEnabled && !_isHls) return;
+    if (!_isHls) return;
     
     _m3u8CheckTimer = Timer.periodic(const Duration(seconds: m3u8CheckIntervalSeconds), (_) async {
       if (!mounted || !_isHls || !isPlaying || _isDisposing) return;
@@ -594,7 +546,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (mounted && !_isRetrying && !_isSwitchingChannel && !_isDisposing) {
         LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始检查逻辑');
         
-        if (_progressEnabled && _isHls) {
+        if (_isHls) {
           // 仅当播放指定时间后且包含 timelimit 时检查 HLS 流有效性
           if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
             _startM3u8CheckTimer();
@@ -783,7 +735,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
 
       await _disposeStreamUrl();
-      await _disposePreCacheStreamUrl(); // 清理预缓存实例
+      await _disposePreCacheStreamUrl();
       controller.videoPlayerController?.dispose();
       controller.dispose();
 
@@ -791,15 +743,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playerController = null;
         _progressEnabled = false;
         _isAudio = false;
-        // 不重置 _isHls，保持与 _currentPlayUrl 一致
-        _lastBufferedPosition = null;
-        _lastBufferedTime = null;
         _isParsing = false;
-        _isUserPaused = false; // 重置用户暂停状态
-        _showPlayIcon = false; // 重置播放图标状态
-        _showPauseIconFromListener = false; // 重置暂停图标状态
-        _lastCheckTime = null; // 重置检查时间戳
-        _lastParseTime = null; // 重置解析时间戳
+        _isUserPaused = false;
+        _showPlayIcon = false;
+        _showPauseIconFromListener = false;
+        _lastCheckTime = null;
+        _lastParseTime = null;
       });
       LogUtil.i('播放器清理完成');
     } catch (e, stackTrace) {
@@ -1202,12 +1151,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       for (final categoryEntry in playList.entries) {
         final categoryData = categoryEntry.value;
         if (categoryData is Map<String, Map<String, PlayModel>>) {
-          for (final groupEntry in categoryData.entries) {
-            final channelMap = groupEntry.value;
-            for (final channel in channelMap.values) {
-              if (channel?.urls != null && channel!.urls!.isNotEmpty) {
-                return channel;
-              }
+          final firstGroup = categoryData.entries.first;
+          final channelMap = firstGroup.value;
+          for (final channel in channelMap.values) {
+            if (channel?.urls != null && channel!.urls!.isNotEmpty) {
+              return channel;
             }
           }
         } else if (categoryData is Map<String, PlayModel>) {
