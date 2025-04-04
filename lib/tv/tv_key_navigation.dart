@@ -259,7 +259,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     groupIndex ??= _getGroupIndex(widget.focusNodes[index]);
     FocusNode focusNode = _adjustIndexInGroup(index, groupIndex);
-    // 修改处：调用新的 _requestFocusSafely，替换原来的 _tryRequestFocus
     _requestFocusSafely(focusNode, index, groupIndex, skipIfHasFocus: true);
   }
 
@@ -508,6 +507,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
       if (focusableItem != null) {
         _triggerActionsInFocusableItem(context);
+        int newIndex = widget.focusNodes.indexOf(focusNode);
+        if (newIndex != -1) {
+          widget.onSelect?.call(newIndex); // 通知选中事件
+          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode)); // 同步焦点
+        }
       } else {
         LogUtil.i('未找到 FocusableItem');
       }
@@ -600,16 +604,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     if (widget.cacheName == "ChannelDrawerPage") {
       String targetList = groupIndex == 0 ? 'category' : groupIndex == 1 ? 'group' : 'channel';
-      // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
-      _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
+      _requestFocusSafely(widget.focus Wodes[index], nextIndex, groupIndex);
       await WidgetsBinding.instance.endOfFrame; 
       if (_currentFocus != widget.focusNodes[nextIndex]) {
         LogUtil.i('焦点切换失败，强制重试: $nextIndex');
-        // 修改处：再次调用新的 _requestFocusSafely
         _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
       }
     } else {
-      // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
       _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
     }
   }
@@ -632,14 +633,27 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           : groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % groupIndices.length];
       final nextGroupFocus = _groupFocusCache[nextGroupIndex];
       if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
-        FocusNode? nextFocusNode = nextGroupFocus['firstFocusNode'];
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (nextFocusNode != null && nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
-            // 修改处：调用新的 _requestFocusSafely，替换原来的 _safeRequestFocus
-            _requestFocusSafely(nextFocusNode, widget.focusNodes.indexOf(nextFocusNode), nextGroupIndex);
-            LogUtil.i('跳转到 Group $nextGroupIndex');
-          }
-        });
+        FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
+        int nextIndex = widget.focusNodes.indexOf(nextFocusNode);
+        if (nextIndex == -1) {
+          LogUtil.i('焦点节点不在列表中，Group: $nextGroupIndex');
+          return false;
+        }
+        // 确保焦点切换
+        if (nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
+          nextFocusNode.requestFocus();
+          _currentFocus = nextFocusNode;
+          LogUtil.i('跳转到 Group $nextGroupIndex, 索引: $nextIndex');
+        } else {
+          LogUtil.i('焦点节点不可用，尝试延迟切换，Group: $nextGroupIndex');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
+              nextFocusNode.requestFocus();
+              _currentFocus = nextFocusNode;
+              LogUtil.i('延迟切换成功，Group: $nextGroupIndex, 索引: $nextIndex');
+            }
+          });
+        }
         return true;
       }
     } catch (e, stackTrace) {
@@ -659,7 +673,9 @@ class Group extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return child != null ? child! : (children != null ? Column(children: children!) : SizedBox.shrink());
+    return child != null ? child! : (children != null ? Column(children: children
+
+!) : SizedBox.shrink());
   }
 }
 
