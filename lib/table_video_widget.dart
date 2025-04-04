@@ -329,86 +329,25 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
   }
 
-  // 收藏按钮，显示当前频道是否已收藏，并支持点击切换状态
-  Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
-    return Container(
-      width: 32, // 按钮宽度
-      height: 32, // 按钮高度
-      child: IconButton(
-        tooltip: widget.isChannelFavorite(currentChannelId)
-            ? S.current.removeFromFavorites // 收藏状态提示
-            : S.current.addToFavorites, // 非收藏状态提示
-        padding: EdgeInsets.zero, // 去除内边距
-        constraints: const BoxConstraints(), // 自定义大小限制
-        style: showBackground
-            ? IconButton.styleFrom(
-                backgroundColor: _backgroundColor, // 设置背景颜色
-                side: _iconBorderSide, // 添加边框
-              )
-            : null,
-        icon: Icon(
-          widget.isChannelFavorite(currentChannelId)
-              ? Icons.favorite // 已收藏的图标
-              : Icons.favorite_border, // 未收藏的图标
-          color: widget.isChannelFavorite(currentChannelId)
-              ? Colors.red // 已收藏状态下的图标颜色
-              : _iconColor, // 未收藏状态下的图标颜色
-          size: 24, // 图标大小
-        ),
-        onPressed: () {
-          widget.toggleFavorite(currentChannelId); // 调用切换收藏状态的回调
-          setState(() {}); // 更新 UI
-        },
-      ),
-    );
-  }
-
-  // 切换频道源的按钮，用于用户在多个流媒体源之间切换
-  Widget buildChangeChannelSourceButton(bool showBackground) {
-    return Container(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        tooltip: S.of(context).tipChangeLine, // 按钮提示文字
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        style: showBackground
-            ? IconButton.styleFrom(
-                backgroundColor: _backgroundColor, // 背景颜色
-                side: _iconBorderSide, // 添加边框
-              )
-            : null,
-        icon: Icon(
-          Icons.legend_toggle, // 切换图标
-          color: _iconColor, // 图标颜色
-          size: 24, // 图标大小
-        ),
-        onPressed: () {
-          if (widget.isLandscape) {
-            _closeDrawerIfOpen(); // 如果抽屉打开，先关闭
-            _updateUIState(showMenuBar: false); // 隐藏菜单栏
-          }
-          widget.changeChannelSources?.call(); // 调用切换频道源的回调函数
-        },
-      ),
-    );
-  }
-
-  // 构建控制按钮，支持图标、点击事件、背景样式
-  Widget _buildControlButton({
+  // 修改代码开始
+  // 通用按钮构建方法，保留每个按钮的独特样式和行为
+  Widget buildIconButton({
     required IconData icon, // 按钮图标
-    required String tooltip, // 按钮提示文字
-    VoidCallback? onPressed, // 点击事件的回调
-    Color? iconColor, // 图标颜色
+    required String tooltip, // 提示文字
+    required VoidCallback? onPressed, // 点击回调
+    Color iconColor = Colors.white, // 默认图标颜色
     bool showBackground = false, // 是否显示背景
+    double size = 24, // 图标大小
+    bool isFavoriteButton = false, // 是否为收藏按钮，特殊处理
+    String? channelId, // 收藏按钮需要的频道 ID
   }) {
     return Container(
-      width: 32, // 按钮宽度
-      height: 32, // 按钮高度
+      width: 32, // 统一按钮宽度
+      height: 32, // 统一按钮高度
       child: IconButton(
-        tooltip: tooltip, // 提示文字
+        tooltip: tooltip,
         padding: EdgeInsets.zero, // 无内边距
-        constraints: const BoxConstraints(), // 自定义大小
+        constraints: const BoxConstraints(), // 自定义大小限制
         style: showBackground
             ? IconButton.styleFrom(
                 backgroundColor: _backgroundColor, // 背景颜色
@@ -416,14 +355,67 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               )
             : null,
         icon: Icon(
-          icon, // 图标
-          color: iconColor ?? _iconColor, // 默认图标颜色
-          size: 24, // 图标大小
+          icon,
+          color: isFavoriteButton && channelId != null && widget.isChannelFavorite(channelId)
+              ? Colors.red // 收藏按钮的动态颜色
+              : iconColor, // 默认颜色
+          size: size,
         ),
-        onPressed: onPressed, // 点击事件
+        onPressed: isFavoriteButton && channelId != null
+            ? () {
+                widget.toggleFavorite(channelId); // 收藏按钮的特殊逻辑
+                setState(() {}); // 更新 UI
+              }
+            : onPressed, // 其他按钮的回调
       ),
     );
   }
+
+  // 重构后的收藏按钮
+  Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
+    return buildIconButton(
+      icon: widget.isChannelFavorite(currentChannelId) ? Icons.favorite : Icons.favorite_border,
+      tooltip: widget.isChannelFavorite(currentChannelId) ? S.current.removeFromFavorites : S.current.addToFavorites,
+      onPressed: null, // 通过 isFavoriteButton 处理逻辑
+      showBackground: showBackground,
+      isFavoriteButton: true, // 标记为收藏按钮
+      channelId: currentChannelId, // 传递频道 ID
+    );
+  }
+
+  // 重构后的切换频道源按钮
+  Widget buildChangeChannelSourceButton(bool showBackground) {
+    return buildIconButton(
+      icon: Icons.legend_toggle,
+      tooltip: S.of(context).tipChangeLine,
+      onPressed: () {
+        if (widget.isLandscape) {
+          _closeDrawerIfOpen(); // 保留抽屉关闭逻辑
+          _updateUIState(showMenuBar: false); // 隐藏菜单栏
+        }
+        widget.changeChannelSources?.call(); // 保留切换频道源逻辑
+      },
+      showBackground: showBackground,
+    );
+  }
+
+  // 重构后的控制按钮
+  Widget _buildControlButton({
+    required IconData icon,
+    required String tooltip,
+    VoidCallback? onPressed,
+    Color? iconColor,
+    bool showBackground = false,
+  }) {
+    return buildIconButton(
+      icon: icon,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      iconColor: iconColor ?? _iconColor,
+      showBackground: showBackground,
+    );
+  }
+  // 修改代码结束
 
   // 将静态 UI 部分抽取为单独的方法，减少 ValueListenableBuilder 的重建范围
   Widget _buildStaticOverlay() {
