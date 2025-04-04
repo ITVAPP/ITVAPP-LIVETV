@@ -421,9 +421,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
           onPressed: () {
             if (mounted) {
               setState(() {
-                _logState = SelectionState(focusIndex, level); // 更新状态并同步焦点
+                _logState = SelectionState(focusIndex, level); // 更新状态，移除手动焦点切换
                 clearLogCache();
-                _focusNodes[focusIndex].requestFocus(); // 确保焦点切换
+                // 移除 _focusNodes[focusIndex].requestFocus()，交给 TvKeyNavigation 处理
               });
             }
           },
