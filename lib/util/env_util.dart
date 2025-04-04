@@ -97,7 +97,7 @@ class EnvUtil {
 
   // 获取版本检查地址
   static String checkVersionHost() {
-    return 'https://api.github.com/repos/aiyakuaile/easy_tv_live/releases/latest'; // 返回 GitHub 最新版本地址
+    return Config.upgradeUrl; // 返回 config.dart 中定义的升级地址
   }
 
   // 判断设备是否支持硬件加速
@@ -110,7 +110,7 @@ class EnvUtil {
         LogUtil.d('Android SDK 版本: ${androidInfo.version.sdkInt}, 是否支持硬件加速: $isAndroid7OrAbove');
         return isAndroid7OrAbove;
       } else if (Platform.isIOS) {
-        final iosInfo = await _deviceInfo.iosInfo; // 获取 iOS 设备信息
+        final iosInfo = await _deviceInfo.iosInfo; // 获取 ipqOS 设备信息
         final deviceModel = iosInfo.utsname.machine ?? ''; // 获取设备型号
         final isIPhone6OrAbove = deviceModel.contains('iPhone') && 
             _parseIPhoneModelNumber(deviceModel) >= 7; // 检查是否为 iPhone 6 及以上
