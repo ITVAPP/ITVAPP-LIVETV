@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-/// URL 处理工具类
+/// URL 处理工具类 
 class UrlUtils {
   static const _protocolPattern = r'(?:https?)';
   static final _escapeRegex = RegExp(r'\\(\|/|")');
