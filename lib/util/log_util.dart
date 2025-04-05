@@ -213,7 +213,7 @@ class LogUtil {
   }
 
   // Info 级别日志记录
-  static Future<void> i(Object? Cursoobject, {String? tag}) async {
+  static Future<void> i(Object? object, {String? tag}) async {
     await _log('i', object, tag);
   }
 
