@@ -46,6 +46,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultTimeoutSeconds = 36; // 解析超时秒数，若超过此时间仍未完成，则视为解析失败
   static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用事件（progress）
   static const int retryDelaySeconds = 2; // 播放失败或切换源时，等待此时间（秒）后重新播放或加载新源，给予系统清理和准备的时间
+  static const int m3u8InvalidConfirmDelaySeconds = 1; // 新增：m3u8 失效确认等待时间
   static const int hlsSwitchThresholdSeconds = 3; // 当HLS流剩余播放时间少于此值（秒）且有预缓存地址时，切换到预缓存地址
   static const int nonHlsPreloadThresholdSeconds = 20; // 非HLS流剩余时间少于此值（秒）时，开始预加载下一源，提前准备切换
   static const int nonHlsSwitchThresholdSeconds = 3; // 非HLS流剩余时间少于此值（秒）且有预缓存地址时，切换到预缓存地址
@@ -306,7 +307,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 切换请求队列
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     if (channel == null) return;
-
+   await _disposeStreamUrl(); // 在切换前释放旧实例
     if (_isSwitchingChannel) {
       // 若正在切换，覆盖旧请求，只保留最新请求
       _pendingSwitch = {'channel': channel, 'sourceIndex': sourceIndex};
@@ -544,9 +545,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('m3u8 检查失效，次数: $_m3u8InvalidCount');
         
         if (_m3u8InvalidCount == 1) {
-          // 第一次失效，等待 retryDelaySeconds 后再次检查
-          LogUtil.i('第一次检测到 m3u8 失效，等待 $retryDelaySeconds 秒后再次检查');
-          Timer(Duration(seconds: retryDelaySeconds), () async {
+          LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
+          Timer(Duration(seconds: m3u8InvalidConfirmDelaySeconds), () async {
             if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) {
               _m3u8InvalidCount = 0; // 中断时重置
               return;
