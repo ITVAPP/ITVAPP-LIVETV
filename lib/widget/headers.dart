@@ -157,7 +157,7 @@ class HeadersConfig {
           ..._playerHeaders,
           if (host.isNotEmpty) 'Host': host, // 动态添加 Host
         };
-        LogUtil.i('生成播放器通用主机头：$playerHeadersWithHost');
+        // LogUtil.i('生成播放器通用主机头：$playerHeadersWithHost');
         return playerHeadersWithHost;
       }
 
@@ -208,7 +208,7 @@ class HeadersConfig {
         'User-Agent': userAgent,
       };
 
-      LogUtil.i('生成主机头：$headers');
+      // LogUtil.i('生成主机头：$headers');
       return headers;
       
     } catch (e, stackTrace) {
