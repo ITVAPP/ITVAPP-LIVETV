@@ -52,6 +52,8 @@ class LogUtil {
     ']': '\\]'
   };
 
+  static String setLogFileKeywords = 'live_home_page'; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
+
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
     try {
@@ -93,10 +95,24 @@ class LogUtil {
   // 记录日志，包含级别、内容和标签，支持缓冲区检查
   static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
+
+    // 检查文件名是否匹配关键字（大小写不敏感）
+    if (setLogFileKeywords.isNotEmpty) {
+      String fileInfo = _extractStackInfo(); // 获取调用栈中的文件信息
+      String fileInfoLower = fileInfo.toLowerCase(); // 转换为小写
+      List<String> keywords = setLogFileKeywords
+          .split('@@')
+          .map((k) => k.trim().toLowerCase())
+          .toList(); // 解析关键字并转换为小写
+      bool matches = keywords.any((keyword) => fileInfoLower.contains(keyword));
+      if (!matches) {
+        return; // 如果文件名不包含任一关键字，直接返回，不记录日志
+      }
+    }
+
     try {
       String time = DateTime.now().toString(); // 获取当前时间戳
       String fileInfo = _extractStackInfo(); // 提取调用栈信息
-
       String objectStr = object.toString();
       String logContent;
       if (objectStr.length > _maxSingleLogLength) { // 超长日志截断处理
@@ -197,7 +213,7 @@ class LogUtil {
   }
 
   // Info 级别日志记录
-  static Future<void> i(Object? object, {String? tag}) async {
+  static Future<void> i(Object? Cursoobject, {String? tag}) async {
     await _log('i', object, tag);
   }
 
@@ -482,7 +498,6 @@ class LogUtil {
         final pattern = _clearLevelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
         _memoryLogs.removeWhere((log) => pattern.hasMatch(log));
         _newLogsBuffer.removeWhere((log) => pattern.hasMatch(log));
-
         if (await _logFile!.exists()) {
           await _logFile!.writeAsString(_memoryLogs.join('\n') + '\n');
         }
