@@ -53,7 +53,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const double defaultAspectRatio = 1.78; // 视频播放器的初始宽高比（16:9），若未从播放器获取新值则使用此值
   static const int cleanupDelayMilliseconds = 500; // 清理控制器前的延迟毫秒数，确保旧控制器完全暂停和清理
   static const int snackBarDurationSeconds = 4; // 操作提示的显示时长（秒）
-  static const int bufferingStartSeconds = 15; // 缓冲超过计时器的时间就放弃加载，启用重试
+  static const int bufferingStartSeconds = 10; // 缓冲超过计时器的时间就放弃加载，启用重试
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 文件有效性检查的间隔时间（秒）
   static const int reparseMinIntervalMilliseconds = 10000; // 重新解析的最小间隔（秒），避免频繁解析
   static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 检查连接超时秒数
@@ -105,25 +105,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
 
-  bool _checkIsAudioStream(String? url) {
+  // 修改区域：提取公共 URL 检查方法，消除重复逻辑
+  bool _checkUrlFormat(String? url, List<String> formats) {
     if (url == null || url.isEmpty) return false;
-    const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
-    const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
     final lowercaseUrl = url.toLowerCase();
-    return !videoFormats.any(lowercaseUrl.contains) && audioFormats.any(lowercaseUrl.contains);
+    return formats.any(lowercaseUrl.contains);
+  }
+
+  bool _checkIsAudioStream(String? url) {
+    const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
+    return _checkUrlFormat(url, audioFormats) && 
+           !_checkUrlFormat(url, ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb']);
   }
 
   bool _isHlsStream(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    // 优先检查 HLS 特征
-    if (lowercaseUrl.contains('.m3u8')) return true;
-    // 排除常见非 HLS 格式
-    const formats = [
+    if (_checkUrlFormat(url, ['.m3u8'])) return true;
+    return !_checkUrlFormat(url, [
       '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
       '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
-    ];
-    return !formats.any(lowercaseUrl.contains);
+    ]);
   }
 
   // 统一更新 _currentPlayUrl 和 _isHls 的方法
@@ -179,6 +179,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 播放视频，包含初始化和切换逻辑
+  /// 修改区域：增强状态一致性
   Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
     // 添加空检查以防止 _currentChannel 为 null 时崩溃
     if (_currentChannel == null) return; // 避免空指针异常
@@ -237,7 +238,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       _originalUrl = url; // 设置解析前地址
       _streamUrl = StreamUrl(url); // 保存 StreamUrl 实例
-      String parsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
+      
+      String parsedUrl = await _streamUrl!.getStreamUrl().timeout(
+        Duration(seconds: m3u8ReceiveTimeoutSeconds), // 使用 10 秒，与 m3u8 检查一致
+        onTimeout: () {
+          LogUtil.w('流地址解析超时（${m3u8ReceiveTimeoutSeconds}秒）');
+          return 'ERROR';
+        },
+      );
+      
       _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl 和 _isHls
 
       if (parsedUrl == 'ERROR') {
@@ -287,38 +296,58 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       if (mounted) {
         setState(() {
-          _isSwitchingChannel = false;
+          _isSwitchingChannel = false; // 确保状态一致性
           // 重置其他状态，确保一致性
           if (_playerController == null) {
             isBuffering = false;
             isPlaying = false;
           }
         });
-        // 处理最新的切换请求
-        if (_pendingSwitch != null) {
+        // 处理切换队列
+        if (_pendingSwitch != null && !_isParsing && !_isRetrying) {
           final nextRequest = _pendingSwitch!;
           _currentChannel = nextRequest['channel'] as PlayModel?;
           _sourceIndex = nextRequest['sourceIndex'] as int;
           _pendingSwitch = null; // 处理完成后清空
           LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
           Future.microtask(() => _playVideo()); // 异步调度，避免递归
+        } else if (_pendingSwitch != null) {
+          LogUtil.w('无法处理切换请求，因状态冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying');
         }
       }
     }
   }
 
   // 切换请求队列
+  // 修改区域：增加空指针检查
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
-    if (channel == null) return;
-    
-    // 先释放当前解析实例，避免资源泄露
-    await _disposeStreamUrl();
-    await _disposePreCacheStreamUrl(); // 同时释放预缓存实例
+    if (channel == null) {
+      LogUtil.w('切换频道失败：channel 为 null');
+      return;
+    }
     
     if (_isSwitchingChannel) {
       // 若正在切换，覆盖旧请求，只保留最新请求
       _pendingSwitch = {'channel': channel, 'sourceIndex': sourceIndex};
       LogUtil.i('更新最新切换请求: ${channel.title}, 源索引: $sourceIndex');
+      
+      // 添加安全超时，使用m3u8ConnectTimeoutSeconds作为超时时间
+      Timer(Duration(seconds: m3u8ConnectTimeoutSeconds), () {
+        if (mounted && _isSwitchingChannel) {
+          LogUtil.e('切换操作超时(${m3u8ConnectTimeoutSeconds}秒)，强制重置状态');
+          setState(() {
+            _isSwitchingChannel = false;
+          });
+          // 如果有待处理的请求，尝试处理
+          if (_pendingSwitch != null) {
+            final nextRequest = _pendingSwitch!;
+            _currentChannel = nextRequest['channel'] as PlayModel?;
+            _sourceIndex = nextRequest['sourceIndex'] as int;
+            _pendingSwitch = null;
+            _playVideo();
+          }
+        }
+      });
     } else {
       _currentChannel = channel;
       _sourceIndex = sourceIndex;
@@ -387,9 +416,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           _timeoutTimer?.cancel();
           _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
             if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
-              LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
-                  'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
-                  'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
+              LogUtil.i('缓冲超时检查被阻止');
               return;
             }
             if (_playerController?.isPlaying() != true) {
@@ -397,8 +424,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
               _retryPlayback(resetRetryCount: true);
             }
           });
-        } else {
-          LogUtil.i('初始缓冲，不启用15秒超时');
         }
         break;
 
@@ -460,7 +485,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
                 final nextUrl = _getNextVideoUrl();
                 if (nextUrl != null && nextUrl != _preCachedUrl) {
-                  LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源: $nextUrl');
+                  LogUtil.i('非 HLS 剩余时间少于 $nonHlsPreloadThresholdSeconds 秒，预缓存下一源');
                   _preloadNextVideo(nextUrl);
                 }
               }
@@ -468,8 +493,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
               }
             }
-          } else {
-            LogUtil.i('Progress 数据不完整: position=$position, duration=$duration');
           }
         }
         break;
@@ -487,20 +510,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       default:
-          LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
-        break;
+        break; // 减少非必要日志
     }
   }
 
   // 实现 m3u8 文件内容检查
   Future<bool> _checkM3u8Validity() async {
     if (_currentPlayUrl == null || !_isHls) {
-      LogUtil.i('当前播放地址为空或非 HLS 流，无需检查: _currentPlayUrl=$_currentPlayUrl, _isHls=$_isHls');
-      return true;
+      return true; // 非 HLS 或无 URL 时跳过检查
     }
     
     try {
-      // 使用 HttpUtil 获取 m3u8 内容，利用其内置的头部管理和重试逻辑
       final String? content = await HttpUtil().getRequest<String>(
         _currentPlayUrl!,
         options: Options(
@@ -509,16 +529,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
             'receiveTimeout': const Duration(seconds: m3u8ReceiveTimeoutSeconds),
           }
         ),
-        retryCount: 1, // 对于检查来说，单次重试足够
+        retryCount: 1,
       );
       
-      // 严格检查内容有效性
       if (content == null || content.isEmpty) {
         LogUtil.e('m3u8 内容为空或获取失败：$_currentPlayUrl');
         return false;
       }
       
-      // 检查内容是否包含 .ts 片段或其他有效标记
       bool hasSegments = content.contains('.ts');
       bool hasValidDirectives = content.contains('#EXTINF') || content.contains('#EXT-X-STREAM-INF');
       
@@ -529,7 +547,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return false;
       }
       
-      LogUtil.i('m3u8 检查通过，内容有效');
       return true;
     } catch (e, stackTrace) {
       LogUtil.logError('m3u8 有效性检查出错', e, stackTrace);
@@ -537,7 +554,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-// 定期检查 m3u8 文件定时器（引入两次检查机制，不修改）
+  // 定期检查 m3u8 文件定时器（引入两次检查机制，不修改）
   void _startM3u8CheckTimer() {
     _m3u8CheckTimer?.cancel();
     
@@ -548,7 +565,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
       
-      // 检查 m3u8 有效性
       final isValid = await _checkM3u8Validity();
       if (!isValid) {
         _m3u8InvalidCount++;
@@ -566,12 +582,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
               LogUtil.i('第二次检查确认 m3u8 失效，触发重新解析');
               await _reparseAndSwitch();
             } else {
-              LogUtil.i('第二次检查 m3u8 有效，取消重新解析');
               _m3u8InvalidCount = 0; // 重置计数
             }
           });
         } else if (_m3u8InvalidCount >= 2) {
-          // 连续两次失效，直接触发重新解析
           LogUtil.i('连续两次检查到 m3u8 失效，触发重新解析');
           await _reparseAndSwitch();
           _m3u8InvalidCount = 0; // 重置计数
@@ -589,13 +603,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始检查逻辑');
         
         if (_isHls) {
-          // 仅当播放指定时间后且包含 timelimit 时检查 HLS 流有效性
           if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
             _startM3u8CheckTimer();
             LogUtil.i('HLS 流包含 timelimit，启用 m3u8 检查定时器');
           }
         } else {
-          // 非 HLS 流保留原有逻辑
           if (_getNextVideoUrl() != null) {
             _progressEnabled = true;
             LogUtil.i('非 HLS 流，启用 progress 监听');
@@ -608,32 +620,31 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
+  // 修改区域：优化预加载，防止重复预加载
   Future<void> _preloadNextVideo(String url) async {
-    if (_isDisposing || _isSwitchingChannel || _playerController == null) {
-      LogUtil.i('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}');
+    if (_isDisposing || _isSwitchingChannel || _playerController == null || _preCachedUrl != null) {
+      LogUtil.i('预加载被阻止: _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel, controller=${_playerController != null}, _preCachedUrl 已存在');
       return;
     }
 
     try {
       LogUtil.i('开始预加载: $url');
-      // 先释放旧的预缓存实例
       await _disposePreCacheStreamUrl();
       
-      // 创建新实例进行解析
       _preCacheStreamUrl = StreamUrl(url);
       String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
       
       if (parsedUrl == 'ERROR') {
         LogUtil.e('预加载解析失败: $url');
-        await _disposePreCacheStreamUrl(); // 解析失败时释放资源
+        await _disposePreCacheStreamUrl();
         return;
       }
       
       _preCachedUrl = parsedUrl;
-      LogUtil.i('预缓存地址: $_preCachedUrl, 当前 _isHls: $_isHls (保持不变)');
+      LogUtil.i('预缓存地址: $_preCachedUrl');
 
       final nextSource = BetterPlayerConfig.createDataSource(
-        isHls: _isHlsStream(parsedUrl), // 仅用于预缓存，不影响当前 _isHls
+        isHls: _isHlsStream(parsedUrl),
         url: parsedUrl,
       );
 
@@ -642,7 +653,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('预加载失败: $url', e, stackTrace);
       _preCachedUrl = null;
-      await _disposePreCacheStreamUrl(); // 确保异常时也释放资源
+      await _disposePreCacheStreamUrl();
     }
   }
 
@@ -698,7 +709,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       _retryTimer = Timer(const Duration(seconds: retryDelaySeconds), () async {
         if (!mounted || _isSwitchingChannel || _isDisposing || _isParsing) {
-          LogUtil.i('重试中断: mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing, isParsing=$_isParsing');
           setState(() => _isRetrying = false);
           return;
         }
@@ -772,59 +782,59 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-/// 清理播放器控制器，确保资源释放
-Future<void> _cleanupController(BetterPlayerController? controller) async {
-  if (controller == null) return;
+  /// 清理播放器控制器，确保资源释放
+  /// 修改区域：修复资源泄漏风险
+  Future<void> _cleanupController(BetterPlayerController? controller) async {
+    if (controller == null) return;
 
-  _isDisposing = true;
-  try {
-    LogUtil.i('开始清理播放器控制器');
-    _cleanupTimers(); // 清理所有计时器
-    controller.removeEventsListener(_videoListener);
+    _isDisposing = true;
+    try {
+      LogUtil.i('开始清理播放器控制器');
+      _cleanupTimers(); // 清理所有计时器
+      controller.removeEventsListener(_videoListener);
 
-    // 尝试暂停和降低音量，减少用户感知的中断
-    if (controller.isPlaying() ?? false) {
-      await controller.pause();
-      await controller.setVolume(0);
-      LogUtil.i('播放器已暂停并静音');
+      if (controller.isPlaying() ?? false) {
+        await controller.pause();
+        await controller.setVolume(0);
+        LogUtil.i('播放器已暂停并静音');
+      }
+
+      await _disposeStreamUrl();
+      await _disposePreCacheStreamUrl();
+      
+      if (controller.videoPlayerController != null) {
+        await controller.videoPlayerController?.dispose();
+      }
+      controller.dispose();
+      LogUtil.i('播放器控制器已释放');
+
+      setState(() {
+        _playerController = null;
+        _progressEnabled = false;
+        _isAudio = false;
+        _isParsing = false;
+        _isUserPaused = false;
+        _showPlayIcon = false;
+        _showPauseIconFromListener = false;
+        _lastCheckTime = null;
+        _lastParseTime = null;
+        _preCachedUrl = null;
+      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('清理播放器失败', e, stackTrace);
+    } finally {
+      // 确保异常情况下资源也被释放
+      await _disposeStreamUrl();
+      await _disposePreCacheStreamUrl();
+      _isDisposing = false;
+      LogUtil.i('清理完成，确保所有资源已释放');
     }
-
-    // 释放所有关联的解析实例
-    await _disposeStreamUrl();
-    await _disposePreCacheStreamUrl();
-    
-    // 释放播放器控制器
-    if (controller.videoPlayerController != null) {
-      await controller.videoPlayerController?.dispose();
-    }
-    controller.dispose(); // 移除 await，因为 dispose() 返回 void
-    LogUtil.i('播放器控制器已释放');
-
-    // 重置状态
-    setState(() {
-      _playerController = null;
-      _progressEnabled = false;
-      _isAudio = false;
-      _isParsing = false;
-      _isUserPaused = false;
-      _showPlayIcon = false;
-      _showPauseIconFromListener = false;
-      _lastCheckTime = null;
-      _lastParseTime = null;
-      _preCachedUrl = null; // 确保清理预缓存地址
-    });
-    LogUtil.i('播放器状态已重置');
-  } catch (e, stackTrace) {
-    LogUtil.logError('清理播放器失败', e, stackTrace);
-  } finally {
-    _isDisposing = false; // 确保释放标志被重置
   }
-}
 
   Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
       await _streamUrl!.dispose();
-      _streamUrl = null; // 确保设置为null
+      _streamUrl = null;
       LogUtil.i('主StreamUrl实例已释放');
     }
   }
@@ -832,7 +842,7 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
   Future<void> _disposePreCacheStreamUrl() async {
     if (_preCacheStreamUrl != null) {
       await _preCacheStreamUrl!.dispose();
-      _preCacheStreamUrl = null; // 确保设置为null
+      _preCacheStreamUrl = null;
       LogUtil.i('预缓存StreamUrl实例已释放');
     }
   }
@@ -860,30 +870,33 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
     if (_m3u8CheckTimer?.isActive == true) {
       _m3u8CheckTimer?.cancel();
       _m3u8CheckTimer = null;
-      _m3u8InvalidCount = 0; // 重置失效计数
+      _m3u8InvalidCount = 0;
       LogUtil.i('m3u8检查计时器已清理');
     }
   }
 
-  // 重新解析并准备预缓存地址
+  /// 重新解析并准备预缓存地址
+  /// 修改区域：添加详细中文注释
   Future<void> _reparseAndSwitch({bool force = false}) async {
+    // 检查是否允许重新解析，避免重复操作
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
       return;
     }
 
+    // 检查解析频率，防止过于频繁的解析请求
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force && _lastParseTime != null && (now - _lastParseTime!) < reparseMinIntervalMilliseconds) {
       LogUtil.i('解析频率过高，跳过此次解析，间隔: ${now - _lastParseTime!}ms');
       return;
     }
 
-    _cleanupTimers(); // 清理所有计时器，确保 _m3u8CheckTimer 被停止
+    _cleanupTimers(); // 清理所有计时器，确保状态干净
     _isParsing = true;
     setState(() => _isRetrying = true);
 
     try {
-      // 确保当前频道信息可用
+      // 验证当前频道信息是否有效
       if (_currentChannel == null || _currentChannel!.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
         LogUtil.e('重新解析时频道信息无效');
         throw Exception('无效的频道信息');
@@ -892,26 +905,27 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
       
-      // 释放旧的实例
+      // 释放旧的流地址实例
       await _disposeStreamUrl();
       
-      // 创建新实例进行解析
+      // 创建新实例并解析流地址
       _streamUrl = StreamUrl(url);
       String newParsedUrl = await _streamUrl!.getStreamUrl();
       
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
-        await _disposeStreamUrl(); // 解析失败时释放资源
+        await _disposeStreamUrl();
         throw Exception('解析失败');
       }
       
+      // 检查新地址是否与当前播放地址相同
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeStreamUrl(); // 释放不需要的资源
+        await _disposeStreamUrl();
         return;
       }
 
-      // 设置预缓存地址
+      // 设置预缓存地址并准备切换
       _preCachedUrl = newParsedUrl;
       LogUtil.i('预缓存地址已准备: $_preCachedUrl');
 
@@ -921,7 +935,7 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
       );
 
       if (_playerController != null) {
-        // 安全检查：确保在预加载前播放器仍可用
+        // 安全检查：确保播放器可用
         if (_isDisposing || _isSwitchingChannel) {
           LogUtil.i('预加载前检测到中断，退出重新解析');
           _preCachedUrl = null;
@@ -929,10 +943,10 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
           return;
         }
 
-        // 执行预缓存
+        // 执行预缓存操作
         await _playerController!.preCache(newSource);
         
-        // 再次安全检查：确保在预加载完成后播放器仍可用
+        // 再次检查状态，确保预缓存后仍有效
         if (_isDisposing || _isSwitchingChannel) {
           LogUtil.i('预加载完成后检测到中断，退出重新解析');
           _preCachedUrl = null;
@@ -940,21 +954,20 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
           return;
         }
 
-        // 预缓存成功，启用进度检测以便触发切换
+        // 预缓存成功，启用进度检测以触发切换
         _progressEnabled = true;
-        _lastParseTime = now; // 记录最后成功解析时间
-
+        _lastParseTime = now;
         LogUtil.i('预缓存完成，等待剩余时间或异常触发切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
-        _handleSourceSwitching(); // 如果播放器控制器不可用，尝试切换源
+        _handleSourceSwitching();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
-      await _disposeStreamUrl(); // 确保异常时也释放资源
-      _handleSourceSwitching(); // 解析失败时尝试切换源
+      await _disposeStreamUrl();
+      _handleSourceSwitching();
     } finally {
-      _isParsing = false; // 确保解析状态被重置
+      _isParsing = false; // 重置解析状态
       if (mounted) setState(() => _isRetrying = false); // 更新UI状态
       LogUtil.i('重新解析结束');
     }
@@ -1010,7 +1023,7 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
     return items;
   }
 
-  // 对 videoMap 进行排序
+  // 对 videoMap 进行排序（保持原样，未优化）
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       LogUtil.e('播放列表为空，无需排序');
@@ -1205,9 +1218,8 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
 
     try {
       _videoMap = widget.m3uData;
-      // 添加排序逻辑
       String? userInfo = SpUtil.getString('user_all_info');
-      LogUtil.i('原始 user_all_info: $userInfo'); // 添加调试日志以检查实际数据
+      LogUtil.i('原始 user_all_info: $userInfo');
       _sortVideoMap(_videoMap!, userInfo);
       _sourceIndex = 0;
       await _handlePlaylist();
@@ -1279,7 +1291,7 @@ Future<void> _cleanupController(BetterPlayerController? controller) async {
     }
   }
 
-String getGroupName(String channelId) => _currentChannel?.group ?? '';
+  String getGroupName(String channelId) => _currentChannel?.group ?? '';
   String getChannelName(String channelId) => _currentChannel?.title ?? '';
   String _getSourceDisplayName(String url, int index) {
     if (url.contains('\$')) return url.split('\$')[1].trim();
@@ -1376,7 +1388,7 @@ String getGroupName(String channelId) => _currentChannel?.group ?? '';
         currentChannelLogo: _currentChannel?.logo ?? '',
         currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
         isAudio: _isAudio,
-        adManager: _adManager, // 传递 AdManager 给 TvPage
+        adManager: _adManager,
       );
     }
 
@@ -1410,12 +1422,12 @@ String getGroupName(String channelId) => _currentChannel?.group ?? '';
               currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
               isChannelFavorite: isChannelFavorite,
               isAudio: _isAudio,
-              adManager: _adManager, // 传递 AdManager 给 MobileVideoWidget
-              showPlayIcon: _showPlayIcon, // 传递播放图标状态
-              showPauseIconFromListener: _showPauseIconFromListener, // 传递暂停图标状态
-              isHls: _isHls, // 传递 HLS 状态
-              onUserPaused: _handleUserPaused, // 用户暂停回调
-              onRetry: _handleRetry, // HLS 重试回调
+              adManager: _adManager,
+              showPlayIcon: _showPlayIcon,
+              showPauseIconFromListener: _showPauseIconFromListener,
+              isHls: _isHls,
+              onUserPaused: _handleUserPaused,
+              onRetry: _handleRetry,
             ),
           );
         },
@@ -1445,11 +1457,11 @@ String getGroupName(String channelId) => _currentChannel?.group ?? '';
                           isAudio: _isAudio,
                           onToggleDrawer: () => setState(() => _drawerIsOpen = !_drawerIsOpen),
                           adManager: _adManager,
-                          showPlayIcon: _showPlayIcon, // 传递播放图标状态
-                          showPauseIconFromListener: _showPauseIconFromListener, // 传递暂停图标状态
-                          isHls: _isHls, // 传递 HLS 状态
-                          onUserPaused: _handleUserPaused, // 用户暂停回调
-                          onRetry: _handleRetry, // HLS 重试回调
+                          showPlayIcon: _showPlayIcon,
+                          showPauseIconFromListener: _showPauseIconFromListener,
+                          isHls: _isHls,
+                          onUserPaused: _handleUserPaused,
+                          onRetry: _handleRetry,
                         ),
                 ),
                 Offstage(
