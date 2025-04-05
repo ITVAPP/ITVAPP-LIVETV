@@ -45,7 +45,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1; // 默认最大重试次数，控制播放失败后尝试重新播放的最大次数
   static const int defaultTimeoutSeconds = 36; // 解析超时秒数，若超过此时间仍未完成，则视为解析失败
   static const int initialProgressDelaySeconds = 60; // 播放开始后经过此时间才会启用事件（progress）
-  static const int networkRecoveryBufferSeconds = 7; // 重新解析后若缓冲区剩余时间超过此值（秒），认为网络已恢复，取消切换操作
   static const int retryDelaySeconds = 2; // 播放失败或切换源时，等待此时间（秒）后重新播放或加载新源，给予系统清理和准备的时间
   static const int hlsSwitchThresholdSeconds = 3; // 当HLS流剩余播放时间少于此值（秒）且有预缓存地址时，切换到预缓存地址
   static const int nonHlsPreloadThresholdSeconds = 20; // 非HLS流剩余时间少于此值（秒）时，开始预加载下一源，提前准备切换
@@ -132,8 +131,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _isHls = _isHlsStream(_currentPlayUrl);
   }
 
-  // 切换到预缓存地址
+  // 切换到预缓存地址（问题 1 修改）
   Future<void> _switchToPreCachedUrl(String logDescription) async {
+    _cleanupTimers(); // 修改点：添加清理计时器，确保切换时重置 _m3u8CheckTimer
+
     if (_preCachedUrl == null) {
       LogUtil.i('$logDescription: 预缓存地址为空，无法切换');
       return;
@@ -159,7 +160,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await _playerController?.play();
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
         _progressEnabled = false;
-        _startPlayDurationTimer();
+        _startPlayDurationTimer(); // 保持原有逻辑，切换后重新启动 60 秒计时器
       } else {
         LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
       }
@@ -319,8 +320,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  // 视频事件监听器（问题 2 修改）
   void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null || _isDisposing || event.betterPlayerEventType == BetterPlayerEventType.changedPlayerVisibility || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate) return;
+    if (!mounted || _playerController == null || _isDisposing || event.betterPlayerEventType == BetterPlayerEventType.changedPlayerVisibility || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate || event.betterPlayerEventType == BetterPlayerEventType.changedTrack || event.betterPlayerEventType == BetterPlayerEventType.setupDataSource || event.betterPlayerEventType == BetterPlayerEventType.changedSubtitles) return;
 
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
@@ -355,8 +357,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return;
         }
         
-        if (_preCachedUrl != null) {
-          await _switchToPreCachedUrl('异常触发');
+        // 修改点：情况 2 - 异常触发切换
+        if (_isHls) {
+          if (_preCachedUrl != null) {
+            LogUtil.i('异常触发，预缓存地址已准备，立即切换');
+            await _switchToPreCachedUrl('异常触发');
+          } else {
+            LogUtil.i('异常触发，预缓存地址未准备，等待解析');
+            await _reparseAndSwitch();
+          }
         } else {
           _retryPlayback();
         }
@@ -436,8 +445,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
           if (position != null && duration != null) {
-            if (!_isHls) { // 移除对 _lastBufferedPosition 和 _lastBufferedTime 的检查，修正 _isParsing 条件
-              final remainingTime = duration - position;
+            // 修改点：情况 1 - HLS 剩余时间判断
+            final remainingTime = duration - position;
+            if (_isHls && _preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
+              LogUtil.i('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒，切换到预缓存地址');
+              await _switchToPreCachedUrl('HLS 剩余时间触发切换');
+            } else if (!_isHls) { // 非 HLS 流保留原有逻辑
               if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
                 final nextUrl = _getNextVideoUrl();
                 if (nextUrl != null && nextUrl != _preCachedUrl) {
@@ -516,7 +529,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 定期检查 m3u8 文件定时器（引入两次检查机制）
+  // 定期检查 m3u8 文件定时器（引入两次检查机制，不修改）
   void _startM3u8CheckTimer() {
     _m3u8CheckTimer?.cancel();
     
@@ -812,6 +825,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _m3u8InvalidCount = 0;
   }
 
+  // 重新解析并准备预缓存地址（问题 2 修改）
   Future<void> _reparseAndSwitch({bool force = false}) async {
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
@@ -845,8 +859,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
 
-      _preCachedUrl = newParsedUrl;
-      LogUtil.i('预缓存地址: $_preCachedUrl');
+      _preCachedUrl = newParsedUrl; // 修改点：仅准备预缓存地址，不立即切换
+      LogUtil.i('预缓存地址已准备: $_preCachedUrl');
 
       final newSource = BetterPlayerConfig.createDataSource(
         isHls: _isHlsStream(newParsedUrl),
@@ -875,7 +889,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playDurationTimer = null;
         _lastParseTime = now;
 
-        await _switchToPreCachedUrl('m3u8 失效后重新解析并切换');
+        // 修改点：不再直接调用 _switchToPreCachedUrl，等待 progress 或 exception 触发
+        LogUtil.i('预缓存完成，等待剩余时间或异常触发切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
