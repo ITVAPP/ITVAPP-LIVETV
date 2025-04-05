@@ -501,7 +501,7 @@ class GetM3U8 {
           }
           
           // 快速检查页面是否包含目标文件扩展名
-          return initialContent.contains('.' + filePattern);
+          return initialContent.contains('.' + _filePattern);
         }
         return true;
       } else {
