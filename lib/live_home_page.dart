@@ -319,7 +319,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null || _isDisposing) return;
+    if (!mounted || _playerController == null || _isDisposing || event.betterPlayerEventType == BetterPlayerEventType.changedPlayerVisibility || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate) return;
 
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
@@ -339,13 +339,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
         
+        if (_isParsing) {
+          LogUtil.i('正在重新解析中，忽略本次异常，等待解析完成切换');
+          return;
+        }
+        
         // 检查是否是HLS特定错误并强制重新解析
         if (_isHls && (error.contains("403") || error.contains("404") || 
             error.contains("HLSJS") || error.contains("Invalid") || 
             error.contains("expired") || error.contains("failed") ||
             error.contains("timeout") || error.contains("cannot load"))) {
           LogUtil.i('检测到 HLS 特定错误，强制重新解析: $error');
-          await _reparseAndSwitch(force: true); // 修改为强制模式
+          await _reparseAndSwitch(force: true);
           return;
         }
         
@@ -469,9 +474,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
 
       default:
-        if (event.betterPlayerEventType != BetterPlayerEventType.changedPlayerVisibility) {
           LogUtil.i('未处理事件: ${event.betterPlayerEventType}');
-        }
         break;
     }
   }
@@ -534,7 +537,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       // 检查 m3u8 有效性
       final isValid = await _checkM3u8Validity();
       if (!isValid) {
-        LogUtil.i('检测到 m3u8 文件无效，触发重新解析');
+        LogUtil.i('m3u8 检查已失效，触发重新解析');
         await _reparseAndSwitch();
       }
     });
@@ -625,6 +628,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback({bool resetRetryCount = false}) {
     if (_isRetrying || _isSwitchingChannel || _isDisposing) return;
 
+    if (_isParsing) {
+      LogUtil.i('正在重新解析中，跳过重试，等待解析完成切换');
+      return;
+    }
+
     _cleanupTimers();
 
     if (resetRetryCount) {
@@ -645,8 +653,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('重试播放: 第 $_retryCount 次');
 
       _retryTimer = Timer(const Duration(seconds: retryDelaySeconds), () async {
-        if (!mounted || _isSwitchingChannel || _isDisposing) {
-          LogUtil.i('重试中断: mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing');
+        if (!mounted || _isSwitchingChannel || _isDisposing || _isParsing) {
+          LogUtil.i('重试中断: mounted=$mounted, isSwitchingChannel=$_isSwitchingChannel, isDisposing=$_isDisposing, isParsing=$_isParsing');
           setState(() => _isRetrying = false);
           return;
         }
@@ -790,7 +798,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    // 添加频率限制
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force && _lastParseTime != null && (now - _lastParseTime!) < reparseMinIntervalMilliseconds) {
       LogUtil.i('解析频率过高，跳过此次解析，间隔: ${now - _lastParseTime!}ms');
@@ -803,22 +810,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
-      await _disposeStreamUrl(); // 先释放旧实例
-      _streamUrl = StreamUrl(url); // 保存新实例
-      String newParsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
+      await _disposeStreamUrl();
+      _streamUrl = StreamUrl(url);
+      String newParsedUrl = await _streamUrl!.getStreamUrl();
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
-        await _disposeStreamUrl(); // 解析失败时释放
+        await _disposeStreamUrl();
         _handleSourceSwitching();
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
-        await _disposeStreamUrl(); // 无需切换时释放
+        await _disposeStreamUrl();
         return;
       }
 
-      // 检查当前缓冲区状态，若恢复则取消预加载
+      // 检查缓冲区是否恢复
       final position = _playerController?.videoPlayerController?.value.position ?? Duration.zero;
       final bufferedPosition = _playerController?.videoPlayerController?.value.buffered?.isNotEmpty == true
           ? _playerController!.videoPlayerController!.value.buffered!.last.end
@@ -829,31 +836,52 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _isParsing = false;
         setState(() => _isRetrying = false);
-        await _disposeStreamUrl(); // 网络恢复时释放
+        await _disposeStreamUrl();
         return;
       }
 
-      _preCachedUrl = newParsedUrl; // 只设置预缓存地址，不更新 _currentPlayUrl
+      // 设置预缓存地址并预加载
+      _preCachedUrl = newParsedUrl;
       LogUtil.i('预缓存地址: $_preCachedUrl');
 
       final newSource = BetterPlayerConfig.createDataSource(
-        isHls: _isHlsStream(newParsedUrl), // 使用新地址判断 HLS，不影响当前 _isHls
+        isHls: _isHlsStream(newParsedUrl),
         url: newParsedUrl,
       );
 
       if (_playerController != null) {
+        // 检查是否被其他事件中断
+        if (_isDisposing || _isSwitchingChannel) {
+          LogUtil.i('预加载前检测到中断，退出重新解析');
+          _preCachedUrl = null;
+          await _disposeStreamUrl();
+          return;
+        }
+
         await _playerController!.preCache(newSource);
+        
+        // 检查预加载后是否被中断
+        if (_isDisposing || _isSwitchingChannel) {
+          LogUtil.i('预加载完成后检测到中断，退出重新解析');
+          _preCachedUrl = null;
+          await _disposeStreamUrl();
+          return;
+        }
+
         _progressEnabled = false;
         _playDurationTimer?.cancel();
         _playDurationTimer = null;
-        _lastParseTime = now; // 成功时更新 _lastParseTime
+        _lastParseTime = now;
+
+        // 预加载完成后立即切换
+        await _switchToPreCachedUrl('m3u8 失效后重新解析并切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
-      await _disposeStreamUrl(); // 异常时释放
+      await _disposeStreamUrl();
       _handleSourceSwitching();
     } finally {
       _isParsing = false;
