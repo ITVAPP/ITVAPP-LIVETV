@@ -1237,12 +1237,14 @@ window.removeEventListener('unload', null, true);
       }
 
       /// 准备M3U8检测器代码，从外部加载
+      /// 准备M3U8检测器代码，从外部加载
       Future<String> _prepareM3U8DetectorCode() async {
         try {
           final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
           return script.replaceAll('FILE_PATTERN', _filePattern);
         } catch (e) {
           LogUtil.e('加载M3U8检测器脚本失败: $e');
+          return '(function(){console.error("M3U8检测器加载失败");})();';
         }
       }
 }
