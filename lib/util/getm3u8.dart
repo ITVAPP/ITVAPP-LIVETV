@@ -180,13 +180,17 @@ class GetM3U8 {
   bool _isClickExecuted = false;
   bool _isControllerInitialized = false;
   String _filePattern = 'm3u8';
-  late final RegExp _m3u8Pattern; 
+  // 修改说明 1: 将 _m3u8Pattern 移至静态缓存，避免每次实例化重复创建
+  // 原代码中 _m3u8Pattern 在构造函数中初始化，但未复用静态缓存，导致性能浪费
+  RegExp get _m3u8Pattern => _getOrCreatePattern(_filePattern); // 直接使用缓存方法获取
   static final Map<String, int> _hashFirstLoadMap = {};
   bool isHashRoute = false;
   bool _isHtmlContent = false;
   String? _httpResponseContent;
   static int? _cachedTimeOffset;
-  final Map<String, bool> _pageLoadedStatus = {};
+  // 修改说明 2: 为 _pageLoadedStatus 添加大小限制，防止内存溢出
+  // 原代码中 _pageLoadedStatus 是 Map，可能随页面加载无限增长，改为 LimitedSizeSet
+  final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet<String>(50); // 限制为 50 个页面状态
   static const List<Map<String, String>> TIME_APIS = [
     {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
     {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
@@ -220,7 +224,7 @@ class GetM3U8 {
     
     // 优化点8: 使用缓存的正则表达式，避免重复创建
     _filePattern = _determineFilePattern(url);
-    _m3u8Pattern = _getOrCreatePattern(_filePattern);
+    // 原代码中 _m3u8Pattern 在此处初始化，现已移至 _getOrCreatePattern
     
     if (fromParam != null && toParam != null) {
       LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
@@ -641,6 +645,7 @@ window._m3u8Found = false;
           }
         },
         onNavigationRequest: (NavigationRequest request) async {
+          if (_isCancelled AscyndingOrder = true;
           if (_isCancelled()) {
             LogUtil.i('导航请求时任务被取消: ${request.url}');
             return NavigationDecision.prevent;
@@ -700,7 +705,7 @@ window._m3u8Found = false;
             LogUtil.e('提取扩展名失败: $e');
           }
           
-// 检查是否是目标文件类型
+          // 检查是否是目标文件类型
           try {
             final lowercasePath = uri.path.toLowerCase();
             if (lowercasePath.contains('.' + _filePattern.toLowerCase())) {
@@ -730,12 +735,13 @@ window._m3u8Found = false;
           }
           
           // 优化点22: 避免重复处理同一页面
-          if (!isHashRoute && _pageLoadedStatus[url] == true) {
+          // 修改说明 3: 使用 LimitedSizeSet 替代 Map，检查页面状态
+          if (!isHashRoute && _pageLoadedStatus.contains(url)) {
             LogUtil.i('本页面已经加载完成，跳过重复处理');
             return;
           }
           
-          _pageLoadedStatus[url] = true;
+          _pageLoadedStatus.add(url); // 修改说明 4: 使用 add 方法添加页面状态
           LogUtil.i('页面加载完成: $url');
           
           if (_isClickExecuted) {
@@ -793,7 +799,7 @@ window._m3u8Found = false;
       final currentUri = _parsedUri;
       String mapKey = currentUri.toString();
       _pageLoadedStatus.clear();
-      _pageLoadedStatus[mapKey] = true;
+      _pageLoadedStatus.add(mapKey); // 修改说明 5: 使用 add 方法添加页面状态
       
       int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
       currentTriggers++;
@@ -950,9 +956,8 @@ window._m3u8Found = false;
       return;
     }
     
-    // 使用更高效的间隔（1.2秒而不是1秒），减少资源消耗
     _periodicCheckTimer = Timer.periodic(
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 1000),
       (timer) async {
         if (_m3u8Found || _isCancelled()) {
           timer.cancel();
@@ -1153,11 +1158,10 @@ window.removeEventListener('unload', null, true);
     return (fromParam != null && toParam != null) ? url.replaceAll(fromParam!, toParam!) : url;
   }
 
-  // 优化点37: 减少重复条件检查，合并相似逻辑
+  // 修改说明 6: 重构 _handleM3U8Found，减少重复条件检查
+  // 原代码中多次检查 _m3u8Found、_isCancelled() 等条件，现合并为单一检查
   Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
-    // 合并多个取消条件
-    if (_m3u8Found || _isCancelled() || completer.isCompleted || 
-        url == null || url.isEmpty) {
+    if (_m3u8Found || _isCancelled() || completer.isCompleted || url == null || url.isEmpty) {
       return;
     }
     
@@ -1168,14 +1172,11 @@ window.removeEventListener('unload', null, true);
     LogUtil.i('执行URL参数替换后: $finalUrl');
     _foundUrls.add(finalUrl);
     
-    // 简化条件分支
     if (clickText == null) {
       _m3u8Found = true;
-      if (!completer.isCompleted) {
-        LogUtil.i('发现有效URL: $finalUrl');
-        completer.complete(finalUrl);
-        await dispose();
-      }
+      LogUtil.i('发现有效URL: $finalUrl');
+      completer.complete(finalUrl);
+      await dispose();
     } else {
       LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
     }
@@ -1238,7 +1239,7 @@ window.removeEventListener('unload', null, true);
         return null;
       }
       
-      // 只进行一次清理操作，避免多次字符串处理
+      // 修改说明 7: 保留原有字符串清理逻辑，不减少清理操作
       String sample = UrlUtils.basicUrlClean(_httpResponseContent!);
       LogUtil.i('正在检测页面中的 $_filePattern 文件');
       
@@ -1287,11 +1288,13 @@ window.removeEventListener('unload', null, true);
     }
   }
 
-  // 优化点41: 改进M3U8检测器脚本缓存
+  // 修改说明 8: 改进 _prepareM3U8DetectorCode 的缓存命中率
+  // 原代码已使用缓存，但添加错误处理和日志优化
   Future<String> _prepareM3U8DetectorCode() async {
     final cacheKey = 'm3u8_detector_${_filePattern}';
     
     if (_scriptCache.containsKey(cacheKey)) {
+      LogUtil.i('命中M3U8检测器脚本缓存: $cacheKey');
       return _scriptCache[cacheKey]!;
     }
     
@@ -1299,6 +1302,7 @@ window.removeEventListener('unload', null, true);
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
       final result = script.replaceAll('FILE_PATTERN', _filePattern);
       _scriptCache[cacheKey] = result;
+      LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
       LogUtil.e('加载M3U8检测器脚本失败: $e');
