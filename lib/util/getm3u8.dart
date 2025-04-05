@@ -531,7 +531,7 @@ window._m3u8Found = false;
       // 定义脚本名称映射，便于日志记录
       final scriptNames = [
         '时间拦截器脚本 (time_interceptor.js)',
-        '初始化变量脚本',
+        '自动点击脚本脚本 (click_handler.js)',
         'M3U8检测器脚本 (m3u8_detector.js)',
       ];
 
@@ -1243,33 +1243,6 @@ window.removeEventListener('unload', null, true);
           return script.replaceAll('FILE_PATTERN', _filePattern);
         } catch (e) {
           LogUtil.e('加载M3U8检测器脚本失败: $e');
-          // 提供一个基本的检测脚本作为备份
-          return '''
-window._m3u8DetectorInitialized = true;
-function checkMediaElements(doc) {
-  if (!doc) return;
-  var sources = doc.querySelectorAll('source[src*=".$_filePattern"], video[src*=".$_filePattern"], audio[src*=".$_filePattern"]');
-  for (var i = 0; i < sources.length; i++) {
-    var url = sources[i].src || '';
-    if (url && url.includes('.$_filePattern')) {
-      window.M3U8Detector.postMessage(JSON.stringify({type: 'url', url: url, source: 'media-element'}));
-    }
-  }
-}
-function efficientDOMScan() {
-  // 简化版本
-  var urls = [];
-  var pageText = document.documentElement.innerHTML;
-  var regex = new RegExp('(https?://|//|/)[^\\'"\\\\s,()<>{}\\\\[\\\\]]*?\\\\.$_filePattern[^\\'"\\\\s,()<>{}\\\\[\\\\]]*', 'gi');
-  var match;
-  while ((match = regex.exec(pageText)) !== null) {
-    urls.push(match[0]);
-  }
-  for (var i = 0; i < urls.length; i++) {
-    window.M3U8Detector.postMessage(JSON.stringify({type: 'url', url: urls[i], source: 'dom-scan'}));
-  }
-}
-''';
         }
       }
 }
