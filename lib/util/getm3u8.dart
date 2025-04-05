@@ -1074,10 +1074,9 @@ if (window._m3u8DetectorInitialized) {
   Future<void> disposeWebView(WebViewController controller) async {
     try {
       await controller.setNavigationDelegate(NavigationDelegate());
-      LogUtil.i('导航委托已重置为默认');
-      
       await controller.loadRequest(Uri.parse('about:blank'));
-      LogUtil.i('已加载空白页面，清空内容并中断加载');
+      await Future.delayed(Duration(milliseconds: 100)); // 等待空白页面加载
+      await controller.clearCache();
       
       if (_isHtmlContent) {
         try {
