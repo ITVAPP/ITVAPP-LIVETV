@@ -131,7 +131,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _isHls = _isHlsStream(_currentPlayUrl);
   }
 
-  // 切换到预缓存地址（问题 1 修改）
+  // 切换到预缓存地址（问题 2 修改）
   Future<void> _switchToPreCachedUrl(String logDescription) async {
     _cleanupTimers(); // 修改点：添加清理计时器，确保切换时重置 _m3u8CheckTimer
 
@@ -159,7 +159,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (isPlaying) {
         await _playerController?.play();
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
-        _progressEnabled = false;
         _startPlayDurationTimer(); // 保持原有逻辑，切换后重新启动 60 秒计时器
       } else {
         LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
@@ -169,6 +168,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _retryPlayback();
       return;
     } finally {
+      _progressEnabled = false; // 修改点：移到 finally 块，确保无论是否播放都重置
       _preCachedUrl = null;
       await _disposePreCacheStreamUrl();
     }
@@ -320,7 +320,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 视频事件监听器（问题 2 修改）
+  // 视频事件监听器
   void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _isDisposing || event.betterPlayerEventType == BetterPlayerEventType.changedPlayerVisibility || event.betterPlayerEventType == BetterPlayerEventType.bufferingUpdate || event.betterPlayerEventType == BetterPlayerEventType.changedTrack || event.betterPlayerEventType == BetterPlayerEventType.setupDataSource || event.betterPlayerEventType == BetterPlayerEventType.changedSubtitles) return;
 
@@ -357,7 +357,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return;
         }
         
-        // 修改点：情况 2 - 异常触发切换
         if (_isHls) {
           if (_preCachedUrl != null) {
             LogUtil.i('异常触发，预缓存地址已准备，立即切换');
@@ -445,7 +444,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
           if (position != null && duration != null) {
-            // 修改点：情况 1 - HLS 剩余时间判断
             final remainingTime = duration - position;
             if (_isHls && _preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
               LogUtil.i('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒，切换到预缓存地址');
@@ -494,7 +492,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     
     try {
-      LogUtil.i('检查 m3u8 有效性: $_currentPlayUrl');
       
       // 使用 HttpUtil 获取 m3u8 内容，利用其内置的头部管理和重试逻辑
       final String? content = await HttpUtil().getRequest<String>(
@@ -509,7 +506,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       
       if (content == null || content.isEmpty) {
-        LogUtil.e('m3u8 内容为空或获取失败');
+        LogUtil.e('m3u8 内容为空或获取失败：$_currentPlayUrl');
         return false;
       }
       
@@ -825,7 +822,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _m3u8InvalidCount = 0;
   }
 
-  // 重新解析并准备预缓存地址（问题 2 修改）
+  // 重新解析并准备预缓存地址（问题 1 和问题 2 修改）
   Future<void> _reparseAndSwitch({bool force = false}) async {
     if (_isRetrying || _isSwitchingChannel || _isDisposing || _isParsing) {
       LogUtil.i('重新解析被阻止: _isRetrying=$_isRetrying, _isSwitchingChannel=$_isSwitchingChannel, _isDisposing=$_isDisposing, _isParsing=$_isParsing');
@@ -838,6 +835,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
+    _cleanupTimers(); // 修改点（问题 1）：开始时清理 _m3u8CheckTimer，停止检测
     _isParsing = true;
     setState(() => _isRetrying = true);
 
@@ -850,7 +848,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (newParsedUrl == 'ERROR') {
         LogUtil.e('重新解析失败: $url');
         await _disposeStreamUrl();
-        _handleSourceSwitching();
+        // 修改点（问题 1）：不主动操作，依赖错误监听触发重试
         return;
       }
       if (newParsedUrl == _currentPlayUrl) {
@@ -884,12 +882,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return;
         }
 
-        _progressEnabled = false;
-        _playDurationTimer?.cancel();
-        _playDurationTimer = null;
+        _progressEnabled = true; // 修改点（问题 2）：预缓存完成后启用 _progressEnabled
         _lastParseTime = now;
 
-        // 修改点：不再直接调用 _switchToPreCachedUrl，等待 progress 或 exception 触发
         LogUtil.i('预缓存完成，等待剩余时间或异常触发切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
