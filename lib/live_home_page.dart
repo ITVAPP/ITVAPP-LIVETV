@@ -772,52 +772,54 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  /// 清理播放器控制器，确保资源释放
-  Future<void> _cleanupController(BetterPlayerController? controller) async {
-    if (controller == null) return;
+/// 清理播放器控制器，确保资源释放
+Future<void> _cleanupController(BetterPlayerController? controller) async {
+  if (controller == null) return;
 
-    _isDisposing = true;
-    try {
-      LogUtil.i('开始清理播放器控制器');
-      _cleanupTimers(); // 清理所有计时器
-      controller.removeEventsListener(_videoListener);
+  _isDisposing = true;
+  try {
+    LogUtil.i('开始清理播放器控制器');
+    _cleanupTimers(); // 清理所有计时器
+    controller.removeEventsListener(_videoListener);
 
-      // 尝试暂停和降低音量，减少用户感知的中断
-      if (controller.isPlaying() ?? false) {
-        await controller.pause();
-        await controller.setVolume(0);
-        LogUtil.i('播放器已暂停并静音');
-      }
-
-      // 释放所有关联的解析实例
-      await _disposeStreamUrl();
-      await _disposePreCacheStreamUrl();
-      
-      // 释放播放器控制器
-      await controller.videoPlayerController?.dispose();
-      await controller.dispose();
-      LogUtil.i('播放器控制器已释放');
-
-      // 重置状态
-      setState(() {
-        _playerController = null;
-        _progressEnabled = false;
-        _isAudio = false;
-        _isParsing = false;
-        _isUserPaused = false;
-        _showPlayIcon = false;
-        _showPauseIconFromListener = false;
-        _lastCheckTime = null;
-        _lastParseTime = null;
-        _preCachedUrl = null; // 确保清理预缓存地址
-      });
-      LogUtil.i('播放器状态已重置');
-    } catch (e, stackTrace) {
-      LogUtil.logError('清理播放器失败', e, stackTrace);
-    } finally {
-      _isDisposing = false; // 确保释放标志被重置
+    // 尝试暂停和降低音量，减少用户感知的中断
+    if (controller.isPlaying() ?? false) {
+      await controller.pause();
+      await controller.setVolume(0);
+      LogUtil.i('播放器已暂停并静音');
     }
+
+    // 释放所有关联的解析实例
+    await _disposeStreamUrl();
+    await _disposePreCacheStreamUrl();
+    
+    // 释放播放器控制器
+    if (controller.videoPlayerController != null) {
+      await controller.videoPlayerController?.dispose();
+    }
+    controller.dispose(); // 移除 await，因为 dispose() 返回 void
+    LogUtil.i('播放器控制器已释放');
+
+    // 重置状态
+    setState(() {
+      _playerController = null;
+      _progressEnabled = false;
+      _isAudio = false;
+      _isParsing = false;
+      _isUserPaused = false;
+      _showPlayIcon = false;
+      _showPauseIconFromListener = false;
+      _lastCheckTime = null;
+      _lastParseTime = null;
+      _preCachedUrl = null; // 确保清理预缓存地址
+    });
+    LogUtil.i('播放器状态已重置');
+  } catch (e, stackTrace) {
+    LogUtil.logError('清理播放器失败', e, stackTrace);
+  } finally {
+    _isDisposing = false; // 确保释放标志被重置
   }
+}
 
   Future<void> _disposeStreamUrl() async {
     if (_streamUrl != null) {
