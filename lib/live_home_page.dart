@@ -100,6 +100,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _isUserPaused = false; // 是否为用户触发的暂停
   bool _showPlayIcon = false; // 控制播放图标显示
   bool _showPauseIconFromListener = false; // 控制非用户触发的暂停图标显示
+  int _m3u8InvalidCount = 0; // 新增：记录 m3u8 失效次数
 
   // 切换请求队列
   Map<String, dynamic>? _pendingSwitch; // 存储 {channel: PlayModel, sourceIndex: int} 或 null
@@ -364,42 +365,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.bufferingStart:
         setState(() {
           isBuffering = true;
-          toastString = S.current.loading; // 显示"加载中"
+          toastString = S.current.loading;
         });
-        
-        // 仅在视频已开始播放后启用10秒缓冲超时
         if (isPlaying) {
-          // 清理现有超时定时器，避免叠加
           _timeoutTimer?.cancel();
           _timeoutTimer = Timer(const Duration(seconds: bufferingStartSeconds), () {
-            // 检查各种状态以避免不必要触发
             if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
               LogUtil.i('缓冲超时检查被阻止: mounted=$mounted, isBuffering=$isBuffering, '
                   'isRetrying=$_isRetrying, isSwitchingChannel=$_isSwitchingChannel, '
                   'isDisposing=$_isDisposing, isParsing=$_isParsing, pendingSwitch=$_pendingSwitch');
               return;
             }
-            
-            // 检查播放器是否仍在缓冲且未播放
             if (_playerController?.isPlaying() != true) {
-              LogUtil.e('播放中缓冲超过10秒，触发重试');
-              _retryPlayback(resetRetryCount: true); // 重置重试次数后重试
+              LogUtil.e('播放中缓冲超过15秒，触发重试');
+              _retryPlayback(resetRetryCount: true);
             }
           });
         } else {
-          LogUtil.i('初始缓冲，不启用10秒超时');
+          LogUtil.i('初始缓冲，不启用15秒超时');
         }
         break;
 
       case BetterPlayerEventType.bufferingEnd:
         setState(() {
           isBuffering = false;
-          toastString = 'HIDE_CONTAINER'; // 隐藏提示
+          toastString = 'HIDE_CONTAINER';
           if (!_isUserPaused) _showPauseIconFromListener = false;
         });
-        _timeoutTimer?.cancel(); // 缓冲结束，取消超时定时器
-        _timeoutTimer = null;
-        _cleanupTimers(); // 清理其他定时器
+        _timeoutTimer?.cancel();
+        _timeoutTimer = null; // 只清理超时计时器
         break;
 
       case BetterPlayerEventType.play:
@@ -522,23 +516,48 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 定期检查 m3u8 文件定时器
+  // 定期检查 m3u8 文件定时器（引入两次检查机制）
   void _startM3u8CheckTimer() {
     _m3u8CheckTimer?.cancel();
     
-    // HLS 流且播放指定时间后启动检查
     if (!_isHls) return;
     
     _m3u8CheckTimer = Timer.periodic(const Duration(seconds: m3u8CheckIntervalSeconds), (_) async {
-      if (!mounted || !_isHls || !isPlaying || _isDisposing) return;
+      if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) return;
       
       _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
       
       // 检查 m3u8 有效性
       final isValid = await _checkM3u8Validity();
       if (!isValid) {
-        LogUtil.i('m3u8 检查已失效，触发重新解析');
-        await _reparseAndSwitch();
+        _m3u8InvalidCount++;
+        LogUtil.i('m3u8 检查失效，次数: $_m3u8InvalidCount');
+        
+        if (_m3u8InvalidCount == 1) {
+          // 第一次失效，等待 retryDelaySeconds 后再次检查
+          LogUtil.i('第一次检测到 m3u8 失效，等待 $retryDelaySeconds 秒后再次检查');
+          Timer(Duration(seconds: retryDelaySeconds), () async {
+            if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) {
+              _m3u8InvalidCount = 0; // 中断时重置
+              return;
+            }
+            final secondCheck = await _checkM3u8Validity();
+            if (!secondCheck) {
+              LogUtil.i('第二次检查确认 m3u8 失效，触发重新解析');
+              await _reparseAndSwitch();
+            } else {
+              LogUtil.i('第二次检查 m3u8 有效，取消重新解析');
+              _m3u8InvalidCount = 0; // 重置计数
+            }
+          });
+        } else if (_m3u8InvalidCount >= 2) {
+          // 连续两次失效，直接触发重新解析
+          LogUtil.i('连续两次检查到 m3u8 失效，触发重新解析');
+          await _reparseAndSwitch();
+          _m3u8InvalidCount = 0; // 重置计数
+        }
+      } else {
+        _m3u8InvalidCount = 0; // 检查通过，重置计数
       }
     });
   }
@@ -790,6 +809,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _timeoutActive = false;
     _m3u8CheckTimer?.cancel(); // 清理 m3u8 检查定时器
     _m3u8CheckTimer = null;
+    _m3u8InvalidCount = 0;
   }
 
   Future<void> _reparseAndSwitch({bool force = false}) async {
@@ -825,22 +845,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
 
-      // 检查缓冲区是否恢复
-      final position = _playerController?.videoPlayerController?.value.position ?? Duration.zero;
-      final bufferedPosition = _playerController?.videoPlayerController?.value.buffered?.isNotEmpty == true
-          ? _playerController!.videoPlayerController!.value.buffered!.last.end
-          : position;
-      final remainingBuffer = bufferedPosition - position;
-      if (remainingBuffer.inSeconds > networkRecoveryBufferSeconds) {
-        LogUtil.i('网络恢复，剩余缓冲 > $networkRecoveryBufferSeconds 秒，取消预加载');
-        _preCachedUrl = null;
-        _isParsing = false;
-        setState(() => _isRetrying = false);
-        await _disposeStreamUrl();
-        return;
-      }
-
-      // 设置预缓存地址并预加载
       _preCachedUrl = newParsedUrl;
       LogUtil.i('预缓存地址: $_preCachedUrl');
 
@@ -850,7 +854,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
 
       if (_playerController != null) {
-        // 检查是否被其他事件中断
         if (_isDisposing || _isSwitchingChannel) {
           LogUtil.i('预加载前检测到中断，退出重新解析');
           _preCachedUrl = null;
@@ -860,7 +863,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
         await _playerController!.preCache(newSource);
         
-        // 检查预加载后是否被中断
         if (_isDisposing || _isSwitchingChannel) {
           LogUtil.i('预加载完成后检测到中断，退出重新解析');
           _preCachedUrl = null;
@@ -873,7 +875,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _playDurationTimer = null;
         _lastParseTime = now;
 
-        // 预加载完成后立即切换
         await _switchToPreCachedUrl('m3u8 失效后重新解析并切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
