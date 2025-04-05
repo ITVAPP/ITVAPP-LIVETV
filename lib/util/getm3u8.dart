@@ -44,6 +44,7 @@ class UrlUtils {
       try {
         url = Uri.decodeComponent(url);
       } catch (e) {
+        LogUtil.i('URL解码失败，保持原样: $e');
       }
     }
     return url;
@@ -124,6 +125,7 @@ class GetM3U8 {
   bool _isClickExecuted = false;
   bool _isControllerInitialized = false;
   String _filePattern = 'm3u8';
+  late final RegExp _m3u8Pattern; // 修改为实例变量
   static final Map<String, int> _hashFirstLoadMap = {};
   bool isHashRoute = false;
   bool _isHtmlContent = false;
@@ -140,12 +142,6 @@ class GetM3U8 {
   final CancelToken? cancelToken;
   bool _isDisposed = false;
   Timer? _timeoutTimer;
-
-  // 添加静态正则表达式优化性能
-  static final _m3u8Pattern = RegExp(
-    r'(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*',
-    caseSensitive: false,
-  );
 
   GetM3U8({
     required this.url,
@@ -165,6 +161,11 @@ class GetM3U8 {
       _parsedUri = Uri(scheme: 'https', host: 'invalid.host');
       isHashRoute = false;
     }
+    // 初始化正则表达式
+    _m3u8Pattern = RegExp(
+      "(?:https?://|//|/)[^'\"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'\"\\s,()<>{}\\[\\]]*",
+      caseSensitive: false,
+    );
     if (fromParam != null && toParam != null) {
       LogUtil.i('检测到URL参数替换规则: from=$fromParam, to=$toParam');
     }
@@ -865,6 +866,11 @@ window.removeEventListener('unload', null, true);
     for (final entry in specialRules.entries) {
       if (url.contains(entry.key)) {
         _filePattern = entry.value;
+        // 更新正则表达式以匹配新的 _filePattern
+        _m3u8Pattern = RegExp(
+          "(?:https?://|//|/)[^'\"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'\"\\s,()<>{}\\[\\]]*",
+          caseSensitive: false,
+        );
         break;
       }
     }
