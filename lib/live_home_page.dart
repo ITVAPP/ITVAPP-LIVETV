@@ -870,7 +870,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           if (_playerController!.videoPlayerController != null) {
             await _playerController!.videoPlayerController!.dispose();
           }
-          await _playerController!.dispose();
+          _playerController!.dispose(); 
+          _playerController = null;
         } catch (e, stackTrace) {
           LogUtil.logError('释放播放器资源失败', e, stackTrace);
         } finally {
@@ -881,7 +882,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _streamUrl = null;
       await _disposeStreamUrlInstance(_preCacheStreamUrl);
       _preCacheStreamUrl = null;
-      await _adManager.dispose(); // 整合广告资源清理
+      _adManager.dispose(); // 清理广告资源
       if (mounted && !isDisposing) {
         _updatePlayState(
           playing: false,
