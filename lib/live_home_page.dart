@@ -33,7 +33,7 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 主页面
-class LiveHomePage extends StatefulWidget {
+class LiveHomePage extends StatefulWidget { 
   final PlaylistModel m3uData;
   const LiveHomePage({super.key, required this.m3uData});
 
