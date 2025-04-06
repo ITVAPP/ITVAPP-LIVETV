@@ -61,14 +61,33 @@ class SwitchRequest {
 /// 修改点1：计时器管理类优化，使用单一 Timer.periodic
 class TimerManager {
   Timer? _timer;
+  int _currentTick = 0; // 记录当前 tick
   final Map<TimerType, Tuple2<Duration, Function>> _tasks = {};
+
+  /// 根据 TimerType 获取检查时间
+  Duration _getTaskInterval(TimerType type) {
+    switch (type) {
+      case TimerType.retry: return const Duration(seconds: retryDelaySeconds); // 2s
+      case TimerType.m3u8Check: return const Duration(seconds: m3u8CheckIntervalSeconds); // 10s
+      case TimerType.playDuration: return const Duration(seconds: initialProgressDelaySeconds); // 60s
+      case TimerType.timeout: return const Duration(seconds: defaultTimeoutSeconds); // 36s
+      case TimerType.bufferingCheck: return const Duration(seconds: bufferingStartSeconds); // 10s
+      default: return const Duration(milliseconds: 1000); // 默认 1000ms
+    }
+  }
 
   /// 启动统一计时器
   void startUnifiedTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(milliseconds: 1000), (timer) {
+    if (_tasks.isEmpty) return;
+    final intervals = _tasks.keys.map((type) => _getTaskInterval(type).inMilliseconds);
+    final minInterval = intervals.reduce((a, b) => a < b ? a : b);
+    final interval = Duration(milliseconds: minInterval);
+    _timer = Timer.periodic(interval, (timer) {
+      _currentTick++;
       _tasks.forEach((type, task) {
-        if (timer.tick % (task.item1.inMilliseconds / 1000) == 0) {
+        final taskInterval = task.item1.inMilliseconds;
+        if (_currentTick % (taskInterval ~/ interval.inMilliseconds) == 0) {
           task.item2();
         }
       });
@@ -78,8 +97,11 @@ class TimerManager {
   /// 添加任务（替代 startTimer 和 startPeriodicTimer）
   void addTask(TimerType type, Duration duration, Function callback) {
     cancelTask(type); // 先取消同类型任务
-    _tasks[type] = Tuple2(duration, callback);
-    if (_timer == null) startUnifiedTimer();
+    final effectiveDuration = duration == const Duration(milliseconds: 100) 
+        ? _getTaskInterval(type) 
+        : duration;
+    _tasks[type] = Tuple2(effectiveDuration, callback);
+    startUnifiedTimer();
   }
 
   /// 取消任务（替代 cancelTimer）
@@ -88,6 +110,9 @@ class TimerManager {
     if (_tasks.isEmpty) {
       _timer?.cancel();
       _timer = null;
+      _currentTick = 0;
+    } else {
+      startUnifiedTimer();
     }
   }
 
@@ -96,12 +121,11 @@ class TimerManager {
     _tasks.clear();
     _timer?.cancel();
     _timer = null;
+    _currentTick = 0;
   }
 
   /// 检查任务是否活跃（替代 isActive）
-  bool isActive(TimerType type) {
-    return _tasks.containsKey(type);
-  }
+  bool isActive(TimerType type) => _tasks.containsKey(type);
 }
 
 /// 用于计时器任务的元组类
@@ -212,6 +236,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool? userPaused,
     bool? switching,
     bool? retrying,
+    bool quittering,
     bool? parsing,
     int? sourceIndex,
     int? retryCount,
@@ -219,26 +244,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (!mounted) return;
 
     setState(() {
-      if (playing != null) isPlaying = playing;
-      if (buffering != null) isBuffering = buffering;
-      if (message != null) toastString = message;
-      if (showPlay != null) _showPlayIcon = showPlay;
-      if (showPause != null) _showPauseIconFromListener = showPause;
-      if (userPaused != null) _isUserPaused = userPaused;
-      if (switching != null) {
+      if (playing != null && isPlaying != playing) isPlaying = playing;
+      if (buffering != null && isBuffering != buffering) isBuffering = buffering;
+      if (message != null && toastString != message) toastString = message;
+      if (showPlay != null && _showPlayIcon != showPlay) _showPlayIcon = showPlay;
+      if (showPause != null && _showPauseIconFromListener != showPause) _showPauseIconFromListener = showPause;
+      if (userPaused != null && _isUserPaused != userPaused) _isUserPaused = userPaused;
+      if (switching != null && _isSwitchingChannel != switching) {
         _isSwitchingChannel = switching;
-        _cachedIsSwitchingChannel = switching; // 同步缓存
+        _cachedIsSwitchingChannel = switching;
       }
-      if (retrying != null) {
+      if (retrying != null && _isRetrying != retrying) {
         _isRetrying = retrying;
-        _cachedIsRetrying = retrying; // 同步缓存
+        _cachedIsRetrying = retrying;
       }
-      if (parsing != null) {
+      if (parsing != null && _isParsing != parsing) {
         _isParsing = parsing;
-        _cachedIsParsing = parsing; // 同步缓存
+        _cachedIsParsing = parsing;
       }
-      if (sourceIndex != null) _sourceIndex = sourceIndex;
-      if (retryCount != null) _retryCount = retryCount;
+      if (sourceIndex != null && _sourceIndex != sourceIndex) _sourceIndex = sourceIndex;
+      if (retryCount != null && _retryCount != retryCount) _retryCount = retryCount;
     });
   }
 
@@ -979,63 +1004,44 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   Future<void> _releaseAllResources({bool isDisposing = false}) async {
-    if (_isDisposing) return;
-    _isDisposing = true;
-    
-    try {
-      LogUtil.i('开始释放所有资源');
-      
-      _timerManager.cancelAll();
-      
-      if (_playerController != null) {
-        try {
-          _playerController!.removeEventsListener(_videoListener);
-          
-          if (_playerController!.isPlaying() ?? false) {
-            await _playerController!.pause();
-            await _playerController!.setVolume(0);
-          }
-          
-          if (_playerController!.videoPlayerController != null) {
-            await _playerController!.videoPlayerController!.dispose();
-          }
-          
-          _playerController!.dispose(); 
-          _playerController = null;
-        } catch (e, stackTrace) {
-          LogUtil.logError('释放播放器资源失败', e, stackTrace);
+    if (!mounted) return;
+    LogUtil.i('开始释放所有资源');
+    _timerManager.cancelAll();
+    if (_playerController != null) {
+      try {
+        _playerController!.removeEventsListener(_videoListener);
+        if (_playerController!.isPlaying() ?? false) {
+          await _playerController!.pause();
+          await _playerController!.setVolume(0);
         }
+        await _playerController!.dispose();
+      } catch (e, stackTrace) {
+        LogUtil.logError('释放播放器资源失败', e, stackTrace);
+      } finally {
+        _playerController = null;
       }
-      
-      await _disposeStreamUrl();
-      await _disposePreCacheStreamUrl();
-      
-      if (mounted && !isDisposing) {
-        _updatePlayState(
-          playing: false,
-          buffering: false,
-          retrying: false,
-          parsing: false,
-          switching: false,
-          showPlay: false,
-          showPause: false,
-          userPaused: false,
-        );
-        
-        _progressEnabled = false;
-        _preCachedUrl = null;
-        _lastParseTime = null;
-        _currentPlayUrl = null;
-        _originalUrl = null;
-        _m3u8InvalidCount = 0;
-      }
-      
-      LogUtil.i('所有资源已释放');
-    } catch (e, stackTrace) {
-      LogUtil.logError('释放资源过程中发生错误', e, stackTrace);
-    } finally {
-      _isDisposing = isDisposing;
     }
+    await _disposeStreamUrl();
+    await _disposePreCacheStreamUrl();
+    if (mounted && !isDisposing) {
+      _updatePlayState(
+        playing: false,
+        buffering: false,
+        retrying: false,
+        parsing: false,
+        switching: false,
+        showPlay: false,
+        showPause: false,
+        userPaused: false,
+      );
+      _progressEnabled = false;
+      _preCachedUrl = null;
+      _lastParseTime = null;
+      _currentPlayUrl = null;
+      _originalUrl = null;
+      _m3u8InvalidCount = 0;
+    }
+    LogUtil.i('所有资源已释放');
   }
 
   /// 修改点7：移除 _cleanupController，改为直接调用 _releaseAllResources
@@ -1395,7 +1401,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
-      _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
+      _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!ogie);
 
       if (_currentChannel != null) {
         if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
