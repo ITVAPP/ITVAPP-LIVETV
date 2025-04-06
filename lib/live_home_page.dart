@@ -281,16 +281,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    if (_preCachedUrl == _currentPlayUrl) {
+    // 保存到本地变量并立即清空全局变量，防止重复切换
+    String tempCachedUrl = _preCachedUrl!;
+    _preCachedUrl = null; // 立即清空
+
+    LogUtil.i('$logDescription: 准备比较 - 预缓存地址: $tempCachedUrl, 当前地址: $_currentPlayUrl');
+
+    if (tempCachedUrl == _currentPlayUrl) {
       LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，尝试重新解析');
-      _preCachedUrl = null;
       await _disposePreCacheStreamUrl(); // 先释放预缓存资源
-      await _reparseAndSwitch(); // 然后重新解析
+      await _reparseAndSwitch(force: true); // 强制重新解析
       return;
     }
 
-    LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
-    _updatePlayUrl(_preCachedUrl!); // 统一更新播放URL和HLS状态
+    LogUtil.i('$logDescription: 切换到预缓存地址: $tempCachedUrl');
+    _updatePlayUrl(tempCachedUrl); // 使用本地变量更新播放URL和HLS状态
 
     final newSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
 
@@ -313,7 +318,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       // 确保在任何情况下都重置状态并释放资源
       _progressEnabled = false;
-      _preCachedUrl = null;
+      // 不需要再次清空_preCachedUrl，已经在前面清空了
       await _disposePreCacheStreamUrl(); // 释放预缓存资源
     }
   }
@@ -718,11 +723,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
           if (position != null && duration != null) {
             final remainingTime = duration - position;
+            
+            LogUtil.i('进度事件 - 剩余时间: ${remainingTime.inSeconds}秒, HLS: $_isHls, 有预缓存: ${_preCachedUrl != null}');
 
             // HLS流剩余时间处理
             if (_isHls && _preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
               LogUtil.i('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒，切换到预缓存地址');
-              await _switchToPreCachedUrl('HLS 剩余时间触发切换');
+              // 添加安全检查，避免因异步操作导致的重复触发
+              if (!_isDisposing && !_isSwitchingChannel && !_isParsing) {
+                await _switchToPreCachedUrl('HLS 剩余时间触发切换');
+              }
             }
             // 非HLS流剩余时间处理
             else if (!_isHls) {
@@ -787,7 +797,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       try {
         final headResponse = await dio.head(_currentPlayUrl!);
         if (headResponse.statusCode! >= 200 && headResponse.statusCode! < 300) {
-          _lastCheckTime = now;
+          _lastCheckTime = now; // 成功检查后更新时间
           return true; // 如果资源存在且可访问，直接返回有效
         }
       } catch (e) {
@@ -814,7 +824,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 更高效的有效性检查，使用正则表达式
         final bool hasValidContent = RegExp(r'#EXTINF|#EXT-X-STREAM-INF|\.ts').hasMatch(content);
         
-        _lastCheckTime = now;
+        _lastCheckTime = now; // 成功检查后更新时间
         return hasValidContent;
       }
       
@@ -832,6 +842,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 非HLS流不需要检查
     if (!_isHls) return;
     
+    // 初始化为0，确保首次检查能执行
+    _lastCheckTime = 0;
+    
     _timerManager.startPeriodicTimer(
       TimerType.m3u8Check,
       const Duration(seconds: m3u8CheckIntervalSeconds),
@@ -839,7 +852,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 如果不满足检查条件则跳过
         if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) return;
         
-        _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
+        // 移除这一行，让_checkM3u8Validity内部自己管理缓存时间
+        // _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
         
         // 执行m3u8有效性检查
         final isValid = await _checkM3u8Validity();
@@ -1334,7 +1348,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('重新解析结束');
     }
   }
-
+  
   // 获取地理信息
   Map<String, String?> _getLocationInfo(String? userInfo) {
     if (userInfo == null || userInfo.isEmpty) {
@@ -1362,7 +1376,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-// 基于地理前缀排序
+  // 基于地理前缀排序
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序: $items');
