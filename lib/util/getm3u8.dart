@@ -781,7 +781,7 @@ window._m3u8Found = false;
       return;
     }
     
-    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) async { // 每1.2秒检查一次
+    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) async { // 每1秒检查一次
       if (_m3u8Found || _isCancelled()) {
         timer.cancel();
         _periodicCheckTimer = null;
