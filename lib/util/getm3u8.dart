@@ -525,6 +525,10 @@ window._m3u8Found = false;
           LogUtil.i('页面开始加载时任务被取消: $url');
           return;
         }
+        // 添加 JavaScript 禁用图片加载以减少渲染开销
+        await _controller.runJavaScript('''
+          document.querySelectorAll("img").forEach(img => img.src = "");
+        ''').catchError((e) => LogUtil.e('禁用图片加载失败: $e'));
         for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
           try {
             await _controller.runJavaScript(initScripts[i]);
@@ -536,6 +540,14 @@ window._m3u8Found = false;
       },
       onNavigationRequest: (NavigationRequest request) async { // 导航请求
         if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
+        
+        // 检查并阻止广告/跟踪请求
+        final urlLower = request.url.toLowerCase();
+        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
+        if (adTrackingPattern.hasMatch(urlLower)) {
+          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+          return NavigationDecision.prevent;
+        }
         
         try { // 处理重定向
           final currentUri = _parsedUri;
@@ -839,8 +851,6 @@ if (window._m3u8DetectorInitialized) {
     if (_isDisposed) return; // 已释放则返回
     
     _isDisposed = true;
-    LogUtil.i('开始释放资源: ${DateTime.now()}');
-    
     _timeoutTimer?.cancel();
     _timeoutTimer = null;
     _periodicCheckTimer?.cancel();
@@ -1019,10 +1029,9 @@ window.removeEventListener('unload', null, true);
       }
       
       String sample = UrlUtils.basicUrlClean(_httpResponseContent!); // 清理内容
-      LogUtil.i('正在检测页面中的 $_filePattern 文件');
       
       final matches = _m3u8Pattern.allMatches(sample); // 匹配M3U8
-      LogUtil.i('正则匹配到 ${matches.length} 个结果');
+      LogUtil.i('正则匹配到 ${matches.length} 个 $_filePattern 结果');
       
       return await _processMatches(matches, sample); // 处理匹配结果
     } catch (e, stackTrace) {
