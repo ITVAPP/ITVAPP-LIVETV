@@ -281,36 +281,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    // 保存到本地变量并立即清空全局变量，防止重复切换
-    String tempCachedUrl = _preCachedUrl!;
-    _preCachedUrl = null; // 立即清空
-
-    LogUtil.i('$logDescription: 准备比较 - 预缓存地址: $tempCachedUrl, 当前地址: $_currentPlayUrl');
-
-    if (tempCachedUrl == _currentPlayUrl) {
+    if (_preCachedUrl == _currentPlayUrl) {
       LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，尝试重新解析');
+      _preCachedUrl = null;
       await _disposePreCacheStreamUrl(); // 先释放预缓存资源
-      await _reparseAndSwitch(force: true); // 强制重新解析
+      await _reparseAndSwitch(); // 然后重新解析
       return;
     }
 
-    LogUtil.i('$logDescription: 切换到预缓存地址: $tempCachedUrl');
-    _updatePlayUrl(tempCachedUrl); // 使用本地变量更新播放URL和HLS状态
+    LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
 
-    final newSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
+    final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHlsStream(_preCachedUrl));
 
     try {
       await _playerController?.preCache(newSource);
-      LogUtil.i('$logDescription: 预缓存新数据源完成: $_currentPlayUrl');
+      LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
       await _playerController?.setupDataSource(newSource);
 
       if (isPlaying) {
         await _playerController?.play();
-        LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_currentPlayUrl');
+        LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_preCachedUrl');
         _startPlayDurationTimer(); // 重启60秒计时器
       } else {
-        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_currentPlayUrl');
+        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
       }
+
+      // 切换成功后才更新 _currentPlayUrl
+      _updatePlayUrl(_preCachedUrl!); // 修改点：仅在成功切换后更新 _currentPlayUrl
     } catch (e, stackTrace) {
       LogUtil.logError('$logDescription: 切换到预缓存地址失败', e, stackTrace);
       _retryPlayback(); // 切换失败时触发重试
@@ -318,7 +315,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       // 确保在任何情况下都重置状态并释放资源
       _progressEnabled = false;
-      // 不需要再次清空_preCachedUrl，已经在前面清空了
+      _preCachedUrl = null;
       await _disposePreCacheStreamUrl(); // 释放预缓存资源
     }
   }
@@ -601,7 +598,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return channel.urls!.length > requestedIndex ? requestedIndex : 0;
   }
 
-/// 视频事件监听器
+  /// 视频事件监听器
   /// @param event 播放器事件
   void _videoListener(BetterPlayerEvent event) async {
     // 忽略不重要的事件和特殊状态
@@ -723,16 +720,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
           if (position != null && duration != null) {
             final remainingTime = duration - position;
-            
-            LogUtil.i('进度事件 - 剩余时间: ${remainingTime.inSeconds}秒, HLS: $_isHls, 有预缓存: ${_preCachedUrl != null}');
 
             // HLS流剩余时间处理
             if (_isHls && _preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
               LogUtil.i('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒，切换到预缓存地址');
-              // 添加安全检查，避免因异步操作导致的重复触发
-              if (!_isDisposing && !_isSwitchingChannel && !_isParsing) {
-                await _switchToPreCachedUrl('HLS 剩余时间触发切换');
-              }
+              await _switchToPreCachedUrl('HLS 剩余时间触发切换');
             }
             // 非HLS流剩余时间处理
             else if (!_isHls) {
@@ -778,56 +770,47 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_currentPlayUrl == null || !_isHls) {
       return true;
     }
-    
-    // 添加缓存以避免短时间内重复检查
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (_lastCheckTime != null && (now - _lastCheckTime!) < m3u8CheckCacheIntervalMs) {
-      LogUtil.i('m3u8 检查间隔过短，跳过本次检查');
-      return true; // 假定有效
-    }
 
     try {
-      // 使用更高效的请求配置
       final dio = Dio();
       dio.options.connectTimeout = const Duration(seconds: m3u8ConnectTimeoutSeconds);
       dio.options.receiveTimeout = const Duration(seconds: m3u8ReceiveTimeoutSeconds);
       dio.options.validateStatus = (status) => status != null && status < 400;
-      
+
       // 先尝试HEAD请求检查资源是否存在，减少传输数据量
       try {
         final headResponse = await dio.head(_currentPlayUrl!);
         if (headResponse.statusCode! >= 200 && headResponse.statusCode! < 300) {
-          _lastCheckTime = now; // 成功检查后更新时间
+          _lastCheckTime = DateTime.now().millisecondsSinceEpoch; // 仅在成功检查后更新
           return true; // 如果资源存在且可访问，直接返回有效
         }
       } catch (e) {
         // HEAD请求可能不被支持，忽略错误继续GET请求
       }
-      
+
       // 如果HEAD请求失败，使用GET请求但限制获取的数据大小
       final response = await dio.get(
         _currentPlayUrl!,
         options: Options(
           responseType: ResponseType.bytes,
-          // 只获取文件开头部分用于验证，通常m3u8文件较小但我们只需要检查格式
           headers: {'Range': 'bytes=0-4096'},
         ),
       );
-      
+
       if (response.statusCode! >= 200 && response.statusCode! < 300) {
         final bytes = response.data as List<int>;
         if (bytes.isEmpty) return false;
-        
+
         // 转换为文本进行格式检查
         final content = utf8.decode(bytes, allowMalformed: true);
-        
+
         // 更高效的有效性检查，使用正则表达式
         final bool hasValidContent = RegExp(r'#EXTINF|#EXT-X-STREAM-INF|\.ts').hasMatch(content);
-        
-        _lastCheckTime = now; // 成功检查后更新时间
+
+        _lastCheckTime = DateTime.now().millisecondsSinceEpoch; // 仅在成功检查后更新
         return hasValidContent;
       }
-      
+
       return false;
     } catch (e, stackTrace) {
       LogUtil.logError('m3u8 有效性检查出错', e, stackTrace);
@@ -838,30 +821,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 启动m3u8文件定期检查定时器
   void _startM3u8CheckTimer() {
     _timerManager.cancelTimer(TimerType.m3u8Check);
-    
+
     // 非HLS流不需要检查
     if (!_isHls) return;
-    
-    // 初始化为0，确保首次检查能执行
-    _lastCheckTime = 0;
-    
+
     _timerManager.startPeriodicTimer(
       TimerType.m3u8Check,
       const Duration(seconds: m3u8CheckIntervalSeconds),
       (_) async {
         // 如果不满足检查条件则跳过
         if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) return;
-        
-        // 移除这一行，让_checkM3u8Validity内部自己管理缓存时间
-        // _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
-        
+
         // 执行m3u8有效性检查
         final isValid = await _checkM3u8Validity();
         if (!isValid) {
           _m3u8InvalidCount++;
           LogUtil.i('m3u8 检查失效，次数: $_m3u8InvalidCount');
-          
-          // 处理m3u8无效情况
           _handleM3u8Invalid();
         } else {
           _m3u8InvalidCount = 0; // 重置计数
@@ -875,7 +850,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 第一次检测到失效，进行二次确认
     if (_m3u8InvalidCount == 1) {
       LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
-      
+
       _timerManager.startTimer(
         TimerType.retry,
         Duration(seconds: m3u8InvalidConfirmDelaySeconds),
@@ -885,7 +860,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _m3u8InvalidCount = 0; // 中断时重置
             return;
           }
-          
+
           // 进行二次检查
           final secondCheck = await _checkM3u8Validity();
           if (!secondCheck) {
@@ -1292,7 +1267,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         throw Exception('解析失败');
       }
 
-      // 检查新地址是否与当前播放地址相同
       if (newParsedUrl == _currentPlayUrl) {
         LogUtil.i('新地址与当前播放地址相同，无需切换');
         await _disposeStreamUrl();
@@ -1348,7 +1322,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('重新解析结束');
     }
   }
-  
+
   // 获取地理信息
   Map<String, String?> _getLocationInfo(String? userInfo) {
     if (userInfo == null || userInfo.isEmpty) {
