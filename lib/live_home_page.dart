@@ -242,7 +242,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String parsedUrl = await _streamUrl!.getStreamUrl().timeout(
         Duration(seconds: m3u8ReceiveTimeoutSeconds), // 使用 10 秒，与 m3u8 检查一致
         onTimeout: () {
-          LogUtil.w('流地址解析超时（${m3u8ReceiveTimeoutSeconds}秒）');
+          LogUtil.i('流地址解析超时（${m3u8ReceiveTimeoutSeconds}秒）');
           return 'ERROR';
         },
       );
@@ -312,7 +312,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           LogUtil.i('处理最新切换请求: ${_currentChannel!.title}, 源索引: $_sourceIndex');
           Future.microtask(() => _playVideo()); // 异步调度，避免递归
         } else if (_pendingSwitch != null) {
-          LogUtil.w('无法处理切换请求，因状态冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying');
+          LogUtil.i('无法处理切换请求，因状态冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying');
         }
       }
     }
@@ -322,7 +322,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 修改区域：增加空指针检查
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     if (channel == null) {
-      LogUtil.w('切换频道失败：channel 为 null');
+      LogUtil.i('切换频道失败：channel 为 null');
       return;
     }
     
