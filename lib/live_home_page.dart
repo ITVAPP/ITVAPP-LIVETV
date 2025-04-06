@@ -38,7 +38,7 @@ class LiveHomePage extends StatefulWidget {
   const LiveHomePage({super.key, required this.m3uData});
 
   @override
-  State<LiveHomePage No matter how complex the code is, I can handle it smoothly and accurately. Please provide the code you'd like me to optimize with comments, and I'll transform it into a clear, well-documented version!widget> createState() => _LiveHomePageState();
+  State<LiveHomePage> createState() => _LiveHomePageState();
 }
 
 /// 计时器类型枚举，用于区分不同计时任务
