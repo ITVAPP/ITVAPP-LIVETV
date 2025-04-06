@@ -789,7 +789,7 @@ window._m3u8Found = false;
   void _startUrlCheckTimer(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return; // 已取消或完成则返回
     
-    Timer(const Duration(milliseconds: 3500), () async { // 延迟 3.5 秒检查
+    Timer(const Duration(milliseconds: 2500), () async { // 延迟 2.5 秒检查
       if (_isCancelled() || completer.isCompleted) return;
       
       if (_foundUrls.length > 0) { // 发现 URL
