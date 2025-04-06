@@ -350,7 +350,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _timeoutTimer?.cancel(); // 停止计时器
       } catch (e) {
         // 如果设置过程中出错，确保释放临时控制器
-        await tempController?.dispose();
+        tempController?.dispose();
         throw e;
       }
     } catch (e, stackTrace) {
