@@ -454,10 +454,10 @@ class GetM3U8 {
       final result = await _checkPageContent();
       if (result != null) {
         if (!completer.isCompleted) completer.complete(result);
-      } else if (!completer.isCompleted) completer.complete('ERROR');
-      
-   
-    return;
+      } else if (!completer.isCompleted) {
+        completer.complete('ERROR');
+      }
+      return;
     }
     
     _cachedTimeOffset ??= await _getTimeOffset(); // 获取时间偏移
