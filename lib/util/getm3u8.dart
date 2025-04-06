@@ -576,7 +576,7 @@ window._m3u8Found = false;
     );
   }
 
-  void _setupNavigationDelegate(Completer<String> completer, List<String> init持initScripts) {
+  void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
     final scriptNames = [
       '时间拦截器脚本 (time_interceptor.js)',
@@ -611,7 +611,7 @@ window._m3u8Found = false;
             final currentUri = _parsedUri;
             final newUri = Uri.parse(request.url);
             if (currentUri.host != newUri.host) {
-              for (int i = 0; i < initScripts.length; i++) {
+             for (int i = 0; i < initScripts.length; i++) {
                 try {
                   await _controller.runJavaScript(initScripts[i]);
                   LogUtil.i('重定向页面注入脚本成功: ${scriptNames[i]}');
