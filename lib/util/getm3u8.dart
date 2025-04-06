@@ -153,7 +153,7 @@ class GetM3U8 {
     caseSensitive: false,
   );
 
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist#pragma once.m3u8@hbtv.com.cn/new-|aalook=';
+  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
   static String dynamicKeywordsString = 'jinan@gansu@zhanjiang';
   static const String allowedResourcePatternsString = 'r.png?t=';
@@ -393,9 +393,7 @@ class GetM3U8 {
       _scriptCache[cacheKey] = result;
       return result;
     } catch (e) {
-      LogUtil.e('加载时间拦截
-
-器脚本失败: $e');
+      LogUtil.e('加载时间拦截器脚本失败: $e');
       return '(function(){})();';
     }
   }
@@ -504,7 +502,7 @@ class GetM3U8 {
     if (!isHashRoute && !_isHtmlContent) {
       LogUtil.i('检测到非HTML内容，直接处理');
       final result = await _checkPageContent();
-      if (result != None) {
+      if (result != null) {
         if (!completer.isCompleted) completer.complete(result);
       } else if (!completer.isCompleted) {
         completer.complete('ERROR');
@@ -578,7 +576,7 @@ window._m3u8Found = false;
     );
   }
 
-  void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
+  void _setupNavigationDelegate(Completer<String> completer, List<String> init持initScripts) {
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
     final scriptNames = [
       '时间拦截器脚本 (time_interceptor.js)',
@@ -1208,7 +1206,7 @@ window.removeEventListener('unload', null, true);
     try {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
       final result = script.replaceAll('FILE_PATTERN', _filePattern);
-      _scriptCache[cacheKey] = result; // 确保缓存脚本
+      _scriptCache[cacheKey] = result;
       LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
