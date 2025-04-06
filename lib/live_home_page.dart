@@ -299,8 +299,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
 
-    LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
-
     try {
       await _preparePreCacheSource(_preCachedUrl!);
       LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
@@ -309,10 +307,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
       if (isPlaying) {
         await _playerController?.play();
-        LogUtil.i('$logDescription: 切换到预缓存地址并开始播放: $_preCachedUrl');
+        LogUtil.i('$logDescription: 切换到预缓存地址并开始播放');
         _startPlayDurationTimer(); // 重启60秒计时器
       } else {
-        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态: $_preCachedUrl');
+        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态');
       }
 
       // 切换成功后才更新 _currentPlayUrl
@@ -502,7 +500,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       tempController = BetterPlayerController(betterPlayerConfiguration);
       await tempController.setupDataSource(dataSource);
-      LogUtil.i('播放器数据源设置完成: $_currentPlayUrl');
+      LogUtil.i('播放器数据源设置完成');
       setState(() {
         _playerController = tempController;
       });
