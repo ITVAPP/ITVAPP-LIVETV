@@ -579,7 +579,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_currentChannel?.urls != null &&
           _sourceIndex >= 0 &&
           _sourceIndex < _currentChannel!.urls!.length) {
-        _originalUrl = _currentChannel!.urls![ Piot];
+        _originalUrl = _currentChannel!.urls![_sourceIndex];
         LogUtil.i('切换频道/源 - 解析前地址: $_originalUrl');
         await _playVideo();
       } else {
