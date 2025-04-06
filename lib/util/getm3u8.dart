@@ -141,27 +141,19 @@ class LimitedSizeSet<T> {
 
 /// 地址获取类
 class GetM3U8 {
-  // MODIFIED: 添加缓存大小限制
-  static final Map<String, String> _scriptCache = _createLimitedMap(50);
-  static final Map<String, List<M3U8FilterRule>> _ruleCache = _createLimitedMap(20);
-  static final Map<String, Set<String>> _keywordsCache = _createLimitedMap(20);
-  static final Map<String, Map<String, String>> _specialRulesCache = _createLimitedMap(20);
-  static final Map<String, RegExp> _patternCache = _createLimitedMap(50);
+  // MODIFIED: 使用标准 Map 并实现大小限制
+  static final Map<String, String> _scriptCache = {};
+  static final Map<String, List<M3U8FilterRule>> _ruleCache = {};
+  static final Map<String, Set<String>> _keywordsCache = {};
+  static final Map<String, Map<String, String>> _specialRulesCache = {};
+  static final Map<String, RegExp> _patternCache = {};
 
-  // MODIFIED: 创建带大小限制的 Map
-  static Map<K, V> _createLimitedMap<K, V>(int maxSize) {
-    final map = <K, V>{};
-    return {
-      ...map,
-      'add': (K key, V value) {
-        if (map.length >= maxSize) {
-          map.remove(map.keys.first);
-        }
-        map[key] = value;
-      },
-      'get': (K key) => map[key],
-      'containsKey': (K key) => map.containsKey(key),
-    } as Map<K, V>;
+  // MODIFIED: 添加缓存大小限制方法
+  static void _limitMapSize<K, V>(Map<K, V> map, int maxSize, K key, V value) {
+    if (map.length >= maxSize) {
+      map.remove(map.keys.first);
+    }
+    map[key] = value;
   }
 
   static final RegExp _invalidPatternRegex = RegExp(
@@ -261,7 +253,7 @@ class GetM3U8 {
       caseSensitive: false,
     );
     
-    (_patternCache as Map<String, RegExp>)['add'](cacheKey, pattern); // MODIFIED: 使用自定义 add 方法
+    _limitMapSize(_patternCache, 50, cacheKey, pattern); // MODIFIED: 使用限制大小方法
     return pattern;
   }
 
@@ -295,7 +287,7 @@ class GetM3U8 {
         .map(M3U8FilterRule.fromString)
         .toList();
     
-    (_ruleCache as Map<String, List<M3U8FilterRule>>)['add'](rulesString, rules); // MODIFIED: 使用自定义 add 方法
+    _limitMapSize(_ruleCache, 20, rulesString, rules); // MODIFIED: 使用限制大小方法
     return rules;
   }
 
@@ -310,7 +302,7 @@ class GetM3U8 {
         .map((keyword) => keyword.trim())
         .toSet();
     
-    (_keywordsCache as Map<String, Set<String>>)['add'](keywordsString, keywords); // MODIFIED: 使用自定义 add 方法
+    _limitMapSize(_keywordsCache, 20, keywordsString, keywords); // MODIFIED: 使用限制大小方法
     return keywords;
   }
 
@@ -329,7 +321,7 @@ class GetM3U8 {
       }
     }
     
-    (_specialRulesCache as Map<String, Map<String, String>>)['add'](rulesString, rules); // MODIFIED: 使用自定义 add 方法
+    _limitMapSize(_specialRulesCache, 20, rulesString, rules); // MODIFIED: 使用限制大小方法
     return rules;
   }
 
@@ -406,7 +398,7 @@ class GetM3U8 {
     try {
       final script = await rootBundle.loadString('assets/js/time_interceptor.js');
       final result = script.replaceAll('TIME_OFFSET', '$_cachedTimeOffset');
-      (_scriptCache as Map<String, String>)['add'](cacheKey, result); // MODIFIED: 使用自定义 add 方法
+      _limitMapSize(_scriptCache, 50, cacheKey, result); // MODIFIED: 使用限制大小方法
       return result;
     } catch (e) {
       LogUtil.e('加载时间拦截器脚本失败: $e');
@@ -806,7 +798,7 @@ window._m3u8Found = false;
         scriptWithParams = jsCode
             .replaceAll('SEARCH_TEXT', clickText!)
             .replaceAll('TARGET_INDEX', '$clickIndex');
-        (_scriptCache as Map<String, String>)['add'](cacheKey, scriptWithParams); // MODIFIED: 使用自定义 add 方法
+        _limitMapSize(_scriptCache, 50, cacheKey, scriptWithParams); // MODIFIED: 使用限制大小方法
       }
       
       await _controller.runJavaScript(scriptWithParams);
@@ -1223,7 +1215,7 @@ window.removeEventListener('unload', null, true);
     try {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
       final result = script.replaceAll('FILE_PATTERN', _filePattern);
-      (_scriptCache as Map<String, String>)['add'](cacheKey, result); // MODIFIED: 使用自定义 add 方法
+      _limitMapSize(_scriptCache, 50, cacheKey, result); // MODIFIED: 使用限制大小方法
       LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
