@@ -66,9 +66,9 @@ class TimerManager {
   /// 启动统一计时器
   void startUnifiedTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(milliseconds: 100), (timer) {
+    _timer = Timer.periodic(Duration(milliseconds: 1000), (timer) {
       _tasks.forEach((type, task) {
-        if (timer.tick % (task.item1.inMilliseconds / 100) == 0) {
+        if (timer.tick % (task.item1.inMilliseconds / 1000) == 0) {
           task.item2();
         }
       });
@@ -140,7 +140,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   PlaylistModel? _videoMap;
   PlayModel? _currentChannel;
   int _sourceIndex = 0;
-  int _lastProgressTime = 0;
   BetterPlayerController? _playerController;
   bool isBuffering = false;
   bool isPlaying = false;
