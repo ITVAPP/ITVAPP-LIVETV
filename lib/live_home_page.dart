@@ -1152,7 +1152,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           }
           
           // 释放播放器控制器
-          await _playerController!.dispose();
+          _playerController!.dispose(); 
           _playerController = null;
         } catch (e, stackTrace) {
           LogUtil.logError('释放播放器资源失败', e, stackTrace);
