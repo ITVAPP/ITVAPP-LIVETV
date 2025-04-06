@@ -579,7 +579,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_currentChannel?.urls != null &&
           _sourceIndex >= 0 &&
           _sourceIndex < _currentChannel!.urls!.length) {
-        _originalUrl = _currentChannel!.urls![_sourceIndex];
+        _originalUrl = _currentChannel!.urls![ Piot];
         LogUtil.i('切换频道/源 - 解析前地址: $_originalUrl');
         await _playVideo();
       } else {
@@ -775,50 +775,38 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 检查m3u8文件是否有效
   /// @return 返回true表示文件有效，false表示无效
   Future<bool> _checkM3u8Validity() async {
-    // 非HLS流或URL为空时跳过检查
     if (_currentPlayUrl == null || !_isHls) {
       return true;
     }
 
     try {
-      final dio = Dio();
-      dio.options.connectTimeout = const Duration(seconds: m3u8ConnectTimeoutSeconds);
-      dio.options.receiveTimeout = const Duration(seconds: m3u8ReceiveTimeoutSeconds);
-      dio.options.validateStatus = (status) => status != null && status < 400;
-
-      // 先尝试HEAD请求检查资源是否存在，减少传输数据量
-      try {
-        final headResponse = await dio.head(_currentPlayUrl!);
-        if (headResponse.statusCode! >= 200 && headResponse.statusCode! < 300) {
-          return true; // 如果资源存在且可访问，直接返回有效
-        }
-      } catch (e) {
-        // HEAD请求可能不被支持，忽略错误继续GET请求
-      }
-
-      // 如果HEAD请求失败，使用GET请求但限制获取的数据大小
-      final response = await dio.get(
+      final String? content = await HttpUtil().getRequest<String>(
         _currentPlayUrl!,
         options: Options(
-          responseType: ResponseType.bytes,
-          headers: {'Range': 'bytes=0-4096'},
+          extra: {
+            'connectTimeout': const Duration(seconds: m3u8ConnectTimeoutSeconds),
+            'receiveTimeout': const Duration(seconds: m3u8ReceiveTimeoutSeconds),
+          },
         ),
+        retryCount: 1,
       );
 
-      if (response.statusCode! >= 200 && response.statusCode! < 300) {
-        final bytes = response.data as List<int>;
-        if (bytes.isEmpty) return false;
-
-        // 转换为文本进行格式检查
-        final content = utf8.decode(bytes, allowMalformed: true);
-
-        // 更高效的有效性检查，使用正则表达式
-        final bool hasValidContent = RegExp(r'#EXTINF|#EXT-X-STREAM-INF|\.ts').hasMatch(content);
-
-        return hasValidContent;
+      if (content == null || content.isEmpty) {
+        LogUtil.e('m3u8 内容为空或获取失败：$_currentPlayUrl');
+        return false;
       }
 
-      return false;
+      bool hasSegments = content.contains('.ts');
+      bool hasValidDirectives = content.contains('#EXTINF') || content.contains('#EXT-X-STREAM-INF');
+
+      bool isValid = hasSegments || hasValidDirectives;
+
+      if (!isValid) {
+        LogUtil.e('m3u8 内容无效，不包含有效标记或片段');
+        return false;
+      }
+
+      return true;
     } catch (e, stackTrace) {
       LogUtil.logError('m3u8 有效性检查出错', e, stackTrace);
       return false;
@@ -829,62 +817,48 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _startM3u8CheckTimer() {
     _timerManager.cancelTimer(TimerType.m3u8Check);
 
-    // 非HLS流不需要检查
     if (!_isHls) return;
 
     _timerManager.startPeriodicTimer(
       TimerType.m3u8Check,
       const Duration(seconds: m3u8CheckIntervalSeconds),
       (_) async {
-        // 如果不满足检查条件则跳过
         if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) return;
 
-        // 执行m3u8有效性检查
         final isValid = await _checkM3u8Validity();
         if (!isValid) {
           _m3u8InvalidCount++;
           LogUtil.i('m3u8 检查失效，次数: $_m3u8InvalidCount');
-          _handleM3u8Invalid();
-        } else {
-          _m3u8InvalidCount = 0; // 重置计数
-        }
-      }
-    );
-  }
 
-  /// 处理m3u8无效情况
-  void _handleM3u8Invalid() {
-    // 第一次检测到失效，进行二次确认（如果启用）
-    if (_m3u8InvalidCount == 1 && enableM3u8SecondCheck) {
-      LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
-
-      _timerManager.startTimer(
-        TimerType.retry,
-        Duration(seconds: m3u8InvalidConfirmDelaySeconds),
-        () async {
-          // 确保状态依然有效
-          if (!_canPerformOperation('m3u8 二次确认')) {
-            _m3u8InvalidCount = 0; // 中断时重置
-            return;
-          }
-
-          // 进行二次检查
-          final secondCheck = await _checkM3u8Validity();
-          if (!secondCheck) {
-            LogUtil.i('第二次检查确认 m3u8 失效，触发重新解析');
+          if (_m3u8InvalidCount == 1) {
+            LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
+            _timerManager.startTimer(
+              TimerType.retry,
+              Duration(seconds: m3u8InvalidConfirmDelaySeconds),
+              () async {
+                if (!mounted || !_isHls || !isPlaying || _isDisposing || _isParsing) {
+                  _m3u8InvalidCount = 0;
+                  return;
+                }
+                final secondCheck = await _checkM3u8Validity();
+                if (!secondCheck) {
+                  LogUtil.i('第二次检查确认 m3u8 失效，触发重新解析');
+                  await _reparseAndSwitch();
+                } else {
+                  _m3u8InvalidCount = 0;
+                }
+              },
+            );
+          } else if (_m3u8InvalidCount >= 2) {
+            LogUtil.i('连续两次检查到 m3u8 失效，触发重新解析');
             await _reparseAndSwitch();
-          } else {
-            _m3u8InvalidCount = 0; // 重置计数
+            _m3u8InvalidCount = 0;
           }
+        } else {
+          _m3u8InvalidCount = 0;
         }
-      );
-    }
-    // 连续两次检测到失效，直接触发重新解析
-    else if (_m3u8InvalidCount >= 2) {
-      LogUtil.i('连续两次检查到 m3u8 失效，触发重新解析');
-      _reparseAndSwitch();
-      _m3u8InvalidCount = 0; // 重置计数
-    }
+      },
+    );
   }
 
   /// 启动播放持续时间计时器
@@ -894,31 +868,24 @@ class _LiveHomePageState extends State<LiveHomePage> {
       TimerType.playDuration,
       const Duration(seconds: initialProgressDelaySeconds),
       () {
-        // 确保组件状态有效
         if (mounted && !_isRetrying && !_isSwitchingChannel && !_isDisposing) {
           LogUtil.i('播放 $initialProgressDelaySeconds 秒，开始检查逻辑');
 
-          // HLS流特殊处理
           if (_isHls) {
-            // 包含timelimit的URL可能是时效性的，需要定期检查
             if (_originalUrl != null && _originalUrl!.toLowerCase().contains('timelimit')) {
               _startM3u8CheckTimer();
               LogUtil.i('HLS 流包含 timelimit，启用 m3u8 检查定时器');
             }
-          }
-          // 非HLS流处理
-          else {
-            // 如果有下一个源，启用进度监听
+          } else {
             if (_getNextVideoUrl() != null) {
               _progressEnabled = true;
               LogUtil.i('非 HLS 流，启用 progress 监听');
             }
           }
 
-          // 重置计数器
           _retryCount = 0;
         }
-      }
+      },
     );
   }
 
