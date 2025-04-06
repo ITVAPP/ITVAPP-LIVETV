@@ -179,7 +179,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 播放视频，包含初始化和切换逻辑
-  /// 修改区域：增强状态一致性
+  /// 修改区域：增强状态一致性，改进资源清理逻辑
   Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
     // 添加空检查以防止 _currentChannel 为 null 时崩溃
     if (_currentChannel == null) return; // 避免空指针异常
@@ -223,30 +223,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _adManager.reset(); // 检查并可能显示文字广告
       }
 
-      // 如果已有控制器，先暂停并重用，避免重复创建
+      // 如果已有控制器，先暂停并清理，避免重复创建和声音重叠
       if (_playerController != null) {
         await _playerController!.pause();
-        await _cleanupController(_playerController);
+        await _cleanupController(_playerController); // 清理旧播放器，确保资源释放
+        await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds)); // 添加延迟，确保旧控制器完全停止
       }
 
-      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
       if (!mounted) {
         LogUtil.i('组件已卸载，停止播放流程');
         return;
       }
-
+      
       String url = _currentChannel!.urls![_sourceIndex].toString();
       _originalUrl = url; // 设置解析前地址
       _streamUrl = StreamUrl(url); // 保存 StreamUrl 实例
-      
-      String parsedUrl = await _streamUrl!.getStreamUrl().timeout(
-        Duration(seconds: m3u8ReceiveTimeoutSeconds), // 使用 10 秒，与 m3u8 检查一致
-        onTimeout: () {
-          LogUtil.i('流地址解析超时（${m3u8ReceiveTimeoutSeconds}秒）');
-          return 'ERROR';
-        },
-      );
-      
+      String parsedUrl = await _streamUrl!.getStreamUrl(); // 使用保存的实例
       _updatePlayUrl(parsedUrl); // 使用统一方法更新 _currentPlayUrl 和 _isHls
 
       if (parsedUrl == 'ERROR') {
@@ -319,7 +311,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 切换请求队列
-  // 修改区域：增加空指针检查
+  // 修改区域：增加空指针检查和资源清理
   Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     if (channel == null) {
       LogUtil.i('切换频道失败：channel 为 null');
@@ -349,6 +341,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
       });
     } else {
+      // 在切换前清理旧资源
+      if (_playerController != null) {
+        await _cleanupController(_playerController); // 清理旧播放器
+        await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds)); // 延迟确保清理完成
+      }
       _currentChannel = channel;
       _sourceIndex = sourceIndex;
       _originalUrl = _currentChannel!.urls![_sourceIndex];
