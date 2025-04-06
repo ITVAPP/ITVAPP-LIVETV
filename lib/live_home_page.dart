@@ -116,12 +116,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 检查连接超时秒数
   static const int m3u8ReceiveTimeoutSeconds = 10; // m3u8 检查接收超时秒数
   static const int m3u8CheckCacheIntervalMs = 5000; // 缓存验证时间间隔（毫秒）
+  static const bool enableM3u8SecondCheck = true; // 新增：是否启用 m3u8 失效二次确认
+  static const bool enableNonHlsPreload = true;   // 新增：是否启用非 HLS 流的预加载
 
   // 缓冲区检查相关变量
   String? _preCachedUrl; // 预缓存的URL
   bool _isParsing = false; // 是否正在解析
   bool _isRetrying = false; // 是否正在重试
-  int? _lastCheckTime; // 上次 m3u8 检查时间（改为仅用于检查）
   int? _lastParseTime; // 上次解析时间（新增）
   String toastString = S.current.loading; // 提示信息
   PlaylistModel? _videoMap; // 视频映射
@@ -270,6 +271,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return true;
   }
 
+  /// 准备预缓存数据源的公共方法
+  Future<void> _preparePreCacheSource(String url) async {
+    final newSource = BetterPlayerConfig.createDataSource(
+      isHls: _isHlsStream(url),
+      url: url,
+    );
+    await _playerController!.preCache(newSource);
+  }
+
   /// 切换到预缓存地址
   /// @param logDescription 日志描述，用于标识切换来源
   Future<void> _switchToPreCachedUrl(String logDescription) async {
@@ -291,11 +301,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     LogUtil.i('$logDescription: 切换到预缓存地址: $_preCachedUrl');
 
-    final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHlsStream(_preCachedUrl));
-
     try {
-      await _playerController?.preCache(newSource);
+      await _preparePreCacheSource(_preCachedUrl!);
       LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
+      final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHlsStream(_preCachedUrl));
       await _playerController?.setupDataSource(newSource);
 
       if (isPlaying) {
@@ -781,7 +790,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       try {
         final headResponse = await dio.head(_currentPlayUrl!);
         if (headResponse.statusCode! >= 200 && headResponse.statusCode! < 300) {
-          _lastCheckTime = DateTime.now().millisecondsSinceEpoch; // 仅在成功检查后更新
           return true; // 如果资源存在且可访问，直接返回有效
         }
       } catch (e) {
@@ -807,7 +815,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 更高效的有效性检查，使用正则表达式
         final bool hasValidContent = RegExp(r'#EXTINF|#EXT-X-STREAM-INF|\.ts').hasMatch(content);
 
-        _lastCheckTime = DateTime.now().millisecondsSinceEpoch; // 仅在成功检查后更新
         return hasValidContent;
       }
 
@@ -847,8 +854,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 处理m3u8无效情况
   void _handleM3u8Invalid() {
-    // 第一次检测到失效，进行二次确认
-    if (_m3u8InvalidCount == 1) {
+    // 第一次检测到失效，进行二次确认（如果启用）
+    if (_m3u8InvalidCount == 1 && enableM3u8SecondCheck) {
       LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
 
       _timerManager.startTimer(
@@ -918,6 +925,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 预加载下一个视频
   /// @param url 预加载的URL
   Future<void> _preloadNextVideo(String url) async {
+    if (!enableNonHlsPreload) return; // 检查是否启用非 HLS 预加载
+
     // 检查预加载条件
     if (!_canPerformOperation('预加载下一个视频', 
         checkDisposing: true, 
@@ -1168,7 +1177,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 重置其他变量
         _progressEnabled = false;
         _preCachedUrl = null;
-        _lastCheckTime = null;
         _lastParseTime = null;
         _currentPlayUrl = null;
         _originalUrl = null;
@@ -1190,22 +1198,24 @@ class _LiveHomePageState extends State<LiveHomePage> {
     await _releaseAllResources();
   }
 
+  /// 释放 StreamUrl 实例的通用方法
+  Future<void> _disposeStreamUrlInstance(StreamUrl? instance) async {
+    if (instance != null) {
+      await instance.dispose();
+      LogUtil.i('StreamUrl 实例已释放');
+    }
+  }
+
   /// 释放主StreamUrl实例
   Future<void> _disposeStreamUrl() async {
-    if (_streamUrl != null) {
-      await _streamUrl!.dispose();
-      _streamUrl = null;
-      LogUtil.i('主StreamUrl实例已释放');
-    }
+    await _disposeStreamUrlInstance(_streamUrl);
+    _streamUrl = null;
   }
 
   /// 释放预缓存StreamUrl实例
   Future<void> _disposePreCacheStreamUrl() async {
-    if (_preCacheStreamUrl != null) {
-      await _preCacheStreamUrl!.dispose();
-      _preCacheStreamUrl = null;
-      LogUtil.i('预缓存StreamUrl实例已释放');
-    }
+    await _disposeStreamUrlInstance(_preCacheStreamUrl);
+    _preCacheStreamUrl = null;
   }
 
   /// 重新解析并准备预缓存地址
@@ -1277,11 +1287,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _preCachedUrl = newParsedUrl;
       LogUtil.i('预缓存地址已准备: $_preCachedUrl');
 
-      final newSource = BetterPlayerConfig.createDataSource(
-        isHls: _isHlsStream(newParsedUrl),
-        url: newParsedUrl,
-      );
-
       if (_playerController != null) {
         // 安全检查：确保播放器可用
         if (_isDisposing || _isSwitchingChannel) {
@@ -1292,7 +1297,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
 
         // 执行预缓存操作
-        await _playerController!.preCache(newSource);
+        await _preparePreCacheSource(newParsedUrl);
 
         // 再次检查状态，确保预缓存后仍有效
         if (_isDisposing || _isSwitchingChannel) {
