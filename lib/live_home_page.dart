@@ -249,6 +249,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放');
         _startPlayDurationTimer();
       _updatePlayUrl(_preCachedUrl!);
+      _updatePlayState(playing: true);
       _isSwitchingChannel = false;
     } catch (e, stackTrace) {
       LogUtil.logError('$logDescription: 切换到预缓存地址失败', e, stackTrace);
@@ -834,6 +835,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_isDisposing) return;
     _isDisposing = true;
     try {
+      LogUtil.i('开始释放所有资源');
       _timerManager.cancelAll();
       _timerManager._timers.clear();
       if (_playerController != null) {
@@ -891,6 +893,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (instance == null) return;
     try {
       await instance.dispose();
+      LogUtil.i('StreamUrl实例已释放: ${instance.hashCode}');
     } catch (e, stackTrace) {
       LogUtil.logError('释放StreamUrl实例失败', e, stackTrace);
     }
