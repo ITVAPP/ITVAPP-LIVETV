@@ -35,14 +35,12 @@ class UrlUtils {
     
     if (result.contains(r'\u')) { // 处理Unicode编码
       result = result.replaceAllMapped(_unicodeRegex, (match) => _parseUnicode(match.group(1)));
-      LogUtil.i('Unicode 转换后: $result');
     }
     
     if (result.contains('%')) { // 处理URL编码
       try {
         result = Uri.decodeComponent(result);
       } catch (e) {
-        LogUtil.i('URL解码失败，保持原样: $e');
       }
     }
     
@@ -934,7 +932,6 @@ window.removeEventListener('unload', null, true);
         if (url.contains(rule.domain)) {
           matchedDomain = true;
           final containsKeyword = rule.requiredKeyword.isEmpty || url.contains(rule.requiredKeyword);
-          if (!containsKeyword) LogUtil.i('URL不包含所需关键词 (${rule.requiredKeyword}): $url');
           return containsKeyword;
         }
       }
