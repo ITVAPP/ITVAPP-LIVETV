@@ -88,11 +88,14 @@ class M3U8FilterRule {
 
 /// 限制大小的集合类，用于优化内存管理
 class LimitedSizeSet<T> {
+  // 定义默认最大容量常量
+  static const int DEFAULT_MAX_SIZE = 50;
+
   final int maxSize; // 最大容量
   final Set<T> _internalSet = {}; // 内部集合存储元素
   final List<T> _insertionOrder = []; // 记录插入顺序
   
-  LimitedSizeSet(this.maxSize);
+  LimitedSizeSet([this.maxSize = DEFAULT_MAX_SIZE]); // 修改：使用常量作为默认值
   
   /// 添加元素，超出容量时移除最早元素
   bool add(T element) {
@@ -118,6 +121,20 @@ class LimitedSizeSet<T> {
 
 /// M3U8地址获取类
 class GetM3U8 {
+  // 修改：添加常量定义
+  static const int DEFAULT_TIMEOUT_SECONDS = 15; // 默认超时时间（秒）
+  static const int MAX_FOUND_URLS_SIZE = 50; // 已发现URL集合的最大容量
+  static const int MAX_PAGE_LOADED_STATUS_SIZE = 50; // 页面加载状态集合的最大容量
+  static const int MAX_CACHE_SIZE = 50; // 通用缓存最大容量（脚本、正则等）
+  static const int MAX_RULE_CACHE_SIZE = 20; // 规则缓存最大容量
+  static const int MAX_RETRY_COUNT = 2; // 最大重试次数
+  static const int PERIODIC_CHECK_INTERVAL_MS = 1000; // 定期检查间隔（毫秒）
+  static const int CLICK_DELAY_MS = 500; // 点击操作延迟（毫秒）
+  static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
+  static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
+  static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
+  static const int WEBVIEW_CLEANUP_DELAY_MS = 300; // WebView清理延迟（毫秒）
+
   static final Map<String, String> _scriptCache = {}; // 脚本缓存
   static final Map<String, List<M3U8FilterRule>> _ruleCache = {}; // 规则缓存
   static final Map<String, Set<String>> _keywordsCache = {}; // 关键词缓存
@@ -148,7 +165,7 @@ class GetM3U8 {
   final int timeoutSeconds; // 超时时间（秒）
   late WebViewController _controller; // WebView控制器
   bool _m3u8Found = false; // 是否找到M3U8
-  final LimitedSizeSet<String> _foundUrls = LimitedSizeSet<String>(50); // 已发现URL集合
+  final LimitedSizeSet<String> _foundUrls = LimitedSizeSet<String>(MAX_FOUND_URLS_SIZE); // 修改：使用常量
   Timer? _periodicCheckTimer; // 定期检查定时器
   int _retryCount = 0; // 重试次数
   int _checkCount = 0; // 检查次数
@@ -162,7 +179,7 @@ class GetM3U8 {
   bool _isHtmlContent = false; // 是否为HTML内容
   String? _httpResponseContent; // HTTP响应内容
   static int? _cachedTimeOffset; // 时间偏移缓存
-  final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet<String>(100); // 页面加载状态
+  final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet<String>(MAX_PAGE_LOADED_STATUS_SIZE); // 修改：使用常量
   static const List<Map<String, String>> TIME_APIS = [ // 时间API列表
     {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
     {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
@@ -177,7 +194,7 @@ class GetM3U8 {
   /// 构造函数，初始化URL和参数
   GetM3U8({
     required this.url,
-    this.timeoutSeconds = 15,
+    this.timeoutSeconds = DEFAULT_TIMEOUT_SECONDS, // 修改：使用常量
     this.cancelToken,
   }) : _filterRules = _parseRules(rulesString),
         fromParam = _extractQueryParams(url)['from'],
@@ -228,7 +245,7 @@ class GetM3U8 {
       caseSensitive: false,
     );
     
-    _limitMapSize(_patternCache, 50, cacheKey, pattern); // 缓存并限制大小
+    _limitMapSize(_patternCache, MAX_CACHE_SIZE, cacheKey, pattern); // 修改：使用常量
     return pattern;
   }
 
@@ -261,7 +278,7 @@ class GetM3U8 {
         .map(M3U8FilterRule.fromString)
         .toList();
     
-    _limitMapSize(_ruleCache, 20, rulesString, rules); // 缓存并限制大小
+    _limitMapSize(_ruleCache, MAX_RULE_CACHE_SIZE, rulesString, rules); // 修改：使用常量
     return rules;
   }
 
@@ -274,7 +291,7 @@ class GetM3U8 {
         .map((keyword) => keyword.trim())
         .toSet();
     
-    _limitMapSize(_keywordsCache, 20, keywordsString, keywords); // 缓存并限制大小
+    _limitMapSize(_keywordsCache, MAX_RULE_CACHE_SIZE, keywordsString, keywords); // 修改：使用常量
     return keywords;
   }
 
@@ -289,7 +306,7 @@ class GetM3U8 {
       if (parts.length >= 2) rules[parts[0].trim()] = parts[1].trim(); // 解析键值对
     }
     
-    _limitMapSize(_specialRulesCache, 20, rulesString, rules); // 缓存并限制大小
+    _limitMapSize(_specialRulesCache, MAX_RULE_CACHE_SIZE, rulesString, rules); // 修改：使用常量
     return rules;
   }
 
@@ -355,7 +372,7 @@ class GetM3U8 {
     try {
       final script = await rootBundle.loadString('assets/js/time_interceptor.js'); // 加载脚本
       final result = script.replaceAll('TIME_OFFSET', '$_cachedTimeOffset'); // 替换偏移值
-      _limitMapSize(_scriptCache, 50, cacheKey, result); // 缓存并限制大小
+      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
       return result;
     } catch (e) {
       LogUtil.e('加载时间拦截器脚本失败: $e');
@@ -422,8 +439,8 @@ class GetM3U8 {
           if (styleEndMatch != null) styleEndIndex = styleEndMatch.end; // 找到</style>位置
           
           String initialContent = styleEndIndex > 0
-              ? content.substring(styleEndIndex, (styleEndIndex + 38888).clamp(0, content.length)) // 截取部分内容
-              : content.length > 38888 ? content.substring(0, 38888) : content; // 限制长度
+              ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).clamp(0, content.length)) // 修改：使用常量
+              : content.length > CONTENT_SAMPLE_LENGTH ? content.substring(0, CONTENT_SAMPLE_LENGTH) : content; // 修改：使用常量
           
           return initialContent.contains('.' + _filePattern); // 检查是否包含文件模式
         }
@@ -630,7 +647,7 @@ window._m3u8Found = false;
         if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
         
         if (!_isClickExecuted && clickText != null) { // 执行点击
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: CLICK_DELAY_MS)); // 修改：使用常量
           if (!_isCancelled()) {
             final clickResult = await _executeClick();
             if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
@@ -669,8 +686,8 @@ window._m3u8Found = false;
       int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
       currentTriggers++;
       
-      if (currentTriggers > 2) {
-        LogUtil.i('hash路由触发超过2次，跳过处理');
+      if (currentTriggers > MAX_RETRY_COUNT) { // 修改：使用常量
+        LogUtil.i('hash路由触发超过$MAX_RETRY_COUNT次，跳过处理');
         return false;
       }
       
@@ -704,7 +721,7 @@ window._m3u8Found = false;
       await _controller.runJavaScript(scriptWithParams); // 执行点击脚本
       _isClickExecuted = true;
       LogUtil.i('点击操作执行完成，结果: 成功');
-      _limitMapSize(_scriptCache, 50, cacheKey, scriptWithParams); // 缓存脚本
+      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, scriptWithParams); // 修改：使用常量
       return true;
     } catch (e, stack) {
       LogUtil.logError('执行点击操作时发生错误', e, stack);
@@ -717,7 +734,7 @@ window._m3u8Found = false;
   void _startUrlCheckTimer(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
     
-    Timer(const Duration(milliseconds: 2500), () async { // 延迟2.5秒检查
+    Timer(const Duration(milliseconds: URL_CHECK_DELAY_MS), () async { // 修改：使用常量
       if (_isCancelled() || completer.isCompleted) return;
       
       if (_foundUrls.length > 0) { // 有发现的URL
@@ -738,10 +755,10 @@ window._m3u8Found = false;
   Future<void> _handleLoadError(Completer<String> completer) async {
     if (_isCancelled() || completer.isCompleted) return;
     
-    if (_retryCount < 2) { // 重试次数未达上限
+    if (_retryCount < MAX_RETRY_COUNT) { // 修改：使用常量
       _retryCount++;
-      LogUtil.i('尝试重试 ($_retryCount/2)，延迟800毫秒');
-      await Future.delayed(const Duration(milliseconds: 800));
+      LogUtil.i('尝试重试 ($_retryCount/$MAX_RETRY_COUNT)，延迟$RETRY_DELAY_MS毫秒'); // 修改：使用常量
+      await Future.delayed(const Duration(milliseconds: RETRY_DELAY_MS)); // 修改：使用常量
       
       if (!_isCancelled() && !completer.isCompleted) {
         _pageLoadedStatus.clear();
@@ -791,7 +808,7 @@ window._m3u8Found = false;
       return;
     }
     
-    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) async { // 每1秒检查一次
+    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: PERIODIC_CHECK_INTERVAL_MS), (timer) async { // 修改：使用常量
       if (_m3u8Found || _isCancelled()) {
         timer.cancel();
         _periodicCheckTimer = null;
@@ -887,7 +904,7 @@ if (window._m3u8DetectorInitialized) {
     try {
       await controller.setNavigationDelegate(NavigationDelegate()); // 重置导航代理
       await controller.loadRequest(Uri.parse('about:blank')); // 加载空白页
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS)); // 修改：使用常量
       await controller.clearCache(); // 清理缓存
       
       if (_isHtmlContent) { // 清理JS行为
@@ -1077,7 +1094,7 @@ window.removeEventListener('unload', null, true);
     try {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js'); // 加载脚本
       final result = script.replaceAll('FILE_PATTERN', _filePattern); // 替换文件模式
-      _limitMapSize(_scriptCache, 50, cacheKey, result); // 缓存并限制大小
+      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
       LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
