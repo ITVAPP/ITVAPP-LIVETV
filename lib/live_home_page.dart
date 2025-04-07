@@ -149,6 +149,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
 
+  // 新增变量：用于标记解析期间的异常
+  bool _exceptionDuringParsing = false;
+
   /// 检查 URL 是否符合指定格式
   bool _checkUrlFormat(String? url, List<String> formats) {
     if (url == null || url.isEmpty) return false;
@@ -511,6 +514,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
         if (_isParsing) {
+          _exceptionDuringParsing = true; // 标记解析期间的异常
           return;
         }
         if (_isHls) {
@@ -994,8 +998,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _preCachedUrl = null;
       _handleSourceSwitching();
     } finally {
-      if (mounted) _updatePlayState(parsing: false, retrying: false);
-      LogUtil.i('重新解析结束');
+      if (mounted) {
+        _updatePlayState(parsing: false, retrying: false);
+        if (_exceptionDuringParsing) {
+          if (!_isUserPaused) { // 检查用户是否主动暂停
+            _playerController?.play();
+            LogUtil.i('解析完成后，因异常主动恢复播放');
+          } else {
+            LogUtil.i('解析完成后，用户已暂停，不恢复播放');
+          }
+          _exceptionDuringParsing = false; // 重置变量
+        }
+        LogUtil.i('重新解析结束');
+      }
     }
   }
 
