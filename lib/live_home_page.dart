@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -20,7 +19,6 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/stream_url.dart';
-import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/channel_util.dart';
 import 'package:itvapp_live_tv/util/traffic_analytics.dart';
@@ -99,7 +97,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultTimeoutSeconds = 36; // 默认超时时间（秒）
   static const int initialProgressDelaySeconds = 60; // 初始进度检查延迟（秒）
   static const int retryDelaySeconds = 2; // 重试延迟（秒）
-  static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
   static const int hlsSwitchThresholdSeconds = 3; // HLS 切换阈值（秒）
   static const int nonHlsPreloadThresholdSeconds = 20; // 非 HLS 预加载阈值（秒）
   static const int nonHlsSwitchThresholdSeconds = 3; // 非 HLS 切换阈值（秒）
@@ -107,13 +104,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int cleanupDelayMilliseconds = 500; // 清理延迟（毫秒）
   static const int snackBarDurationSeconds = 4; // 提示条显示时长（秒）
   static const int bufferingStartSeconds = 10; // 缓冲开始检查时间（秒）
+  static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 检查间隔（秒）
-  static const int reparseMinIntervalMilliseconds = 10000; // 最小重新解析间隔（毫秒）
+  static const int reparseMinIntervalMilliseconds = 10000; // m3u8 重新检查间隔（毫秒）
   static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 连接超时（秒）
   static const int m3u8ReceiveTimeoutSeconds = 10; // m3u8 接收超时（秒）
-  static const int m3u8CheckCacheIntervalMs = 5000; // m3u8 检查缓存间隔（毫秒）
-  static const bool enableM3u8SecondCheck = true; // 启用 m3u8 二次检查
-  static const bool enableNonHlsPreload = true; // 启用非 HLS 预加载
 
   String? _preCachedUrl; // 预缓存的播放地址
   bool _isParsing = false; // 是否正在解析
@@ -359,7 +354,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _cleanupCurrentPlayer() async {
     if (_playerController == null) return;
     try {
-      LogUtil.i('开始清理当前播放器');
       await _releaseAllResources();
       if (!mounted) {
         LogUtil.i('组件已卸载，停止清理流程');
@@ -421,7 +415,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 开始播放视频
   Future<void> _startPlayback() async {
     await _playerController?.play();
-    LogUtil.i('开始播放: $_currentPlayUrl');
     _timeoutActive = false;
     _timerManager.cancelTimer(TimerType.timeout);
   }
@@ -463,7 +456,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
     } else {
       if (_playerController != null) {
-        await _cleanupController(_playerController);
+        await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
         await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
       }
       _currentChannel = channel;
@@ -518,7 +511,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
         if (_isParsing) {
-          LogUtil.i('正在重新解析中，忽略本次异常，等待解析完成切换');
           return;
         }
         if (_isHls) {
@@ -672,7 +664,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (!isValid) {
           _m3u8InvalidCount++;
           if (_m3u8InvalidCount == 1) {
-            LogUtil.i('第一次检测到 m3u8 失效，等待 $m3u8InvalidConfirmDelaySeconds 秒后再次检查');
             _timerManager.startTimer(
               TimerType.retry,
               Duration(seconds: m3u8InvalidConfirmDelaySeconds),
@@ -683,7 +674,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
                 final secondCheck = await _checkM3u8Validity();
                 if (!secondCheck) {
-                  LogUtil.i('第二次检查确认 m3u8 失效，触发重新解析');
+                  LogUtil.i('连续两次检查确认 m3u8 失效，触发重新解析');
                   await _reparseAndSwitch();
                 } else {
                   _m3u8InvalidCount = 0;
@@ -730,7 +721,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 预加载下一个视频源
   Future<void> _preloadNextVideo(String url) async {
-    if (!enableNonHlsPreload) return;
     if (!_canPerformOperation('预加载下一个视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
     if (_playerController == null || _preCachedUrl != null) {
       LogUtil.i('预加载被阻止: controller=${_playerController != null}, _preCachedUrl=${_preCachedUrl != null}');
@@ -842,7 +832,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       retrying: false,
       retryCount: 0,
     );
-    await _cleanupController(_playerController);
+    await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
     LogUtil.i('播放结束，无更多源');
   }
 
@@ -915,12 +905,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       _isDisposing = isDisposing;
     }
-  }
-
-  /// 清理播放器控制器
-  Future<void> _cleanupController(BetterPlayerController? controller) async {
-    if (controller == null) return;
-    await _releaseAllResources();
   }
 
   /// 释放 StreamUrl 实例
@@ -1124,7 +1108,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
       _updatePlayState(message: S.current.playError);
-      await _cleanupController(_playerController);
+      await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
     }
   }
 
