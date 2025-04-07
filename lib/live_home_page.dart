@@ -814,7 +814,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
       );
     } else {
-      Log circsLogUtil.i('重试次数达上限，切换下一源');
+      LogUtil.i('重试次数达上限，切换下一源');
       _handleSourceSwitching();
     }
   }
