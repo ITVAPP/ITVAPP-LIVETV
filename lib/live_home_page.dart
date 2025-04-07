@@ -293,7 +293,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('视频广告播放完成，准备播放频道');
         _adManager.reset();
       }
-      await _cleanupCurrentPlayer();
+      await _releaseAllResources();
       await _preparePlaybackUrl();
       await _setupPlayerController();
       await _startPlayback();
@@ -349,23 +349,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     );
   }
 
-  /// 清理当前播放器资源
-  Future<void> _cleanupCurrentPlayer() async {
-    if (_playerController == null) return;
-    try {
-      await _releaseAllResources();
-      if (!mounted) {
-        LogUtil.i('组件已卸载，停止清理流程');
-        throw Exception('组件已卸载');
-      }
-      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
-      LogUtil.i('当前播放器清理完成');
-    } catch (e, stackTrace) {
-      LogUtil.logError('清理当前播放器失败', e, stackTrace);
-      if (!mounted) rethrow;
-    }
-  }
-
   /// 准备播放地址并解析流
   Future<void> _preparePlaybackUrl() async {
     String url = _currentChannel!.urls![_sourceIndex].toString();
@@ -393,14 +376,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _setupPlayerController() async {
     if (_playerController != null) {
       await _releaseAllResources();
-      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
     }
     try {
       final dataSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(eventListener: _videoListener, isHls: _isHls);
       _playerController = BetterPlayerController(betterPlayerConfiguration);
       await _playerController!.setupDataSource(dataSource);
-      LogUtil.i('播放器数据源设置完成');
       if (mounted) {
         setState(() => _playerController);
       }
@@ -455,8 +436,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
     } else {
       if (_playerController != null) {
-        await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
-        await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
+        await _releaseAllResources(isDisposing: false);
       }
       _currentChannel = channel;
       _sourceIndex = safeSourceIndex;
@@ -900,6 +880,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _m3u8InvalidCount = 0;
       }
       LogUtil.i('所有资源已释放');
+      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
     } catch (e, stackTrace) {
       LogUtil.logError('释放资源过程中发生错误', e, stackTrace);
     } finally {
@@ -982,7 +963,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         _progressEnabled = true;
         _lastParseTime = now;
-        await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
         LogUtil.i('预缓存完成，等待剩余时间或异常触发切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
