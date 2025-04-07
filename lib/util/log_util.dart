@@ -8,12 +8,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 class LogUtil {
+  static String setLogFileKeywords = ''; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 调试模式开关
   static bool _isOperating = false; // 是否正在执行写操作的标志
   static const int _maxSingleLogLength = 588; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
-
   static final List<String> _memoryLogs = []; // 内存中的日志缓存
   static final List<String> _newLogsBuffer = []; // 新日志缓冲区
   static const int _writeThreshold = 5; // 缓冲区达到此阈值时触发写入
@@ -22,7 +22,6 @@ class LogUtil {
   static File? _logFile; // 日志文件对象，可为空以增强容错性
   static const int _maxMemoryLogSize = 100; // 内存日志最大条数
   static Timer? _memoryCleanupTimer; // 定时清理内存日志的定时器
-
   static bool _showOverlay = false; // 是否显示浮层调试信息
   static OverlayEntry? _overlayEntry; // 浮层入口对象
   static final List<String> _debugMessages = []; // 调试消息列表
@@ -30,7 +29,6 @@ class LogUtil {
   static Timer? _timer; // 浮层自动隐藏定时器
   static const int _messageDisplayDuration = 3; // 单条消息显示时长（秒）
   static OverlayState? _cachedOverlayState; // 缓存的浮层状态
-
   static final Map<String, RegExp> _levelPatterns = { // 日志级别正则表达式映射
     'v': RegExp(r'\[v\]'),
     'e': RegExp(r'\[e\]'),
@@ -43,7 +41,6 @@ class LogUtil {
     'i': RegExp(r'\[i\]'),
     'd': RegExp(r'\[d\]'),
   };
-
   static final Map<String, String> _replacements = { // 特殊字符替换规则
     '\n': '\\n',
     '\r': '\\r',
@@ -51,8 +48,6 @@ class LogUtil {
     '[': '\\[',
     ']': '\\]'
   };
-
-  static String setLogFileKeywords = 'live_home_page'; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
 
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
