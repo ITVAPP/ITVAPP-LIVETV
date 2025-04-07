@@ -943,6 +943,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.e('重新解析时频道信息无效');
         throw Exception('无效的频道信息');
       }
+      _isSwitchingChannel = true; // 设置切换标志位
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
       await _disposeStreamUrlInstance(_streamUrl);
@@ -994,6 +995,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _handleSourceSwitching();
     } finally {
       if (mounted) {
+      	_isSwitchingChannel = false; // 重置切换标志位
         _updatePlayState(parsing: false, retrying: false);
       }
     }
