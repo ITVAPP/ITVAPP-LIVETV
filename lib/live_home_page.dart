@@ -249,12 +249,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放');
         _startPlayDurationTimer();
       _updatePlayUrl(_preCachedUrl!);
+      _isSwitchingChannel = false;
     } catch (e, stackTrace) {
       LogUtil.logError('$logDescription: 切换到预缓存地址失败', e, stackTrace);
+      _isSwitchingChannel = false;
       _retryPlayback();
       return;
     } finally {
-      _isSwitchingChannel = false; // 重置切换标志位
       _progressEnabled = false;
       _preCachedUrl = null;
       await _disposeStreamUrlInstance(_preCacheStreamUrl);
@@ -987,15 +988,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('播放器控制器为空，无法切换');
         _handleSourceSwitching();
       }
+      _isSwitchingChannel = false;
     } catch (e, stackTrace) {
       LogUtil.logError('重新解析失败', e, stackTrace);
       await _disposeStreamUrlInstance(_streamUrl);
       _streamUrl = null;
       _preCachedUrl = null;
       _handleSourceSwitching();
+      _isSwitchingChannel = false;
     } finally {
       if (mounted) {
-      	_isSwitchingChannel = false; // 重置切换标志位
         _updatePlayState(parsing: false, retrying: false);
       }
     }
