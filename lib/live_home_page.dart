@@ -231,6 +231,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool? playing, bool? buffering, String? message, bool? showPlay, bool? showPause,
     bool? userPaused, bool? switching, bool? retrying, bool? parsing, int? sourceIndex, int? retryCount,
     bool? isAudio, double? aspectRatio, bool? shouldUpdateAspectRatio, bool? drawerIsOpen,
+    ValueKey<int>? drawerRefreshKey,
   }) {
     if (!mounted) return;
     setState(() {
