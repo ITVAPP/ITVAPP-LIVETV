@@ -29,9 +29,6 @@ class StreamUrl {
   /// 重试任务之间的延迟时间（单位：秒），用于在首次获取流失败后等待一段时间再重试
   static const Duration RETRY_DELAY = Duration(seconds: 1);
 
-  // 将常量集中到配置类中，提升可维护性
-  static const _Config config = _Config();
-
   // 预定义视频分辨率映射表，使用 const 确保不可变，提升性能
   static const Map<String, (int, int)> resolutionMap = {
     '720': (1280, 720),
