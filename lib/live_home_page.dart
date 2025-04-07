@@ -249,6 +249,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (aspectRatio != null) this.aspectRatio = aspectRatio;
       if (shouldUpdateAspectRatio != null) _shouldUpdateAspectRatio = shouldUpdateAspectRatio;
       if (drawerIsOpen != null) _drawerIsOpen = drawerIsOpen;
+      if (drawerRefreshKey != null) _drawerRefreshKey = drawerRefreshKey;
     });
   }
 
