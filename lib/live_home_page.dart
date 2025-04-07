@@ -558,11 +558,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.exception:
         final error = event.parameters?["error"] as String? ?? "Unknown error";
-        LogUtil.e('播放器异常: $error');
         // 如果正在解析和已在切换中则停止处理
         if (_isParsing || _isSwitchingChannel) {
           return;
         }
+        LogUtil.e('播放器异常: $error');
             if (_preCachedUrl != null) {
               LogUtil.i('异常触发，预缓存地址已准备，立即切换');
               await _switchToPreCachedUrl('异常触发');
