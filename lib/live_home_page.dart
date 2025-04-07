@@ -173,9 +173,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
 
-  // 新增变量：用于标记解析期间的异常
-  bool _exceptionDuringParsing = false;
-
   /// 判断流类型
   StreamType _determineStreamType(String? url) {
     if (url == null || url.isEmpty) return StreamType.unknown;
@@ -270,13 +267,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
       final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _determineStreamType(_preCachedUrl) == StreamType.hls); // 修改处：使用 _determineStreamType
       await _playerController?.setupDataSource(newSource);
-      if (isPlaying) {
         await _playerController?.play();
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放');
         _startPlayDurationTimer();
-      } else {
-        LogUtil.i('$logDescription: 切换到预缓存地址但保持暂停状态');
-      }
       _updatePlayUrl(_preCachedUrl!);
     } catch (e, stackTrace) {
       LogUtil.logError('$logDescription: 切换到预缓存地址失败', e, stackTrace);
@@ -506,21 +499,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.exception:
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
-        // 检查是否已在切换中
-        if (_isSwitchingChannel) {
-          LogUtil.i('正在处理切换，跳过异常触发');
+        // 检查是否已在切换或解析中
+        if (_isSwitchingChannel || _isParsing) {
           return;
         }
-        // 如果正在解析，标记异常并等待解析完成
-        if (_isParsing) {
-          _exceptionDuringParsing = true; // 标记解析期间的异常
-          return;
-        }
-        // 设置为播放状态，确保切换后恢复播放
-        isPlaying = true;
-        // 设置切换标志位
-        _isSwitchingChannel = true;
-        try {
           if (_isHls) {
             if (_preCachedUrl != null) {
               LogUtil.i('异常触发，预缓存地址已准备，立即切换');
@@ -532,10 +514,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           } else {
             _retryPlayback();
           }
-        } finally {
-          // 重置切换标志位
-          _isSwitchingChannel = false;
-        }
         break;
       case BetterPlayerEventType.bufferingStart:
         _updatePlayState(
@@ -565,7 +543,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           playback: PlaybackState(buffering: false), // 修改处：使用 PlaybackState
           ui: UIState(
             message: 'HIDE_CONTAINER',
-            playIconState: _isUserPaused ? PlayIconState.play : PlayIconState.none, // 修改处：使用 PlayIconState
+            playIconState: PlayIconState.none, 
           ),
         );
         _timerManager.cancelTimer(TimerType.bufferingCheck);
@@ -576,7 +554,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             playback: PlaybackState(playing: true, userPaused: false), // 修改处：使用 PlaybackState
             ui: UIState(
               message: isBuffering ? toastString : 'HIDE_CONTAINER',
-              playIconState: PlayIconState.none, // 修改处：使用 PlayIconState
+              playIconState: PlayIconState.none, 
             ),
           );
           _timerManager.cancelTimer(TimerType.bufferingCheck);
@@ -586,21 +564,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.pause:
+        LogUtil.i('播放暂停');
         if (isPlaying) {
           _updatePlayState(
             playback: PlaybackState(playing: false), // 修改处：使用 PlaybackState
             ui: UIState(
               message: S.current.playpause,
-              playIconState: _isUserPaused ? PlayIconState.play : PlayIconState.pause, // 修改处：使用 PlayIconState
+              playIconState: PlayIconState.play,
             ),
           );
-          LogUtil.i('播放暂停，用户触发: $_isUserPaused');
         }
         break;
       case BetterPlayerEventType.progress:
-        // 检查是否已在切换中
-        if (_isSwitchingChannel) {
-          LogUtil.i('正在处理切换，跳过 progress 触发');
+        // 检查是否已在切换或解析中
+        if (_isSwitchingChannel || _isParsing) {
           return;
         }
         if (_progressEnabled && isPlaying) {
@@ -1020,16 +997,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       if (mounted) {
         _updatePlayState(parsing: false, retrying: false);
-        if (_exceptionDuringParsing) {
-          if (!_isUserPaused) { // 检查用户是否主动暂停
             _playerController?.play();
-            LogUtil.i('解析完成后，因异常主动恢复播放');
-          } else {
-            LogUtil.i('解析完成后，用户已暂停，不恢复播放');
-          }
-          _exceptionDuringParsing = false; // 重置变量
-        }
-        LogUtil.i('重新解析结束');
+            LogUtil.i('解析完成，主动恢复播放');
       }
     }
   }
