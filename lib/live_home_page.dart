@@ -513,20 +513,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.exception:
         final error = event.parameters?["error"] as String? ?? "Unknown error";
         LogUtil.e('播放器异常: $error');
+        // 检查是否已在切换中
+        if (_isSwitchingChannel) {
+          LogUtil.i('正在处理切换，跳过异常触发');
+          return;
+        }
+        // 如果正在解析，标记异常并等待解析完成
         if (_isParsing) {
           _exceptionDuringParsing = true; // 标记解析期间的异常
           return;
         }
-        if (_isHls) {
-          if (_preCachedUrl != null) {
-            LogUtil.i('异常触发，预缓存地址已准备，立即切换');
-            await _switchToPreCachedUrl('异常触发');
+        // 设置为播放状态，确保切换后恢复播放
+        isPlaying = true;
+        // 设置切换标志位
+        _isSwitchingChannel = true;
+        try {
+          if (_isHls) {
+            if (_preCachedUrl != null) {
+              LogUtil.i('异常触发，预缓存地址已准备，立即切换');
+              await _switchToPreCachedUrl('异常触发');
+            } else {
+              LogUtil.i('异常触发，预缓存地址未准备，等待解析');
+              await _reparseAndSwitch();
+            }
           } else {
-            LogUtil.i('异常触发，预缓存地址未准备，等待解析');
-            await _reparseAndSwitch();
+            _retryPlayback();
           }
-        } else {
-          _retryPlayback();
+        } finally {
+          // 重置切换标志位
+          _isSwitchingChannel = false;
         }
         break;
       case BetterPlayerEventType.bufferingStart:
@@ -584,6 +599,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.progress:
+        // 检查是否已在切换中
+        if (_isSwitchingChannel) {
+          LogUtil.i('正在处理切换，跳过 progress 触发');
+          return;
+        }
         if (_progressEnabled && isPlaying) {
           final position = event.parameters?["progress"] as Duration?;
           final duration = event.parameters?["duration"] as Duration?;
@@ -591,7 +611,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
             final remainingTime = duration - position;
             if (_isHls && _preCachedUrl != null && remainingTime.inSeconds <= hlsSwitchThresholdSeconds) {
               LogUtil.i('HLS 剩余时间少于 $hlsSwitchThresholdSeconds 秒，切换到预缓存地址');
-              await _switchToPreCachedUrl('HLS 剩余时间触发切换');
+              _isSwitchingChannel = true; // 设置切换标志位
+              try {
+                await _switchToPreCachedUrl('HLS 剩余时间触发切换');
+              } finally {
+                _isSwitchingChannel = false; // 重置切换标志位
+              }
             } else if (!_isHls) {
               if (remainingTime.inSeconds <= nonHlsPreloadThresholdSeconds) {
                 final nextUrl = _getNextVideoUrl();
@@ -601,7 +626,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
               }
               if (remainingTime.inSeconds <= nonHlsSwitchThresholdSeconds && _preCachedUrl != null) {
-                await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
+                _isSwitchingChannel = true; // 设置切换标志位
+                try {
+                  await _switchToPreCachedUrl('非 HLS 剩余时间少于 $nonHlsSwitchThresholdSeconds 秒');
+                } finally {
+                  _isSwitchingChannel = false; // 重置切换标志位
+                }
               }
             }
           }
