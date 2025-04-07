@@ -1,3 +1,4 @@
+// 修改代码开始
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -16,7 +17,7 @@ class StreamUrl {
   final HttpUtil _httpUtil = HttpUtil(); // 使用 HttpUtil 单例，无需释放
   Completer<void>? _completer;
   final Duration timeoutDuration;
-  late final CancelToken _cancelToken; // 添加实例级的 CancelToken
+  late final CancelToken _cancelToken; // 实例级的 CancelToken，用于取消所有 HTTP 请求
 
   // 定义常量
   static const String ERROR_RESULT = 'ERROR';
@@ -29,8 +30,8 @@ class StreamUrl {
   /// 重试任务之间的延迟时间（单位：秒），用于在首次获取流失败后等待一段时间再重试
   static const Duration RETRY_DELAY = Duration(seconds: 1);
 
-  // 预定义视频分辨率映射表，用于提高性能
-  static final Map<String, (int, int)> resolutionMap = {
+  // 预定义视频分辨率映射表，使用 const 确保不可变，提升性能
+  static const Map<String, (int, int)> resolutionMap = {
     '720': (1280, 720),
     '1080': (1920, 1080),
     '480': (854, 480),
@@ -40,8 +41,8 @@ class StreamUrl {
   // 定义重定向规则，用@分隔不同的关键字
   static String rulesString = '.php@.asp@.jsp@.aspx';
 
-  // 预定义容器类型集合，提高查找效率
-  static final Set<String> validContainers = {'mp4', 'webm'};
+  // 预定义容器类型集合，使用 const 确保不可变，提升性能
+  static const Set<String> validContainers = {'mp4', 'webm'};
 
   // 预编译的正则表达式，用于匹配特定 URL 和清单格式
   static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+.m3u8)"');
@@ -103,8 +104,9 @@ class StreamUrl {
     }
   }
 
-  // 重试逻辑
+  /// 重试逻辑：对指定任务进行重试，最多尝试两次，带有超时和取消检查
   Future<String> _retryTask(Future<String> Function() task) async {
+    // 首次尝试
     try {
       final result = await task().timeout(timeoutDuration);
       if (result != ERROR_RESULT) return result;
@@ -117,6 +119,7 @@ class StreamUrl {
       LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
     }
 
+    // 延迟后重试
     await Future.delayed(RETRY_DELAY);
     try {
       final result = await task().timeout(timeoutDuration);
@@ -131,7 +134,7 @@ class StreamUrl {
     }
   }
 
-  // 安全完成 Completer
+  // 安全完成 Completer，避免内存泄漏
   void _completeSafely() {
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.complete();
@@ -139,13 +142,13 @@ class StreamUrl {
     _completer = null;
   }
 
-  // 释放资源，确保等待子任务完成
+  /// 释放资源：确保所有异步任务完成并取消未完成的请求
   Future<void> dispose() async {
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
-    // 等待 Completer 完成，包括 GetM3U8 的任务
+    // 等待 Completer 完成，确保所有子任务结束
     await _completer?.future.catchError((e) {
       LogUtil.e('Completer 完成时发生错误: $e');
     });
@@ -191,7 +194,7 @@ class StreamUrl {
     return url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
   }
 
-  // 验证给定 URL 是否为绝对 URL
+  // 验证给定 URL 是否为绝对 URL，优化为单次解析
   bool _isValidUrl(String url) {
     try {
       return Uri.parse(url).isAbsolute;
@@ -352,7 +355,7 @@ url: ${audioStream.url}''');
     }
   }
 
-  /// 生成并保存 m3u8 文件
+  /// 生成并保存 m3u8 文件：将视频流和音频流合并为本地 m3u8 文件
   Future<String> _generateM3u8File(HlsVideoStreamInfo videoStream, String audioUrl) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
@@ -444,7 +447,7 @@ url: ${audioStream.url}''');
     }
   }
 
-  // 获取 YouTube 直播的 m3u8 清单地址
+  /// 获取 YouTube 直播的 m3u8 清单地址：从网页中提取 HLS 清单 URL
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
     if (_cancelToken.isCancelled) {
       LogUtil.i('对象已释放，无法获取 M3U8 URL');
@@ -460,8 +463,8 @@ url: ${audioStream.url}''');
             'receiveTimeout': RECEIVE_TIMEOUT,
           },
         ),
-        cancelToken: _cancelToken, 
-      ).timeout(timeoutDuration);
+        cancelToken: _cancelToken,
+      ).timeout(timeoutDuration); // 统一超时控制
       if (_cancelToken.isCancelled) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
@@ -521,16 +524,16 @@ url: ${audioStream.url}''');
         return null;
       }
     } catch (e, stackTrace) {
-      if (!_cancelToken.isCancelled) { 
+      if (!_cancelToken.isCancelled) {
         LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
       }
       return null;
     }
   }
 
-  // 从 m3u8 清单中选择指定质量的流地址
+  /// 从 m3u8 清单中选择指定质量的流地址：根据首选分辨率解析 HLS 清单
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_cancelToken.isCancelled) { 
+    if (_cancelToken.isCancelled) {
       LogUtil.i('对象已释放，无法获取质量 M3U8 URL');
       return null;
     }
@@ -545,8 +548,8 @@ url: ${audioStream.url}''');
             'receiveTimeout': RECEIVE_TIMEOUT,
           },
         ),
-        cancelToken: _cancelToken, 
-      ).timeout(timeoutDuration);
+        cancelToken: _cancelToken,
+      ).timeout(timeoutDuration); // 统一超时控制
       if (_cancelToken.isCancelled) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
@@ -609,11 +612,22 @@ url: ${audioStream.url}''');
     }
   }
 
-  // 从 m3u8 清单行提取视频质量信息
+  /// 从 m3u8 清单行提取视频质量信息：优化为字符串操作替代正则表达式
   String? _extractQuality(String extInfLine) {
-    if (_cancelToken.isCancelled) return null; 
-    final match = resolutionRegex.firstMatch(extInfLine);
-    return match?.group(1);
+    if (_cancelToken.isCancelled) return null;
+    const marker = 'RESOLUTION=';
+    final start = extInfLine.indexOf(marker);
+    if (start == -1) return null;
+
+    final resolutionStart = start + marker.length;
+    final resolutionEnd = extInfLine.indexOf(',', resolutionStart);
+    final resolution = resolutionEnd != -1
+        ? extInfLine.substring(resolutionStart, resolutionEnd)
+        : extInfLine.substring(resolutionStart);
+
+    final parts = resolution.split('x');
+    if (parts.length != 2) return null;
+    return parts[1]; // 返回高度值（如 "720"）
   }
 
   // 检查 URL 是否需要处理重定向
@@ -622,3 +636,4 @@ url: ${audioStream.url}''');
     return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
   }
 }
+// 修改代码结束
