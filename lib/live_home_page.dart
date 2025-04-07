@@ -101,7 +101,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int nonHlsPreloadThresholdSeconds = 20; // 非 HLS 预加载阈值（秒）
   static const int nonHlsSwitchThresholdSeconds = 3; // 非 HLS 切换阈值（秒）
   static const double defaultAspectRatio = 1.78; // 默认宽高比
-  static const int cleanupDelayMilliseconds = 500; // 清理延迟（毫秒）
+  static const int cleanupDelayMilliseconds = 500; // 切换和清理延迟（毫秒）
   static const int snackBarDurationSeconds = 5; // 提示条显示时长（秒）
   static const int bufferingStartSeconds = 10; // 缓冲开始检查时间（秒）
   static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
@@ -148,6 +148,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
+  Timer? _debounceTimer; // 防抖定时器
 
   /// 检查 URL 是否符合指定格式
   bool _checkUrlFormat(String? url, List<String> formats) {
@@ -294,7 +295,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('视频广告播放完成，准备播放频道');
         _adManager.reset();
       }
-      await _releaseAllResources();
+      if (_playerController != null) {
+        await _releaseAllResources(isDisposing: false); // 在此处释放资源
+      }
       await _preparePlaybackUrl();
       await _setupPlayerController();
       await _startPlayback();
@@ -402,16 +405,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 处理待执行的频道切换请求
   void _processPendingSwitch() {
-    if (_pendingSwitch != null && !_isParsing && !_isRetrying) {
-      final nextRequest = _pendingSwitch!;
-      _currentChannel = nextRequest.channel;
-      _sourceIndex = nextRequest.sourceIndex;
-      _pendingSwitch = null;
-      LogUtil.i('处理最新切换请求: ${_currentChannel?.title ?? "未知频道"}, 源索引: $_sourceIndex');
-      Future.microtask(() => _playVideo());
-    } else if (_pendingSwitch != null) {
-      LogUtil.i('无法处理切换请求，因状态冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying');
+    if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing) {
+      LogUtil.i('无法处理切换请求，因状态冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing');
+      return;
     }
+    final nextRequest = _pendingSwitch!;
+    _currentChannel = nextRequest.channel;
+    _sourceIndex = nextRequest.sourceIndex;
+    _pendingSwitch = null;
+    LogUtil.i('处理最新切换请求: ${_currentChannel?.title ?? "未知频道"}, 源索引: $_sourceIndex');
+    Future.microtask(() async {
+      if (_playerController != null) {
+        await _releaseAllResources(isDisposing: false); // 仅在实际播放前释放
+      }
+      await _playVideo();
+    });
   }
 
   /// 队列化切换频道
@@ -421,39 +429,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
-    if (_isSwitchingChannel) {
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
       _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
-      LogUtil.i('更新最新切换请求: ${channel.title}, 源索引: $safeSourceIndex');
-      _timerManager.startTimer(
-        TimerType.timeout,
-        Duration(seconds: m3u8ConnectTimeoutSeconds),
-        () {
-          if (mounted && _isSwitchingChannel) {
-            LogUtil.e('切换操作超时(${m3u8ConnectTimeoutSeconds}秒)，强制重置状态');
-            _updatePlayState(switching: false);
-            _processPendingSwitch();
-          }
-        }
-      );
-    } else {
-      if (_playerController != null) {
-        await _releaseAllResources(isDisposing: false);
-      }
-      _currentChannel = channel;
-      _sourceIndex = safeSourceIndex;
-      if (_currentChannel?.urls != null && _sourceIndex >= 0 && _sourceIndex < _currentChannel!.urls!.length) {
-        _originalUrl = _currentChannel!.urls![_sourceIndex];
-        LogUtil.i('切换频道/源 - 解析前地址: $_originalUrl');
-        await _playVideo();
+      LogUtil.i('防抖后更新最新切换请求: ${channel.title}, 源索引: $safeSourceIndex');
+      if (!_isSwitchingChannel) {
+        _processPendingSwitch();
       } else {
-        LogUtil.e('切换频道/源失败 - 无效的URL索引: $_sourceIndex');
-        _updatePlayState(
-          message: S.current.playError,
-          playing: false,
-          buffering: false,
+        _timerManager.startTimer(
+          TimerType.timeout,
+          Duration(seconds: m3u8ConnectTimeoutSeconds),
+          () {
+            if (mounted && _isSwitchingChannel) {
+              LogUtil.e('切换操作超时(${m3u8ConnectTimeoutSeconds}秒)，强制处理队列');
+              _updatePlayState(switching: false);
+              _processPendingSwitch();
+            }
+          },
         );
       }
-    }
+    });
   }
 
   /// 获取安全的源索引，避免越界
