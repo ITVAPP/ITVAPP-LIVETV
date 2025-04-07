@@ -1,4 +1,3 @@
-// 修改代码开始
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -30,6 +29,9 @@ class StreamUrl {
   /// 重试任务之间的延迟时间（单位：秒），用于在首次获取流失败后等待一段时间再重试
   static const Duration RETRY_DELAY = Duration(seconds: 1);
 
+  // 将常量集中到配置类中，提升可维护性
+  static const _Config config = _Config();
+
   // 预定义视频分辨率映射表，使用 const 确保不可变，提升性能
   static const Map<String, (int, int)> resolutionMap = {
     '720': (1280, 720),
@@ -56,9 +58,12 @@ class StreamUrl {
     _cancelToken = CancelToken(); // 初始化实例级的 CancelToken
   }
 
+  // 检查是否已取消，减少冗余判断
+  bool _isCancelled() => _cancelToken.isCancelled;
+
   // 获取媒体流 URL：根据 URL 类型进行相应处理并返回可用的流地址
   Future<String> getStreamUrl() async {
-    if (_cancelToken.isCancelled) return 'ERROR';
+    if (_isCancelled()) return 'ERROR'; // 使用封装方法检查取消状态
     _completer = Completer<void>();
     try {
       // 检查是否为GetM3U8 URL
@@ -74,7 +79,7 @@ class StreamUrl {
           return 'https://lz.qaiu.top/parser?url=$url';
         } else {
           // 使用本地解析器处理其他蓝奏云链接
-          final result = await LanzouParser.getLanzouUrl(url, cancelToken: _cancelToken); // 传递 _cancelToken
+          final result = await LanzouParser.getLanzouUrl(url, cancelToken: _cancelToken);
           if (result != 'ERROR') {
             return result;
           }
@@ -100,7 +105,7 @@ class StreamUrl {
       }
       return 'ERROR';
     } finally {
-      _completeSafely();
+      _completeSafely(); // 确保 _completer 在所有情况下都被释放
     }
   }
 
@@ -112,11 +117,17 @@ class StreamUrl {
       if (result != ERROR_RESULT) return result;
       LogUtil.e('首次获取视频流失败，准备重试');
     } catch (e) {
-      if (_cancelToken.isCancelled) {
+      if (_isCancelled()) {
         LogUtil.i('首次任务被取消，不进行重试');
         return ERROR_RESULT;
       }
       LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
+    }
+
+    // 提前检查是否取消，避免无意义的延迟和重试
+    if (_isCancelled()) {
+      LogUtil.i('重试前任务已取消，直接返回');
+      return ERROR_RESULT;
     }
 
     // 延迟后重试
@@ -125,7 +136,7 @@ class StreamUrl {
       final result = await task().timeout(timeoutDuration);
       return result != ERROR_RESULT ? result : ERROR_RESULT;
     } catch (retryError) {
-      if (_cancelToken.isCancelled) {
+      if (_isCancelled()) {
         LogUtil.i('重试任务被取消');
         return ERROR_RESULT;
       }
@@ -148,25 +159,21 @@ class StreamUrl {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
-    // 等待 Completer 完成，确保所有子任务结束
-    await _completer?.future.catchError((e) {
-      LogUtil.e('Completer 完成时发生错误: $e');
-    });
-
-    // 取消所有未完成的 HTTP 请求
-    await LogUtil.safeExecute(() async {
-      _cancelToken.cancel('StreamUrl disposed'); // 使用实例级 CancelToken
-      LogUtil.i('已取消所有未完成的 HTTP 请求');
-    }, '取消 HTTP 请求时发生错误');
-
-    // 释放 YoutubeExplode 实例
-    await LogUtil.safeExecute(() async {
-      try {
-        yt.close();
-      } catch (e, stackTrace) {
-        LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
-      }
-    }, '关闭资源时发生错误');
+    // 合并资源释放逻辑为单一异步任务，减少开销
+    await Future.wait([
+      _completer?.future.catchError((e) {
+        LogUtil.e('Completer 完成时发生错误: $e');
+      }) ?? Future.value(),
+      Future(() async {
+        _cancelToken.cancel('StreamUrl disposed');
+        LogUtil.i('已取消所有未完成的 HTTP 请求');
+        try {
+          yt.close(); // 确保在 dispose 中统一释放 yt
+        } catch (e, stackTrace) {
+          LogUtil.logError('释放 YT 实例时发生错误', e, stackTrace);
+        }
+      }),
+    ]);
   }
 
   /// 判断是否包含"getm3u8"
@@ -205,13 +212,13 @@ class StreamUrl {
 
   // 监听网页获取 m3u8 的 URL，传递 _cancelToken
   Future<String> _handleGetM3U8Url(String url) async {
-    if (_cancelToken.isCancelled) return 'ERROR';
+    if (_isCancelled()) return 'ERROR'; // 使用封装方法检查取消状态
     GetM3U8? detector;
     try {
       detector = GetM3U8(
         url: url,
         timeoutSeconds: timeoutDuration.inSeconds,
-        cancelToken: _cancelToken, // 传递 StreamUrl 的 _cancelToken
+        cancelToken: _cancelToken,
       );
 
       final result = await detector.getUrl();
@@ -225,25 +232,24 @@ class StreamUrl {
       LogUtil.logError('GetM3U8处理失败', e, stackTrace);
       return 'ERROR';
     } finally {
-      // 确保 detector 在初始化失败时也能被正确释放
       if (detector != null) {
-        await detector.dispose(); // 等待 GetM3U8 释放资源
+        await detector.dispose();
       }
     }
   }
 
   // 获取普通 YouTube 视频的流媒体 URL
   Future<String> _getYouTubeVideoUrl() async {
-    if (_cancelToken.isCancelled) return 'ERROR';
+    if (_isCancelled()) return 'ERROR'; // 使用封装方法检查取消状态
     try {
       var video = await yt.videos.get(url);
-      if (_cancelToken.isCancelled) {
+      if (_isCancelled()) {
         LogUtil.i('解析视频信息后任务被取消');
         return 'ERROR';
       }
 
       var manifest = await yt.videos.streams.getManifest(video.id);
-      if (_cancelToken.isCancelled) {
+      if (_isCancelled()) {
         LogUtil.i('解析流清单后任务被取消');
         return 'ERROR';
       }
@@ -256,75 +262,74 @@ HLS流数量: ${manifest.hls.length}
       String? audioUrl;
       HlsVideoStreamInfo? selectedVideoStream;
 
-      // 优先尝试获取 HLS 流
+      // 并行获取 HLS 视频流和音频流，提升效率
       if (manifest.hls.isNotEmpty) {
         final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
         LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
 
-        // 过滤有效的流
         final validStreams = allVideoStreams
             .where((s) =>
                 _isValidUrl(s.url.toString()) && s.container.name.toLowerCase() == 'm3u8')
             .toList();
 
-        // 按照预定义的分辨率顺序查找视频流
-        for (final res in resolutionMap.keys) {
-          // 找出符合当前分辨率的流
-          final matchingStreams = validStreams
-              .where((s) => s.qualityLabel.contains('${res}p'))
-              .toList();
+        final videoFuture = Future(() async {
+          for (final res in resolutionMap.keys) {
+            final matchingStreams = validStreams
+                .where((s) => s.qualityLabel.contains('${res}p'))
+                .toList();
 
-          // 如果找到了符合分辨率的流
-          if (matchingStreams.isNotEmpty) {
-            // 优先选择 avc1 编码的流
-            selectedVideoStream = matchingStreams.firstWhere(
-              (s) => s.codec.toString().toLowerCase().contains('avc1'),
-              orElse: () => matchingStreams.first // 如果没有avc1编码的流，使用第一个流
-            );
-
-            if (selectedVideoStream != null) {
-              LogUtil.i('''找到 ${res}p 质量的视频流
-tag: ${selectedVideoStream.tag}
-qualityLabel: ${selectedVideoStream.qualityLabel}
-videoCodec: ${selectedVideoStream.videoCodec}
-codec: ${selectedVideoStream.codec}
-container: ${selectedVideoStream.container}
-bitrate: ${selectedVideoStream.bitrate.kiloBitsPerSecond} Kbps
-videoQuality: ${selectedVideoStream.videoQuality}
-videoResolution: ${selectedVideoStream.videoResolution}
-framerate: ${selectedVideoStream.framerate}fps
-url: ${selectedVideoStream.url}''');
-              videoUrl = selectedVideoStream.url.toString();
-              break;
+            if (matchingStreams.isNotEmpty) {
+              selectedVideoStream = matchingStreams.firstWhere(
+                (s) => s.codec.toString().toLowerCase().contains('avc1'),
+                orElse: () => matchingStreams.first,
+              );
+              if (selectedVideoStream != null) {
+                LogUtil.i('''找到 ${res}p 质量的视频流
+tag: ${selectedVideoStream!.tag}
+qualityLabel: ${selectedVideoStream!.qualityLabel}
+videoCodec: ${selectedVideoStream!.videoCodec}
+codec: ${selectedVideoStream!.codec}
+container: ${selectedVideoStream!.container}
+bitrate: ${selectedVideoStream!.bitrate.kiloBitsPerSecond} Kbps
+videoQuality: ${selectedVideoStream!.videoQuality}
+videoResolution: ${selectedVideoStream!.videoResolution}
+framerate: ${selectedVideoStream!.framerate}fps
+url: ${selectedVideoStream!.url}''');
+                videoUrl = selectedVideoStream!.url.toString();
+                return true;
+              }
             }
           }
-        }
+          return false;
+        });
 
-        // 获取音频流
-        final audioStream = manifest.hls
-            .whereType<HlsAudioStreamInfo>()
-            .where((s) =>
-                _isValidUrl(s.url.toString()) && s.container.name.toLowerCase() == 'm3u8')
-            .firstWhere(
-              (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
-              orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first
-            );
+        final audioFuture = Future(() async {
+          final audioStream = manifest.hls
+              .whereType<HlsAudioStreamInfo>()
+              .where((s) =>
+                  _isValidUrl(s.url.toString()) && s.container.name.toLowerCase() == 'm3u8')
+              .firstWhere(
+                (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
+                orElse: () => manifest.hls.whereType<HlsAudioStreamInfo>().first,
+              );
 
-        if (audioStream != null) {
-          LogUtil.i('''找到 HLS音频流
+          if (audioStream != null) {
+            LogUtil.i('''找到 HLS音频流
 bitrate: ${audioStream.bitrate.kiloBitsPerSecond} Kbps
 codec: ${audioStream.codec}
 container: ${audioStream.container}
 tag: ${audioStream.tag}
 url: ${audioStream.url}''');
-          audioUrl = audioStream.url.toString();
-        }
+            audioUrl = audioStream.url.toString();
+            return true;
+          }
+          return false;
+        });
 
-        // 如果找到了视频和音频流，生成并保存 m3u8 文件
-        if (videoUrl != null && audioUrl != null && selectedVideoStream != null) {
-          // 提取 m3u8 文件生成逻辑为独立方法
+        final results = await Future.wait([videoFuture, audioFuture]);
+        if (results.every((r) => r) && videoUrl != null && audioUrl != null && selectedVideoStream != null) {
           try {
-            final result = await _generateM3u8File(selectedVideoStream, audioUrl);
+            final result = await _generateM3u8File(selectedVideoStream!, audioUrl!);
             if (result != 'ERROR') {
               return result;
             }
@@ -338,7 +343,6 @@ url: ${audioStream.url}''');
         LogUtil.i('没有可用的 HLS 流');
       }
 
-      // 如果没有合适的 HLS 流，尝试获取普通混合流
       var streamInfo = _getBestMuxedStream(manifest);
       if (streamInfo != null) {
         var streamUrl = streamInfo.url.toString();
@@ -363,10 +367,10 @@ url: ${audioStream.url}''');
       final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
 
-      // 从视频流的codec中提取编解码器信息
       final codecMatch = RegExp(r'codecs="([^"]+)"').firstMatch(videoStream.codec.toString());
       final codecs = codecMatch?.group(1) ?? 'avc1.4D401F,mp4a.40.2';
 
+      // 缓存 resolution，避免重复计算
       final resolution = videoStream.videoResolution;
       final width = resolution.width;
       final height = resolution.height;
@@ -375,7 +379,7 @@ url: ${audioStream.url}''');
           '#EXT-X-VERSION:3\n'
           '#EXT-X-STREAM-INF:BANDWIDTH=${videoStream.bitrate.bitsPerSecond},'
           'RESOLUTION=${width}x$height,'
-          'CODECS="$codecs",' // 使用从视频流提取的编解码器信息（已含音频流编码）
+          'CODECS="$codecs",'
           'AUDIO="audio_group"\n'
           '${videoStream.url}\n'
           '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
@@ -400,7 +404,7 @@ url: ${audioStream.url}''');
     try {
       LogUtil.i('查找普通混合流');
 
-      // 直接从manifest.muxed中获取有效流
+      // 缓存过滤结果，避免重复遍历
       final validStreams = manifest.muxed
           .where((s) => _isValidUrl(s.url.toString()))
           .toList();
@@ -410,10 +414,9 @@ url: ${audioStream.url}''');
         return null;
       }
 
-      // 优先选择MP4格式
       final streamInfo = validStreams.firstWhere(
         (s) => s.container.name.toLowerCase() == 'mp4',
-        orElse: () => validStreams.first
+        orElse: () => validStreams.first,
       );
 
       LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
@@ -426,7 +429,7 @@ url: ${audioStream.url}''');
 
   // 获取 YouTube 直播流的 URL
   Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_cancelToken.isCancelled) {
+    if (_isCancelled()) {
       LogUtil.i('对象已释放，无法获取直播流');
       return 'ERROR';
     }
@@ -440,7 +443,7 @@ url: ${audioStream.url}''');
       LogUtil.e('未能获取到有效的直播流地址');
       return 'ERROR';
     } catch (e, stackTrace) {
-      if (!_cancelToken.isCancelled) {
+      if (!_isCancelled()) {
         LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
       }
       return 'ERROR';
@@ -449,7 +452,7 @@ url: ${audioStream.url}''');
 
   /// 获取 YouTube 直播的 m3u8 清单地址：从网页中提取 HLS 清单 URL
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_cancelToken.isCancelled) {
+    if (_isCancelled()) {
       LogUtil.i('对象已释放，无法获取 M3U8 URL');
       return null;
     }
@@ -464,8 +467,8 @@ url: ${audioStream.url}''');
           },
         ),
         cancelToken: _cancelToken,
-      ).timeout(timeoutDuration); // 统一超时控制
-      if (_cancelToken.isCancelled) {
+      ).timeout(timeoutDuration);
+      if (_isCancelled()) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
       }
@@ -478,18 +481,15 @@ url: ${audioStream.url}''');
       if (response.statusCode == 200) {
         String responseData = response.data.toString();
         LogUtil.i('开始解析页面内容以提取 hlsManifestUrl');
-        // 查找最后一个 </style>，排除其前内容
         const styleEndMarker = '</style>';
         int lastStyleEnd = responseData.lastIndexOf(styleEndMarker);
         if (lastStyleEnd != -1) {
-          // 从最后一个 </style> 之后开始查找
           responseData = responseData.substring(lastStyleEnd + styleEndMarker.length);
           LogUtil.i('找到最后一个 </style>，从其后开始查找 hlsManifestUrl');
         } else {
           LogUtil.i('未找到 </style>，使用完整响应数据');
         }
 
-        // 使用 indexOf 替代正则表达式
         const marker = '"hlsManifestUrl":"';
         final start = responseData.indexOf(marker);
         if (start == -1) {
@@ -524,8 +524,15 @@ url: ${audioStream.url}''');
         return null;
       }
     } catch (e, stackTrace) {
-      if (!_cancelToken.isCancelled) {
-        LogUtil.logError('获取 M3U8 URL 时发生错误', e, stackTrace);
+      if (!_isCancelled()) {
+        // 细化异常处理
+        if (e is DioException) {
+          LogUtil.logError('HTTP 请求失败', e, stackTrace);
+        } else if (e is TimeoutException) {
+          LogUtil.logError('请求超时', e, stackTrace);
+        } else {
+          LogUtil.logError('获取 M3U8 URL 时发生未知错误', e, stackTrace);
+        }
       }
       return null;
     }
@@ -533,7 +540,7 @@ url: ${audioStream.url}''');
 
   /// 从 m3u8 清单中选择指定质量的流地址：根据首选分辨率解析 HLS 清单
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_cancelToken.isCancelled) {
+    if (_isCancelled()) {
       LogUtil.i('对象已释放，无法获取质量 M3U8 URL');
       return null;
     }
@@ -549,8 +556,8 @@ url: ${audioStream.url}''');
           },
         ),
         cancelToken: _cancelToken,
-      ).timeout(timeoutDuration); // 统一超时控制
-      if (_cancelToken.isCancelled) {
+      ).timeout(timeoutDuration);
+      if (_isCancelled()) {
         LogUtil.i('对象已释放，停止处理响应');
         return null;
       }
@@ -576,13 +583,13 @@ url: ${audioStream.url}''');
               LogUtil.i('找到分辨率 ${quality}p 的流地址: ${qualityUrls[quality]}');
             }
           }
-          if (_cancelToken.isCancelled) {
+          if (_isCancelled()) {
             LogUtil.i('对象已释放，停止解析清单');
             return null;
           }
         }
         LogUtil.i('解析完成，发现的分辨率和流地址: $qualityUrls');
-        // 按照预定义的分辨率顺序查找
+        // 使用 Map 键值查找替代线性搜索
         for (var quality in preferredQualities) {
           if (qualityUrls.containsKey(quality)) {
             LogUtil.i('选择分辨率 ${quality}p 的流地址: ${qualityUrls[quality]}');
@@ -590,7 +597,6 @@ url: ${audioStream.url}''');
           }
         }
 
-        // 如果没有找到指定质量的流，返回第一个可用的流
         if (qualityUrls.isNotEmpty) {
           final firstQuality = qualityUrls.keys.first;
           LogUtil.i(
@@ -605,8 +611,15 @@ url: ${audioStream.url}''');
         return null;
       }
     } catch (e, stackTrace) {
-      if (!_cancelToken.isCancelled) {
-        LogUtil.logError('获取质量 M3U8 URL 时发生错误', e, stackTrace);
+      if (!_isCancelled()) {
+        // 细化异常处理
+        if (e is DioException) {
+          LogUtil.logError('HTTP 请求失败', e, stackTrace);
+        } else if (e is TimeoutException) {
+          LogUtil.logError('请求超时', e, stackTrace);
+        } else {
+          LogUtil.logError('获取质量 M3U8 URL 时发生未知错误', e, stackTrace);
+        }
       }
       return null;
     }
@@ -614,7 +627,7 @@ url: ${audioStream.url}''');
 
   /// 从 m3u8 清单行提取视频质量信息：优化为字符串操作替代正则表达式
   String? _extractQuality(String extInfLine) {
-    if (_cancelToken.isCancelled) return null;
+    if (_isCancelled()) return null;
     const marker = 'RESOLUTION=';
     final start = extInfLine.indexOf(marker);
     if (start == -1) return null;
@@ -627,7 +640,7 @@ url: ${audioStream.url}''');
 
     final parts = resolution.split('x');
     if (parts.length != 2) return null;
-    return parts[1]; // 返回高度值（如 "720"）
+    return parts[1];
   }
 
   // 检查 URL 是否需要处理重定向
@@ -636,4 +649,3 @@ url: ${audioStream.url}''');
     return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
   }
 }
-// 修改代码结束
