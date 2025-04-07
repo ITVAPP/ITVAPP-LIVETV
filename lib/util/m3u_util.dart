@@ -284,7 +284,8 @@ class M3uUtil {
   }
 
   static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
+  // 修改后的 paramRegex，支持复杂参数值（包括 URL 中的 %、& 等）
+  static final RegExp paramRegex = RegExp(r'(\w+[-]\w*)=["'']?([^"'\s]+(?:[^"'\s]*[^"'\s])?)["'']?');
 
   /// 解析 M3U 文件为 PlaylistModel
   static Future<PlaylistModel> _parseM3u(String m3u) async {
@@ -308,7 +309,10 @@ class M3uUtil {
             currentCategory = line.substring(10).trim().isNotEmpty ? line.substring(10).trim() : Config.allChannelsKey;
           } else if (line.startsWith('#EXTINF:')) {
             final match = extInfRegex.firstMatch(line);
-            if (match == null || (match.group(2) ?? '').isEmpty) continue;
+            if (match == null || (match.group(2) ?? '').isEmpty) {
+              LogUtil.logError('无效的 #EXTINF 行', '行内容: $line');
+              continue;
+            }
 
             final paramsStr = match.group(1) ?? '';
             final channelName = match.group(2)!;
@@ -317,12 +321,12 @@ class M3uUtil {
             String tvgId = '';
             String tvgName = '';
 
-            final StringBuffer paramBuffer = StringBuffer();
+            // 使用改进的正则表达式解析参数
             final params = paramRegex.allMatches(paramsStr);
             for (var param in params) {
               final key = param.group(1)!;
               final value = param.group(2)!;
-              paramBuffer.write('$key=$value;');
+              LogUtil.i('解析参数: $key=$value'); // 添加日志
               if (key == 'group-title') groupTitle = value;
               else if (key == 'tvg-logo') tvgLogo = value;
               else if (key == 'tvg-id') tvgId = value;
@@ -330,13 +334,17 @@ class M3uUtil {
             }
 
             if (tvgId.isEmpty && tvgName.isNotEmpty) tvgId = tvgName;
-            if (tvgId.isEmpty) continue;
+            if (tvgId.isEmpty) {
+              LogUtil.logError('缺少 tvg-id 或 tvg-name', '行内容: $line');
+              continue;
+            }
 
             tempGroupTitle = groupTitle;
             tempChannelName = channelName;
             playListModel.playList![currentCategory] ??= <String, Map<String, PlayModel>>{};
             playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
-            PlayModel channel = playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ?? PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
+            PlayModel channel = playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??
+                PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
             if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
               channel.urls ??= [];
@@ -353,8 +361,9 @@ class M3uUtil {
             }
           } else if (isLiveLink(line)) {
             playListModel.playList![currentCategory] ??= <String, Map<String, PlayModel>>{};
-            playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
-            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??= PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
+            playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, Map<String, PlayModel>>{};
+            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??=
+                PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
             playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls ??= [];
             playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
           }
@@ -371,7 +380,8 @@ class M3uUtil {
             if (isLiveLink(channelLink)) {
               playListModel.playList![tempGroup] ??= <String, Map<String, PlayModel>>{};
               playListModel.playList![tempGroup]![groupTitle] ??= <String, PlayModel>{};
-              final channel = playListModel.playList![tempGroup]![groupTitle]![groupTitle] ?? PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
+              final channel = playListModel.playList![tempGroup]![groupTitle]![groupTitle] ??
+                  PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
               channel.urls ??= [];
               if (channelLink.isNotEmpty) channel.urls!.add(channelLink);
               playListModel.playList![tempGroup]![groupTitle]![groupTitle] = channel;
@@ -382,6 +392,7 @@ class M3uUtil {
           }
         }
       }
+      LogUtil.i('解析完成，播放列表: ${playListModel.playList}');
       return playListModel;
     } catch (e, stackTrace) {
       LogUtil.logError('解析 M3U 文件失败', e, stackTrace);
