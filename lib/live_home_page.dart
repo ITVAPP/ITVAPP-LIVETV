@@ -102,13 +102,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int nonHlsSwitchThresholdSeconds = 3; // 非 HLS 切换阈值（秒）
   static const double defaultAspectRatio = 1.78; // 默认宽高比
   static const int cleanupDelayMilliseconds = 500; // 清理延迟（毫秒）
-  static const int snackBarDurationSeconds = 4; // 提示条显示时长（秒）
+  static const int snackBarDurationSeconds = 5; // 提示条显示时长（秒）
   static const int bufferingStartSeconds = 10; // 缓冲开始检查时间（秒）
   static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 检查间隔（秒）
   static const int reparseMinIntervalMilliseconds = 10000; // m3u8 重新检查间隔（毫秒）
-  static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 连接超时（秒）
-  static const int m3u8ReceiveTimeoutSeconds = 10; // m3u8 接收超时（秒）
+  static const int m3u8ConnectTimeoutSeconds = 2; // m3u8 连接超时（秒）
+  static const int m3u8ReceiveTimeoutSeconds = 5; // m3u8 接收超时（秒）
 
   String? _preCachedUrl; // 预缓存的播放地址
   bool _isParsing = false; // 是否正在解析
@@ -593,6 +593,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           LogUtil.i('无更多源可播放');
           _handleNoMoreSources();
         }
+         LogUtil.i('播放结束，preCachedUrl: $_preCachedUrl');
         break;
       default:
         break;
@@ -718,7 +719,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       _preCachedUrl = parsedUrl;
-      LogUtil.i('预缓存地址: $_preCachedUrl');
       final nextSource = BetterPlayerConfig.createDataSource(isHls: _isHlsStream(parsedUrl), url: parsedUrl);
       await _playerController!.preCache(nextSource);
       LogUtil.i('预缓存完成: $parsedUrl');
@@ -812,7 +812,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       retrying: false,
       retryCount: 0,
     );
-    await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
+    await _releaseAllResources(isDisposing: false); 
     LogUtil.i('播放结束，无更多源');
   }
 
@@ -834,7 +834,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_isDisposing) return;
     _isDisposing = true;
     try {
-      LogUtil.i('开始释放所有资源');
       _timerManager.cancelAll();
       _timerManager._timers.clear();
       if (_playerController != null) {
@@ -879,7 +878,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _originalUrl = null;
         _m3u8InvalidCount = 0;
       }
-      LogUtil.i('所有资源已释放');
       await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
     } catch (e, stackTrace) {
       LogUtil.logError('释放资源过程中发生错误', e, stackTrace);
@@ -893,7 +891,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (instance == null) return;
     try {
       await instance.dispose();
-      LogUtil.i('StreamUrl实例已释放: ${instance.hashCode}');
     } catch (e, stackTrace) {
       LogUtil.logError('释放StreamUrl实例失败', e, stackTrace);
     }
@@ -1032,7 +1029,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   /// 根据地理信息排序视频播放列表
   void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
-      LogUtil.e('播放列表为空，无需排序');
       return;
     }
     final location = _getLocationInfo(userInfo);
