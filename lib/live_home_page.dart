@@ -55,71 +55,6 @@ class SwitchRequest {
   SwitchRequest(this.channel, this.sourceIndex);
 }
 
-/// 媒体类型枚举
-enum MediaType {
-  hls,        // HLS流
-  audio,      // 纯音频
-  video,      // 普通视频
-  unknown     // 未知类型
-}
-
-/// 媒体类型检测类，集中处理所有格式检测逻辑
-class MediaTypeDetector {
-  static const List<String> _audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
-  static const List<String> _videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
-  static const List<String> _hlsFormats = ['.m3u8'];
-  static const List<String> _allKnownFormats = [
-    '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
-    '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac', '.m3u8'
-  ];
-  
-  /// 检测URL对应的媒体类型
-  static MediaType detectType(String? url) {
-    if (url == null || url.isEmpty) return MediaType.unknown;
-    final lowercaseUrl = url.toLowerCase();
-    
-    // 检查HLS格式 - 优先级最高
-    if (_containsAnyFormat(lowercaseUrl, _hlsFormats)) return MediaType.hls;
-    
-    // 检查音频格式(且不是视频格式)
-    if (_containsAnyFormat(lowercaseUrl, _audioFormats) && 
-        !_containsAnyFormat(lowercaseUrl, _videoFormats)) return MediaType.audio;
-    
-    // 检查视频格式
-    if (_containsAnyFormat(lowercaseUrl, _videoFormats)) return MediaType.video;
-    
-    // 默认判断为HLS(如果不是明确的其他格式)
-    return MediaType.hls;
-  }
-  
-  /// 检查URL是否包含指定格式列表中的任一格式
-  static bool _containsAnyFormat(String url, List<String> formats) {
-    return formats.any((format) => url.contains(format));
-  }
-  
-  /// 完全匹配原有_isHlsStream方法的逻辑
-  static bool isHls(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    
-    // 如果包含.m3u8，则是HLS
-    if (_containsAnyFormat(lowercaseUrl, _hlsFormats)) return true;
-    
-    // 如果不包含任何已知格式，也视为HLS
-    return !_containsAnyFormat(lowercaseUrl, _allKnownFormats.where((f) => f != '.m3u8').toList());
-  }
-  
-  /// 完全匹配原有_checkIsAudioStream方法的逻辑
-  static bool isAudio(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final lowercaseUrl = url.toLowerCase();
-    
-    // 是音频格式且不是视频格式
-    return _containsAnyFormat(lowercaseUrl, _audioFormats) && 
-           !_containsAnyFormat(lowercaseUrl, _videoFormats);
-  }
-}
-
 /// 计时器管理类，统一管理所有计时任务
 class TimerManager {
   final Map<TimerType, Timer?> _timers = {}; // 存储计时器实例
@@ -155,18 +90,6 @@ class TimerManager {
   
   /// 检查计时器是否活跃
   bool isActive(TimerType type) => _timers[type]?.isActive == true;
-  
-  /// 取消所有计时器后启动单次计时器
-  void cancelAllAndStartTimer(TimerType type, Duration duration, Function() callback) {
-    cancelAll();
-    startTimer(type, duration, callback);
-  }
-
-  /// 取消所有计时器后启动周期性计时器
-  void cancelAllAndStartPeriodicTimer(TimerType type, Duration period, Function(Timer) callback) {
-    cancelAll();
-    startPeriodicTimer(type, period, callback);
-  }
 }
 
 class _LiveHomePageState extends State<LiveHomePage> {
@@ -226,12 +149,39 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
 
+  /// 检查 URL 是否符合指定格式
+  bool _checkUrlFormat(String? url, List<String> formats) {
+    if (url == null || url.isEmpty) return false;
+    final lowercaseUrl = url.toLowerCase();
+    return formats.any(lowercaseUrl.contains);
+  }
+
+  /// 判断是否为音频流
+  bool _checkIsAudioStream(String? url) {
+    const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
+    const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
+    return _checkUrlFormat(url, audioFormats) && !_checkUrlFormat(url, videoFormats);
+  }
+
+  /// 判断是否为 HLS 流
+  bool _isHlsStream(String? url) {
+    if (_checkUrlFormat(url, ['.m3u8'])) return true;
+    return !_checkUrlFormat(url, [
+      '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
+      '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
+    ]);
+  }
+
+  /// 更新当前播放地址并判断流类型
+  void _updatePlayUrl(String newUrl) {
+    _currentPlayUrl = newUrl;
+    _isHls = _isHlsStream(_currentPlayUrl);
+  }
+
   /// 更新播放状态，批量设置界面状态
   void _updatePlayState({
     bool? playing, bool? buffering, String? message, bool? showPlay, bool? showPause,
     bool? userPaused, bool? switching, bool? retrying, bool? parsing, int? sourceIndex, int? retryCount,
-    bool? isAudio, double? aspectRatio, bool? shouldUpdateAspectRatio, bool? drawerIsOpen,
-    ValueKey<int>? drawerRefreshKey,
   }) {
     if (!mounted) return;
     setState(() {
@@ -246,28 +196,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (parsing != null) _isParsing = parsing;
       if (sourceIndex != null) _sourceIndex = sourceIndex;
       if (retryCount != null) _retryCount = retryCount;
-      if (isAudio != null) _isAudio = isAudio;
-      if (aspectRatio != null) this.aspectRatio = aspectRatio;
-      if (shouldUpdateAspectRatio != null) _shouldUpdateAspectRatio = shouldUpdateAspectRatio;
-      if (drawerIsOpen != null) _drawerIsOpen = drawerIsOpen;
-      if (drawerRefreshKey != null) _drawerRefreshKey = drawerRefreshKey;
     });
-  }
-
-  /// 判断是否为 HLS 流
-  bool _isHlsStream(String? url) {
-    return MediaTypeDetector.isHls(url);
-  }
-
-  /// 判断是否为音频流
-  bool _checkIsAudioStream(String? url) {
-    return MediaTypeDetector.isAudio(url);
-  }
-
-  /// 更新当前播放地址并判断流类型
-  void _updatePlayUrl(String newUrl) {
-    _currentPlayUrl = newUrl;
-    _isHls = _isHlsStream(_currentPlayUrl);
   }
 
   /// 检查是否可以执行操作，避免状态冲突
@@ -311,7 +240,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     try {
-     _isSwitchingChannel = true; 
+     _isSwitchingChannel = true; // 设置切换标志位
       await _preparePreCacheSource(_preCachedUrl!);
       LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
       final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHlsStream(_preCachedUrl));
@@ -364,7 +293,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('视频广告播放完成，准备播放频道');
         _adManager.reset();
       }
-      await _releaseAllResources(isDisposing: false);
+      await _releaseAllResources();
       await _preparePlaybackUrl();
       await _setupPlayerController();
       await _startPlayback();
@@ -429,33 +358,32 @@ class _LiveHomePageState extends State<LiveHomePage> {
     String parsedUrl = await _streamUrl!.getStreamUrl();
     if (parsedUrl == 'ERROR') {
       LogUtil.e('地址解析失败: $url');
-      _updatePlayState(
-        message: S.current.vpnplayError,
-        switching: false
-      );
+      setState(() {
+        toastString = S.current.vpnplayError;
+        _isSwitchingChannel = false;
+      });
       await _disposeStreamUrlInstance(_streamUrl);
       _streamUrl = null;
       throw Exception('地址解析失败');
     }
     _updatePlayUrl(parsedUrl);
     bool isDirectAudio = _checkIsAudioStream(parsedUrl);
-    _updatePlayState(isAudio: isDirectAudio);
+    setState(() => _isAudio = isDirectAudio);
     LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $_isHls');
   }
 
   /// 设置播放器控制器并初始化数据源
   Future<void> _setupPlayerController() async {
     if (_playerController != null) {
-      await _releaseAllResources(isDisposing: false);
+      await _releaseAllResources();
     }
     try {
       final dataSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(eventListener: _videoListener, isHls: _isHls);
       _playerController = BetterPlayerController(betterPlayerConfiguration);
       await _playerController!.setupDataSource(dataSource);
-      LogUtil.i('播放器数据源设置完成');
       if (mounted) {
-        _updatePlayState();  // 触发UI更新
+        setState(() => _playerController);
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置播放器失败', e, stackTrace);
@@ -550,10 +478,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_shouldUpdateAspectRatio) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? defaultAspectRatio;
           if (aspectRatio != newAspectRatio) {
-            _updatePlayState(
-              aspectRatio: newAspectRatio,
-              shouldUpdateAspectRatio: false
-            );
+            setState(() {
+              aspectRatio = newAspectRatio;
+              _shouldUpdateAspectRatio = false;
+            });
             LogUtil.i('初始化完成，更新宽高比: $newAspectRatio');
           }
         }
@@ -573,7 +501,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               _retryPlayback();
             }
         break;
-case BetterPlayerEventType.bufferingStart:
+      case BetterPlayerEventType.bufferingStart:
         _updatePlayState(buffering: true, message: S.current.loading);
         if (isPlaying) {
           _timerManager.cancelTimer(TimerType.timeout);
@@ -822,7 +750,7 @@ case BetterPlayerEventType.bufferingStart:
         retryCount: _retryCount + 1,
       );
       LogUtil.i('重试播放: 第 $_retryCount 次');
-      _timerManager.cancelAllAndStartTimer(
+      _timerManager.startTimer(
         TimerType.retry,
         const Duration(seconds: retryDelaySeconds),
         () async {
@@ -884,13 +812,14 @@ case BetterPlayerEventType.bufferingStart:
       retrying: false,
       retryCount: 0,
     );
-    await _releaseAllResources(isDisposing: false);
+    await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
     LogUtil.i('播放结束，无更多源');
   }
 
   /// 启动新源播放定时器
   void _startNewSourceTimer() {
-    _timerManager.cancelAllAndStartTimer(
+    _timerManager.cancelAll();
+    _timerManager.startTimer(
       TimerType.retry,
       const Duration(seconds: retryDelaySeconds),
       () async {
@@ -950,8 +879,8 @@ case BetterPlayerEventType.bufferingStart:
         _originalUrl = null;
         _m3u8InvalidCount = 0;
       }
-      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
       LogUtil.i('所有资源已释放');
+      await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
     } catch (e, stackTrace) {
       LogUtil.logError('释放资源过程中发生错误', e, stackTrace);
     } finally {
@@ -979,7 +908,7 @@ case BetterPlayerEventType.bufferingStart:
       if (timeSinceLastParse < reparseMinIntervalMilliseconds) {
         final remainingWaitTime = reparseMinIntervalMilliseconds - timeSinceLastParse;
         LogUtil.i('解析频率过高，延迟 ${remainingWaitTime}ms 后解析');
-        _timerManager.cancelAllAndStartTimer(
+        _timerManager.startTimer(
           TimerType.retry, 
           Duration(milliseconds: remainingWaitTime.toInt()), 
           () {
@@ -996,7 +925,7 @@ case BetterPlayerEventType.bufferingStart:
         LogUtil.e('重新解析时频道信息无效');
         throw Exception('无效的频道信息');
       }
-       _isSwitchingChannel = true;
+      _isSwitchingChannel = true; // 设置切换标志位
       String url = _currentChannel!.urls![_sourceIndex].toString();
       LogUtil.i('重新解析地址: $url');
       await _disposeStreamUrlInstance(_streamUrl);
@@ -1034,7 +963,6 @@ case BetterPlayerEventType.bufferingStart:
         }
         _progressEnabled = true;
         _lastParseTime = now;
-        await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
         LogUtil.i('预缓存完成，等待剩余时间或异常触发切换');
       } else {
         LogUtil.i('播放器控制器为空，无法切换');
@@ -1055,31 +983,23 @@ case BetterPlayerEventType.bufferingStart:
     }
   }
 
-  /// 从用户信息中提取地理位置前缀
+  /// 从用户信息中提取地理位置信息
   Map<String, String?> _getLocationInfo(String? userInfo) {
     if (userInfo == null || userInfo.isEmpty) {
       LogUtil.i('用户地理信息为空，使用默认顺序');
       return {'region': null, 'city': null};
     }
-    
     try {
-      final userData = jsonDecode(userInfo);
-      final locationData = userData['info']?['location'];
-      
-      // 提取并处理地区信息
+      final Map<String, dynamic> userData = jsonDecode(userInfo);
+      final Map<String, dynamic>? locationData = userData['info']?['location'];
       final String? region = locationData?['region'] as String?;
-      String? regionPrefix = null;
-      if (region != null && region.isNotEmpty) {
-        regionPrefix = region.length >= 2 ? region.substring(0, 2) : region;
-      }
-      
-      // 提取并处理城市信息
       final String? city = locationData?['city'] as String?;
-      String? cityPrefix = null;
-      if (city != null && city.isNotEmpty) {
-        cityPrefix = city.length >= 2 ? city.substring(0, 2) : city;
-      }
-      
+      final String? regionPrefix = region != null && region.isNotEmpty
+          ? (region.length >= 2 ? region.substring(0, 2) : region)
+          : null;
+      final String? cityPrefix = city != null && city.isNotEmpty
+          ? (city.length >= 2 ? city.substring(0, 2) : city)
+          : null;
       LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
       return {'region': regionPrefix, 'city': cityPrefix};
     } catch (e) {
@@ -1088,7 +1008,7 @@ case BetterPlayerEventType.bufferingStart:
     }
   }
 
-  /// 按前缀排序列表项 
+  /// 根据地理前缀排序列表
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序: $items');
@@ -1098,8 +1018,6 @@ case BetterPlayerEventType.bufferingStart:
       LogUtil.i('待排序列表为空，返回空列表');
       return items;
     }
-    
-    // 注意：这里保留原方法的直接修改行为，不创建新列表
     items.sort((a, b) {
       final aMatches = a.startsWith(prefix);
       final bMatches = b.startsWith(prefix);
@@ -1107,7 +1025,6 @@ case BetterPlayerEventType.bufferingStart:
       if (!aMatches && bMatches) return 1;
       return a.compareTo(b);
     });
-    
     LogUtil.i('排序结果: $items');
     return items;
   }
@@ -1175,7 +1092,7 @@ case BetterPlayerEventType.bufferingStart:
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
       _updatePlayState(message: S.current.playError);
-      await _releaseAllResources(isDisposing: false);
+      await _releaseAllResources(isDisposing: false); // 修改处：替换 _cleanupController
     }
   }
 
@@ -1196,7 +1113,7 @@ case BetterPlayerEventType.bufferingStart:
   /// 处理返回键事件
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
-      _updatePlayState(drawerIsOpen: false);
+      setState(() => _drawerIsOpen = false);
       return false;
     }
     bool wasPlaying = _playerController?.isPlaying() ?? false;
@@ -1254,10 +1171,10 @@ case BetterPlayerEventType.bufferingStart:
   Future<void> _loadData() async {
     _updatePlayState(retrying: false, retryCount: 0);
     _timerManager.cancelAll();
-    _updatePlayState(isAudio: false);
+    setState(() => _isAudio = false);
     if (widget.m3uData.playList == null || widget.m3uData.playList!.isEmpty) {
       LogUtil.e('播放列表无效');
-      _updatePlayState(message: S.current.getDefaultError);
+      setState(() => toastString = S.current.getDefaultError);
       return;
     }
     try {
@@ -1269,11 +1186,11 @@ case BetterPlayerEventType.bufferingStart:
       await _handlePlaylist();
     } catch (e, stackTrace) {
       LogUtil.logError('加载播放列表失败', e, stackTrace);
-      _updatePlayState(message: S.current.parseError);
+      setState(() => toastString = S.current.parseError);
     }
   }
 
-/// 处理播放列表并选择首个可用频道
+  /// 处理播放列表并选择首个可用频道
   Future<void> _handlePlaylist() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       _currentChannel = _getChannelFromPlaylist(_videoMap!.playList!);
@@ -1283,17 +1200,17 @@ case BetterPlayerEventType.bufferingStart:
         _timeoutActive = false;
         _queueSwitchChannel(_currentChannel, _sourceIndex);
       } else {
-        _updatePlayState(
-          message: 'UNKNOWN',
-          retrying: false
-        );
+        setState(() {
+          toastString = 'UNKNOWN';
+          _isRetrying = false;
+        });
       }
     } else {
-      _updatePlayState(
-        message: 'UNKNOWN',
-        retrying: false
-      );
-      _currentChannel = null;
+      setState(() {
+        _currentChannel = null;
+        toastString = 'UNKNOWN';
+        _isRetrying = false;
+      });
     }
   }
 
@@ -1380,7 +1297,7 @@ case BetterPlayerEventType.bufferingStart:
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('更新收藏列表: $_videoMap');
-        if (mounted) _updatePlayState(drawerRefreshKey: ValueKey(DateTime.now().millisecondsSinceEpoch));
+        if (mounted) setState(() => _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch));
       } catch (error) {
         CustomSnackBar.showSnackBar(context, S.current.newfavoriteerror, duration: Duration(seconds: snackBarDurationSeconds));
         LogUtil.logError('保存收藏失败', error);
@@ -1393,14 +1310,14 @@ case BetterPlayerEventType.bufferingStart:
     try {
       if (_videoMap == null || _videoMap!.playList == null || _videoMap!.playList!.isEmpty) {
         LogUtil.e('播放列表无效');
-        _updatePlayState(message: S.current.getDefaultError);
+        setState(() => toastString = S.current.getDefaultError);
         return;
       }
       _sourceIndex = 0;
       await _handlePlaylist();
     } catch (e, stackTrace) {
       LogUtil.logError('处理播放列表失败', e, stackTrace);
-      _updatePlayState(message: S.current.parseError);
+      setState(() => toastString = S.current.parseError);
     }
   }
 
@@ -1450,7 +1367,7 @@ case BetterPlayerEventType.bufferingStart:
                 playModel: _currentChannel,
                 onTapChannel: _onTapChannel,
                 isLandscape: false,
-                onCloseDrawer: () => _updatePlayState(drawerIsOpen: false),
+                onCloseDrawer: () => setState(() => _drawerIsOpen = false),
               ),
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
@@ -1491,7 +1408,7 @@ case BetterPlayerEventType.bufferingStart:
                           toggleFavorite: toggleFavorite,
                           isLandscape: true,
                           isAudio: _isAudio,
-                          onToggleDrawer: () => _updatePlayState(drawerIsOpen: !_drawerIsOpen),
+                          onToggleDrawer: () => setState(() => _drawerIsOpen = !_drawerIsOpen),
                           adManager: _adManager,
                           showPlayIcon: _showPlayIcon,
                           showPauseIconFromListener: _showPauseIconFromListener,
@@ -1503,7 +1420,7 @@ case BetterPlayerEventType.bufferingStart:
                 Offstage(
                   offstage: !_drawerIsOpen,
                   child: GestureDetector(
-                    onTap: () => _updatePlayState(drawerIsOpen: false),
+                    onTap: () => setState(() => _drawerIsOpen = false),
                     child: ChannelDrawerPage(
                       key: _drawerRefreshKey,
                       refreshKey: _drawerRefreshKey,
@@ -1511,7 +1428,7 @@ case BetterPlayerEventType.bufferingStart:
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
-                      onCloseDrawer: () => _updatePlayState(drawerIsOpen: false),
+                      onCloseDrawer: () => setState(() => _drawerIsOpen = false),
                     ),
                   ),
                 ),
