@@ -284,8 +284,7 @@ class M3uUtil {
   }
 
   static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-  // 修改后的 paramRegex，支持复杂参数值（包括 URL 中的 %、& 等）
-  static final RegExp paramRegex = RegExp(r'(\w+[-]\w*)=["'']?([^"'\s]+(?:[^"'\s]*[^"'\s])?)["'']?');
+  static final RegExp paramRegex = RegExp(r'(\w+[-]\w*)=["\'']?([^"\'\s]+(?:[^"\'\s]*[^"\'\s])?)["\'']?');
 
   /// 解析 M3U 文件为 PlaylistModel
   static Future<PlaylistModel> _parseM3u(String m3u) async {
