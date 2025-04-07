@@ -284,7 +284,7 @@ class M3uUtil {
   }
 
   static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-  static final RegExp paramRegex = RegExp("(\\w+[-]\\w*)=[\"']?([^\"'\\s]+(?:[^\"'\\s]*[^\"'\\s])?)[\"']?");
+  static final RegExp paramRegex = RegExp('''(\w+[-]\w*)=(?:"([^"]*)")|(?:'([^']*)')|([^\s,]+)''');
 
   /// 解析 M3U 文件为 PlaylistModel
   static Future<PlaylistModel> _parseM3u(String m3u) async {
@@ -324,7 +324,7 @@ class M3uUtil {
             final params = paramRegex.allMatches(paramsStr);
             for (var param in params) {
               final key = param.group(1)!;
-              final value = param.group(2)!;
+              final value = param.group(2) ?? param.group(3) ?? param.group(4) ?? '';
               LogUtil.i('解析参数: $key=$value'); // 添加日志
               if (key == 'group-title') groupTitle = value;
               else if (key == 'tvg-logo') tvgLogo = value;
