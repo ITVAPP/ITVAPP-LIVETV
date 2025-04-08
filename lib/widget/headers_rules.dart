@@ -61,6 +61,10 @@ liveplay-yongshun|yongshun-wap.rednet.cn
 146_f067fe|xhncloud.voc.com.cn
 live.ngcz.tv|www.ngcz.tv
 cctvnews.cctv.com|m-live.cctvnews.cctv.com
+p8.vzan.com/slowlive/929856430577299580|npwhyavzb.vzan.com
+live1.kxm.xmtv.cn|seexm2024.kxm.xmtv.cn
+qztv.cn|www.qztv.cn
+qztv.cn|www.qztv.cn
 zjwtv.com|app.zjwtv.com''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
@@ -96,5 +100,6 @@ dspull.ijntv.cn
 hlss.gstv.com.cn
 kankanlive.com
 yumentv.cn
+chinashishi.net
 gbtv-rtmp.zjwtv.com''';
 }
