@@ -4,7 +4,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 西藏电视台解析器
-class XizangParser {
+class xizangParser {
   static const String _baseUrl = 'https://api.vtibet.cn/xizangmobileinf/rest/xz/cardgroups';
 
   /// 解析西藏电视台直播流地址
