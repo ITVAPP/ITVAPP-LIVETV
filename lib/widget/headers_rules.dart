@@ -101,5 +101,6 @@ hlss.gstv.com.cn
 kankanlive.com
 yumentv.cn
 chinashishi.net
+tv.vtibet.cn
 gbtv-rtmp.zjwtv.com''';
 }
