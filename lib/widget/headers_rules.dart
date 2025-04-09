@@ -102,5 +102,7 @@ kankanlive.com
 yumentv.cn
 chinashishi.net
 tv.vtibet.cn
+chayutv.com
+218.207.233.111
 gbtv-rtmp.zjwtv.com''';
 }
