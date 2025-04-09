@@ -188,7 +188,7 @@ class HeadersConfig {
       final scheme = _extractScheme(encodedUrl);
       
       if (host.isEmpty) {
-        LogUtil.w('无法解析主机名，使用默认Headers');
+        LogUtil.i('无法解析主机名，使用默认Headers');
         return _baseHeaders; // 健壮性处理
       }
 
