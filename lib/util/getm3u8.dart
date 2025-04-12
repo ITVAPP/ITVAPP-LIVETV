@@ -238,7 +238,7 @@ class GetM3U8 {
   /// 获取或创建文件模式正则
   RegExp _getOrCreatePattern(String filePattern) {
     final cacheKey = 'pattern_$filePattern';
-    if (_patternCache.containsKey(cacheKey)) return _patternCache[cacheKey]!; // 缓存命中
+    if (_patternCache.containsKey(cacheKey)) return _patternCache[cacheKey]!;
     
     final pattern = RegExp( // 创建正则表达式
       "(?:https?://|//|/)[^'\"\\s,()<>{}\\[\\]]*?\\.${filePattern}[^'\"\\s,()<>{}\\[\\]]*",
@@ -271,7 +271,7 @@ class GetM3U8 {
   /// 解析过滤规则
   static List<M3U8FilterRule> _parseRules(String rulesString) {
     if (rulesString.isEmpty) return []; // 空字符串返回空列表
-    if (_ruleCache.containsKey(rulesString)) return _ruleCache[rulesString]!; // 缓存命中
+    if (_ruleCache.containsKey(rulesString)) return _ruleCache[rulesString]!;
     
     final rules = rulesString.split('@') // 分割规则
         .where((rule) => rule.isNotEmpty)
@@ -285,7 +285,7 @@ class GetM3U8 {
   /// 解析动态关键词
   static Set<String> _parseKeywords(String keywordsString) {
     if (keywordsString.isEmpty) return {}; // 空字符串返回空集合
-    if (_keywordsCache.containsKey(keywordsString)) return _keywordsCache[keywordsString]!; // 缓存命中
+    if (_keywordsCache.containsKey(keywordsString)) return _keywordsCache[keywordsString]!;
     
     final keywords = keywordsString.split('@') // 分割关键词
         .map((keyword) => keyword.trim())
@@ -298,7 +298,7 @@ class GetM3U8 {
   /// 解析特殊规则
   static Map<String, String> _parseSpecialRules(String rulesString) {
     if (rulesString.isEmpty) return {}; // 空字符串返回空映射
-    if (_specialRulesCache.containsKey(rulesString)) return _specialRulesCache[rulesString]!; // 缓存命中
+    if (_specialRulesCache.containsKey(rulesString)) return _specialRulesCache[rulesString]!;
     
     final Map<String, String> rules = {};
     for (final rule in rulesString.split('@')) { // 分割规则
@@ -329,7 +329,7 @@ class GetM3U8 {
 
   /// 获取时间偏移
   Future<int> _getTimeOffset() async {
-    if (_cachedTimeOffset != null) return _cachedTimeOffset!; // 缓存命中
+    if (_cachedTimeOffset != null) return _cachedTimeOffset!;
     
     final localTime = DateTime.now();
     for (final api in TIME_APIS) { // 遍历时间API
@@ -367,7 +367,7 @@ class GetM3U8 {
   Future<String> _prepareTimeInterceptorCode() async {
     if (_cachedTimeOffset == null || _cachedTimeOffset == 0) return '(function(){})();'; // 无偏移返回空函数
     final cacheKey = 'time_interceptor_${_cachedTimeOffset}';
-    if (_scriptCache.containsKey(cacheKey)) return _scriptCache[cacheKey]!; // 缓存命中
+    if (_scriptCache.containsKey(cacheKey)) return _scriptCache[cacheKey]!;
     
     try {
       final script = await rootBundle.loadString('assets/js/time_interceptor.js'); // 加载脚本
@@ -873,7 +873,6 @@ if (window._m3u8DetectorInitialized) {
     
     if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
       cancelToken!.cancel('GetM3U8 disposed');
-      LogUtil.i('已取消所有未完成的 HTTP 请求');
     }
     
     _hashFirstLoadMap.remove(Uri.parse(url).toString());
@@ -974,7 +973,6 @@ window.removeEventListener('unload', null, true);
     if (!_isValidM3U8Url(cleanedUrl)) return; // 无效则返回
     
     String finalUrl = _replaceParams(cleanedUrl); // 替换参数
-    LogUtil.i('执行URL参数替换后: $finalUrl');
     _foundUrls.add(finalUrl); // 添加到已发现集合
     
     if (clickText == null) { // 无点击逻辑直接完成
@@ -1087,7 +1085,6 @@ window.removeEventListener('unload', null, true);
   Future<String> _prepareM3U8DetectorCode() async {
     final cacheKey = 'm3u8_detector_${_filePattern}';
     if (_scriptCache.containsKey(cacheKey)) {
-      LogUtil.i('命中M3U8检测器脚本缓存: $cacheKey');
       return _scriptCache[cacheKey]!;
     }
     
