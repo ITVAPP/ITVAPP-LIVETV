@@ -38,7 +38,7 @@ class EpgUtil {
   // 获取 EPG 数据，支持缓存、XML 和网络请求
   static Future<EpgModel?> getEpg(PlayModel? model, {CancelToken? cancelToken}) async {
     if (model == null) {
-      LogUtil.w('EPG 获取失败：输入模型为空');
+      LogUtil.i('EPG 获取失败：输入模型为空');
       return null; // 输入模型为空，直接返回
     }
 
@@ -51,7 +51,7 @@ class EpgUtil {
       channelKey = model.id!; // 使用频道 ID 作为缓存键
     } else {
       if (model.title == null) {
-        LogUtil.w('EPG 获取失败：频道标题为空');
+        LogUtil.i('EPG 获取失败：频道标题为空');
         return null; // 标题为空，直接返回
       }
       channel = model.title!.replaceAll(RegExp(r'[ -]'), ''); // 清理标题中的空格和连字符
@@ -71,21 +71,21 @@ class EpgUtil {
         final start = programme.getAttribute('start');
         final stop = programme.getAttribute('stop');
         if (start == null || stop == null) {
-          LogUtil.w('EPG 解析失败：节目缺少 start 或 stop，channel=${model.id}');
+          LogUtil.i('EPG 解析失败：节目缺少 start 或 stop，channel=${model.id}');
           continue;
         }
         final dateStart = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(start), format: "HH:mm"); // 格式化开始时间
         final dateEnd = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(stop), format: "HH:mm"); // 格式化结束时间
         final titleElements = programme.findAllElements('title');
         if (titleElements.isEmpty) {
-          LogUtil.w('EPG 解析失败：节目缺少标题，channel=${model.id}, start=$start');
+          LogUtil.i('EPG 解析失败：节目缺少标题，channel=${model.id}, start=$start');
           continue;
         }
         final title = titleElements.first.innerText; // 获取节目标题
         epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd)); // 添加节目数据
       }
       if (epgModel.epgData!.isEmpty) {
-        LogUtil.w('EPG 数据无效：无有效节目，channel=${model.id}');
+        LogUtil.i('EPG 数据无效：无有效节目，channel=${model.id}');
         return null; // 无节目数据返回 null
       }
       _cleanCache(); // 清理缓存
@@ -94,7 +94,7 @@ class EpgUtil {
     }
 
     if (cancelToken?.isCancelled ?? false) {
-      LogUtil.w('EPG 获取取消：请求已取消，channel=$channel, date=$date');
+      LogUtil.i('EPG 获取取消：请求已取消，channel=$channel, date=$date');
       return null; // 请求取消返回 null
     }
     
@@ -105,14 +105,14 @@ class EpgUtil {
     if (epgRes != null && epgRes['channel_name'] == channel) {
       final epg = EpgModel.fromJson(epgRes); // 解析 JSON 数据
       if (epg.epgData == null || epg.epgData!.isEmpty) {
-        LogUtil.w('EPG 数据无效：无节目信息，channel=$channel, date=$date');
+        LogUtil.i('EPG 数据无效：无节目信息，channel=$channel, date=$date');
         return null;
       }
       _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = epg; // 缓存结果
       return epg;
     }
-    LogUtil.w('EPG 获取失败：无有效数据，channel=$channel, date=$date');
+    LogUtil.i('EPG 获取失败：无有效数据，channel=$channel, date=$date');
     return null; // 无有效数据返回 null
   }
 
@@ -134,7 +134,7 @@ class EpgUtil {
           index += 1; // 解析失败，尝试下一个 URL
         }
       } else {
-        LogUtil.w('EPG XML 请求失败: url=${urlLink[index]}');
+        LogUtil.i('EPG XML 请求失败: url=${urlLink[index]}');
         index += 1; // 请求失败，尝试下一个 URL
       }
     }
@@ -162,7 +162,7 @@ class EpgModel {
       for (var v in json['epg_data']) {
         final epgDataItem = EpgData.fromJson(v);
         if (epgDataItem.title == null || epgDataItem.start == null || epgDataItem.end == null) {
-          LogUtil.w('EPG JSON 无效：缺少必要字段，数据=$v');
+          LogUtil.i('EPG JSON 无效：缺少必要字段，数据=$v');
           continue;
         }
         epgData!.add(epgDataItem);
@@ -172,7 +172,7 @@ class EpgModel {
       }
     }
     if (epgData == null || epgData!.isEmpty) {
-      LogUtil.w('EPG JSON 解析失败：无有效节目，channel=$channelName, date=$date');
+      LogUtil.i('EPG JSON 解析失败：无有效节目，channel=$channelName, date=$date');
     }
     LogUtil.i('解析 EpgModel: channel=$channelName, date=$date, epgDataCount=${epgData?.length ?? 0}');
   }
@@ -215,7 +215,7 @@ class EpgData {
     if (start != null && end != null) {
       final timePattern = RegExp(r'^\d{2}:\d{2}$');
       if (!timePattern.hasMatch(start!) || !timePattern.hasMatch(end!)) {
-        LogUtil.w('EPG JSON 时间格式无效: start=$start, end=$end');
+        LogUtil.i('EPG JSON 时间格式无效: start=$start, end=$end');
         start = null;
         end = null;
       }
