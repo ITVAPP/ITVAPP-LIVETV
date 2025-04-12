@@ -152,10 +152,17 @@ class GetM3U8 {
     caseSensitive: false,
   );
 
-  static String rulesString = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // 过滤规则字符串
+  // 过滤规则字符串
+  static String rulesString = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则字符串
   static String dynamicKeywordsString = 'jinan@gansu@xizang@sichuan'; // 使用getm3u8diy解析的关键词
   static const String allowedResourcePatternsString = 'r.png?t='; // 允许资源模式字符串
+
+  // 阻止加载的黑名单关键字（扩展名带点号，避免误判）
+  static final List<String> _blockedExtensions = [
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
+    '.ico', '.svg', '.mp3', '.wav', '.pdf', '.doc', '.docx', '.swf',
+  ];
 
   final String url; // 目标URL
   final String? fromParam; // 替换参数from
@@ -587,25 +594,25 @@ window._m3u8Found = false;
           return NavigationDecision.prevent;
         }
         
-        try { // 检查资源扩展名
-          final pathParts = uri.path.toLowerCase().split('.');
-          if (pathParts.length > 1) {
-            final extension = pathParts.last;
-            const blockedExtensions = [
-              'jpg', 'jpeg', 'gif', 'webp', 'css', 'woff', 'woff2', 'ttf', 'eot',
-              'ico', 'svg', 'mp3', 'wav', 'pdf', 'doc', 'docx', 'swf',
-            ];
-            if (blockedExtensions.contains(extension)) {
-              if (allowedPatterns.any((pattern) => request.url.contains(pattern))) {
-                LogUtil.i('允许加载匹配模式的资源: ${request.url}');
-                return NavigationDecision.navigate;
-              }
-              LogUtil.i('阻止加载资源: ${request.url} (扩展名: $extension)');
+        try {
+          // 修改：改为新的资源过滤逻辑
+          // 1. 首先检查是否匹配允许模式（白名单）
+          final fullUrl = request.url.toLowerCase();
+          if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+            LogUtil.i('允许加载匹配模式的资源: ${request.url}');
+            return NavigationDecision.navigate;
+          }
+          
+          // 2. 检查是否包含黑名单扩展名
+          for (final ext in _blockedExtensions) {
+            if (fullUrl.contains(ext)) {
+              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
               return NavigationDecision.prevent;
             }
           }
         } catch (e) {
-          LogUtil.e('提取扩展名失败: $e');
+          // 出错时默认允许
+          LogUtil.e('URL检查失败: $e，默认允许加载');
         }
         
         try { // 检查M3U8文件
