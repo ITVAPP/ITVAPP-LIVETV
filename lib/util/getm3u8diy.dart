@@ -2,6 +2,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/getapp/jinan.dart';
 import 'package:itvapp_live_tv/util/getapp/gansu.dart';
 import 'package:itvapp_live_tv/util/getapp/xizang.dart';
+import 'package:itvapp_live_tv/util/getapp/sichuan.dart';
 
 /// m3u8地址解析器
 class GetM3u8Diy {
@@ -19,6 +20,10 @@ class GetM3u8Diy {
       // 调用西藏电视台解析器
       else if (url.contains('xizang')) {
         return await xizangParser.parse(url);
+      }
+      // 调用四川电视台解析器
+      else if (url.contains('sichuan')) {
+        return await SichuanParser.parse(url);
       }
       // 如果不符合任何解析规则，记录日志并返回空字符串
       LogUtil.i('未找到匹配的解析规则: $url');
