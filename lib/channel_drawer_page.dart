@@ -918,8 +918,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
     'channel': {'controllerKey': '_scrollChannelController', 'countKey': '_values'},
-    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null},
-  }; // 滚动配置
+    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': defaultMinHeight * 1.5},
+  };
 
   // 获取状态栏高度
   double getStatusBarHeight() {
@@ -950,40 +950,51 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     double? alignment,
     Duration duration = const Duration(milliseconds: 200),
   }) async {
-    final double itemHeight = ITEM_HEIGHT_WITH_DIVIDER;
     final config = _scrollConfig[targetList];
     if (config == null || !mounted) {
-      LogUtil.i('滚动目标无效或组件已销毁: $targetList'); // 无效目标日志
+      LogUtil.i('滚动目标无效或组件已销毁: $targetList');
       return;
     }
 
     final scrollController = this.getField(config['controllerKey']) as ScrollController;
-    final itemCount = targetList == 'channel'
-        ? (_groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0)
-        : (this.getField(config['countKey']) as List?)?.length ?? 0;
+    
+    // 特殊处理EPG项目数量
+    int itemCount;
+    if (targetList == 'epg') {
+      // 在EPGList中查找当前的epgData长度
+      final epgListState = context.findDescendantStateOfType<EPGListState>();
+      itemCount = epgListState?.widget.epgData?.length ?? 0;
+    } else if (targetList == 'channel') {
+      itemCount = _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0;
+    } else {
+      itemCount = (this.getField(config['countKey']) as List?)?.length ?? 0;
+    }
 
     if (itemCount == 0 || !scrollController.hasClients) {
-      LogUtil.i('$targetList 数据未准备好或控制器未附着'); // 数据未准备日志
+      LogUtil.i('$targetList 数据未准备好或控制器未附着');
       return;
     }
 
     if (index < 0 || index >= itemCount) {
-      LogUtil.i('$targetList 索引超出范围: index=$index, itemCount=$itemCount'); // 索引越界日志
+      LogUtil.i('$targetList 索引超出范围: index=$index, itemCount=$itemCount');
       return;
     }
 
+    // 特殊处理EPG项目高度
+    final double itemHeight = config['customHeight'] ?? ITEM_HEIGHT_WITH_DIVIDER;
+
     double targetOffset;
     if (alignment == 0.0) {
-      targetOffset = index == 0 ? scrollController.position.minScrollExtent : index * itemHeight; // 顶部对齐
+      targetOffset = index == 0 ? scrollController.position.minScrollExtent : index * itemHeight;
     } else if (alignment == 1.0) {
-      targetOffset = scrollController.position.maxScrollExtent; // 底部对齐
+      targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
       double itemBottomPosition = (index == itemCount - 1) ? (itemCount - 1) * itemHeight + defaultMinHeight : (index + 1) * itemHeight;
-      targetOffset = itemBottomPosition - _drawerHeight; // 底部可见
+      targetOffset = itemBottomPosition - _drawerHeight;
       if (targetOffset < 0) targetOffset = 0;
     } else {
       int offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 3;
-      targetOffset = (index - offsetAdjustment) * itemHeight; // 默认调整
+      targetOffset = (index - offsetAdjustment) * itemHeight;
       if (targetOffset < 0) targetOffset = 0;
     }
 
@@ -991,7 +1002,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     await scrollController.animateTo(
       targetOffset,
       duration: duration,
-      curve: Curves.easeInOut, // 平滑滚动
+      curve: Curves.easeInOut,
     );
   }
 
@@ -1016,8 +1027,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         return null;
     }
   }
-
-  @override
+  
+@override
   void initState() {
     super.initState();
     _calculateDrawerHeight();
@@ -1160,7 +1171,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
   }
-
+  
   // 根据播放模型更新索引
   void _updateIndicesFromPlayModel(PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
     if (playModel?.group != null && categoryMap.containsKey(playModel?.group)) {
