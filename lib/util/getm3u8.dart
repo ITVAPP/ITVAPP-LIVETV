@@ -540,9 +540,14 @@ window._m3u8Found = false;
           LogUtil.i('页面开始加载时任务被取消: $url');
           return;
         }
-        // 添加 JavaScript 禁用图片加载以减少渲染开销
+        // 添加 JavaScript 禁用图片加载以减少渲染开销，同时放行匹配 allowedResourcePatternsString 的图片
         await _controller.runJavaScript('''
-          document.querySelectorAll("img").forEach(img => img.src = "");
+          const allowedPatterns = ${json.encode(allowedPatterns)};
+          document.querySelectorAll("img").forEach(img => {
+            if (!allowedPatterns.some(pattern => img.src.includes(pattern))) {
+              img.src = "";
+            }
+          });
         ''').catchError((e) => LogUtil.e('禁用图片加载失败: $e'));
         for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
           try {
