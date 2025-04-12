@@ -188,7 +188,6 @@ class HeadersConfig {
       final scheme = _extractScheme(encodedUrl);
       
       if (host.isEmpty) {
-        LogUtil.i('无法解析主机名，使用默认Headers');
         return _baseHeaders; // 健壮性处理
       }
 
@@ -227,7 +226,7 @@ class HeadersConfig {
         'User-Agent': userAgent,
       };
 
-      // LogUtil.i('生成主机头：$headers');
+      LogUtil.i('生成主机头：$headers');
       return headers;
       
     } catch (e, stackTrace) {
