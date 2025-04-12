@@ -541,11 +541,19 @@ window._m3u8Found = false;
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
     final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
     
+    // 用于记录加载的资源 URL
+    final LimitedSizeSet<String> loadedResources = LimitedSizeSet<String>(MAX_FOUND_URLS_SIZE);
+
     _controller.setNavigationDelegate(NavigationDelegate(
       onPageStarted: (String url) async { // 页面开始加载
         if (_isCancelled()) {
           LogUtil.i('页面开始加载时任务被取消: $url');
           return;
+        }
+        // 记录初始 URL
+        if (!loadedResources.contains(url)) {
+          loadedResources.add(url);
+          LogUtil.i('WebView 初始页面加载: $url [${DateTime.now().toIso8601String()}]');
         }
         for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
           try {
@@ -557,8 +565,18 @@ window._m3u8Found = false;
         }
       },
       onNavigationRequest: (NavigationRequest request) async { // 导航请求
-        if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
-        
+        if (_isCancelled()) {
+          LogUtil.i('导航请求取消: ${request.url}');
+          return NavigationDecision.prevent;
+        }
+
+        // 记录每个请求的 URL（在任何过滤逻辑之前）
+        final requestUrl = request.url;
+        if (!loadedResources.contains(requestUrl)) {
+          loadedResources.add(requestUrl);
+          LogUtil.i('WebView 加载资源: $requestUrl [${DateTime.now().toIso8601String()}]');
+        }
+
         // 检查并阻止广告/跟踪请求
         final urlLower = request.url.toLowerCase();
         final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
