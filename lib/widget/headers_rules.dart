@@ -64,7 +64,6 @@ cctvnews.cctv.com|m-live.cctvnews.cctv.com
 live1.kxm.xmtv.cn|seexm2024.kxm.xmtv.cn
 qztv.cn|www.qztv.cn
 gzstv.com|www.gzstv.com
-hlsplay.aodianyun.com|web.guangdianyun.tv
 lasatv.cn|www.lasatv.cn
 zjwtv.com|app.zjwtv.com''';
 
@@ -84,7 +83,6 @@ mapi.ahtv.cn
 tytv-hls.sxtygdy.com
 mapi.hoolo.tv
 liveplus.lzr.com.cn
-hlsplay.aodianyun.com
 cjyun.org
 cjy.hbtv.com.cn''';
 
@@ -109,5 +107,6 @@ chayutv.com
 218.207.233.111
 p8.vzan.com
 tvshow.scgchc.com
+hlsplay.aodianyun.com
 gbtv-rtmp.zjwtv.com''';
 }
