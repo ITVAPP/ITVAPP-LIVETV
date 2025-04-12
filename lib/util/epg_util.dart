@@ -23,8 +23,13 @@ class EpgUtil {
     epgCacheMap.removeWhere((key, value) {
       // 检查缓存是否过期
       if (value.date != null) {
-        final cacheTime = DateUtil.parseCustomDateTimeString(value.date!);
-        return now.difference(cacheTime) > _cacheTTL;
+        try {
+          final cacheTime = DateUtil.parseCustomDateTimeString(value.date!);
+          return now.difference(cacheTime) > _cacheTTL;
+        } catch (e) {
+          LogUtil.e('解析缓存日期失败: date=${value.date}, 错误=$e');
+          return false;
+        }
       }
       return false;
     });
