@@ -160,7 +160,7 @@ class GetM3U8 {
 
   // 阻止加载的黑名单关键字（扩展名带点号，避免误判）
   static final List<String> _blockedExtensions = [
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
+    '.jpg', '.jpeg', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
     '.ico', '.svg', '.mp3', '.wav', '.pdf', '.doc', '.docx', '.swf',
   ];
 
@@ -595,7 +595,6 @@ window._m3u8Found = false;
         }
         
         try {
-          // 修改：改为新的资源过滤逻辑
           // 1. 首先检查是否匹配允许模式（白名单）
           final fullUrl = request.url.toLowerCase();
           if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
