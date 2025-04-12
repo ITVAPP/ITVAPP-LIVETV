@@ -103,9 +103,7 @@ class EpgUtil {
       cancelToken: cancelToken, // 支持取消请求
     );
     
-    // 修改这里：移除 channel_name 的严格匹配检查，只要有有效数据就处理
     if (epgRes != null) {
-      // 添加调试日志，记录 API 返回的 channel_name 与请求的 channel 对比
       LogUtil.i('EPG API 返回数据: channel_name=${epgRes['channel_name']}, 请求channel=$channel');
       
       final epg = EpgModel.fromJson(epgRes); // 解析 JSON 数据
