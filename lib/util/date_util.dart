@@ -295,11 +295,22 @@ class DateUtil {
   }
 
   /// 解析自定义格式的日期时间字符串
-  /// [dateTimeString] 输入格式示例：'20230315123045 +0800'
+  /// [dateTimeString] 输入格式示例：'20230315123045 +0800' 或 'yyyy-MM-dd' 或 'yyMMdd'
   /// 返回解析后的 DateTime 对象，若格式错误则抛出异常
   static DateTime parseCustomDateTimeString(String dateTimeString) {
     try {
-      // 分离日期时间和时区
+      // 支持 yyyy-MM-dd 格式（例如 '2025-04-12'）
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateTimeString)) {
+        return DateTime.parse(dateTimeString);
+      }
+      // 支持 yyMMdd 格式（例如 '250412'）
+      if (RegExp(r'^\d{6}$').hasMatch(dateTimeString)) {
+        final year = int.parse('20${dateTimeString.substring(0, 2)}');
+        final month = int.parse(dateTimeString.substring(2, 4));
+        final day = int.parse(dateTimeString.substring(4, 6));
+        return DateTime(year, month, day);
+      }
+      // 原有格式：yyyyMMddHHmmss +HHMM（例如 '20230315123045 +0800'）
       final parts = dateTimeString.split(' ');
       if (parts.length != 2) {
         throw FormatException('日期时间字符串格式错误，应包含日期和时区部分');
@@ -307,12 +318,10 @@ class DateUtil {
       final dateTimePart = parts[0];
       final timeZonePart = parts[1];
 
-      // 验证输入长度和格式
       if (dateTimePart.length != 14 || timeZonePart.length != 5) {
         throw FormatException('日期时间或时区部分长度不正确');
       }
 
-      // 解析年月日时分秒
       final year = int.parse(dateTimePart.substring(0, 4));
       final month = int.parse(dateTimePart.substring(4, 6));
       final day = int.parse(dateTimePart.substring(6, 8));
@@ -320,7 +329,6 @@ class DateUtil {
       final minute = int.parse(dateTimePart.substring(10, 12));
       final second = int.parse(dateTimePart.substring(12, 14));
 
-      // 创建 DateTime 对象（暂不处理时区偏移，保持原有逻辑）
       return DateTime(year, month, day, hour, minute, second);
     } catch (e) {
       throw FormatException('解析日期时间字符串失败: $e');
