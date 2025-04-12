@@ -413,7 +413,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _currentChannel = nextRequest.channel;
     _sourceIndex = nextRequest.sourceIndex;
     _pendingSwitch = null;
-    LogUtil.i('处理最新切换请求: ${_currentChannel?.title ?? "未知频道"}, 源索引: $_sourceIndex');
     Future.microtask(() async {
       if (_playerController != null) {
         await _releaseAllResources(isDisposing: false); // 仅在实际播放前释放
@@ -889,7 +888,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (instance == null) return;
     try {
       await instance.dispose();
-      LogUtil.i('StreamUrl实例已释放: ${instance.hashCode}');
     } catch (e, stackTrace) {
       LogUtil.logError('释放StreamUrl实例失败', e, stackTrace);
     }
