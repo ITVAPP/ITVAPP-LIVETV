@@ -928,7 +928,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
     'channel': {'controllerKey': '_scrollChannelController', 'countKey': '_values'},
-    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': defaultMinHeight * 1.5},
+    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': defaultMinHeight * 1.5+1},
   };
 
   // 获取状态栏高度
@@ -1002,7 +1002,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = itemBottomPosition - _drawerHeight;
       if (targetOffset < 0) targetOffset = 0;
     } else {
-      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 3;
+      int offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
       targetOffset = (index - offsetAdjustment) * itemHeight;
       if (targetOffset < 0) targetOffset = 0;
     }
