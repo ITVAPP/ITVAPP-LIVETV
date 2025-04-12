@@ -712,16 +712,25 @@ class EPGListState extends State<EPGList> {
   bool _shouldScroll = true; // 是否需要滚动
   DateTime? _lastScrollTime; // 上次滚动时间
   Timer? _scrollDebounceTimer; // 添加定时器用于防抖
+  
+  // 添加静态变量跟踪当前EPG数据长度
+  static int currentEpgDataLength = 0;
 
   @override
   void initState() {
     super.initState();
+    // 初始化时更新EPG数据长度
+    EPGListState.currentEpgDataLength = widget.epgData?.length ?? 0;
     _scheduleScrollWithDebounce(); // 使用防抖方法替代直接调用
   }
 
   @override
   void didUpdateWidget(covariant EPGList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 当EPG数据更新时更新静态变量
+    if (widget.epgData != oldWidget.epgData) {
+      EPGListState.currentEpgDataLength = widget.epgData?.length ?? 0;
+    }
     if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
       _shouldScroll = true; // 数据更新时触发滚动
       _scheduleScrollWithDebounce(); // 使用防抖方法
@@ -914,6 +923,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {}; // 分组焦点缓存
 
+  // 修改的部分1：更新_scrollConfig定义，为EPG添加customHeight
   static final Map<String, Map<String, dynamic>> _scrollConfig = {
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
@@ -943,7 +953,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 滚动到指定位置
+  // 修改的部分2：更新scrollTo方法以正确处理EPG滚动
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -961,9 +971,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 特殊处理EPG项目数量
     int itemCount;
     if (targetList == 'epg') {
-      // 在EPGList中查找当前的epgData长度
-      final epgListState = context.findDescendantStateOfType<EPGListState>();
-      itemCount = epgListState?.widget.epgData?.length ?? 0;
+      // 使用静态变量获取EPG数据长度
+      itemCount = EPGListState.currentEpgDataLength;
     } else if (targetList == 'channel') {
       itemCount = _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0;
     } else {
@@ -1027,8 +1036,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         return null;
     }
   }
-  
-@override
+
+  @override
   void initState() {
     super.initState();
     _calculateDrawerHeight();
@@ -1171,7 +1180,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       }
     }
   }
-  
+
   // 根据播放模型更新索引
   void _updateIndicesFromPlayModel(PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
     if (playModel?.group != null && categoryMap.containsKey(playModel?.group)) {
