@@ -152,12 +152,6 @@ class GetM3U8 {
     caseSensitive: false,
   );
 
-  // 提前编译常用正则表达式，避免运行时重复创建
-  static final RegExp _preCompiledM3U8Pattern = RegExp(
-    r"(?:https?://|//|/)[^'\"\s,()<>{}\[\]]*?\.m3u8[^'\"\s,()<>{}\[\]]*",
-    caseSensitive: false,
-  );
-
   static String rulesString = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // 过滤规则字符串
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则字符串
   static String dynamicKeywordsString = 'jinan@gansu@xizang@sichuan'; // 使用getm3u8diy解析的关键词
@@ -262,11 +256,6 @@ class GetM3U8 {
 
   /// 获取或创建文件模式正则
   RegExp _getOrCreatePattern(String filePattern) {
-    // 如果是 M3U8 文件模式，直接返回预编译正则，减少运行时开销
-    if (filePattern.toLowerCase() == 'm3u8') {
-      return _preCompiledM3U8Pattern;
-    }
-
     final cacheKey = 'pattern_$filePattern';
     if (_patternCache.containsKey(cacheKey)) return _patternCache[cacheKey]!;
     
@@ -391,7 +380,6 @@ class GetM3U8 {
       final Map<String, dynamic> data = json.decode(response);
       if (url.contains('taobao')) return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']?['t'] ?? '0')); // 淘宝API
       else if (url.contains('suning')) return DateTime.parse(data['sysTime2'] ?? ''); // 苏宁API
-      else if (url.contains('worldtimeapi')) return DateTime.parse(data['datetime'] ?? ''); // 世界时间API
       else if (url.contains('meituan')) return DateTime.fromMillisecondsSinceEpoch(int.parse(data['data']?.toString() ?? '0')); // 美团API
     } catch (e) {
       LogUtil.e('解析时间响应失败: $e');
@@ -695,16 +683,16 @@ window._m3u8Found = false;
         LogUtil.i('页面加载完成: $url');
         
         // 静音所有媒体元素
-        try {
-          await _controller.runJavaScript('''
-            document.querySelectorAll("video, audio").forEach(el => {
-              el.muted = true;
-            });
-          ''');
-          LogUtil.i('已将页面所有视频和音频元素静音');
-        } catch (e) {
-          LogUtil.e('静音媒体元素失败: $e');
-        }
+        // try {
+       //    await _controller.runJavaScript('''
+        //     document.querySelectorAll("video, audio").forEach(el => {
+       //        el.muted = true;
+      //       });
+      //     ''');
+      //     LogUtil.i('已将页面所有视频和音频元素静音');
+     //    } catch (e) {
+      //     LogUtil.e('静音媒体元素失败: $e');
+      //   }
         
         if (_isClickExecuted) {
           LogUtil.i('点击已执行，跳过处理');
