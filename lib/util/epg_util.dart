@@ -109,8 +109,6 @@ class EpgUtil {
     );
     
     if (epgRes != null) {
-      LogUtil.i('EPG API 返回数据: channel_name=${epgRes['channel_name']}, 请求channel=$channel');
-      
       final epg = EpgModel.fromJson(epgRes); // 解析 JSON 数据
       if (epg.epgData == null || epg.epgData!.isEmpty) {
         LogUtil.i('EPG 数据无效：无节目信息，channel=$channel, date=$date');
@@ -121,7 +119,6 @@ class EpgUtil {
       LogUtil.i('加载并缓存新的 EPG 数据: $channelKey'); // 添加这行日志，确认数据被成功处理
       return epg;
     }
-    
     LogUtil.i('EPG 获取失败：无有效数据，channel=$channel, date=$date');
     return null; // 无有效数据返回 null
   }
