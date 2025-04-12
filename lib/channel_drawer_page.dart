@@ -711,39 +711,32 @@ class EPGList extends StatefulWidget {
 class EPGListState extends State<EPGList> {
   bool _shouldScroll = true; // 是否需要滚动
   DateTime? _lastScrollTime; // 上次滚动时间
-  bool _isScrollScheduled = false; // 新增：防止重复调度
+  Timer? _scrollDebounceTimer; // 添加定时器用于防抖
 
   @override
   void initState() {
     super.initState();
-    _scheduleScroll(); // 初始化滚动
+    _scheduleScrollWithDebounce(); // 使用防抖方法替代直接调用
   }
 
   @override
   void didUpdateWidget(covariant EPGList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 仅在 epgData 或 selectedIndex 实际变化时触发滚动
     if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
-      _shouldScroll = true;
+      _shouldScroll = true; // 数据更新时触发滚动
+      _scheduleScrollWithDebounce(); // 使用防抖方法
     }
   }
 
-  // 调度滚动到选中项
-  void _scheduleScroll() {
-    if (!_shouldScroll || !mounted || _isScrollScheduled) {
-      LogUtil.i('忽略无效 EPG 滚动: shouldScroll=$_shouldScroll, mounted=$mounted, isScrollScheduled=$_isScrollScheduled');
-      return;
-    }
-
-    // 防抖检查
-    final now = DateTime.now();
-    if (_lastScrollTime != null && now.difference(_lastScrollTime!).inMilliseconds < 100) {
-      LogUtil.i('忽略重复 EPG 滚动: index=${widget.selectedIndex}');
-      return;
-    }
-
-    _isScrollScheduled = true; // 标记为已调度
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  // 使用定时器实现的防抖滚动方法
+  void _scheduleScrollWithDebounce() {
+    if (!_shouldScroll || !mounted) return;
+    
+    // 取消任何已存在的定时器
+    _scrollDebounceTimer?.cancel();
+    
+    // 设置新的防抖定时器
+    _scrollDebounceTimer = Timer(Duration(milliseconds: 150), () {
       if (mounted && widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         if (state != null && state._epgItemScrollController.hasClients) {
@@ -753,11 +746,15 @@ class EPGListState extends State<EPGList> {
           LogUtil.i('EPG 滚动完成: index=${widget.selectedIndex}');
         }
       }
-      _isScrollScheduled = false; // 重置调度状态
     });
   }
 
-  // === 原有代码：_appBarDecoration ===
+  @override
+  void dispose() {
+    _scrollDebounceTimer?.cancel(); // 清理定时器
+    super.dispose();
+  }
+
   static final _appBarDecoration = BoxDecoration(
     gradient: LinearGradient(
       colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
@@ -778,7 +775,6 @@ class EPGListState extends State<EPGList> {
   @override
   Widget build(BuildContext context) {
     if (widget.epgData == null || widget.epgData!.isEmpty) return const SizedBox.shrink();
-
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor), // 背景装饰
@@ -788,7 +784,7 @@ class EPGListState extends State<EPGList> {
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 8),
-            decoration: _appBarDecoration, // 使用新标题样式
+            decoration: _appBarDecoration,
             child: Text(
               S.of(context).programListTitle,
               style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 标题样式
@@ -810,7 +806,6 @@ class EPGListState extends State<EPGList> {
                   isSystemAutoSelected: false,
                 );
 
-                // === 原有代码：列表项布局 ===
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1040,9 +1035,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         Future<void> updateFocus() async {
           try {
             _tvKeyNavigationState?.deactivateFocusManagement();
-            await updateFocusLogic(false, initialIndexOverride: initialIndexOverride); // 更新焦点
+            await updateFocusLogic(false, initialIndexOverride: initialFocusIndex); // 更新焦点
             if (mounted && _tvKeyNavigationState != null) {
-              _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialIndexOverride);
+              _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
               setState(() {});
             }
           } catch (e) {
@@ -1528,6 +1523,7 @@ class _ChannelContentState extends State<ChannelContent> {
   bool _isChannelAutoSelected = false; // 频道自动选中
   Timer? _epgDebounceTimer; // EPG防抖定时器
   String? _lastChannelKey; // 记录上次加载的 channelKey
+  DateTime? _lastRequestTime; // 上次请求时间
 
   @override
   void initState() {
@@ -1545,6 +1541,14 @@ class _ChannelContentState extends State<ChannelContent> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.groupIndex != widget.groupIndex) {
       _initializeChannelIndex(); // 分组变化时更新索引
+    }
+    
+    // 如果播放模型变化，且不是由当前组件内部的 _onChannelTap 触发的变化
+    if (oldWidget.playModel?.title != widget.playModel?.title &&
+        widget.playModel?.title != _lastChannelKey) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadEPGMsgWithDebounce(widget.playModel, channelKey: widget.playModel?.title ?? '');
+      });
     }
   }
 
@@ -1584,34 +1588,47 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
-  // 防抖加载EPG
+  // 改进的防抖加载EPG方法
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
+    // 取消现有定时器
     _epgDebounceTimer?.cancel();
+    
+    // 设置新定时器
     _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
-      // 避免重复加载相同 channelKey
-      if (channelKey != null && channelKey == _lastChannelKey) {
-        LogUtil.i('忽略重复 EPG 加载: channelKey=$channelKey');
+      final now = DateTime.now();
+      
+      // 如果最近500ms内已经发起过请求，跳过这次请求
+      if (_lastRequestTime != null && 
+          now.difference(_lastRequestTime!).inMilliseconds < 500) {
+        LogUtil.i('跳过频繁EPG请求: channelKey=$channelKey, 间隔=${now.difference(_lastRequestTime!).inMilliseconds}ms');
         return;
       }
+      
+      // 避免加载相同频道
+      if (channelKey != null && channelKey == _lastChannelKey) {
+        LogUtil.i('忽略重复EPG加载: channelKey=$channelKey');
+        return;
+      }
+      
+      // 记录这次请求
+      _lastRequestTime = now;
       _lastChannelKey = channelKey;
-      _loadEPGMsg(playModel, channelKey: channelKey); // 延迟加载
+      
+      // 执行实际加载
+      _loadEPGMsg(playModel, channelKey: channelKey);
     });
   }
 
   // 加载EPG数据
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (playModel == null || !mounted) return;
-
     final res = await EpgUtil.getEpg(playModel);
-    
     LogUtil.i('EpgUtil.getEpg 返回结果: ${res != null ? "成功" : "为null"}, 播放模型: ${playModel.title}');
     if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
-    
     setState(() {
       _epgData = res.epgData!;
-      _selEPGIndex = _getInitialSelectedIndex(_epgData); // 更新EPG数据
+      _selEPGIndex = _getInitialSelectedIndex(_epgData);
     });
-    LogUtil.i('加载新的 EPG 数据: $channelKey');
   }
 
   // 获取初始选中EPG索引
