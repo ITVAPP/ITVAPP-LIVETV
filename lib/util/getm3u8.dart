@@ -355,7 +355,7 @@ class GetM3U8 {
   String _cleanUrl(String url) {
     // 检查 _parsedUri 是否有效，避免无效 URI 操作
     if (_parsedUri.host == 'invalid.host') {
-      LogUtil.w('检测到无效的 _parsedUri，使用原始 URL: $url');
+      LogUtil.i('检测到无效的 _parsedUri，使用原始 URL: $url');
       return url;
     }
 
@@ -693,6 +693,18 @@ window._m3u8Found = false;
         
         _pageLoadedStatus.add(url);
         LogUtil.i('页面加载完成: $url');
+        
+        // 静音所有媒体元素
+        try {
+          await _controller.runJavaScript('''
+            document.querySelectorAll("video, audio").forEach(el => {
+              el.muted = true;
+            });
+          ''');
+          LogUtil.i('已将页面所有视频和音频元素静音');
+        } catch (e) {
+          LogUtil.e('静音媒体元素失败: $e');
+        }
         
         if (_isClickExecuted) {
           LogUtil.i('点击已执行，跳过处理');
@@ -1087,7 +1099,7 @@ window.removeEventListener('unload', null, true);
     if (_parsedUri.host != 'invalid.host') {
       cleanedUrl = UrlUtils.hasValidProtocol(cleanedUrl) ? cleanedUrl : UrlUtils.buildFullUrl(cleanedUrl, _parsedUri);
     } else {
-      LogUtil.w('检测到无效的 _parsedUri，跳过协议补全: $cleanedUrl');
+      LogUtil.i('检测到无效的 _parsedUri，跳过协议补全: $cleanedUrl');
     }
 
     final lowercaseUrl = cleanedUrl.toLowerCase();
