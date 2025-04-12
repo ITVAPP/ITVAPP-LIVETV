@@ -21,7 +21,7 @@ const double defaultGroupWidthPortrait = 120.0; // 竖屏分组宽度
 const double defaultGroupWidthLandscape = 130.0; // 横屏分组宽度
 const double defaultChannelWidthTV = 160.0; // TV模式频道宽度
 const double defaultChannelWidthNonTV = 150.0; // 非TV模式频道宽度
-const double defaultEpgWidth = 200.0; // EPG宽度
+const double defaultEpgWidth = 200.0; // EPG宽度（将动态调整）
 
 // 创建垂直分割线渐变样式
 LinearGradient createDividerGradient({required double opacityStart, required double opacityEnd}) {
@@ -695,7 +695,6 @@ class EPGList extends StatefulWidget {
   final bool isTV; // 是否为TV模式
   final ScrollController epgScrollController; // EPG滚动控制器
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
-
   const EPGList({
     super.key,
     required this.epgData,
@@ -711,6 +710,7 @@ class EPGList extends StatefulWidget {
 
 class EPGListState extends State<EPGList> {
   bool _shouldScroll = true; // 是否需要滚动
+  DateTime? _lastScrollTime; // 上次滚动时间
 
   @override
   void initState() {
@@ -730,23 +730,51 @@ class EPGListState extends State<EPGList> {
   // 调度滚动到选中项
   void _scheduleScroll() {
     if (!_shouldScroll || !mounted) return;
+    // 防抖：100ms 内忽略重复滚动
+    final now = DateTime.now();
+    if (_lastScrollTime != null && now.difference(_lastScrollTime!).inMilliseconds < 100) {
+      LogUtil.i('忽略重复 EPG 滚动: index=${widget.selectedIndex}');
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         if (state != null && state._epgItemScrollController.hasClients) {
           state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null); // 滚动到选中项
           _shouldScroll = false;
+          _lastScrollTime = DateTime.now();
           LogUtil.i('EPG 滚动完成: index=${widget.selectedIndex}');
         }
       }
     });
   }
 
+  // === 修改部分：调整 _appBarDecoration（问题4） ===
+  // 原：定义在 build 方法外，未使用目标样式
+  // 新：使用用户指定的渐变、圆角和阴影
+  static final _appBarDecoration = BoxDecoration(
+    gradient: LinearGradient(
+      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: Offset(0, 2),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     if (widget.epgData == null || widget.epgData!.isEmpty) return const SizedBox.shrink();
 
     _scheduleScroll();
+    final useFocus = widget.isTV || enableFocusInNonTVMode;
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor), // 背景装饰
       child: Column(
@@ -755,15 +783,7 @@ class EPGListState extends State<EPGList> {
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black.withOpacity(0.8), // 标题渐变起始色
-                  Colors.black.withOpacity(0.6), // 标题渐变结束色
-                ],
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: _appBarDecoration, // 使用新标题样式
             child: Text(
               S.of(context).programListTitle,
               style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 标题样式
@@ -776,15 +796,55 @@ class EPGListState extends State<EPGList> {
               children: List.generate(widget.epgData!.length, (index) {
                 final data = widget.epgData![index];
                 final isSelect = index == widget.selectedIndex;
-                return buildListItem(
-                  title: '${data.start}-${data.end}\n${data.title}',
+                final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
+                final hasFocus = focusNode?.hasFocus ?? false;
+                final textStyle = getItemTextStyle(
+                  useFocus: useFocus,
+                  hasFocus: hasFocus,
                   isSelected: isSelect,
-                  onTap: widget.onCloseDrawer,
-                  isCentered: false,
-                  isTV: widget.isTV,
-                  context: context,
-                  useFocusableItem: false,
-                  isLastItem: index == (widget.epgData!.length - 1),
+                  isSystemAutoSelected: false,
+                );
+
+                // === 修改部分：调整列表项布局（问题1） ===
+                // 原：使用 buildListItem，时间和标题在同一 Text
+                // 新：使用 Column 分离时间和标题，时间字体 14，标题字体 16，高度增为 defaultMinHeight * 1.5
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: widget.onCloseDrawer,
+                      child: Container(
+                        height: defaultMinHeight * 1.5,
+                        padding: defaultPadding,
+                        alignment: Alignment.centerLeft,
+                        decoration: buildItemDecoration(
+                          isTV: widget.isTV,
+                          hasFocus: hasFocus,
+                          isSelected: isSelect,
+                          isSystemAutoSelected: false,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${data.start}-${data.end}',
+                              style: textStyle.merge(const TextStyle(fontSize: 14)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              data.title ?? '无标题',
+                              style: textStyle.merge(const TextStyle(fontSize: 16)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (index != widget.epgData!.length - 1) horizontalDivider,
+                  ],
                 );
               }),
             ),
@@ -1371,11 +1431,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double categoryWidth = isPortrait ? defaultCategoryWidthPortrait : defaultCategoryWidthLandscape;
     final double groupWidth = groupListWidget != null ? (isPortrait ? defaultGroupWidthPortrait : defaultGroupWidthLandscape) : 0.0;
     final double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * verticalDivider.width
         : 0.0;
 
     final totalWidth = widget.isLandscape
-        ? categoryWidth + groupWidth + channelContentWidth
+        ? categoryWidth + groupWidth + channelContentWidth + 2 * verticalDivider.width
         : MediaQuery.of(context).size.width;
 
     return Container(
@@ -1468,6 +1528,7 @@ class _ChannelContentState extends State<ChannelContent> {
   bool _isSystemAutoSelected = false; // 系统自动选中
   bool _isChannelAutoSelected = false; // 频道自动选中
   Timer? _epgDebounceTimer; // EPG防抖定时器
+  String? _lastChannelKey; // 记录上次加载的 channelKey
 
   @override
   void initState() {
@@ -1528,6 +1589,12 @@ class _ChannelContentState extends State<ChannelContent> {
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel();
     _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
+      // 避免重复加载相同 channelKey
+      if (channelKey != null && channelKey == _lastChannelKey) {
+        LogUtil.i('忽略重复 EPG 加载: channelKey=$channelKey');
+        return;
+      }
+      _lastChannelKey = channelKey;
       _loadEPGMsg(playModel, channelKey: channelKey); // 延迟加载
     });
   }
@@ -1595,7 +1662,6 @@ class _ChannelContentState extends State<ChannelContent> {
     }
 
     final double channelWidth = widget.isTV ? defaultChannelWidthTV : defaultChannelWidthNonTV;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1613,8 +1679,7 @@ class _ChannelContentState extends State<ChannelContent> {
         ),
         if (_epgData != null) ...[
           verticalDivider,
-          SizedBox(
-            width: defaultEpgWidth,
+          Expanded(
             child: EPGList(
               epgData: _epgData,
               selectedIndex: _selEPGIndex,
