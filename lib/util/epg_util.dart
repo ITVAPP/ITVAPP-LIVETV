@@ -166,9 +166,6 @@ class EpgModel {
           continue;
         }
         epgData!.add(epgDataItem);
-        if (LogUtil.isDebug) {
-          LogUtil.d('解析 EpgData: title=${epgDataItem.title}, start=${epgDataItem.start}, end=${epgDataItem.end}, desc=${epgDataItem.desc}');
-        }
       }
     }
     if (epgData == null || epgData!.isEmpty) {
