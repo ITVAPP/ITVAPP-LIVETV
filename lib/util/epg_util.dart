@@ -4,6 +4,7 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 /// channel_name : "CCTV1"
 /// date : ""
@@ -57,7 +58,7 @@ class EpgUtil {
     if (cancelToken?.isCancelled ?? false) return null; // 请求取消时返回 null
     
     final epgRes = await HttpUtil().getRequest(
-      'https://epg.v1.mk/json?ch=$channel&date=$date', // 请求 EPG 数据
+      '${Config.epgBaseUrl}?ch=$channel&date=$date', // 使用 Config 中的 EPG 地址
       cancelToken: cancelToken, // 支持取消网络请求
     );
     if (epgRes != null && epgRes['channel_name'] == channel) {
@@ -134,7 +135,6 @@ class EpgModel {
   }
 }
 
-/// desc : ""
 /// end : "01:34"
 /// start : "01:06"
 /// title : "今日说法-2024-214"
