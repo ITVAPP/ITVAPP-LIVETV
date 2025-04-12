@@ -1426,12 +1426,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   ) {
     final double categoryWidth = isPortrait ? defaultCategoryWidthPortrait : defaultCategoryWidthLandscape;
     final double groupWidth = groupListWidget != null ? (isPortrait ? defaultGroupWidthPortrait : defaultGroupWidthLandscape) : 0.0;
+
     final double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * verticalDivider.width
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * 1.5 // 使用 1.5 代替 verticalDivider.width
         : 0.0;
 
     final totalWidth = widget.isLandscape
-        ? categoryWidth + groupWidth + channelContentWidth + 2 * verticalDivider.width
+        ? categoryWidth + groupWidth + channelContentWidth + 2 * 1.5 // 使用 1.5 代替 verticalDivider.width
         : MediaQuery.of(context).size.width;
 
     return Container(
