@@ -711,6 +711,7 @@ class EPGList extends StatefulWidget {
 class EPGListState extends State<EPGList> {
   bool _shouldScroll = true; // 是否需要滚动
   DateTime? _lastScrollTime; // 上次滚动时间
+  bool _isScrollScheduled = false; // 新增：防止重复调度
 
   @override
   void initState() {
@@ -721,37 +722,42 @@ class EPGListState extends State<EPGList> {
   @override
   void didUpdateWidget(covariant EPGList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 仅在 epgData 或 selectedIndex 实际变化时触发滚动
     if (widget.epgData != oldWidget.epgData || widget.selectedIndex != oldWidget.selectedIndex) {
-      _shouldScroll = true; // 数据更新时触发滚动
-      setState(() {});
+      _shouldScroll = true;
     }
   }
 
   // 调度滚动到选中项
   void _scheduleScroll() {
-    if (!_shouldScroll || !mounted) return;
-    // 防抖：100ms 内忽略重复滚动
+    if (!_shouldScroll || !mounted || _isScrollScheduled) {
+      LogUtil.i('忽略无效 EPG 滚动: shouldScroll=$_shouldScroll, mounted=$mounted, isScrollScheduled=$_isScrollScheduled');
+      return;
+    }
+
+    // 防抖检查
     final now = DateTime.now();
     if (_lastScrollTime != null && now.difference(_lastScrollTime!).inMilliseconds < 100) {
       LogUtil.i('忽略重复 EPG 滚动: index=${widget.selectedIndex}');
       return;
     }
+
+    _isScrollScheduled = true; // 标记为已调度
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
         if (state != null && state._epgItemScrollController.hasClients) {
-          state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null); // 滚动到选中项
+          state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null);
           _shouldScroll = false;
           _lastScrollTime = DateTime.now();
           LogUtil.i('EPG 滚动完成: index=${widget.selectedIndex}');
         }
       }
+      _isScrollScheduled = false; // 重置调度状态
     });
   }
 
-  // === 修改部分：调整 _appBarDecoration（问题4） ===
-  // 原：定义在 build 方法外，未使用目标样式
-  // 新：使用用户指定的渐变、圆角和阴影
+  // === 原有代码：_appBarDecoration ===
   static final _appBarDecoration = BoxDecoration(
     gradient: LinearGradient(
       colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
@@ -773,7 +779,6 @@ class EPGListState extends State<EPGList> {
   Widget build(BuildContext context) {
     if (widget.epgData == null || widget.epgData!.isEmpty) return const SizedBox.shrink();
 
-    _scheduleScroll();
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor), // 背景装饰
@@ -805,9 +810,7 @@ class EPGListState extends State<EPGList> {
                   isSystemAutoSelected: false,
                 );
 
-                // === 修改部分：调整列表项布局（问题1） ===
-                // 原：使用 buildListItem，时间和标题在同一 Text
-                // 新：使用 Column 分离时间和标题，时间字体 14，标题字体 16，高度增为 defaultMinHeight * 1.5
+                // === 原有代码：列表项布局 ===
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -893,7 +896,6 @@ class ChannelDrawerPage extends StatefulWidget {
 }
 
 class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindingObserver {
-  final Map<String, Map<String, dynamic>> epgCache = {}; // EPG缓存
   final ScrollController _scrollController = ScrollController(); // 分组滚动控制器
   final ScrollController _scrollChannelController = ScrollController(); // 频道滚动控制器
   final ScrollController _categoryScrollController = ScrollController(); // 分类滚动控制器
@@ -1038,9 +1040,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         Future<void> updateFocus() async {
           try {
             _tvKeyNavigationState?.deactivateFocusManagement();
-            await updateFocusLogic(false, initialIndexOverride: initialFocusIndex); // 更新焦点
+            await updateFocusLogic(false, initialIndexOverride: initialIndexOverride); // 更新焦点
             if (mounted && _tvKeyNavigationState != null) {
-              _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialFocusIndex);
+              _tvKeyNavigationState!.activateFocusManagement(initialIndexOverride: initialIndexOverride);
               setState(() {});
             }
           } catch (e) {
@@ -1406,7 +1408,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         epgScrollController: _epgItemScrollController,
         onCloseDrawer: widget.onCloseDrawer,
         channelStartIndex: _channelStartIndex,
-        epgCache: epgCache,
       );
     }
 
@@ -1500,7 +1501,6 @@ class ChannelContent extends StatefulWidget {
   final ScrollController epgScrollController; // EPG滚动控制器
   final VoidCallback onCloseDrawer; // 关闭抽屉回调
   final int channelStartIndex; // 频道起始索引
-  final Map<String, Map<String, dynamic>> epgCache; // EPG缓存
 
   const ChannelContent({
     Key? key,
@@ -1514,7 +1514,6 @@ class ChannelContent extends StatefulWidget {
     required this.epgScrollController,
     required this.onCloseDrawer,
     required this.channelStartIndex,
-    required this.epgCache,
   }) : super(key: key);
 
   @override
@@ -1603,19 +1602,6 @@ class _ChannelContentState extends State<ChannelContent> {
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (playModel == null || !mounted) return;
 
-    final currentTime = DateTime.now();
-    if (channelKey != null &&
-        widget.epgCache.containsKey(channelKey) &&
-        widget.epgCache[channelKey]!['timestamp'] != null &&
-        currentTime.difference(widget.epgCache[channelKey]!['timestamp']).inHours < 24) {
-      setState(() {
-        _epgData = widget.epgCache[channelKey]!['data']; // 使用缓存
-        _selEPGIndex = _getInitialSelectedIndex(_epgData);
-      });
-      LogUtil.i('使用缓存的 EPG 数据: $channelKey');
-      return;
-    }
-
     final res = await EpgUtil.getEpg(playModel);
     
     LogUtil.i('EpgUtil.getEpg 返回结果: ${res != null ? "成功" : "为null"}, 播放模型: ${playModel.title}');
@@ -1624,14 +1610,8 @@ class _ChannelContentState extends State<ChannelContent> {
     setState(() {
       _epgData = res.epgData!;
       _selEPGIndex = _getInitialSelectedIndex(_epgData); // 更新EPG数据
-      if (channelKey != null) {
-        widget.epgCache[channelKey] = {
-          'data': res.epgData!,
-          'timestamp': currentTime, // 缓存数据
-        };
-      }
     });
-    LogUtil.i('加载并缓存新的 EPG 数据: $channelKey');
+    LogUtil.i('加载新的 EPG 数据: $channelKey');
   }
 
   // 获取初始选中EPG索引
