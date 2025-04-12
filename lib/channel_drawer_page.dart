@@ -1550,8 +1550,10 @@ class _ChannelContentState extends State<ChannelContent> {
     }
 
     final res = await EpgUtil.getEpg(playModel);
+    
+    LogUtil.i('EpgUtil.getEpg 返回结果: ${res != null ? "成功" : "为null"}, 播放模型: ${playModel.title}');
     if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
-
+    
     setState(() {
       _epgData = res.epgData!;
       _selEPGIndex = _getInitialSelectedIndex(_epgData); // 更新EPG数据
