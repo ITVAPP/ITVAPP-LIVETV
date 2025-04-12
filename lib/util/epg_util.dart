@@ -14,10 +14,33 @@ class EpgUtil {
 
   static final Map<String, EpgModel> epgCacheMap = <String, EpgModel>{}; // 缓存 EPG 数据
   static Iterable<XmlElement>? _programmes; // 存储解析后的 XML 节目数据
+  static const int _maxCacheSize = 100; // 缓存最大容量限制
+  static const Duration _cacheTTL = Duration(hours: 24); // 缓存有效期 24 小时
+
+  // 清理过期或超量缓存
+  static void _cleanCache() {
+    final now = DateTime.now();
+    epgCacheMap.removeWhere((key, value) {
+      // 检查缓存是否过期
+      if (value.date != null) {
+        final cacheTime = DateUtil.parseCustomDateTimeString(value.date!);
+        return now.difference(cacheTime) > _cacheTTL;
+      }
+      return false;
+    });
+    // 移除超量缓存
+    while (epgCacheMap.length > _maxCacheSize) {
+      final oldestKey = epgCacheMap.keys.first;
+      epgCacheMap.remove(oldestKey);
+    }
+  }
 
   // 获取 EPG 数据，支持缓存、XML 和网络请求
   static Future<EpgModel?> getEpg(PlayModel? model, {CancelToken? cancelToken}) async {
-    if (model == null) return null; // 检查输入模型是否为空
+    if (model == null) {
+      LogUtil.w('EPG 获取失败：输入模型为空');
+      return null; // 输入模型为空，直接返回
+    }
 
     String channelKey = '';
     String channel = '';
@@ -25,48 +48,72 @@ class EpgUtil {
     final isHasXml = _programmes != null && _programmes!.isNotEmpty; // 检查 XML 数据是否可用
 
     if (model.id != null && model.id!.isNotEmpty && isHasXml) {
-      channelKey = model.id!; // 三层结构使用频道 ID 作为键
+      channelKey = model.id!; // 使用频道 ID 作为缓存键
     } else {
-      if (model.title == null) return null; // 检查标题是否为空
-      channel = model.title!.replaceAll(' ', '').replaceAll('-', ''); // 清理频道名称
+      if (model.title == null) {
+        LogUtil.w('EPG 获取失败：频道标题为空');
+        return null; // 标题为空，直接返回
+      }
+      channel = model.title!.replaceAll(RegExp(r'[ -]'), ''); // 清理标题中的空格和连字符
       date = DateUtil.formatDate(DateTime.now(), format: "yyMMdd"); // 获取当前日期
-      channelKey = "$date-$channel"; // 两层结构使用日期和频道名组合键
+      channelKey = "$date-$channel"; // 使用日期和频道名组合键
     }
 
     if (epgCacheMap.containsKey(channelKey)) {
-      return epgCacheMap[channelKey]!; // 返回缓存中的 EPG 数据
+      return epgCacheMap[channelKey]!; // 返回缓存数据
     }
 
     if (isHasXml) {
-      EpgModel epgModel = EpgModel(channelName: model.title ?? '未知频道', epgData: []); // 初始化 EPG 模型
-      for (var programme in _programmes!) {
-        final channel = programme.getAttribute('channel');
-        if (channel == model.id) {
-          final start = programme.getAttribute('start')!; // 获取节目开始时间
-          final dateStart = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(start), format: "HH:mm");
-          final stop = programme.getAttribute('stop')!; // 获取节目结束时间
-          final dateEnd = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(stop), format: "HH:mm");
-          final title = programme.findAllElements('title').first.innerText; // 获取节目标题
-          epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd)); // 添加节目数据
+      EpgModel epgModel = EpgModel(channelName: model.title ?? '未知频道', epgData: []);
+      // 过滤匹配当前频道的节目数据
+      final matchedProgrammes = _programmes!.where((programme) => programme.getAttribute('channel') == model.id);
+      for (var programme in matchedProgrammes) {
+        final start = programme.getAttribute('start');
+        final stop = programme.getAttribute('stop');
+        if (start == null || stop == null) {
+          LogUtil.w('EPG 解析失败：节目缺少 start 或 stop，channel=${model.id}');
+          continue;
         }
+        final dateStart = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(start), format: "HH:mm"); // 格式化开始时间
+        final dateEnd = DateUtil.formatDate(DateUtil.parseCustomDateTimeString(stop), format: "HH:mm"); // 格式化结束时间
+        final titleElements = programme.findAllElements('title');
+        if (titleElements.isEmpty) {
+          LogUtil.w('EPG 解析失败：节目缺少标题，channel=${model.id}, start=$start');
+          continue;
+        }
+        final title = titleElements.first.innerText; // 获取节目标题
+        epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd)); // 添加节目数据
       }
-      if (epgModel.epgData!.isEmpty) return null; // 无数据时返回 null
+      if (epgModel.epgData!.isEmpty) {
+        LogUtil.w('EPG 数据无效：无有效节目，channel=${model.id}');
+        return null; // 无节目数据返回 null
+      }
+      _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = epgModel; // 缓存 EPG 数据
       return epgModel;
     }
 
-    if (cancelToken?.isCancelled ?? false) return null; // 请求取消时返回 null
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.w('EPG 获取取消：请求已取消，channel=$channel, date=$date');
+      return null; // 请求取消返回 null
+    }
     
     final epgRes = await HttpUtil().getRequest(
-      '${Config.epgBaseUrl}?ch=$channel&date=$date', // 使用 Config 中的 EPG 地址
-      cancelToken: cancelToken, // 支持取消网络请求
+      '${Config.epgBaseUrl}?ch=$channel&date=$date', // 构造 EPG 请求 URL
+      cancelToken: cancelToken, // 支持取消请求
     );
     if (epgRes != null && epgRes['channel_name'] == channel) {
       final epg = EpgModel.fromJson(epgRes); // 解析 JSON 数据
+      if (epg.epgData == null || epg.epgData!.isEmpty) {
+        LogUtil.w('EPG 数据无效：无节目信息，channel=$channel, date=$date');
+        return null;
+      }
+      _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = epg; // 缓存结果
       return epg;
     }
-    return null; // 无有效数据时返回 null
+    LogUtil.w('EPG 获取失败：无有效数据，channel=$channel, date=$date');
+    return null; // 无有效数据返回 null
   }
 
   // 加载 EPG XML 文件，支持重试机制
@@ -83,12 +130,16 @@ class EpgUtil {
         try {
           tempXmlDocument = XmlDocument.parse(res.toString()); // 解析 XML
         } catch (e) {
-          LogUtil.e('解析 XML 失败: $e');
-          index += 1; // 解析失败时尝试下一个 URL
+          LogUtil.e('EPG XML 解析失败: url=${urlLink[index]}, 错误=$e');
+          index += 1; // 解析失败，尝试下一个 URL
         }
       } else {
-        index += 1; // 请求失败时尝试下一个 URL
+        LogUtil.w('EPG XML 请求失败: url=${urlLink[index]}');
+        index += 1; // 请求失败，尝试下一个 URL
       }
+    }
+    if (tempXmlDocument == null) {
+      LogUtil.e('EPG XML 加载失败：所有 URL 无效，url=$url');
     }
     _programmes = tempXmlDocument?.findAllElements('programme'); // 存储节目数据
   }
@@ -104,26 +155,41 @@ class EpgModel {
   EpgModel({this.channelName, this.date, this.epgData});
 
   EpgModel.fromJson(dynamic json) {
-    channelName = json['channel_name'];
-    date = json['date'];
+    channelName = json['channel_name'] as String?;
+    date = json['date'] as String?;
     if (json['epg_data'] != null) {
       epgData = [];
-      json['epg_data'].forEach((v) {
-        epgData!.add(EpgData.fromJson(v)); // 解析节目数据列表
-      });
+      for (var v in json['epg_data']) {
+        final epgDataItem = EpgData.fromJson(v);
+        if (epgDataItem.title == null || epgDataItem.start == null || epgDataItem.end == null) {
+          LogUtil.w('EPG JSON 无效：缺少必要字段，数据=$v');
+          continue;
+        }
+        epgData!.add(epgDataItem);
+        if (LogUtil.isDebug) {
+          LogUtil.d('解析 EpgData: title=${epgDataItem.title}, start=${epgDataItem.start}, end=${epgDataItem.end}, desc=${epgDataItem.desc}');
+        }
+      }
     }
+    if (epgData == null || epgData!.isEmpty) {
+      LogUtil.w('EPG JSON 解析失败：无有效节目，channel=$channelName, date=$date');
+    }
+    LogUtil.i('解析 EpgModel: channel=$channelName, date=$date, epgDataCount=${epgData?.length ?? 0}');
   }
 
-  String? channelName;
-  String? date;
-  List<EpgData>? epgData;
+  String? channelName; // 频道名称
+  String? date; // 日期
+  List<EpgData>? epgData; // 节目数据列表
 
+  // 复制模型并更新指定字段
   EpgModel copyWith({String? channelName, String? date, List<EpgData>? epgData}) =>
       EpgModel(
         channelName: channelName ?? this.channelName,
         date: date ?? this.date,
         epgData: epgData ?? this.epgData,
       );
+
+  // 转换为 JSON 格式
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};
     map['channel_name'] = channelName;
@@ -142,17 +208,26 @@ class EpgData {
   EpgData({this.desc, this.end, this.start, this.title});
 
   EpgData.fromJson(dynamic json) {
-    desc = json['desc'];
-    end = json['end'];
-    start = json['start'];
-    title = json['title'];
+    desc = json['desc'] == '' ? null : json['desc'] as String?; // 节目描述
+    start = json['start'] as String?; // 开始时间
+    end = json['end'] as String?; // 结束时间
+    title = json['title'] as String?; // 节目标题
+    if (start != null && end != null) {
+      final timePattern = RegExp(r'^\d{2}:\d{2}$');
+      if (!timePattern.hasMatch(start!) || !timePattern.hasMatch(end!)) {
+        LogUtil.w('EPG JSON 时间格式无效: start=$start, end=$end');
+        start = null;
+        end = null;
+      }
+    }
   }
 
-  String? desc;
-  String? end;
-  String? start;
-  String? title;
+  String? desc; // 节目描述
+  String? end; // 结束时间
+  String? start; // 开始时间
+  String? title; // 节目标题
 
+  // 复制数据并更新指定字段
   EpgData copyWith({String? desc, String? end, String? start, String? title}) =>
       EpgData(
         desc: desc ?? this.desc,
@@ -161,6 +236,7 @@ class EpgData {
         title: title ?? this.title,
       );
 
+  // 转换为 JSON 格式
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{};
     map['desc'] = desc;
