@@ -325,7 +325,6 @@ class M3uUtil {
             for (var param in params) {
               final key = param.group(1)!;
               final value = param.group(2)!;
-              LogUtil.i('解析参数: $key=$value'); // 添加日志
               if (key == 'group-title') groupTitle = value;
               else if (key == 'tvg-logo') tvgLogo = value;
               else if (key == 'tvg-id') tvgId = value;
