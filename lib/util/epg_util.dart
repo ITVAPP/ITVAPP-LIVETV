@@ -102,7 +102,12 @@ class EpgUtil {
       '${Config.epgBaseUrl}?ch=$channel&date=$date', // 构造 EPG 请求 URL
       cancelToken: cancelToken, // 支持取消请求
     );
-    if (epgRes != null && epgRes['channel_name'] == channel) {
+    
+    // 修改这里：移除 channel_name 的严格匹配检查，只要有有效数据就处理
+    if (epgRes != null) {
+      // 添加调试日志，记录 API 返回的 channel_name 与请求的 channel 对比
+      LogUtil.i('EPG API 返回数据: channel_name=${epgRes['channel_name']}, 请求channel=$channel');
+      
       final epg = EpgModel.fromJson(epgRes); // 解析 JSON 数据
       if (epg.epgData == null || epg.epgData!.isEmpty) {
         LogUtil.i('EPG 数据无效：无节目信息，channel=$channel, date=$date');
@@ -110,8 +115,10 @@ class EpgUtil {
       }
       _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = epg; // 缓存结果
+      LogUtil.i('加载并缓存新的 EPG 数据: $channelKey'); // 添加这行日志，确认数据被成功处理
       return epg;
     }
+    
     LogUtil.i('EPG 获取失败：无有效数据，channel=$channel, date=$date');
     return null; // 无有效数据返回 null
   }
