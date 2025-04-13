@@ -878,79 +878,81 @@ class EPGListState extends State<EPGList> {
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     return Container(
       decoration: BoxDecoration(gradient: defaultBackgroundColor), // 背景装饰
-      child: Column(
-        children: [
-          Container(
-            height: defaultMinHeight,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 8),
-            decoration: _appBarDecoration,
-            child: Text(
-              S.of(context).programListTitle,
-              style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 标题样式
+ doping: const EdgeInsets.only(left: 8),
+        child: Column(
+          children: [
+            Container(
+              height: defaultMinHeight,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 8),
+              decoration: _appBarDecoration,
+              child: Text(
+                S.of(context).programListTitle,
+                style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 标题样式
+              ),
             ),
-          ),
-          verticalDivider,
-          Flexible(
-            child: ListView.builder(
-              // 优化：使用 ListView.builder 替代 List.generate
-              controller: widget.epgScrollController,
-              itemCount: widget.epgData!.length,
-              itemBuilder: (context, index) {
-                final data = widget.epgData![index];
-                final isSelect = index == widget.selectedIndex;
-                final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
-                final hasFocus = focusNode?.hasFocus ?? false;
-                final textStyle = getItemTextStyle(
-                  useFocus: useFocus,
-                  hasFocus: hasFocus,
-                  isSelected: isSelect,
-                  isSystemAutoSelected: false,
-                );
+            verticalDivider,
+            Flexible(
+              child: ListView.builder(
+                // 优化：使用 ListView.builder 替代 List.generate
+                controller: widget.epgScrollController,
+                itemCount: widget.epgData!.length,
+                itemBuilder: (context, index) {
+                  final data = widget.epgData![index];
+                  final isSelect = index == widget.selectedIndex;
+                  final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
+                  final hasFocus = focusNode?.hasFocus ?? false;
+                  final textStyle = getItemTextStyle(
+                    useFocus: useFocus,
+                    hasFocus: hasFocus,
+                    isSelected: isSelect,
+                    isSystemAutoSelected: false,
+                  );
 
-                return Column(
-                  key: ValueKey(data.start), // 优化：添加唯一 key 确保复用
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: widget.onCloseDrawer,
-                      child: Container(
-                        height: defaultMinHeight * 1.2,
-                        padding: defaultPadding,
-                        alignment: Alignment.centerLeft,
-                        decoration: buildItemDecoration(
-                          isTV: widget.isTV,
-                          hasFocus: hasFocus,
-                          isSelected: isSelect,
-                          isSystemAutoSelected: false,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${data.start}-${data.end}',
-                              style: textStyle.merge(const TextStyle(fontSize: 14)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              data.title ?? '无标题',
-                              style: textStyle.merge(const TextStyle(fontSize: 16)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                  return Column(
+                    key: ValueKey(data.start), // 优化：添加唯一 key 确保复用
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: widget.onCloseDrawer,
+                        child: Container(
+                          height: defaultMinHeight * 1.2,
+                          padding: defaultPadding,
+                          alignment: Alignment.centerLeft,
+                          decoration: buildItemDecoration(
+                            isTV: widget.isTV,
+                            hasFocus: hasFocus,
+                            isSelected: isSelect,
+                            isSystemAutoSelected: false,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${data.start}-${data.end}',
+                                style: textStyle.merge(const TextStyle(fontSize: 14)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                data.title ?? '无标题',
+                                style: textStyle.merge(const TextStyle(fontSize: 16)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    if (index != widget.epgData!.length - 1) horizontalDivider,
-                  ],
-                );
-              },
+                      if (index != widget.epgData!.length - 1) horizontalDivider,
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1360,7 +1362,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 重新初始化焦点监听器
   void _reInitializeFocusListeners() {
     for (var node in focusManager.focusNodes) {
-藻类
       node.removeListener(() {});
     }
 
@@ -1780,10 +1781,9 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
-  // 优化：使用 compute 加载 EPG
+  // 优化：使用 compute 加载 EPG，移除 EpgResult 假设
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (playModel == null || !mounted) return;
-    // 优化：将 EpgUtil.getEpg 移到 compute
     final res = await compute(_fetchEpg, playModel);
     LogUtil.i('EpgUtil.getEpg 返回结果: ${res != null ? "成功" : "为null"}, 播放模型: ${playModel.title}');
     if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
@@ -1793,8 +1793,8 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
-  // 优化：compute 辅助函数
-  static Future<EpgResult?> _fetchEpg(PlayModel playModel) async {
+  // 优化：compute 辅助函数，使用 dynamic 避免假设
+  static Future<dynamic> _fetchEpg(PlayModel playModel) async {
     return await EpgUtil.getEpg(playModel);
   }
 
