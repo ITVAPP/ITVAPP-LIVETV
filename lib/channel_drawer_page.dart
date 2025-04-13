@@ -21,12 +21,7 @@ const double defaultGroupWidthPortrait = 120.0; // 竖屏分组宽度
 const double defaultGroupWidthLandscape = 130.0; // 横屏分组宽度
 const double defaultChannelWidthTV = 160.0; // TV模式频道宽度
 const double defaultChannelWidthNonTV = 150.0; // 非TV模式频道宽度
-// 移除未使用的常量
-// const double defaultEpgWidth = 200.0; // EPG宽度（将动态调整）
-
-// 添加EPG高度常量
-const double DEFAULT_EPG_ITEM_HEIGHT = defaultMinHeight * 1.2; // EPG项目高度
-const double DEFAULT_EPG_ITEM_HEIGHT_WITH_DIVIDER = DEFAULT_EPG_ITEM_HEIGHT + 1; // 带分割线的EPG项目高度
+const double DEFAULT_EPG_ITEM_HEIGHT = defaultMinHeight * 1.2 + 1; // EPG项目高度
 
 // 创建垂直分割线渐变样式
 LinearGradient createDividerGradient({required double opacityStart, required double opacityEnd}) {
@@ -881,7 +876,7 @@ Widget build(BuildContext context) {
                   GestureDetector(
                     onTap: widget.onCloseDrawer,
                     child: Container(
-                      height: DEFAULT_EPG_ITEM_HEIGHT, // 使用定义的EPG高度常量
+                      height: DEFAULT_EPG_ITEM_HEIGHT, 
                       padding: defaultPadding,
                       alignment: Alignment.centerLeft,
                       decoration: buildItemDecoration(
@@ -983,12 +978,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {}; // 分组焦点缓存
 
-  // 修改的_scrollConfig，为EPG添加customHeight使用常量
   static final Map<String, Map<String, dynamic>> _scrollConfig = {
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
     'channel': {'controllerKey': '_scrollChannelController', 'countKey': '_values'},
-    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': DEFAULT_EPG_ITEM_HEIGHT_WITH_DIVIDER},
+    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': DEFAULT_EPG_ITEM_HEIGHT},
   };
 
   // 获取状态栏高度
