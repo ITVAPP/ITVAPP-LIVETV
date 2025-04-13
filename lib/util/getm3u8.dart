@@ -547,26 +547,12 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
   final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
   final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
   
-  // 添加统计计数器
-  int totalRequests = 0;
-  int allowedRequests = 0;
-  int blockedRequests = 0;
-  
   _controller.setNavigationDelegate(NavigationDelegate(
     onPageStarted: (String url) async { // 页面开始加载
       if (_isCancelled()) {
         LogUtil.i('页面开始加载时任务被取消: $url');
         return;
       }
-      
-      // 重置统计计数器
-      totalRequests = 0;
-      allowedRequests = 0;
-      blockedRequests = 0;
-      
-      LogUtil.i('==== 页面加载开始 ====');
-      LogUtil.i('URL: $url');
-      
       for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
         try {
           await _controller.runJavaScript(initScripts[i]);
@@ -577,22 +563,14 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       }
     },
     onNavigationRequest: (NavigationRequest request) async { // 导航请求
-      LogUtil.i('导航被触发: URL = ${request.url}');
-      if (_isCancelled()) {
-        LogUtil.i('阻止导航 (任务已取消): ${request.url}');
-        blockedRequests++;
-        return NavigationDecision.prevent; // 已取消阻止导航
-      }
+      if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
       
-      totalRequests++; // 增加请求总数
-      LogUtil.i('导航请求 #$totalRequests: ${request.url}');
-      
+      LogUtil.i('页面导航请求: ${request.url}');
       Uri? uri;
       try {
         uri = Uri.parse(request.url);
       } catch (e) {
-        LogUtil.i('阻止导航 (无效URL): ${request.url}');
-        blockedRequests++;
+        LogUtil.i('无效的URL，阻止加载: ${request.url}');
         return NavigationDecision.prevent;
       }
       
@@ -601,35 +579,31 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         
         // 1. 如果它匹配允许模式（白名单），允许它
         if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
-          LogUtil.i('允许导航 (匹配白名单): ${request.url}');
-          allowedRequests++;
+          LogUtil.i('URL匹配允许模式，允许加载: ${request.url}');
           return NavigationDecision.navigate;
         }
         
         // 2. 检查URL是否包含被阻止的扩展名（黑名单）
         for (final ext in blockedExtensions) {
           if (fullUrl.contains(ext)) {
-            LogUtil.i('阻止导航 (黑名单扩展名: $ext): ${request.url}');
-            blockedRequests++;
+            LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
             return NavigationDecision.prevent;
           }
         }
         
         // 3. 检查并阻止广告/跟踪请求
-        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
-        if (adTrackingPattern.hasMatch(fullUrl)) {
-           LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-           return NavigationDecision.prevent;
-        }
+        // final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
+        // if (adTrackingPattern.hasMatch(fullUrl)) {
+        //   LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+        //   return NavigationDecision.prevent;
+        // }
         
         // 4. 检查M3U8文件
         try {
           if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
-            LogUtil.i('检测到目标文件 (${_filePattern}): ${request.url}');
             await _controller.runJavaScript(
               'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
             ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-            blockedRequests++;
             return NavigationDecision.prevent;
           }
         } catch (e) {
@@ -640,10 +614,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         LogUtil.e('URL检查失败: $e，默认允许加载');
       }
       
-      // 默认允许导航
-      LogUtil.i('允许导航 (默认规则): ${request.url}');
-      allowedRequests++;
-      return NavigationDecision.navigate;
+      return NavigationDecision.navigate; // 默认允许导航
     },
     onPageFinished: (String url) async { // 页面加载完成
       if (_isCancelled()) {
@@ -651,17 +622,13 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         return;
       }
       
-      // 输出请求统计信息
-      LogUtil.i('==== 页面加载完成 ====');
-      LogUtil.i('URL: $url');
-      LogUtil.i('请求统计: 总计=$totalRequests, 允许=$allowedRequests, 阻止=$blockedRequests');
-      
       if (!isHashRoute && _pageLoadedStatus.contains(url)) {
         LogUtil.i('本页面已经加载完成，跳过重复处理');
         return;
       }
       
       _pageLoadedStatus.add(url);
+      LogUtil.i('页面加载完成: $url');
       
       if (_isClickExecuted) {
         LogUtil.i('点击已执行，跳过处理');
@@ -671,7 +638,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
       
       if (!_isClickExecuted && clickText != null) { // 执行点击
-        await Future.delayed(const Duration(milliseconds: CLICK_DELAY_MS));
+        await Future.delayed(const Duration(milliseconds: CLICK_DELAY_MS)); // 修改：使用常量
         if (!_isCancelled()) {
           final clickResult = await _executeClick();
           if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
@@ -689,7 +656,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       }
       
       if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
-        LogUtil.i('资源被阻止加载: ${error.description}, 错误码: ${error.errorCode}');
+        LogUtil.i('资源被阻止加载: ${error.description}');
         return;
       }
       
@@ -927,7 +894,6 @@ if (window._m3u8DetectorInitialized) {
       await controller.loadRequest(Uri.parse('about:blank')); // 加载空白页
       await Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS)); // 修改：使用常量
       await controller.clearCache(); // 清理缓存
-      
       if (_isHtmlContent) { // 清理JS行为
         await controller.runJavaScript(''' // 停止并清理页面
 window.stop();
@@ -942,9 +908,9 @@ window.removeEventListener('load', null, true);
 window.removeEventListener('unload', null, true);
 ''').catchError((e) => LogUtil.e('清理JS行为失败: $e'));
       }
-      
+      await controller.clearLocalStorage();
       await controller.runJavaScript('window.location.href = "about:blank";'); // 重置页面
-      LogUtil.i('已清理缓存和本地存储，并重置页面');
+      LogUtil.i('已清理资源，并重置页面');
     } catch (e, stack) {
       LogUtil.logError('清理 WebView 时发生错误', e, stack);
     }
