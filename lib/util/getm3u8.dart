@@ -553,7 +553,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
   int blockedRequests = 0;
   
   _controller.setNavigationDelegate(NavigationDelegate(
-    onPageStarted: (String url) async { // 页面开始加载
+    onPageStarted: (String url) { // 修改：移除 async，改为非阻塞式执行
       if (_isCancelled()) {
         LogUtil.i('页面开始加载时任务被取消: $url');
         return;
@@ -567,17 +567,15 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       LogUtil.i('==== 页面加载开始 ====');
       LogUtil.i('URL: $url');
       
-      for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
-        try {
-          await _controller.runJavaScript(initScripts[i]);
-          LogUtil.i('注入脚本成功: ${scriptNames[i]}');
-        } catch (e) {
-          LogUtil.e('注入脚本失败 (${scriptNames[i]}): $e');
-        }
+      // 修改：使用非阻塞式注入脚本，不使用 await
+      for (int i = 0; i < initScripts.length; i++) {
+        final int scriptIndex = i; // 捕获当前索引，避免闭包问题
+        _controller.runJavaScript(initScripts[i])
+          .then((_) => LogUtil.i('注入脚本成功: ${scriptNames[scriptIndex]}'))
+          .catchError((e) => LogUtil.e('注入脚本失败 (${scriptNames[scriptIndex]}): $e'));
       }
     },
-    onNavigationRequest: (NavigationRequest request) async { // 导航请求
-      LogUtil.i('导航请求: ${request.url}, isMainFrame: ${request.isForMainFrame}');
+    onNavigationRequest: (NavigationRequest request) { // 修改：移除 async，使用非阻塞处理
       if (_isCancelled()) {
         LogUtil.i('阻止导航 (任务已取消): ${request.url}');
         blockedRequests++;
@@ -622,14 +620,18 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
            return NavigationDecision.prevent;
         }
         
-        // 4. 检查M3U8文件
+        // 4. 检查M3U8文件 - 修改：先做出导航决策，然后非阻塞地执行JavaScript
         try {
           if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
             LogUtil.i('检测到目标文件 (${_filePattern}): ${request.url}');
-            await _controller.runJavaScript(
+            // 先增加计数并决定阻止导航
+            blockedRequests++;
+            
+            // 然后非阻塞地发送消息到检测器
+            _controller.runJavaScript(
               'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
             ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-            blockedRequests++;
+            
             return NavigationDecision.prevent;
           }
         } catch (e) {
@@ -645,7 +647,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       allowedRequests++;
       return NavigationDecision.navigate;
     },
-    onPageFinished: (String url) async { // 页面加载完成
+    onPageFinished: (String url) async { // 保持 async，因为后续操作需要异步
       if (_isCancelled()) {
         LogUtil.i('页面加载完成时任务被取消: $url');
         return;
@@ -682,7 +684,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         _setupPeriodicCheck(); // 设置定期检查
       }
     },
-    onWebResourceError: (WebResourceError error) async { // 资源加载错误
+    onWebResourceError: (WebResourceError error) async { // 保持 async，因为需要处理错误
       if (_isCancelled()) {
         LogUtil.i('资源错误时任务被取消: ${error.description}');
         return;
@@ -727,7 +729,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     }
   }
   
-  /// 执行点击操作
+  /// 执行点击操作 - 修改：非阻塞式执行JavaScript
   Future<bool> _executeClick() async {
     if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
       final reason = !_isControllerReady() ? 'WebViewController 未初始化' : _isClickExecuted ? '点击已执行' : '无点击配置';
@@ -742,9 +744,12 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
           .replaceAll('SEARCH_TEXT', clickText!)
           .replaceAll('TARGET_INDEX', '$clickIndex'); // 加载并替换参数
       
-      await _controller.runJavaScript(scriptWithParams); // 执行点击脚本
-      _isClickExecuted = true;
-      LogUtil.i('点击操作执行完成，结果: 成功');
+      // 修改：非阻塞式执行JavaScript，立即标记点击已执行
+      _controller.runJavaScript(scriptWithParams)
+        .then((_) => LogUtil.i('点击操作执行完成，结果: 成功'))
+        .catchError((e) => LogUtil.e('执行点击操作时发生错误: $e'));
+      
+      _isClickExecuted = true; // 立即标记为已执行，不等待脚本完成
       _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, scriptWithParams); // 修改：使用常量
       return true;
     } catch (e, stack) {
@@ -824,7 +829,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     _checkCount = 0;
   }
 
-  /// 设置定期检查
+  /// 设置定期检查 - 修改：非阻塞式执行JavaScript
   void _setupPeriodicCheck() {
     if (_periodicCheckTimer != null || _isCancelled() || _m3u8Found) {
       final reason = _periodicCheckTimer != null ? "定时器已存在" : _isCancelled() ? "任务被取消" : "已找到M3U8";
@@ -832,7 +837,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       return;
     }
     
-    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: PERIODIC_CHECK_INTERVAL_MS), (timer) async { // 修改：使用常量
+    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: PERIODIC_CHECK_INTERVAL_MS), (timer) { // 修改：移除 async
       if (_m3u8Found || _isCancelled()) {
         timer.cancel();
         _periodicCheckTimer = null;
@@ -848,9 +853,9 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         return;
       }
       
-      try {
-        final detectorScript = await _prepareM3U8DetectorCode();
-        await _controller.runJavaScript(''' // 执行DOM扫描
+      // 修改：使用非阻塞方式执行脚本
+      _prepareM3U8DetectorCode().then((detectorScript) {
+        _controller.runJavaScript(''' // 执行DOM扫描
 if (window._m3u8DetectorInitialized) {
   checkMediaElements(document);
   efficientDOMScan();
@@ -860,9 +865,7 @@ if (window._m3u8DetectorInitialized) {
   efficientDOMScan();
 }
 ''').catchError((error) => LogUtil.e('执行扫描失败: $error'));
-      } catch (e, stack) {
-        LogUtil.logError('定期检查执行出错', e, stack);
-      }
+      }).catchError((e) => LogUtil.e('准备M3U8检测器代码失败: $e'));
     });
   }
 
