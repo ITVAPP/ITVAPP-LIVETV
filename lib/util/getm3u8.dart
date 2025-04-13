@@ -496,53 +496,7 @@ class GetM3U8 {
     final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
     
     _setupJavaScriptChannels(completer); // 设置JS通道
-    _setupNavigationDelegate(completer, initScripts); // 设置导航代理
-    
-    await _loadUrlWithHeaders(); // 加载URL
-    LogUtil.i('WebViewController初始化完成');
-  }
 
-  /// 准备初始化脚本
-  Future<List<String>> _prepareInitScripts() async {
-    final List<String> scripts = [];
-    scripts.add(await _prepareTimeInterceptorCode()); // 添加时间拦截器
-    scripts.add(''' // 初始化全局变量
-window._videoInit = false;
-window._processedUrls = new Set();
-window._m3u8Found = false;
-''');
-    scripts.add(await _prepareM3U8DetectorCode()); // 添加M3U8检测器
-    return scripts;
-  }
-
-  /// 设置JavaScript通道
-  void _setupJavaScriptChannels(Completer<String> completer) {
-    _controller.addJavaScriptChannel('TimeCheck', onMessageReceived: (message) { // 时间检查通道
-      if (_isCancelled()) return;
-      try {
-        final data = json.decode(message.message);
-        if (data['type'] == 'timeRequest') {
-        	final now = DateTime.now().add(Duration(milliseconds: _cachedTimeOffset ?? 0));
-          LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$now');
-        }
-      } catch (e) {
-        LogUtil.e('处理时间检查消息失败: $e');
-      }
-    });
-    
-    _controller.addJavaScriptChannel('M3U8Detector', onMessageReceived: (message) { // M3U8检测通道
-      if (_isCancelled()) return;
-      try {
-        final data = json.decode(message.message);
-        _handleM3U8Found(data['type'] == 'init' ? null : (data['url'] ?? message.message), completer);
-      } catch (e) {
-        _handleM3U8Found(message.message, completer);
-      }
-    });
-  }
-
-/// 设置导航代理
-void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
   final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
   final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
   final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
@@ -697,7 +651,49 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       await _handleLoadError(completer); // 处理加载错误
     },
   ));
-}
+    
+    await _loadUrlWithHeaders(); // 加载URL
+    LogUtil.i('WebViewController初始化完成');
+  }
+
+  /// 准备初始化脚本
+  Future<List<String>> _prepareInitScripts() async {
+    final List<String> scripts = [];
+    scripts.add(await _prepareTimeInterceptorCode()); // 添加时间拦截器
+    scripts.add(''' // 初始化全局变量
+window._videoInit = false;
+window._processedUrls = new Set();
+window._m3u8Found = false;
+''');
+    scripts.add(await _prepareM3U8DetectorCode()); // 添加M3U8检测器
+    return scripts;
+  }
+
+  /// 设置JavaScript通道
+  void _setupJavaScriptChannels(Completer<String> completer) {
+    _controller.addJavaScriptChannel('TimeCheck', onMessageReceived: (message) { // 时间检查通道
+      if (_isCancelled()) return;
+      try {
+        final data = json.decode(message.message);
+        if (data['type'] == 'timeRequest') {
+        	final now = DateTime.now().add(Duration(milliseconds: _cachedTimeOffset ?? 0));
+          LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$now');
+        }
+      } catch (e) {
+        LogUtil.e('处理时间检查消息失败: $e');
+      }
+    });
+    
+    _controller.addJavaScriptChannel('M3U8Detector', onMessageReceived: (message) { // M3U8检测通道
+      if (_isCancelled()) return;
+      try {
+        final data = json.decode(message.message);
+        _handleM3U8Found(data['type'] == 'init' ? null : (data['url'] ?? message.message), completer);
+      } catch (e) {
+        _handleM3U8Found(message.message, completer);
+      }
+    });
+  }
 
   /// 处理Hash路由逻辑
   bool _handleHashRoute(String url) {
