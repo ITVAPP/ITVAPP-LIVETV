@@ -592,11 +592,11 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         }
         
         // 3. 检查并阻止广告/跟踪请求
-        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
-        if (adTrackingPattern.hasMatch(fullUrl)) {
-          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-          return NavigationDecision.prevent;
-        }
+        // final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
+        // if (adTrackingPattern.hasMatch(fullUrl)) {
+        //   LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+        //   return NavigationDecision.prevent;
+        // }
         
         // 4. 检查M3U8文件
         try {
