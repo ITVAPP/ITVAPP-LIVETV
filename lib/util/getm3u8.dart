@@ -566,9 +566,42 @@ window._m3u8Found = false;
           return NavigationDecision.prevent;
         }
         
-        try { // 处理重定向
+        try {
+          final fullUrl = request.url.toLowerCase();
+          
+          // 1. 检查白名单（优先级最高）
+          if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+            LogUtil.i('允许加载匹配白名单的资源: ${request.url}');
+            return NavigationDecision.navigate; // 白名单直接通过
+          }
+          
+          // 2. 检查M3U8文件（独立逻辑）
+          Uri uri;
+          try {
+            uri = Uri.parse(request.url);
+          } catch (e) {
+            LogUtil.i('无效的URL，阻止加载: ${request.url}');
+            return NavigationDecision.prevent;
+          }
+          
+          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
+            await _controller.runJavaScript(
+              'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+            ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
+            return NavigationDecision.prevent; // M3U8 文件特殊处理
+          }
+          
+          // 3. 检查黑名单
+          for (final ext in _blockedExtensions) {
+            if (fullUrl.contains(ext)) {
+              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
+              return NavigationDecision.prevent;
+            }
+          }
+          
+          // 4. 处理重定向
           final currentUri = _parsedUri;
-          final newUri = Uri.parse(request.url);
+          final new  newUri = Uri.parse(request.url);
           if (currentUri.host != newUri.host) {
             for (int i = 0; i < initScripts.length; i++) {
               try {
@@ -580,32 +613,14 @@ window._m3u8Found = false;
             }
             LogUtil.i('重定向页面的拦截器代码已重新注入');
           }
+          
+          LogUtil.i('页面导航请求: ${request.url}');
+          return NavigationDecision.navigate; // 默认允许
+          
         } catch (e) {
-          LogUtil.e('检查重定向URL失败: $e');
+          LogUtil.e('URL检查失败: $e，默认允许加载');
+          return NavigationDecision.navigate; // 出错时默认允许
         }
-        
-        LogUtil.i('页面导航请求: ${request.url}');
-        Uri? uri;
-        try {
-          uri = Uri.parse(request.url);
-        } catch (e) {
-          LogUtil.i('无效的URL，阻止加载: ${request.url}');
-          return NavigationDecision.prevent;
-        }
-        
-        
-        try { // 检查M3U8文件
-          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
-            await _controller.runJavaScript(
-              'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
-            ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-            return NavigationDecision.prevent;
-          }
-        } catch (e) {
-          LogUtil.e('URL检查失败: $e');
-        }
-        
-        return NavigationDecision.navigate; // 默认允许导航
       },
       onPageFinished: (String url) async { // 页面加载完成
         if (_isCancelled()) {
