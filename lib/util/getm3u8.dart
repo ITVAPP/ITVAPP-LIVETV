@@ -494,13 +494,14 @@ class GetM3U8 {
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
       ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
     
-    final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
     
-    _setupJavaScriptChannels(completer); // 设置JS通道
     _setupNavigationDelegate(completer, initScripts); // 设置导航代理
+    final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
+    _setupJavaScriptChannels(completer); // 设置JS通道
     
     await _loadUrlWithHeaders(); // 加载URL
     LogUtil.i('WebViewController初始化完成');
+  } 
   } catch (e, stackTrace) {
     LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
   }
