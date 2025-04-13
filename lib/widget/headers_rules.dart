@@ -65,9 +65,9 @@ live1.kxm.xmtv.cn|seexm2024.kxm.xmtv.cn
 qztv.cn|www.qztv.cn
 gzstv.com|www.gzstv.com
 lasatv.cn|www.lasatv.cn
+p8.vzan.com|npwhyavzb.vzan.com
 zjwtv.com|app.zjwtv.com''';
 
-  /// p8.vzan.com/slowlive/929856430577299580|npwhyavzb.vzan.com
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
   static const String corsRulesString = '''
 itvapp.net
@@ -105,7 +105,6 @@ chinashishi.net
 tv.vtibet.cn
 chayutv.com
 218.207.233.111
-p8.vzan.com
 tvshow.scgchc.com
 hlsplay.aodianyun.com
 gbtv-rtmp.zjwtv.com''';
