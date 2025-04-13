@@ -337,6 +337,7 @@ static const String _CLEANUP_SCRIPT = '''
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 15,
+    this.cancelToken,
   }) : _filterRules = _parseRules(rulesString),
        // 初始化成员变量
        fromParam = _extractQueryParams(url)['from'],
