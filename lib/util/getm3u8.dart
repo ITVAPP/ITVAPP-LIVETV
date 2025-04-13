@@ -121,7 +121,58 @@ class M3U8FilterRule {
 
 /// 地址获取类
 class GetM3U8 {
-    
+ 
+   // 修改：添加常量定义
+  static const int DEFAULT_TIMEOUT_SECONDS = 15; // 默认超时时间（秒）
+  static const int MAX_FOUND_URLS_SIZE = 50; // 已发现URL集合的最大容量
+  static const int MAX_PAGE_LOADED_STATUS_SIZE = 50; // 页面加载状态集合的最大容量
+  static const int MAX_CACHE_SIZE = 50; // 通用缓存最大容量（脚本、正则等）
+  static const int MAX_RULE_CACHE_SIZE = 20; // 规则缓存最大容量
+  static const int MAX_RETRY_COUNT = 2; // 最大重试次数
+  static const int PERIODIC_CHECK_INTERVAL_MS = 1000; // 定期检查间隔（毫秒）
+  static const int CLICK_DELAY_MS = 500; // 点击操作延迟（毫秒）
+  static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
+  static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
+  static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
+  static const int WEBVIEW_CLEANUP_DELAY_MS = 300; // WebView清理延迟（毫秒）
+
+  static final Map<String, String> _scriptCache = {}; // 脚本缓存
+  static final Map<String, List<M3U8FilterRule>> _ruleCache = {}; // 规则缓存
+  static final Map<String, Set<String>> _keywordsCache = {}; // 关键词缓存
+  static final Map<String, Map<String, String>> _specialRulesCache = {}; // 特殊规则缓存
+  static final Map<String, RegExp> _patternCache = {}; // 正则缓存
+
+  /// 限制Map大小，移除最早项
+  static void _limitMapSize<K, V>(Map<K, V> map, int maxSize, K key, V value) {
+    if (map.length >= maxSize) map.remove(map.keys.first); // 超出时移除首项
+    map[key] = value; // 添加新项
+  }
+
+  static final RegExp _invalidPatternRegex = RegExp( // 无效URL模式正则
+    'advertisement|analytics|tracker|pixel|beacon|stats|log',
+    caseSensitive: false,
+  );
+
+  // 过滤规则字符串
+  static String rulesString = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
+  static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则字符串
+  static String dynamicKeywordsString = 'jinan@gansu@xizang@sichuan'; // 使用getm3u8diy解析的关键词
+  static const String allowedResourcePatternsString = 'r.png?t='; // 允许资源模式字符串
+  // 阻止加载的黑名单关键字
+  static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
+  
+  // 解析阻止扩展名的方法
+  static List<String> _parseBlockedExtensions(String extensionsString) {
+    if (extensionsString.isEmpty) return [];
+    try {
+      return extensionsString.split('@').map((ext) => ext.trim()).toList();
+    } catch (e) {
+      LogUtil.e('解析阻止的扩展名失败: $e');
+      return [];
+    }
+  }
+  
+     
   // 统一的协议正则模式
   // static const _protocolPattern = r'(?:https?|rtmp|rtsp|ftp|mms|thunder)';
   static const _protocolPattern = r'(?:https?)';
@@ -332,11 +383,13 @@ static const String _CLEANUP_SCRIPT = '''
 
   /// 解析后的URI对象
   late final Uri _parsedUri;
+  final CancelToken? cancelToken; // 取消令牌
   
   /// 构造函数
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 15,
+    this.cancelToken,
   }) : _filterRules = _parseRules(rulesString),
        // 初始化成员变量
        fromParam = _extractQueryParams(url)['from'],
@@ -1271,89 +1324,60 @@ Future<void> dispose() async {
   LogUtil.i('资源释放完成');
 }
   
-  /// 验证M3U8 URL是否有效
+  /// 检查M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
-    // 优化1: 使用缓存避免重复验证
-    if (_foundUrls.contains(url)) {
-      return false;
-    }
-
-    // 优化2: 快速预检查，减少正则表达式使用
+    if (url.isEmpty || _foundUrls.contains(url)) return false; // 空或已存在返回false
+    
     final lowercaseUrl = url.toLowerCase();
-    if (!lowercaseUrl.contains('.' + _filePattern)) {
-      LogUtil.i('URL不包含.$_filePattern扩展名');
+    if (!lowercaseUrl.contains('.' + _filePattern)) return false; // 不含文件模式返回false
+    
+    if (_invalidPatternRegex.hasMatch(lowercaseUrl)) { // 包含无效关键词
+      LogUtil.i('URL包含无效关键词: $url');
       return false;
     }
-
-    // 验证URL是否为有效格式
-    final validUrl = _parsedUri;
-    if (validUrl == null) {
-      LogUtil.i('无效的URL格式');
-      return false;
-    }
-
-    // 优化3: 使用类级别定义的正则表达式检查无效关键词
-    if (_invalidPatternRegex.hasMatch(lowercaseUrl)) {
-      LogUtil.i('URL包含无效关键词');
-      return false;
-    }
-
-    // 优化4: 规则检查的短路处理
-    if (_filterRules.isNotEmpty) {
+    
+    if (_filterRules.isNotEmpty) { // 检查过滤规则
       bool matchedDomain = false;
       for (final rule in _filterRules) {
         if (url.contains(rule.domain)) {
           matchedDomain = true;
-          final containsKeyword = url.contains(rule.requiredKeyword);
-          LogUtil.i('发现匹配的域名规则: ${rule.domain}');
+          final containsKeyword = rule.requiredKeyword.isEmpty || url.contains(rule.requiredKeyword);
           return containsKeyword;
         }
       }
-      if (matchedDomain) return false;
+      if (matchedDomain) {
+        LogUtil.i('URL匹配域名但不符合关键词要求: $url');
+        return false;
+      }
     }
-
-    return true;
+    
+    return true; // 通过所有检查
   }
 
-/// 处理发现的M3U8 URL
-Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
-  if (_m3u8Found || _isDisposed) {
-    LogUtil.i(
-      _m3u8Found ? '跳过URL处理: 已找到M3U8' : '跳过URL处理: 资源已释放'
-    );
-    return;
-  }
-  if (url.isEmpty) return;
-  
-  // 首先整理URL
-  String cleanedUrl = _cleanUrl(url);
-  if (!_isValidM3U8Url(cleanedUrl)) {
-    LogUtil.i('URL验证失败，继续等待新的URL');
-    return;
-  }
-  
-  // 处理URL参数替换
-  String finalUrl = cleanedUrl;
-  if (fromParam != null && toParam != null) {
-    LogUtil.i('执行URL参数替换: from=$fromParam, to=$toParam');
-    finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
+  /// 替换URL参数
+  String _replaceParams(String url) {
+    return (fromParam != null && toParam != null) ? url.replaceAll(fromParam!, toParam!) : url; // 执行替换
   }
 
-  // 所有情况下都记录URL
-  _foundUrls.add(finalUrl);
-  
-  // 如果没有点击操作,立即完成
-  if (clickText == null) {
-    _m3u8Found = true;
-    if (!completer.isCompleted) {
+  /// 处理发现的M3U8 URL
+  Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
+    if (_m3u8Found || _isCancelled() || completer.isCompleted || url == null || url.isEmpty) return;
+    
+    String cleanedUrl = _cleanUrl(url); // 清理URL
+    if (!_isValidM3U8Url(cleanedUrl)) return; // 无效则返回
+    
+    String finalUrl = _replaceParams(cleanedUrl); // 替换参数
+    _foundUrls.add(finalUrl); // 添加到已发现集合
+    
+    if (clickText == null) { // 无点击逻辑直接完成
+      _m3u8Found = true;
       LogUtil.i('发现有效URL: $finalUrl');
       completer.complete(finalUrl);
       await dispose();
+    } else {
+      LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
     }
-  } else {
-    LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
   }
-}
 
   /// 注入M3U8检测器
   void _injectM3U8Detector() {
@@ -1377,87 +1401,72 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
     });
   }
   
-  /// 返回找到的第一个有效M3U8地址，如果未找到返回ERROR
+  /// 获取M3U8 URL
   Future<String> getUrl() async {
     final completer = Completer<String>();
-
-    // 解析动态关键词规则
+    
+    if (_isCancelled()) {
+      LogUtil.i('GetM3U8 任务在启动前被取消');
+      return 'ERROR';
+    }
+    
     final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
-
-    // 检查是否需要使用 getm3u8diy 解析
-    for (final keyword in dynamicKeywords) {
+    for (final keyword in dynamicKeywords) { // 检查动态关键词
       if (url.contains(keyword)) {
         try {
           final streamUrl = await GetM3u8Diy.getStreamUrl(url);
           LogUtil.i('getm3u8diy 返回结果: $streamUrl');
-          return streamUrl;  // 直接返回，不执行后续 WebView 解析
+          return streamUrl;
         } catch (e, stackTrace) {
           LogUtil.logError('getm3u8diy 获取播放地址失败，返回 ERROR', e, stackTrace);
-          return 'ERROR';  // 失败也直接返回，终止后续逻辑
+          return 'ERROR';
         }
       }
     }
-
-    // 动态解析特殊规则
-    final specialRules = _parseSpecialRules(specialRulesString);
-    _filePattern = specialRules.entries
-        .firstWhere(
-          (entry) => url.contains(entry.key),
-          orElse: () => const MapEntry('', 'm3u8')
-        )
-        .value;
-    LogUtil.i('检测模式: ${_filePattern == "m3u8" ? "仅监听m3u8" : "监听$_filePattern"}');
-
+    
+    _filePattern = _determineFilePattern(url); // 确定文件模式
+    
     try {
-      await _initController(completer, _filePattern);
-      _startTimeout(completer);
+      await _initController(completer, _filePattern); // 初始化控制器
+      _startTimeout(completer); // 启动超时计时
     } catch (e, stackTrace) {
       LogUtil.logError('初始化过程发生错误', e, stackTrace);
-      completer.complete('ERROR');
+      if (!completer.isCompleted) completer.complete('ERROR');
     }
-
+    
     LogUtil.i('getUrl方法执行完成');
-    return completer.future;
+    return completer.future; // 返回结果
   }
 
-/// 检查页面内容中的M3U8地址
-Future<String?> _checkPageContent() async {
-  if (_m3u8Found || _isDisposed) {
-    LogUtil.i(
-      '跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "资源已释放"}'
-    );
-    return null;
-  }
-  
-  if (clickText != null && !_isClickExecuted) {
-    LogUtil.i('点击操作未完成，跳过页面内容检查');
-    return null;
-  }
-
-  try {
-    // 使用已经处理过的HTTP响应内容
-    if (_httpResponseContent == null) {
-      LogUtil.e('页面内容为空，跳过检测');
+  /// 检查页面内容中的M3U8
+  Future<String?> _checkPageContent() async {
+    if (_m3u8Found || _isCancelled()) {
+      LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "任务被取消"}');
       return null;
     }
-
-    String sample = UrlUtils.basicUrlClean(_httpResponseContent!);
-    LogUtil.i('正在检测页面中的 $_filePattern 文件');
-
-    // 使用正则表达式查找URL
-    final pattern = '''(?:${_protocolPattern}://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${_filePattern}[^'"\\s,()<>{}\\[\\]]*''';
-    final regex = RegExp(pattern, caseSensitive: false);
-    final matches = regex.allMatches(sample);
-    LogUtil.i('正则匹配到 ${matches.length} 个结果');
-
-    // 处理匹配结果
-    return await _processMatches(matches, sample);
-
-  } catch (e, stackTrace) {
-    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-    return null;
-  } 
-}
+    
+    if (clickText != null && !_isClickExecuted) {
+      LogUtil.i('点击操作未完成，跳过页面内容检查');
+      return null;
+    }
+    
+    try {
+      if (_httpResponseContent == null || _httpResponseContent!.isEmpty) {
+        LogUtil.e('页面内容为空，跳过检测');
+        return null;
+      }
+      
+      String sample = UrlUtils.basicUrlClean(_httpResponseContent!); // 清理内容
+      
+      final matches = _m3u8Pattern.allMatches(sample); // 匹配M3U8
+      LogUtil.i('正则匹配到 ${matches.length} 个 $_filePattern 结果');
+      
+      return await _processMatches(matches, sample); // 处理匹配结果
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+      return null;
+    }
+  }
   
   /// 处理正则匹配结果
   Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
