@@ -222,8 +222,6 @@ class GetM3U8 {
 
   // 添加一个变量来跟踪当前URL的加载状态
   final Map<String, bool> _pageLoadedStatus = {};
-  
-  final CancelToken? cancelToken; // 取消令牌
 
   /// 时间源配置
   static const List<Map<String, String>> TIME_APIS = [
@@ -236,11 +234,102 @@ class GetM3U8 {
       'url': 'https://quan.suning.com/getSysTime.do',
     },
     {
+      'name': 'WorldTime API',
+      'url': 'https://worldtimeapi.org/api/timezone/Asia/Shanghai',
+    },
+    {
       'name': 'Meituan API',
       'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime',
     }
   ];
   
+  /// 清理脚本常量
+static const String _CLEANUP_SCRIPT = '''
+  // 停止页面加载
+  window.stop();
+
+  // 清理时间拦截器
+  if (window._cleanupTimeInterceptor) {
+    window._cleanupTimeInterceptor();
+  }
+
+  // 清理所有活跃的XHR请求
+  const activeXhrs = window._activeXhrs || [];
+  activeXhrs.forEach(xhr => xhr.abort());
+
+  // 清理所有Fetch请求
+  if (window._abortController) {
+    window._abortController.abort();
+  }
+
+  // 清理所有定时器
+  const highestTimeoutId = window.setTimeout(() => {}, 0);
+  for (let i = 0; i <= highestTimeoutId; i++) {
+    window.clearTimeout(i);
+    window.clearInterval(i);
+  }
+
+  // 清理所有事件监听器
+  window.removeEventListener('scroll', window._scrollHandler);
+  window.removeEventListener('popstate', window._urlChangeHandler);
+  window.removeEventListener('hashchange', window._urlChangeHandler);
+
+  // 清理M3U8检测器
+  if(window._cleanupM3U8Detector) {
+    window._cleanupM3U8Detector();
+  }
+
+  // 终止所有正在进行的MediaSource操作
+  if (window.MediaSource) {
+    const mediaSources = document.querySelectorAll('video source');
+    mediaSources.forEach(source => {
+      const mediaElement = source.parentElement;
+      if (mediaElement) {
+        mediaElement.pause();
+        mediaElement.removeAttribute('src');
+        mediaElement.load();
+      }
+    });
+  }
+
+  // 清理所有websocket连接
+  const sockets = window._webSockets || [];
+  sockets.forEach(socket => socket.close());
+
+  // 停止所有进行中的网络请求
+  if (window.performance && window.performance.getEntries) {
+    const resources = window.performance.getEntries().filter(e =>
+      e.initiatorType === 'xmlhttprequest' ||
+      e.initiatorType === 'fetch' ||
+      e.initiatorType === 'beacon'
+    );
+    resources.forEach(resource => {
+      if (resource.duration === 0) {
+        try {
+          const controller = new AbortController();
+          controller.abort();
+        } catch(e) {}
+      }
+    });
+  }
+
+  // 清理所有未完成的图片加载
+  document.querySelectorAll('img').forEach(img => {
+    if (!img.complete) {
+      img.src = '';
+    }
+  });
+
+  // 清理全局变量
+  delete window._timeInterceptorInitialized;
+  delete window._originalDate;
+  delete window._originalPerformanceNow;
+  delete window._originalRAF;
+  delete window._originalConsoleTime;
+  delete window._originalConsoleTimeEnd;
+  delete window._cleanupTimeInterceptor;
+''';
+
   /// 解析后的URI对象
   late final Uri _parsedUri;
   
@@ -248,7 +337,6 @@ class GetM3U8 {
   GetM3U8({
     required this.url,
     this.timeoutSeconds = 15,
-    this.cancelToken,
   }) : _filterRules = _parseRules(rulesString),
        // 初始化成员变量
        fromParam = _extractQueryParams(url)['from'],
@@ -1155,17 +1243,17 @@ Future<void> dispose() async {
   _periodicCheckTimer?.cancel();
   _periodicCheckTimer = null;
 
-    if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
-      cancelToken!.cancel('GetM3U8 disposed');
-    }
-    
   // 清理 WebView 资源 
-    if (_isControllerInitialized) await _disposeWebViewCompletely(_controller); // 清理WebView
-    else LogUtil.i('WebViewController 未初始化，跳过清理');
-    _resetControllerState();
-    _httpResponseContent = null;
-    _suggestGarbageCollection(); // 建议垃圾回收
-    LogUtil.i('资源释放完成: ${DateTime.now()}');
+  if (_isControllerInitialized && _isHtmlContent && _controller != null) {
+    try {
+      await _controller!.runJavaScript(_CLEANUP_SCRIPT);
+      await _controller!.clearCache();
+      LogUtil.i('WebView资源清理完成');
+    } catch (e, stack) {
+      LogUtil.logError('释放资源时发生错误', e, stack);
+    }
+  } else {
+    LogUtil.i(_isHtmlContent ? '_controller 未初始化或为空，跳过释放资源' : '非HTML内容，跳过WebView资源清理');
   }
 
   // 重置状态
@@ -1182,35 +1270,6 @@ Future<void> dispose() async {
 
   LogUtil.i('资源释放完成');
 }
-
-  /// 完全清理WebView资源
-  Future<void> _disposeWebViewCompletely(WebViewController controller) async {
-    try {
-      await controller.setNavigationDelegate(NavigationDelegate()); // 重置导航代理
-      await controller.loadRequest(Uri.parse('about:blank')); // 加载空白页
-      await Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS)); // 修改：使用常量
-      await controller.clearCache(); // 清理缓存
-      if (_isHtmlContent) { // 清理JS行为
-        await controller.runJavaScript(''' // 停止并清理页面
-window.stop();
-document.documentElement.innerHTML = '';
-window.onload = null;
-window.onerror = null;
-(function() {
-  var ids = Object.keys(window).filter(k => typeof window[k] === 'number' && window[k] > 0);
-  ids.forEach(id => { clearTimeout(id); clearInterval(id); });
-})();
-window.removeEventListener('load', null, true);
-window.removeEventListener('unload', null, true);
-''').catchError((e) => LogUtil.e('清理JS行为失败: $e'));
-      }
-      await controller.clearLocalStorage();
-      await controller.runJavaScript('window.location.href = "about:blank";'); // 重置页面
-      LogUtil.i('已清理资源，并重置页面');
-    } catch (e, stack) {
-      LogUtil.logError('清理 WebView 时发生错误', e, stack);
-    }
-  }
   
   /// 验证M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
@@ -1401,308 +1460,50 @@ Future<String?> _checkPageContent() async {
 }
   
   /// 处理正则匹配结果
-Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
- final uniqueUrls = <String>{};
- for (final match in matches) {
-   String url = match.group(0)!;
-   uniqueUrls.add(url); 
- }
+  Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
+    if (matches.isEmpty) return null; // 无匹配返回空
+    
+    final uniqueUrls = <String>{};
+    for (final match in matches) {
+      String url = match.group(0) ?? '';
+      if (url.isNotEmpty) uniqueUrls.add(url); // 收集唯一URL
+    }
+    
+    final validUrls = <String>[];
+    for (final url in uniqueUrls) { // 验证URL
+      final cleanedUrl = _cleanUrl(url);
+      if (_isValidM3U8Url(cleanedUrl)) validUrls.add(_replaceParams(cleanedUrl));
+    }
+    
+    if (validUrls.isEmpty) return null; // 无有效URL返回空
+    
+    if (clickIndex >= 0 && clickIndex < validUrls.length) { // 使用指定索引
+      _m3u8Found = true;
+      LogUtil.i('找到目标URL(index=$clickIndex): ${validUrls[clickIndex]}');
+      return validUrls[clickIndex];
+    } else { // 默认返回第一个
+      _m3u8Found = true;
+      LogUtil.i('clickIndex=$clickIndex 超出范围(共${validUrls.length}个地址)，返回第一个地址: ${validUrls[0]}');
+      return validUrls[0];
+    }
+  }
 
- var index = 0;
- for (final url in uniqueUrls) {
-   final cleanedUrl = _cleanUrl(url);
-   if (_isValidM3U8Url(cleanedUrl)) {
-     String finalUrl = cleanedUrl;
-     if (fromParam != null && toParam != null) {
-       finalUrl = cleanedUrl.replaceAll(fromParam!, toParam!);
-     }
-     _foundUrls.add(finalUrl);
-
-     if (clickIndex == 0) {
-       _m3u8Found = true;
-       LogUtil.i('页面内容中找到 $finalUrl');
-       return finalUrl;
-     } else if (index == clickIndex) {
-       _m3u8Found = true;
-       LogUtil.i('找到目标URL(index=$clickIndex): $finalUrl');
-       return finalUrl;
-     }
-     index++;
-   }
- }
- return null;
-}
-
-  /// 准备检测器代码
-  String _prepareM3U8DetectorCode() {
-    return '''
-    (function() {
-      // 避免重复初始化
-      if (window._m3u8DetectorInitialized) return;
-      window._m3u8DetectorInitialized = true;
-
-      // 初始化状态
-      const processedUrls = new Set();
-      const MAX_RECURSION_DEPTH = 3;
-      let observer = null;
-
-      // URL处理工具
-      const VideoUrlProcessor = {
-        processUrl(url, depth = 0) {
-          if (!url || typeof url !== 'string' || 
-              depth > MAX_RECURSION_DEPTH || 
-              processedUrls.has(url)) return;
-
-          // URL标准化
-          url = this.normalizeUrl(url);
-
-          // Base64处理
-          if (url.includes('base64,')) {
-            this.handleBase64Url(url, depth);
-            return;
-          }
-
-          // 检查目标文件类型
-          if (url.includes('.' + '${_filePattern}')) {
-            processedUrls.add(url);
-            window.M3U8Detector.postMessage(url);
-          }
-        },
-
-        normalizeUrl(url) {
-          if (url.startsWith('/')) {
-            const baseUrl = new URL(window.location.href);
-            return baseUrl.protocol + '//' + baseUrl.host + url;
-          }
-          if (!url.startsWith('http')) {
-            return new URL(url, window.location.href).toString();
-          }
-          return url;
-        },
-
-        handleBase64Url(url, depth) {
-          try {
-            const base64Content = url.split('base64,')[1];
-            const decodedContent = atob(base64Content);
-            if (decodedContent.includes('.' + '${_filePattern}')) {
-              this.processUrl(decodedContent, depth + 1);
-            }
-          } catch (e) {
-            console.error('Base64解码失败:', e);
-          }
-        }
-      };
-
-      // 网络请求拦截器
-      const NetworkInterceptor = {
-        setupXHRInterceptor() {
-          const XHR = XMLHttpRequest.prototype;
-          const originalOpen = XHR.open;
-          const originalSend = XHR.send;
-
-          XHR.open = function() {
-            this._url = arguments[1];
-            return originalOpen.apply(this, arguments);
-          };
-
-          XHR.send = function() {
-            if (this._url) VideoUrlProcessor.processUrl(this._url, 0);
-            return originalSend.apply(this, arguments);
-          };
-        },
-
-        setupFetchInterceptor() {
-          const originalFetch = window.fetch;
-          window.fetch = function(input) {
-            const url = (input instanceof Request) ? input.url : input;
-            VideoUrlProcessor.processUrl(url, 0);
-            return originalFetch.apply(this, arguments);
-          };
-        },
-
-        setupMediaSourceInterceptor() {
-          if (!window.MediaSource) return;
-
-          const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-          MediaSource.prototype.addSourceBuffer = function(mimeType) {
-            const supportedTypes = {
-              'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-              'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
-              'mp4': ['video/mp4', 'application/mp4']
-            };
-
-            const currentTypes = supportedTypes['${_filePattern}'] || [];
-            if (currentTypes.some(type => mimeType.includes(type))) {
-              VideoUrlProcessor.processUrl(this.url, 0);
-            }
-            return originalAddSourceBuffer.call(this, mimeType);
-          };
-        }
-      };
-
-      // DOM扫描器
-      const DOMScanner = {
-        processedElements: new Set(),
-
-        scanAttributes(element) {
-          for (const attr of element.attributes) {
-            if (attr.value) VideoUrlProcessor.processUrl(attr.value, 0);
-          }
-        },
-
-        scanMediaElement(element) {
-          if (element.tagName === 'VIDEO') {
-            [element.src, element.currentSrc].forEach(src => {
-              if (src) VideoUrlProcessor.processUrl(src, 0);
-            });
-
-            element.querySelectorAll('source').forEach(source => {
-              const src = source.src || source.getAttribute('src');
-              if (src) VideoUrlProcessor.processUrl(src, 0);
-            });
-          }
-        },
-
-        scanPage(root = document) {
-          const selector = [
-            'video',
-            'source',
-            '[class*="video"]',
-            '[class*="player"]',
-            `[class*="${_filePattern}"]`,
-            `[data-${_filePattern}]`,
-            `a[href*="${_filePattern}"]`,
-            `[data-src*="${_filePattern}"]`
-          ].join(',');
-
-          root.querySelectorAll(selector).forEach(element => {
-            if (this.processedElements.has(element)) return;
-            this.processedElements.add(element);
-
-            this.scanAttributes(element);
-            this.scanMediaElement(element);
-          });
-
-          this.scanScripts();
-        },
-
-        scanScripts() {
-          document.querySelectorAll('script:not([src])').forEach(script => {
-            if (!script.textContent) return;
-            
-            const pattern = '.' + '${_filePattern}';
-            let index = script.textContent.indexOf(pattern);
-            
-            while (index !== -1) {
-              const extracted = this.extractUrlFromScript(script.textContent, index);
-              if (extracted.url.includes('http')) {
-                VideoUrlProcessor.processUrl(extracted.url, 0);
-              }
-              index = script.textContent.indexOf(pattern, extracted.endIndex);
-            }
-          });
-        },
-
-        extractUrlFromScript(content, startIndex) {
-          let urlStart = startIndex;
-          let urlEnd = startIndex;
-
-          // 向前查找 URL 起点
-          while (urlStart > 0) {
-            const char = content[urlStart - 1];
-            if (char === '"' || char === "'" || char === ' ' || char === '\\n') break;
-            urlStart--;
-          }
-
-          // 向后查找 URL 终点
-          while (urlEnd < content.length) {
-            const char = content[urlEnd];
-            if (char === '"' || char === "'" || char === ' ' || char === '\\n') break;
-            urlEnd++;
-          }
-
-          return {
-            url: content.substring(urlStart, urlEnd).trim(),
-            endIndex: urlEnd
-          };
-        }
-      };
-
-      // 初始化检测器
-      function initializeDetector() {
-        // 设置网络拦截
-        NetworkInterceptor.setupXHRInterceptor();
-        NetworkInterceptor.setupFetchInterceptor();
-        NetworkInterceptor.setupMediaSourceInterceptor();
-
-        // 设置 DOM 观察
-        observer = new MutationObserver(mutations => {
-          const processQueue = new Set();
-
-          mutations.forEach(mutation => {
-            mutation.addedNodes.forEach(node => {
-              if (node.nodeType === 1) {
-                if (node.matches('video,source,[class*="video"],[class*="player"]')) {
-                  processQueue.add(node);
-                }
-                if (node instanceof Element) {
-                  for (const attr of node.attributes) {
-                    if (attr.value) processQueue.add(attr.value);
-                  }
-                }
-              }
-            });
-
-            if (mutation.type === 'attributes') {
-              const newValue = mutation.target.getAttribute(mutation.attributeName);
-              if (newValue) processQueue.add(newValue);
-            }
-          });
-
-          requestIdleCallback(() => {
-            processQueue.forEach(item => {
-              if (typeof item === 'string') {
-                VideoUrlProcessor.processUrl(item, 0);
-              } else {
-                DOMScanner.scanPage(item.parentNode || document);
-              }
-            });
-          }, { timeout: 1000 });
-        });
-
-        observer.observe(document.documentElement, {
-          childList: true,
-          subtree: true,
-          attributes: true
-        });
-
-        // URL 变化处理
-        const handleUrlChange = () => {
-          DOMScanner.scanPage(document);
-        };
-
-        window.addEventListener('popstate', handleUrlChange);
-        window.addEventListener('hashchange', handleUrlChange);
-
-        // 初始扫描
-        requestIdleCallback(() => {
-          DOMScanner.scanPage(document);
-        }, { timeout: 1000 });
-      }
-
-      // 初始化检测器
-      initializeDetector();
-
-      // 清理函数
-      window._cleanupM3U8Detector = () => {
-        if (observer) {
-          observer.disconnect();
-        }
-        window.removeEventListener('popstate', handleUrlChange);
-        window.removeEventListener('hashchange', handleUrlChange);
-        delete window._m3u8DetectorInitialized;
-      };
-    })();
-    ''';
+  /// 准备M3U8检测器代码
+  Future<String> _prepareM3U8DetectorCode() async {
+    final cacheKey = 'm3u8_detector_${_filePattern}';
+    if (_scriptCache.containsKey(cacheKey)) {
+      return _scriptCache[cacheKey]!;
+    }
+    
+    try {
+      final script = await rootBundle.loadString('assets/js/m3u8_detector.js'); // 加载脚本
+      final result = script.replaceAll('FILE_PATTERN', _filePattern); // 替换文件模式
+      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
+      LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
+      return result;
+    } catch (e) {
+      LogUtil.e('加载M3U8检测器脚本失败: $e');
+      return '(function(){console.error("M3U8检测器加载失败");})();'; // 失败返回空函数
+    }
   }
 }
