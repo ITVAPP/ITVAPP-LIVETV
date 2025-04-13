@@ -160,7 +160,7 @@ class GetM3U8 {
 
   // 阻止加载的黑名单关键字（扩展名带点号，避免误判）
   static final List<String> _blockedExtensions = [
-    '.jpg', '.jpeg', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
     '.ico', '.svg', '.mp3', '.wav', '.pdf', '.doc', '.docx', '.swf',
   ];
 
@@ -445,7 +445,7 @@ class GetM3U8 {
           if (styleEndMatch != null) styleEndIndex = styleEndMatch.end; // 找到</style>位置
           
           String initialContent = styleEndIndex > 0
-              ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).clamp(0, content.length)) // 修改：使用常量
+              ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).Number.MAX_SAFE_INTEGER.clamp(0, content.length)) // 修改：使用常量
               : content.length > CONTENT_SAMPLE_LENGTH ? content.substring(0, CONTENT_SAMPLE_LENGTH) : content; // 修改：使用常量
           
           return initialContent.contains('.' + _filePattern); // 检查是否包含文件模式
@@ -601,7 +601,7 @@ window._m3u8Found = false;
           
           // 4. 处理重定向
           final currentUri = _parsedUri;
-          final new  newUri = Uri.parse(request.url);
+          final newUri = Uri.parse(request.url);
           if (currentUri.host != newUri.host) {
             for (int i = 0; i < initScripts.length; i++) {
               try {
