@@ -541,85 +541,65 @@ window._m3u8Found = false;
     });
   }
 
-  /// 设置导航代理
-  void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
-    // 修改：使用解析函数获取允许模式和阻止扩展名
-    final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
-    final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
-    final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
-    
-    _controller.setNavigationDelegate(NavigationDelegate(
-      onPageStarted: (String url) async { // 页面开始加载
-        if (_isCancelled()) {
-          LogUtil.i('页面开始加载时任务被取消: $url');
-          return;
-        }
-        for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
-          try {
-            await _controller.runJavaScript(initScripts[i]);
-            LogUtil.i('注入脚本成功: ${scriptNames[i]}');
-          } catch (e) {
-            LogUtil.e('注入脚本失败 (${scriptNames[i]}): $e');
-          }
-        }
-      },
-      onNavigationRequest: (NavigationRequest request) async { // 导航请求
-        if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
-        
-
-        
-        try { // 处理重定向
-          final currentUri = _parsedUri;
-          final newUri = Uri.parse(request.url);
-          if (currentUri.host != newUri.host) {
-            for (int i = 0; i < initScripts.length; i++) {
-              try {
-                await _controller.runJavaScript(initScripts[i]);
-                LogUtil.i('重定向页面注入脚本成功: ${scriptNames[i]}');
-              } catch (e) {
-                LogUtil.e('重定向页面注入脚本失败 (${scriptNames[i]}): $e');
-              }
-            }
-            LogUtil.i('重定向页面的拦截器代码已重新注入');
-          }
-        } catch (e) {
-          LogUtil.e('检查重定向URL失败: $e');
-        }
-        
-        LogUtil.i('页面导航请求: ${request.url}');
-        Uri? uri;
+/// 设置导航代理
+void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
+  final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
+  final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
+  final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
+  
+  _controller.setNavigationDelegate(NavigationDelegate(
+    onPageStarted: (String url) async { // 页面开始加载
+      if (_isCancelled()) {
+        LogUtil.i('页面开始加载时任务被取消: $url');
+        return;
+      }
+      for (int i = 0; i < initScripts.length; i++) { // 注入初始化脚本
         try {
-          uri = Uri.parse(request.url);
+          await _controller.runJavaScript(initScripts[i]);
+          LogUtil.i('注入脚本成功: ${scriptNames[i]}');
         } catch (e) {
-          LogUtil.i('无效的URL，阻止加载: ${request.url}');
+          LogUtil.e('注入脚本失败 (${scriptNames[i]}): $e');
+        }
+      }
+    },
+    onNavigationRequest: (NavigationRequest request) async { // 导航请求
+      if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
+      
+      LogUtil.i('页面导航请求: ${request.url}');
+      Uri? uri;
+      try {
+        uri = Uri.parse(request.url);
+      } catch (e) {
+        LogUtil.i('无效的URL，阻止加载: ${request.url}');
+        return NavigationDecision.prevent;
+      }
+      
+      try {
+        final fullUrl = request.url.toLowerCase();
+        
+        // 1. 如果它匹配允许模式（白名单），允许它
+        if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+          LogUtil.i('URL匹配允许模式，允许加载: ${request.url}');
+          return NavigationDecision.navigate;
+        }
+        
+        // 2. 检查URL是否包含被阻止的扩展名（黑名单）
+        for (final ext in blockedExtensions) {
+          if (fullUrl.contains(ext)) {
+            LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
+            return NavigationDecision.prevent;
+          }
+        }
+        
+        // 3. 检查并阻止广告/跟踪请求
+        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
+        if (adTrackingPattern.hasMatch(fullUrl)) {
+          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
           return NavigationDecision.prevent;
         }
         
+        // 4. 检查M3U8文件
         try {
-          // 修改：优化URL阻止逻辑，修复白名单和黑名单的顺序问题
-          final fullUrl = request.url.toLowerCase();
-          
-          // 1. 检查URL是否包含被阻止的扩展名（黑名单）
-          for (final ext in blockedExtensions) {
-            if (fullUrl.contains(ext)) {
-              // 2. 但如果它匹配允许模式（白名单），仍然允许它
-              if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
-                LogUtil.i('URL包含阻止的扩展名($ext)但匹配允许模式，允许加载: ${request.url}');
-                return NavigationDecision.navigate;
-              }
-              
-              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
-              return NavigationDecision.prevent;
-            }
-          }
-          
-          // 3. 如果它不包含任何被阻止的扩展名，允许它
-        } catch (e) {
-          // 出错时默认允许
-          LogUtil.e('URL检查失败: $e，默认允许加载');
-        }
-        
-        try { // 检查M3U8文件
           if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
             await _controller.runJavaScript(
               'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
@@ -629,58 +609,62 @@ window._m3u8Found = false;
         } catch (e) {
           LogUtil.e('URL检查失败: $e');
         }
-        
-        return NavigationDecision.navigate; // 默认允许导航
-      },
-      onPageFinished: (String url) async { // 页面加载完成
-        if (_isCancelled()) {
-          LogUtil.i('页面加载完成时任务被取消: $url');
-          return;
+      } catch (e) {
+        // 出错时默认允许
+        LogUtil.e('URL检查失败: $e，默认允许加载');
+      }
+      
+      return NavigationDecision.navigate; // 默认允许导航
+    },
+    onPageFinished: (String url) async { // 页面加载完成
+      if (_isCancelled()) {
+        LogUtil.i('页面加载完成时任务被取消: $url');
+        return;
+      }
+      
+      if (!isHashRoute && _pageLoadedStatus.contains(url)) {
+        LogUtil.i('本页面已经加载完成，跳过重复处理');
+        return;
+      }
+      
+      _pageLoadedStatus.add(url);
+      LogUtil.i('页面加载完成: $url');
+      
+      if (_isClickExecuted) {
+        LogUtil.i('点击已执行，跳过处理');
+        return;
+      }
+      
+      if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
+      
+      if (!_isClickExecuted && clickText != null) { // 执行点击
+        await Future.delayed(const Duration(milliseconds: CLICK_DELAY_MS)); // 修改：使用常量
+        if (!_isCancelled()) {
+          final clickResult = await _executeClick();
+          if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
         }
-        
-        if (!isHashRoute && _pageLoadedStatus.contains(url)) {
-          LogUtil.i('本页面已经加载完成，跳过重复处理');
-          return;
-        }
-        
-        _pageLoadedStatus.add(url);
-        LogUtil.i('页面加载完成: $url');
-        
-        if (_isClickExecuted) {
-          LogUtil.i('点击已执行，跳过处理');
-          return;
-        }
-        
-        if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
-        
-        if (!_isClickExecuted && clickText != null) { // 执行点击
-          await Future.delayed(const Duration(milliseconds: CLICK_DELAY_MS)); // 修改：使用常量
-          if (!_isCancelled()) {
-            final clickResult = await _executeClick();
-            if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
-          }
-        }
-        
-        if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
-          _setupPeriodicCheck(); // 设置定期检查
-        }
-      },
-      onWebResourceError: (WebResourceError error) async { // 资源加载错误
-        if (_isCancelled()) {
-          LogUtil.i('资源错误时任务被取消: ${error.description}');
-          return;
-        }
-        
-        if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
-          LogUtil.i('资源被阻止加载: ${error.description}');
-          return;
-        }
-        
-        LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-        await _handleLoadError(completer); // 处理加载错误
-      },
-    ));
-  }
+      }
+      
+      if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
+        _setupPeriodicCheck(); // 设置定期检查
+      }
+    },
+    onWebResourceError: (WebResourceError error) async { // 资源加载错误
+      if (_isCancelled()) {
+        LogUtil.i('资源错误时任务被取消: ${error.description}');
+        return;
+      }
+      
+      if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
+        LogUtil.i('资源被阻止加载: ${error.description}');
+        return;
+      }
+      
+      LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+      await _handleLoadError(completer); // 处理加载错误
+    },
+  ));
+}
 
   /// 处理Hash路由逻辑
   bool _handleHashRoute(String url) {
@@ -888,11 +872,9 @@ if (window._m3u8DetectorInitialized) {
     
     if (_isControllerInitialized) await _disposeWebViewCompletely(_controller); // 清理WebView
     else LogUtil.i('WebViewController 未初始化，跳过清理');
-    
     _resetControllerState();
     _httpResponseContent = null;
     _suggestGarbageCollection(); // 建议垃圾回收
-    
     LogUtil.i('资源释放完成: ${DateTime.now()}');
   }
 
