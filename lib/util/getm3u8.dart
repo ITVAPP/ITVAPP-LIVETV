@@ -130,7 +130,7 @@ class GetM3U8 {
   static const int MAX_RETRY_COUNT = 2; // 最大重试次数
   static const int PERIODIC_CHECK_INTERVAL_MS = 1000; // 定期检查间隔（毫秒）
   static const int CLICK_DELAY_MS = 500; // 点击操作延迟（毫秒）
-  static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
+  static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒） 
   static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
   static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
   static const int WEBVIEW_CLEANUP_DELAY_MS = 300; // WebView清理延迟（毫秒）
