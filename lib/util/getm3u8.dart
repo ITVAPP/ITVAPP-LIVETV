@@ -494,11 +494,9 @@ class GetM3U8 {
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
       ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
     
-    
-    _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
     _setupJavaScriptChannels(completer); // 设置JS通道
-    
+    _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     await _loadUrlWithHeaders(); // 加载URL
     LogUtil.i('WebViewController初始化完成');
   } 
@@ -581,6 +579,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       }
     },
     onNavigationRequest: (NavigationRequest request) async { // 导航请求
+      LogUtil.i('导航被触发: URL = ${request.url}');
       if (_isCancelled()) {
         LogUtil.i('阻止导航 (任务已取消): ${request.url}');
         blockedRequests++;
