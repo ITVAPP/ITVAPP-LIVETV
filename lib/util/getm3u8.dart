@@ -577,6 +577,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       }
     },
     onNavigationRequest: (NavigationRequest request) async { // 导航请求
+      LogUtil.i('导航请求: ${request.url}, isMainFrame: ${request.isForMainFrame}');
       if (_isCancelled()) {
         LogUtil.i('阻止导航 (任务已取消): ${request.url}');
         blockedRequests++;
