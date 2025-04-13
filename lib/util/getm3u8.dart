@@ -489,19 +489,17 @@ class GetM3U8 {
     
     _cachedTimeOffset ??= await _getTimeOffset(); // 获取时间偏移
     
-    try {
     _controller = WebViewController() // 配置WebView
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
       ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
     
     final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
+    
     _setupJavaScriptChannels(completer); // 设置JS通道
     _setupNavigationDelegate(completer, initScripts); // 设置导航代理
+    
     await _loadUrlWithHeaders(); // 加载URL
     LogUtil.i('WebViewController初始化完成');
-  } 
-  } catch (e, stackTrace) {
-    LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
   }
 
   /// 准备初始化脚本
