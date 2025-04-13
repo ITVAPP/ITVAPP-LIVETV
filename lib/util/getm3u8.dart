@@ -493,14 +493,103 @@ class GetM3U8 {
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
       ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
     
-    final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // 初始化 controller - 已在上方赋值，此处配置
+    final List<String> initScripts = [];
+    initScripts.add(_prepareTimeInterceptorCode());
+
+    // 添加基础运行时脚本(优先注入)
+    initScripts.add('''
+      window._videoInit = false;
+      window._processedUrls = new Set();
+      window._m3u8Found = false;
+    ''');
+
+    // M3U8检测器核心脚本
+    initScripts.add(_prepareM3U8DetectorCode());
+
+    // 注册时间检查消息通道
+    _controller!.addJavaScriptChannel(
+      'TimeCheck',
+      onMessageReceived: (JavaScriptMessage message) {
+        try {
+          final data = json.decode(message.message);
+          if (data['type'] == 'timeRequest') {
+            final now = DateTime.now();
+            final adjustedTime = now.add(Duration(milliseconds: _cachedTimeOffset ?? 0));
+            LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$adjustedTime');
+          }
+        } catch (e) {
+          LogUtil.e('处理时间检查消息失败: $e');
+        }
+      },
+    );
+
+    // 注册消息通道
+    _controller!.addJavaScriptChannel(
+      'M3U8Detector',
+      onMessageReceived: (JavaScriptMessage message) {
+        try {
+          final data = json.decode(message.message);
+          if (data['type'] == 'init') {
+            _isDetectorInjected = true;
+          } else {
+            _handleM3U8Found(data['url'] ?? message.message, completer);
+          }
+        } catch (e) {
+          _handleM3U8Found(message.message, completer);
+        }
+      },
+    );
     
-    _setupJavaScriptChannels(completer); // 设置JS通道
+    
+    
+    
+    
+    
+    
+    
+    
     _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     
     await _loadUrlWithHeaders(); // 加载URL
     LogUtil.i('WebViewController初始化完成');
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   /// 准备初始化脚本
   Future<List<String>> _prepareInitScripts() async {
