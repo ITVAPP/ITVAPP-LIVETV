@@ -19,7 +19,7 @@ const double defaultCategoryWidthPortrait = 110.0; // 竖屏分类宽度
 const double defaultCategoryWidthLandscape = 120.0; // 横屏分类宽度
 const double defaultGroupWidthPortrait = 120.0; // 竖屏分组宽度
 const double defaultGroupWidthLandscape = 130.0; // 横屏分组宽度
-const double defaultChannelWidthTV = 160.0; // TV模式频道宽度
+const double defaultChannelWidthTV = 160.0; // TV模式频道宽度 
 const double defaultChannelWidthNonTV = 150.0; // 非TV模式频道宽度
 const double DEFAULT_EPG_ITEM_HEIGHT = defaultMinHeight * 1.2 + 1; // EPG项目高度
 
