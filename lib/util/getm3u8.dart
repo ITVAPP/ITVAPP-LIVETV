@@ -157,12 +157,19 @@ class GetM3U8 {
   static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则字符串
   static String dynamicKeywordsString = 'jinan@gansu@xizang@sichuan'; // 使用getm3u8diy解析的关键词
   static const String allowedResourcePatternsString = 'r.png?t='; // 允许资源模式字符串
-
-  // 阻止加载的黑名单关键字（扩展名带点号，避免误判）
-  static final List<String> _blockedExtensions = [
-    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.woff', '.woff2', '.ttf', '.eot',
-    '.ico', '.svg', '.mp3', '.wav', '.pdf', '.doc', '.docx', '.swf',
-  ];
+  // 阻止加载的黑名单关键字
+  static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
+  
+  // 解析阻止扩展名的方法
+  static List<String> _parseBlockedExtensions(String extensionsString) {
+    if (extensionsString.isEmpty) return [];
+    try {
+      return extensionsString.split('@').map((ext) => ext.trim()).toList();
+    } catch (e) {
+      LogUtil.e('解析阻止的扩展名失败: $e');
+      return [];
+    }
+  }
 
   final String url; // 目标URL
   final String? fromParam; // 替换参数from
@@ -190,7 +197,6 @@ class GetM3U8 {
   static const List<Map<String, String>> TIME_APIS = [ // 时间API列表
     {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
     {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
-    {'name': 'WorldTime API', 'url': 'https://worldtimeapi.org/api/timezone/Asia/Shanghai'},
     {'name': 'Meituan API', 'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime'},
   ];
   late final Uri _parsedUri; // 解析后的URI
@@ -445,7 +451,7 @@ class GetM3U8 {
           if (styleEndMatch != null) styleEndIndex = styleEndMatch.end; // 找到</style>位置
           
           String initialContent = styleEndIndex > 0
-              ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).Number.MAX_SAFE_INTEGER.clamp(0, content.length)) // 修改：使用常量
+              ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).clamp(0, content.length)) // 修改：使用常量
               : content.length > CONTENT_SAMPLE_LENGTH ? content.substring(0, CONTENT_SAMPLE_LENGTH) : content; // 修改：使用常量
           
           return initialContent.contains('.' + _filePattern); // 检查是否包含文件模式
@@ -516,7 +522,7 @@ window._m3u8Found = false;
       try {
         final data = json.decode(message.message);
         if (data['type'] == 'timeRequest') {
-          final now = DateTime.now().add(Duration(milliseconds: _cachedTimeOffset ?? 0));
+        	final now = DateTime.now().add(Duration(milliseconds: _cachedTimeOffset ?? 0));
           LogUtil.i('检测到时间请求: ${data['method']}，返回时间：$now');
         }
       } catch (e) {
@@ -537,7 +543,9 @@ window._m3u8Found = false;
 
   /// 设置导航代理
   void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
+    // 修改：使用解析函数获取允许模式和阻止扩展名
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
+    final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
     final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
     
     _controller.setNavigationDelegate(NavigationDelegate(
@@ -566,40 +574,7 @@ window._m3u8Found = false;
           return NavigationDecision.prevent;
         }
         
-        try {
-          final fullUrl = request.url.toLowerCase();
-          
-          // 1. 检查白名单（优先级最高）
-          if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
-            LogUtil.i('允许加载匹配白名单的资源: ${request.url}');
-            return NavigationDecision.navigate; // 白名单直接通过
-          }
-          
-          // 2. 检查M3U8文件（独立逻辑）
-          Uri uri;
-          try {
-            uri = Uri.parse(request.url);
-          } catch (e) {
-            LogUtil.i('无效的URL，阻止加载: ${request.url}');
-            return NavigationDecision.prevent;
-          }
-          
-          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
-            await _controller.runJavaScript(
-              'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
-            ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-            return NavigationDecision.prevent; // M3U8 文件特殊处理
-          }
-          
-          // 3. 检查黑名单
-          for (final ext in _blockedExtensions) {
-            if (fullUrl.contains(ext)) {
-              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
-              return NavigationDecision.prevent;
-            }
-          }
-          
-          // 4. 处理重定向
+        try { // 处理重定向
           final currentUri = _parsedUri;
           final newUri = Uri.parse(request.url);
           if (currentUri.host != newUri.host) {
@@ -613,14 +588,55 @@ window._m3u8Found = false;
             }
             LogUtil.i('重定向页面的拦截器代码已重新注入');
           }
-          
-          LogUtil.i('页面导航请求: ${request.url}');
-          return NavigationDecision.navigate; // 默认允许
-          
         } catch (e) {
-          LogUtil.e('URL检查失败: $e，默认允许加载');
-          return NavigationDecision.navigate; // 出错时默认允许
+          LogUtil.e('检查重定向URL失败: $e');
         }
+        
+        LogUtil.i('页面导航请求: ${request.url}');
+        Uri? uri;
+        try {
+          uri = Uri.parse(request.url);
+        } catch (e) {
+          LogUtil.i('无效的URL，阻止加载: ${request.url}');
+          return NavigationDecision.prevent;
+        }
+        
+        try {
+          // 修改：优化URL阻止逻辑，修复白名单和黑名单的顺序问题
+          final fullUrl = request.url.toLowerCase();
+          
+          // 1. 检查URL是否包含被阻止的扩展名（黑名单）
+          for (final ext in blockedExtensions) {
+            if (fullUrl.contains(ext)) {
+              // 2. 但如果它匹配允许模式（白名单），仍然允许它
+              if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+                LogUtil.i('URL包含阻止的扩展名($ext)但匹配允许模式，允许加载: ${request.url}');
+                return NavigationDecision.navigate;
+              }
+              
+              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
+              return NavigationDecision.prevent;
+            }
+          }
+          
+          // 3. 如果它不包含任何被阻止的扩展名，允许它
+        } catch (e) {
+          // 出错时默认允许
+          LogUtil.e('URL检查失败: $e，默认允许加载');
+        }
+        
+        try { // 检查M3U8文件
+          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
+            await _controller.runJavaScript(
+              'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+            ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
+            return NavigationDecision.prevent;
+          }
+        } catch (e) {
+          LogUtil.e('URL检查失败: $e');
+        }
+        
+        return NavigationDecision.navigate; // 默认允许导航
       },
       onPageFinished: (String url) async { // 页面加载完成
         if (_isCancelled()) {
@@ -699,7 +715,7 @@ window._m3u8Found = false;
       return true;
     }
   }
-
+  
   /// 执行点击操作
   Future<bool> _executeClick() async {
     if (!_isControllerReady() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
@@ -894,7 +910,7 @@ if (window._m3u8DetectorInitialized) {
       // 忽略异常
     }
   }
-
+  
   /// 完全清理WebView资源
   Future<void> _disposeWebViewCompletely(WebViewController controller) async {
     try {
