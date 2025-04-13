@@ -566,13 +566,7 @@ window._m3u8Found = false;
       onNavigationRequest: (NavigationRequest request) async { // 导航请求
         if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
         
-        // 检查并阻止广告/跟踪请求
-        final urlLower = request.url.toLowerCase();
-        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
-        if (adTrackingPattern.hasMatch(urlLower)) {
-          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-          return NavigationDecision.prevent;
-        }
+
         
         try { // 处理重定向
           final currentUri = _parsedUri;
@@ -599,6 +593,30 @@ window._m3u8Found = false;
         } catch (e) {
           LogUtil.i('无效的URL，阻止加载: ${request.url}');
           return NavigationDecision.prevent;
+        }
+        
+        try {
+          // 修改：优化URL阻止逻辑，修复白名单和黑名单的顺序问题
+          final fullUrl = request.url.toLowerCase();
+          
+          // 1. 检查URL是否包含被阻止的扩展名（黑名单）
+          for (final ext in blockedExtensions) {
+            if (fullUrl.contains(ext)) {
+              // 2. 但如果它匹配允许模式（白名单），仍然允许它
+              if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+                LogUtil.i('URL包含阻止的扩展名($ext)但匹配允许模式，允许加载: ${request.url}');
+                return NavigationDecision.navigate;
+              }
+              
+              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
+              return NavigationDecision.prevent;
+            }
+          }
+          
+          // 3. 如果它不包含任何被阻止的扩展名，允许它
+        } catch (e) {
+          // 出错时默认允许
+          LogUtil.e('URL检查失败: $e，默认允许加载');
         }
         
         try { // 检查M3U8文件
