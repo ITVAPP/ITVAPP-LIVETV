@@ -403,9 +403,16 @@ class GetM3U8 {
       return;
     }
     
+  try {
+    LogUtil.i('开始初始化控制器');
+
+    // 修改：立即赋值 _controller，避免未初始化
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent);
+    _isControllerInitialized = true;
+    
     try {
-      _isControllerInitialized = true;
-      
       final httpResult = await _tryHttpRequest(); // 尝试HTTP请求
       if (_isCancelled()) {
         LogUtil.i('HTTP 请求完成后任务被取消');
@@ -428,9 +435,12 @@ class GetM3U8 {
       await _initializeWebViewController(completer); // 初始化WebView
       
     } catch (e, stackTrace) {
-      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
       _isControllerInitialized = true;
       await _handleLoadError(completer); // 处理加载错误
+    } catch (e) {
+      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
+      _isHtmlContent = true; // 默认当作HTML内容处理
     }
   }
 
@@ -476,23 +486,8 @@ class GetM3U8 {
   Future<void> _initializeWebViewController(Completer<String> completer) async {
     if (_isCancelled()) return; // 已取消则返回
     
-    if (!isHashRoute && !_isHtmlContent) { // 非Hash路由且非HTML
-      LogUtil.i('检测到非HTML内容，直接处理');
-      final result = await _checkPageContent();
-      if (result != null) {
-        if (!completer.isCompleted) completer.complete(result);
-      } else if (!completer.isCompleted) {
-        completer.complete('ERROR');
-      }
-      return;
-    }
-    
     _cachedTimeOffset ??= await _getTimeOffset(); // 获取时间偏移
-    
-    _controller = WebViewController() // 配置WebView
-      ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
-      ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
-    
+
     final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
     
     _setupJavaScriptChannels(completer); // 设置JS通道
