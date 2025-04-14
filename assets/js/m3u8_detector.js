@@ -49,33 +49,79 @@
   const NetworkInterceptor = {
     setupXHRInterceptor() { // 拦截XMLHttpRequest请求
       const XHR = XMLHttpRequest.prototype;
-      const originalOpen = XHR.open;
-      const originalSend = XHR.send;
+      
+      // 保存原始方法的全局引用，用于清理时恢复
+      window._originalXHROpen = XHR.open;
+      window._originalXHRSend = XHR.send;
+      
+      // 初始化活跃请求数组，用于跟踪和清理
+      window._activeXhrs = window._activeXhrs || [];
 
       XHR.open = function() { // 重写open方法，捕获请求URL
         this._url = arguments[1];
-        return originalOpen.apply(this, arguments);
+        return window._originalXHROpen.apply(this, arguments);
       };
 
       XHR.send = function() { // 重写send方法，处理捕获的URL
-        if (this._url) VideoUrlProcessor.processUrl(this._url, 0);
-        return originalSend.apply(this, arguments);
+        // 使用try-catch避免处理URL时影响原始请求
+        if (this._url) {
+          try {
+            VideoUrlProcessor.processUrl(this._url, 0);
+          } catch (e) {
+            console.error('处理XHR URL时发生错误:', e);
+          }
+        }
+        
+        // 跟踪活跃请求以便清理
+        window._activeXhrs.push(this);
+        
+        // 请求完成后自动从跟踪列表中移除
+        const self = this;
+        const originalOnLoadEnd = this.onloadend;
+        
+        this.onloadend = function(e) {
+          // 移除活跃请求引用
+          const index = window._activeXhrs.indexOf(self);
+          if (index > -1) {
+            window._activeXhrs.splice(index, 1);
+          }
+          
+          // 调用原始onloadend处理程序
+          if (typeof originalOnLoadEnd === 'function') {
+            originalOnLoadEnd.call(this, e);
+          }
+        };
+        
+        // 继续执行原始send方法
+        return window._originalXHRSend.apply(this, arguments);
       };
     },
 
     setupFetchInterceptor() { // 拦截fetch请求
-      const originalFetch = window.fetch;
+      // 保存原始fetch方法引用
+      window._originalFetch = window.fetch;
+      
       window.fetch = function(input) { // 重写fetch，捕获请求URL
         const url = (input instanceof Request) ? input.url : input;
-        VideoUrlProcessor.processUrl(url, 0);
-        return originalFetch.apply(this, arguments);
+        
+        // 使用try-catch避免处理URL时影响原始请求
+        try {
+          VideoUrlProcessor.processUrl(url, 0);
+        } catch (e) {
+          console.error('处理Fetch URL时发生错误:', e);
+        }
+        
+        // 继续执行原始fetch请求
+        return window._originalFetch.apply(this, arguments);
       };
     },
 
     setupMediaSourceInterceptor() { // 拦截MediaSource流媒体
       if (!window.MediaSource) return; // 浏览器不支持MediaSource则跳过
 
-      const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      // 保存原始方法引用
+      window._originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      
       MediaSource.prototype.addSourceBuffer = function(mimeType) { // 重写addSourceBuffer
         const supportedTypes = { // 支持的流媒体MIME类型
           'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
@@ -85,10 +131,18 @@
 
         const currentTypes = supportedTypes[filePattern] || []; // 获取当前检测类型
         const url = this.url || window.location.href; // 使用当前页面URL作为回退
-        if (currentTypes.some(type => mimeType.includes(type))) { // 检查MIME类型
-          VideoUrlProcessor.processUrl(url, 0);
+        
+        // 使用try-catch避免处理URL时影响原始功能
+        try {
+          if (currentTypes.some(type => mimeType.includes(type))) { // 检查MIME类型
+            VideoUrlProcessor.processUrl(url, 0);
+          }
+        } catch (e) {
+          console.error('处理MediaSource URL时发生错误:', e);
         }
-        return originalAddSourceBuffer.call(this, mimeType); // 调用原始方法
+        
+        // 调用原始方法
+        return window._originalAddSourceBuffer.call(this, mimeType);
       };
     }
   };
@@ -255,7 +309,37 @@
 
   // 清理函数：移除监听器并释放资源
   window._cleanupM3U8Detector = () => {
-    if (observer) { observer.disconnect(); } // 停止DOM观察
+    if (observer) { 
+      observer.disconnect(); // 停止DOM观察
+    }
+    
+    // 恢复原始网络方法
+    if (window._originalXHROpen) {
+      XMLHttpRequest.prototype.open = window._originalXHROpen;
+    }
+    if (window._originalXHRSend) {
+      XMLHttpRequest.prototype.send = window._originalXHRSend;
+    }
+    if (window._originalFetch) {
+      window.fetch = window._originalFetch;
+    }
+    if (window._originalAddSourceBuffer) {
+      MediaSource.prototype.addSourceBuffer = window._originalAddSourceBuffer;
+    }
+    
+    // 中止所有活跃的XHR请求
+    if (window._activeXhrs && Array.isArray(window._activeXhrs)) {
+      window._activeXhrs.forEach(xhr => {
+        try { 
+          if (xhr && xhr.abort && xhr.readyState !== 4) {
+            xhr.abort(); 
+          }
+        } catch(e) {
+          console.error('中止XHR请求时发生错误:', e);
+        }
+      });
+      window._activeXhrs = [];
+    }
     
     // 使用存储的引用移除事件监听器
     const handlers = window._m3u8DetectorHandlers || {};
@@ -267,5 +351,10 @@
     // 清除引用和标记
     delete window._m3u8DetectorHandlers;
     delete window._m3u8DetectorInitialized;
+    delete window._originalXHROpen;
+    delete window._originalXHRSend;
+    delete window._originalFetch;
+    delete window._originalAddSourceBuffer;
+    delete window._activeXhrs;
   };
 })();
