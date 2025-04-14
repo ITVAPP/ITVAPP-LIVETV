@@ -144,6 +144,9 @@ class GetM3U8 {
   /// 允许加载的资源模式字符串，用@分隔
   static const String allowedResourcePatternsString = 'r.png?t=perf';
 
+  /// 被阻止的扩展名字符串，用@分隔
+  static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
+
   /// 目标URL
   final String url;
 
@@ -469,6 +472,19 @@ static const String _CLEANUP_SCRIPT = '''
     }
   }
 
+  /// 解析被阻止的扩展名
+  static List<String> _parseBlockedExtensions(String extensionsString) {
+    if (extensionsString.isEmpty) {
+      return [];
+    }
+    try {
+      return extensionsString.split('@').map((ext) => ext.trim()).toList();
+    } catch (e) {
+      LogUtil.e('解析被阻止的扩展名失败: $e');
+      return [];
+    }
+  }
+
   /// URL整理
   String _cleanUrl(String url) {
     LogUtil.i('URL整理开始，原始URL: $url');
@@ -756,6 +772,8 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
 
     // 解析允许的资源模式
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
+    // 解析被阻止的扩展名
+    final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString);
 
     // 导航委托
     _controller!.setNavigationDelegate(
@@ -803,29 +821,27 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
             return NavigationDecision.prevent;
           }
 
-          // 资源检查逻辑
-          try {
-            final extension = uri.path.toLowerCase().split('.').last;
-            final blockedExtensions = [
-              'jpg', 'jpeg', 'png', 'gif', 'webp',
-              'css', 'woff', 'woff2', 'ttf', 'eot',
-              'ico', 'svg', 'mp3', 'wav',
-              'pdf', 'doc', 'docx', 'swf',
-            ];
+          // 优化的资源过滤逻辑
+          final fullUrl = request.url.toLowerCase();
 
-            // 检查是否在阻止列表中
-            if (blockedExtensions.contains(extension)) {
-              // 检查是否匹配允许的模式
-              if (allowedPatterns.any((pattern) => request.url.contains(pattern))) {
-                LogUtil.i('允许加载匹配模式的资源: ${request.url}');
-                return NavigationDecision.navigate; // 允许加载匹配的资源
-              }
-              LogUtil.i('阻止加载资源: ${request.url} (扩展名: $extension)');
-              return NavigationDecision.prevent; // 阻止其他被屏蔽的资源
+          // 1. 如果它匹配允许模式（白名单），允许它
+          if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
+            LogUtil.i('URL匹配允许模式，允许加载: ${request.url}');
+            return NavigationDecision.navigate;
+          }
+          
+          // 2. 检查URL是否包含被阻止的扩展名（黑名单）
+          for (final ext in blockedExtensions) {
+            if (fullUrl.contains(ext)) {
+              LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
+              return NavigationDecision.prevent;
             }
-          } catch (e) {
-            // 获取扩展名失败，跳过扩展名检查
-            LogUtil.e('提取扩展名失败: $e');
+          }
+          
+          // 3. 检查并阻止广告/跟踪请求
+          if (_invalidPatternRegex.hasMatch(fullUrl)) {
+            LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+            return NavigationDecision.prevent;
           }
 
           // 目标资源检查
