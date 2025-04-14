@@ -593,29 +593,36 @@ class CategoryList extends BaseListWidget<String> {
 
   @override
   Widget buildContent(BuildContext context) {
-    return ListView.builder(
+    return ListView(
       controller: scrollController,
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        final category = categories[index];
-        final displayTitle = category == Config.myFavoriteKey
-            ? S.of(context).myfavorite
-            : category == Config.allChannelsKey
-                ? S.of(context).allchannels
-                : category;
+      shrinkWrap: true, // 确保有限约束
+      children: [
+        RepaintBoundary(
+          child: Group(
+            groupIndex: 0,
+            children: List.generate(categories.length, (index) {
+              final category = categories[index];
+              final displayTitle = category == Config.myFavoriteKey
+                  ? S.of(context).myfavorite
+                  : category == Config.allChannelsKey
+                      ? S.of(context).allchannels
+                      : category; // 显示标题
 
-        return buildListItem(
-          title: displayTitle,
-          isSelected: selectedCategoryIndex == index,
-          onTap: () => onCategoryTap(index),
-          isCentered: true,
-          isTV: isTV,
-          context: context,
-          index: startIndex + index,
-          isLastItem: index == categories.length - 1,
-          key: index == 0 ? _itemKey : null,
-        );
-      },
+              return buildListItem(
+                title: displayTitle,
+                isSelected: selectedCategoryIndex == index,
+                onTap: () => onCategoryTap(index),
+                isCentered: true,
+                isTV: isTV,
+                context: context,
+                index: startIndex + index,
+                isLastItem: index == categories.length - 1,
+                key: index == 0 ? _itemKey : null,
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 
@@ -669,23 +676,29 @@ class GroupList extends BaseListWidget<String> {
       );
     }
 
-    return ListView.builder(
+    return ListView(
       controller: scrollController,
-      itemCount: keys.length,
-      itemBuilder: (context, index) {
-        return buildListItem(
-          title: keys[index],
-          isSelected: selectedGroupIndex == index,
-          onTap: () => onGroupTap(index),
-          isCentered: false,
-          isTV: isTV,
-          minHeight: defaultMinHeight,
-          context: context,
-          index: startIndex + index,
-          isLastItem: index == keys.length - 1,
-          isSystemAutoSelected: isSystemAutoSelected,
-        );
-      },
+      children: [
+        RepaintBoundary(
+          child: Group(
+            groupIndex: 1,
+            children: List.generate(keys.length, (index) {
+              return buildListItem(
+                title: keys[index],
+                isSelected: selectedGroupIndex == index,
+                onTap: () => onGroupTap(index),
+                isCentered: false,
+                isTV: isTV,
+                minHeight: defaultMinHeight,
+                context: context,
+                index: startIndex + index,
+                isLastItem: index == keys.length - 1,
+                isSystemAutoSelected: isSystemAutoSelected,
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 
@@ -730,27 +743,33 @@ class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
         ? currentGroupKeys[currentGroupIndex]
         : null;
 
-    return ListView.builder(
+    return ListView(
       controller: scrollController,
-      itemCount: channelList.length,
-      itemBuilder: (context, index) {
-        final channelEntry = channelList[index];
-        final channelName = channelEntry.key;
-        final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-        final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
-        return buildListItem(
-          title: channelName,
-          isSelected: !isSystemAutoSelected && isSelect,
-          onTap: () => onChannelTap(channels[channelName]),
-          isCentered: false,
-          minHeight: defaultMinHeight,
-          isTV: isTV,
-          context: context,
-          index: startIndex + index,
-          isLastItem: index == channelList.length - 1,
-          isSystemAutoSelected: isSystemAutoSelected,
-        );
-      },
+      children: [
+        RepaintBoundary(
+          child: Group(
+            groupIndex: 2,
+            children: List.generate(channelList.length, (index) {
+              final channelEntry = channelList[index];
+              final channelName = channelEntry.key;
+              final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+              final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
+              return buildListItem(
+                title: channelName,
+                isSelected: !isSystemAutoSelected && isSelect,
+                onTap: () => onChannelTap(channels[channelName]),
+                isCentered: false,
+                minHeight: defaultMinHeight,
+                isTV: isTV,
+                context: context,
+                index: startIndex + index,
+                isLastItem: index == channelList.length - 1,
+                isSystemAutoSelected: isSystemAutoSelected,
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 
