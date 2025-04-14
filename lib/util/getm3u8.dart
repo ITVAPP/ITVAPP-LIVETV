@@ -309,7 +309,6 @@ class GetM3U8 {
   }
 
   /// 解析特殊规则
-  static Map<String, String> _parseSpecialRules(String rulesString AngString specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则字符串
   static Map<String, String> _parseSpecialRules(String rulesString) {
     if (rulesString.isEmpty) return {}; // 空字符串返回空映射
     if (_specialRulesCache.containsKey(rulesString)) return _specialRulesCache[rulesString]!;
@@ -544,6 +543,10 @@ window._m3u8Found = false;
 
   /// 设置导航代理
   void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
+    final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString); // 允许的资源模式
+    final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString); // 阻止的扩展名
+    final scriptNames = ['时间拦截器脚本 (time_interceptor.js)', '自动点击脚本脚本 (click_handler.js)', 'M3U8检测器脚本 (m3u8_detector.js)'];
+    
     _controller.setNavigationDelegate(NavigationDelegate(
       onPageStarted: (String url) async { // 页面开始加载
         if (_isCancelled()) {
@@ -567,48 +570,43 @@ window._m3u8Found = false;
         try {
           uri = Uri.parse(request.url);
         } catch (e) {
-          LogUtil.i('无效的URL，阻止加载: ${request.url}');
-          return NavigationDecision.prevent;
+          LogUtil.i('无效的URL，允许加载: ${request.url}');
+          return NavigationDecision.navigate; // 修改：允许无效URL加载
         }
         
         try {
           final fullUrl = request.url.toLowerCase();
           
-          // 1. 如果它匹配允许模式（白名单），允许它
+          // 1. 检查M3U8文件（仅记录，不阻止）
+          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
+            await _controller.runJavaScript(
+              'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+            ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
+            return NavigationDecision.navigate; // 修改：不阻止M3U8加载
+          }
+          
+          // 2. 如果匹配允许模式（白名单），允许加载
           if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
             LogUtil.i('URL匹配允许模式，允许加载: ${request.url}');
             return NavigationDecision.navigate;
           }
           
-          // 2. 检查URL是否包含被阻止的扩展名（黑名单）
+          // 3. 检查URL是否包含被阻止的扩展名（黑名单）
           for (final ext in blockedExtensions) {
-            if (fullUrl.contains(ext)) {
+            if (fullUrl.endsWith(ext)) { // 修改：仅阻止明确匹配扩展名的资源
               LogUtil.i('阻止加载资源: ${request.url} (包含扩展名: $ext)');
               return NavigationDecision.prevent;
             }
           }
           
-          // 3. 检查并阻止广告/跟踪请求
+          // 4. 检查并阻止广告/跟踪请求
           final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
           if (adTrackingPattern.hasMatch(fullUrl)) {
-             LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-             return NavigationDecision.prevent;
-           }
-          
-          // 4. 检查M3U8文件（仅记录，不阻止）
-          try {
-            if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
-              await _controller.runJavaScript(
-                'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
-              ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-              // 修改：不再阻止加载，仅记录
-              return NavigationDecision.navigate;
-            }
-          } catch (e) {
-            LogUtil.e('URL检查失败: $e');
+            LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+            return NavigationDecision.prevent;
           }
+          
         } catch (e) {
-          // 出错时默认允许
           LogUtil.e('URL检查失败: $e，默认允许加载');
         }
         
@@ -707,16 +705,7 @@ window._m3u8Found = false;
           .replaceAll('SEARCH_TEXT', clickText!)
           .replaceAll('TARGET_INDEX', '$clickIndex'); // 加载并替换参数
       
-      // 修改：精准定位点击元素，避免干扰
-      await _controller.runJavaScript('''
-        (function() {
-          var elements = document.querySelectorAll("*:contains('$clickText')");
-          if (elements.length > 0 && $clickIndex < elements.length) {
-            elements[$clickIndex].click();
-          }
-        })();
-        $scriptWithParams
-      ''');
+      await _controller.runJavaScript(scriptWithParams); // 执行点击脚本
       _isClickExecuted = true;
       LogUtil.i('点击操作执行完成，结果: 成功');
       _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, scriptWithParams); // 修改：使用常量
