@@ -16,7 +16,7 @@ const bool enableFocusInNonTVMode = true; // 是否在非TV模式启用焦点逻
 
 // 定义宽度常量
 const double defaultCategoryWidthPortrait = 110.0; // 竖屏分类宽度
-const double defaultCategoryWidthLandscape = 120.0; // 横屏分类宽度
+const double defaultCategoryWidthLandscape = 120.0; // 横屏分类宽度 
 const double defaultGroupWidthPortrait = 120.0; // 竖屏分组宽度
 const double defaultGroupWidthLandscape = 130.0; // 横屏分组宽度
 const double defaultChannelWidthTV = 160.0; // TV模式频道宽度
