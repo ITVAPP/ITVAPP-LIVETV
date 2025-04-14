@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
@@ -179,19 +180,6 @@ class GetM3U8 {
   
   // 用于检查协议的正则
   static final _protocolRegex = RegExp('${_protocolPattern}://');
-  
-  /// 全局规则配置字符串，在网页加载多个m3u8的时候，指定只使用符合条件的m3u8
-  /// 格式: domain1|keyword1@domain2|keyword2
-  static String rulesString = 'setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
-
-  /// 特殊规则字符串，用于动态设置监听的文件类型，格式: domain1|fileType1@domain2|fileType2
-  static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
-
-  /// 动态关键词规则字符串，符合规则使用getm3u8diy来解析
-  static String dynamicKeywordsString = 'jinan@gansu@zhanjiang';
-
-  /// 允许加载的资源模式字符串，用@分隔
-  static const String allowedResourcePatternsString = 'r.png?t=perf';
 
   /// 目标URL
   final String url;
@@ -581,115 +569,25 @@ static const String _CLEANUP_SCRIPT = '''
     return null;
   }
 
-  /// 时间拦截器的代码
-  String _prepareTimeInterceptorCode() {
-    if (_cachedTimeOffset == null || _cachedTimeOffset == 0) {
-      return '(function(){})();';
+  /// 准备时间拦截器代码
+  Future<String> _prepareTimeInterceptorCode() async {
+    if (_cachedTimeOffset == null || _cachedTimeOffset == 0) return '(function(){})();'; // 无偏移返回空函数
+    final cacheKey = 'time_interceptor_${_cachedTimeOffset}';
+    if (_scriptCache.containsKey(cacheKey)) return _scriptCache[cacheKey]!;
+    
+    try {
+      final script = await rootBundle.loadString('assets/js/time_interceptor.js'); // 加载脚本
+      final result = script.replaceAll('TIME_OFFSET', '$_cachedTimeOffset'); // 替换偏移值
+      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
+      return result;
+    } catch (e) {
+      LogUtil.e('加载时间拦截器脚本失败: $e');
+      return '(function(){})();'; // 加载失败返回空函数
     }
-
-    return '''
-    (function() {
-      if (window._timeInterceptorInitialized) return;
-      window._timeInterceptorInitialized = true;
-
-      const originalDate = window.Date;
-      const timeOffset = ${_cachedTimeOffset};
-      let timeRequested = false;
-
-      // 核心时间调整函数
-      function getAdjustedTime() {
-        if (!timeRequested) {
-          timeRequested = true;
-          window.TimeCheck.postMessage(JSON.stringify({
-            type: 'timeRequest',
-            method: 'Date'
-          }));
-        }
-        return new originalDate(new originalDate().getTime() + timeOffset);
-      }
-
-      // 代理Date构造函数
-      window.Date = function(...args) {
-        return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
-      };
-
-      // 保持原型链和方法
-      window.Date.prototype = originalDate.prototype;
-      window.Date.now = () => {
-        if (!timeRequested) {
-          timeRequested = true;
-          window.TimeCheck.postMessage(JSON.stringify({
-            type: 'timeRequest',
-            method: 'Date.now'
-          }));
-        }
-        return getAdjustedTime().getTime();
-      };
-      window.Date.parse = originalDate.parse;
-      window.Date.UTC = originalDate.UTC;
-
-      // 拦截performance.now
-      const originalPerformanceNow = window.performance.now.bind(window.performance);
-      let perfTimeRequested = false;
-      window.performance.now = () => {
-        if (!perfTimeRequested) {
-          perfTimeRequested = true;
-          window.TimeCheck.postMessage(JSON.stringify({
-            type: 'timeRequest',
-            method: 'performance.now'
-          }));
-        }
-        return originalPerformanceNow() + timeOffset;
-      };
-
-      // 媒体元素时间处理
-      let mediaTimeRequested = false;
-      function setupMediaElement(element) {
-        if (element._timeProxied) return;
-        element._timeProxied = true;
-
-        Object.defineProperty(element, 'currentTime', {
-          get: () => {
-            if (!mediaTimeRequested) {
-              mediaTimeRequested = true;
-              window.TimeCheck.postMessage(JSON.stringify({
-                type: 'timeRequest',
-                method: 'media.currentTime'
-              }));
-            }
-            return (element.getRealCurrentTime?.() ?? 0) + (timeOffset / 1000);
-          },
-          set: value => element.setRealCurrentTime?.(value - (timeOffset / 1000))
-        });
-      }
-
-      // 监听新媒体元素
-      const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
-            if (node instanceof HTMLMediaElement) setupMediaElement(node);
-          });
-        });
-      });
-
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true
-      });
-
-      // 初始化现有媒体元素
-      document.querySelectorAll('video,audio').forEach(setupMediaElement);
-
-      // 资源清理
-      window._cleanupTimeInterceptor = () => {
-        window.Date = originalDate;
-        window.performance.now = originalPerformanceNow;
-        observer.disconnect();
-        delete window._timeInterceptorInitialized;
-      };
-    })();
-    ''';
   }
+
+  /// 检查任务是否已取消
+  bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
   
 /// 初始化WebViewController - 修改：确保 _controller 始终被赋值
 Future<void> _initController(Completer<String> completer, String filePattern) async {
@@ -1296,6 +1194,10 @@ Future<void> dispose() async {
   _periodicCheckTimer?.cancel();
   _periodicCheckTimer = null;
 
+    if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
+      cancelToken!.cancel('GetM3U8 disposed');
+    }
+    
   // 清理 WebView 资源 
   if (_isControllerInitialized && _isHtmlContent && _controller != null) {
     try {
