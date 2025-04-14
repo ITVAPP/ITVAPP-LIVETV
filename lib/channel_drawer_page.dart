@@ -25,36 +25,37 @@ double getListWidth(String type, bool isPortrait) => switch (type) {
 // 定义EPG项目高度
 const double DEFAULT_EPG_ITEM_HEIGHT = defaultMinHeight * 1.2 + 1;
 
-// 定义垂直和水平分割线渐变样式
-const _dividerGradientVertical = LinearGradient(
-  colors: [
-    Color.fromRGBO(255, 255, 255, 0.05),
-    Color.fromRGBO(255, 255, 255, 0.15),
-    Color.fromRGBO(255, 255, 255, 0.25),
-  ],
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-);
-
-const _dividerGradientHorizontal = LinearGradient(
-  colors: [
-    Color.fromRGBO(255, 255, 255, 0.05),
-    Color.fromRGBO(255, 255, 255, 0.10),
-    Color.fromRGBO(255, 255, 255, 0.15),
-  ],
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-);
+// 定义分割线渐变样式 - 优化：合并相关渐变定义为映射
+final _dividerGradient = {
+  'vertical': const LinearGradient(
+    colors: [
+      Color.fromRGBO(255, 255, 255, 0.05),
+      Color.fromRGBO(255, 255, 255, 0.15),
+      Color.fromRGBO(255, 255, 255, 0.25),
+    ],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  ),
+  'horizontal': const LinearGradient(
+    colors: [
+      Color.fromRGBO(255, 255, 255, 0.05),
+      Color.fromRGBO(255, 255, 255, 0.10),
+      Color.fromRGBO(255, 255, 255, 0.15),
+    ],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  ),
+};
 
 final verticalDivider = Container(
   width: 1.5,
-  decoration: BoxDecoration(gradient: _dividerGradientVertical),
+  decoration: BoxDecoration(gradient: _dividerGradient['vertical']),
 );
 
 final horizontalDivider = Container(
   height: 1,
   decoration: BoxDecoration(
-    gradient: _dividerGradientHorizontal,
+    gradient: _dividerGradient['horizontal'],
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(0.1),
@@ -99,62 +100,43 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
 const Color selectedColor = Color(0xFFEB144C);
 const Color focusColor = Color(0xFFDFA02A);
 
-// 简化的渐变色获取函数
-LinearGradient? _getGradientColor({
-  required bool useFocus,
-  required bool hasFocus,
-  required bool isSelected,
-  required bool isSystemAutoSelected,
-}) {
-  final shouldHighlight = (useFocus && hasFocus) || (isSelected && !isSystemAutoSelected);
-  
-  if (shouldHighlight) {
-    final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
-    return LinearGradient(
-      colors: [
-        baseColor.withOpacity(0.9),
-        baseColor.withOpacity(0.7),
-      ],
-    );
-  }
-  return null;
-}
-
-// 构建列表项装饰样式
+// 优化：简化装饰构建逻辑，合并和简化渐变获取和装饰创建
 BoxDecoration buildItemDecoration({
   required bool isTV,
   required bool hasFocus,
   required bool isSelected,
   required bool isSystemAutoSelected,
-}) => BoxDecoration(
-      gradient: _getGradientColor(
-        useFocus: isTV || enableFocusInNonTVMode,
-        hasFocus: hasFocus,
-        isSelected: isSelected,
-        isSystemAutoSelected: isSystemAutoSelected,
-      ),
-      border: Border.all(
-        color: _getGradientColor(
-                  useFocus: isTV || enableFocusInNonTVMode,
-                  hasFocus: hasFocus,
-                  isSelected: isSelected,
-                  isSystemAutoSelected: isSystemAutoSelected,
-                ) != null
-            ? Colors.white.withOpacity(0.3)
-            : Colors.transparent,
-        width: 1.5,
-      ),
-      borderRadius: BorderRadius.circular(8),
-      boxShadow: hasFocus
-          ? [
-              BoxShadow(
-                color: focusColor.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 1,
-              ),
-            ]
-          : [],
+}) {
+  final useFocus = isTV || enableFocusInNonTVMode;
+  final shouldHighlight = (useFocus && hasFocus) || (isSelected && !isSystemAutoSelected);
+  
+  LinearGradient? gradient;
+  Color borderColor = Colors.transparent;
+  
+  if (shouldHighlight) {
+    final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
+    gradient = LinearGradient(
+      colors: [
+        baseColor.withOpacity(0.9),
+        baseColor.withOpacity(0.7),
+      ],
     );
+    borderColor = Colors.white.withOpacity(0.3);
+  }
+  
+  return BoxDecoration(
+    gradient: gradient,
+    border: Border.all(color: borderColor, width: 1.5),
+    borderRadius: BorderRadius.circular(8),
+    boxShadow: hasFocus ? [
+        BoxShadow(
+          color: focusColor.withOpacity(0.3),
+          blurRadius: 8,
+          spreadRadius: 1,
+        ),
+      ] : [],
+  );
+}
 
 // 添加样式缓存类
 class _TextStyleCache {
@@ -175,11 +157,18 @@ class FocusStateManager {
   final Map<int, VoidCallback> _focusListeners = {};
   bool _isUpdating = false;
 
-  void initialize(int categoryCount) {
-    if (_isUpdating || categoryCount <= 0) return;
+  // 优化：合并initialize和updateDynamicNodes为一个统一的方法
+  void manageFocusNodes({
+    required int categoryCount,
+    int groupCount = 0,
+    int channelCount = 0,
+    bool resetAll = false,
+  }) {
+    if (_isUpdating || (categoryCount <= 0 && !resetAll)) return;
     _isUpdating = true;
     
-    if (categoryFocusNodes.length != categoryCount) {
+    // 处理分类节点
+    if (resetAll || categoryFocusNodes.length != categoryCount) {
       for (var node in categoryFocusNodes) {
         if (!node.hasListeners) continue;
         node.removeListener(() {});
@@ -190,20 +179,13 @@ class FocusStateManager {
         categoryCount, 
         (index) => FocusNode(debugLabel: 'CategoryNode$index')
       );
-    }
-    
-    focusNodes.clear();
-    focusNodes.addAll(categoryFocusNodes);
-    focusStates.clear();
-    lastFocusedIndex = -1;
-    _isUpdating = false;
-  }
-
-  void updateDynamicNodes(int groupCount, int channelCount) {
-    if (_isUpdating) return;
-    _isUpdating = true;
-    
-    if (focusNodes.length > categoryFocusNodes.length) {
+      
+      focusNodes.clear();
+      focusNodes.addAll(categoryFocusNodes);
+      focusStates.clear();
+      lastFocusedIndex = -1;
+    } else if (!resetAll && focusNodes.length > categoryFocusNodes.length) {
+      // 清理旧的动态节点
       for (int i = categoryFocusNodes.length; i < focusNodes.length; i++) {
         if (_focusListeners.containsKey(i)) {
           focusNodes[i].removeListener(_focusListeners[i]!);
@@ -215,6 +197,7 @@ class FocusStateManager {
       focusNodes.length = categoryFocusNodes.length;
     }
     
+    // 添加新的动态节点
     final totalDynamicNodes = groupCount + channelCount;
     if (totalDynamicNodes > 0) {
       final dynamicNodes = List.generate(
@@ -225,6 +208,16 @@ class FocusStateManager {
     }
     
     _isUpdating = false;
+  }
+
+  // 兼容原API的方法 - 保留向后兼容性
+  void initialize(int categoryCount) {
+    manageFocusNodes(categoryCount: categoryCount, resetAll: true);
+  }
+
+  // 兼容原API的方法 - 保留向后兼容性
+  void updateDynamicNodes(int groupCount, int channelCount) {
+    manageFocusNodes(categoryCount: categoryFocusNodes.length, groupCount: groupCount, channelCount: channelCount);
   }
 
   bool get isUpdating => _isUpdating;
@@ -267,6 +260,7 @@ final focusManager = FocusStateManager();
 
 final GlobalKey _itemKey = GlobalKey();
 
+// 优化：简化焦点监听器添加逻辑
 void addFocusListeners(
   int startIndex,
   int length,
@@ -972,6 +966,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
+  // 优化：简化相关的配置映射
   static final Map<String, Map<String, dynamic>> _scrollConfig = {
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
@@ -1635,6 +1630,7 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
+  // 优化：简化EPG加载逻辑 
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel();
     
@@ -1646,9 +1642,11 @@ class _ChannelContentState extends State<ChannelContent> {
     }
     
     final now = DateTime.now();
+    final bool isRecentRequest = _lastRequestTime != null && 
+                               _lastChannelKey != channelKey && 
+                               now.difference(_lastRequestTime!).inMilliseconds < 500;
     
-    if (_lastRequestTime != null && _lastChannelKey != channelKey && 
-        now.difference(_lastRequestTime!).inMilliseconds < 500) {
+    if (isRecentRequest) {
       LogUtil.i('跳过频繁EPG请求: channelKey=$channelKey, 间隔=${now.difference(_lastRequestTime!).inMilliseconds}ms');
       return;
     }
