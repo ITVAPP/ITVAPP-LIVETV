@@ -1039,7 +1039,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    final double itemHeight = config['customHeight'] ?? itemHeight;
+    final double itemHeight = config['customHeight'] ?? (defaultMinHeight + 1.0);
 
     double targetOffset;
     if (alignment == 0.0) {
