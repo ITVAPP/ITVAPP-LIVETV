@@ -146,6 +146,12 @@ class GetM3U8 {
 
   /// 被阻止的扩展名字符串，用@分隔
   static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
+  
+  /// 无效URL关键词字符串，用@分隔
+  static const String invalidUrlPatternsString = 'advertisement@analytics@tracker@pixel@beacon@stats@log';
+
+  /// 内容样本长度
+  static const int CONTENT_SAMPLE_LENGTH = 38888;
 
   /// 目标URL
   final String url;
@@ -182,12 +188,6 @@ class GetM3U8 {
 
   /// 检查次数统计
   int _checkCount = 0;
-
-  /// 无效URL关键词
-  static const List<String> INVALID_URL_PATTERNS = [
-    'advertisement', 'analytics', 'tracker',
-    'pixel', 'beacon', 'stats', 'log'
-  ];
 
   /// 是否已释放资源
   bool _isDisposed = false;
@@ -235,6 +235,7 @@ class GetM3U8 {
   static const String _TIME_INTERCEPTOR_PATH = 'assets/js/time_interceptor.js';
   static const String _CLICK_HANDLER_PATH = 'assets/js/click_handler.js';
   static const String _M3U8_DETECTOR_PATH = 'assets/js/m3u8_detector.js';
+  static const String _CLEANUP_SCRIPT_PATH = 'assets/js/cleanup_script.js';
 
   /// 时间源配置
   static const List<Map<String, String>> TIME_APIS = [
@@ -255,93 +256,6 @@ class GetM3U8 {
       'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime',
     }
   ];
-  
-  /// 清理脚本常量
-static const String _CLEANUP_SCRIPT = '''
-  // 停止页面加载
-  window.stop();
-
-  // 清理时间拦截器
-  if (window._cleanupTimeInterceptor) {
-    window._cleanupTimeInterceptor();
-  }
-
-  // 清理所有活跃的XHR请求
-  const activeXhrs = window._activeXhrs || [];
-  activeXhrs.forEach(xhr => xhr.abort());
-
-  // 清理所有Fetch请求
-  if (window._abortController) {
-    window._abortController.abort();
-  }
-
-  // 清理所有定时器
-  const highestTimeoutId = window.setTimeout(() => {}, 0);
-  for (let i = 0; i <= highestTimeoutId; i++) {
-    window.clearTimeout(i);
-    window.clearInterval(i);
-  }
-
-  // 清理所有事件监听器
-  window.removeEventListener('scroll', window._scrollHandler);
-  window.removeEventListener('popstate', window._urlChangeHandler);
-  window.removeEventListener('hashchange', window._urlChangeHandler);
-
-  // 清理M3U8检测器
-  if(window._cleanupM3U8Detector) {
-    window._cleanupM3U8Detector();
-  }
-
-  // 终止所有正在进行的MediaSource操作
-  if (window.MediaSource) {
-    const mediaSources = document.querySelectorAll('video source');
-    mediaSources.forEach(source => {
-      const mediaElement = source.parentElement;
-      if (mediaElement) {
-        mediaElement.pause();
-        mediaElement.removeAttribute('src');
-        mediaElement.load();
-      }
-    });
-  }
-
-  // 清理所有websocket连接
-  const sockets = window._webSockets || [];
-  sockets.forEach(socket => socket.close());
-
-  // 停止所有进行中的网络请求
-  if (window.performance && window.performance.getEntries) {
-    const resources = window.performance.getEntries().filter(e =>
-      e.initiatorType === 'xmlhttprequest' ||
-      e.initiatorType === 'fetch' ||
-      e.initiatorType === 'beacon'
-    );
-    resources.forEach(resource => {
-      if (resource.duration === 0) {
-        try {
-          const controller = new AbortController();
-          controller.abort();
-        } catch(e) {}
-      }
-    });
-  }
-
-  // 清理所有未完成的图片加载
-  document.querySelectorAll('img').forEach(img => {
-    if (!img.complete) {
-      img.src = '';
-    }
-  });
-
-  // 清理全局变量
-  delete window._timeInterceptorInitialized;
-  delete window._originalDate;
-  delete window._originalPerformanceNow;
-  delete window._originalRAF;
-  delete window._originalConsoleTime;
-  delete window._originalConsoleTimeEnd;
-  delete window._cleanupTimeInterceptor;
-''';
 
   /// 解析后的URI对象
   late final Uri _parsedUri;
@@ -379,7 +293,7 @@ static const String _CLEANUP_SCRIPT = '''
 
   /// 无效URL检查的正则表达式
   static final _invalidPatternRegex = RegExp(
-    INVALID_URL_PATTERNS.join('|'),
+    _parseInvalidUrlPatterns(invalidUrlPatternsString).join('|'),
     caseSensitive: false
   );
 
@@ -481,6 +395,19 @@ static const String _CLEANUP_SCRIPT = '''
       return extensionsString.split('@').map((ext) => ext.trim()).toList();
     } catch (e) {
       LogUtil.e('解析被阻止的扩展名失败: $e');
+      return [];
+    }
+  }
+
+  /// 解析无效URL关键词
+  static List<String> _parseInvalidUrlPatterns(String patternsString) {
+    if (patternsString.isEmpty) {
+      return [];
+    }
+    try {
+      return patternsString.split('@').map((pattern) => pattern.trim()).toList();
+    } catch (e) {
+      LogUtil.e('解析无效URL关键词失败: $e');
       return [];
     }
   }
@@ -619,6 +546,26 @@ static const String _CLEANUP_SCRIPT = '''
     }
   }
   
+  /// 加载清理脚本
+  Future<String> _loadCleanupScript() async {
+    try {
+      return await rootBundle.loadString(_CLEANUP_SCRIPT_PATH);
+    } catch (e) {
+      LogUtil.e('加载清理脚本失败: $e');
+      // 返回最小清理功能作为备用
+      return '''
+        (function() {
+          window.stop();
+          const highestTimeoutId = window.setTimeout(() => {}, 0);
+          for (let i = 0; i <= highestTimeoutId; i++) {
+            window.clearTimeout(i);
+            window.clearInterval(i);
+          }
+        })();
+      ''';
+    }
+  }
+  
   // 修改：添加检查取消状态的方法
   bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
 
@@ -640,67 +587,24 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
       ..setUserAgent(HeadersConfig.userAgent);
     _isControllerInitialized = true;
 
-    // 检查页面内容类型
-    try {
-      final httpdata = await HttpUtil().getRequest(url, cancelToken: cancelToken); // 修改：传递 cancelToken
-      if (_isCancelled()) {
-        LogUtil.i('HTTP 请求完成后任务被取消');
+    // 尝试通过HTTP请求获取内容
+    final httpResult = await _tryHttpRequest();
+    if (_isCancelled()) {
+      LogUtil.i('HTTP 请求完成后任务被取消');
+      if (!completer.isCompleted) completer.complete('ERROR');
+      return;
+    }
+    
+    if (httpResult == true) {
+      final result = await _checkPageContent();
+      if (result != null) {
+        if (!completer.isCompleted) completer.complete(result);
+        return;
+      }
+      if (!_isHtmlContent) {
         if (!completer.isCompleted) completer.complete('ERROR');
         return;
       }
-
-      if (httpdata != null) {
-        // 存储响应内容并判断是否为HTML
-        _httpResponseContent = httpdata.toString();
-        _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html');
-        LogUtil.i('HTTP响应内容类型: ${_isHtmlContent ? 'HTML' : '非HTML'}, 当前内容: $_httpResponseContent');
-        
-        // 如果是 HTML 内容,先进行内容检查
-        if (_isHtmlContent) {
-          // 查找所有style标签的位置
-          String content = _httpResponseContent!;
-          int styleEndIndex = -1;
-          final styleEndMatches = RegExp(r'</style>', caseSensitive: false).allMatches(content);
-          if (styleEndMatches.isNotEmpty) {
-            // 获取最后一个style标签的结束位置
-            styleEndIndex = styleEndMatches.last.end;
-          }
-          
-          // 确定检查内容
-          String initialContent;
-          if (styleEndIndex > 0) {
-            final startIndex = styleEndIndex;
-            final endIndex = startIndex + 38888 > content.length ? content.length : startIndex + 38888;
-            initialContent = content.substring(startIndex, endIndex);
-          } else {
-            // 如果没找到style标签，则从头开始取38888字节
-            initialContent = content.length > 38888 ? content.substring(0, 38888) : content;
-          }
-              
-          if (initialContent.contains('.' + filePattern)) {  // 快速预检
-            final result = await _checkPageContent(); 
-            if (result != null) {
-              completer.complete(result);
-              return;
-            }
-          }
-          // 标记已检查,避免 WebView 重复检查
-          _isPageLoadProcessed = true;
-        }
-      } else {
-        LogUtil.e('HttpUtil请求失败，未获取到数据，将继续尝试WebView加载');
-        _httpResponseContent = null;
-        _isHtmlContent = true; // 默认当作HTML内容处理
-      }
-    } catch (e) {
-      if (_isCancelled()) {
-        LogUtil.i('HTTP 请求异常后任务被取消');
-        if (!completer.isCompleted) completer.complete('ERROR');
-        return;
-      }
-      LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
-      _httpResponseContent = null;
-      _isHtmlContent = true; // 默认当作HTML内容处理
     }
 
     // 非HTML内容直接处理
@@ -963,6 +867,44 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
   }
 }
 
+/// 尝试通过HTTP请求获取内容
+Future<bool> _tryHttpRequest() async {
+  try {
+    final httpdata = await HttpUtil().getRequest(url, cancelToken: cancelToken);
+    if (_isCancelled()) return false; // 已取消返回false
+    
+    if (httpdata != null) { // 有响应数据
+      _httpResponseContent = httpdata.toString();
+      _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html'); // 判断是否HTML
+      
+      if (_isHtmlContent) { // HTML内容
+        String content = _httpResponseContent!;
+        int styleEndIndex = -1;
+        final styleEndMatch = RegExp(r'</style>', caseSensitive: false).firstMatch(content);
+        if (styleEndMatch != null) styleEndIndex = styleEndMatch.end; // 找到</style>位置
+        
+        String initialContent = styleEndIndex > 0
+            ? content.substring(styleEndIndex, (styleEndIndex + CONTENT_SAMPLE_LENGTH).clamp(0, content.length)) // 使用常量
+            : content.length > CONTENT_SAMPLE_LENGTH ? content.substring(0, CONTENT_SAMPLE_LENGTH) : content; // 使用常量
+        
+        return initialContent.contains('.' + _filePattern); // 检查是否包含文件模式
+      }
+      return true; // 非HTML返回true
+    } else {
+      LogUtil.e('HttpUtil请求失败，未获取到数据，将继续尝试WebView加载');
+      _httpResponseContent = null;
+      _isHtmlContent = true;
+      return false;
+    }
+  } catch (e) {
+    if (_isCancelled()) return false;
+    LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
+    _httpResponseContent = null;
+    _isHtmlContent = true;
+    return false;
+  }
+}
+
 /// 点击操作执行
 Future<bool> _executeClick() async {
   // 检查WebViewController是否已初始化
@@ -1191,7 +1133,8 @@ Future<void> dispose() async {
   // 清理 WebView 资源 
   if (_isControllerInitialized && _isHtmlContent && _controller != null) {
     try {
-      await _controller!.runJavaScript(_CLEANUP_SCRIPT);
+      final cleanupScript = await _loadCleanupScript();
+      await _controller!.runJavaScript(cleanupScript);
       await _controller!.clearCache();
       LogUtil.i('WebView资源清理完成');
     } catch (e, stack) {
