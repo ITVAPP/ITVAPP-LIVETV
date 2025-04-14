@@ -394,6 +394,7 @@ class GetM3U8 {
       return preparedScript;
     } catch (e) {
       LogUtil.e('加载时间拦截器脚本失败: $e');
+      return '(function(){})();';
     }
   }
 
@@ -418,6 +419,7 @@ class GetM3U8 {
       return preparedScript;
     } catch (e) {
       LogUtil.e('加载点击处理器脚本失败: $e');
+      return '(function(){})();';
     }
   }
 
@@ -440,6 +442,7 @@ class GetM3U8 {
       return preparedScript;
     } catch (e) {
       LogUtil.e('加载M3U8检测器脚本失败: $e');
+      return '(function(){})();';
     }
   }
 
