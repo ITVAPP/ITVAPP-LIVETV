@@ -1034,7 +1034,7 @@ void _startUrlCheckTimer(Completer<String> completer) {
   Timer(const Duration(milliseconds: 3800), () async {
     if (_isCancelled() || completer.isCompleted) return;
     
-    if (_foundUrls.isNotEmpty) {
+    if (_foundUrls.length > 0) {
       _m3u8Found = true;
       
       String selectedUrl;
@@ -1180,7 +1180,7 @@ Future<void> _handleLoadError(Completer<String> completer) async {
         return;
       }
 
-      if (_foundUrls.isNotEmpty && !completer.isCompleted) {
+      if (_foundUrls.length > 0 && !completer.isCompleted) {	
         _m3u8Found = true;
         final selectedUrl = _foundUrls.toList().last;
         LogUtil.i('超时前发现URL: $selectedUrl');
