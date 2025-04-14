@@ -148,7 +148,7 @@ class GetM3U8 {
   }
 
   static final RegExp _invalidPatternRegex = RegExp( // 无效URL模式正则
-    'advertisement8888888',
+    'advertisement|analytics|tracker|pixel|beacon|stats|log',
     caseSensitive: false,
   );
 
@@ -563,7 +563,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
       }
     },
     onNavigationRequest: (NavigationRequest request) async { // 导航请求
-      if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
+      // if (_isCancelled()) return NavigationDecision.prevent; // 已取消阻止导航
       
       LogUtil.i('页面导航请求: ${request.url}');
       Uri? uri;
@@ -592,11 +592,10 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
         }
         
         // 3. 检查并阻止广告/跟踪请求
-        final adTrackingPattern = RegExp(r'advertisement|analytics|tracker|pixel|beacon|stats|log', caseSensitive: false);
-        if (adTrackingPattern.hasMatch(fullUrl)) {
-           LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-           return NavigationDecision.prevent;
-         }
+        if (_invalidPatternRegex.hasMatch(fullUrl)) {
+          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+          return NavigationDecision.prevent;
+        }
         
         // 4. 检查M3U8文件
         try {
@@ -922,11 +921,6 @@ window.removeEventListener('unload', null, true);
     
     final lowercaseUrl = url.toLowerCase();
     if (!lowercaseUrl.contains('.' + _filePattern)) return false; // 不含文件模式返回false
-    
-    if (_invalidPatternRegex.hasMatch(lowercaseUrl)) { // 包含无效关键词
-      LogUtil.i('URL包含无效关键词: $url');
-      return false;
-    }
     
     if (_filterRules.isNotEmpty) { // 检查过滤规则
       bool matchedDomain = false;
