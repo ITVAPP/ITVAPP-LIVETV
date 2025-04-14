@@ -1,10 +1,17 @@
 // 自动点击注入
-(async function() {
+(function() {
+  // 避免重复初始化
+  if (window._itvapp_click_initialized) return;
+  window._itvapp_click_initialized = true;
+  
+  // 保存原始方法引用
+  const _originalClickMethod = HTMLElement.prototype.click;
+  
   try {
     function findAndClick() {
       // 使用占位符 SEARCH_TEXT 和 TARGET_INDEX，由Dart代码动态替换
       const searchText = 'SEARCH_TEXT';
-      const targetIndex = 'TARGET_INDEX';
+      const targetIndex = parseInt('TARGET_INDEX') || 0;
       
       // 获取所有文本和元素节点
       const walk = document.createTreeWalker(
@@ -44,7 +51,7 @@
               text: text,
               node: node.parentElement
             });
-            if (currentIndex === parseInt(targetIndex)) {
+            if (currentIndex === targetIndex) {
               foundNode = node.parentElement;
               break;
             }
@@ -63,7 +70,7 @@
               text: directText,
               node: node
             });
-            if (currentIndex === parseInt(targetIndex)) {
+            if (currentIndex === targetIndex) {
               foundNode = node;
               break;
             }
@@ -80,21 +87,31 @@
       }
       
       // 尝试点击并验证效果
-      tryClickAndVerify(foundNode);
+      safeClick(foundNode);
     }
     
     /**
-     * 尝试点击节点并验证点击效果
+     * 安全点击节点并验证点击效果
      * @param {Element} node - 要点击的节点
      */
-    function tryClickAndVerify(node) {
+    function safeClick(node) {
       try {
         // 记录原始类名用于后续对比
         const originalClass = node.getAttribute('class') || '';
         
-        // 点击节点
+        // 安全点击：使用原始click方法而不是直接调用node.click()
         console.info('正在点击目标节点...');
-        node.click();
+        if (node && typeof _originalClickMethod === 'function') {
+          _originalClickMethod.call(node);
+        } else {
+          // 回退方案：如果无法获取原始click方法，使用dispatch事件
+          const clickEvent = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+          });
+          node.dispatchEvent(clickEvent);
+        }
         
         // 检查点击效果
         setTimeout(() => {
@@ -108,7 +125,18 @@
             const parentOriginalClass = parentNode.getAttribute('class') || '';
             
             console.info('节点点击无明显效果，尝试点击父节点...');
-            parentNode.click();
+            
+            // 同样使用安全点击方法
+            if (parentNode && typeof _originalClickMethod === 'function') {
+              _originalClickMethod.call(parentNode);
+            } else {
+              const clickEvent = new MouseEvent('click', {
+                view: window,
+                bubbles: true,
+                cancelable: true
+              });
+              parentNode.dispatchEvent(clickEvent);
+            }
             
             // 检查父节点点击效果
             setTimeout(() => {
@@ -128,8 +156,16 @@
       }
     }
     
-    // 执行查找和点击
-    findAndClick();
+    // 使用微任务延迟执行，避免干扰页面初始加载
+    setTimeout(() => {
+      findAndClick();
+    }, 50);
+    
+    // 清理函数
+    window._cleanupITVAppClick = function() {
+      delete window._itvapp_click_initialized;
+      delete window._cleanupITVAppClick;
+    };
   } catch (e) {
     console.error('JavaScript 执行时发生错误:', e.message || e.toString());
   }
