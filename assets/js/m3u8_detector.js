@@ -597,7 +597,7 @@
       if (!document.hidden) {
         DOMScanner.scanPage(document);
       }
-    }, 10000); // 每10秒扫描一次
+    }, 1000); // 每1秒扫描一次
   }
 
   // 初始化检测器
