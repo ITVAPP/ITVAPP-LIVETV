@@ -1,167 +1,231 @@
+// 时间拦截器
 (function() {
   // 避免重复初始化，确保脚本只执行一次
-  if (window._timeInterceptorInitialized) return;
-  window._timeInterceptorInitialized = true;
+  if (window._itvapp_time_interceptor_initialized) return;
+  window._itvapp_time_interceptor_initialized = true;
   
-  const originalDate = window.Date; // 保存原始Date构造函数
-  
-  // 使用安全方式访问TIME_OFFSET，确保不会因未定义变量引发错误
-  const timeOffset = typeof window.TIME_OFFSET === 'number' ? window.TIME_OFFSET : 0;
-  
-  // 状态标记，使用单一对象管理所有请求状态
-  const requestFlags = {
-    'Date': false,
-    'performance.now': false,
-    'media.currentTime': false
+  // 保存原始对象和方法
+  const _original = {
+    Date: window.Date,
+    DateNow: window.Date.now,
+    DateParse: window.Date.parse,
+    DateUTC: window.Date.UTC,
+    PerformanceNow: window.performance && window.performance.now ? 
+      window.performance.now.bind(window.performance) : null
   };
   
-  // 抽象发送时间请求的通用函数，避免重复代码
-  function requestTime(method) { // 发送时间请求并标记状态
-    // 简化标记逻辑，使用对象属性直接访问
-    if (!requestFlags[method] && window.TimeCheck) { // 未请求且TimeCheck可用
-      requestFlags[method] = true; // 更新状态
-      window.TimeCheck.postMessage(JSON.stringify({ // 发送时间请求消息
-        type: 'timeRequest',
-        method: method
-      }));
+  // 使用安全方式获取时间偏移
+  const timeOffset = TIME_OFFSET || 0;
+  
+  if (timeOffset === 0) {
+    // 无偏移时，不修改任何对象，直接返回
+    console.info('时间偏移为0，无需拦截');
+    return;
+  }
+  
+  // 状态标记对象，使用独立命名空间
+  const _itvappRequestFlags = {
+    Date: false,
+    PerformanceNow: false,
+    MediaCurrentTime: false
+  };
+  
+  // 发送时间请求的通用函数
+  function requestTime(method) {
+    try {
+      if (!_itvappRequestFlags[method] && window.TimeCheck) {
+        _itvappRequestFlags[method] = true;
+        window.TimeCheck.postMessage(JSON.stringify({
+          type: 'timeRequest',
+          method: method
+        }));
+      }
+    } catch (e) {
+      // 忽略错误，确保不影响页面
     }
   }
   
-  // 核心时间调整函数，优化减少重复对象创建
-  function getAdjustedTime() { // 获取调整后的当前时间
-    requestTime('Date'); // 请求Date时间
-    const now = new originalDate().getTime(); // 获取原始时间戳
-    return new originalDate(now + timeOffset); // 返回调整后的时间
+  // 创建调整后的Date构造函数
+  function ITVAppDate(...args) {
+    if (args.length === 0) {
+      // 零参数调用使用调整后的时间
+      requestTime('Date');
+      const now = new _original.Date().getTime();
+      return new _original.Date(now + timeOffset);
+    }
+    // 有参数时直接使用原始Date
+    return new _original.Date(...args);
   }
   
-  // 代理Date构造函数
-  window.Date = function(...args) { // 重写Date，支持无参和有参调用
-    return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
+  // 复制原型方法和属性
+  ITVAppDate.prototype = _original.Date.prototype;
+  
+  // 设置静态方法
+  ITVAppDate.now = function() {
+    requestTime('Date');
+    const now = _original.DateNow.call(_original.Date);
+    return now + timeOffset;
   };
   
-  // 保持原型链和静态方法
-  window.Date.prototype = originalDate.prototype; // 继承原始原型
-  window.Date.now = () => { // 重写Date.now，返回调整后的时间戳
-    requestTime('Date'); // 使用统一的'Date'标记，简化状态管理
-    return getAdjustedTime().getTime();
-  };
-  window.Date.parse = originalDate.parse; // 保留原始parse方法
-  window.Date.UTC = originalDate.UTC; // 保留原始UTC方法
+  // 保留其他原始Date静态方法
+  ITVAppDate.parse = _original.DateParse;
+  ITVAppDate.UTC = _original.DateUTC;
+  ITVAppDate.toString = function() { return _original.Date.toString(); };
   
-  // 拦截performance.now
-  const originalPerformanceNow = window.performance && window.performance.now ? 
-    window.performance.now.bind(window.performance) : null; // 安全获取原始performance.now
-  
-  if (originalPerformanceNow) {
-    window.performance.now = () => { // 重写performance.now，添加偏移
-      requestTime('performance.now');
-      return originalPerformanceNow() + timeOffset;
-    };
+  // 创建调整后的performance.now函数
+  function ITVAppPerformanceNow() {
+    if (!_original.PerformanceNow) return 0;
+    requestTime('PerformanceNow');
+    return _original.PerformanceNow() + timeOffset;
   }
   
-  // 媒体元素时间处理，添加兼容性检查
-  function setupMediaElement(element) { // 设置媒体元素时间代理
-    if (!element || element._timeProxied) return; // 增加null检查并避免重复代理
-    element._timeProxied = true; // 标记已代理
+  // 提供获取调整时间的函数而不直接覆盖全局对象
+  window._itvapp_getAdjustedDate = function() {
+    return ITVAppDate;
+  };
+  
+  window._itvapp_getAdjustedTime = function() {
+    requestTime('Date');
+    return _original.DateNow.call(_original.Date) + timeOffset;
+  };
+  
+  window._itvapp_getAdjustedPerformanceNow = ITVAppPerformanceNow;
+  
+  // 处理媒体元素时间的通用函数
+  function setupMediaElement(element) {
+    if (!element || element._itvapp_timeProxied) return;
+    element._itvapp_timeProxied = true;
     
-    // 使用闭包保存原始时间获取和设置函数，避免属性冲突
-    const originalGetTime = () => element.currentTime;
-    const originalSetTime = (value) => { element.currentTime = value; return value; };
-    
-    // 保存原始对象引用
-    const elementProto = Object.getPrototypeOf(element);
-    const originalDescriptor = Object.getOwnPropertyDescriptor(elementProto, 'currentTime');
-    
-    // 如果无法获取原始描述符，则使用备用方案
-    if (originalDescriptor) {
-      Object.defineProperty(element, 'currentTime', { // 重定义currentTime属性
-        get: () => { // 获取时添加偏移（单位：秒）
-          requestTime('media.currentTime');
-          // 使用原始描述符的get方法，或默认返回0
-          const originalValue = originalDescriptor.get ? 
-            originalDescriptor.get.call(element) : 0;
-          return originalValue + (timeOffset / 1000);
-        },
-        set: (value) => {
-          // 使用原始描述符的set方法，或什么都不做
-          if (originalDescriptor.set) {
-            return originalDescriptor.set.call(element, value - (timeOffset / 1000));
-          }
-          return value;
-        },
-        configurable: true, // 允许后续可能的修改
-        enumerable: true // 保持属性可枚举
-      });
-    } else {
-      // 备用方案：直接重定义currentTime属性
-      Object.defineProperty(element, 'currentTime', {
-        get: () => {
-          requestTime('media.currentTime');
-          return originalGetTime() + (timeOffset / 1000);
-        },
-        set: (value) => originalSetTime(value - (timeOffset / 1000)),
-        configurable: true,
-        enumerable: true
-      });
+    try {
+      // 获取原始描述符
+      const elementProto = Object.getPrototypeOf(element);
+      const originalDescriptor = Object.getOwnPropertyDescriptor(elementProto, 'currentTime');
+      
+      if (originalDescriptor && originalDescriptor.configurable) {
+        // 保存原始getter/setter引用
+        const originalGetter = originalDescriptor.get;
+        const originalSetter = originalDescriptor.set;
+        
+        // 创建媒体时间代理属性
+        Object.defineProperty(element, 'currentTime', {
+          get: function() {
+            requestTime('MediaCurrentTime');
+            // 调用原始getter并添加偏移
+            const originalTime = originalGetter ? originalGetter.call(this) : 0;
+            return originalTime + (timeOffset / 1000); // 毫秒转秒
+          },
+          set: function(value) {
+            // 调用原始setter并减去偏移
+            if (originalSetter) {
+              return originalSetter.call(this, value - (timeOffset / 1000));
+            }
+            return value;
+          },
+          configurable: true,
+          enumerable: true
+        });
+      }
+    } catch (e) {
+      // 忽略错误，确保不影响原始功能
+      console.error('设置媒体元素时间代理失败:', e);
     }
   }
   
-  // 优化MutationObserver配置，提高性能
-  const observerCallback = (mutations) => {
-    for (const mutation of mutations) {
-      // 只处理新增节点
-      if (mutation.type === 'childList') {
-        for (const node of mutation.addedNodes) {
-          // 检查媒体元素
-          if (node instanceof HTMLMediaElement) {
-            setupMediaElement(node);
-          }
-          // 检查子树中的媒体元素
-          if (node.querySelectorAll) {
-            node.querySelectorAll('video,audio').forEach(setupMediaElement);
+  // 使用私有MutationObserver监控媒体元素
+  let mediaObserver = null;
+  
+  try {
+    // 仅当需要时初始化观察器
+    if (typeof MutationObserver !== 'undefined') {
+      mediaObserver = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(node => {
+              // 直接检查节点
+              if (node instanceof HTMLMediaElement) {
+                setupMediaElement(node);
+              }
+              
+              // 检查节点中的媒体元素
+              if (node.querySelectorAll) {
+                try {
+                  node.querySelectorAll('video,audio').forEach(media => {
+                    setupMediaElement(media);
+                  });
+                } catch (e) {
+                  // 忽略错误
+                }
+              }
+            });
           }
         }
-      }
-    }
-  };
-  
-  // 确保document.body存在后再观察
-  const setupObserver = () => {
-    const targetNode = document.body || document.documentElement;
-    if (targetNode) {
-      const observer = new MutationObserver(observerCallback);
-      observer.observe(targetNode, {
-        childList: true, // 监听子节点变化
-        subtree: true // 监听整个子树
       });
       
-      // 初始化现有媒体元素
-      document.querySelectorAll('video,audio').forEach(setupMediaElement);
-      
-      // 保存observer引用以便清理
-      window._timeInterceptorObserver = observer;
-    } else {
-      // 如果DOM还未准备好，延迟设置
-      setTimeout(setupObserver, 100);
+      // 等待DOM可用
+      if (document.body) {
+        mediaObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        
+        // 初始化现有媒体元素
+        document.querySelectorAll('video,audio').forEach(setupMediaElement);
+      } else {
+        // 文档尚未加载，等待DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', () => {
+          if (document.body) {
+            mediaObserver.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+            document.querySelectorAll('video,audio').forEach(setupMediaElement);
+          }
+        });
+      }
     }
-  };
+  } catch (e) {
+    console.error('初始化媒体元素观察器失败:', e);
+  }
+
+ // 可选地覆盖全局Date对象
+  // 默认情况下不覆盖全局对象，使用钩子函数访问
+  // 如果页面需要调整时间，可以使用window._itvapp_getAdjustedTime
   
-  // 启动观察器
-  setupObserver();
+  // 控制是否直接覆盖全局对象的开关
+  const shouldOverrideGlobals = false; // 默认不覆盖
   
-  // 资源清理
-  window._cleanupTimeInterceptor = () => { // 清理函数，恢复原始状态
-    window.Date = originalDate; // 恢复原始Date
+  if (shouldOverrideGlobals) {
+    // 直接覆盖全局Date
+    window.Date = ITVAppDate;
     
-    if (originalPerformanceNow && window.performance) {
-      window.performance.now = originalPerformanceNow; // 恢复原始performance.now
+    // 覆盖performance.now
+    if (_original.PerformanceNow && window.performance) {
+      window.performance.now = ITVAppPerformanceNow;
+    }
+  }
+  
+  // 资源清理函数
+  window._cleanupITVAppTimeInterceptor = () => {
+    // 恢复全局对象（如果已覆盖）
+    if (window.Date !== _original.Date) {
+      window.Date = _original.Date;
     }
     
-    if (window._timeInterceptorObserver) {
-      window._timeInterceptorObserver.disconnect(); // 停止DOM观察
-      delete window._timeInterceptorObserver; // 删除引用
+    if (window.performance && window.performance.now !== _original.PerformanceNow) {
+      window.performance.now = _original.PerformanceNow;
     }
     
-    delete window._timeInterceptorInitialized; // 清除初始化标记
+    // 停止媒体观察器
+    if (mediaObserver) {
+      mediaObserver.disconnect();
+      mediaObserver = null;
+    }
+    
+    // 清理标记和钩子函数
+    delete window._itvapp_time_interceptor_initialized;
+    delete window._itvapp_getAdjustedDate;
+    delete window._itvapp_getAdjustedTime;
+    delete window._itvapp_getAdjustedPerformanceNow;
+    delete window._cleanupITVAppTimeInterceptor;
   };
 })();
