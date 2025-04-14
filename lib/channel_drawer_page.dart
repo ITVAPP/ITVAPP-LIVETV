@@ -109,39 +109,31 @@ BoxDecoration buildItemDecoration({
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
   final shouldHighlight = (useFocus && hasFocus) || (isSelected && !isSystemAutoSelected);
-  
-  LinearGradient? gradient;
-  Color borderColor = Colors.transparent;
-  
-  if (shouldHighlight) {
-    final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
-    gradient = LinearGradient(
-      colors: [
-        baseColor.withOpacity(0.9),
-        baseColor.withOpacity(0.7),
-      ],
-    );
-    borderColor = Colors.white.withOpacity(0.3);
-  }
-  
-  return BoxDecoration(
-    gradient: gradient,
-    border: Border.all(color: borderColor, width: 1.5),
-    borderRadius: BorderRadius.circular(8),
-    boxShadow: hasFocus ? [
-        BoxShadow(
-          color: focusColor.withOpacity(0.3),
-          blurRadius: 8,
-          spreadRadius: 1,
-        ),
-      ] : [],
-  );
-}
+  final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
 
-// 添加样式缓存类
-class _TextStyleCache {
-  static final Map<String, TextStyle> _cache = {};
-  static const int MAX_CACHE_SIZE = 16;
+  return BoxDecoration(
+    gradient: shouldHighlight
+        ? LinearGradient(
+            colors: [
+              baseColor.withOpacity(0.9),
+              baseColor.withOpacity(0.7),
+            ],
+          )
+        : null,
+    border: Border.all(
+        color: shouldHighlight ? Colors.white.withOpacity(0.3) : Colors.transparent,
+        width: 1.5),
+    borderRadius: BorderRadius.circular(8),
+    boxShadow: hasFocus
+        ? [
+            BoxShadow(
+              color: focusColor.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ]
+        : [],
+  );
 }
 
 // 优化焦点状态管理类
@@ -154,7 +146,6 @@ class FocusStateManager {
   Map<int, bool> focusStates = {};
   int lastFocusedIndex = -1;
   List<FocusNode> categoryFocusNodes = [];
-  final Map<int, VoidCallback> _focusListeners = {};
   bool _isUpdating = false;
 
   // 优化：合并initialize和updateDynamicNodes为一个统一的方法
@@ -166,7 +157,7 @@ class FocusStateManager {
   }) {
     if (_isUpdating || (categoryCount <= 0 && !resetAll)) return;
     _isUpdating = true;
-    
+
     // 处理分类节点
     if (resetAll || categoryFocusNodes.length != categoryCount) {
       for (var node in categoryFocusNodes) {
@@ -174,12 +165,12 @@ class FocusStateManager {
         node.removeListener(() {});
         node.dispose();
       }
-      
+
       categoryFocusNodes = List.generate(
-        categoryCount, 
-        (index) => FocusNode(debugLabel: 'CategoryNode$index')
+        categoryCount,
+        (index) => FocusNode(debugLabel: 'CategoryNode$index'),
       );
-      
+
       focusNodes.clear();
       focusNodes.addAll(categoryFocusNodes);
       focusStates.clear();
@@ -187,37 +178,23 @@ class FocusStateManager {
     } else if (!resetAll && focusNodes.length > categoryFocusNodes.length) {
       // 清理旧的动态节点
       for (int i = categoryFocusNodes.length; i < focusNodes.length; i++) {
-        if (_focusListeners.containsKey(i)) {
-          focusNodes[i].removeListener(_focusListeners[i]!);
-          _focusListeners.remove(i);
-        }
         focusNodes[i].dispose();
       }
-      
+
       focusNodes.length = categoryFocusNodes.length;
     }
-    
+
     // 添加新的动态节点
     final totalDynamicNodes = groupCount + channelCount;
     if (totalDynamicNodes > 0) {
       final dynamicNodes = List.generate(
-        totalDynamicNodes, 
-        (index) => FocusNode(debugLabel: 'DynamicNode$index')
+        totalDynamicNodes,
+        (index) => FocusNode(debugLabel: 'DynamicNode$index'),
       );
       focusNodes.addAll(dynamicNodes);
     }
-    
+
     _isUpdating = false;
-  }
-
-  // 兼容原API的方法 - 保留向后兼容性
-  void initialize(int categoryCount) {
-    manageFocusNodes(categoryCount: categoryCount, resetAll: true);
-  }
-
-  // 兼容原API的方法 - 保留向后兼容性
-  void updateDynamicNodes(int groupCount, int channelCount) {
-    manageFocusNodes(categoryCount: categoryFocusNodes.length, groupCount: groupCount, channelCount: channelCount);
   }
 
   bool get isUpdating => _isUpdating;
@@ -225,34 +202,19 @@ class FocusStateManager {
   void dispose() {
     if (_isUpdating) return;
     _isUpdating = true;
-    
-    _focusListeners.forEach((index, listener) {
-      if (index < focusNodes.length) {
-        focusNodes[index].removeListener(listener);
-      }
-    });
-    _focusListeners.clear();
-    
+
     for (var node in focusNodes) {
       node.dispose();
     }
     for (var node in categoryFocusNodes) {
       node.dispose();
     }
-    
+
     focusNodes.clear();
     categoryFocusNodes.clear();
     focusStates.clear();
     lastFocusedIndex = -1;
     _isUpdating = false;
-  }
-  
-  void addListenerReference(int index, VoidCallback listener) {
-    _focusListeners[index] = listener;
-  }
-  
-  void removeListenerReference(int index) {
-    _focusListeners.remove(index);
   }
 }
 
@@ -277,29 +239,28 @@ void addFocusListeners(
   }
 
   final nodes = focusManager.focusNodes;
-  
+
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
-    
+
     if (focusManager.focusStates.containsKey(index)) continue;
-    
+
     final listener = () {
       final currentFocus = nodes[index].hasFocus;
       if (focusManager.focusStates[index] != currentFocus) {
         focusManager.focusStates[index] = currentFocus;
-        
+
         if (state.mounted) {
           state.setState(() {});
         }
-        
+
         if (scrollController != null && currentFocus && scrollController.hasClients) {
           _handleScroll(index, startIndex, state, scrollController, length);
         }
       }
     };
-    
+
     nodes[index].addListener(listener);
-    focusManager.addListenerReference(index, listener);
     focusManager.focusStates[index] = nodes[index].hasFocus;
   }
 }
@@ -385,10 +346,11 @@ void removeFocusListeners(int startIndex, int length) {
     LogUtil.e('removeFocusListeners: startIndex 超出范围: $startIndex');
     return;
   }
-  int safeLength = (startIndex + length > focusManager.focusNodes.length) ? (focusManager.focusNodes.length - startIndex) : length;
+  int safeLength = (startIndex + length > focusManager.focusNodes.length)
+      ? (focusManager.focusNodes.length - startIndex)
+      : length;
   for (var i = 0; i < safeLength; i++) {
     final index = startIndex + i;
-    focusManager.removeListenerReference(index);
     focusManager.focusStates.remove(index);
   }
 }
@@ -400,24 +362,15 @@ TextStyle getItemTextStyle({
   required bool isSelected,
   required bool isSystemAutoSelected,
 }) {
-  final String cacheKey = '${useFocus}_${hasFocus}_${isSelected}_${isSystemAutoSelected}';
-  
-  if (_TextStyleCache._cache.containsKey(cacheKey)) {
-    return _TextStyleCache._cache[cacheKey]!;
-  }
-  
-  final TextStyle style = useFocus
+  return useFocus
       ? (hasFocus
           ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle))
-      : (isSelected && !isSystemAutoSelected ? defaultTextStyle.merge(selectedTextStyle) : defaultTextStyle);
-  
-  if (_TextStyleCache._cache.length >= _TextStyleCache.MAX_CACHE_SIZE) {
-    _TextStyleCache._cache.remove(_TextStyleCache._cache.keys.first);
-  }
-  
-  _TextStyleCache._cache[cacheKey] = style;
-  return style;
+          : (isSelected && !isSystemAutoSelected
+              ? defaultTextStyle.merge(selectedTextStyle)
+              : defaultTextStyle))
+      : (isSelected && !isSystemAutoSelected
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : defaultTextStyle);
 }
 
 // 构建通用列表项
@@ -437,7 +390,10 @@ Widget buildListItem({
   Key? key,
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
-  final focusNode = (index != null && index >= 0 && index < focusManager.focusNodes.length) ? focusManager.focusNodes[index] : null;
+  final focusNode =
+      (index != null && index >= 0 && index < focusManager.focusNodes.length)
+          ? focusManager.focusNodes[index]
+          : null;
   final hasFocus = focusNode?.hasFocus ?? false;
 
   final textStyle = getItemTextStyle(
@@ -510,12 +466,15 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, widget.getItemCount(), this, scrollController: widget.scrollController);
+    addFocusListeners(widget.startIndex, widget.getItemCount(), this,
+        scrollController: widget.scrollController);
   }
 
   @override
   void dispose() {
-    if (focusManager.focusNodes.isNotEmpty && widget.startIndex >= 0 && widget.startIndex < focusManager.focusNodes.length) {
+    if (focusManager.focusNodes.isNotEmpty &&
+        widget.startIndex >= 0 &&
+        widget.startIndex < focusManager.focusNodes.length) {
       removeFocusListeners(widget.startIndex, widget.getItemCount());
     }
     super.dispose();
@@ -625,7 +584,8 @@ class GroupList extends BaseListWidget<String> {
               child: Text(
                 S.of(context).nofavorite,
                 textAlign: TextAlign.center,
-                style: defaultTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold)),
+                style:
+                    defaultTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ),
@@ -691,12 +651,14 @@ class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
     final channelList = channels.entries.toList();
     if (channelList.isEmpty) return const SizedBox.shrink();
 
-    final channelDrawerState = context.findAncestorStateOfType<_ChannelDrawerPageState>();
+    final channelDrawerState =
+        context.findAncestorStateOfType<_ChannelDrawerPageState>();
     final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
     final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
     final currentGroupKeys = channelDrawerState?._keys ?? [];
 
-    final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
+    final currentGroupName = (currentGroupIndex >= 0 &&
+            currentGroupIndex < currentGroupKeys.length)
         ? currentGroupKeys[currentGroupIndex]
         : null;
 
@@ -760,7 +722,7 @@ class EPGListState extends State<EPGList> {
   bool _shouldScroll = true;
   DateTime? _lastScrollTime;
   Timer? _scrollDebounceTimer;
-  
+
   static int currentEpgDataLength = 0;
 
   @override
@@ -784,9 +746,9 @@ class EPGListState extends State<EPGList> {
 
   void _scheduleScrollWithDebounce() {
     if (!_shouldScroll || !mounted) return;
-    
+
     _scrollDebounceTimer?.cancel();
-    
+
     _scrollDebounceTimer = Timer(Duration(milliseconds: 150), () {
       if (mounted && widget.epgData != null && widget.epgData!.isNotEmpty) {
         final state = context.findAncestorStateOfType<_ChannelDrawerPageState>();
@@ -864,7 +826,7 @@ class EPGListState extends State<EPGList> {
                     GestureDetector(
                       onTap: widget.onCloseDrawer,
                       child: Container(
-                        height: DEFAULT_EPG_ITEM_HEIGHT, 
+                        height: DEFAULT_EPG_ITEM_HEIGHT,
                         padding: defaultPadding,
                         alignment: Alignment.centerLeft,
                         decoration: buildItemDecoration(
@@ -938,7 +900,8 @@ class ChannelDrawerPage extends StatefulWidget {
 
   static Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     final state = _stateKey.currentState;
-    if (state != null) await state.updateFocusLogic(isInitial, initialIndexOverride: initialIndexOverride);
+    if (state != null)
+      await state.updateFocusLogic(isInitial, initialIndexOverride: initialIndexOverride);
   }
 }
 
@@ -971,7 +934,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
     'channel': {'controllerKey': '_scrollChannelController', 'countKey': '_values'},
-    'epg': {'controllerKey': '_epgItemScrollController', 'countKey': null, 'customHeight': DEFAULT_EPG_ITEM_HEIGHT},
+    'epg': {
+      'controllerKey': '_epgItemScrollController',
+      'countKey': null,
+      'customHeight': DEFAULT_EPG_ITEM_HEIGHT
+    },
   };
 
   // 获取状态栏高度
@@ -1014,7 +981,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       LogUtil.i('$targetList 控制器未附着');
       return;
     }
-    
+
     int itemCount;
     if (targetList == 'epg') {
       itemCount = EPGListState.currentEpgDataLength;
@@ -1045,14 +1012,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = ((index + 1) * itemHeight) - _drawerHeight;
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
-      final offsetAdjustment = (targetList == 'group' || targetList == 'channel') ? 
-                            _categoryIndex.clamp(0, 6) : 2;
+      final offsetAdjustment =
+          (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
       targetOffset = (index - offsetAdjustment) * itemHeight;
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     }
 
     targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
-    
+
     await scrollController.animateTo(
       targetOffset,
       duration: duration,
@@ -1094,7 +1061,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   void didUpdateWidget(ChannelDrawerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.refreshKey != oldWidget.refreshKey) {
-      LogUtil.i('didUpdateWidget 开始: refreshKey=${widget.refreshKey?.value}, oldRefreshKey=${oldWidget.refreshKey?.value}');
+      LogUtil.i(
+          'didUpdateWidget 开始: refreshKey=${widget.refreshKey?.value}, oldRefreshKey=${oldWidget.refreshKey?.value}');
       initializeData().then((_) {
         int initialFocusIndex = _categoryIndex >= 0 ? _categoryStartIndex + _categoryIndex : 0;
         Future<void> updateFocus() async {
@@ -1109,6 +1077,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
             LogUtil.e('updateFocus 失败: $e, stackTrace=${StackTrace.current}');
           }
         }
+
         updateFocus();
       }).catchError((e) {
         LogUtil.e('initializeData 失败: $e, stackTrace=${StackTrace.current}');
@@ -1124,7 +1093,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       LogUtil.i('分类列表为空');
       return;
     }
-    focusManager.initialize(_categories.length);
+    focusManager.manageFocusNodes(categoryCount: _categories.length, resetAll: true);
     _initGroupFocusCacheForCategories();
     await updateFocusLogic(true);
   }
@@ -1145,7 +1114,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
       if (_keys.isNotEmpty) {
         totalFocusNodes += _keys.length;
-        if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length && _values[_groupIndex].isNotEmpty) {
+        if (_values.isNotEmpty &&
+            _groupIndex >= 0 &&
+            _groupIndex < _values.length &&
+            _values[_groupIndex].isNotEmpty) {
           totalFocusNodes += _values[_groupIndex].length;
         }
       }
@@ -1155,25 +1127,29 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 判断是否加载EPG
   bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
-    return keys.isNotEmpty && values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length && values[groupIndex].isNotEmpty;
+    return keys.isNotEmpty &&
+        values.isNotEmpty &&
+        groupIndex >= 0 &&
+        groupIndex < values.length &&
+        values[groupIndex].isNotEmpty;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    
+
     _scrollController.dispose();
     _scrollChannelController.dispose();
     _categoryScrollController.dispose();
     _epgItemScrollController.dispose();
-    
+
     _tvKeyNavigationState?.releaseResources(preserveFocus: false);
     _tvKeyNavigationState = null;
-    
+
     _groupFocusCache.clear();
-    
+
     focusManager.dispose();
-    
+
     super.dispose();
   }
 
@@ -1235,7 +1211,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }
 
   // 根据播放模型更新索引
-  void _updateIndicesFromPlayModel(PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
+  void _updateIndicesFromPlayModel(
+      PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
     if (playModel?.group != null && categoryMap.containsKey(playModel?.group)) {
       _groupIndex = _keys.indexOf(playModel!.group!);
       if (_groupIndex != -1) {
@@ -1266,7 +1243,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     _updateIndicesFromPlayModel(widget.playModel, categoryMap);
 
-    _isSystemAutoSelected = widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
+    _isSystemAutoSelected =
+        widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
   }
 
   // 重置频道数据
@@ -1286,7 +1264,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController);
 
     if (_keys.isNotEmpty) {
-      addFocusListeners(_categories.length, _keys.length, this, scrollController: _scrollController);
+      addFocusListeners(_categories.length, _keys.length, this,
+          scrollController: _scrollController);
       if (_values.isNotEmpty && _groupIndex >= 0) {
         addFocusListeners(
           _categories.length + _keys.length,
@@ -1305,9 +1284,12 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
 
     final groupCount = _keys.length;
-    final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) ? _values[_groupIndex].length : 0;
+    final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
+        ? _values[_groupIndex].length
+        : 0;
     focusManager.focusStates.clear();
-    focusManager.updateDynamicNodes(groupCount, channelCount);
+    focusManager.manageFocusNodes(
+        categoryCount: _categories.length, groupCount: groupCount, channelCount: channelCount);
 
     _categoryStartIndex = 0;
     _groupStartIndex = _categories.length;
@@ -1324,7 +1306,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     if (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
       _groupFocusCache[2] = {
         'firstFocusNode': focusManager.focusNodes[_channelStartIndex],
-        'lastFocusNode': focusManager.focusNodes[_channelStartIndex + _values[_groupIndex].length - 1]
+        'lastFocusNode':
+            focusManager.focusNodes[_channelStartIndex + _values[_groupIndex].length - 1]
       };
     }
 
@@ -1421,7 +1404,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       startIndex: 0,
       scrollController: _categoryScrollController,
     );
-    
+
     Widget? groupListWidget;
     Widget? channelContentWidget;
 
@@ -1473,11 +1456,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final double groupWidth = groupListWidget != null ? getListWidth('group', isPortrait) : 0.0;
 
     final double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
-        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * 1.2 
+        ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * 1.2
         : 0.0;
 
     final totalWidth = widget.isLandscape
-        ? categoryWidth + groupWidth + channelContentWidth + 2 * 1.2 
+        ? categoryWidth + groupWidth + channelContentWidth + 2 * 1.2
         : MediaQuery.of(context).size.width;
 
     return Container(
@@ -1588,7 +1571,7 @@ class _ChannelContentState extends State<ChannelContent> {
     if (oldWidget.groupIndex != widget.groupIndex) {
       _initializeChannelIndex();
     }
-    
+
     if (oldWidget.playModel?.title != widget.playModel?.title &&
         widget.playModel?.title != _lastChannelKey) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1630,17 +1613,17 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
-  // 优化：简化EPG加载逻辑 
+  // 优化：简化EPG加载逻辑
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel();
-    
+
     if (playModel == null || channelKey == null || channelKey.isEmpty) return;
-    
+
     if (channelKey == _lastChannelKey && _epgData != null) {
       LogUtil.i('忽略重复EPG加载: channelKey=$channelKey');
       return;
     }
-    
+
     final now = DateTime.now();
     final bool isRecentRequest = _lastRequestTime != null && 
                                _lastChannelKey != channelKey && 
@@ -1650,9 +1633,9 @@ class _ChannelContentState extends State<ChannelContent> {
       LogUtil.i('跳过频繁EPG请求: channelKey=$channelKey, 间隔=${now.difference(_lastRequestTime!).inMilliseconds}ms');
       return;
     }
-    
+
     _lastChannelKey = channelKey;
-    
+
     _epgDebounceTimer = Timer(Duration(milliseconds: 300), () {
       _lastRequestTime = DateTime.now();
       _loadEPGMsg(playModel, channelKey: channelKey);
@@ -1664,7 +1647,7 @@ class _ChannelContentState extends State<ChannelContent> {
     final res = await EpgUtil.getEpg(playModel);
     LogUtil.i('EpgUtil.getEpg 返回结果: ${res != null ? "成功" : "为null"}, 播放模型: ${playModel.title}');
     if (res == null || res.epgData == null || res.epgData!.isEmpty) return;
-    
+
     if (mounted) {
       setState(() {
         _epgData = res.epgData!;
