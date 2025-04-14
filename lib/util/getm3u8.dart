@@ -403,16 +403,14 @@ class GetM3U8 {
       return;
     }
     
-  try {
-    LogUtil.i('开始初始化控制器');
-
-    // 修改：立即赋值 _controller，避免未初始化
+    try {
+    // 立即赋值 _controller，避免未初始化
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(HeadersConfig.userAgent);
+      
     _isControllerInitialized = true;
     
-    try {
       final httpResult = await _tryHttpRequest(); // 尝试HTTP请求
       if (_isCancelled()) {
         LogUtil.i('HTTP 请求完成后任务被取消');
@@ -438,10 +436,7 @@ class GetM3U8 {
       LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
       _isControllerInitialized = true;
       await _handleLoadError(completer); // 处理加载错误
-    } catch (e) {
-      LogUtil.logError('初始化WebViewController时发生错误', e, stackTrace);
-      _isHtmlContent = true; // 默认当作HTML内容处理
-    }
+    } 
   }
 
   /// 尝试通过HTTP请求获取内容
