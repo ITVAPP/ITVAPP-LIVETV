@@ -1,4 +1,4 @@
-import 'dart:async';
+你看上下文代码·是否正确 import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';  // 添加dio导入以支持CancelToken
 import 'package:flutter/services.dart' show rootBundle;  // 添加rootBundle导入以支持加载JS文件
@@ -964,26 +964,129 @@ Future<void> _initController(Completer<String> completer, String filePattern) as
 }
 
   /// 准备时间拦截器代码
-  Future<String> _prepareTimeInterceptorCode() async {
-    if (_cachedTimeOffset == null || _cachedTimeOffset == 0) {
-      return '(function(){})();';
-    }
-    
-    final cacheKey = 'time_interceptor_${_cachedTimeOffset}';
-    if (_scriptCache.containsKey(cacheKey)) {
-      return _scriptCache[cacheKey]!;
-    }
-    
-    try {
-      final script = await rootBundle.loadString('assets/js/time_interceptor.js');
-      final result = script.replaceAll('TIME_OFFSET', '$_cachedTimeOffset');
-      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result);
-      return result;
-    } catch (e) {
-      LogUtil.e('加载时间拦截器脚本失败: $e');
-      return '(function(){})();';
-    }
+Future<String> _prepareTimeInterceptorCode() async {
+  final cacheKey = 'time_interceptor_${_cachedTimeOffset}';
+  if (_scriptCache.containsKey(cacheKey)) {
+    return _scriptCache[cacheKey]!;
   }
+
+  if (_cachedTimeOffset == null || _cachedTimeOffset == 0) {
+    return '(function(){})();';
+  }
+
+  try {
+    const script = '''
+    (function() {
+      if (window._timeInterceptorInitialized) return;
+      window._timeInterceptorInitialized = true;
+
+      const originalDate = window.Date;
+      const timeOffset = TIME_OFFSET;
+      let timeRequested = false;
+
+      // 核心时间调整函数
+      function getAdjustedTime() {
+        if (!timeRequested) {
+          timeRequested = true;
+          window.TimeCheck.postMessage(JSON.stringify({
+            type: 'timeRequest',
+            method: 'Date'
+          }));
+        }
+        return new originalDate(new originalDate().getTime() + timeOffset);
+      }
+
+      // 代理Date构造函数
+      window.Date = function(...args) {
+        return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
+      };
+
+      // 保持原型链和方法
+      window.Date.prototype = originalDate.prototype;
+      window.Date.now = () => {
+        if (!timeRequested) {
+          timeRequested = true;
+          window.TimeCheck.postMessage(JSON.stringify({
+            type: 'timeRequest',
+            method: 'Date.now'
+          }));
+        }
+        return getAdjustedTime().getTime();
+      };
+      window.Date.parse = originalDate.parse;
+      window.Date.UTC = originalDate.UTC;
+
+      // 拦截performance.now
+      const originalPerformanceNow = window.performance.now.bind(window.performance);
+      let perfTimeRequested = false;
+      window.performance.now = () => {
+        if (!perfTimeRequested) {
+          perfTimeRequested = true;
+          window.TimeCheck.postMessage(JSON.stringify({
+            type: 'timeRequest',
+            method: 'performance.now'
+          }));
+        }
+        return originalPerformanceNow() + timeOffset;
+      };
+
+      // 媒体元素时间处理
+      let mediaTimeRequested = false;
+      function setupMediaElement(element) {
+        if (element._timeProxied) return;
+        element._timeProxied = true;
+
+        Object.defineProperty(element, 'currentTime', {
+          get: () => {
+            if (!mediaTimeRequested) {
+              mediaTimeRequested = true;
+              window.TimeCheck.postMessage(JSON.stringify({
+                type: 'timeRequest',
+                method: 'media.currentTime'
+              }));
+            }
+            return (element.getRealCurrentTime?.() ?? 0) + (timeOffset / 1000);
+          },
+          set: value => element.setRealCurrentTime?.(value - (timeOffset / 1000))
+        });
+      }
+
+      // 监听新媒体元素
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          mutation.addedNodes.forEach(node => {
+            if (node instanceof HTMLMediaElement) setupMediaElement(node);
+          });
+        });
+      });
+
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+
+      // 初始化现有媒体元素
+      document.querySelectorAll('video,audio').forEach(setupMediaElement);
+
+      // 资源清理
+      window._cleanupTimeInterceptor = () => {
+        window.Date = originalDate;
+        window.performance.now = originalPerformanceNow;
+        observer.disconnect();
+        delete window._timeInterceptorInitialized;
+      };
+    })();
+    ''';
+
+    final result = script.replaceAll('TIME_OFFSET', '$_cachedTimeOffset');
+    _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result);
+    LogUtil.i('时间拦截器脚本加载并缓存: $cacheKey');
+    return result;
+  } catch (e) {
+    LogUtil.e('处理时间拦截器脚本失败: $e');
+    return '(function(){})();';
+  }
+}
 
   /// 点击操作执行
   Future<bool> _executeClick() async {
@@ -1330,7 +1433,6 @@ Future<void> _handleM3U8Found(String url, Completer<String> completer) async {
   }
 }
 
-  /// 准备M3U8检测器代码
 Future<String> _prepareM3U8DetectorCode() async {
   final cacheKey = 'm3u8_detector_${_filePattern}';
   if (_scriptCache.containsKey(cacheKey)) {
