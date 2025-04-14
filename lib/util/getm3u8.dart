@@ -15,7 +15,7 @@ class UrlUtils {
   /// 基础 URL 解码和清理
   static String basicUrlClean(String url) {
     // 合并转义字符正则表达式
-    final escapeRegex = RegExp(r'\\\\(\\|/|")'); // 匹配双反斜杠后跟特殊字符
+    final escapeRegex = RegExp(r'\\\\(\\|/|")'); // 匹配双反斜杠后跟特殊字符 
     // 合并HTML实体映射表
     const htmlEntities = {
       'amp': '&', 
