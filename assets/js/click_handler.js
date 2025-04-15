@@ -1,106 +1,90 @@
-// 自动点击器
-// 修改代码开始
-// 自动点击器
+// 自动点击器：查找并点击页面中匹配特定文本的元素
 (function() {
-  // Search text and index will be replaced dynamically
-  const searchText = ""; // 搜索目标文本
-  const targetIndex = 0; // 目标匹配项索引
+  // 搜索目标文本
+  const searchText = "";
+  // 目标匹配项索引
+  const targetIndex = 0;
   
+  // 查找并点击匹配文本的节点
   function findAndClick() {
-    // 参数验证
+    // 验证搜索文本是否有效
     if (searchText === undefined || searchText === null) {
       console.error('搜索文本未定义');
       return;
     }
     
-    // 验证目标索引是否有效
+    // 验证目标索引是否为非负整数
     if (typeof targetIndex !== 'number' || targetIndex < 0) {
       console.error('目标索引无效，应为非负整数');
       return;
     }
     
-    // 创建树遍历器，筛选文本和元素节点
+    // 配置树遍历器，筛选文本和元素节点
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
+        // 筛选节点，优化遍历效率
         acceptNode: function(node) {
+          // 处理元素节点，排除无关标签
           if (node.nodeType === Node.ELEMENT_NODE) {
-            // 排除脚本、样式等无关元素
             if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
-              return NodeFilter.FILTER_REJECT;
+              return NodeFilter.FILTER_REJECT; // 跳过脚本、样式等子树
             }
             return NodeFilter.FILTER_ACCEPT;
           }
-          // 接受非空文本节点
-          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-            return NodeFilter.FILTER_ACCEPT;
+          
+          // 仅接受非空文本节点
+          if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
           }
-          return NodeFilter.FILTER_REJECT;
+          
+          return NodeFilter.FILTER_SKIP;
         }
       }
     );
 
-    // 存储匹配结果
-    const matches = [];
-    let currentIndex = 0; // 当前匹配索引
-    let foundNode = null; // 目标节点
-
-    // 遍历节点
+    let currentIndex = 0; // 跟踪当前匹配索引
     let node;
+    
+    // 遍历节点，查找目标文本
     while ((node = walk.nextNode())) {
-      // 处理文本节点
+      let matchFound = false;
+      let targetNode = null;
+      
+      // 检查文本节点是否匹配
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent.trim();
         if (text === searchText) {
-          // 记录匹配的文本和父元素
-          matches.push({
-            text: text,
-            node: node.parentElement
-          });
-
-          // 找到目标索引的节点
-          if (currentIndex === targetIndex) {
-            foundNode = node.parentElement;
-            break;
-          }
-          currentIndex++;
+          matchFound = true;
+          targetNode = node.parentElement; // 获取文本节点的父元素
         }
       }
-      // 处理元素节点
+      // 检查元素节点的直接子文本是否匹配
       else if (node.nodeType === Node.ELEMENT_NODE) {
-        // 获取直接子文本内容
         const children = Array.from(node.childNodes);
         const directText = children
           .filter(child => child.nodeType === Node.TEXT_NODE)
           .map(child => child.textContent.trim())
           .join('');
-
         if (directText === searchText) {
-          // 记录匹配的元素
-          matches.push({
-            text: directText,
-            node: node
-          });
-
-          // 找到目标索引的节点
-          if (currentIndex === targetIndex) {
-            foundNode = node;
-            break;
-          }
-          currentIndex++;
+          matchFound = true;
+          targetNode = node; // 直接使用匹配的元素
         }
+      }
+      
+      // 处理匹配结果
+      if (matchFound) {
+        if (currentIndex === targetIndex) {
+          clickAndDetectChanges(targetNode); // 点击目标节点
+          return;
+        }
+        currentIndex++;
       }
     }
 
-    // 未找到目标节点时提示
-    if (!foundNode) {
-      console.error(`未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
-      return;
-    }
-
-    // 执行点击并检测变化
-    clickAndDetectChanges(foundNode);
+    // 未找到匹配项时输出提示
+    console.error(`未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
   }
 
   /**
@@ -109,11 +93,14 @@
    * @return {Object} 包含节点各项状态的对象
    */
   function getNodeState(node) {
+    // 获取节点样式和页面状态
+    const computedStyle = window.getComputedStyle(node);
+    
     return {
       class: node.getAttribute('class') || '', // 节点类名
-      style: node.getAttribute('style') || '', // 节点内联样式
-      display: window.getComputedStyle(node).display, // 显示状态
-      visibility: window.getComputedStyle(node).visibility, // 可见性
+      style: node.getAttribute('style') || '', // 内联样式
+      display: computedStyle.display, // 显示状态
+      visibility: computedStyle.visibility, // 可见性
       videoCount: document.querySelectorAll('video').length, // 视频元素数量
       iframeCount: document.querySelectorAll('iframe').length // iframe元素数量
     };
@@ -126,21 +113,21 @@
    */
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      // 记录点击前状态
+      // 记录点击前的节点状态
       const states = getNodeState(node);
       
-      // 执行点击
+      // 模拟点击操作
       node.click();
       
-      // 延迟检测状态变化
+      // 延迟检查状态变化
       setTimeout(() => {
-        // 获取点击后状态
+        // 获取点击后的节点状态
         const newStates = getNodeState(node);
         
         // 确定节点类型描述
         const nodeType = isParentNode ? '父节点' : '节点';
         
-        // 检查状态变化并输出结果
+        // 检测并报告状态变化
         if (states.class !== newStates.class) {
           console.info(`${nodeType}点击成功，class发生变化`);
         } else if (states.style !== newStates.style) {
@@ -159,12 +146,11 @@
         }
       }, 500);
     } catch (e) {
-      // 输出点击失败信息
+      // 捕获并报告点击异常
       console.error(`${isParentNode ? '父' : ''}节点点击操作失败:`, e);
     }
   }
 
-  // 启动自动点击
+  // 启动自动点击功能
   findAndClick();
 })();
-// 修改代码结束
