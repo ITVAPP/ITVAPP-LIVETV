@@ -1,4 +1,6 @@
 // 自动点击器
+// 修改代码开始
+// 自动点击器
 (function() {
   // Search text and index will be replaced dynamically
   const searchText = ""; // 搜索目标文本
@@ -6,8 +8,14 @@
   
   function findAndClick() {
     // 参数验证
-    if (searchText === undefined) {
+    if (searchText === undefined || searchText === null) {
       console.error('搜索文本未定义');
+      return;
+    }
+    
+    // 验证目标索引是否有效
+    if (typeof targetIndex !== 'number' || targetIndex < 0) {
+      console.error('目标索引无效，应为非负整数');
       return;
     }
     
@@ -40,7 +48,7 @@
 
     // 遍历节点
     let node;
-    while (node = walk.nextNode()) {
+    while ((node = walk.nextNode())) {
       // 处理文本节点
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent.trim();
@@ -87,12 +95,28 @@
 
     // 未找到目标节点时提示
     if (!foundNode) {
-      console.error('未找到匹配的元素');
+      console.error(`未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
       return;
     }
 
     // 执行点击并检测变化
     clickAndDetectChanges(foundNode);
+  }
+
+  /**
+   * 获取节点当前状态
+   * @param {HTMLElement} node - 要检查的节点
+   * @return {Object} 包含节点各项状态的对象
+   */
+  function getNodeState(node) {
+    return {
+      class: node.getAttribute('class') || '', // 节点类名
+      style: node.getAttribute('style') || '', // 节点内联样式
+      display: window.getComputedStyle(node).display, // 显示状态
+      visibility: window.getComputedStyle(node).visibility, // 可见性
+      videoCount: document.querySelectorAll('video').length, // 视频元素数量
+      iframeCount: document.querySelectorAll('iframe').length // iframe元素数量
+    };
   }
 
   /**
@@ -103,14 +127,7 @@
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
       // 记录点击前状态
-      const states = {
-        class: node.getAttribute('class') || '', // 节点类名
-        style: node.getAttribute('style') || '', // 节点内联样式
-        display: window.getComputedStyle(node).display, // 显示状态
-        visibility: window.getComputedStyle(node).visibility, // 可见性
-        videoCount: document.querySelectorAll('video').length, // 视频元素数量
-        iframeCount: document.querySelectorAll('iframe').length // iframe元素数量
-      };
+      const states = getNodeState(node);
       
       // 执行点击
       node.click();
@@ -118,14 +135,7 @@
       // 延迟检测状态变化
       setTimeout(() => {
         // 获取点击后状态
-        const newStates = {
-          class: node.getAttribute('class') || '',
-          style: node.getAttribute('style') || '',
-          display: window.getComputedStyle(node).display,
-          visibility: window.getComputedStyle(node).visibility,
-          videoCount: document.querySelectorAll('video').length,
-          iframeCount: document.querySelectorAll('iframe').length
-        };
+        const newStates = getNodeState(node);
         
         // 确定节点类型描述
         const nodeType = isParentNode ? '父节点' : '节点';
@@ -157,3 +167,4 @@
   // 启动自动点击
   findAndClick();
 })();
+// 修改代码结束
