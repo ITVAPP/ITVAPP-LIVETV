@@ -1,11 +1,23 @@
-  // 时间修改器
+// 时间修改器：拦截和调整页面时间相关操作，支持动态时间偏移
 (function() {
+  // 防止重复初始化
   if (window._timeInterceptorInitialized) return;
   window._timeInterceptorInitialized = true;
 
+  // 保存原始 Date 对象
   const originalDate = window.Date;
-  const timeOffset = 0; // Will be dynamically replaced by Dart code
-  let timeRequested = false;
+  const timeOffset = 0; // 由 Dart 代码动态替换的时间偏移量
+  
+  // 使用映射表管理时间请求状态
+  const timeRequestStatus = {
+    DATE: false,
+    DATE_NOW: false,
+    PERFORMANCE: false,
+    MEDIA: false,
+    RAF: false,
+    CONSOLE_TIME: false,
+    CONSOLE_TIME_END: false
+  };
   
   // 时间来源类型枚举
   const TimeSourceType = {
@@ -13,13 +25,15 @@
     DATE_NOW: 'Date.now',
     PERFORMANCE: 'performance.now',
     MEDIA: 'media.currentTime',
-    RAF: 'requestAnimationFrame'
+    RAF: 'requestAnimationFrame',
+    CONSOLE_TIME: 'console.time',
+    CONSOLE_TIME_END: 'console.timeEnd'
   };
   
-  // 发送时间请求事件
+  // 发送时间请求事件，仅在未发送时触发
   function sendTimeRequest(type, detail = {}) {
-    if (!timeRequested) {
-      timeRequested = true;
+    if (!timeRequestStatus[type] && window.TimeCheck) {
+      timeRequestStatus[type] = true;
       window.TimeCheck.postMessage(JSON.stringify({
         type: 'timeRequest',
         method: type,
@@ -28,95 +42,94 @@
     }
   }
 
-  // 核心时间调整函数
+  // 获取调整后的时间
   function getAdjustedTime() {
     sendTimeRequest(TimeSourceType.DATE);
     return new originalDate(new originalDate().getTime() + timeOffset);
   }
 
-  // 代理Date构造函数 (保留原逻辑)
+  // 代理 Date 构造函数
   window.Date = function(...args) {
     return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
   };
 
-  // 保持原型链和方法 (保留原逻辑)
+  // 保持 Date 原型链和方法
   window.Date.prototype = originalDate.prototype;
   window.Date.now = () => {
     sendTimeRequest(TimeSourceType.DATE_NOW);
-    return getAdjustedTime().getTime();
+    return new originalDate().getTime() + timeOffset; // 返回调整后的时间戳
   };
-  window.Date.parse = originalDate.parse;
-  window.Date.UTC = originalDate.UTC;
+  window.Date.parse = originalDate.parse; // 保留原始 parse 方法
+  window.Date.UTC = originalDate.UTC; // 保留原始 UTC 方法
 
-  // 拦截performance.now (保留原逻辑)
+  // 拦截 performance.now
   const originalPerformanceNow = window.performance.now.bind(window.performance);
-  let perfTimeRequested = false;
   window.performance.now = () => {
-    if (!perfTimeRequested) {
-      perfTimeRequested = true;
-      sendTimeRequest(TimeSourceType.PERFORMANCE);
-    }
-    return originalPerformanceNow() + timeOffset;
+    sendTimeRequest(TimeSourceType.PERFORMANCE);
+    return originalPerformanceNow() + timeOffset; // 返回调整后的性能时间
   };
   
-  // 添加requestAnimationFrame拦截 (新增)
+  // 拦截 requestAnimationFrame
   const originalRAF = window.requestAnimationFrame;
   window.requestAnimationFrame = callback => {
+    if (!callback) return originalRAF(callback); // 处理无效回调
+    
     return originalRAF(timestamp => {
-      // 应用时间偏移
-      const adjustedTimestamp = timestamp + timeOffset;
+      const adjustedTimestamp = timestamp + timeOffset; // 调整时间戳
       sendTimeRequest(TimeSourceType.RAF, { original: timestamp, adjusted: adjustedTimestamp });
       callback(adjustedTimestamp);
     });
   };
   
-  // 添加console.time拦截 (新增)
+  // 拦截 console.time
   const originalConsoleTime = console.time;
   const originalConsoleTimeEnd = console.timeEnd;
   
   if (originalConsoleTime) {
     console.time = function(label) {
-      sendTimeRequest('console.time', { label });
-      return originalConsoleTime.apply(this, arguments);
+      sendTimeRequest(TimeSourceType.CONSOLE_TIME, { label });
+      return originalConsoleTime.apply(this, arguments); // 调用原始 console.time
     };
   }
   
   if (originalConsoleTimeEnd) {
     console.timeEnd = function(label) {
-      sendTimeRequest('console.timeEnd', { label });
-      return originalConsoleTimeEnd.apply(this, arguments);
+      sendTimeRequest(TimeSourceType.CONSOLE_TIME_END, { label });
+      return originalConsoleTimeEnd.apply(this, arguments); // 调用原始 console.timeEnd
     };
   }
 
-  // 媒体元素时间处理 (增强处理)
-  let mediaTimeRequested = false;
+  // 使用 WeakMap 存储事件监听器映射
+  const listenerMap = new WeakMap();
+  
+  // 设置媒体元素时间代理
   function setupMediaElement(element) {
     if (element._timeProxied) return;
     element._timeProxied = true;
     
-    // 保存原始getter和setter
+    // 保存原始 currentTime 的 getter 和 setter
     const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
     const originalGetter = descriptor.get;
     const originalSetter = descriptor.set;
 
+    // 保存原始事件监听方法
+    const originalAddEventListener = element.addEventListener;
+    const originalRemoveEventListener = element.removeEventListener;
+
+    // 代理 currentTime 属性
     Object.defineProperty(element, 'currentTime', {
       get: function() {
-        if (!mediaTimeRequested) {
-          mediaTimeRequested = true;
-          sendTimeRequest(TimeSourceType.MEDIA, { element: element.tagName, src: element.src });
-        }
+        sendTimeRequest(TimeSourceType.MEDIA, { element: element.tagName, src: element.src });
         const originalTime = originalGetter.call(this);
-        const adjustedTime = originalTime + (timeOffset / 1000);
-        return adjustedTime;
+        return originalTime + (timeOffset / 1000); // 返回调整后的时间（秒）
       },
       set: function(value) {
-        // 反向调整：减去偏移量
-        const originalValue = value - (timeOffset / 1000);
+        const originalValue = value - (timeOffset / 1000); // 反向调整时间
         return originalSetter.call(this, originalValue);
       }
     });
     
-    // 同时处理duration属性
+    // 代理 duration 属性
     if (!element._durationProxied) {
       element._durationProxied = true;
       const durationDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration');
@@ -124,69 +137,105 @@
         const originalDurationGetter = durationDescriptor.get;
         Object.defineProperty(element, 'duration', {
           get: function() {
-            return originalDurationGetter.call(this);
+            return originalDurationGetter.call(this); // 返回原始 duration
           }
         });
       }
     }
     
-    // 处理时间事件
+    // 处理时间相关事件
     const timeEvents = ['timeupdate', 'durationchange', 'seeking', 'seeked'];
-    timeEvents.forEach(eventType => {
-      const originalAddEventListener = element.addEventListener;
-      element.addEventListener = function(type, listener, options) {
-        if (type === eventType) {
-          const wrappedListener = function(event) {
-            // 包装事件对象，注入调整后的时间
-            const wrappedEvent = new Event(type);
-            Object.assign(wrappedEvent, event);
-            wrappedEvent._originalTime = event.target.currentTime;
-            listener.call(this, wrappedEvent);
-          };
-          return originalAddEventListener.call(this, type, wrappedListener, options);
+    
+    // 重写 addEventListener
+    element.addEventListener = function(type, listener, options) {
+      if (timeEvents.includes(type) && listener) {
+        const wrappedListener = function(event) {
+          const wrappedEvent = new Event(type); // 包装事件对象
+          Object.assign(wrappedEvent, event);
+          wrappedEvent._originalTime = event.target.currentTime;
+          listener.call(this, wrappedEvent);
+        };
+        
+        // 存储监听器映射
+        if (!listenerMap.has(listener)) {
+          listenerMap.set(listener, new Map());
         }
-        return originalAddEventListener.call(this, type, listener, options);
-      };
-    });
+        listenerMap.get(listener).set(type, wrappedListener);
+        
+        return originalAddEventListener.call(this, type, wrappedListener, options);
+      }
+      return originalAddEventListener.call(this, type, listener, options);
+    };
+    
+    // 重写 removeEventListener
+    element.removeEventListener = function(type, listener, options) {
+      if (timeEvents.includes(type) && listener) {
+        const listenerTypeMap = listenerMap.get(listener);
+        if (listenerTypeMap && listenerTypeMap.has(type)) {
+          const wrappedListener = listenerTypeMap.get(type);
+          originalRemoveEventListener.call(this, type, wrappedListener, options);
+          listenerTypeMap.delete(type); // 清理映射
+          if (listenerTypeMap.size === 0) {
+            listenerMap.delete(listener);
+          }
+          return;
+        }
+      }
+      return originalRemoveEventListener.call(this, type, listener, options);
+    };
+    
+    // 保存原始方法
+    element._originalAddEventListener = originalAddEventListener;
+    element._originalRemoveEventListener = originalRemoveEventListener;
   }
 
-  // 监听新媒体元素 (保留原逻辑)
+  // 监听新媒体元素
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
-        if (node instanceof HTMLMediaElement) setupMediaElement(node);
+        if (node instanceof HTMLMediaElement) setupMediaElement(node); // 初始化新媒体元素
       });
     });
   });
 
+  // 启动 DOM 观察
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true
   });
 
-  // 初始化现有媒体元素 (保留原逻辑)
+  // 初始化现有媒体元素
   document.querySelectorAll('video,audio').forEach(setupMediaElement);
 
-  // 资源清理 (增强版)
+  // 提供清理函数
   window._cleanupTimeInterceptor = () => {
-    // 恢复原始对象和方法
-    window.Date = originalDate;
-    window.performance.now = originalPerformanceNow;
-    window.requestAnimationFrame = originalRAF;
+    window.Date = originalDate; // 恢复原始 Date
+    window.performance.now = originalPerformanceNow; // 恢复原始 performance.now
+    window.requestAnimationFrame = originalRAF; // 恢复原始 requestAnimationFrame
     
-    if (originalConsoleTime) console.time = originalConsoleTime;
-    if (originalConsoleTimeEnd) console.timeEnd = originalConsoleTimeEnd;
+    if (originalConsoleTime) console.time = originalConsoleTime; // 恢复原始 console.time
+    if (originalConsoleTimeEnd) console.timeEnd = originalConsoleTimeEnd; // 恢复原始 console.timeEnd
     
-    // 移除观察者
-    observer.disconnect();
+    // 清理媒体元素代理
+    document.querySelectorAll('video,audio').forEach(element => {
+      if (element._timeProxied) {
+        if (element._originalAddEventListener) {
+          element.addEventListener = element._originalAddEventListener; // 恢复 addEventListener
+          delete element._originalAddEventListener;
+        }
+        if (element._originalRemoveEventListener) {
+          element.removeEventListener = element._originalRemoveEventListener; // 恢复 removeEventListener
+          delete element._originalRemoveEventListener;
+        }
+        
+        delete element._timeProxied; // 移除代理标志
+        delete element._durationProxied; // 移除 duration 代理标志
+      }
+    });
     
-    // 清理标志
-    delete window._timeInterceptorInitialized;
-    delete window._originalDate;
-    delete window._originalPerformanceNow;
-    delete window._originalRAF;
-    delete window._originalConsoleTime;
-    delete window._originalConsoleTimeEnd;
+    observer.disconnect(); // 停止 DOM 观察
+    
+    delete window._timeInterceptorInitialized; // 清理初始化标志
     
     // 通知清理完成
     if (window.TimeCheck) {
@@ -197,7 +246,7 @@
     }
   };
   
-  // 初始化通知
+  // 发送初始化通知
   if (window.TimeCheck) {
     window.TimeCheck.postMessage(JSON.stringify({
       type: 'init',
