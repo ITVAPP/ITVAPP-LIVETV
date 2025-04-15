@@ -147,7 +147,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   late final List<Widget> _appBarIcons; // 延迟初始化 AppBar 操作按钮列表
   late bool _isLandscape; // 动态跟踪屏幕方向
   double? _playerHeight; // 播放器高度，动态计算
-  late final double _finalAspectRatio; // 缓存最终的视频宽高比
+  // ====== 修改部分开始：移除 _finalAspectRatio ======
+  // 移除：late final double _finalAspectRatio; // 缓存最终的视频宽高比
+  // ====== 修改部分结束 ======
 
   @override
   void initState() {
@@ -180,9 +182,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       const SizedBox(width: 8),
     ];
-
-    // 初始化视频宽高比，优先使用控制器值，fallback 到传入值或默认 16:9
-    _finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? (widget.aspectRatio > 0 ? widget.aspectRatio : 16 / 9);
+    // ====== 修改部分开始：移除 _finalAspectRatio 初始化 ======
+    // 移除：_finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? (widget.aspectRatio > 0 ? widget.aspectRatio : 16 / 9);
+    // ====== 修改部分结束 ======
   }
 
   @override
@@ -193,11 +195,13 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     _updatePlayerHeight(); // 更新播放器高度
   }
 
-  // 动态更新播放器高度基于屏幕宽度和宽高比
+  // ====== 修改部分开始：固定 16:9 比例 ======
+  // 更新播放器高度，固定为屏幕宽度的 16:9 比例
   void _updatePlayerHeight() {
     final screenWidth = MediaQuery.of(context).size.width;
-    _playerHeight = screenWidth / _finalAspectRatio;
+    _playerHeight = screenWidth / (16 / 9);
   }
+  // ====== 修改部分结束 ======
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +235,9 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                   controller: widget.controller,
                   toastString: widget.toastString,
                   isLandscape: _isLandscape,
-                  aspectRatio: _finalAspectRatio,
+                  // ====== 修改部分开始：固定传递 16:9 比例 ======
+                  aspectRatio: 16 / 9,
+                  // ====== 修改部分结束 ======
                   isBuffering: widget.isBuffering,
                   isPlaying: widget.isPlaying,
                   drawerIsOpen: false,
