@@ -4,11 +4,11 @@
   if (window._timeInterceptorInitialized) return;
   window._timeInterceptorInitialized = true;
 
-  // 保存原始 Date 对象
+  // 保存原始 Date 对象以供恢复
   const originalDate = window.Date;
-  const timeOffset = 0; // 由 Dart 代码动态替换的时间偏移量
+  const timeOffset = 0; // 时间偏移量，由 Dart 代码动态替换
   
-  // 使用映射表管理时间请求状态
+  // 管理时间请求状态的映射表
   const timeRequestStatus = {
     DATE: false,
     DATE_NOW: false,
@@ -30,7 +30,7 @@
     CONSOLE_TIME_END: 'console.timeEnd'
   };
   
-  // 发送时间请求事件，仅在未发送时触发
+  // 发送时间请求事件，仅首次触发
   function sendTimeRequest(type, detail = {}) {
     if (!timeRequestStatus[type] && window.TimeCheck) {
       timeRequestStatus[type] = true;
@@ -42,75 +42,76 @@
     }
   }
 
-  // 获取调整后的时间
+  // 获取调整后的当前时间
   function getAdjustedTime() {
     sendTimeRequest(TimeSourceType.DATE);
-    return new originalDate(new originalDate().getTime() + timeOffset);
+    return new originalDate(originalDate.now() + timeOffset); // 使用原生 Date.now()
   }
 
-  // 代理 Date 构造函数
+  // 代理 Date 构造函数，支持无参和有参调用
   window.Date = function(...args) {
     return args.length === 0 ? getAdjustedTime() : new originalDate(...args);
   };
 
-  // 保持 Date 原型链和方法
+  // 保持 Date 原型链和静态方法
   window.Date.prototype = originalDate.prototype;
   window.Date.now = () => {
     sendTimeRequest(TimeSourceType.DATE_NOW);
-    return new originalDate().getTime() + timeOffset; // 返回调整后的时间戳
+    return originalDate.now() + timeOffset; // 返回调整后的时间戳
   };
   window.Date.parse = originalDate.parse; // 保留原始 parse 方法
   window.Date.UTC = originalDate.UTC; // 保留原始 UTC 方法
 
-  // 拦截 performance.now
+  // 拦截 performance.now 方法
   const originalPerformanceNow = window.performance.now.bind(window.performance);
   window.performance.now = () => {
     sendTimeRequest(TimeSourceType.PERFORMANCE);
     return originalPerformanceNow() + timeOffset; // 返回调整后的性能时间
   };
   
-  // 拦截 requestAnimationFrame
+  // 拦截 requestAnimationFrame 方法
   const originalRAF = window.requestAnimationFrame;
   window.requestAnimationFrame = callback => {
     if (!callback) return originalRAF(callback); // 处理无效回调
-    
     return originalRAF(timestamp => {
       const adjustedTimestamp = timestamp + timeOffset; // 调整时间戳
       sendTimeRequest(TimeSourceType.RAF, { original: timestamp, adjusted: adjustedTimestamp });
-      callback(adjustedTimestamp);
+      callback(adjustedTimestamp); // 调用回调函数
     });
   };
   
-  // 拦截 console.time
+  // 拦截 console.time 方法
   const originalConsoleTime = console.time;
   const originalConsoleTimeEnd = console.timeEnd;
   
   if (originalConsoleTime) {
     console.time = function(label) {
       sendTimeRequest(TimeSourceType.CONSOLE_TIME, { label });
-      return originalConsoleTime.apply(this, arguments); // 调用原始 console.time
+      return originalConsoleTime.apply(this, arguments); // 执行原始 console.time
     };
   }
   
   if (originalConsoleTimeEnd) {
     console.timeEnd = function(label) {
       sendTimeRequest(TimeSourceType.CONSOLE_TIME_END, { label });
-      return originalConsoleTimeEnd.apply(this, arguments); // 调用原始 console.timeEnd
+      return originalConsoleTimeEnd.apply(this, arguments); // 执行原始 console.timeEnd
     };
   }
 
   // 使用 WeakMap 存储事件监听器映射
   const listenerMap = new WeakMap();
   
+  // 获取媒体元素 currentTime 和 duration 属性描述符
+  const currentTimeDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+  const durationDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration');
+  
   // 设置媒体元素时间代理
   function setupMediaElement(element) {
     if (element._timeProxied) return;
     element._timeProxied = true;
     
-    // 保存原始 currentTime 的 getter 和 setter
-    const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
-    const originalGetter = descriptor.get;
-    const originalSetter = descriptor.set;
+    const originalGetter = currentTimeDescriptor.get;
+    const originalSetter = currentTimeDescriptor.set;
 
     // 保存原始事件监听方法
     const originalAddEventListener = element.addEventListener;
@@ -121,7 +122,7 @@
       get: function() {
         sendTimeRequest(TimeSourceType.MEDIA, { element: element.tagName, src: element.src });
         const originalTime = originalGetter.call(this);
-        return originalTime + (timeOffset / 1000); // 返回调整后的时间（秒）
+        return originalTime + (timeOffset / 1000); // 转换为秒并调整
       },
       set: function(value) {
         const originalValue = value - (timeOffset / 1000); // 反向调整时间
@@ -130,30 +131,26 @@
     });
     
     // 代理 duration 属性
-    if (!element._durationProxied) {
-      element._durationProxied = true;
-      const durationDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration');
-      if (durationDescriptor && durationDescriptor.get) {
-        const originalDurationGetter = durationDescriptor.get;
-        Object.defineProperty(element, 'duration', {
-          get: function() {
-            return originalDurationGetter.call(this); // 返回原始 duration
-          }
-        });
-      }
+    if (durationDescriptor && durationDescriptor.get) {
+      const originalDurationGetter = durationDescriptor.get;
+      Object.defineProperty(element, 'duration', {
+        get: function() {
+          return originalDurationGetter.call(this); // 返回原始 duration
+        }
+      });
     }
     
-    // 处理时间相关事件
+    // 定义时间相关事件列表
     const timeEvents = ['timeupdate', 'durationchange', 'seeking', 'seeked'];
     
-    // 重写 addEventListener
+    // 重写 addEventListener 方法
     element.addEventListener = function(type, listener, options) {
       if (timeEvents.includes(type) && listener) {
         const wrappedListener = function(event) {
-          const wrappedEvent = new Event(type); // 包装事件对象
+          const wrappedEvent = new Event(type); // 创建包装事件对象
           Object.assign(wrappedEvent, event);
           wrappedEvent._originalTime = event.target.currentTime;
-          listener.call(this, wrappedEvent);
+          listener.call(this, wrappedEvent); // 调用原始监听器
         };
         
         // 存储监听器映射
@@ -167,7 +164,6 @@
       return originalAddEventListener.call(this, type, listener, options);
     };
     
-    // 重写 removeEventListener
     element.removeEventListener = function(type, listener, options) {
       if (timeEvents.includes(type) && listener) {
         const listenerTypeMap = listenerMap.get(listener);
@@ -184,12 +180,12 @@
       return originalRemoveEventListener.call(this, type, listener, options);
     };
     
-    // 保存原始方法
+    // 保存原始方法到元素
     element._originalAddEventListener = originalAddEventListener;
     element._originalRemoveEventListener = originalRemoveEventListener;
   }
 
-  // 监听新媒体元素
+  // 监听新添加的媒体元素
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
@@ -198,23 +194,23 @@
     });
   });
 
-  // 启动 DOM 观察
+  // 启动 DOM 观察，捕获所有媒体元素
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true
   });
 
-  // 初始化现有媒体元素
+  // 初始化页面现有媒体元素
   document.querySelectorAll('video,audio').forEach(setupMediaElement);
 
-  // 提供清理函数
+  // 提供清理函数以恢复原始状态
   window._cleanupTimeInterceptor = () => {
     window.Date = originalDate; // 恢复原始 Date
     window.performance.now = originalPerformanceNow; // 恢复原始 performance.now
     window.requestAnimationFrame = originalRAF; // 恢复原始 requestAnimationFrame
     
     if (originalConsoleTime) console.time = originalConsoleTime; // 恢复原始 console.time
-    if (originalConsoleTimeEnd) console.timeEnd = originalConsoleTimeEnd; // 恢复原始 console.timeEnd
+    if (originalConsoleTimeEnd) console.time = originalConsoleTimeEnd; // 恢复原始 console.timeEnd
     
     // 清理媒体元素代理
     document.querySelectorAll('video,audio').forEach(element => {
@@ -229,7 +225,6 @@
         }
         
         delete element._timeProxied; // 移除代理标志
-        delete element._durationProxied; // 移除 duration 代理标志
       }
     });
     
@@ -246,7 +241,7 @@
     }
   };
   
-  // 发送初始化通知
+  // 发送初始化完成通知
   if (window.TimeCheck) {
     window.TimeCheck.postMessage(JSON.stringify({
       type: 'init',
