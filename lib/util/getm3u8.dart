@@ -133,7 +133,7 @@ class GetM3U8 {
   static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
   static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
   static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
-  static const int WEBVIEW_CLEANUP_DELAY_MS = 300; // WebView清理延迟（毫秒）
+  static const int WEBVIEW_CLEANUP_DELAY_MS = 500; // WebView清理延迟（毫秒）
 
   static final Map<String, String> _scriptCache = {}; // 脚本缓存
   static final Map<String, List<M3U8FilterRule>> _ruleCache = {}; // 规则缓存
@@ -902,15 +902,14 @@ if (window._m3u8DetectorInitialized) {
     _timeoutTimer = null;
     _periodicCheckTimer?.cancel();
     _periodicCheckTimer = null;
-    
-    if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
-      cancelToken!.cancel('GetM3U8 disposed');
-    }
-    
     _hashFirstLoadMap.remove(Uri.parse(url).toString());
     _foundUrls.clear();
     _pageLoadedStatus.clear();
     
+    await Future.delayed(Duration(milliseconds: 1500)); // 延迟释放WebView，给网页触发授权的请求预留多些时间
+    if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
+      cancelToken!.cancel('GetM3U8 disposed');
+    }
     if (_isControllerInitialized) await _disposeWebViewCompletely(_controller); // 清理WebView
     else LogUtil.i('WebViewController 未初始化，跳过清理');
     _resetControllerState();
