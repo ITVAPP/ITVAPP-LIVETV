@@ -14,7 +14,7 @@ import 'package:itvapp_live_tv/config.dart';
 
 const bool enableFocusInNonTVMode = true; // 是否在非TV模式启用焦点逻辑（调试用）
 
-// 根据类型和屏幕方向返回列表宽度
+// 根据类型和屏幕方向返回列表宽度 
 double getListWidth(String type, bool isPortrait) => switch (type) {
       'category' => isPortrait ? 110.0 : 120.0,
       'group' => isPortrait ? 120.0 : 130.0,
