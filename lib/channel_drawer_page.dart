@@ -892,7 +892,7 @@ class ChannelDrawerPage extends StatefulWidget {
   static final GlobalKey<_ChannelDrawerPageState> _stateKey = GlobalKey<_ChannelDrawerPageState>();
 
   ChannelDrawerPage({
-    Key? _stateKey,
+    Key? key,
     this.videoMap,
     this.playModel,
     this.onTapChannel,
