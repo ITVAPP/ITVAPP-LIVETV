@@ -3,9 +3,18 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
+  // 定义全局常量
+  const CONSTANTS = {
+    MAX_RECURSION_DEPTH: 3,               // 最大递归深度
+    SCAN_INTERVAL_MS: 1000,               // 定期扫描间隔（毫秒）
+    IDLE_CALLBACK_TIMEOUT_MS: 500,        // requestIdleCallback 超时（毫秒）
+    SET_TIMEOUT_DELAY_MS: 100,            // setTimeout 延迟（毫秒）
+    PROCESSED_URLS_MAX_SIZE: 10000,       // processedUrls 最大容量
+    JSON_RESPONSE_MAX_SIZE: 1024 * 1024,  // JSON 响应最大大小（1MB）
+  };
+
   // 初始化状态
   const processedUrls = new Set();
-  const MAX_RECURSION_DEPTH = 3;
   let observer = null;
   
   // File pattern will be dynamically replaced
@@ -13,13 +22,15 @@
 
   // 预编译正则表达式以优化性能
   const filePatternRegex = new RegExp(`\\.(${filePattern})([?#]|$)`, 'i');
+  // 全局正则表达式常量（用于脚本和响应内容）
+  const URL_PATTERN_REGEX = new RegExp(`https?://[^\\s'"]*\\.${filePattern}[^\\s'"]*`, 'g');
 
   // URL处理工具 (优化URL处理逻辑，仅保留filePattern检查)
   const VideoUrlProcessor = {
     processUrl(url, depth = 0, source = 'unknown') {
       // 验证输入参数
       if (!url || typeof url !== 'string' || 
-          depth > MAX_RECURSION_DEPTH || 
+          depth > CONSTANTS.MAX_RECURSION_DEPTH || 
           processedUrls.has(url)) return;
 
       // URL标准化
@@ -28,11 +39,20 @@
       // 检查目标文件类型
       if (filePatternRegex.test(url)) {
         processedUrls.add(url);
+        // 逐条发送 postMessage，兼容 Dart 的 M3U8Detector
         window.M3U8Detector?.postMessage(JSON.stringify({
           type: 'url',
           url: url,
           source: source
         }));
+
+        // 清理 processedUrls 超过最大容量
+        if (processedUrls.size > CONSTANTS.PROCESSED_URLS_MAX_SIZE) {
+          const iterator = processedUrls.values();
+          for (let i = 0; i < processedUrls.size - CONSTANTS.PROCESSED_URLS_MAX_SIZE / 2; i++) {
+            processedUrls.delete(iterator.next().value);
+          }
+        }
       }
     },
 
@@ -62,11 +82,13 @@
       };
 
       XHR.send = function() {
+        // 仅在 send 时处理 _url
         if (this._url) VideoUrlProcessor.processUrl(this._url, 0, 'xhr');
         
         // 添加响应处理
         this.addEventListener('load', function() {
-          if (this.responseURL) {
+          // 仅处理 responseURL（避免与 _url 重复）
+          if (this.responseURL && this.responseURL !== this._url) {
             VideoUrlProcessor.processUrl(this.responseURL, 0, 'xhr:response');
           }
           
@@ -74,10 +96,9 @@
           if (this.responseType === '' || this.responseType === 'text') {
             try {
               const responseText = this.responseText;
-              if (responseText && responseText.includes('.' + filePattern)) {
-                // 用正则匹配URL
-                const pattern = new RegExp(`https?://[^\\s'"]*${pattern}[^\\s'"]*`, 'g');
-                const matches = responseText.match(pattern);
+              if (responseText && responseText.length <= CONSTANTS.JSON_RESPONSE_MAX_SIZE && responseText.includes('.' + filePattern)) {
+                // 使用全局正则表达式
+                const matches = responseText.match(URL_PATTERN_REGEX);
                 if (matches) {
                   matches.forEach(url => 
                     VideoUrlProcessor.processUrl(url, 0, 'xhr:responseContent')
@@ -103,12 +124,15 @@
         // 处理响应
         const fetchPromise = originalFetch.apply(this, arguments);
         fetchPromise.then(response => {
-          VideoUrlProcessor.processUrl(response.url, 0, 'fetch:response');
+          // 仅处理 response.url（避免与 input.url 重复）
+          if (response.url !== url) {
+            VideoUrlProcessor.processUrl(response.url, 0, 'fetch:response');
+          }
           
           // 检查可能的JSON响应中的URL
           if (response.headers.get('content-type')?.includes('application/json')) {
             response.clone().text().then(text => {
-              if (text && text.includes('.' + filePattern)) {
+              if (text && text.length <= CONSTANTS.JSON_RESPONSE_MAX_SIZE && text.includes('.' + filePattern)) {
                 try {
                   const data = JSON.parse(text);
                   // 递归搜索JSON中的URL
@@ -134,8 +158,6 @@
         return fetchPromise;
       };
     },
-
-    // 移除setupMediaSourceInterceptor
   };
 
   // DOM扫描器 (仅扫描filePattern相关元素、视频元素和脚本)
@@ -183,16 +205,17 @@
     },
 
     scanPage(root = document) {
-      // 仅扫描filePattern相关元素
+      // 优化选择器，优先扫描高概率元素
       const selector = [
-        `[class*="${filePattern}"]`,
-        `[data-${filePattern}]`,
         `a[href*="${filePattern}"]`,
+        `[data-${filePattern}]`,
         `[data-src*="${filePattern}"]`,
         'video',
         'source'
       ].join(',');
 
+      // 性能日志
+      const startTime = performance.now();
       root.querySelectorAll(selector).forEach(element => {
         if (this.processedElements.has(element)) return;
         this.processedElements.add(element);
@@ -200,25 +223,30 @@
         this.scanAttributes(element);
         this.scanMediaElement(element);
       });
+      const endTime = performance.now();
+      console.debug(`DOMScanner.scanPage 耗时: ${(endTime - startTime).toFixed(2)}ms`);
     },
 
     scanScripts() {
-      // 扫描脚本内容中的filePattern相关URL
-      document.querySelectorAll('script:not([src])').forEach(script => {
-        if (!script.textContent) return;
-        
-        const patternStr = '.' + filePattern;
-        let index = script.textContent.indexOf(patternStr);
-        
-        while (index !== -1) {
-          const extracted = this.extractUrlFromScript(script.textContent, index);
-          // 验证提取的URL是否有效
-          if (extracted.url.includes('http') && filePatternRegex.test(extracted.url)) {
-            VideoUrlProcessor.processUrl(extracted.url, 0, 'script:' + filePattern);
+      // 性能日志
+      const startTime = performance.now();
+      // 仅由 MutationObserver 触发具体脚本扫描，避免全量扫描
+      const endTime = performance.now();
+      console.debug(`DOMScanner.scanScripts 耗时: ${(endTime - startTime).toFixed(2)}ms`);
+    },
+
+    scanSingleScript(script) {
+      if (!script.textContent) return;
+      
+      // 使用全局正则表达式提取 URL
+      const matches = script.textContent.match(URL_PATTERN_REGEX);
+      if (matches) {
+        matches.forEach(url => {
+          if (url.includes('http') && filePatternRegex.test(url)) {
+            VideoUrlProcessor.processUrl(url, 0, 'script:' + filePattern);
           }
-          index = script.textContent.indexOf(patternStr, extracted.endIndex);
-        }
-      });
+        });
+      }
     },
 
     extractUrlFromScript(content, startIndex) {
@@ -256,6 +284,7 @@
     observer = new MutationObserver(mutations => {
       const processQueue = new Set();
       const newVideos = new Set();
+      const newScripts = new Set();
 
       mutations.forEach(mutation => {
         // 处理新增节点
@@ -264,6 +293,10 @@
             // 检查新增的video或source元素
             if (node.tagName === 'VIDEO' || node.tagName === 'SOURCE') {
               newVideos.add(node);
+            }
+            // 检查新增的script元素
+            if (node.tagName === 'SCRIPT' && !node.src) {
+              newScripts.add(node);
             }
             
             // 检查filePattern相关元素
@@ -306,6 +339,11 @@
         DOMScanner.scanMediaElement(video);
       });
 
+      // 处理新增的脚本
+      newScripts.forEach(script => {
+        DOMScanner.scanSingleScript(script);
+      });
+
       // 处理队列
       if (window.requestIdleCallback) {
         requestIdleCallback(() => {
@@ -316,7 +354,7 @@
               DOMScanner.scanPage(item.parentNode || document);
             }
           });
-        }, { timeout: 1000 });
+        }, { timeout: CONSTANTS.IDLE_CALLBACK_TIMEOUT_MS });
       } else {
         setTimeout(() => {
           processQueue.forEach(item => {
@@ -326,7 +364,7 @@
               DOMScanner.scanPage(item.parentNode || document);
             }
           });
-        }, 100);
+        }, CONSTANTS.SET_TIMEOUT_DELAY_MS);
       }
     });
 
@@ -340,22 +378,28 @@
     if (window.requestIdleCallback) {
       requestIdleCallback(() => {
         DOMScanner.scanPage(document);
-        DOMScanner.scanScripts();
-      }, { timeout: 1000 });
+        // 初始扫描所有脚本
+        document.querySelectorAll('script:not([src])').forEach(script => {
+          DOMScanner.scanSingleScript(script);
+        });
+      }, { timeout: CONSTANTS.IDLE_CALLBACK_TIMEOUT_MS });
     } else {
       setTimeout(() => {
         DOMScanner.scanPage(document);
-        DOMScanner.scanScripts();
-      }, 100);
+        // 初始扫描所有脚本
+        document.querySelectorAll('script:not([src])').forEach(script => {
+          DOMScanner.scanSingleScript(script);
+        });
+      }, CONSTANTS.SET_TIMEOUT_DELAY_MS);
     }
     
     // 定期扫描
     setInterval(() => {
       if (!document.hidden) {
         DOMScanner.scanPage(document);
-        DOMScanner.scanScripts();
+        // 脚本扫描由 MutationObserver 接管
       }
-    }, 1000);
+    }, CONSTANTS.SCAN_INTERVAL_MS);
   }
 
   // 初始化检测器
@@ -379,7 +423,7 @@
   
   window.efficientDOMScan = function() {
     DOMScanner.scanPage(document);
-    DOMScanner.scanScripts();
+    // 脚本扫描由 MutationObserver 接管
   };
   
   // 初始化通知
