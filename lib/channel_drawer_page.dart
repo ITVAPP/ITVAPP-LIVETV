@@ -833,6 +833,7 @@ class EPGListState extends State<EPGList> {
                   isEpg: true,
                   isTV: widget.isTV,
                   isLastItem: index == widget.epgData!.length - 1,
+                  isCentered: false,
                   epgChildren: [
                     Text(
                       '${data.start}-${data.end}',
