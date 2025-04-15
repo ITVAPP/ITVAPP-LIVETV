@@ -8,8 +8,8 @@
     MAX_RECURSION_DEPTH: 3,               // 最大递归深度
     SCAN_INTERVAL_MS: 1000,               // 定期扫描间隔（毫秒）
     IDLE_CALLBACK_TIMEOUT_MS: 500,        // requestIdleCallback 超时（毫秒）
-    SET_TIMEOUT_DELAY_MS: 100,            // setTimeout 延迟（毫秒）
-    PROCESSED_URLS_MAX_SIZE: 10000,       // processedUrls 最大容量
+    SET_TIMEOUT_DELAY_MS: 300,            // setTimeout 延迟（毫秒）
+    PROCESSED_URLS_MAX_SIZE: 1000,       // processedUrls 最大容量
     JSON_RESPONSE_MAX_SIZE: 1024 * 1024,  // JSON 响应最大大小（1MB）
   };
 
@@ -158,6 +158,69 @@
         return fetchPromise;
       };
     },
+
+    // 添加 MediaSource 检测功能
+    setupMediaSourceInterceptor() {
+      // 检查浏览器是否支持 MediaSource
+      if (!window.MediaSource) return;
+
+      // 保存原始的 addSourceBuffer 方法
+      const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      
+      // 定义支持的流媒体 MIME 类型映射
+      const supportedTypes = {
+        'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+        'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
+        'mp4': ['video/mp4', 'application/mp4']
+      };
+
+      // 重写 addSourceBuffer 方法
+      MediaSource.prototype.addSourceBuffer = function(mimeType) {
+        // 获取当前检测类型相关的 MIME 类型列表
+        const currentTypes = supportedTypes[filePattern] || [];
+        
+        // 检查当前 MediaSource 的 URL
+        const mediaUrl = this.url || (this.sourceBuffers.length > 0 && this.sourceBuffers[0].url) || window.location.href;
+        
+        // 检查 MIME 类型是否匹配
+        if (mimeType && currentTypes.some(type => mimeType.toLowerCase().includes(type.toLowerCase()))) {
+          // 在检测到匹配的 MIME 类型时处理 URL
+          VideoUrlProcessor.processUrl(mediaUrl, 0, 'mediasource:' + mimeType);
+          
+          // 记录调试信息
+          console.debug(`MediaSource 检测到 ${mimeType} 类型，URL: ${mediaUrl}`);
+        }
+        
+        // 调用原始方法继续正常流程
+        return originalAddSourceBuffer.call(this, mimeType);
+      };
+
+      // 拦截 MediaSource 的 URL 属性（用于某些实现方式）
+      // 在某些情况下，MediaSource 会通过 URL.createObjectURL 创建 blob URL
+      const originalCreateObjectURL = URL.createObjectURL;
+      URL.createObjectURL = function(object) {
+        const objectUrl = originalCreateObjectURL.apply(this, arguments);
+        
+        // 检查是否是 MediaSource 对象
+        if (object instanceof MediaSource) {
+          // 为 MediaSource 对象关联创建的 URL
+          object.url = objectUrl;
+          
+          // 监听 sourceopen 事件，此时 MediaSource 已经准备好接收数据
+          object.addEventListener('sourceopen', function() {
+            // 当 MediaSource 打开时，我们可以获取更多信息
+            const videoElement = document.querySelector('video[src="' + objectUrl + '"]');
+            if (videoElement) {
+              // 如果找到关联的视频元素，记录关联信息
+              VideoUrlProcessor.processUrl(window.location.href, 0, 'mediasource:sourceopen');
+              console.debug('MediaSource sourceopen 事件触发，关联视频元素:', videoElement);
+            }
+          });
+        }
+        
+        return objectUrl;
+      };
+    }
   };
 
   // DOM扫描器 (仅扫描filePattern相关元素、视频元素和脚本)
@@ -279,6 +342,7 @@
     // 设置网络拦截
     NetworkInterceptor.setupXHRInterceptor();
     NetworkInterceptor.setupFetchInterceptor();
+    NetworkInterceptor.setupMediaSourceInterceptor(); // 添加 MediaSource 拦截器
 
     // 设置 DOM 观察
     observer = new MutationObserver(mutations => {
