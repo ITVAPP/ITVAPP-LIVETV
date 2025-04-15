@@ -57,7 +57,7 @@
         const base64Content = url.split('base64,')[1];
         const decodedContent = atob(base64Content);
         
-        // 尝试同时检查多种媒体格式
+        // 尝试同时检查多种媒体格式 
         const patterns = [filePattern, 'm3u8', 'mp4', 'flv', 'ts'];
         for (const pattern of patterns) {
           if (decodedContent.includes('.' + pattern)) {
