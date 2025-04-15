@@ -1031,7 +1031,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
       // 调整视口高度，考虑标题栏和分割线
-      final effectiveViewportHeight = _drawerHeight - (defaultMinHeight + dividerHeight);
+      final effectiveViewportHeight = _drawerHeight - (defaultMinHeight + 1);
       targetOffset = ((index + 1) * itemHeight) - effectiveViewportHeight;
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
@@ -1040,7 +1040,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = (index - offsetAdjustment) * itemHeight;
       // 为 EPG 添加标题栏补偿，向下偏移
       if (targetList == 'epg') {
-        targetOffset += epgTitleBarOffset; 
+        targetOffset += defaultMinHeight + 1; 
       }
     }
 
