@@ -209,14 +209,13 @@ void removeFocusListeners(int startIndex, int length) {
   if (!validateIndex(startIndex, length, focusManager.focusNodes.length, '移除焦点监听器')) {
     return;
   }
-  // 无需显式移除 focusStates，因为已移除该字段
 }
 
 // 滚动目标枚举
 enum ScrollTarget { category, group, channel, epg }
 
 // 统一滚动逻辑
-void scrollToItem({
+Future<void> scrollToItem({
   required ScrollTarget target,
   required int index,
   required _ChannelDrawerPageState state,
@@ -229,6 +228,7 @@ void scrollToItem({
     ScrollTarget.channel: state._scrollChannelController,
     ScrollTarget.epg: state._epgItemScrollController,
   };
+  
   final controller = controllers[target];
   if (controller == null || !controller.hasClients) {
     LogUtil.i('$target 控制器未附着');
