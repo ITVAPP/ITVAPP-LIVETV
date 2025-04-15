@@ -252,8 +252,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       width: double.infinity,
       height: containerHeight,
       color: Colors.black,
-      child: Center(child: BetterPlayer(controller: widget.controller!)),
-    ); // 显示视频播放器
+      child: AspectRatio(
+        aspectRatio: 16 / 9, // 固定容器宽高比为 16:9
+        child: FittedBox(
+          fit: BoxFit.contain, // 视频自适应容器，保持比例
+          child: SizedBox(
+            width: 16, // 占位尺寸，实际由 FittedBox 缩放
+            height: 9,
+            child: BetterPlayer(controller: widget.controller!),
+          ),
+        ),
+      ),
+    );
   }
 
   // 处理播放/暂停逻辑并切换菜单栏
