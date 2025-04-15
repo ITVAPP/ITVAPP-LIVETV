@@ -22,6 +22,12 @@ double getListWidth(String type, bool isPortrait) => switch (type) {
       _ => 0.0,
 };
 
+// 默认最小高度
+const defaultMinHeight = 42.0;
+
+// 普通列表项总高度（内容高度 + 分割线高度）
+const double itemHeight = defaultMinHeight + 1.0;
+
 // 定义EPG项目高度
 const double DEFAULT_EPG_ITEM_HEIGHT = defaultMinHeight * 1.3 + 1;
 
@@ -87,9 +93,6 @@ const selectedTextStyle = TextStyle(
     ),
   ],
 );
-
-// 默认最小高度
-const defaultMinHeight = 42.0;
 
 // 默认背景渐变
 final defaultBackgroundColor = LinearGradient(
@@ -277,6 +280,7 @@ void addFocusListeners(
 
 // 处理焦点切换时的滚动逻辑
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
+  final itemHeight = itemHeight;
   final itemIndex = index - startIndex;
   final channelDrawerState = state is _ChannelDrawerPageState
       ? state
@@ -314,7 +318,6 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = defaultMinHeight + 1.0;
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   if (length <= fullItemsInViewport) {
@@ -1022,7 +1025,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    final double itemHeight = config['customHeight'] ?? (defaultMinHeight + 1.0);
+    final double itemHeight = config['customHeight'] ?? itemHeight;
 
     double targetOffset;
     if (alignment == 0.0) {
@@ -1030,9 +1033,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     } else if (alignment == 1.0) {
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      // 调整视口高度，考虑标题栏和分割线
-      final effectiveViewportHeight = _drawerHeight - (defaultMinHeight + 1);
-      targetOffset = ((index + 1) * itemHeight) - effectiveViewportHeight;
+      targetOffset = index * itemHeight - (_drawerHeight - itemHeight);
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
       final offsetAdjustment =
@@ -1040,7 +1041,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = (index - offsetAdjustment) * itemHeight;
       // 为 EPG 添加标题栏补偿，向下偏移
       if (targetList == 'epg') {
-        targetOffset += defaultMinHeight + 1; 
+        targetOffset += itemHeight; 
       }
     }
 
