@@ -280,7 +280,6 @@ void addFocusListeners(
 
 // 处理焦点切换时的滚动逻辑
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
-  final itemHeight = itemHeight;
   final itemIndex = index - startIndex;
   final channelDrawerState = state is _ChannelDrawerPageState
       ? state
@@ -1025,23 +1024,23 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    final double itemHeight = config['customHeight'] ?? itemHeight;
+    final double localItemHeight = config['customHeight'] ?? itemHeight;
 
     double targetOffset;
     if (alignment == 0.0) {
-      targetOffset = index * itemHeight;
+      targetOffset = index * localItemHeight;
     } else if (alignment == 1.0) {
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      targetOffset = index * itemHeight - (_drawerHeight - itemHeight);
+      targetOffset = index * localItemHeight - (_drawerHeight - localItemHeight);
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
       final offsetAdjustment =
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
-      targetOffset = (index - offsetAdjustment) * itemHeight;
+      targetOffset = (index - offsetAdjustment) * localItemHeight;
       // 为 EPG 添加标题栏补偿，向下偏移
       if (targetList == 'epg') {
-        targetOffset += itemHeight; 
+        targetOffset += localItemHeight; 
       }
     }
 
