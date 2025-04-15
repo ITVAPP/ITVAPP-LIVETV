@@ -421,14 +421,19 @@ Widget buildGenericItem({
               isSelected: isSelected,
               isSystemAutoSelected: isSystemAutoSelected,
             ),
-            child: epgChildren ??
-                Text(
-                  title,
-                  style: textStyle,
-                  softWrap: false,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            child: isEpg && epgChildren != null
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: epgChildren,
+                  )
+                : Text(
+                    title,
+                    style: textStyle,
+                    softWrap: false,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
           ),
         ),
       ),
@@ -1597,6 +1602,7 @@ class _ChannelContentState extends State<ChannelContent> {
                                now.difference(_lastRequestTime!).inMilliseconds < 500;
     
     if (isRecentRequest) {
+      LogUtil.i('跳过频繁EPG请求: channelKey=$channelKey, 间隔=${now.difference(_lastRequestTime!).inMilliseconds}ms');
       return;
     }
 
