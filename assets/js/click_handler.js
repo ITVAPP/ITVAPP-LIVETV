@@ -1,22 +1,30 @@
 // 自动点击器
 (function() {
   // Search text and index will be replaced dynamically
-  const searchText = "";
-  const targetIndex = 0;
+  const searchText = ""; // 搜索目标文本
+  const targetIndex = 0; // 目标匹配项索引
   
   function findAndClick() {
-    // 获取所有文本和元素节点 (保留原逻辑)
+    // 参数验证
+    if (searchText === undefined) {
+      console.error('搜索文本未定义');
+      return;
+    }
+    
+    // 创建树遍历器，筛选文本和元素节点
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
         acceptNode: function(node) {
           if (node.nodeType === Node.ELEMENT_NODE) {
+            // 排除脚本、样式等无关元素
             if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.tagName)) {
               return NodeFilter.FILTER_REJECT;
             }
             return NodeFilter.FILTER_ACCEPT;
           }
+          // 接受非空文本节点
           if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
             return NodeFilter.FILTER_ACCEPT;
           }
@@ -25,23 +33,25 @@
       }
     );
 
-    // 保留原有匹配逻辑
+    // 存储匹配结果
     const matches = [];
-    let currentIndex = 0;
-    let foundNode = null;
+    let currentIndex = 0; // 当前匹配索引
+    let foundNode = null; // 目标节点
 
-    // 遍历节点 (保留原逻辑)
+    // 遍历节点
     let node;
     while (node = walk.nextNode()) {
       // 处理文本节点
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent.trim();
         if (text === searchText) {
+          // 记录匹配的文本和父元素
           matches.push({
             text: text,
             node: node.parentElement
           });
 
+          // 找到目标索引的节点
           if (currentIndex === targetIndex) {
             foundNode = node.parentElement;
             break;
@@ -51,6 +61,7 @@
       }
       // 处理元素节点
       else if (node.nodeType === Node.ELEMENT_NODE) {
+        // 获取直接子文本内容
         const children = Array.from(node.childNodes);
         const directText = children
           .filter(child => child.nodeType === Node.TEXT_NODE)
@@ -58,11 +69,13 @@
           .join('');
 
         if (directText === searchText) {
+          // 记录匹配的元素
           matches.push({
             text: directText,
             node: node
           });
 
+          // 找到目标索引的节点
           if (currentIndex === targetIndex) {
             foundNode = node;
             break;
@@ -72,87 +85,75 @@
       }
     }
 
+    // 未找到目标节点时提示
     if (!foundNode) {
       console.error('未找到匹配的元素');
       return;
     }
 
-    // 优化点击检测部分
+    // 执行点击并检测变化
+    clickAndDetectChanges(foundNode);
+  }
+
+  /**
+   * 执行点击并检测状态变化
+   * @param {HTMLElement} node - 要点击的节点
+   * @param {boolean} isParentNode - 是否为父节点点击
+   */
+  function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      // 记录多个状态变量用于检测
-      const originalClass = foundNode.getAttribute('class') || '';
-      const originalStyle = foundNode.getAttribute('style') || '';
-      const originalDisplay = window.getComputedStyle(foundNode).display;
-      const originalVisibility = window.getComputedStyle(foundNode).visibility;
-      const videoCountBefore = document.querySelectorAll('video').length;
-      const iframeBefore = document.querySelectorAll('iframe').length;
+      // 记录点击前状态
+      const states = {
+        class: node.getAttribute('class') || '', // 节点类名
+        style: node.getAttribute('style') || '', // 节点内联样式
+        display: window.getComputedStyle(node).display, // 显示状态
+        visibility: window.getComputedStyle(node).visibility, // 可见性
+        videoCount: document.querySelectorAll('video').length, // 视频元素数量
+        iframeCount: document.querySelectorAll('iframe').length // iframe元素数量
+      };
       
       // 执行点击
-      foundNode.click();
+      node.click();
       
-      // 等待检测变化
+      // 延迟检测状态变化
       setTimeout(() => {
-        // 检查多种可能的变化
-        const newClass = foundNode.getAttribute('class') || '';
-        const newStyle = foundNode.getAttribute('style') || '';
-        const newDisplay = window.getComputedStyle(foundNode).display;
-        const newVisibility = window.getComputedStyle(foundNode).visibility;
-        const videoCountAfter = document.querySelectorAll('video').length;
-        const iframeAfter = document.querySelectorAll('iframe').length;
+        // 获取点击后状态
+        const newStates = {
+          class: node.getAttribute('class') || '',
+          style: node.getAttribute('style') || '',
+          display: window.getComputedStyle(node).display,
+          visibility: window.getComputedStyle(node).visibility,
+          videoCount: document.querySelectorAll('video').length,
+          iframeCount: document.querySelectorAll('iframe').length
+        };
         
-        const hasClassChange = originalClass !== newClass;
-        const hasStyleChange = originalStyle !== newStyle;
-        const hasDisplayChange = originalDisplay !== newDisplay;
-        const hasVisibilityChange = originalVisibility !== newVisibility;
-        const hasNewVideo = videoCountAfter > videoCountBefore;
-        const hasNewIframe = iframeAfter > iframeBefore;
+        // 确定节点类型描述
+        const nodeType = isParentNode ? '父节点' : '节点';
         
-        let successMessage = '';
-        
-        if (hasClassChange) successMessage = '节点点击成功，class发生变化';
-        else if (hasStyleChange) successMessage = '节点点击成功，style发生变化';
-        else if (hasDisplayChange || hasVisibilityChange) successMessage = '节点点击成功，显示状态发生变化';
-        else if (hasNewVideo) successMessage = '节点点击成功，新video元素出现';
-        else if (hasNewIframe) successMessage = '节点点击成功，新iframe元素出现';
-        
-        if (successMessage) {
-          console.info(successMessage);
-          return;
-        }
-        
-        // 如果节点自身点击没有明显变化，尝试父节点
-        if (foundNode.parentElement) {
-          // 复用相同的点击检测策略，但针对父节点
-          const parent = foundNode.parentElement;
-          const parentOriginalClass = parent.getAttribute('class') || '';
-          const parentOriginalStyle = parent.getAttribute('style') || '';
-          
-          parent.click();
-          
-          setTimeout(() => {
-            const parentNewClass = parent.getAttribute('class') || '';
-            const parentNewStyle = parent.getAttribute('style') || '';
-            const videoCountAfterParent = document.querySelectorAll('video').length;
-            
-            if (parentOriginalClass !== parentNewClass) {
-              console.info('父节点点击成功，class发生变化');
-            } else if (parentOriginalStyle !== parentNewStyle) {
-              console.info('父节点点击成功，style发生变化');
-            } else if (videoCountAfterParent > videoCountAfter) {
-              console.info('父节点点击成功，新video元素出现');
-            } else {
-              console.info('点击操作完成，但未检测到明显变化');
-            }
-          }, 500);
+        // 检查状态变化并输出结果
+        if (states.class !== newStates.class) {
+          console.info(`${nodeType}点击成功，class发生变化`);
+        } else if (states.style !== newStates.style) {
+          console.info(`${nodeType}点击成功，style发生变化`);
+        } else if (states.display !== newStates.display || states.visibility !== newStates.visibility) {
+          console.info(`${nodeType}点击成功，显示状态发生变化`);
+        } else if (newStates.videoCount > states.videoCount) {
+          console.info(`${nodeType}点击成功，新video元素出现`);
+        } else if (newStates.iframeCount > states.iframeCount) {
+          console.info(`${nodeType}点击成功，新iframe元素出现`);
+        } else if (!isParentNode && node.parentElement) {
+          // 尝试点击父节点
+          clickAndDetectChanges(node.parentElement, true);
         } else {
           console.info('点击操作完成，但未检测到明显变化');
         }
       }, 500);
     } catch (e) {
-      console.error('点击操作失败:', e);
+      // 输出点击失败信息
+      console.error(`${isParentNode ? '父' : ''}节点点击操作失败:`, e);
     }
   }
 
-  // Execute click operation
+  // 启动自动点击
   findAndClick();
 })();
