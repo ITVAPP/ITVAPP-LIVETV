@@ -1,58 +1,42 @@
+  // 流媒体探测器
 (function() {
   // 避免重复初始化 (保留原逻辑)
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
-  // 定义全局常量
-  const CONSTANTS = {
-    MAX_RECURSION_DEPTH: 3,               // 最大递归深度
-    SCAN_INTERVAL_MS: 1000,               // 定期扫描间隔（毫秒）
-    IDLE_CALLBACK_TIMEOUT_MS: 500,        // requestIdleCallback 超时（毫秒）
-    SET_TIMEOUT_DELAY_MS: 300,            // setTimeout 延迟（毫秒）
-    PROCESSED_URLS_MAX_SIZE: 1000,       // processedUrls 最大容量
-    JSON_RESPONSE_MAX_SIZE: 1024 * 1024,  // JSON 响应最大大小（1MB）
-  };
-
   // 初始化状态
   const processedUrls = new Set();
+  const MAX_RECURSION_DEPTH = 3;
   let observer = null;
   
   // File pattern will be dynamically replaced
   const filePattern = "m3u8";
 
-  // 预编译正则表达式以优化性能
-  const filePatternRegex = new RegExp(`\\.(${filePattern})([?#]|$)`, 'i');
-  // 全局正则表达式常量（用于脚本和响应内容）
-  const URL_PATTERN_REGEX = new RegExp(`https?://[^\\s'"]*\\.${filePattern}[^\\s'"]*`, 'g');
-
-  // URL处理工具 (优化URL处理逻辑，仅保留filePattern检查)
+  // URL处理工具 (优化URL处理逻辑)
   const VideoUrlProcessor = {
     processUrl(url, depth = 0, source = 'unknown') {
-      // 验证输入参数
       if (!url || typeof url !== 'string' || 
-          depth > CONSTANTS.MAX_RECURSION_DEPTH || 
+          depth > MAX_RECURSION_DEPTH || 
           processedUrls.has(url)) return;
 
       // URL标准化
       url = this.normalizeUrl(url);
 
+      // Base64处理
+      if (url.includes('base64,')) {
+        this.handleBase64Url(url, depth, source);
+        return;
+      }
+
       // 检查目标文件类型
-      if (filePatternRegex.test(url)) {
+      const pattern = new RegExp('\\.(' + filePattern + '|m3u8|ts|mp4|flv)([?#]|$)', 'i');
+      if (pattern.test(url)) {
         processedUrls.add(url);
-        // 逐条发送 postMessage，兼容 Dart 的 M3U8Detector
         window.M3U8Detector?.postMessage(JSON.stringify({
           type: 'url',
           url: url,
           source: source
         }));
-
-        // 清理 processedUrls 超过最大容量
-        if (processedUrls.size > CONSTANTS.PROCESSED_URLS_MAX_SIZE) {
-          const iterator = processedUrls.values();
-          for (let i = 0; i < processedUrls.size - CONSTANTS.PROCESSED_URLS_MAX_SIZE / 2; i++) {
-            processedUrls.delete(iterator.next().value);
-          }
-        }
       }
     },
 
@@ -66,10 +50,27 @@
         return new URL(url, window.location.href).toString();
       }
       return url;
+    },
+
+    handleBase64Url(url, depth, source) {
+      try {
+        const base64Content = url.split('base64,')[1];
+        const decodedContent = atob(base64Content);
+        
+        // 尝试同时检查多种媒体格式
+        const patterns = [filePattern, 'm3u8', 'mp4', 'flv', 'ts'];
+        for (const pattern of patterns) {
+          if (decodedContent.includes('.' + pattern)) {
+            this.processUrl(decodedContent, depth + 1, source + ':base64');
+          }
+        }
+      } catch (e) {
+        console.error('Base64解码失败:', e);
+      }
     }
   };
 
-  // 网络请求拦截器 (仅保留XHR和Fetch，优化filePattern检查)
+  // 网络请求拦截器 (保留核心逻辑，添加详细日志)
   const NetworkInterceptor = {
     setupXHRInterceptor() {
       const XHR = XMLHttpRequest.prototype;
@@ -82,13 +83,11 @@
       };
 
       XHR.send = function() {
-        // 仅在 send 时处理 _url
         if (this._url) VideoUrlProcessor.processUrl(this._url, 0, 'xhr');
         
         // 添加响应处理
         this.addEventListener('load', function() {
-          // 仅处理 responseURL（避免与 _url 重复）
-          if (this.responseURL && this.responseURL !== this._url) {
+          if (this.responseURL) {
             VideoUrlProcessor.processUrl(this.responseURL, 0, 'xhr:response');
           }
           
@@ -96,9 +95,10 @@
           if (this.responseType === '' || this.responseType === 'text') {
             try {
               const responseText = this.responseText;
-              if (responseText && responseText.length <= CONSTANTS.JSON_RESPONSE_MAX_SIZE && responseText.includes('.' + filePattern)) {
-                // 使用全局正则表达式
-                const matches = responseText.match(URL_PATTERN_REGEX);
+              if (responseText && responseText.includes('.' + filePattern)) {
+                // 用正则匹配URL
+                const pattern = new RegExp(`(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${filePattern}[^'"\\s,()<>{}\\[\\]]*`, 'g');
+                const matches = responseText.match(pattern);
                 if (matches) {
                   matches.forEach(url => 
                     VideoUrlProcessor.processUrl(url, 0, 'xhr:responseContent')
@@ -124,15 +124,12 @@
         // 处理响应
         const fetchPromise = originalFetch.apply(this, arguments);
         fetchPromise.then(response => {
-          // 仅处理 response.url（避免与 input.url 重复）
-          if (response.url !== url) {
-            VideoUrlProcessor.processUrl(response.url, 0, 'fetch:response');
-          }
+          VideoUrlProcessor.processUrl(response.url, 0, 'fetch:response');
           
           // 检查可能的JSON响应中的URL
           if (response.headers.get('content-type')?.includes('application/json')) {
             response.clone().text().then(text => {
-              if (text && text.length <= CONSTANTS.JSON_RESPONSE_MAX_SIZE && text.includes('.' + filePattern)) {
+              if (text && text.includes('.' + filePattern)) {
                 try {
                   const data = JSON.parse(text);
                   // 递归搜索JSON中的URL
@@ -159,86 +156,67 @@
       };
     },
 
-    // 添加 MediaSource 检测功能
     setupMediaSourceInterceptor() {
-      // 检查浏览器是否支持 MediaSource
       if (!window.MediaSource) return;
 
-      // 保存原始的 addSourceBuffer 方法
       const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-      
-      // 定义支持的流媒体 MIME 类型映射
-      const supportedTypes = {
-        'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
-        'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
-        'mp4': ['video/mp4', 'application/mp4']
-      };
-
-      // 重写 addSourceBuffer 方法
       MediaSource.prototype.addSourceBuffer = function(mimeType) {
-        // 获取当前检测类型相关的 MIME 类型列表
+        const supportedTypes = {
+          'm3u8': ['application/x-mpegURL', 'application/vnd.apple.mpegURL'],
+          'flv': ['video/x-flv', 'application/x-flv', 'flv-application/octet-stream'],
+          'mp4': ['video/mp4', 'application/mp4']
+        };
+
         const currentTypes = supportedTypes[filePattern] || [];
-        
-        // 检查当前 MediaSource 的 URL
-        const mediaUrl = this.url || (this.sourceBuffers.length > 0 && this.sourceBuffers[0].url) || window.location.href;
-        
-        // 检查 MIME 类型是否匹配
-        if (mimeType && currentTypes.some(type => mimeType.toLowerCase().includes(type.toLowerCase()))) {
-          // 在检测到匹配的 MIME 类型时处理 URL
-          VideoUrlProcessor.processUrl(mediaUrl, 0, 'mediasource:' + mimeType);
-          
-          // 记录调试信息
-          console.debug(`MediaSource 检测到 ${mimeType} 类型，URL: ${mediaUrl}`);
+        if (currentTypes.some(type => mimeType.includes(type))) {
+          VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource');
         }
-        
-        // 调用原始方法继续正常流程
         return originalAddSourceBuffer.call(this, mimeType);
       };
-
-      // 拦截 MediaSource 的 URL 属性（用于某些实现方式）
-      // 在某些情况下，MediaSource 会通过 URL.createObjectURL 创建 blob URL
-      const originalCreateObjectURL = URL.createObjectURL;
-      URL.createObjectURL = function(object) {
-        const objectUrl = originalCreateObjectURL.apply(this, arguments);
-        
-        // 检查是否是 MediaSource 对象
-        if (object instanceof MediaSource) {
-          // 为 MediaSource 对象关联创建的 URL
-          object.url = objectUrl;
-          
-          // 监听 sourceopen 事件，此时 MediaSource 已经准备好接收数据
-          object.addEventListener('sourceopen', function() {
-            // 当 MediaSource 打开时，我们可以获取更多信息
-            const videoElement = document.querySelector('video[src="' + objectUrl + '"]');
-            if (videoElement) {
-              // 如果找到关联的视频元素，记录关联信息
-              VideoUrlProcessor.processUrl(window.location.href, 0, 'mediasource:sourceopen');
-              console.debug('MediaSource sourceopen 事件触发，关联视频元素:', videoElement);
+      
+      // 添加MSE URL监控
+      try {
+        const originalURL = window.URL || window.webkitURL;
+        if (originalURL && originalURL.createObjectURL) {
+          const originalCreateObjectURL = originalURL.createObjectURL;
+          originalURL.createObjectURL = function(obj) {
+            const url = originalCreateObjectURL.call(this, obj);
+            if (obj instanceof MediaSource) {
+              // 使用MutationObserver监控创建的MediaSource
+              setTimeout(() => {
+                const videoElements = document.querySelectorAll('video');
+                videoElements.forEach(video => {
+                  if (video.src === url) {
+                    video.addEventListener('loadedmetadata', () => {
+                      if (video.duration > 0 && video.src) {
+                        VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video');
+                      }
+                    });
+                  }
+                });
+              }, 100);
             }
-          });
+            return url;
+          };
         }
-        
-        return objectUrl;
-      };
+      } catch (e) {
+        console.error('MediaSource URL拦截失败:', e);
+      }
     }
   };
 
-  // DOM扫描器 (仅扫描filePattern相关元素、视频元素和脚本)
+  // DOM扫描器 (增强DOM扫描能力)
   const DOMScanner = {
     processedElements: new Set(),
     lastFullScanTime: 0,
 
     scanAttributes(element) {
-      // 检查元素的class、data-*、href和data-src属性
       for (const attr of element.attributes) {
-        if (['class', 'href', 'data-src'].includes(attr.name) || attr.name.startsWith(`data-${filePattern}`)) {
-          if (attr.value) VideoUrlProcessor.processUrl(attr.value, 0, 'attribute:' + attr.name);
-        }
+        if (attr.value) VideoUrlProcessor.processUrl(attr.value, 0, 'attribute:' + attr.name);
       }
     },
 
     scanMediaElement(element) {
-      // 处理视频元素（<video>和<source>）
       if (element.tagName === 'VIDEO') {
         [element.src, element.currentSrc].forEach(src => {
           if (src) VideoUrlProcessor.processUrl(src, 0, 'video:src');
@@ -268,17 +246,25 @@
     },
 
     scanPage(root = document) {
-      // 优化选择器，优先扫描高概率元素
+      const now = Date.now();
+      const isFullScan = now - this.lastFullScanTime > 5000; // 每5秒做一次完整扫描
+      
+      if (isFullScan) {
+        this.lastFullScanTime = now;
+      }
+      
+      // 基于选择器的扫描 (原始逻辑)
       const selector = [
-        `a[href*="${filePattern}"]`,
-        `[data-${filePattern}]`,
-        `[data-src*="${filePattern}"]`,
         'video',
-        'source'
+        'source',
+        '[class*="video"]',
+        '[class*="player"]',
+        `[class*="${filePattern}"]`,
+        `[data-${filePattern}]`,
+        `a[href*="${filePattern}"]`,
+        `[data-src*="${filePattern}"]`
       ].join(',');
 
-      // 性能日志
-      const startTime = performance.now();
       root.querySelectorAll(selector).forEach(element => {
         if (this.processedElements.has(element)) return;
         this.processedElements.add(element);
@@ -286,30 +272,71 @@
         this.scanAttributes(element);
         this.scanMediaElement(element);
       });
-      const endTime = performance.now();
-      console.debug(`DOMScanner.scanPage 耗时: ${(endTime - startTime).toFixed(2)}ms`);
+      
+      // 扫描所有iframe
+      root.querySelectorAll('iframe').forEach(iframe => {
+        try {
+          if (iframe.contentDocument && iframe.contentDocument.documentElement) {
+            this.scanPage(iframe.contentDocument);
+          }
+        } catch (e) {
+          // 跨域iframe无法访问
+        }
+      });
+
+      if (isFullScan) {
+        // 检查所有<a>标签
+        root.querySelectorAll('a').forEach(a => {
+          if (a.href && !this.processedElements.has(a)) {
+            this.processedElements.add(a);
+            VideoUrlProcessor.processUrl(a.href, 0, 'anchor');
+          }
+        });
+        
+        // 全面扫描所有可能的元素
+        this.scanAllDataAttributes(root);
+        this.scanScripts();
+      }
+    },
+    
+    scanAllDataAttributes(root) {
+      // 查找所有含data-属性的元素
+      const allElements = root.querySelectorAll('[data-*]');
+      allElements.forEach(el => {
+        if (this.processedElements.has(el)) return;
+        this.processedElements.add(el);
+        
+        // 检查所有data-属性
+        Array.from(el.attributes)
+          .filter(attr => attr.name.startsWith('data-'))
+          .forEach(attr => {
+            if (attr.value) {
+              VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute');
+            }
+          });
+      });
     },
 
     scanScripts() {
-      // 性能日志
-      const startTime = performance.now();
-      // 仅由 MutationObserver 触发具体脚本扫描，避免全量扫描
-      const endTime = performance.now();
-      console.debug(`DOMScanner.scanScripts 耗时: ${(endTime - startTime).toFixed(2)}ms`);
-    },
-
-    scanSingleScript(script) {
-      if (!script.textContent) return;
-      
-      // 使用全局正则表达式提取 URL
-      const matches = script.textContent.match(URL_PATTERN_REGEX);
-      if (matches) {
-        matches.forEach(url => {
-          if (url.includes('http') && filePatternRegex.test(url)) {
-            VideoUrlProcessor.processUrl(url, 0, 'script:' + filePattern);
+      document.querySelectorAll('script:not([src])').forEach(script => {
+        if (!script.textContent) return;
+        
+        // 扩展查找多种文件模式
+        const patterns = [filePattern, 'm3u8', 'mp4', 'flv', 'ts'];
+        
+        for (const pattern of patterns) {
+          const patternStr = '.' + pattern;
+          let index = script.textContent.indexOf(patternStr);
+          
+          while (index !== -1) {
+            const extracted = this.extractUrlFromScript(script.textContent, index);
+            if (extracted.url.includes('http')) {
+              VideoUrlProcessor.processUrl(extracted.url, 0, 'script:' + pattern);
+            }
+            index = script.textContent.indexOf(patternStr, extracted.endIndex);
           }
-        });
-      }
+        }
+      });
     },
 
     extractUrlFromScript(content, startIndex) {
@@ -319,14 +346,14 @@
       // 向前查找 URL 起点
       while (urlStart > 0) {
         const char = content[urlStart - 1];
-        if (char === '"' || char === "'" || char === ' ' || char === '\n') break;
+        if (char === '"' || char === "'" || char === ' ' || char === '\\n') break;
         urlStart--;
       }
 
       // 向后查找 URL 终点
       while (urlEnd < content.length) {
         const char = content[urlEnd];
-        if (char === '"' || char === "'" || char === ' ' || char === '\n') break;
+        if (char === '"' || char === "'" || char === ' ' || char === '\\n') break;
         urlEnd++;
       }
 
@@ -337,49 +364,165 @@
     }
   };
 
+  // 增强型播放器检测 (新增)
+  const PlayerDetector = {
+    knownPlayerClasses: [
+      'player', 'video-js', 'jwplayer', 'html5-video-player', 'video-player',
+      'video_player', 'media-player', 'flowplayer', 'vjs-player', 'mejs-player'
+    ],
+    
+    setupPlayerDetection() {
+      // 监控播放器API
+      const playerAPIs = [
+        'videojs', 'jwplayer', 'flowplayer', 'Player', 'createPlayer',
+        'DPlayer', 'Hls', 'flvjs', 'dashjs', 'Plyr', 'MediaElementPlayer'
+      ];
+      
+      playerAPIs.forEach(api => {
+        if (window[api]) {
+          this.hookPlayerAPI(api);
+        } else {
+          Object.defineProperty(window, api, {
+            configurable: true,
+            enumerable: true,
+            get: function() { return this['_' + api]; },
+            set: function(value) {
+              this['_' + api] = value;
+              PlayerDetector.hookPlayerAPI(api, value);
+            }
+          });
+        }
+      });
+    },
+    
+    hookPlayerAPI(apiName, apiObj) {
+      try {
+        const api = apiObj || window[apiName];
+        if (!api || api._hooked) return;
+        
+        console.info('检测到播放器API: ' + apiName);
+        api._hooked = true;
+        
+        // 根据不同播放器API实现不同的钩子
+        if (apiName === 'videojs' && typeof api === 'function') {
+          const originalVideojs = api;
+          window[apiName] = function() {
+            const player = originalVideojs.apply(this, arguments);
+            if (player && player.src) {
+              const originalSrc = player.src;
+              player.src = function(src) {
+                if (src && typeof src === 'string') {
+                  VideoUrlProcessor.processUrl(src, 0, 'player:videojs');
+                } else if (src && typeof src === 'object' && src.src) {
+                  VideoUrlProcessor.processUrl(src.src, 0, 'player:videojs');
+                }
+                return originalSrc.apply(this, arguments);
+              };
+            }
+            return player;
+          };
+        } else if (apiName === 'Hls' && api.isSupported) {
+          const originalLoadSource = api.prototype.loadSource;
+          api.prototype.loadSource = function(url) {
+            if (url) VideoUrlProcessor.processUrl(url, 0, 'player:hls');
+            return originalLoadSource.call(this, url);
+          };
+        } else if (apiName === 'flvjs' && api.createPlayer) {
+          const originalCreatePlayer = api.createPlayer;
+          api.createPlayer = function(mediaDataSource) {
+            if (mediaDataSource && mediaDataSource.url) {
+              VideoUrlProcessor.processUrl(mediaDataSource.url, 0, 'player:flvjs');
+            }
+            return originalCreatePlayer.call(this, mediaDataSource);
+          };
+        }
+      } catch (e) {
+        console.error('Hook播放器API失败: ' + apiName, e);
+      }
+    },
+    
+    init() {
+      this.setupPlayerDetection();
+      
+      // 特定播放器支持
+      this.setupHlsSupport();
+      this.setupDashSupport();
+    },
+    
+    setupHlsSupport() {
+      if (window.Hls) {
+        const originalLoadSource = window.Hls.prototype.loadSource;
+        window.Hls.prototype.loadSource = function(url) {
+          if (url) VideoUrlProcessor.processUrl(url, 0, 'hls:loadSource');
+          return originalLoadSource.call(this, url);
+        };
+      }
+    },
+    
+    setupDashSupport() {
+      if (window.dashjs && window.dashjs.MediaPlayer) {
+        const originalAttachSource = window.dashjs.MediaPlayer.prototype.attachSource;
+        window.dashjs.MediaPlayer.prototype.attachSource = function(url) {
+          if (url) VideoUrlProcessor.processUrl(url, 0, 'dash:attachSource');
+          return originalAttachSource.call(this, url);
+        };
+      }
+    }
+  };
+
+  // 处理 URL 变化的函数
+  function handleUrlChange() {
+    DOMScanner.scanPage(document);
+  }
+
   // 初始化检测器
   function initializeDetector() {
-    // 设置网络拦截
+    // 设置网络拦截 (保留原逻辑)
     NetworkInterceptor.setupXHRInterceptor();
     NetworkInterceptor.setupFetchInterceptor();
-    NetworkInterceptor.setupMediaSourceInterceptor(); // 添加 MediaSource 拦截器
+    NetworkInterceptor.setupMediaSourceInterceptor();
+    
+    // 初始化播放器检测
+    PlayerDetector.init();
 
-    // 设置 DOM 观察
+    // 设置 DOM 观察 (增强MutationObserver回调)
     observer = new MutationObserver(mutations => {
       const processQueue = new Set();
       const newVideos = new Set();
-      const newScripts = new Set();
 
       mutations.forEach(mutation => {
         // 处理新增节点
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === 1) {
-            // 检查新增的video或source元素
-            if (node.tagName === 'VIDEO' || node.tagName === 'SOURCE') {
+            // 检查新增的video元素
+            if (node.tagName === 'VIDEO') {
               newVideos.add(node);
             }
-            // 检查新增的script元素
-            if (node.tagName === 'SCRIPT' && !node.src) {
-              newScripts.add(node);
-            }
             
-            // 检查filePattern相关元素
-            if ((node.className && node.className.includes(filePattern)) ||
-                (node.hasAttribute(`data-${filePattern}`)) ||
-                (node.tagName === 'A' && node.href && node.href.includes(filePattern)) ||
-                (node.hasAttribute('data-src') && node.getAttribute('data-src').includes(filePattern))) {
+            // 检查新增的player元素
+            if (PlayerDetector.knownPlayerClasses.some(cls => 
+                (node.className && node.className.includes(cls)) || 
+                (node.id && node.id.includes('player')))) {
+              console.info('检测到可能的播放器元素: ', node);
               processQueue.add(node);
             }
             
             if (node instanceof Element) {
               for (const attr of node.attributes) {
-                if (attr.value && (
-                    attr.name === 'href' ||
-                    attr.name === 'data-src' ||
-                    attr.name.startsWith(`data-${filePattern}`)
-                )) {
-                  processQueue.add(attr.value);
-                }
+                if (attr.value) processQueue.add(attr.value);
+              }
+            }
+            
+            // 检查是否是iframe并扫描
+            if (node.tagName === 'IFRAME') {
+              try {
+                setTimeout(() => {
+                  if (node.contentDocument) {
+                    DOMScanner.scanPage(node.contentDocument);
+                  }
+                }, 500);
+              } catch (e) {
+                // 跨域iframe
               }
             }
           }
@@ -388,12 +531,13 @@
         // 处理属性变化
         if (mutation.type === 'attributes') {
           const newValue = mutation.target.getAttribute(mutation.attributeName);
-          if (newValue && (
-              mutation.attributeName === 'href' ||
-              mutation.attributeName === 'data-src' ||
-              mutation.attributeName.startsWith(`data-${filePattern}`)
-          )) {
-            processQueue.add(newValue);
+          if (newValue) processQueue.add(newValue);
+          
+          // 检查特定属性是否与播放相关
+          if (['src', 'data-src', 'href'].includes(mutation.attributeName)) {
+            if (newValue && newValue.includes('.' + filePattern)) {
+              VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change');
+            }
           }
         }
       });
@@ -403,12 +547,7 @@
         DOMScanner.scanMediaElement(video);
       });
 
-      // 处理新增的脚本
-      newScripts.forEach(script => {
-        DOMScanner.scanSingleScript(script);
-      });
-
-      // 处理队列
+      // 使用requestIdleCallback处理队列
       if (window.requestIdleCallback) {
         requestIdleCallback(() => {
           processQueue.forEach(item => {
@@ -418,8 +557,9 @@
               DOMScanner.scanPage(item.parentNode || document);
             }
           });
-        }, { timeout: CONSTANTS.IDLE_CALLBACK_TIMEOUT_MS });
+        }, { timeout: 1000 });
       } else {
+        // 降级方案
         setTimeout(() => {
           processQueue.forEach(item => {
             if (typeof item === 'string') {
@@ -428,7 +568,7 @@
               DOMScanner.scanPage(item.parentNode || document);
             }
           });
-        }, CONSTANTS.SET_TIMEOUT_DELAY_MS);
+        }, 100);
       }
     });
 
@@ -438,32 +578,27 @@
       attributes: true
     });
 
+    // URL 变化处理
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+
     // 初始扫描
     if (window.requestIdleCallback) {
       requestIdleCallback(() => {
         DOMScanner.scanPage(document);
-        // 初始扫描所有脚本
-        document.querySelectorAll('script:not([src])').forEach(script => {
-          DOMScanner.scanSingleScript(script);
-        });
-      }, { timeout: CONSTANTS.IDLE_CALLBACK_TIMEOUT_MS });
+      }, { timeout: 1000 });
     } else {
       setTimeout(() => {
         DOMScanner.scanPage(document);
-        // 初始扫描所有脚本
-        document.querySelectorAll('script:not([src])').forEach(script => {
-          DOMScanner.scanSingleScript(script);
-        });
-      }, CONSTANTS.SET_TIMEOUT_DELAY_MS);
+      }, 100);
     }
     
-    // 定期扫描
+    // 定期全面扫描
     setInterval(() => {
       if (!document.hidden) {
         DOMScanner.scanPage(document);
-        // 脚本扫描由 MutationObserver 接管
       }
-    }, CONSTANTS.SCAN_INTERVAL_MS);
+    }, 1000); // 每1秒扫描一次
   }
 
   // 初始化检测器
@@ -471,23 +606,23 @@
 
   // 清理函数
   window._cleanupM3U8Detector = () => {
-    // 清理观察器和事件监听
     if (observer) {
       observer.disconnect();
     }
+    window.removeEventListener('popstate', handleUrlChange);
+    window.removeEventListener('hashchange', handleUrlChange);
     delete window._m3u8DetectorInitialized;
     processedUrls.clear();
     DOMScanner.processedElements.clear();
   };
 
-  // 公开常用方法
+  // 公开常用方法给外部调用
   window.checkMediaElements = function(root) {
     if (root) DOMScanner.scanPage(root);
   };
   
   window.efficientDOMScan = function() {
     DOMScanner.scanPage(document);
-    // 脚本扫描由 MutationObserver 接管
   };
   
   // 初始化通知
