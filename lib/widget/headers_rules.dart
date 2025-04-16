@@ -66,6 +66,7 @@ qztv.cn|www.qztv.cn
 gzstv.com|www.gzstv.com
 lasatv.cn|www.lasatv.cn
 p8.vzan.com|npwhyavzb.vzan.com
+xishuirm.cn|www.xishuirm.cn
 zjwtv.com|app.zjwtv.com''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
