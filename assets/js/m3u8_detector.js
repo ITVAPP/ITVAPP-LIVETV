@@ -72,8 +72,12 @@
           processedUrls.has(url)) return;
 
       try {
-        url = this.normalizeUrl(url); // 标准化 URL
+        // 先进行标准化处理
+        url = this.normalizeUrl(url); 
         if (!url) return;
+        
+        // 对于已经标准化的 URL 再次检查是否已处理
+        if (processedUrls.has(url)) return;
         
         if (FILE_REGEX.test(url)) {
           processedUrls.add(url); // 记录已处理 URL
@@ -95,6 +99,16 @@
     normalizeUrl(url) {
       try {
         if (!url) return '';
+        
+        // 处理 JSON 中的转义字符
+        url = url.replace(/\\(\/|\\|"|')/g, '$1');
+        
+        // 处理重复斜杠 (但保留协议中的双斜杠)
+        url = url.replace(/([^:])\/\/+/g, '$1/');
+        
+        // 去除 URL 开头和结尾的引号和空白
+        url = url.replace(/^[\s'"]+|[\s'"]+$/g, '');
+        
         if (url.startsWith('/')) {
           const baseUrl = new URL(window.location.href);
           return baseUrl.protocol + '//' + baseUrl.host + url;
@@ -135,12 +149,14 @@
           if (this.responseType === '' || this.responseType === 'text') {
             const responseText = this.responseText;
             if (responseText && responseText.includes('.' + filePattern)) {
-              // 提取响应内容中的 URL
-              const matches = responseText.match(new RegExp(`(?:https?://|//|/)[^'"\\s,()<>{}\\[\\]]*?\\.${filePattern}[^'"\\s,()<>{}\\[\\]]*`, 'g'));
+              // 提取响应内容中的 URL - 使用更精确的正则表达式
+              const matches = responseText.match(new RegExp(`["'\\s]?(https?://|//|/)[^"'\\s,()<>{}\\[\\]]*?\\.${filePattern}[^"'\\s,()<>{}\\[\\]]*`, 'g'));
               if (matches) {
-                matches.forEach(url => 
-                  VideoUrlProcessor.processUrl(url, 0, 'xhr:responseContent')
-                );
+                matches.forEach(url => {
+                  // 清理 URL 开头可能的引号或空格
+                  const cleanUrl = url.replace(/^["'\s]+/, '');
+                  VideoUrlProcessor.processUrl(cleanUrl, 0, 'xhr:responseContent');
+                });
               }
             }
           }
