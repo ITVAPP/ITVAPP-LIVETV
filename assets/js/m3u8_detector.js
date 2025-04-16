@@ -23,6 +23,7 @@
 
   // 预编译常用正则表达式
   const FILE_REGEX = new RegExp('\\.(' + filePattern + ')([?#]|$)', 'i');
+  // 统一的 URL 正则表达式，用于匹配各种场景下的 URL
   const UNIFIED_URL_REGEX = new RegExp(`(?:https?://|//|/)[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`, 'g');
   
   // 支持的媒体类型
@@ -109,16 +110,64 @@
         // 去除 URL 开头和结尾的引号和空白
         url = url.replace(/^[\s'"]+|[\s'"]+$/g, '');
         
-        if (url.startsWith('/')) {
-          const baseUrl = new URL(window.location.href);
-          return baseUrl.protocol + '//' + baseUrl.host + url;
+        // 确保URL格式正确
+        let parsedUrl;
+        try {
+          if (url.startsWith('/')) {
+            const baseUrl = new URL(window.location.href);
+            parsedUrl = new URL(url, baseUrl);
+          } else if (!url.startsWith('http')) {
+            parsedUrl = new URL(url, window.location.href);
+          } else {
+            parsedUrl = new URL(url);
+          }
+        } catch (e) {
+          return url; // URL 格式不正确，返回原始值
         }
-        if (!url.startsWith('http')) {
-          return new URL(url, window.location.href).toString();
+        
+        // 规范化主机名 (转为小写)
+        parsedUrl.hostname = parsedUrl.hostname.toLowerCase();
+        
+        // 规范化查询参数 (排序并移除无用参数)
+        if (parsedUrl.search) {
+          const params = new URLSearchParams(parsedUrl.search);
+          
+          // 移除常见的缓存破坏参数
+          const paramsToRemove = ['_t', 'timestamp', 'time', 't', 'v', 'ver', 'version', 'random', 'r', 'rnd', '_', 'nocache', '_upt'];
+          paramsToRemove.forEach(param => {
+            // 只有当参数是明显的时间戳或随机数时才移除
+            if (params.has(param)) {
+              const value = params.get(param);
+              // 如果是数字或明显的时间戳，才移除
+              if (/^\d+$/.test(value) || /^\d{13}$/.test(value) || /^[a-f0-9]{8,}$/i.test(value)) {
+                params.delete(param);
+              }
+            }
+          });
+          
+          // 排序参数以确保一致性
+          const sortedParams = new URLSearchParams();
+          [...params.keys()].sort().forEach(key => {
+            sortedParams.set(key, params.get(key));
+          });
+          
+          // 重建查询字符串
+          parsedUrl.search = sortedParams.toString() ? `?${sortedParams.toString()}` : '';
         }
-        return url;
+        
+        // 移除默认端口号
+        if ((parsedUrl.protocol === 'http:' && parsedUrl.port === '80') || 
+            (parsedUrl.protocol === 'https:' && parsedUrl.port === '443')) {
+          parsedUrl.port = '';
+        }
+        
+        // 移除URL哈希部分 (通常不影响资源的实际位置)
+        parsedUrl.hash = '';
+        
+        // 返回规范化的 URL
+        return parsedUrl.toString();
       } catch (e) {
-        return url; // 格式错误时返回原 URL
+        return url; // 出错时返回原 URL
       }
     },
   };
