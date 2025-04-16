@@ -23,7 +23,7 @@
 
   // 预编译常用正则表达式
   const FILE_REGEX = new RegExp('\\.(' + filePattern + ')([?#]|$)', 'i');
-  const URL_REGEX = new RegExp(`['"](https?://[^'"]*?\\.${filePattern}[^'"]*?)['"]|['"](/[^'"]*?\\.${filePattern}[^'"]*?)['"]`, 'g');
+  const UNIFIED_URL_REGEX = new RegExp(`(?:https?://|//|/)[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`, 'g');
   
   // 支持的媒体类型
   const SUPPORTED_MEDIA_TYPES = [
@@ -149,8 +149,9 @@
           if (this.responseType === '' || this.responseType === 'text') {
             const responseText = this.responseText;
             if (responseText && responseText.includes('.' + filePattern)) {
-              // 提取响应内容中的 URL - 使用更精确的正则表达式
-              const matches = responseText.match(new RegExp(`["'\\s]?(https?://|//|/)[^"'\\s,()<>{}\\[\\]]*?\\.${filePattern}[^"'\\s,()<>{}\\[\\]]*`, 'g'));
+              // 提取响应内容中的 URL - 使用统一的正则表达式
+              UNIFIED_URL_REGEX.lastIndex = 0; // 重置正则表达式状态
+              const matches = responseText.match(UNIFIED_URL_REGEX);
               if (matches) {
                 matches.forEach(url => {
                   // 清理 URL 开头可能的引号或空格
@@ -415,9 +416,9 @@
           if (!content) continue;
           
           let match;
-          URL_REGEX.lastIndex = 0; // 重置正则表达式状态
-          while ((match = URL_REGEX.exec(content)) !== null) {
-            const url = match[1] || match[2];
+          UNIFIED_URL_REGEX.lastIndex = 0; // 重置正则表达式状态
+          while ((match = UNIFIED_URL_REGEX.exec(content)) !== null) {
+            const url = match[0].replace(/^["'\s]+/, ''); // 清理 URL 开头可能的引号或空格
             if (url) {
               VideoUrlProcessor.processUrl(url, 0, 'script:regex');
             }
