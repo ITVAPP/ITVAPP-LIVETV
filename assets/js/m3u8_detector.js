@@ -172,36 +172,6 @@
         // 规范化主机名 (转为小写)
         parsedUrl.hostname = parsedUrl.hostname.toLowerCase();
         
-        // 优化的查询参数处理
-        if (parsedUrl.search) {
-          const params = new URLSearchParams(parsedUrl.search);
-          
-          // 定义一次性匹配时间戳和随机值的正则表达式
-          const timeStampRegex = /^(\d+|\d{13}|[a-f0-9]{8,})$/i;
-          
-          // 移除常见的缓存破坏参数
-          const paramsToRemove = ['_t', 'timestamp', 'time', 't', 'v', 'ver', 'version', 'random', 'r', 'rnd', '_', 'nocache', '_upt'];
-          for (const param of paramsToRemove) {
-            if (params.has(param)) {
-              const value = params.get(param);
-              // 使用正则一次性匹配
-              if (timeStampRegex.test(value)) {
-                params.delete(param);
-              }
-            }
-          }
-          
-          // 简化排序逻辑
-          if (params.toString()) {
-            parsedUrl.search = '?' + [...params.entries()]
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([k, v]) => `${k}=${v}`)
-              .join('&');
-          } else {
-            parsedUrl.search = '';
-          }
-        }
-        
         // 移除默认端口号
         if ((parsedUrl.protocol === 'http:' && parsedUrl.port === '80') || 
             (parsedUrl.protocol === 'https:' && parsedUrl.port === '443')) {
