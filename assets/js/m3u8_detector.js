@@ -1,4 +1,4 @@
-// 流媒体地址检测器
+// 流媒体探测器：检测页面中的 m3u8 等流媒体文件
 (function() {
   // 防止重复初始化
   if (window._m3u8DetectorInitialized) return;
