@@ -47,6 +47,7 @@
   // 预编译正则表达式
   const FILE_REGEX = new RegExp(`\\.${filePattern}([?#]|$)`, 'i'); // 匹配m3u8文件URL
   const URL_REGEX = new RegExp(`[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`, 'g'); // 提取m3u8 URL
+  const CLEAN_URL_REGEX = /\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g; // 清理URL中的转义、多斜杠和空白引号
   const SUPPORTED_MEDIA_TYPES = [
     'application/x-mpegURL', 
     'application/vnd.apple.mpegURL', 
@@ -113,15 +114,18 @@
     normalizeUrl(url, baseUrl = window.location.href) {
       if (!url) return '';
       try {
-        url = url.replace(/\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g, '$2'); // 清理URL格式
+        // 清理URL格式，移除反斜杠、连续斜杠和首尾空白引号
+        url = url.replace(CLEAN_URL_REGEX, '$2');
+        
         let parsedUrl;
-        if (url.startsWith('/')) {
-          parsedUrl = new URL(url, baseUrl); // 相对路径转绝对
-        } else if (!url.startsWith('http')) {
-          parsedUrl = new URL(url, baseUrl); // 非http开头转绝对
+        // 优先处理绝对URL（http:// 或 https:// 开头）
+        if (url.match(/^https?:\/\//i)) {
+          parsedUrl = new URL(url);
         } else {
-          parsedUrl = new URL(url); // 直接解析
+          // 对于相对路径或根路径，使用baseUrl补全
+          parsedUrl = new URL(url, baseUrl);
         }
+        
         parsedUrl.hostname = parsedUrl.hostname.toLowerCase(); // 主机名转小写
         if ((parsedUrl.protocol === 'http:' && parsedUrl.port === '80') || 
             (parsedUrl.protocol === 'https:' && parsedUrl.port === '443')) {
