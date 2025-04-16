@@ -1002,9 +1002,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       final offsetAdjustment =
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
       targetOffset = (index - offsetAdjustment) * localItemHeight;
-      if (targetList == 'epg') {
-        targetOffset += localItemHeight;
-      }
+
     }
 
     targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
