@@ -26,25 +26,36 @@ class UrlUtils {
     if (url.isEmpty) return url; // 空URL直接返回
     if (url.endsWith(r'\')) url = url.substring(0, url.length - 1); // 移除末尾反斜杠
     
+    // 优化：减少字符串创建次数，条件性处理特定模式
     String result = url
         .replaceAllMapped(_escapeRegex, (match) => match.group(1)!) // 移除转义符号
-        .replaceAll(r'\/', '/') // 替换反斜杠斜杠为单斜杠
-        .replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!) // 转换HTML实体
-        .replaceAll(_multiSlashRegex, '/') // 合并多斜杠为单斜杠
-        .trim(); // 去除首尾空格
+        .replaceAll(r'\/', '/'); // 替换反斜杠斜杠为单斜杠
     
-    if (result.contains(r'\u')) { // 处理Unicode编码
+    // 只在需要时处理多斜杠    
+    if (result.contains('///')) {
+      result = result.replaceAll(_multiSlashRegex, '/');
+    }
+    
+    // 只在需要时处理HTML实体
+    if (result.contains('&')) {
+      result = result.replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!);
+    }
+    
+    // 只在需要时处理Unicode编码
+    if (result.contains(r'\u')) {
       result = result.replaceAllMapped(_unicodeRegex, (match) => _parseUnicode(match.group(1)));
     }
     
-    if (result.contains('%')) { // 处理URL编码
+    // 只在需要时处理URL编码
+    if (result.contains('%')) {
       try {
         result = Uri.decodeComponent(result);
       } catch (e) {
+        // 解析失败保持原样
       }
     }
     
-    return result;
+    return result.trim(); // 去除首尾空格
   }
 
   /// 将Unicode十六进制转换为字符
@@ -92,10 +103,13 @@ class LimitedSizeSet<T> {
   static const int DEFAULT_MAX_SIZE = 50;
 
   final int maxSize; // 最大容量
-  final Set<T> _internalSet = {}; // 内部集合存储元素
-  final List<T> _insertionOrder = []; // 记录插入顺序
+  final Set<T> _internalSet; // 内部集合存储元素
+  final List<T> _insertionOrder; // 记录插入顺序
   
-  LimitedSizeSet([this.maxSize = DEFAULT_MAX_SIZE]); // 修改：使用常量作为默认值
+  // 优化构造函数，避免重复创建集合
+  LimitedSizeSet([this.maxSize = DEFAULT_MAX_SIZE]) 
+      : _internalSet = {},
+        _insertionOrder = [];
   
   /// 添加元素，超出容量时移除最早元素
   bool add(T element) {
@@ -111,12 +125,71 @@ class LimitedSizeSet<T> {
   
   bool contains(T element) => _internalSet.contains(element); // 检查元素是否存在
   int get length => _internalSet.length; // 获取当前元素数量
-  List<T> toList() => List<T>.from(_insertionOrder); // 转换为列表
-  Set<T> toSet() => Set<T>.from(_internalSet); // 转换为集合
+  
+  // 优化转换方法，避免不必要的复制
+  List<T> toList() => List.unmodifiable(_insertionOrder); // 转换为不可变列表
+  Set<T> toSet() => Set.unmodifiable(_internalSet); // 转换为不可变集合
+  
   void clear() { _internalSet.clear(); _insertionOrder.clear(); } // 清空集合
   void remove(T element) { // 移除指定元素
     if (_internalSet.remove(element)) _insertionOrder.remove(element);
   }
+}
+
+/// 通用 LRU 缓存实现
+class LRUCache<K, V> {
+  final int maxSize;
+  final Map<K, V> _cache = {};
+  final List<K> _keys = [];
+
+  LRUCache(this.maxSize);
+
+  V? get(K key) {
+    if (!_cache.containsKey(key)) return null;
+    
+    // 更新访问顺序
+    _keys.remove(key);
+    _keys.add(key);
+    
+    return _cache[key];
+  }
+
+  void put(K key, V value) {
+    if (_cache.containsKey(key)) {
+      _cache[key] = value;
+      _keys.remove(key);
+      _keys.add(key);
+      return;
+    }
+
+    if (_keys.length >= maxSize) {
+      final oldest = _keys.removeAt(0);
+      _cache.remove(oldest);
+    }
+
+    _cache[key] = value;
+    _keys.add(key);
+  }
+
+  bool containsKey(K key) => _cache.containsKey(key);
+  
+  int get length => _cache.length;
+  
+  void clear() {
+    _cache.clear();
+    _keys.clear();
+  }
+  
+  void remove(K key) {
+    if (_cache.containsKey(key)) {
+      _cache.remove(key);
+      _keys.remove(key);
+    }
+  }
+  
+  List<K> get keys => List.from(_keys);
+  
+  List<V> get values => _keys.map((k) => _cache[k]!).toList();
 }
 
 /// M3U8地址获取类
@@ -133,19 +206,17 @@ class GetM3U8 {
   static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
   static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
   static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
-  static const int WEBVIEW_CLEANUP_DELAY_MS = 500; // WebView清理延迟（毫秒）
+  static const int WEBVIEW_CLEANUP_DELAY_MS = 1000; // WebView清理延迟（毫秒）
 
-  static final Map<String, String> _scriptCache = {}; // 脚本缓存
-  static final Map<String, List<M3U8FilterRule>> _ruleCache = {}; // 规则缓存
-  static final Map<String, Set<String>> _keywordsCache = {}; // 关键词缓存
-  static final Map<String, Map<String, String>> _specialRulesCache = {}; // 特殊规则缓存
-  static final Map<String, RegExp> _patternCache = {}; // 正则缓存
-
-  /// 限制Map大小，移除最早项
-  static void _limitMapSize<K, V>(Map<K, V> map, int maxSize, K key, V value) {
-    if (map.length >= maxSize) map.remove(map.keys.first); // 超出时移除首项
-    map[key] = value; // 添加新项
-  }
+  // 使用LRU缓存替代静态Map
+  static final LRUCache<String, String> _scriptCache = LRUCache<String, String>(MAX_CACHE_SIZE);
+  static final LRUCache<String, List<M3U8FilterRule>> _ruleCache = LRUCache<String, List<M3U8FilterRule>>(MAX_RULE_CACHE_SIZE);
+  static final LRUCache<String, Set<String>> _keywordsCache = LRUCache<String, Set<String>>(MAX_RULE_CACHE_SIZE);
+  static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache<String, Map<String, String>>(MAX_RULE_CACHE_SIZE);
+  static final LRUCache<String, RegExp> _patternCache = LRUCache<String, RegExp>(MAX_CACHE_SIZE);
+  
+  // 静态缓存，避免重复解析
+  static List<String>? _blockedExtensionsCache;
 
   static final RegExp _invalidPatternRegex = RegExp( // 无效URL模式正则
     'advertisement|analytics|tracker|pixel|beacon|stats|log',
@@ -160,14 +231,22 @@ class GetM3U8 {
   // 阻止加载的黑名单关键字
   static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
   
-  // 解析阻止扩展名的方法
+  // 优化：使用缓存解析阻止扩展名
   static List<String> _parseBlockedExtensions(String extensionsString) {
-    if (extensionsString.isEmpty) return [];
+    if (_blockedExtensionsCache != null) return _blockedExtensionsCache!;
+    
+    if (extensionsString.isEmpty) {
+      _blockedExtensionsCache = [];
+      return _blockedExtensionsCache!;
+    }
+    
     try {
-      return extensionsString.split('@').map((ext) => ext.trim()).toList();
+      _blockedExtensionsCache = extensionsString.split('@').map((ext) => ext.trim()).toList();
+      return _blockedExtensionsCache!;
     } catch (e) {
       LogUtil.e('解析阻止的扩展名失败: $e');
-      return [];
+      _blockedExtensionsCache = [];
+      return _blockedExtensionsCache!;
     }
   }
 
@@ -203,6 +282,12 @@ class GetM3U8 {
   final CancelToken? cancelToken; // 取消令牌
   bool _isDisposed = false; // 是否已释放
   Timer? _timeoutTimer; // 超时定时器
+  
+  // 添加：辅助方法检查URL类型 - 重用逻辑
+  bool _isMediaUrl(String url, String filePattern) {
+    final lowerUrl = url.toLowerCase();
+    return lowerUrl.contains('.' + filePattern.toLowerCase());
+  }
 
   /// 构造函数，初始化URL和参数
   GetM3U8({
@@ -251,14 +336,15 @@ class GetM3U8 {
   /// 获取或创建文件模式正则
   RegExp _getOrCreatePattern(String filePattern) {
     final cacheKey = 'pattern_$filePattern';
-    if (_patternCache.containsKey(cacheKey)) return _patternCache[cacheKey]!;
+    final cachedPattern = _patternCache.get(cacheKey);
+    if (cachedPattern != null) return cachedPattern;
     
     final pattern = RegExp( // 创建正则表达式
       "(?:https?://|//|/)[^'\"\\s,()<>{}\\[\\]]*?\\.${filePattern}[^'\"\\s,()<>{}\\[\\]]*",
       caseSensitive: false,
     );
     
-    _limitMapSize(_patternCache, MAX_CACHE_SIZE, cacheKey, pattern); // 修改：使用常量
+    _patternCache.put(cacheKey, pattern); // 使用LRUCache的put方法
     return pattern;
   }
 
@@ -284,34 +370,40 @@ class GetM3U8 {
   /// 解析过滤规则
   static List<M3U8FilterRule> _parseRules(String rulesString) {
     if (rulesString.isEmpty) return []; // 空字符串返回空列表
-    if (_ruleCache.containsKey(rulesString)) return _ruleCache[rulesString]!;
+    
+    final cachedRules = _ruleCache.get(rulesString);
+    if (cachedRules != null) return cachedRules;
     
     final rules = rulesString.split('@') // 分割规则
         .where((rule) => rule.isNotEmpty)
         .map(M3U8FilterRule.fromString)
         .toList();
     
-    _limitMapSize(_ruleCache, MAX_RULE_CACHE_SIZE, rulesString, rules); // 修改：使用常量
+    _ruleCache.put(rulesString, rules); // 使用LRUCache的put方法
     return rules;
   }
 
   /// 解析动态关键词
   static Set<String> _parseKeywords(String keywordsString) {
     if (keywordsString.isEmpty) return {}; // 空字符串返回空集合
-    if (_keywordsCache.containsKey(keywordsString)) return _keywordsCache[keywordsString]!;
+    
+    final cachedKeywords = _keywordsCache.get(keywordsString);
+    if (cachedKeywords != null) return cachedKeywords;
     
     final keywords = keywordsString.split('@') // 分割关键词
         .map((keyword) => keyword.trim())
         .toSet();
     
-    _limitMapSize(_keywordsCache, MAX_RULE_CACHE_SIZE, keywordsString, keywords); // 修改：使用常量
+    _keywordsCache.put(keywordsString, keywords); // 使用LRUCache的put方法
     return keywords;
   }
 
   /// 解析特殊规则
   static Map<String, String> _parseSpecialRules(String rulesString) {
     if (rulesString.isEmpty) return {}; // 空字符串返回空映射
-    if (_specialRulesCache.containsKey(rulesString)) return _specialRulesCache[rulesString]!;
+    
+    final cachedRules = _specialRulesCache.get(rulesString);
+    if (cachedRules != null) return cachedRules;
     
     final Map<String, String> rules = {};
     for (final rule in rulesString.split('@')) { // 分割规则
@@ -319,7 +411,7 @@ class GetM3U8 {
       if (parts.length >= 2) rules[parts[0].trim()] = parts[1].trim(); // 解析键值对
     }
     
-    _limitMapSize(_specialRulesCache, MAX_RULE_CACHE_SIZE, rulesString, rules); // 修改：使用常量
+    _specialRulesCache.put(rulesString, rules); // 使用LRUCache的put方法
     return rules;
   }
 
@@ -378,13 +470,15 @@ class GetM3U8 {
   /// 准备时间拦截器代码
   Future<String> _prepareTimeInterceptorCode() async {
     if (_cachedTimeOffset == null || _cachedTimeOffset == 0) return '(function(){})();'; // 无偏移返回空函数
+    
     final cacheKey = 'time_interceptor_${_cachedTimeOffset}';
-    if (_scriptCache.containsKey(cacheKey)) return _scriptCache[cacheKey]!;
+    final cachedScript = _scriptCache.get(cacheKey);
+    if (cachedScript != null) return cachedScript;
     
     try {
       final script = await rootBundle.loadString('assets/js/time_interceptor.js'); // 加载脚本
       final result = script.replaceAll('const timeOffset = 0', 'const timeOffset = $_cachedTimeOffset'); // 替换偏移值
-      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
+      _scriptCache.put(cacheKey, result); // 使用LRUCache的put方法
       return result;
     } catch (e) {
       LogUtil.e('加载时间拦截器脚本失败: $e');
@@ -493,6 +587,7 @@ class GetM3U8 {
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
       ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
     
+    // 优化：预加载脚本以减少延迟
     final List<String> initScripts = await _prepareInitScripts(); // 准备初始化脚本
     
     _setupJavaScriptChannels(completer); // 设置JS通道
@@ -632,9 +727,9 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
           return NavigationDecision.prevent;
         }
         
-        // 4. 检查M3U8文件
+        // 4. 使用辅助方法检查M3U8文件
         try {
-          if (uri.path.toLowerCase().contains('.' + _filePattern.toLowerCase())) {
+          if (_isMediaUrl(request.url, _filePattern)) {
             await _controller.runJavaScript(
               'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
             ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
@@ -739,14 +834,23 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
     try {
       final cacheKey = 'click_handler_${clickText}_${clickIndex}';
-      String scriptWithParams = _scriptCache[cacheKey] ?? (await rootBundle.loadString('assets/js/click_handler.js'))
-          .replaceAll('const searchText = ""', 'const searchText = "$clickText"')
-          .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex'); // 修改：替换方式更精确
+      String scriptWithParams;
+      
+      // 使用LRUCache而不是直接访问Map
+      final cachedScript = _scriptCache.get(cacheKey);
+      if (cachedScript != null) {
+        scriptWithParams = cachedScript;
+      } else {
+        final baseScript = await rootBundle.loadString('assets/js/click_handler.js');
+        scriptWithParams = baseScript
+            .replaceAll('const searchText = ""', 'const searchText = "$clickText"')
+            .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
+        _scriptCache.put(cacheKey, scriptWithParams); // 使用LRUCache的put方法
+      }
       
       await _controller.runJavaScript(scriptWithParams); // 执行点击脚本
       _isClickExecuted = true;
       LogUtil.i('点击操作执行完成，结果: 成功');
-      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, scriptWithParams); // 修改：使用常量
       return true;
     } catch (e, stack) {
       LogUtil.logError('执行点击操作时发生错误', e, stack);
@@ -832,45 +936,50 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     _checkCount = 0;
   }
 
-  /// 设置定期检查
+  /// 设置定期检查 - 优化预加载脚本
   void _setupPeriodicCheck() {
+    // 避免创建多余的定时器
     if (_periodicCheckTimer != null || _isCancelled() || _m3u8Found) {
       final reason = _periodicCheckTimer != null ? "定时器已存在" : _isCancelled() ? "任务被取消" : "已找到M3U8";
       LogUtil.i('跳过定期检查设置: $reason');
       return;
     }
     
-    _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: PERIODIC_CHECK_INTERVAL_MS), (timer) async { // 修改：使用常量
-      if (_m3u8Found || _isCancelled()) {
-        timer.cancel();
-        _periodicCheckTimer = null;
-        LogUtil.i('停止定期检查，原因: ${_m3u8Found ? "M3U8已找到" : "任务被取消"}');
-        return;
-      }
+    // 预加载检测器脚本以提高性能
+    _prepareM3U8DetectorCode().then((detectorScript) {
+      if (_m3u8Found || _isCancelled()) return;
       
-      _checkCount++;
-      LogUtil.i('执行第$_checkCount次定期检查');
-      
-      if (!_isControllerReady()) {
-        LogUtil.i('WebViewController未准备好，跳过本次检查');
-        return;
-      }
-      
-      try {
-        final detectorScript = await _prepareM3U8DetectorCode();
-        await _controller.runJavaScript(''' // 执行DOM扫描
-if (window._m3u8DetectorInitialized) {
-  checkMediaElements(document);
-  efficientDOMScan();
-} else {
-  $detectorScript
-  checkMediaElements(document);
-  efficientDOMScan();
-}
-''').catchError((error) => LogUtil.e('执行扫描失败: $error'));
-      } catch (e, stack) {
-        LogUtil.logError('定期检查执行出错', e, stack);
-      }
+      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: PERIODIC_CHECK_INTERVAL_MS), (timer) async {
+        if (_m3u8Found || _isCancelled()) {
+          timer.cancel();
+          _periodicCheckTimer = null;
+          LogUtil.i('停止定期检查，原因: ${_m3u8Found ? "M3U8已找到" : "任务被取消"}');
+          return;
+        }
+        
+        _checkCount++;
+        LogUtil.i('执行第$_checkCount次定期检查');
+        
+        if (!_isControllerReady()) {
+          LogUtil.i('WebViewController未准备好，跳过本次检查');
+          return;
+        }
+        
+        try {
+          await _controller.runJavaScript('''
+          if (window._m3u8DetectorInitialized) {
+            checkMediaElements(document);
+            efficientDOMScan();
+          } else {
+            ${detectorScript}
+            checkMediaElements(document);
+            efficientDOMScan();
+          }
+          ''').catchError((error) => LogUtil.e('执行扫描失败: $error'));
+        } catch (e, stack) {
+          LogUtil.logError('定期检查执行出错', e, stack);
+        }
+      });
     });
   }
 
@@ -893,25 +1002,39 @@ if (window._m3u8DetectorInitialized) {
     });
   }
 
-  /// 释放资源 - 修改为使用cleanup_script.js
+  /// 释放资源 - 优化资源释放流程
   Future<void> dispose() async {
     if (_isDisposed) return; // 已释放则返回
     
     _isDisposed = true;
+    
+    // 立即取消所有定时器
     _timeoutTimer?.cancel();
     _timeoutTimer = null;
     _periodicCheckTimer?.cancel();
     _periodicCheckTimer = null;
+    
+    // 清理集合
     _hashFirstLoadMap.remove(Uri.parse(url).toString());
     _foundUrls.clear();
     _pageLoadedStatus.clear();
     
-    await Future.delayed(Duration(milliseconds: 1500)); // 延迟释放WebView，给网页触发授权的请求预留多些时间
-    if (cancelToken != null && !cancelToken!.isCancelled) { // 取消HTTP请求
-      cancelToken!.cancel('GetM3U8 disposed');
+    // 异步处理 WebView 清理
+    if (_isControllerInitialized) {
+      // 延迟释放WebView，给网页触发授权的请求预留多些时间
+      Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS), () async {
+        if (cancelToken != null && !cancelToken!.isCancelled) {
+          cancelToken!.cancel('GetM3U8 disposed');
+        }
+        await _disposeWebViewCompletely(_controller);
+      });
+    } else {
+      if (cancelToken != null && !cancelToken!.isCancelled) {
+        cancelToken!.cancel('GetM3U8 disposed');
+      }
+      LogUtil.i('WebViewController 未初始化，跳过清理');
     }
-    if (_isControllerInitialized) await _disposeWebViewCompletely(_controller); // 清理WebView
-    else LogUtil.i('WebViewController 未初始化，跳过清理');
+    
     _resetControllerState();
     _httpResponseContent = null;
     _suggestGarbageCollection(); // 建议垃圾回收
@@ -927,35 +1050,58 @@ if (window._m3u8DetectorInitialized) {
     }
   }
   
-  /// 完全清理WebView资源 - 修改使用cleanup_script.js
-Future<void> _disposeWebViewCompletely(WebViewController controller) async {
-  try {
-    // 加载并执行清理脚本
-    final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
-    await controller.runJavaScript(cleanupScript)
+  /// 完全清理WebView资源 - 优化使用更高效的清理脚本
+  Future<void> _disposeWebViewCompletely(WebViewController controller) async {
+    try {
+      // 使用更简洁高效的清理脚本
+      const cleanupScript = '''
+      (function() {
+        // 移除所有事件监听器
+        const removeAllListeners = (element) => {
+          const clone = element.cloneNode(true);
+          element.parentNode?.replaceChild(clone, element);
+          return clone;
+        };
+        
+        // 清理媒体元素
+        document.querySelectorAll('video, audio').forEach(el => {
+          try {
+            el.pause();
+            el.src = '';
+            el.load();
+          } catch(e) {}
+        });
+        
+        // 清理主文档
+        document.body = removeAllListeners(document.body);
+        window.CleanupCompleted?.postMessage(JSON.stringify({
+          type: 'cleanup',
+          details: { status: 'success' }
+        }));
+      })();
+      ''';
+      
+      await controller.runJavaScript(cleanupScript)
         .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
-    
-    // 给脚本执行时间
-    await Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS));
-    
-    // 继续执行基本清理流程
-    await controller.setNavigationDelegate(NavigationDelegate());
-    await controller.loadRequest(Uri.parse('about:blank'));
-    await controller.clearCache();
-    await controller.clearLocalStorage();
-    await controller.runJavaScript('window.location.href = "about:blank";'); // 重置页面
-    LogUtil.i('已清理资源，并重置页面');
-  } catch (e, stack) {
-    LogUtil.logError('清理 WebView 时发生错误', e, stack);
+      
+      // 并行执行其他清理操作
+      await Future.wait([
+        controller.clearCache(),
+        controller.clearLocalStorage(),
+        controller.loadRequest(Uri.parse('about:blank'))
+      ]);
+      
+      LogUtil.i('已清理资源，并重置页面');
+    } catch (e, stack) {
+      LogUtil.logError('清理 WebView 时发生错误', e, stack);
+    }
   }
-}
 
   /// 检查M3U8 URL是否有效
   bool _isValidM3U8Url(String url) {
     if (url.isEmpty || _foundUrls.contains(url)) return false; // 空或已存在返回false
     
-    final lowercaseUrl = url.toLowerCase();
-    if (!lowercaseUrl.contains('.' + _filePattern)) return false; // 不含文件模式返回false
+    if (!_isMediaUrl(url, _filePattern)) return false; // 使用辅助方法检查URL类型
     
     if (_filterRules.isNotEmpty) { // 检查过滤规则
       bool matchedDomain = false;
@@ -1096,17 +1242,18 @@ Future<void> _disposeWebViewCompletely(WebViewController controller) async {
     }
   }
 
-  /// 准备M3U8检测器代码 - 修改替换方式更精确
+  /// 准备M3U8检测器代码 - 优化缓存读取
   Future<String> _prepareM3U8DetectorCode() async {
     final cacheKey = 'm3u8_detector_${_filePattern}';
-    if (_scriptCache.containsKey(cacheKey)) {
-      return _scriptCache[cacheKey]!;
+    final cachedScript = _scriptCache.get(cacheKey);
+    if (cachedScript != null) {
+      return cachedScript;
     }
     
     try {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js'); // 加载脚本
       final result = script.replaceAll('const filePattern = "m3u8"', 'const filePattern = "$_filePattern"'); // 修改：替换方式更精确
-      _limitMapSize(_scriptCache, MAX_CACHE_SIZE, cacheKey, result); // 修改：使用常量
+      _scriptCache.put(cacheKey, result); // 使用LRUCache的put方法
       LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
