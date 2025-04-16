@@ -81,21 +81,21 @@
   };
 
   // 提取并处理URL
-  function extractAndProcessUrls(text, source) {
+  function extractAndProcessUrls(text, source, baseUrl) {
     if (!text || !text.includes('.' + filePattern)) return;
     const matches = text.match(URL_REGEX) || [];
     for (const match of matches) {
       const cleanUrl = match.replace(/^["'\s]+/, ''); // 清理URL前缀
-      VideoUrlProcessor.processUrl(cleanUrl, 0, source); // 处理URL
+      VideoUrlProcessor.processUrl(cleanUrl, 0, source, baseUrl); // 处理URL
     }
   }
 
   // URL处理工具
   const VideoUrlProcessor = {
-    processUrl(url, depth = 0, source = 'unknown') {
+    processUrl(url, depth = 0, source = 'unknown', baseUrl) {
       if (!url || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
       try {
-        url = this.normalizeUrl(url); // 规范化URL
+        url = this.normalizeUrl(url, baseUrl); // 规范化URL
         if (!url || processedUrls.has(url)) return;
         if (FILE_REGEX.test(url)) {
           processedUrls.add(url); // 缓存已处理的URL
@@ -110,15 +110,15 @@
       } catch (e) {}
     },
 
-    normalizeUrl(url) {
+    normalizeUrl(url, baseUrl = window.location.href) {
       if (!url) return '';
       try {
         url = url.replace(/\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g, '$2'); // 清理URL格式
         let parsedUrl;
         if (url.startsWith('/')) {
-          parsedUrl = new URL(url, window.location.href); // 相对路径转绝对
+          parsedUrl = new URL(url, baseUrl); // 相对路径转绝对
         } else if (!url.startsWith('http')) {
-          parsedUrl = new URL(url, window.location.href); // 非http开头转绝对
+          parsedUrl = new URL(url, baseUrl); // 非http开头转绝对
         } else {
           parsedUrl = new URL(url); // 直接解析
         }
@@ -136,17 +136,17 @@
   };
 
   // 共用网络URL处理函数
-  function handleNetworkUrl(url, source, content, contentType) {
-    VideoUrlProcessor.processUrl(url, 0, source); // 处理网络URL
+  function handleNetworkUrl(url, source, content, contentType, baseUrl) {
+    if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl); // 处理网络URL
     if (content) {
-      extractAndProcessUrls(content, `${source}:content`); // 提取内容中的URL
+      extractAndProcessUrls(content, `${source}:content`, baseUrl); // 提取内容中的URL
       if (contentType?.includes('application/json')) {
         try {
           const data = JSON.parse(content); // 解析JSON内容
           function searchJsonForUrls(obj, path = '') {
             if (!obj) return;
             if (typeof obj === 'string' && obj.includes('.' + filePattern)) {
-              VideoUrlProcessor.processUrl(obj, 0, `${source}:json:${path}`); // 处理JSON中的URL
+              VideoUrlProcessor.processUrl(obj, 0, `${source}:json:${path}`, baseUrl); // 处理JSON中的URL
             } else if (typeof obj === 'object') {
               for (const key in obj) {
                 if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -178,7 +178,7 @@
         this.addEventListener('load', () => {
           if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response'); // 处理响应URL
           if (this.responseType === '' || this.responseType === 'text') {
-            handleNetworkUrl(null, 'xhr:responseContent', this.responseText); // 处理响应内容
+            handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL); // 处理响应内容
           }
         });
         return originalSend.apply(this, arguments);
@@ -199,7 +199,7 @@
               contentType.includes('text/plain')
           )) {
             response.clone().text().then(text => {
-              handleNetworkUrl(response.url, 'fetch:response', text, contentType); // 处理响应内容
+              handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url); // 处理响应内容
             }).catch(() => {});
           } else {
             handleNetworkUrl(response.url, 'fetch:response'); // 处理响应URL
