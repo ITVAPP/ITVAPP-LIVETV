@@ -28,7 +28,7 @@ class M3U8Constants {
   static const int defaultSetSize = 50; // 默认集合大小
 
   // 字符串常量
-  static const String rulePatterns = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则模式
+  static const String rulePatterns = 'aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则模式
   static const String specialRulePatterns = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则模式
   static const String dynamicKeywords = 'jinan@gansu@xizang@sichuan'; // 动态关键字
   static const String allowedResourcePatterns = 'r.png?t='; // 允许的资源模式
