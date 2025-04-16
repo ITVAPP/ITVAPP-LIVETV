@@ -1000,9 +1000,11 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
       final offsetAdjustment =
-          (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
+          (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 3;
       targetOffset = (index - offsetAdjustment) * localItemHeight;
-
+      if (targetList == 'epg') {
+          targetOffset += (localItemHeight - defaultMinHeight); // 添加额外偏移
+      }
     }
 
     targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
