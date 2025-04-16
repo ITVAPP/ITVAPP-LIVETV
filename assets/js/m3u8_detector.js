@@ -4,8 +4,38 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
-  // 已处理 URL 集合，用于去重
-  const processedUrls = new Set();
+  // 使用LRU缓存来存储已处理的URL，限制大小以避免内存无限增长
+  class LRUCache {
+    constructor(capacity) {
+      this.capacity = capacity;
+      this.cache = new Map();
+    }
+    
+    has(key) {
+      return this.cache.has(key);
+    }
+    
+    add(key) {
+      if (this.cache.size >= this.capacity) {
+        // 删除最老的项（Map保持插入顺序）
+        const firstKey = this.cache.keys().next().value;
+        this.cache.delete(firstKey);
+      }
+      // 重新添加到最新位置
+      this.cache.set(key, true);
+    }
+    
+    clear() {
+      this.cache.clear();
+    }
+    
+    get size() {
+      return this.cache.size;
+    }
+  }
+
+  // 已处理 URL 集合，用于去重，使用LRU缓存限制大小
+  const processedUrls = new LRUCache(1000);
   // 最大递归深度，防止无限循环
   const MAX_RECURSION_DEPTH = 3;
   // MutationObserver 实例，用于监控 DOM 变化
@@ -17,14 +47,20 @@
   // 全局配置，统一管理扫描和清理参数
   const CONFIG = {
     fullScanInterval: 5000, // 全面扫描间隔（毫秒）
-    cleanupInterval: 30000, // 定期清理间隔（毫秒）
+    cleanupInterval: 10000, // 定期清理间隔（毫秒）
     maxProcessedElements: 500 // 最大处理元素数量
   };
 
   // 预编译常用正则表达式
   const FILE_REGEX = new RegExp('\\.(' + filePattern + ')([?#]|$)', 'i');
-  // 统一的 URL 正则表达式，用于匹配各种场景下的 URL
-  const UNIFIED_URL_REGEX = new RegExp(`(?:https?://|//|/)[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`, 'g');
+  // 定义URL模式字符串，避免使用全局标志导致的状态问题
+  const URL_PATTERN = `(?:https?://|//|/)[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`;
+  
+  // 获取URL匹配结果的函数，每次创建新的正则实例
+  function getUrlMatches(text) {
+    if (!text || typeof text !== 'string') return [];
+    return text.match(new RegExp(URL_PATTERN, 'g')) || [];
+  }
   
   // 支持的媒体类型
   const SUPPORTED_MEDIA_TYPES = [
@@ -64,6 +100,19 @@
     };
   }
 
+  // 提取并处理URL的通用函数
+  function extractAndProcessUrls(text, source) {
+    if (!text || typeof text !== 'string' || !text.includes('.' + filePattern)) {
+      return;
+    }
+    
+    const matches = getUrlMatches(text);
+    for (let i = 0; i < matches.length; i++) {
+      const cleanUrl = matches[i].replace(/^["'\s]+/, '');
+      VideoUrlProcessor.processUrl(cleanUrl, 0, source);
+    }
+  }
+
   // URL 处理工具，负责标准化和检测 URL
   const VideoUrlProcessor = {
     // 处理 URL，检查是否为目标文件类型
@@ -96,26 +145,21 @@
       } catch (e) {}
     },
 
-    // 标准化 URL，处理相对路径和协议
+    // 标准化 URL，处理相对路径和协议 - 优化版本
     normalizeUrl(url) {
+      if (!url || typeof url !== 'string') return '';
+      
       try {
-        if (!url) return '';
+        // 组合常见的字符串处理为一次操作
+        url = url.replace(/\\(\/|\\|"|')/g, '$1')
+                 .replace(/([^:])\/\/+/g, '$1/')
+                 .replace(/^[\s'"]+|[\s'"]+$/g, '');
         
-        // 处理 JSON 中的转义字符
-        url = url.replace(/\\(\/|\\|"|')/g, '$1');
-        
-        // 处理重复斜杠 (但保留协议中的双斜杠)
-        url = url.replace(/([^:])\/\/+/g, '$1/');
-        
-        // 去除 URL 开头和结尾的引号和空白
-        url = url.replace(/^[\s'"]+|[\s'"]+$/g, '');
-        
-        // 确保URL格式正确
+        // 解析URL
         let parsedUrl;
         try {
           if (url.startsWith('/')) {
-            const baseUrl = new URL(window.location.href);
-            parsedUrl = new URL(url, baseUrl);
+            parsedUrl = new URL(url, window.location.href);
           } else if (!url.startsWith('http')) {
             parsedUrl = new URL(url, window.location.href);
           } else {
@@ -128,31 +172,34 @@
         // 规范化主机名 (转为小写)
         parsedUrl.hostname = parsedUrl.hostname.toLowerCase();
         
-        // 规范化查询参数 (排序并移除无用参数)
+        // 优化的查询参数处理
         if (parsedUrl.search) {
           const params = new URLSearchParams(parsedUrl.search);
           
+          // 定义一次性匹配时间戳和随机值的正则表达式
+          const timeStampRegex = /^(\d+|\d{13}|[a-f0-9]{8,})$/i;
+          
           // 移除常见的缓存破坏参数
           const paramsToRemove = ['_t', 'timestamp', 'time', 't', 'v', 'ver', 'version', 'random', 'r', 'rnd', '_', 'nocache', '_upt'];
-          paramsToRemove.forEach(param => {
-            // 只有当参数是明显的时间戳或随机数时才移除
+          for (const param of paramsToRemove) {
             if (params.has(param)) {
               const value = params.get(param);
-              // 如果是数字或明显的时间戳，才移除
-              if (/^\d+$/.test(value) || /^\d{13}$/.test(value) || /^[a-f0-9]{8,}$/i.test(value)) {
+              // 使用正则一次性匹配
+              if (timeStampRegex.test(value)) {
                 params.delete(param);
               }
             }
-          });
+          }
           
-          // 排序参数以确保一致性
-          const sortedParams = new URLSearchParams();
-          [...params.keys()].sort().forEach(key => {
-            sortedParams.set(key, params.get(key));
-          });
-          
-          // 重建查询字符串
-          parsedUrl.search = sortedParams.toString() ? `?${sortedParams.toString()}` : '';
+          // 简化排序逻辑
+          if (params.toString()) {
+            parsedUrl.search = '?' + [...params.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => `${k}=${v}`)
+              .join('&');
+          } else {
+            parsedUrl.search = '';
+          }
         }
         
         // 移除默认端口号
@@ -196,19 +243,7 @@
           }
           
           if (this.responseType === '' || this.responseType === 'text') {
-            const responseText = this.responseText;
-            if (responseText && responseText.includes('.' + filePattern)) {
-              // 提取响应内容中的 URL - 使用统一的正则表达式
-              UNIFIED_URL_REGEX.lastIndex = 0; // 重置正则表达式状态
-              const matches = responseText.match(UNIFIED_URL_REGEX);
-              if (matches) {
-                matches.forEach(url => {
-                  // 清理 URL 开头可能的引号或空格
-                  const cleanUrl = url.replace(/^["'\s]+/, '');
-                  VideoUrlProcessor.processUrl(cleanUrl, 0, 'xhr:responseContent');
-                });
-              }
-            }
+            extractAndProcessUrls(this.responseText, 'xhr:responseContent');
           }
         });
         
@@ -233,7 +268,7 @@
             
             if (response.headers.get('content-type')?.includes('application/json')) {
               response.clone().text().then(text => {
-                if (!text || !text.includes('.' + filePattern)) return;
+                extractAndProcessUrls(text, 'fetch:json:content');
                 
                 try {
                   const data = JSON.parse(text);
@@ -321,6 +356,21 @@
     processedElements: new WeakSet(), 
     lastFullScanTime: 0, // 上次全面扫描时间
     processedCount: 0, // 已处理元素计数
+    
+    // 缓存元素选择器结果
+    cachedElements: null,
+    lastSelectorTime: 0,
+    SELECTOR_CACHE_TTL: 2000, // 选择器缓存有效期2秒
+    
+    // 获取媒体元素，带缓存机制
+    getMediaElements(root = document) {
+      const now = Date.now();
+      if (!this.cachedElements || (now - this.lastSelectorTime > this.SELECTOR_CACHE_TTL)) {
+        this.cachedElements = root.querySelectorAll(MEDIA_SELECTOR);
+        this.lastSelectorTime = now;
+      }
+      return this.cachedElements;
+    },
 
     // 扫描元素属性中的 URL
     scanAttributes(element) {
@@ -387,11 +437,13 @@
       if (isFullScan) {
         this.lastFullScanTime = now;
         this.processedCount = 0; // 重置计数，不再需要复杂的清理逻辑
+        // 清除缓存，强制重新查询
+        this.cachedElements = null;
       }
       
       try {
-        // 使用一次性查询所有元素
-        const elements = root.querySelectorAll(MEDIA_SELECTOR);
+        // 使用缓存机制获取元素
+        const elements = this.getMediaElements(root);
         
         for (let i = 0; i < elements.length; i++) {
           const element = elements[i];
@@ -464,14 +516,7 @@
           const content = script.textContent;
           if (!content) continue;
           
-          let match;
-          UNIFIED_URL_REGEX.lastIndex = 0; // 重置正则表达式状态
-          while ((match = UNIFIED_URL_REGEX.exec(content)) !== null) {
-            const url = match[0].replace(/^["'\s]+/, ''); // 清理 URL 开头可能的引号或空格
-            if (url) {
-              VideoUrlProcessor.processUrl(url, 0, 'script:regex');
-            }
-          }
+          extractAndProcessUrls(content, 'script:regex');
         }
       } catch (e) {}
     }
@@ -500,6 +545,26 @@
         }
       });
     }, 100);
+  }
+
+  // 使用requestAnimationFrame优化页面扫描
+  let lastScanTime = 0;
+  const SCAN_INTERVAL = 1000; // 扫描间隔1秒
+
+  function scheduleNextScan() {
+    if (document.hidden) {
+      // 页面不可见时使用较长的间隔
+      setTimeout(scheduleNextScan, SCAN_INTERVAL * 2);
+      return;
+    }
+    
+    const now = Date.now();
+    if (now - lastScanTime >= SCAN_INTERVAL) {
+      lastScanTime = now;
+      DOMScanner.scanPage(document);
+    }
+    
+    requestAnimationFrame(scheduleNextScan);
   }
 
   // 初始化流媒体检测器
@@ -578,14 +643,8 @@
         setTimeout(() => DOMScanner.scanPage(document), 100);
       }
       
-      // 定期扫描页面（只在页面可见时执行）
-      const intervalId = setInterval(() => {
-        if (!document.hidden) {
-          DOMScanner.scanPage(document);
-        }
-      }, 1000);
-      
-      window._m3u8DetectorIntervalId = intervalId;
+      // 使用requestAnimationFrame替代setInterval进行定期扫描
+      requestAnimationFrame(scheduleNextScan);
     } catch (e) {}
   }
 
@@ -603,11 +662,6 @@
       window.removeEventListener('popstate', handleUrlChange);
       window.removeEventListener('hashchange', handleUrlChange);
       
-      if (window._m3u8DetectorIntervalId) {
-        clearInterval(window._m3u8DetectorIntervalId);
-        delete window._m3u8DetectorIntervalId;
-      }
-      
       if (processingQueueTimer) {
         clearTimeout(processingQueueTimer);
         processingQueueTimer = null;
@@ -617,6 +671,7 @@
       processedUrls.clear();
       pendingProcessQueue.clear();
       DOMScanner.processedCount = 0;
+      DOMScanner.cachedElements = null;
       // WeakSet 不需要手动清理，会被垃圾回收
     } catch (e) {}
   };
