@@ -23,7 +23,7 @@ class M3U8Constants {
   static const int urlCheckDelayMs = 2500; // URL检查延迟（毫秒）
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
   static const int contentSampleLength = 38888; // 内容采样长度
-  static const int cleanupDelayMs = 1000; // 清理延迟（毫秒）
+  static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
   static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
   static const int defaultSetSize = 50; // 默认集合大小
 
@@ -31,7 +31,7 @@ class M3U8Constants {
   static const String rulePatterns = 'aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则模式
   static const String specialRulePatterns = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则模式
   static const String dynamicKeywords = 'jinan@gansu@xizang@sichuan@xishui'; // 动态关键字
-  static const String allowedResourcePatterns = 'r.png?t='; // 允许的资源模式
+  static const String whiteExtensions = 'r.png?t='; // 白名单关键字
   static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽的扩展名
   static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|log'; // 无效模式（如广告、跟踪）
 
@@ -181,6 +181,7 @@ class GetM3U8 {
   static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache(M3U8Constants.maxRuleCacheSize); // 特殊规则缓存
   static final LRUCache<String, RegExp> _patternCache = LRUCache(M3U8Constants.maxCacheSize); // 正则模式缓存
   static List<String>? _blockedExtensionsCache; // 屏蔽扩展名缓存
+  static List<String>? _whiteExtensionsCache; // 白名单扩展名缓存
 
   static final RegExp _invalidPatternRegex = RegExp(
     M3U8Constants.invalidPatterns,
@@ -212,6 +213,18 @@ class GetM3U8 {
       LRUCache(1),
     );
     return _blockedExtensionsCache!;
+  }
+  
+  // 解析白名单扩展名
+  static List<String> _parseWhiteExtensions(String extensionsString) {
+    if (_whiteExtensionsCache != null) return _whiteExtensionsCache!;
+    _whiteExtensionsCache = _parseCached(
+      extensionsString,
+      'white_extensions',
+      (input) => input.isEmpty ? [] : input.split('@').map((ext) => ext.trim()).toList(),
+      LRUCache(1),
+    );
+    return _whiteExtensionsCache!;
   }
 
   final String url; // 目标URL
@@ -364,14 +377,10 @@ class GetM3U8 {
     );
   }
 
-  // 解析允许的资源模式
-  static List<String> _parseAllowedPatterns(String patternsString) {
-    return _parseCached(
-      patternsString,
-      'allowed_patterns',
-      (input) => input.isEmpty ? [] : input.split('@').map((pattern) => pattern.trim()).toList(),
-      LRUCache(1),
-    );
+  // 检查URL是否包含白名单扩展关键字
+  bool _isWhitelisted(String url) {
+    final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions);
+    return whiteExtensions.any((ext) => url.toLowerCase().contains(ext.toLowerCase()));
   }
 
   // 处理URL（清理、补全、替换）
@@ -571,7 +580,7 @@ class GetM3U8 {
     }
   }
 
-  // 设置Java goddessScript通道
+  // 设置JavaScript通道
   void _setupJavaScriptChannels(Completer<String> completer) {
     for (var channel in ['TimeCheck', 'M3U8Detector', 'CleanupCompleted']) {
       _controller.addJavaScriptChannel(channel, onMessageReceived: (message) {
@@ -582,7 +591,7 @@ class GetM3U8 {
 
   // 设置导航代理
   void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
-    final allowedPatterns = _parseAllowedPatterns(M3U8Constants.allowedResourcePatterns); // 允许的资源模式
+    final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
     final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽的扩展名
     final scriptNames = ['时间拦截器脚本', '自动点击脚本', 'M3U8检测器脚本'];
 
@@ -611,10 +620,15 @@ class GetM3U8 {
           return NavigationDecision.prevent;
         }
         final fullUrl = request.url.toLowerCase();
-        if (allowedPatterns.any((pattern) => fullUrl.contains(pattern.toLowerCase()))) {
-          LogUtil.i('URL匹配允许模式，允许加载: ${request.url}');
+        
+        // 检查是否在白名单中
+        bool isWhitelisted = _isWhitelisted(request.url);
+        if (isWhitelisted) {
+          LogUtil.i('URL匹配白名单关键字，允许加载: ${request.url}');
           return NavigationDecision.navigate;
         }
+        
+        // 如果不在白名单中，执行屏蔽检查
         if (blockedExtensions.any((ext) => fullUrl.contains(ext))) {
           LogUtil.i('阻止加载资源: ${request.url} (包含扩展名)');
           return NavigationDecision.prevent;
@@ -863,7 +877,11 @@ class GetM3U8 {
     _foundUrls.clear();
     _pageLoadedStatus.clear();
     if (_isControllerInitialized) {
-      Future.delayed(Duration(milliseconds: M3U8Constants.cleanupDelayMs), () async {
+      // 检查是否包含白名单扩展关键字，决定是否使用延迟清理
+      bool isWhitelisted = _isWhitelisted(url);
+      int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
+      
+      Future.delayed(Duration(milliseconds: cleanupDelay), () async {
         if (cancelToken != null && !cancelToken!.isCancelled) {
           cancelToken!.cancel('GetM3U8 disposed');
         }
