@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:collection'; // 修复：添加导入以支持 LinkedHashSet
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
@@ -7,6 +8,23 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+
+// 修复：将 M3U8Constants 移到顶层，使用 class 定义静态常量
+class M3U8Constants {
+  static const int defaultTimeoutSeconds = 15;
+  static const int maxFoundUrlsSize = 50;
+  static const int maxPageLoadedStatusSize = 50;
+  static const int maxCacheSize = 50;
+  static const int maxRuleCacheSize = 20;
+  static const int maxRetryCount = 2;
+  static const int periodicCheckIntervalMs = 1000;
+  static const int clickDelayMs = 500;
+  static const int urlCheckDelayMs = 2500;
+  static const int retryDelayMs = 500;
+  static const int contentSampleLength = 38888;
+  static const int cleanupDelayMs = 1000;
+  static const int webviewCleanupDelayMs = 500;
+}
 
 /// URL 处理工具类
 class UrlUtils {
@@ -64,9 +82,10 @@ class M3U8FilterRule {
   const M3U8FilterRule({required this.domain, required this.requiredKeyword});
 
   /// 从字符串解析规则
-  /// 优化：简化分隔符处理，使用默认值
+  /// 修复：移除 padRight，恢复原逻辑以避免编译错误
   factory M3U8FilterRule.fromString(String rule) {
-    final parts = rule.split('|').padRight(2, '');
+    final parts = rule.split('|');
+    if (parts.length < 2) return M3U8FilterRule(domain: parts[0].trim(), requiredKeyword: '');
     return M3U8FilterRule(domain: parts[0].trim(), requiredKeyword: parts[1].trim());
   }
 }
@@ -76,7 +95,7 @@ class M3U8FilterRule {
 class LimitedSizeSet<T> {
   static const int DEFAULT_MAX_SIZE = 50;
   final int maxSize;
-  final LinkedHashSet<T> _set; // 优化：使用 LinkedHashSet 替代 Set 和 List
+  final LinkedHashSet<T> _set; // 修复：使用导入的 LinkedHashSet
 
   LimitedSizeSet([this.maxSize = DEFAULT_MAX_SIZE]) : _set = LinkedHashSet();
 
@@ -143,31 +162,11 @@ class LRUCache<K, V> {
 
 /// M3U8地址获取类
 class GetM3U8 {
-  // 优化：集中常量到 enum
-  enum M3U8Constants {
-    defaultTimeoutSeconds(15),
-    maxFoundUrlsSize(50),
-    maxPageLoadedStatusSize(50),
-    maxCacheSize(50),
-    maxRuleCacheSize(20),
-    maxRetryCount(2),
-    periodicCheckIntervalMs(1000),
-    clickDelayMs(500),
-    urlCheckDelayMs(2500),
-    retryDelayMs(500),
-    contentSampleLength(38888),
-    cleanupDelayMs(1000),
-    webviewCleanupDelayMs(500);
-
-    final int value;
-    const M3U8Constants(this.value);
-  }
-
-  static final LRUCache<String, String> _scriptCache = LRUCache(M3U8Constants.maxCacheSize.value);
-  static final LRUCache<String, List<M3U8FilterRule>> _ruleCache = LRUCache(M3U8Constants.maxRuleCacheSize.value);
-  static final LRUCache<String, Set<String>> _keywordsCache = LRUCache(M3U8Constants.maxRuleCacheSize.value);
-  static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache(M3U8Constants.maxRuleCacheSize.value);
-  static final LRUCache<String, RegExp> _patternCache = LRUCache(M3U8Constants.maxCacheSize.value);
+  static final LRUCache<String, String> _scriptCache = LRUCache(M3U8Constants.maxCacheSize);
+  static final LRUCache<String, List<M3U8FilterRule>> _ruleCache = LRUCache(M3U8Constants.maxRuleCacheSize);
+  static final LRUCache<String, Set<String>> _keywordsCache = LRUCache(M3U8Constants.maxRuleCacheSize);
+  static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache(M3U8Constants.maxRuleCacheSize);
+  static final LRUCache<String, RegExp> _patternCache = LRUCache(M3U8Constants.maxCacheSize);
   static List<String>? _blockedExtensionsCache;
 
   static final RegExp _invalidPatternRegex = RegExp(
@@ -215,7 +214,7 @@ class GetM3U8 {
   final int timeoutSeconds;
   late WebViewController _controller;
   bool _m3u8Found = false;
-  final LimitedSizeSet<String> _foundUrls = LimitedSizeSet(M3U8Constants.maxFoundUrlsSize.value);
+  final LimitedSizeSet<String> _foundUrls = LimitedSizeSet(M3U8Constants.maxFoundUrlsSize);
   Timer? _periodicCheckTimer;
   int _retryCount = 0;
   int _checkCount = 0;
@@ -229,7 +228,7 @@ class GetM3U8 {
   bool _isHtmlContent = false;
   String? _httpResponseContent;
   static int? _cachedTimeOffset;
-  final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet(M3U8Constants.maxPageLoadedStatusSize.value);
+  final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet(M3U8Constants.maxPageLoadedStatusSize);
   static const List<Map<String, String>> TIME_APIS = [
     {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
     {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
@@ -261,7 +260,7 @@ class GetM3U8 {
 
   GetM3U8({
     required this.url,
-    this.timeoutSeconds = M3U8Constants.defaultTimeoutSeconds.value,
+    this.timeoutSeconds = M3U8Constants.defaultTimeoutSeconds, // 修复：使用顶层常量
     this.cancelToken,
   }) : _filterRules = _parseCached(
           rulesString,
@@ -422,7 +421,6 @@ class GetM3U8 {
     }
   }
 
-  /// 优化：提取 _isCancelled 为入口检查
   bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
 
   Future<void> _initController(Completer<String> completer, String filePattern) async {
@@ -471,8 +469,8 @@ class GetM3U8 {
           final styleEndMatch = RegExp(r'</style>', caseSensitive: false).firstMatch(content);
           if (styleEndMatch != null) styleEndIndex = styleEndMatch.end;
           String initialContent = styleEndIndex > 0
-              ? content.substring(styleEndIndex, (styleEndIndex + M3U8Constants.contentSampleLength.value).clamp(0, content.length))
-              : content.length > M3U8Constants.contentSampleLength.value ? content.substring(0, M3U8Constants.contentSampleLength.value) : content;
+              ? content.substring(styleEndIndex, (styleEndIndex + M3U8Constants.contentSampleLength).clamp(0, content.length))
+              : content.length > M3U8Constants.contentSampleLength ? content.substring(0, M3U8Constants.contentSampleLength) : content;
           return initialContent.contains('.' + _filePattern);
         }
         return true;
@@ -511,14 +509,13 @@ class GetM3U8 {
       _prepareTimeInterceptorCode(),
       Future.value('''window._videoInit = false;window._processedUrls = new Set();window._m3u8Found = false;'''),
       _prepareM3U8DetectorCode(),
-    ]); // 优化：并行加载脚本
+    ]);
     _setupJavaScriptChannels(completer);
     _setupNavigationDelegate(completer, initScripts);
     await _loadUrlWithHeaders();
     LogUtil.i('WebViewController初始化完成');
   }
 
-  /// 优化：提取 JSON 解析逻辑
   void _handleJsMessage(String channel, String message, Completer<String> completer) {
     if (_isCancelled()) return;
     try {
@@ -566,7 +563,6 @@ class GetM3U8 {
     }
   }
 
-  /// 优化：使用映射表简化 onNavigationRequest
   void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
     final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
     final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString);
@@ -634,7 +630,7 @@ class GetM3U8 {
         }
         if (isHashRoute && !_handleHashRoute(url)) return;
         if (!_isClickExecuted && clickText != null) {
-          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs.value));
+          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs)); // 修复：使用静态常量
           if (!_isCancelled()) {
             final clickResult = await _executeClick();
             if (clickResult) _startUrlCheckTimer(completer);
@@ -667,8 +663,8 @@ class GetM3U8 {
       _pageLoadedStatus.add(mapKey);
       int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
       currentTriggers++;
-      if (currentTriggers > M3U8Constants.maxRetryCount.value) {
-        LogUtil.i('hash路由触发超过${M3U8Constants.maxRetryCount.value}次，跳过处理');
+      if (currentTriggers > M3U8Constants.maxRetryCount) { // 修复：使用顶层常量
+        LogUtil.i('hash路由触发超过${M3U8Constants.maxRetryCount}次，跳过处理');
         return false;
       }
       _hashFirstLoadMap[mapKey] = currentTriggers;
@@ -716,7 +712,7 @@ class GetM3U8 {
 
   void _startUrlCheckTimer(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
-    Timer(const Duration(milliseconds: M3U8Constants.urlCheckDelayMs.value), () async {
+    Timer(const Duration(milliseconds: M3U8Constants.urlCheckDelayMs), () async { // 修复：使用静态常量
       if (_isCancelled() || completer.isCompleted) return;
       if (_foundUrls.length > 0) {
         _m3u8Found = true;
@@ -733,10 +729,10 @@ class GetM3U8 {
 
   Future<void> _handleLoadError(Completer<String> completer) async {
     if (_isCancelled() || completer.isCompleted) return;
-    if (_retryCount < M3U8Constants.maxRetryCount.value) {
+    if (_retryCount < M3U8Constants.maxRetryCount) { // 修复：使用顶层常量
       _retryCount++;
-      LogUtil.i('尝试重试 ($_retryCount/${M3U8Constants.maxRetryCount.value})，延迟${M3U8Constants.retryDelayMs.value}毫秒');
-      await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs.value));
+      LogUtil.i('尝试重试 ($_retryCount/${M3U8Constants.maxRetryCount})，延迟${M3U8Constants.retryDelayMs}毫秒');
+      await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs)); // 修复：使用静态常量
       if (!_isCancelled() && !completer.isCompleted) {
         _pageLoadedStatus.clear();
         _isClickExecuted = false;
@@ -783,7 +779,7 @@ class GetM3U8 {
     }
     _prepareM3U8DetectorCode().then((detectorScript) {
       if (_m3u8Found || _isCancelled()) return;
-      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs.value), (timer) async {
+      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async { // 修复：使用静态常量
         if (_m3u8Found || _isCancelled()) {
           timer.cancel();
           _periodicCheckTimer = null;
@@ -840,7 +836,7 @@ class GetM3U8 {
     _foundUrls.clear();
     _pageLoadedStatus.clear();
     if (_isControllerInitialized) {
-      Future.delayed(Duration(milliseconds: M3U8Constants.cleanupDelayMs.value), () async {
+      Future.delayed(Duration(milliseconds: M3U8Constants.cleanupDelayMs), () async { // 修复：使用静态常量
         if (cancelToken != null && !cancelToken!.isCancelled) {
           cancelToken!.cancel('GetM3U8 disposed');
         }
@@ -854,7 +850,6 @@ class GetM3U8 {
     }
     _resetControllerState();
     _httpResponseContent = null;
-    // 优化：内联 _suggestGarbageCollection 为空操作
     LogUtil.i('资源释放完成: ${DateTime.now()}');
   }
 
@@ -863,7 +858,7 @@ class GetM3U8 {
       final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
       await controller.runJavaScript(cleanupScript)
           .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
-      await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs.value));
+      await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs)); // 修复：使用静态常量
       await controller.setNavigationDelegate(NavigationDelegate());
       await controller.loadRequest(Uri.parse('about:blank'));
       await controller.clearCache();
