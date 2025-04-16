@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:collection'; // 修复：添加导入以支持 LinkedHashSet
+import 'dart:collection';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
@@ -9,8 +9,9 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-// 修复：将 M3U8Constants 移到顶层，使用 class 定义静态常量
+// 集中所有常量
 class M3U8Constants {
+  // 数值常量
   static const int defaultTimeoutSeconds = 15;
   static const int maxFoundUrlsSize = 50;
   static const int maxPageLoadedStatusSize = 50;
@@ -24,32 +25,47 @@ class M3U8Constants {
   static const int contentSampleLength = 38888;
   static const int cleanupDelayMs = 1000;
   static const int webviewCleanupDelayMs = 500;
+  static const int defaultSetSize = 50; // 原 LimitedSizeSet.DEFAULT_MAX_SIZE
+
+  // 字符串常量
+  static const String rulePatterns = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
+  static const String specialRulePatterns = 'nctvcloud.com|flv@mydomaint.com|mp4';
+  static const String dynamicKeywords = 'jinan@gansu@xizang@sichuan';
+  static const String allowedResourcePatterns = 'r.png?t=';
+  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
+  static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|log'; // 新增 invalidString
+
+  // 数据结构常量
+  static const List<Map<String, String>> timeApis = [
+    {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
+    {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
+    {'name': 'Meituan API', 'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime'},
+  ];
 }
 
 /// URL 处理工具类
 class UrlUtils {
-  static final RegExp _escapeRegex = RegExp(r'\\(\|/|")'); // 匹配转义字符
-  static final RegExp _multiSlashRegex = RegExp(r'/{3,}'); // 匹配多余斜杠
-  static final RegExp _htmlEntityRegex = RegExp(r'&(#?[a-z0-9]+);'); // 匹配HTML实体
-  static final RegExp _unicodeRegex = RegExp(r'\u([0-9a-fA-F]{4})'); // 匹配Unicode编码
-  static final RegExp _protocolRegex = RegExp(r'^https?://'); // 合并协议正则，优化：移除冗余 _protocolPatternStr
+  static final RegExp _escapeRegex = RegExp(r'\\(\|/|")');
+  static final RegExp _multiSlashRegex = RegExp(r'/{3,}');
+  static final RegExp _htmlEntityRegex = RegExp(r'&(#?[a-z0-9]+);');
+  static final RegExp _unicodeRegex = RegExp(r'\u([0-9a-fA-F]{4})');
+  static final RegExp _protocolRegex = RegExp(r'^https?://');
 
+  // 保留 _htmlEntities 在 UrlUtils，保持封装性
   static const Map<String, String> _htmlEntities = {
     'amp': '&', 'quot': '"', '#x2F': '/', '#47': '/', 'lt': '<', 'gt': '>'
   };
 
-  /// 清理URL，去除转义字符、多余斜杠、HTML实体等
-  /// 优化：使用链式正则替换，合并条件检查，内联 hasValidProtocol
   static String basicUrlClean(String url) {
     if (url.isEmpty) return url;
     if (url.endsWith(r'\')) url = url.substring(0, url.length - 1);
 
     String result = url
-        .replaceAllMapped(_escapeRegex, (match) => match.group(1)!) // 移除转义符号
-        .replaceAll(r'\/', '/') // 替换反斜杠斜杠
-        .replaceAll(_multiSlashRegex, '/') // 合并多斜杠
-        .replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!) // 处理HTML实体
-        .replaceAllMapped(_unicodeRegex, (match) => String.fromCharCode(int.parse(match.group(1)!, radix: 16))); // 优化：直接解析Unicode
+        .replaceAllMapped(_escapeRegex, (match) => match.group(1)!)
+        .replaceAll(r'\/', '/')
+        .replaceAll(_multiSlashRegex, '/')
+        .replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!)
+        .replaceAllMapped(_unicodeRegex, (match) => String.fromCharCode(int.parse(match.group(1)!, radix: 16)));
 
     if (result.contains('%')) {
       try {
@@ -62,16 +78,12 @@ class UrlUtils {
     return result.trim();
   }
 
-  /// 构建完整URL，补全协议和域名
-  /// 优化：合并 hasValidProtocol 逻辑
   static String buildFullUrl(String path, Uri baseUri) {
     if (_protocolRegex.hasMatch(path)) return path;
     if (path.startsWith('//')) return '${baseUri.scheme}://${path.replaceFirst('//', '')}';
     String cleanPath = path.startsWith('/') ? path.substring(1) : path;
     return '${baseUri.scheme}://${baseUri.host}/$cleanPath';
   }
-
-  /// 优化：移除 hasValidProtocol 方法，内联到 buildFullUrl
 }
 
 /// M3U8过滤规则配置
@@ -81,8 +93,6 @@ class M3U8FilterRule {
 
   const M3U8FilterRule({required this.domain, required this.requiredKeyword});
 
-  /// 从字符串解析规则
-  /// 修复：移除 padRight，恢复原逻辑以避免编译错误
   factory M3U8FilterRule.fromString(String rule) {
     final parts = rule.split('|');
     if (parts.length < 2) return M3U8FilterRule(domain: parts[0].trim(), requiredKeyword: '');
@@ -90,19 +100,17 @@ class M3U8FilterRule {
   }
 }
 
-/// 限制大小的集合类，使用 LinkedHashSet 优化
-/// 优化：移除 _insertionOrder，使用 LinkedHashSet 维护顺序
+/// 限制大小的集合类
 class LimitedSizeSet<T> {
-  static const int DEFAULT_MAX_SIZE = 50;
   final int maxSize;
-  final LinkedHashSet<T> _set; // 修复：使用导入的 LinkedHashSet
+  final LinkedHashSet<T> _set;
 
-  LimitedSizeSet([this.maxSize = DEFAULT_MAX_SIZE]) : _set = LinkedHashSet();
+  LimitedSizeSet([this.maxSize = M3U8Constants.defaultSetSize]) : _set = LinkedHashSet();
 
   bool add(T element) {
     if (_set.contains(element)) return false;
     if (_set.length >= maxSize) {
-      _set.remove(_set.first); // 移除最早元素
+      _set.remove(_set.first);
     }
     return _set.add(element);
   }
@@ -116,7 +124,6 @@ class LimitedSizeSet<T> {
 }
 
 /// 通用 LRU 缓存实现
-/// 优化：移除未使用的 keys 和 values getter
 class LRUCache<K, V> {
   final int maxSize;
   final Map<K, V> _cache = {};
@@ -170,17 +177,10 @@ class GetM3U8 {
   static List<String>? _blockedExtensionsCache;
 
   static final RegExp _invalidPatternRegex = RegExp(
-    'advertisement|analytics|tracker|pixel|beacon|stats|log',
+    M3U8Constants.invalidPatterns,
     caseSensitive: false,
   );
 
-  static String rulesString = 'ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook=';
-  static String specialRulesString = 'nctvcloud.com|flv@mydomaint.com|mp4';
-  static String dynamicKeywordsString = 'jinan@gansu@xizang@sichuan';
-  static const String allowedResourcePatternsString = 'r.png?t=';
-  static const String blockedExtensionsString = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf';
-
-  /// 优化：提取通用解析函数，合并 _parseRules、_parseKeywords 等
   static T _parseCached<T>(
     String input,
     String type,
@@ -229,17 +229,11 @@ class GetM3U8 {
   String? _httpResponseContent;
   static int? _cachedTimeOffset;
   final LimitedSizeSet<String> _pageLoadedStatus = LimitedSizeSet(M3U8Constants.maxPageLoadedStatusSize);
-  static const List<Map<String, String>> TIME_APIS = [
-    {'name': 'Aliyun API', 'url': 'https://acs.m.taobao.com/gw/mtop.common.getTimestamp/'},
-    {'name': 'Suning API', 'url': 'https://quan.suning.com/getSysTime.do'},
-    {'name': 'Meituan API', 'url': 'https://cube.meituan.com/ipromotion/cube/toc/component/base/getServerCurrentTime'},
-  ];
   late final Uri _parsedUri;
   final CancelToken? cancelToken;
   bool _isDisposed = false;
   Timer? _timeoutTimer;
 
-  /// 优化：合并 _isMediaUrl 和 _isValidM3U8Url
   bool _validateUrl(String url, String filePattern) {
     if (url.isEmpty || _foundUrls.contains(url)) return false;
     final lowerUrl = url.toLowerCase();
@@ -260,10 +254,10 @@ class GetM3U8 {
 
   GetM3U8({
     required this.url,
-    this.timeoutSeconds = M3U8Constants.defaultTimeoutSeconds, // 修复：使用顶层常量
+    this.timeoutSeconds = M3U8Constants.defaultTimeoutSeconds,
     this.cancelToken,
   }) : _filterRules = _parseCached(
-          rulesString,
+          M3U8Constants.rulePatterns,
           'rules',
           (input) => input.isEmpty
               ? []
@@ -295,7 +289,7 @@ class GetM3U8 {
   String _determineFilePattern(String url) {
     String pattern = 'm3u8';
     final specialRules = _parseCached(
-      specialRulesString,
+      M3U8Constants.specialRulePatterns,
       'special_rules',
       (input) {
         if (input.isEmpty) return {};
@@ -366,7 +360,6 @@ class GetM3U8 {
     );
   }
 
-  /// 优化：合并 _cleanUrl 和 _replaceParams
   String _processUrl(String url) {
     String cleaned = UrlUtils.basicUrlClean(url);
     cleaned = UrlUtils._protocolRegex.hasMatch(cleaned) ? cleaned : UrlUtils.buildFullUrl(cleaned, _parsedUri);
@@ -376,7 +369,7 @@ class GetM3U8 {
   Future<int> _getTimeOffset() async {
     if (_cachedTimeOffset != null) return _cachedTimeOffset!;
     final localTime = DateTime.now();
-    for (final api in TIME_APIS) {
+    for (final api in M3U8Constants.timeApis) {
       try {
         final networkTime = await _getNetworkTime(api['url']!);
         if (networkTime != null) {
@@ -564,8 +557,8 @@ class GetM3U8 {
   }
 
   void _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) {
-    final allowedPatterns = _parseAllowedPatterns(allowedResourcePatternsString);
-    final blockedExtensions = _parseBlockedExtensions(blockedExtensionsString);
+    final allowedPatterns = _parseAllowedPatterns(M3U8Constants.allowedResourcePatterns);
+    final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions);
     final scriptNames = ['时间拦截器脚本', '自动点击脚本', 'M3U8检测器脚本'];
 
     _controller.setNavigationDelegate(NavigationDelegate(
@@ -630,7 +623,7 @@ class GetM3U8 {
         }
         if (isHashRoute && !_handleHashRoute(url)) return;
         if (!_isClickExecuted && clickText != null) {
-          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs)); // 修复：使用静态常量
+          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs));
           if (!_isCancelled()) {
             final clickResult = await _executeClick();
             if (clickResult) _startUrlCheckTimer(completer);
@@ -663,7 +656,7 @@ class GetM3U8 {
       _pageLoadedStatus.add(mapKey);
       int currentTriggers = _hashFirstLoadMap[mapKey] ?? 0;
       currentTriggers++;
-      if (currentTriggers > M3U8Constants.maxRetryCount) { // 修复：使用顶层常量
+      if (currentTriggers > M3U8Constants.maxRetryCount) {
         LogUtil.i('hash路由触发超过${M3U8Constants.maxRetryCount}次，跳过处理');
         return false;
       }
@@ -712,7 +705,7 @@ class GetM3U8 {
 
   void _startUrlCheckTimer(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
-    Timer(const Duration(milliseconds: M3U8Constants.urlCheckDelayMs), () async { // 修复：使用静态常量
+    Timer(const Duration(milliseconds: M3U8Constants.urlCheckDelayMs), () async {
       if (_isCancelled() || completer.isCompleted) return;
       if (_foundUrls.length > 0) {
         _m3u8Found = true;
@@ -729,10 +722,10 @@ class GetM3U8 {
 
   Future<void> _handleLoadError(Completer<String> completer) async {
     if (_isCancelled() || completer.isCompleted) return;
-    if (_retryCount < M3U8Constants.maxRetryCount) { // 修复：使用顶层常量
+    if (_retryCount < M3U8Constants.maxRetryCount) {
       _retryCount++;
       LogUtil.i('尝试重试 ($_retryCount/${M3U8Constants.maxRetryCount})，延迟${M3U8Constants.retryDelayMs}毫秒');
-      await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs)); // 修复：使用静态常量
+      await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs));
       if (!_isCancelled() && !completer.isCompleted) {
         _pageLoadedStatus.clear();
         _isClickExecuted = false;
@@ -779,7 +772,7 @@ class GetM3U8 {
     }
     _prepareM3U8DetectorCode().then((detectorScript) {
       if (_m3u8Found || _isCancelled()) return;
-      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async { // 修复：使用静态常量
+      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async {
         if (_m3u8Found || _isCancelled()) {
           timer.cancel();
           _periodicCheckTimer = null;
@@ -836,7 +829,7 @@ class GetM3U8 {
     _foundUrls.clear();
     _pageLoadedStatus.clear();
     if (_isControllerInitialized) {
-      Future.delayed(Duration(milliseconds: M3U8Constants.cleanupDelayMs), () async { // 修复：使用静态常量
+      Future.delayed(Duration(milliseconds: M3U8Constants.cleanupDelayMs), () async {
         if (cancelToken != null && !cancelToken!.isCancelled) {
           cancelToken!.cancel('GetM3U8 disposed');
         }
@@ -858,7 +851,7 @@ class GetM3U8 {
       final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
       await controller.runJavaScript(cleanupScript)
           .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
-      await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs)); // 修复：使用静态常量
+      await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs));
       await controller.setNavigationDelegate(NavigationDelegate());
       await controller.loadRequest(Uri.parse('about:blank'));
       await controller.clearCache();
@@ -891,7 +884,7 @@ class GetM3U8 {
       LogUtil.i('GetM3U8 任务在启动前被取消');
       return 'ERROR';
     }
-    final dynamicKeywords = _parseKeywords(dynamicKeywordsString);
+    final dynamicKeywords = _parseKeywords(M3U8Constants.dynamicKeywords);
     for (final keyword in dynamicKeywords) {
       if (url.contains(keyword)) {
         try {
