@@ -206,7 +206,8 @@ class GetM3U8 {
   static const int URL_CHECK_DELAY_MS = 2500; // URL点击延迟（毫秒）
   static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
   static const int CONTENT_SAMPLE_LENGTH = 38888; // 内容采样长度
-  static const int WEBVIEW_CLEANUP_DELAY_MS = 1000; // WebView清理延迟（毫秒）
+  static const int CLEANUP_DELAY_MS = 1000; // WebView清理延迟（毫秒）
+  static const int WEBVIEW_CLEANUP_DELAY_MS = 500; // WebView JS 清理延迟（毫秒）
 
   // 使用LRU缓存替代静态Map
   static final LRUCache<String, String> _scriptCache = LRUCache<String, String>(MAX_CACHE_SIZE);
@@ -1022,7 +1023,7 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     // 异步处理 WebView 清理
     if (_isControllerInitialized) {
       // 延迟释放WebView，给网页触发授权的请求预留多些时间
-      Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS), () async {
+      Future.delayed(Duration(milliseconds: CLEANUP_DELAY_MS), () async {
         if (cancelToken != null && !cancelToken!.isCancelled) {
           cancelToken!.cancel('GetM3U8 disposed');
         }
@@ -1050,47 +1051,23 @@ void _setupNavigationDelegate(Completer<String> completer, List<String> initScri
     }
   }
   
-  /// 完全清理WebView资源 - 优化使用更高效的清理脚本
+  /// 完全清理WebView资源 
   Future<void> _disposeWebViewCompletely(WebViewController controller) async {
     try {
-      // 使用更简洁高效的清理脚本
-      const cleanupScript = '''
-      (function() {
-        // 移除所有事件监听器
-        const removeAllListeners = (element) => {
-          const clone = element.cloneNode(true);
-          element.parentNode?.replaceChild(clone, element);
-          return clone;
-        };
-        
-        // 清理媒体元素
-        document.querySelectorAll('video, audio').forEach(el => {
-          try {
-            el.pause();
-            el.src = '';
-            el.load();
-          } catch(e) {}
-        });
-        
-        // 清理主文档
-        document.body = removeAllListeners(document.body);
-        window.CleanupCompleted?.postMessage(JSON.stringify({
-          type: 'cleanup',
-          details: { status: 'success' }
-        }));
-      })();
-      ''';
-      
+      // 加载并执行清理脚本
+      final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
       await controller.runJavaScript(cleanupScript)
-        .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
-      
-      // 并行执行其他清理操作
-      await Future.wait([
-        controller.clearCache(),
-        controller.clearLocalStorage(),
-        controller.loadRequest(Uri.parse('about:blank'))
-      ]);
-      
+          .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
+    
+      // 给脚本执行时间
+      await Future.delayed(Duration(milliseconds: WEBVIEW_CLEANUP_DELAY_MS));
+    
+      // 继续执行基本清理流程
+      await controller.setNavigationDelegate(NavigationDelegate());
+      await controller.loadRequest(Uri.parse('about:blank'));
+      await controller.clearCache();
+      await controller.clearLocalStorage();
+      await controller.runJavaScript('window.location.href = "about:blank";'); // 重置页面
       LogUtil.i('已清理资源，并重置页面');
     } catch (e, stack) {
       LogUtil.logError('清理 WebView 时发生错误', e, stack);
