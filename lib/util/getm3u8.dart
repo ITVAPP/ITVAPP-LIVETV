@@ -30,7 +30,7 @@ class M3U8Constants {
   // 字符串常量
   static const String rulePatterns = 'xybtv.com|auth_key@aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则模式
   static const String specialRulePatterns = 'nctvcloud.com|flv@mydomaint.com|mp4'; // 特殊规则模式
-  static const String dynamicKeywords = 'jinan@gansu@xizang@sichuan@xishui'; // 动态关键字
+  static const String dynamicKeywords = 'jinan@gansu@xizang@sichuan@xishui@ankang'; // getm3u8diy关键字
   static const String whiteExtensions = 'r.png?t='; // 白名单关键字
   static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽的扩展名
   static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|log'; // 无效模式（如广告、跟踪）
