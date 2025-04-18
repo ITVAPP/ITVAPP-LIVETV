@@ -19,6 +19,37 @@
       return;
     }
     
+    // 处理特殊选择器模式: click-xxx
+    if (searchText.startsWith('click-')) {
+      const selector = searchText.substring(6); // 提取 click- 后面的选择器
+      if (!selector) {
+        console.error('选择器为空');
+        return;
+      }
+      
+      // 查找匹配的元素(先尝试ID，再尝试Class)
+      const idElements = document.querySelectorAll(`#${selector}`);
+      const classElements = document.querySelectorAll(`.${selector}`);
+      
+      // 合并找到的元素
+      const elements = [...Array.from(idElements), ...Array.from(classElements)];
+      
+      if (elements.length === 0) {
+        console.error(`未找到ID或Class为"${selector}"的元素`);
+        return;
+      }
+      
+      // 检查是否有足够的元素匹配目标索引
+      if (targetIndex >= elements.length) {
+        console.error(`找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+        return;
+      }
+      
+      // 点击目标索引位置的元素
+      clickAndDetectChanges(elements[targetIndex]);
+      return;
+    }
+    
     // 配置树遍历器，筛选文本和元素节点
     const walk = document.createTreeWalker(
       document.body,
