@@ -70,7 +70,6 @@ xishuirm.cn|www.xishuirm.cn
 xatv-gl.xiancity.cn|gl.xiancity.cn
 lqtv.sn.cn|www.lqtv.sn.cn
 hplayer1.juyun.tv|ylrb.com
-player4.juyun.tv|sltvs.cn
 zatvs.cn|zasjt.zatvs.cn
 zjwtv.com|app.zjwtv.com''';
 
@@ -113,5 +112,6 @@ chayutv.com
 218.207.233.111
 tvshow.scgchc.com
 hlsplay.aodianyun.com
+player4.juyun.tv
 gbtv-rtmp.zjwtv.com''';
 }
