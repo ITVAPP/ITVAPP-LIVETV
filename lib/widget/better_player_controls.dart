@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-
 class BetterPlayerConfig {
   // 定义常量背景图片Widget
   static const _backgroundImage = Image(
@@ -11,7 +10,6 @@ class BetterPlayerConfig {
     gaplessPlayback: true,  // 防止图片加载时闪烁
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
-
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
   /// - [isHls]: 是否为 HLS 格式（直播流）
@@ -20,12 +18,23 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
-    // 使用 HeadersConfig 生成默认 headers
-    final defaultHeaders = HeadersConfig.generateHeaders(url: url);
-
-    // 合并 defaultHeaders 和传入的 headers
-    final mergedHeaders = {...defaultHeaders, ...?headers};
-
+    // 判断是否为RTMP协议
+    final bool isRtmp = url.toLowerCase().startsWith('rtmp://');
+    
+    // 仅在非RTMP协议时应用请求头
+    Map<String, String> mergedHeaders = {};
+    if (!isRtmp) {
+      // 使用 HeadersConfig 生成默认 headers
+      final defaultHeaders = HeadersConfig.generateHeaders(url: url);
+      // 合并 defaultHeaders 和传入的 headers
+      mergedHeaders = {...defaultHeaders, ...?headers};
+    }
+    
+    // 如果是RTMP，调整isHls为true以确保作为直播流处理
+    if (isRtmp) {
+      isHls = true; // 将RTMP标记为直播流
+    }
+    
     // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
@@ -53,7 +62,6 @@ class BetterPlayerConfig {
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
     );
-
     // 根据 mergedHeaders 是否为空返回实例
     return mergedHeaders.isNotEmpty
         ? BetterPlayerDataSource(
@@ -70,7 +78,6 @@ class BetterPlayerConfig {
           )
         : baseDataSource; // 不包含 headers，直接使用基础配置
   }
-
   /// 创建播放器基本配置
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
