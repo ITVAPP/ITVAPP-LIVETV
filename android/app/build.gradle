@@ -81,7 +81,6 @@ dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'com.google.android.exoplayer:exoplayer:2.19.1' // 核心 ExoPlayer
     implementation 'com.google.android.exoplayer:extension-rtmp:2.19.1' // RTMP 支持
-    // 强制 ExoPlayer 版本，防止 better_player 引入旧版
     configurations.all {
         resolutionStrategy {
             force 'com.google.android.exoplayer:exoplayer:2.19.1'
