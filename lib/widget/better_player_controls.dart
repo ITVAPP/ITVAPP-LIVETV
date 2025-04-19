@@ -25,14 +25,22 @@ class BetterPlayerConfig {
 
     // 合并 defaultHeaders 和传入的 headers
     final mergedHeaders = {...defaultHeaders, ...?headers};
+    
+    // 检测是否为RTMP流
+    final bool isRtmp = url.toLowerCase().startsWith('rtmp://');
+    
+    // 为RTMP流添加格式提示
+    final Map<String, dynamic> formatHint = isRtmp 
+        ? {"format": "rtmp"} 
+        : {};
 
     // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      liveStream: isHls, // 根据 URL 判断是否为直播流
-      useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
-      useAsmsAudioTracks: isHls, // 同上
+      liveStream: isHls, // 根据调用方设置的isHls参数决定是否为直播流
+      useAsmsTracks: isHls && !isRtmp, // RTMP流不使用ASMS轨道
+      useAsmsAudioTracks: isHls && !isRtmp, // RTMP流不使用ASMS音轨
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
       // 配置系统通知栏行为（此处关闭通知栏播放控制）
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
@@ -47,11 +55,13 @@ class BetterPlayerConfig {
       ),
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
-        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（10MB）
+        useCache: !isHls && !isRtmp, // RTMP流不使用缓存
+        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（20MB）
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
+      // 添加格式提示
+      formatHint: formatHint,
     );
 
     // 根据 mergedHeaders 是否为空返回实例
@@ -67,6 +77,7 @@ class BetterPlayerConfig {
             bufferingConfiguration: baseDataSource.bufferingConfiguration,
             cacheConfiguration: baseDataSource.cacheConfiguration,
             headers: mergedHeaders, // 包含 headers
+            formatHint: formatHint, // 添加RTMP格式提示
           )
         : baseDataSource; // 不包含 headers，直接使用基础配置
   }
