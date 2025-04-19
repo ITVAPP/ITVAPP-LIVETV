@@ -113,5 +113,6 @@ chayutv.com
 tvshow.scgchc.com
 hlsplay.aodianyun.com
 player4.juyun.tv
+pili-live-rtmp.akrt.cn
 gbtv-rtmp.zjwtv.com''';
 }
