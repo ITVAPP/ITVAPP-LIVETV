@@ -102,5 +102,5 @@ dependencies {
     implementation 'androidx.multidex:multidex:2.0.1' // 添加 MultiDex 依赖
     
     // 添加RTMP支持的依赖
-    implementation 'com.google.android.exoplayer:extension-rtmp:2.17.1'
+    implementation 'com.google.android.exoplayer:extension-rtmp:2.18.7'
 }
