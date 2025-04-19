@@ -1,23 +1,22 @@
-// 根目录的 build.gradle 文件
 buildscript {
-    ext.kotlin_version = '1.9.23' // 添加 Kotlin 版本
-
+    ext.kotlin_version = '1.9.23' // Kotlin 版本
     repositories {
-        google() // 添加 Google 仓库
-        mavenCentral() // 添加 Maven Central 仓库
+        google() // 用于 Gradle 插件
+        mavenCentral() // 用于 Gradle 插件
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.0.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // 添加 Kotlin 插件依赖
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
-allprojects {
-    repositories {
-        google() // 添加 Google 仓库
-        mavenCentral() // 添加 Maven Central 仓库
-    }
-}
+// 移除 allprojects.repositories，因为仓库已在 settings.gradle 定义
+// allprojects {
+//     repositories {
+//         google()
+//         mavenCentral()
+//     }
+// }
 
 rootProject.buildDir = "../build"
 subprojects {
