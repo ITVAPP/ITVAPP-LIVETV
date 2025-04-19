@@ -64,12 +64,8 @@ jobs:
           echo "Content of $BETTER_PLAYER_GRADLE:"
           cat $BETTER_PLAYER_GRADLE
 
-          # 提取 ExoPlayer 版本（支持多种格式）
-          EXOPLAYER_VERSION=$(grep -E 'com.google.android.exoplayer:exoplayer[^:]*:[0-9]+\.[0-9]+\.[0-9]+' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
-          if [ -z "$EXOPLAYER_VERSION" ]; then
-            echo "Warning: Could not find ExoPlayer version in $BETTER_PLAYER_GRADLE. Falling back to 2.17.1"
-            EXOPLAYER_VERSION="2.17.1"
-          fi
+          # 提取 ExoPlayer 版本（支持变量定义）
+          EXOPLAYER_VERSION=$(grep -E 'ext.exoPlayerVersion *= *"[0-9]+\.[0-9]+\.[0-9]+"' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "2.17.1")
           echo "Using ExoPlayer version: $EXOPLAYER_VERSION"
 
           # 添加 extension-rtmp 依赖
@@ -86,80 +82,38 @@ jobs:
             exit 1
           fi
 
-          # 确认 BetterPlayer.java 路径
-          BETTER_PLAYER_JAVA=$BETTER_PLAYER_DIR/android/src/main/java/com/jhomlala/better_player/BetterPlayer.java
-          if [ ! -f "$BETTER_PLAYER_JAVA" ]; then
-            echo "Error: $BETTER_PLAYER_JAVA does not exist"
+          # 确认 BetterPlayerPlugin.java 路径
+          BETTER_PLAYER_PLUGIN=$BETTER_PLAYER_DIR/android/src/main/java/com/jhomlala/better_player/BetterPlayerPlugin.java
+          if [ ! -f "$BETTER_PLAYER_PLUGIN" ]; then
+            echo "Error: $BETTER_PLAYER_PLUGIN does not exist"
             exit 1
           fi
 
-          # 备份原始 BetterPlayer.java
-          cp $BETTER_PLAYER_JAVA $BETTER_PLAYER_JAVA.bak
-          echo "Backed up $BETTER_PLAYER_JAVA to $BETTER_PLAYER_JAVA.bak"
+          # 备份原始 BetterPlayerPlugin.java
+          cp $BETTER_PLAYER_PLUGIN $BETTER_PLAYER_PLUGIN.bak
+          echo "Backed up $BETTER_PLAYER_PLUGIN to $BETTER_PLAYER_PLUGIN.bak"
 
-          # 覆盖 BetterPlayer.java 以支持 RTMP
-          cat > $BETTER_PLAYER_JAVA << 'EOF'
-          package com.jhomlala.better_player;
-
-          import android.content.Context;
-          import com.google.android.exoplayer2.ExoPlayer;
-          import com.google.android.exoplayer2.MediaItem;
-          import com.google.android.exoplayer2.source.MediaSource;
-          import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-          import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-          import com.google.android.exoplayer2.upstream.DataSource;
-          import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-          import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory;
-          import com.google.android.exoplayer2.util.Util;
-
-          public class BetterPlayer {
-              private ExoPlayer exoPlayer;
-              private Context context;
-
-              public BetterPlayer(Context context) {
-                  this.context = context;
-                  exoPlayer = new ExoPlayer.Builder(context).build();
-              }
-
-              public void setDataSource(String url, boolean isHls) {
-                  DataSource.Factory dataSourceFactory;
-                  if (url != null && url.startsWith("rtmp://")) {
-                      dataSourceFactory = new RtmpDataSourceFactory();
-                  } else {
-                      dataSourceFactory = new DefaultDataSourceFactory(
-                          context,
-                          Util.getUserAgent(context, "BetterPlayer")
-                      );
-                  }
-
-                  MediaSource mediaSource;
-                  if (isHls || (url != null && url.endsWith(".m3u8"))) {
-                      mediaSource = new HlsMediaSource.Factory(dataSourceFactory)
-                          .createMediaSource(MediaItem.fromUri(url));
-                  } else {
-                      mediaSource = new ProgressiveMediaSource.Factory(dataSourceFactory)
-                          .createMediaSource(MediaItem.fromUri(url));
-                  }
-
-                  if (url != null && url.startsWith("rtmp://")) {
-                      exoPlayer.setMediaSource(mediaSource, true); // Reset timestamps for RTMP (no audio)
-                  } else {
-                      exoPlayer.setMediaSource(mediaSource);
-                  }
-
-                  exoPlayer.prepare();
-              }
-
-              public void play() {
-                  exoPlayer.setPlayWhenReady(true);
-              }
-
-              public void release() {
-                  exoPlayer.release();
-              }
-          }
-          EOF
-          echo "Updated $BETTER_PLAYER_JAVA with RTMP support"
+          # 修改 BetterPlayerPlugin.java 以支持 RTMP
+          sed -i '/import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;/a\
+import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory;' $BETTER_PLAYER_PLUGIN
+          sed -i '/DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);/ {
+            s/DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);/\
+            DataSource.Factory dataSourceFactory;\
+            if (dataSourceUrl != null && dataSourceUrl.startsWith("rtmp:\/\/")) {\
+                dataSourceFactory = new RtmpDataSourceFactory();\
+            } else {\
+                dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);\
+            }/
+          }' $BETTER_PLAYER_PLUGIN
+          sed -i '/exoPlayer.setMediaSource(mediaSource);/ {
+            s/exoPlayer.setMediaSource(mediaSource);/\
+            if (dataSourceUrl != null && dataSourceUrl.startsWith("rtmp:\/\/")) {\
+                exoPlayer.setMediaSource(mediaSource, true);\
+            } else {\
+                exoPlayer.setMediaSource(mediaSource);\
+            }/
+          }' $BETTER_PLAYER_PLUGIN
+          echo "Updated $BETTER_PLAYER_PLUGIN with RTMP support"
 
       - name: Obfuscate JS and M3U files
         run: |
