@@ -95,7 +95,7 @@ jobs:
 
           # 修改 BetterPlayerPlugin.java 以支持 RTMP
           sed -i '/import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;/a\
-import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory;' $BETTER_PLAYER_PLUGIN
+          import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory;' $BETTER_PLAYER_PLUGIN
           sed -i '/DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);/ {
             s/DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);/\
             DataSource.Factory dataSourceFactory;\
