@@ -40,6 +40,83 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
+      - name: Add RTMP support to better_player  # 新增步骤：修改 BetterPlayer 支持 RTMP
+        run: |
+          # 确认 ExoPlayer 版本并添加 extension-rtmp 依赖
+          BETTER_PLAYER_GRADLE=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
+          EXOPLAYER_VERSION=$(grep 'com.google.android.exoplayer:exoplayer-core' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+          if [ -z "$EXOPLAYER_VERSION" ]; then
+            echo "Error: Could not find ExoPlayer version in better_player build.gradle"
+            exit 1
+          fi
+          echo "Found ExoPlayer version: $EXOPLAYER_VERSION"
+          # 添加 extension-rtmp 依赖
+          sed -i "/dependencies {/a\    implementation \"com.google.android.exoplayer:extension-rtmp:$EXOPLAYER_VERSION\"" $BETTER_PLAYER_GRADLE
+
+          # 覆盖 BetterPlayer.java 以支持 RTMP
+          BETTER_PLAYER_JAVA=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/src/main/java/com/jhomlala/better_player/BetterPlayer.java
+          cat > $BETTER_PLAYER_JAVA << 'EOF'
+          package com.jhomlala.better_player;
+
+          import android.content.Context;
+          import com.google.android.exoplayer2.ExoPlayer;
+          import com.google.android.exoplayer2.MediaItem;
+          import com.google.android.exoplayer2.source.MediaSource;
+          import com.google.android.exoplayer2.source.ProgressiveMediaSource;
+          import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+          import com.google.android.exoplayer2.upstream.DataSource;
+          import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
+          import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory;
+          import com.google.android.exoplayer2.util.Util;
+
+          public class BetterPlayer {
+              private ExoPlayer exoPlayer;
+              private Context context;
+
+              public BetterPlayer(Context context) {
+                  this.context = context;
+                  exoPlayer = new ExoPlayer.Builder(context).build();
+              }
+
+              public void setDataSource(String url, boolean isHls) {
+                  DataSource.Factory dataSourceFactory;
+                  if (url.startsWith("rtmp://")) {
+                      dataSourceFactory = new RtmpDataSourceFactory();
+                  } else {
+                      dataSourceFactory = new DefaultDataSourceFactory(
+                          context,
+                          Util.getUserAgent(context, "BetterPlayer")
+                      );
+                  }
+
+                  MediaSource mediaSource;
+                  if (isHls || url.endsWith(".m3u8")) {
+                      mediaSource = new HlsMediaSource.Factory(dataSourceFactory)
+                          .createMediaSource(MediaItem.fromUri(url));
+                  } else {
+                      mediaSource = new ProgressiveMediaSource.Factory(dataSourceFactory)
+                          .createMediaSource(MediaItem.fromUri(url));
+                  }
+
+                  if (url.startsWith("rtmp://")) {
+                      exoPlayer.setMediaSource(mediaSource, true);
+                  } else {
+                      exoPlayer.setMediaSource(mediaSource);
+                  }
+
+                  exoPlayer.prepare();
+              }
+
+              public void play() {
+                  exoPlayer.setPlayWhenReady(true);
+              }
+
+              public void release() {
+                  exoPlayer.release();
+              }
+          }
+          EOF
+
       - name: Obfuscate JS and M3U files
         run: |
           npm install javascript-obfuscator  # 安装 JS 混淆工具
