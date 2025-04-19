@@ -169,7 +169,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_checkUrlFormat(url, ['.m3u8'])) return true;
     return !_checkUrlFormat(url, [
       '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
-      '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac', 'rtmp://'
+      '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'
     ]);
   }
 
