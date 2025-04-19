@@ -72,6 +72,9 @@ lqtv.sn.cn|www.lqtv.sn.cn
 hplayer1.juyun.tv|ylrb.com
 zatvs.cn|zasjt.zatvs.cn
 zjwtv.com|app.zjwtv.com
+qhbtv.com|www.qhbtv.com
+qhtb.cn|www.qhtb.cn
+hdhhy.cn|www.hdhhy.cn
 ''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
