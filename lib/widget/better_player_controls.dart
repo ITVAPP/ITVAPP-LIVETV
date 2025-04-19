@@ -20,37 +20,13 @@ class BetterPlayerConfig {
     required bool isHls,
     Map<String, String>? headers,
   }) {
-    // 检测是否为RTMP流
-    final bool isRtmp = url.toLowerCase().startsWith('rtmp://');
-    
     // 使用 HeadersConfig 生成默认 headers
     final defaultHeaders = HeadersConfig.generateHeaders(url: url);
-    
+
     // 合并 defaultHeaders 和传入的 headers
     final mergedHeaders = {...defaultHeaders, ...?headers};
-    
-    // 如果是RTMP流，使用简化配置
-    if (isRtmp) {
-      return BetterPlayerDataSource(
-        BetterPlayerDataSourceType.network,
-        url,
-        liveStream: true, // RTMP总是直播流
-        useAsmsTracks: false, // 禁用ASMS轨道
-        useAsmsAudioTracks: false, // 禁用ASMS音轨
-        useAsmsSubtitles: false, // 禁用字幕
-        notificationConfiguration: const BetterPlayerNotificationConfiguration(
-          showNotification: false,
-        ),
-        // 禁用缓存
-        cacheConfiguration: BetterPlayerCacheConfiguration(
-          useCache: false,
-        ),
-        // 添加headers
-        headers: mergedHeaders.isNotEmpty ? mergedHeaders : null,
-      );
-    }
-    
-    // 非RTMP流使用原始配置
+
+    // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
@@ -60,7 +36,7 @@ class BetterPlayerConfig {
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
       // 配置系统通知栏行为（此处关闭通知栏播放控制）
       notificationConfiguration: const BetterPlayerNotificationConfiguration(
-        showNotification: false,
+        showNotification: true,
       ),
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
@@ -72,7 +48,7 @@ class BetterPlayerConfig {
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
-        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（20MB）
+        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（10MB）
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
@@ -96,35 +72,10 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器基本配置
-  /// - [isHls]: 是否为 HLS 格式（直播流）
-  /// - [url]: 视频播放地址，用于检测是否为RTMP流
-  /// - [eventListener]: 事件监听器
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
-    String? url,
   }) {
-    // 检测是否为RTMP流
-    final bool isRtmp = url?.toLowerCase().startsWith('rtmp://') ?? false;
-    
-    // 如果是RTMP流，使用简化的播放器配置
-    if (isRtmp) {
-      return BetterPlayerConfiguration(
-        aspectRatio: 16 / 9,
-        fit: BoxFit.contain,
-        autoPlay: true,
-        looping: true,
-        allowedScreenSleep: false,
-        placeholder: _backgroundImage,
-        errorBuilder: (_, __) => _backgroundImage,
-        controlsConfiguration: BetterPlayerControlsConfiguration(
-          showControls: false,
-        ),
-        eventListener: eventListener,
-      );
-    }
-    
-    // 非RTMP流使用原始配置
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 播放器内容适应模式（保持比例缩放）
       autoPlay: false, // 自动播放
