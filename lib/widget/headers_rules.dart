@@ -64,14 +64,15 @@ cctvnews.cctv.com|m-live.cctvnews.cctv.com
 live1.kxm.xmtv.cn|seexm2024.kxm.xmtv.cn
 qztv.cn|www.qztv.cn
 gzstv.com|www.gzstv.com
-lasatv.cn|www.lasatv.cn
+lasdieny.com|www.lasatv.cn
 p8.vzan.com|npwhyavzb.vzan.com
 xishuirm.cn|www.xishuirm.cn
 xatv-gl.xiancity.cn|gl.xiancity.cn
 lqtv.sn.cn|www.lqtv.sn.cn
 hplayer1.juyun.tv|ylrb.com
 zatvs.cn|zasjt.zatvs.cn
-zjwtv.com|app.zjwtv.com''';
+zjwtv.com|app.zjwtv.com
+''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
   static const String corsRulesString = '''
@@ -89,7 +90,8 @@ tytv-hls.sxtygdy.com
 mapi.hoolo.tv
 liveplus.lzr.com.cn
 cjyun.org
-cjy.hbtv.com.cn''';
+cjy.hbtv.com.cn
+''';
 
   /// 使用通用播放器请求头的域名列表，每行一个域名
   static const String excludeDomainsString = '''
@@ -113,5 +115,11 @@ chayutv.com
 tvshow.scgchc.com
 hlsplay.aodianyun.com
 player4.juyun.tv
-gbtv-rtmp.zjwtv.com''';
+gbtv-rtmp.zjwtv.com
+''';
+
+  /// 使用 BetterPlayer 默认请求头的域名列表，每行一个域名
+  static const String defaultHeadersDomainsString = '''
+pili-live-rtmp.akrt.cn
+''';
 }
