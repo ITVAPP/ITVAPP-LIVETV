@@ -29,10 +29,8 @@ class BetterPlayerConfig {
     // 检测是否为RTMP流
     final bool isRtmp = url.toLowerCase().startsWith('rtmp://');
     
-    // 为RTMP流添加格式提示
-    final Map<String, dynamic> formatHint = isRtmp 
-        ? {"format": "rtmp"} 
-        : {};
+    // 如果是RTMP流，添加额外的处理逻辑
+    // 注意：BetterPlayer 0.0.84版本不支持formatHint参数
 
     // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
@@ -60,8 +58,6 @@ class BetterPlayerConfig {
         maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
-      // 添加格式提示
-      formatHint: formatHint,
     );
 
     // 根据 mergedHeaders 是否为空返回实例
@@ -77,7 +73,6 @@ class BetterPlayerConfig {
             bufferingConfiguration: baseDataSource.bufferingConfiguration,
             cacheConfiguration: baseDataSource.cacheConfiguration,
             headers: mergedHeaders, // 包含 headers
-            formatHint: formatHint, // 添加RTMP格式提示
           )
         : baseDataSource; // 不包含 headers，直接使用基础配置
   }
