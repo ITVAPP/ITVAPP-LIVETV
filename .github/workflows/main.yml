@@ -1,4 +1,3 @@
-
 name: ITVAPP-LIVETV APP
 
 on:
@@ -40,76 +39,6 @@ jobs:
         run: |
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
-
-      - name: Add RTMP support to better_player  # 新增步骤：修改 BetterPlayerPlugin.kt 支持 RTMP
-        run: |
-          # 调试：列出 pub 缓存中的 better_player 版本
-          echo "Listing better_player in pub cache:"
-          ls -l $HOME/.pub-cache/hosted/pub.dev/ | grep better_player || echo "No better_player found in pub cache"
-
-          # 确认 better_player-0.0.84 存在
-          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84
-          if [ ! -d "$BETTER_PLAYER_DIR" ]; then
-            echo "Error: better_player-0.0.84 not found in pub cache"
-            exit 1
-          fi
-
-          # 确认 build.gradle 存在
-          BETTER_PLAYER_GRADLE=$BETTER_PLAYER_DIR/android/build.gradle
-          if [ ! -f "$BETTER_PLAYER_GRADLE" ]; then
-            echo "Error: $BETTER_PLAYER_GRADLE does not exist"
-            exit 1
-          fi
-
-          # 调试：显示 build.gradle 内容
-          echo "Content of $BETTER_PLAYER_GRADLE:"
-          cat $BETTER_PLAYER_GRADLE
-
-          # 提取 ExoPlayer 版本
-          EXOPLAYER_VERSION=$(grep -E 'ext.exoPlayerVersion *= *"[0-9]+\.[0-9]+\.[0-9]+"' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "2.17.1")
-          echo "Using ExoPlayer version: $EXOPLAYER_VERSION"
-
-          # 添加 extension-rtmp 依赖
-          if grep -q "dependencies {" $BETTER_PLAYER_GRADLE; then
-            if ! grep -q "com.google.android.exoplayer:extension-rtmp" $BETTER_PLAYER_GRADLE; then
-              sed -i "/dependencies {/a\    implementation \"com.google.android.exoplayer:extension-rtmp:$EXOPLAYER_VERSION\"" $BETTER_PLAYER_GRADLE
-              echo "Added extension-rtmp:$EXOPLAYER_VERSION to $BETTER_PLAYER_GRADLE"
-            else
-              echo "extension-rtmp already exists in $BETTER_PLAYER_GRADLE"
-            fi
-          else
-            echo "Error: No dependencies block found in $BETTER_PLAYER_GRADLE"
-            exit 1
-          fi
-
-          # 确认 BetterPlayerPlugin.kt 路径
-          BETTER_PLAYER_PLUGIN=$BETTER_PLAYER_DIR/android/src/main/java/com/jhomlala/better_player/BetterPlayerPlugin.kt
-          if [ ! -f "$BETTER_PLAYER_PLUGIN" ]; then
-            echo "Error: $BETTER_PLAYER_PLUGIN does not exist"
-            exit 1
-          fi
-
-          # 备份原始 BetterPlayerPlugin.kt
-          cp $BETTER_PLAYER_PLUGIN $BETTER_PLAYER_PLUGIN.bak
-          echo "Backed up $BETTER_PLAYER_PLUGIN to $BETTER_PLAYER_PLUGIN.bak"
-
-          # 创建临时 sed 脚本以修改 BetterPlayerPlugin.kt
-          cat > /tmp/rtmp_sed_script.sed << 'EOF'
-          # 添加 RtmpDataSourceFactory 导入
-          /import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory/a\
-          import com.google.android.exoplayer2.ext.rtmp.RtmpDataSourceFactory
-
-          # 修改数据源逻辑，支持 RTMP
-          s/val dataSourceFactory = DefaultDataSourceFactory(context, userAgent)/var dataSourceFactory: DataSource.Factory = if (dataSourceUrl != null && dataSourceUrl.startsWith("rtmp://")) { RtmpDataSourceFactory() } else { DefaultDataSourceFactory(context, userAgent) }/
-
-          # 修改 setMediaSource 逻辑，优化 RTMP 无音频流
-          s/exoPlayer.setMediaSource(mediaSource)/if (dataSourceUrl != null && dataSourceUrl.startsWith("rtmp://")) { exoPlayer.setMediaSource(mediaSource, true) } else { exoPlayer.setMediaSource(mediaSource) }/
-          EOF
-
-          # 应用 sed 脚本
-          sed -i -f /tmp/rtmp_sed_script.sed $BETTER_PLAYER_PLUGIN
-          rm /tmp/rtmp_sed_script.sed
-          echo "Updated $BETTER_PLAYER_PLUGIN with RTMP support"
 
       - name: Obfuscate JS and M3U files
         run: |
