@@ -100,6 +100,5 @@ flutter {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4' // 使用desugar库提供Java 8+ API支持
     implementation 'androidx.multidex:multidex:2.0.1' // 添加 MultiDex 依赖
-    implementation 'com.github.pedroSG94.rtmp-rtsp-stream-client-java:rtplibrary:2.1.9' // 添加 RTMP 支持依赖
     implementation 'com.google.android.exoplayer:extension-rtmp:2.18.7' // 添加 ExoPlayer 的 RTMP 扩展
 }
