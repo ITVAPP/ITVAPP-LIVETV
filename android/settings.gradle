@@ -3,7 +3,7 @@ pluginManagement {
         def properties = new Properties()
         file("local.properties").withInputStream { properties.load(it) }
         def flutterSdkPath = properties.getProperty("flutter.sdk")
-        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        assert flutterSdkPath != null, "flutter.SDK not set in local.properties"
         return flutterSdkPath
     }()
 
@@ -16,20 +16,19 @@ pluginManagement {
     }
 }
 
-// 添加 dependencyResolutionManagement 块，RTMP 扩展依赖的仓库
+plugins {
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+    id "com.android.application" version "8.5.0" apply false
+    id "org.jetbrains.kotlin.android" version "1.9.23" apply false
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' } // 添加 JitPack 仓库
+        maven { url 'https://jitpack.io' } // JitPack 仓库
     }
-}
-
-plugins {
-    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "8.5.0" apply false
-    id "org.jetbrains.kotlin.android" version "1.9.23" apply false
 }
 
 include ":app"
