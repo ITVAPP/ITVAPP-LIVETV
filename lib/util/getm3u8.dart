@@ -264,7 +264,7 @@ class GetM3U8 {
     if (_filterRules.isNotEmpty) {
       bool matchedDomain = false;
       for (final rule in _filterRules) {
-        if (url.contains(rule.domain)) {
+        if (_parsedUri.host.contains(rule.domain)) {	
           matchedDomain = true;
           return rule.requiredKeyword.isEmpty || url.contains(rule.requiredKeyword);
         }
