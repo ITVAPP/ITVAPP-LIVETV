@@ -7,7 +7,7 @@ buildscript {
         mavenCentral() // 添加 Maven Central 仓库
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.0.0'
+        classpath 'com.android.tools.build:gradle:8.5.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // 添加 Kotlin 插件依赖
     }
 }
@@ -16,7 +16,6 @@ allprojects {
     repositories {
         google() // 添加 Google 仓库
         mavenCentral() // 添加 Maven Central 仓库
-        maven { url 'https://jitpack.io' } // 添加 JitPack 仓库支持 RTMP 依赖
     }
 }
 
