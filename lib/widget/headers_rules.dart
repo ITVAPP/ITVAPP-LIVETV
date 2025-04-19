@@ -121,6 +121,6 @@ pili-live-rtmp.akrt.cn
 
   /// 使用 BetterPlayer 默认请求头的域名列表，每行一个域名
   static const String defaultHeadersDomainsString = '''
-BetterPlayer.BetterPlayer.cn
+pili-live-rtmp.akrt.cn
 ''';
 }
