@@ -71,7 +71,6 @@ xatv-gl.xiancity.cn|gl.xiancity.cn
 lqtv.sn.cn|www.lqtv.sn.cn
 hplayer1.juyun.tv|ylrb.com
 zatvs.cn|zasjt.zatvs.cn
-akrt.cn|app.akrt.cn
 zjwtv.com|app.zjwtv.com''';
 
   /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
