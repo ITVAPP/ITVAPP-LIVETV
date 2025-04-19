@@ -43,6 +43,9 @@ class HeadersConfig {
   
   /// 缓存排除域名列表，避免重复计算
   static final List<String> _cachedExcludeDomains = _getExcludeDomains();
+  
+  /// 缓存使用BetterPlayer默认请求头的域名列表
+  static final List<String> _cachedDefaultHeadersDomains = _getDefaultHeadersDomains();
 
   /// 预编译正则表达式，提升性能
   static final RegExp _ipv4Pattern = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
@@ -84,6 +87,14 @@ class HeadersConfig {
     return _splitAndFilter(excludeStr); // 使用统一工具方法
   }
 
+  /// 获取使用默认请求头的域名列表
+  static List<String> _getDefaultHeadersDomains() {
+    final defaultHeadersStr = HeaderRules.defaultHeadersDomainsString;
+    if (defaultHeadersStr.isEmpty) return [];
+    
+    return _splitAndFilter(defaultHeadersStr); // 使用统一工具方法
+  }
+
   /// 通用字符串分割和过滤方法，消除重复逻辑
   static List<String> _splitAndFilter(String input) {
     return input
@@ -108,6 +119,20 @@ class HeadersConfig {
       return _cachedExcludeDomains.any((domain) => host.contains(domain));
     } catch (e) {
       LogUtil.logError('检查排除域名失败', e);
+      return false;
+    }
+  }
+  
+  /// 检查域名是否需要使用默认请求头
+  static bool _isDefaultHeadersDomain(String url) {
+    try {
+      final host = _extractHost(url);
+      
+      if (host.isEmpty) return false; // 增加健壮性
+      
+      return _cachedDefaultHeadersDomains.any((domain) => host.contains(domain));
+    } catch (e) {
+      LogUtil.logError('检查默认请求头域名失败', e);
       return false;
     }
   }
@@ -173,6 +198,12 @@ class HeadersConfig {
     required String url,
   }) {
     try {
+      // 检查是否需要使用默认请求头
+      if (_isDefaultHeadersDomain(url)) {
+        LogUtil.i('使用 BetterPlayer 默认请求头 for URL: $url');
+        return {};
+      }
+
       if (_isExcludedDomain(url)) {
         final host = _extractHost(url);
         final playerHeadersWithHost = {
