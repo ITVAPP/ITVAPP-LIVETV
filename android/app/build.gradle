@@ -1,24 +1,38 @@
 plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
+    id "com.android.application"          // 应用程序插件，构建Android应用的必备插件
+    id "kotlin-android"                   // Kotlin插件，支持Kotlin语言编写的Android代码
+    id "dev.flutter.flutter-gradle-plugin" // Flutter插件，用于构建Flutter应用的必备插件
 }
 
+// 定义一个Properties对象，用于加载local.properties文件中的配置
 def localProperties = new Properties()
-def localPropertiesFile = rootProject.file("local.properties")
+def localPropertiesFile = rootProject.file("local.properties") // 获取local.properties文件
+
+// 如果local.properties文件存在，则加载文件中的属性
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader("UTF-8") { reader ->
-        localProperties.load(reader)
+        localProperties.load(reader) // 使用UTF-8编码加载属性文件
     }
 }
 
-def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
-def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0"
+// 从local.properties中获取flutter版本代码，如果不存在则设置为"1"
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+if (flutterVersionCode == null) {
+    flutterVersionCode = "1"
+}
 
+// 从local.properties中获取flutter版本名称，如果不存在则设置为"1.0"
+def flutterVersionName = localProperties.getProperty("flutter.versionName")
+if (flutterVersionName == null) {
+    flutterVersionName = "1.0"
+}
+
+// Android配置块，用于配置Android构建相关的选项
 android {
-    namespace = "itvapp_live_tv"
-    compileSdk = 35
+    namespace = "itvapp_live_tv" // 命名空间，用于定义应用的包名
+    compileSdk = 35              // 编译SDK版本，定义编译时使用的Android SDK版本
 
+    // 添加以下配置来禁用 Split APK
     bundle {
         language {
             enableSplit = false
@@ -31,6 +45,7 @@ android {
         }
     }
 
+    // 添加 ABI 分包配置
     splits {
         abi {
             enable true
@@ -41,54 +56,51 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17  // 指定Java源码的兼容性版本
+        targetCompatibility = JavaVersion.VERSION_17  // 指定Java目标字节码的兼容性版本
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "17" // 指定Kotlin编译的JVM目标版本
     }
 
     defaultConfig {
-        applicationId = "net.itvapp.livetv"
-        minSdk = 21
-        targetSdk = 35
-        versionCode = flutterVersionCode.toInteger()
-        versionName = flutterVersionName
-        multiDexEnabled true
+        applicationId = "net.itvapp.livetv" // 应用程序ID，即包名
+        minSdk = 21                         // 最低支持的Android SDK版本
+        targetSdk = 35                      // 目标SDK版本，定义应用针对的Android SDK版本
+        versionCode = flutterVersionCode.toInteger() // 应用版本代码，从local.properties读取
+        versionName = flutterVersionName             // 应用版本名称，从local.properties读取
+        multiDexEnabled true // 启用 MultiDex
     }
 
     signingConfigs {
         release {
-            storeFile file("LIVETV.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_ALIAS_PASSWORD")
+            storeFile file("LIVETV.jks")                          // 指定签名密钥库文件
+            storePassword System.getenv("KEYSTORE_PASSWORD")       // 签名密钥库密码，从环境变量读取
+            keyAlias System.getenv("KEY_ALIAS")                    // 签名密钥别名，从环境变量读取
+            keyPassword System.getenv("KEY_ALIAS_PASSWORD")        // 签名密钥密码，从环境变量读取
         }
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
-            signingConfig = signingConfigs.release
+            minifyEnabled true // 启用代码混淆和压缩
+            shrinkResources true // 移除未使用的资源，减少APK的大小
+            signingConfig = signingConfigs.release // 使用release签名配置
         }
     }
 }
 
-dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
-    implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
-    implementation 'com.google.android.exoplayer:extension-rtmp:2.19.1'
-    configurations.all {
-        resolutionStrategy {
-            force 'com.google.android.exoplayer:exoplayer:2.19.1'
-            force 'com.google.android.exoplayer:extension-rtmp:2.19.1'
-        }
-    }
-}
-
+// Flutter插件配置块，用于指定Flutter项目的源目录
 flutter {
-    source = "../.."
+    source = "../.." // 指定Flutter项目的根目录位置
+}
+
+// 依赖项配置块，用于声明项目的依赖库
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4' // 使用desugar库提供Java 8+ API支持
+    implementation 'androidx.multidex:multidex:2.0.1' // 添加 MultiDex 依赖
+    
+    // 添加RTMP支持的依赖
+    implementation 'com.google.android.exoplayer:extension-rtmp:2.17.1'
 }
