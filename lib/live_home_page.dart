@@ -377,24 +377,66 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 设置播放器控制器并初始化数据源
-  Future<void> _setupPlayerController() async {
-    if (_playerController != null) {
-      await _releaseAllResources();
-    }
-    try {
+/// 设置播放器控制器并初始化数据源
+Future<void> _setupPlayerController() async {
+  if (_playerController != null) {
+    await _releaseAllResources();
+  }
+  try {
+    final bool isRtmp = _currentPlayUrl != null && _currentPlayUrl!.toLowerCase().startsWith('rtmp://');
+    
+    if (isRtmp) {
+      // 对RTMP流使用更简化的配置
+      final betterPlayerConfiguration = BetterPlayerConfiguration(
+        aspectRatio: 16 / 9,
+        fit: BoxFit.contain,
+        autoPlay: true,
+        looping: true,
+        allowedScreenSleep: false,
+        placeholder: Image(
+          image: AssetImage('assets/images/video_bg.png'),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+        errorBuilder: (_, __) => Image(
+          image: AssetImage('assets/images/video_bg.png'),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+        eventListener: _videoListener,
+      );
+      
+      final dataSource = BetterPlayerDataSource(
+        BetterPlayerDataSourceType.network,
+        _currentPlayUrl!,
+        liveStream: true,
+        useAsmsTracks: false,
+        useAsmsAudioTracks: false,
+        useAsmsSubtitles: false,
+        cacheConfiguration: BetterPlayerCacheConfiguration(
+          useCache: false,
+        ),
+      );
+      
+      _playerController = BetterPlayerController(betterPlayerConfiguration);
+      await _playerController!.setupDataSource(dataSource);
+    } else {
+      // 非RTMP流使用原始配置
       final dataSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(eventListener: _videoListener, isHls: _isHls);
       _playerController = BetterPlayerController(betterPlayerConfiguration);
       await _playerController!.setupDataSource(dataSource);
-      if (mounted) {
-        setState(() => _playerController);
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('设置播放器失败', e, stackTrace);
-      await _releaseAllResources();
-      throw e;
     }
+    
+    if (mounted) {
+      setState(() => _playerController);
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('设置播放器失败', e, stackTrace);
+    await _releaseAllResources();
+    throw e;
   }
+}
 
   /// 开始播放视频
   Future<void> _startPlayback() async {
