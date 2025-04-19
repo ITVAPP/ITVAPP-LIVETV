@@ -40,21 +40,64 @@ jobs:
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
 
-      - name: Add RTMP support to better_player  # 新增步骤：修改 BetterPlayer 支持 RTMP
+      - name: Add RTMP support to better_player  # 修改 BetterPlayer 支持 RTMP
         run: |
-          # 确认 ExoPlayer 版本并添加 extension-rtmp 依赖
-          BETTER_PLAYER_GRADLE=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
-          EXOPLAYER_VERSION=$(grep 'com.google.android.exoplayer:exoplayer-core' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-          if [ -z "$EXOPLAYER_VERSION" ]; then
-            echo "Error: Could not find ExoPlayer version in better_player build.gradle"
+          # 调试：列出 pub 缓存中的 better_player 版本
+          echo "Listing better_player in pub cache:"
+          ls -l $HOME/.pub-cache/hosted/pub.dev/ | grep better_player || echo "No better_player found in pub cache"
+
+          # 确认 better_player-0.0.84 存在
+          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84
+          if [ ! -d "$BETTER_PLAYER_DIR" ]; then
+            echo "Error: better_player-0.0.84 not found in pub cache"
             exit 1
           fi
-          echo "Found ExoPlayer version: $EXOPLAYER_VERSION"
+
+          # 确认 build.gradle 存在
+          BETTER_PLAYER_GRADLE=$BETTER_PLAYER_DIR/android/build.gradle
+          if [ ! -f "$BETTER_PLAYER_GRADLE" ]; then
+            echo "Error: $BETTER_PLAYER_GRADLE does not exist"
+            exit 1
+          fi
+
+          # 调试：显示 build.gradle 内容
+          echo "Content of $BETTER_PLAYER_GRADLE:"
+          cat $BETTER_PLAYER_GRADLE
+
+          # 提取 ExoPlayer 版本（支持多种格式）
+          EXOPLAYER_VERSION=$(grep -E 'com.google.android.exoplayer:exoplayer[^:]*:[0-9]+\.[0-9]+\.[0-9]+' $BETTER_PLAYER_GRADLE | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+          if [ -z "$EXOPLAYER_VERSION" ]; then
+            echo "Warning: Could not find ExoPlayer version in $BETTER_PLAYER_GRADLE. Falling back to 2.17.1"
+            EXOPLAYER_VERSION="2.17.1"
+          fi
+          echo "Using ExoPlayer version: $EXOPLAYER_VERSION"
+
           # 添加 extension-rtmp 依赖
-          sed -i "/dependencies {/a\    implementation \"com.google.android.exoplayer:extension-rtmp:$EXOPLAYER_VERSION\"" $BETTER_PLAYER_GRADLE
+          if grep -q "dependencies {" $BETTER_PLAYER_GRADLE; then
+            # 检查是否已存在 extension-rtmp 依赖，避免重复添加
+            if ! grep -q "com.google.android.exoplayer:extension-rtmp" $BETTER_PLAYER_GRADLE; then
+              sed -i "/dependencies {/a\    implementation \"com.google.android.exoplayer:extension-rtmp:$EXOPLAYER_VERSION\"" $BETTER_PLAYER_GRADLE
+              echo "Added extension-rtmp:$EXOPLAYER_VERSION to $BETTER_PLAYER_GRADLE"
+            else
+              echo "extension-rtmp already exists in $BETTER_PLAYER_GRADLE"
+            fi
+          else
+            echo "Error: No dependencies block found in $BETTER_PLAYER_GRADLE"
+            exit 1
+          fi
+
+          # 确认 BetterPlayer.java 路径
+          BETTER_PLAYER_JAVA=$BETTER_PLAYER_DIR/android/src/main/java/com/jhomlala/better_player/BetterPlayer.java
+          if [ ! -f "$BETTER_PLAYER_JAVA" ]; then
+            echo "Error: $BETTER_PLAYER_JAVA does not exist"
+            exit 1
+          fi
+
+          # 备份原始 BetterPlayer.java
+          cp $BETTER_PLAYER_JAVA $BETTER_PLAYER_JAVA.bak
+          echo "Backed up $BETTER_PLAYER_JAVA to $BETTER_PLAYER_JAVA.bak"
 
           # 覆盖 BetterPlayer.java 以支持 RTMP
-          BETTER_PLAYER_JAVA=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/src/main/java/com/jhomlala/better_player/BetterPlayer.java
           cat > $BETTER_PLAYER_JAVA << 'EOF'
           package com.jhomlala.better_player;
 
@@ -80,7 +123,7 @@ jobs:
 
               public void setDataSource(String url, boolean isHls) {
                   DataSource.Factory dataSourceFactory;
-                  if (url.startsWith("rtmp://")) {
+                  if (url != null && url.startsWith("rtmp://")) {
                       dataSourceFactory = new RtmpDataSourceFactory();
                   } else {
                       dataSourceFactory = new DefaultDataSourceFactory(
@@ -90,7 +133,7 @@ jobs:
                   }
 
                   MediaSource mediaSource;
-                  if (isHls || url.endsWith(".m3u8")) {
+                  if (isHls || (url != null && url.endsWith(".m3u8"))) {
                       mediaSource = new HlsMediaSource.Factory(dataSourceFactory)
                           .createMediaSource(MediaItem.fromUri(url));
                   } else {
@@ -98,8 +141,8 @@ jobs:
                           .createMediaSource(MediaItem.fromUri(url));
                   }
 
-                  if (url.startsWith("rtmp://")) {
-                      exoPlayer.setMediaSource(mediaSource, true);
+                  if (url != null && url.startsWith("rtmp://")) {
+                      exoPlayer.setMediaSource(mediaSource, true); // Reset timestamps for RTMP (no audio)
                   } else {
                       exoPlayer.setMediaSource(mediaSource);
                   }
@@ -116,6 +159,7 @@ jobs:
               }
           }
           EOF
+          echo "Updated $BETTER_PLAYER_JAVA with RTMP support"
 
       - name: Obfuscate JS and M3U files
         run: |
