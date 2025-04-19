@@ -79,8 +79,8 @@ android {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'com.google.android.exoplayer:exoplayer:2.19.1' // 核心 ExoPlayer
-    implementation 'com.google.android.exoplayer:extension-rtmp:2.19.1' // RTMP 支持
+    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
+    implementation 'com.google.android.exoplayer:extension-rtmp:2.19.1'
     configurations.all {
         resolutionStrategy {
             force 'com.google.android.exoplayer:exoplayer:2.19.1'
