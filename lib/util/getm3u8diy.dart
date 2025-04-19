@@ -4,7 +4,7 @@ import 'package:itvapp_live_tv/util/getapp/gansu.dart';
 import 'package:itvapp_live_tv/util/getapp/xizang.dart';
 import 'package:itvapp_live_tv/util/getapp/sichuan.dart';
 import 'package:itvapp_live_tv/util/getapp/xishui.dart';
-import 'package:itvapp_live_tv/util/getapp/ankang.dart';
+import 'package:itvapp_live_tv/util/getapp/yanan.dart';
 
 /// 定义解析器函数类型
 typedef ParserFunction = Future<String> Function(String url);
@@ -18,7 +18,7 @@ class GetM3u8Diy {
     'xizang': xizangParser.parse,
     'sichuan': SichuanParser.parse,
     'xishui': xishuiParser.parse,
-    'ankang': ankangParser.parse,
+    'yanan': yananParser.parse,
   };
 
   /// 根据 URL 获取直播流地址
