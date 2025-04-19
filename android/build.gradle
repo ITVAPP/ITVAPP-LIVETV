@@ -1,12 +1,21 @@
+// 根目录的 build.gradle 文件
 buildscript {
-    ext.kotlin_version = '1.9.23'
+    ext.kotlin_version = '1.9.23' // 添加 Kotlin 版本
+
     repositories {
-        google()
-        mavenCentral()
+        google() // 添加 Google 仓库
+        mavenCentral() // 添加 Maven Central 仓库
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.5.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.android.tools.build:gradle:8.0.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // 添加 Kotlin 插件依赖
+    }
+}
+
+allprojects {
+    repositories {
+        google() // 添加 Google 仓库
+        mavenCentral() // 添加 Maven Central 仓库
     }
 }
 
