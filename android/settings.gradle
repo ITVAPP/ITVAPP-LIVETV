@@ -13,7 +13,7 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven { url 'https://storage.googleapis.com/download.flutter.io' } // Flutter 插件
+        maven { url 'https://storage.googleapis.com/download.flutter.io' }
     }
 }
 
@@ -30,6 +30,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven { url 'https://jitpack.io' } // 支持 rtmp-client
         maven { url 'https://storage.googleapis.com/download.flutter.io' } // Flutter 依赖
+        maven { url 'https://maven.google.com' } // 额外 Google Maven 仓库
     }
 }
 
