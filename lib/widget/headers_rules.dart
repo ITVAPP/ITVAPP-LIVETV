@@ -1,8 +1,8 @@
-/// HTTP请求Headers配置规则，包含Referer映射、CORS规则和排除域名
+/// 定义请求头规则的静态配置类
 class HeaderRules {
   const HeaderRules._();
 
-  /// 域名到Referer的映射规则，格式：域名(关键字)|Referer，每行一条规则
+  /// 域名到Referer的映射规则
   static const String rulesString = '''
 googlevideo|www.youtube.com
 tcdn.itouchtv.cn|www.gdtv.cn
@@ -77,7 +77,7 @@ qhtb.cn|www.qhtb.cn
 hdhhy.cn|www.hdhhy.cn
 ''';
 
-  /// 需要添加CORS头的域名(关键字)列表，不添加则请求头不发送Host，每行一个域名
+  /// 需要添加CORS头的域名列表
   static const String corsRulesString = '''
 itvapp.net
 file.lcxw.cn
@@ -96,7 +96,7 @@ cjyun.org
 cjy.hbtv.com.cn
 ''';
 
-  /// 使用通用播放器请求头的域名列表，每行一个域名
+  /// 使用通用播放器请求头的域名列表
   static const String excludeDomainsString = '''
 loulannews
 chinamobile.com
@@ -122,8 +122,23 @@ gbtv-rtmp.zjwtv.com
 pili-live-rtmp.akrt.cn
 ''';
 
-  /// 使用 BetterPlayer 默认请求头的域名列表，每行一个域名
+  /// 使用BetterPlayer默认请求头的域名列表
   static const String defaultHeadersDomainsString = '''
 pili-live-rtmp.akrt.cn
+''';
+
+  /// 域名特定的自定义请求头规则
+  static const String customHeadersRulesString = '''
+[idclive.hljtv.com]
+Host: {host}
+User-Agent: product jushi.4.5.4 ( Android.31 Mobile)
+Accept: */*
+Connection: keep-alive
+
+[tv.youku.com]
+Host: {host}
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+Accept: */*
+Connection: keep-alive
 ''';
 }
