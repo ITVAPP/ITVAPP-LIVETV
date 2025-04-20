@@ -122,6 +122,7 @@ hlsplay.aodianyun.com
 player4.juyun.tv
 gbtv-rtmp.zjwtv.com
 pili-live-rtmp.akrt.cn
+masterpull.hljtv.com
 ''';
 
   /// 使用BetterPlayer默认请求头的域名列表
