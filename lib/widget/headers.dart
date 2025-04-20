@@ -21,7 +21,7 @@ class HeadersConfig {
   static const Map<String, String> _playerHeaders = {
     ..._commonHeaders, // 合并公共字段
     'Range': 'bytes=0-',
-    'user-agent': 'Dalvik/2.1.0 (Linux; Android 13; zh-CN; Redmi k80/SKQ1.211006.001 test-keys)',  // 标准的安卓系统 User-Agent
+    'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13; Redmi k80/SKQ1.211006.001)',  // 标准的安卓系统 User-Agent
     'Pragma': 'no-cache',
   };
 
