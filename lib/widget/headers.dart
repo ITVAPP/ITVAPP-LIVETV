@@ -4,12 +4,13 @@ import 'package:itvapp_live_tv/widget/headers_rules.dart';
 /// HTTP请求Headers配置工具类，用于生成请求头
 class HeadersConfig {
   const HeadersConfig._();
-  
+
   /// Chrome版本号
   static const String _chromeVersion = '128.0.0.0';
-  
+
   /// 浏览器标识
-  static const String userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36 OPR/114.0.0.0';
+  static const String userAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromeVersion Safari/537.36 OPR/114.0.0.0';
 
   /// 通用请求头字段，提取公共部分以减少重复定义
   static const Map<String, String> _commonHeaders = {
@@ -21,7 +22,8 @@ class HeadersConfig {
   static const Map<String, String> _playerHeaders = {
     ..._commonHeaders, // 合并公共字段
     'Range': 'bytes=0-',
-    'user-agent': 'Dalvik/2.1.0 (Linux; U; Android 13; Redmi k80/SKQ1.211006.001)',  // 标准的安卓系统 User-Agent
+    'User-Agent':
+        'Dalvik/2.1.0 (Linux; U; Android 13; Redmi k80/SKQ1.211006.001)', // 模拟Android设备
     'Pragma': 'no-cache',
   };
 
@@ -40,243 +42,382 @@ class HeadersConfig {
 
   /// 缓存解析规则，避免重复计算
   static final Map<String, String> _cachedRules = _parseRules();
-  
+
   /// 缓存排除域名列表，避免重复计算
   static final List<String> _cachedExcludeDomains = _getExcludeDomains();
-  
-  /// 缓存使用BetterPlayer默认请求头的域名列表
-  static final List<String> _cachedDefaultHeadersDomains = _getDefaultHeadersDomains();
 
-  /// 预编译正则表达式，提升性能
+  /// 缓存使用BetterPlayer默认请求头的域名列表
+  static final List<String> _cachedDefaultHeadersDomains =
+      _getDefaultHeadersDomains();
+
+  /// 缓存域名特定请求头规则
+  static final Map<String, Map<String, String>> _cachedCustomHeadersRules =
+      _parseCustomHeadersRules();
+
+  /// 请求头缓存最大条目数
+  static const int _maxCacheSize = 100;
+
+  /// 缓存已生成的请求头，减少重复计算
+  static final Map<String, Map<String, String>> _headersCache = {};
+
+  /// 存储缓存键的插入顺序，用于实现LRU策略
+  static final List<String> _cacheKeyOrder = [];
+
+  /// 预编译IPv4正则表达式，提升匹配性能
   static final RegExp _ipv4Pattern = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+
+  /// 预编译IPv6正则表达式，支持多种格式
   static final RegExp _ipv6Pattern = RegExp(
-    r'^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|'   // 标准格式
-    r'^(([0-9a-fA-F]{1,4}:){0,6}::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})$'  // 压缩格式
-  );
-  static final RegExp _hostPattern = RegExp(r'://([^\[\]/]+|\[[^\]]+\])');
+      r'^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^[0-9a-fA-F]{1,4}::([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}::([0-9a-fA-F]{1,4}:){0,4}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){0,2}[0-9a-fA-F]{1,4}::([0-9a-fA-F]{1,4}:){0,3}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){0,3}[0-9a-fA-F]{1,4}::([0-9a-fA-F]{1,4}:){0,2}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){0,4}[0-9a-fA-F]{1,4}::([0-9a-fA-F]{1,4}:){0,1}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}::[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}::$');
+
+  /// 提取主机名和端口的正则表达式，支持IPv6
+  static final RegExp _hostWithPortPattern =
+      RegExp(r'://([^\[\]/]+|\[[^\]]+\])(?::(\d+))?');
+
+  /// 提取协议的正则表达式，支持http和https
   static final RegExp _schemePattern = RegExp(r'^(https?):');
 
-  /// 解析规则配置，将域名关键字映射到对应的Referer
+  /// 缓存CORS规则域名列表
+  static final List<String> _cachedCorsRules =
+      _splitAndFilter(HeaderRules.corsRulesString);
+
+  /// 解析规则配置，将域名关键字映射到Referer
   static Map<String, String> _parseRules() {
     final rules = <String, String>{};
-    
     final rulesStr = HeaderRules.rulesString;
     if (rulesStr.isEmpty) return rules;
-    
-    final ruleList = _splitAndFilter(rulesStr); // 使用统一工具方法
-    
+
+    final ruleList = _splitAndFilter(rulesStr); // 分割并过滤规则字符串
     for (final rule in ruleList) {
       final parts = rule.split('|');
       if (parts.length == 2) {
         final domain = parts[0].trim();
         final referer = parts[1].trim();
         if (domain.isNotEmpty && referer.isNotEmpty) {
-          rules[domain] = 'https://$referer';
+          rules[domain] = 'https://$referer'; // 构造完整Referer
         }
       }
     }
-    
     return rules;
   }
 
-  /// 获取排除域名列表，这些域名将使用播放器请求头
+  /// 解析域名特定请求头规则，映射域名到请求头配置
+  static Map<String, Map<String, String>> _parseCustomHeadersRules() {
+    final rules = <String, Map<String, String>>{};
+    final rulesStr = HeaderRules.customHeadersRulesString;
+    if (rulesStr.isEmpty) return rules;
+
+    final ruleList = _splitAndFilter(rulesStr); // 分割并过滤规则字符串
+    String currentDomain = '';
+    Map<String, String> currentHeaders = {};
+
+    for (final line in ruleList) {
+      if (line.startsWith('[') && line.endsWith(']')) {
+        // 处理新的域名块
+        if (currentDomain.isNotEmpty && currentHeaders.isNotEmpty) {
+          rules[currentDomain] = currentHeaders; // 保存当前域名规则
+          currentHeaders = {}; // 重置请求头
+        }
+        currentDomain = line.substring(1, line.length - 1).trim(); // 提取域名
+      } else if (line.contains(':')) {
+        // 处理请求头定义
+        final parts = line.split(':');
+        if (parts.length >= 2) {
+          final key = parts[0].trim();
+          final value = parts.sublist(1).join(':').trim(); // 合并值
+          if (key.isNotEmpty) {
+            currentHeaders[key] = value; // 添加请求头
+          }
+        }
+      }
+    }
+
+    // 保存最后一个域名规则
+    if (currentDomain.isNotEmpty && currentHeaders.isNotEmpty) {
+      rules[currentDomain] = currentHeaders;
+    }
+    return rules;
+  }
+
+  /// 获取排除域名列表，使用播放器请求头
   static List<String> _getExcludeDomains() {
     final excludeStr = HeaderRules.excludeDomainsString;
     if (excludeStr.isEmpty) return [];
-    
-    return _splitAndFilter(excludeStr); // 使用统一工具方法
+    return _splitAndFilter(excludeStr); // 分割并过滤域名字符串
   }
 
   /// 获取使用默认请求头的域名列表
   static List<String> _getDefaultHeadersDomains() {
     final defaultHeadersStr = HeaderRules.defaultHeadersDomainsString;
     if (defaultHeadersStr.isEmpty) return [];
-    
-    return _splitAndFilter(defaultHeadersStr); // 使用统一工具方法
+    return _splitAndFilter(defaultHeadersStr); // 分割并过滤域名字符串
   }
 
-  /// 通用字符串分割和过滤方法，消除重复逻辑
+  /// 分割并过滤字符串，去除空行和多余空格
   static List<String> _splitAndFilter(String input) {
-    return input
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    if (input.isEmpty) return [];
+    final result = <String>[];
+    final lines = input.split('\n');
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isNotEmpty) {
+        result.add(trimmed); // 仅保留非空行
+      }
+    }
+    return result;
   }
 
-  /// 检查域名是否为IP地址或在排除列表中
-  static bool _isExcludedDomain(String url) {
+  /// 管理请求头缓存，维护LRU策略
+  static void _addToHeadersCache(String url, Map<String, String> headers) {
+    if (_headersCache.containsKey(url)) {
+      _cacheKeyOrder.remove(url); // 更新访问顺序
+      _cacheKeyOrder.add(url);
+      _headersCache[url] = headers; // 更新缓存
+      return;
+    }
+    if (_headersCache.length >= _maxCacheSize) {
+      final oldestUrl = _cacheKeyOrder.removeAt(0); // 移除最旧项
+      _headersCache.remove(oldestUrl);
+    }
+    _headersCache[url] = headers; // 添加新缓存
+    _cacheKeyOrder.add(url);
+  }
+
+  /// 提取并缓存URL的主机信息
+  static Map<String, String?> _getCachedHostInfo(String url) {
     try {
-      final host = _extractHost(url);
-      
-      if (host.isEmpty) return false; // 增加健壮性
-      
-      if (_isIpAddress(host)) {
-        LogUtil.i('检测到 IP 地址：$host');
-        return true;
+      if (url.isEmpty || (!url.contains('http://') && !url.contains('https://'))) {
+        return {'host': '', 'port': null}; // 返回空主机信息
       }
-      
-      return _cachedExcludeDomains.any((domain) => host.contains(domain));
+      final match = _hostWithPortPattern.firstMatch(url);
+      if (match != null && match.groupCount >= 1) {
+        final host = match.group(1)!;
+        final port = match.groupCount >= 2 ? match.group(2) : null;
+        return {'host': host, 'port': port}; // 返回主机和端口
+      }
+      return {'host': '', 'port': null};
     } catch (e) {
-      LogUtil.logError('检查排除域名失败', e);
-      return false;
+      LogUtil.logError('提取主机信息失败', e);
+      return {'host': '', 'port': null};
     }
   }
-  
-  /// 检查域名是否需要使用默认请求头
-  static bool _isDefaultHeadersDomain(String url) {
+
+  /// 检查URL域名是否在指定列表中
+  static bool _isDomainInList(
+    String url,
+    List<String> domainList, {
+    bool checkIp = false,
+    Map<String, String?>? hostInfo,
+  }) {
     try {
-      final host = _extractHost(url);
-      
-      if (host.isEmpty) return false; // 增加健壮性
-      
-      return _cachedDefaultHeadersDomains.any((domain) => host.contains(domain));
+      final info = hostInfo ?? _getCachedHostInfo(url); // 复用主机信息
+      final host = info['host'] ?? '';
+      if (host.isEmpty) return false;
+      if (checkIp && _isIpAddress(host)) return true; // 检查IP地址
+      for (final domain in domainList) {
+        if (host.contains(domain)) return true; // 域名匹配
+      }
+      return false;
     } catch (e) {
-      LogUtil.logError('检查默认请求头域名失败', e);
+      LogUtil.logError('域名列表检查失败', e);
       return false;
     }
   }
-  
-  /// 判断给定字符串是否为IPv4或IPv6地址
+
+  /// 检查域名是否为排除域名或IP地址
+  static bool _isExcludedDomain(String url, [Map<String, String?>? hostInfo]) {
+    return _isDomainInList(url, _cachedExcludeDomains,
+        checkIp: true, hostInfo: hostInfo);
+  }
+
+  /// 检查域名是否使用默认请求头
+  static bool _isDefaultHeadersDomain(String url,
+      [Map<String, String?>? hostInfo]) {
+    return _isDomainInList(url, _cachedDefaultHeadersDomains,
+        checkIp: false, hostInfo: hostInfo);
+  }
+
+  /// 获取域名特定的自定义请求头
+  static Map<String, String>? _getCustomHeadersForDomain(String url,
+      [Map<String, String?>? hostInfo]) {
+    try {
+      final info = hostInfo ?? _getCachedHostInfo(url);
+      final host = info['host'] ?? '';
+      final port = info['port'];
+      if (host.isEmpty) return null;
+      for (final domainKey in _cachedCustomHeadersRules.keys) {
+        if (host.contains(domainKey)) {
+          final headers = _cachedCustomHeadersRules[domainKey];
+          if (headers != null && headers.isNotEmpty) {
+            final result = Map<String, String>.from(headers); // 复制请求头
+            if (result.containsKey('Host') && result['Host']!.contains('{host}')) {
+              final hostReplacement = port != null ? '$host:$port' : host;
+              result['Host'] =
+                  result['Host']!.replaceAll('{host}', hostReplacement); // 替换Host
+            }
+            return result;
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      LogUtil.logError('获取域名特定请求头失败', e);
+      return null;
+    }
+  }
+
+  /// 判断字符串是否为IPv4或IPv6地址
   static bool _isIpAddress(String host) {
     try {
-      final cleanHost = host.replaceAll(RegExp(r'[\[\]]'), '');
-      return _ipv4Pattern.hasMatch(cleanHost) || _ipv6Pattern.hasMatch(cleanHost);
+      final cleanHost = host.replaceAll(RegExp(r'[\[\]]'), ''); // 移除IPv6括号
+      return _ipv4Pattern.hasMatch(cleanHost) ||
+          _ipv6Pattern.hasMatch(cleanHost);
     } catch (e) {
+      LogUtil.logError('检查IP地址格式失败', e);
       return false;
     }
   }
 
-  /// 从URL中提取主机名，支持IPv6格式
-  static String _extractHost(String url) {
-    try {
-      final match = _hostPattern.firstMatch(url);
-      if (match != null && match.groupCount >= 1) {
-        return match.group(1)!;
-      }
-      return '';
-    } catch (e) {
-      return '';
-    }
+  /// 提取URL的主机名和端口信息
+  static Map<String, String?> _extractHostInfo(String url) {
+    return _getCachedHostInfo(url); // 复用主机信息提取
   }
 
-  /// 从URL中提取协议，http或https
+  /// 提取URL协议（http或https）
   static String _extractScheme(String url) {
     try {
+      if (url.isEmpty) return 'http';
+      if (url.startsWith('https')) return 'https'; // 快速检查https
       final match = _schemePattern.firstMatch(url);
-      if (match != null && match.groupCount >= 1) {
-        return match.group(1)!;
-      }
-      return 'http';
+      return match != null && match.groupCount >= 1 ? match.group(1)! : 'http';
     } catch (e) {
+      LogUtil.logError('提取URL协议失败', e);
       return 'http';
     }
   }
 
-  /// 根据配置规则获取Referer
+  /// 根据规则获取Referer
   static String? _getRefererByRules(String url) {
     for (final domain in _cachedRules.keys) {
-      if (url.contains(domain)) {
-        return _cachedRules[domain]!;
-      }
+      if (url.contains(domain)) return _cachedRules[domain]!; // 返回匹配的Referer
     }
     return null;
   }
 
   /// 生成HTTP请求头
-  /// 
-  /// 输入：
-  ///   - url: 请求的目标URL，用于动态生成合适的请求头
-  /// 输出：
-  ///   - Map<String, String>: 根据URL和规则生成的HTTP请求头
-  /// 逻辑：
-  ///   1. 检查是否为排除域名或IP地址，若是则返回播放器请求头
-  ///   2. 提取URL中的主机名、协议等信息
-  ///   3. 根据规则生成Referer和CORS相关字段
-  ///   4. 合并基础请求头和其他动态字段
-  static Map<String, String> generateHeaders({
-    required String url,
-  }) {
+  static Map<String, String> generateHeaders({required String url}) {
     try {
-      // 检查是否需要使用默认请求头
-      if (_isDefaultHeadersDomain(url)) {
-        LogUtil.i('使用 BetterPlayer 默认请求头 for URL: $url');
+      if (url.isEmpty) return _baseHeaders; // 空URL返回基础请求头
+      if (_headersCache.containsKey(url)) {
+        _cacheKeyOrder.remove(url);
+        _cacheKeyOrder.add(url); // 更新缓存顺序
+        return _headersCache[url]!; // 返回缓存的请求头
+      }
+
+      final hostInfo = _extractHostInfo(url); // 提取主机信息
+      final customHeaders = _getCustomHeadersForDomain(url, hostInfo);
+      if (customHeaders != null) {
+        _addToHeadersCache(url, customHeaders); // 缓存自定义请求头
+        return customHeaders;
+      }
+
+      if (_isDefaultHeadersDomain(url, hostInfo)) {
+        _addToHeadersCache(url, {}); // 缓存空请求头
         return {};
       }
 
-      if (_isExcludedDomain(url)) {
-        final host = _extractHost(url);
-        final playerHeadersWithHost = {
-          ..._playerHeaders,
-          if (host.isNotEmpty) 'Host': host, // 动态添加 Host
-        };
-        LogUtil.i('生成播放器通用主机头：$playerHeadersWithHost');
-        return playerHeadersWithHost;
+      if (_isExcludedDomain(url, hostInfo)) {
+        final host = hostInfo['host'] ?? '';
+        final port = hostInfo['port'];
+        if (host.isNotEmpty) {
+          final fullHost = port != null ? '$host:$port' : host;
+          final playerHeadersWithHost = {
+            ..._playerHeaders,
+            'Host': fullHost, // 添加动态Host
+          };
+          _addToHeadersCache(url, playerHeadersWithHost);
+          return playerHeadersWithHost;
+        }
+        _addToHeadersCache(url, _playerHeaders);
+        return _playerHeaders; // 返回播放器请求头
       }
 
       final encodedUrl = Uri.encodeFull(url);
-      final host = _extractHost(encodedUrl); // 提取一次，复用
+      final host = hostInfo['host'] ?? '';
+      final port = hostInfo['port'];
       final scheme = _extractScheme(encodedUrl);
-      
       if (host.isEmpty) {
-        return _baseHeaders; // 健壮性处理
+        _addToHeadersCache(url, _baseHeaders);
+        return _baseHeaders; // 主机为空返回基础请求头
       }
 
+      final fullHost = port != null ? '$host:$port' : host; // 构造完整主机名
       final customReferer = _getRefererByRules(encodedUrl);
-      final referer = customReferer ?? '$scheme://$host';
+      final referer = customReferer ?? '$scheme://$fullHost';
 
-      final corsRules = _splitAndFilter(HeaderRules.corsRulesString); // 使用统一工具方法
-      final needCors = corsRules.any((domain) => host.contains(domain));
-      
+      final needCors =
+          _cachedCorsRules.any((domain) => host.contains(domain)); // 检查CORS需求
       String secFetchSite = 'cross-site';
       if (needCors) {
-        final refererHost = _extractHost(referer);
+        final refererHostInfo = _extractHostInfo(referer);
+        final refererHost = refererHostInfo['host'] ?? '';
         if (refererHost.isEmpty) {
           secFetchSite = 'none';
         } else {
           final hostDomain = _extractMainDomain(host);
           final refererDomain = _extractMainDomain(refererHost);
-          
-          if (hostDomain == refererDomain) {
-            secFetchSite = 'same-site';
-          } 
+          if (hostDomain == refererDomain) secFetchSite = 'same-site'; // 同源检查
         }
       }
-      
-      final headers = {
+
+      final Map<String, String> headers = {
         ..._baseHeaders,
         'Origin': referer,
         'Referer': '$referer/',
-        if (needCors) ...{
-          'Host': host,
-          if (secFetchSite != 'cross-site') ...{
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': secFetchSite,
-          },
-        }, 
         'User-Agent': userAgent,
       };
 
-      LogUtil.i('生成主机头：$headers');
+      if (needCors) {
+        headers['Host'] = fullHost;
+        if (secFetchSite != 'cross-site') {
+          headers['Sec-Fetch-Mode'] = 'cors';
+          headers['Sec-Fetch-Site'] = secFetchSite; // 添加CORS字段
+        }
+      }
+
+      _addToHeadersCache(url, headers); // 缓存生成结果
       return headers;
-      
     } catch (e, stackTrace) {
       LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
-      return _baseHeaders;
+      return _baseHeaders; // 异常时返回基础请求头
     }
   }
-  
-  /// 从主机名中提取主域名
+
+  /// 提取主域名（如example.com）
   static String _extractMainDomain(String host) {
     try {
+      if (host.isEmpty) return '';
+      if (host.contains('[') && host.contains(']')) return host; // 处理IPv6
       final hostWithoutPort = host.split(':')[0];
       final parts = hostWithoutPort.split('.');
       if (parts.length >= 2) {
-        return '${parts[parts.length - 2]}.${parts[parts.length - 1]}';
+        return '${parts[parts.length - 2]}.${parts[parts.length - 1]}'; // 提取主域名
       }
       return host;
     } catch (e) {
+      LogUtil.logError('提取主域名失败', e);
       return host;
     }
+  }
+
+  /// 清除请求头缓存
+  static void clearHeadersCache() {
+    _headersCache.clear();
+    _cacheKeyOrder.clear(); // 重置缓存和顺序
+  }
+
+  /// 获取当前缓存大小
+  static int getCacheSize() {
+    return _headersCache.length; // 返回缓存条目数
   }
 }
