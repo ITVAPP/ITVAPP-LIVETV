@@ -1,4 +1,6 @@
 /// 定义请求头规则的静态配置类
+    // 优先级顺序：
+    // 缓存 > 自定义请求头（customHeadersRulesString） > BetterPlayer默认请求头（defaultHeadersDomainsString） > 通用播放器（excludeDomainsString） > 通用请求头（rulesString 和 corsRulesString） > 异常兜底（没有规则时使用）
 class HeaderRules {
   const HeaderRules._();
 
