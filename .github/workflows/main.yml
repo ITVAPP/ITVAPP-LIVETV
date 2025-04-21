@@ -31,7 +31,7 @@ jobs:
           node-version: '16'  # 使用 Node.js 16
       - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
         with:
-          flutter-version: '3.24.0'  # 使用 Flutter 的最新稳定版本
+          flutter-version: '3.29.0'  # 使用 Flutter 的最新稳定版本
           channel: 'stable'  # 使用 stable 渠道版本
       - run: flutter pub get  # 获取项目依赖
 
@@ -39,25 +39,6 @@ jobs:
         run: |
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
-
-      - name: Fix geolocator_android plugin  # 修复 geolocator_android 插件配置
-        run: |
-          GEOLOCATOR_PATH=$(find $HOME/.pub-cache/hosted/pub.dev -name "geolocator_android-*" -type d | head -1)
-          echo "Found geolocator_android at: $GEOLOCATOR_PATH"
-          
-          if [ -d "$GEOLOCATOR_PATH" ]; then
-            # 添加命名空间和 compileSdkVersion
-            sed -i '/android {/a\    namespace "com.baseflow.geolocator_android"\n    compileSdkVersion 33' $GEOLOCATOR_PATH/android/build.gradle
-            
-            # 如果文件中包含 android.flutter 引用，将其替换
-            # 这一步解决 "Could not get unknown property 'flutter'" 错误
-            sed -i 's/android\.flutter/android/g' $GEOLOCATOR_PATH/android/build.gradle
-            
-            echo "Fixed geolocator_android plugin"
-          else
-            echo "geolocator_android plugin not found"
-            exit 1  # 如果找不到插件路径，构建应该失败
-          fi
 
       - name: Obfuscate JS and M3U files
         run: |
