@@ -24,7 +24,13 @@
     <!-- tools:ignore="ProtectedPermissions" 表示忽略这个受保护权限的警告，因为这是一个系统级权限 -->
     <uses-permission android:name="android.permission.INSTALL_PACKAGES"
         tools:ignore="ProtectedPermissions" />
-
+        
+    <!-- 精确位置权限：允许应用程序访问设备的精确位置信息 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    
+    <!-- 粗略位置权限：允许应用程序访问设备的粗略位置信息 -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
     <!-- 定义查询其他应用程序的意图 -->
     <queries>
         <!-- 查询支持浏览器打开网页的应用 -->
@@ -48,7 +54,6 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
-
     <!-- 定义应用程序的主要属性 -->
     <application
         android:label="电视宝直播"
@@ -74,7 +79,6 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
-
         <!-- 多窗口支持配置 -->
         <meta-data
             android:name="android.allow_multiple_resumed_activities"
