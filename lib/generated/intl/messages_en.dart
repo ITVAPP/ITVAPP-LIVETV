@@ -34,6 +34,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "defaultText": MessageLookupByLibrary.simpleMessage("Default"),
         "delete": MessageLookupByLibrary.simpleMessage("Delete"),
         "dialogCancel": MessageLookupByLibrary.simpleMessage("Cancel"),
+        "oldVersion": MessageLookupByLibrary.simpleMessage("Your version is outdated, update required!"),
         "dialogConfirm": MessageLookupByLibrary.simpleMessage("Confirm"),
         "dialogDeleteContent":
             MessageLookupByLibrary.simpleMessage("Delete subscription?"),
@@ -95,8 +96,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "updateContent": MessageLookupByLibrary.simpleMessage("Update details"),
         "logtitle": MessageLookupByLibrary.simpleMessage("Logs"),
         "switchTitle": MessageLookupByLibrary.simpleMessage("Log Recording"),
-        "logSubtitle": MessageLookupByLibrary.simpleMessage(
-            "Enable logs only for debugging"),
+        "logSubtitle": MessageLookupByLibrary.simpleMessage("Enable logs only for debugging"),
         "filterAll": MessageLookupByLibrary.simpleMessage("All"),
         "filterVerbose": MessageLookupByLibrary.simpleMessage("Verbose"),
         "filterError": MessageLookupByLibrary.simpleMessage("Errors"),
