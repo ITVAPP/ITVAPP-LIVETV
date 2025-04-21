@@ -231,6 +231,15 @@ class S {
     );
   }
 
+  String get oldVersion {
+    return Intl.message(
+      '您的版本已不再支持，请更新!',
+      name: 'oldVersion',
+      desc: '',
+      args: [],
+    );
+  }
+
   String get findNewVersion {
     return Intl.message(
       '发现新版本',
@@ -537,7 +546,6 @@ class S {
     );
   }
 
-  // 新增部分
   String get logtitle {
     return Intl.message(
       '日志查看器',
