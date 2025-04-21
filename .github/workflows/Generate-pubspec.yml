@@ -28,12 +28,29 @@ jobs:
       - name: Update pubspec.lock  
         # 更新 pubspec.lock，基于现有 pubspec.yaml，添加详细调试信息
         run: |
-          echo "Running flutter pub upgrade..."  
-          # 输出提示信息，表示正在运行 flutter pub upgrade
-          flutter pub upgrade > pub_get_log.txt 2>&1 || { echo "flutter pub upgrade failed"; cat pub_get_log.txt; exit 1; }  
-          # 执行升级命令，并将错误信息输出到日志文件
+          echo "Cleaning Pub cache to ensure fresh dependency resolution..."
+          # 清理 Pub 缓存，防止使用旧版本
+          flutter pub cache clean
+          
+          echo "Removing existing pubspec.lock to force full dependency resolution..."
+          # 删除旧的 pubspec.lock，确保不基于旧版本进行增量更新
+          rm -f pubspec.lock
+          
+          echo "Running flutter pub get to generate pubspec.lock..."
+          # 使用 flutter pub get 而非 flutter pub upgrade，确保严格遵循 pubspec.yaml 的版本约束
+          flutter pub get > pub_get_log.txt 2>&1 || { echo "flutter pub get failed"; cat pub_get_log.txt; exit 1; }
+          
           [ -f pubspec.lock ] || { echo "pubspec.lock not generated"; exit 1; }  
           # 检查 pubspec.lock 是否生成，如果未生成则报错
+          
+          echo "Checking geolocator_android version in pubspec.lock..."
+          # 验证 pubspec.lock 中的 geolocator_android 版本，防止生成错误的版本
+          grep "geolocator_android:" pubspec.lock -A 4 || { echo "geolocator_android not found in pubspec.lock"; exit 1; }
+          if grep -q "geolocator_android:.*5.0.1+1" pubspec.lock; then
+            echo "Error: pubspec.lock contains incorrect geolocator_android version 5.0.1+1"
+            exit 1
+          fi
+          
           echo "pubspec.lock generated successfully. Content preview:"  
           # 输出提示信息，表示 pubspec.lock 生成成功
           head -n 20 pubspec.lock  
