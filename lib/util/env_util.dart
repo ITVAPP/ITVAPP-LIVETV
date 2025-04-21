@@ -101,6 +101,11 @@ class EnvUtil {
   static String checkVersionHost() {
     return Config.upgradeUrl; // 返回配置中的升级地址
   }
+  
+  // 获取版本检查备用地址
+  static String? checkVersionBackupHost() {
+    return Config.backupUpgradeUrl; // 返回配置中的备用升级地址
+  }
 
   // 判断设备是否支持硬件加速
   static Future<bool> isHardwareAccelerationEnabled() async {
