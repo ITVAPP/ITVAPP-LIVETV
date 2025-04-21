@@ -24,29 +24,45 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 存储 M3U 数据结果，异常时可访问
   String _message = ''; // 当前显示的提示信息
   bool isDebugMode = false; // 调试模式开关，控制日志显示
-  late final LocationService _locationService; // 延迟初始化用户位置服务
-  bool _versionChecked = false; // 标记版本检查是否已完成
-
+  final LocationService _locationService = LocationService(); // 直接初始化用户位置服务
+  
   // 静态资源路径和样式，避免重复创建
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图
   static const String _landscapeImage = 'assets/images/launch_image_land.png'; // 横向启动图
   static const Color _defaultPrimaryColor = Color(0xFFEB144C); // 默认主题颜色
+  
+  // UI常量，避免在build方法中重复创建
+  static const _loadingIndicator = CircularProgressIndicator(
+    valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
+    strokeWidth: 4.0, // 加载动画样式
+  );
+  static const _textStyle = TextStyle(
+    fontSize: 16,
+    color: Colors.white, // 提示文字样式
+  );
+  static const _verticalSpacing = SizedBox(height: 18); // 间距组件
 
-  late Orientation _orientation; // 缓存屏幕方向，优化性能
   DateTime? _lastUpdateTime; // 上次更新时间，用于节流
-  static const _debounceDuration = Duration(milliseconds: 300); // 节流间隔 300ms
+  static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 300ms
+  
+  // 缓存强制更新状态，避免重复检查
+  bool? _isInForceUpdateState;
 
   @override
   void initState() {
     super.initState();
-    _locationService = LocationService(); // 初始化位置服务
-    _orientation = MediaQuery.of(context).orientation; // 缓存初始屏幕方向
     _initializeApp(); // 启动应用初始化流程
   }
 
   @override
   void dispose() {
     super.dispose(); // 清理资源，异步任务需在此取消（若有）
+  }
+
+  /// 获取缓存的强制更新状态，避免重复调用
+  bool _getForceUpdateState() {
+    _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
+    return _isInForceUpdateState!;
   }
 
   /// 初始化应用，协调数据加载和页面跳转
@@ -57,27 +73,30 @@ class _SplashScreenState extends State<SplashScreen> {
         await _checkVersion();
         
         // 如果是强制更新状态，停止进一步加载
-        if (CheckVersionUtil.isInForceUpdateState()) {
-          _updateMessage("您的版本已经失效，请更新");
+        if (_getForceUpdateState()) {
+          const message = S.current.oldVersion;
+          _updateMessage(message);
           // 在强制更新状态下显示提示信息
           if (mounted) {
             CustomSnackBar.showSnackBar(
               context, 
-              "您的版本已经失效，请更新", 
+              message,
               duration: const Duration(seconds: 5)
             );
           }
           return; // 强制更新时中断初始化流程
         }
         
-        // 获取 M3U 数据
-        M3uResult m3uResult = await _fetchData();
+        // 并行获取M3U数据和用户信息，提高加载效率
+        final Future<M3uResult> m3uFuture = _fetchData();
+        final Future<void> userInfoFuture = _fetchUserInfo();
         
-        // 并行加载用户信息
-        await _fetchUserInfo();
+        // 等待所有数据加载完成
+        final m3uResult = await m3uFuture;
+        await userInfoFuture;
         
         // 数据就绪后跳转主页
-        if (mounted && m3uResult.data != null && !CheckVersionUtil.isInForceUpdateState()) {
+        if (mounted && m3uResult.data != null && !_getForceUpdateState()) {
           _navigateToHome(m3uResult.data!);
         } else if (mounted && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror); // 数据失败时更新提示
@@ -95,9 +114,8 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         _updateMessage("检查版本更新...");
         await CheckVersionUtil.checkVersion(context, false, false, false);
-        setState(() {
-          _versionChecked = true;
-        });
+        // 检查完成后更新缓存的强制更新状态
+        _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
       }
     } catch (e, stackTrace) {
       LogUtil.logError('检查版本更新时发生错误', e, stackTrace);
@@ -164,14 +182,14 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   void _navigateToHome(PlaylistModel data) {
     // 如果处于强制更新状态，不应该跳转到主页
-    if (CheckVersionUtil.isInForceUpdateState()) {
+    if (_getForceUpdateState()) {
       LogUtil.d('强制更新状态，阻止跳转到主页');
       return;
     }
     
     if (mounted) {
-      Future.delayed(const Duration(milliseconds: 100), () { // 延迟 100ms
-        if (mounted && !CheckVersionUtil.isInForceUpdateState()) {
+      Future.delayed(const Duration(milliseconds: 500), () { // 延迟跳转
+        if (mounted && !_getForceUpdateState()) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => LiveHomePage(m3uData: data), // 跳转到主页
@@ -184,17 +202,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final orientation = MediaQuery.of(context).orientation;
+    
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
           Image.asset(
-            _orientation == Orientation.portrait ? _portraitImage : _landscapeImage,
+            orientation == Orientation.portrait ? _portraitImage : _landscapeImage,
             fit: BoxFit.cover, // 背景图适配屏幕
           ),
           _buildMessageUI(
             _message.isEmpty ? '${S.current.loading}' : _message,
-            isLoading: !CheckVersionUtil.isInForceUpdateState(), // 如果是强制更新状态，不显示加载动画
+            isLoading: !_getForceUpdateState(), // 如果是强制更新状态，不显示加载动画
+            orientation: orientation,
           ),
         ],
       ),
@@ -209,32 +230,23 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// 构建加载提示界面，包含动画和文字
-  Widget _buildMessageUI(String message, {bool isLoading = false}) {
-    const loadingIndicator = CircularProgressIndicator(
-      valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
-      strokeWidth: 4.0, // 加载动画样式
-    );
-    const textStyle = TextStyle(
-      fontSize: 16,
-      color: Colors.white, // 提示文字样式
-    );
-
+  Widget _buildMessageUI(String message, {bool isLoading = false, required Orientation orientation}) {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: _orientation == Orientation.portrait ? 88.0 : 58.0, // 适配屏幕方向
+          bottom: orientation == Orientation.portrait ? 88.0 : 58.0, // 适配屏幕方向
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isLoading) ...[
-              loadingIndicator, // 显示加载指示器
-              const SizedBox(height: 18), // 间距组件
+              _loadingIndicator, // 使用预定义常量
+              _verticalSpacing, // 使用预定义间距
             ],
             Text(
               message,
-              style: textStyle,
+              style: _textStyle, // 使用预定义样式
               textAlign: TextAlign.center,
             ),
           ],
