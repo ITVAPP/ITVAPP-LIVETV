@@ -36,14 +36,30 @@ jobs:
       - name: Clean Flutter and Pub cache
         run: |
           flutter clean
-          rm -rf ~/.pub-cache/hosted/pub.dev/geolocator* # 清理 geolocator 缓存
+          rm -rf ~/.pub-cache/hosted/pub.dev/* # 清理整个 Pub 缓存
+          flutter pub cache clean # 强制清理 Pub 缓存
+          flutter pub get --no-version-check # 重新获取依赖，忽略版本检查
+          echo "Pub cache path:" && ls -la ~/.pub-cache/hosted/pub.dev/ # 调试：输出缓存内容
       - run: flutter pub get  # 获取项目依赖
-
+      - name: Check geolocator version
+        run: |
+          flutter pub deps | grep geolocator
+          find $HOME/.pub-cache/hosted/pub.dev/ -name "geolocator_android*"
+      - name: Patch geolocator_android build.gradle
+        run: |
+          GEOLOCATOR_PATH=$(find $HOME/.pub-cache/hosted/pub.dev/ -name "geolocator_android*" | head -n 1)
+          if [ -f "$GEOLOCATOR_PATH/android/build.gradle" ]; then
+            echo "Patching $GEOLOCATOR_PATH/android/build.gradle"
+            sed -i '/android {/a\    compileSdkVersion 34' "$GEOLOCATOR_PATH/android/build.gradle"
+            sed -i '/apply plugin: '"'"'kotlin-android'"'"'/a\apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"' "$GEOLOCATOR_PATH/android/build.gradle"
+            cat "$GEOLOCATOR_PATH/android/build.gradle" # 调试：输出修改后的文件
+          else
+            echo "geolocator_android build.gradle not found"
+          fi
       - name: Add namespace to better_player  # 添加 namespace 到 better_player 插件配置
         run: |
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
           # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
-
       - name: Obfuscate JS and M3U files
         run: |
           npm install javascript-obfuscator  # 安装 JS 混淆工具
@@ -73,41 +89,36 @@ jobs:
           else
             echo "No $PLAYLIST_FILE found in assets/"
           fi
-
       - name: Create apk directory in root  # 在项目根目录创建 APK 存放目录
         run: mkdir -p apk
-
       - name: Decode keystore  # 解码密钥库文件并保存到指定路径
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
           # 将存储在 GitHub Secrets 中的密钥库文件进行解码并保存到 android/app 目录下
-
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
         run: |
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
+            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info --stacktrace --debug
           else
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm --split-per-abi
+            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm --split-per-abi --stacktrace --debug
           fi
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
         run: |
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
+            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info --stacktrace --debug
           else
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm64 --split-per-abi
+            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm64 --split-per-abi --stacktrace --debug
           fi
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-
       - name: Upload Android artifacts  # 上传构建生成的 APK 文件作为构建产物
         uses: actions/upload-artifact@v4
         with:
