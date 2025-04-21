@@ -1,6 +1,7 @@
 /// 定义请求头规则的静态配置类
     // 优先级顺序：
-    // 缓存 > 自定义请求头（customHeadersRulesString） > BetterPlayer默认请求头（defaultHeadersDomainsString） > 通用播放器（excludeDomainsString） > 通用请求头（rulesString 和 corsRulesString） > 异常兜底（没有规则时使用）
+    // 缓存 > 自定义请求头（customHeadersRulesString） > BetterPlayer默认请求头（defaultHeadersDomainsString） > 通用播放器（excludeDomainsString）
+    // > 通用请求头（rulesString 和 corsRulesString） > 异常兜底（没有规则时使用）
 class HeaderRules {
   const HeaderRules._();
 
@@ -122,7 +123,6 @@ hlsplay.aodianyun.com
 player4.juyun.tv
 gbtv-rtmp.zjwtv.com
 pili-live-rtmp.akrt.cn
-masterpull.hljtv.com
 ''';
 
   /// 使用BetterPlayer默认请求头的域名列表
@@ -132,7 +132,7 @@ pili-live-rtmp.akrt.cn
 
   /// 域名特定的自定义请求头规则
   static const String customHeadersRulesString = '''
-[idclive.hljtv.com]
+[hljtv.com]
 Host: {host}
 User-Agent: product jushi.4.5.4 ( Android.31 Mobile)
 Accept: */*
