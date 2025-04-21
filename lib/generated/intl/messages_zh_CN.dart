@@ -40,6 +40,7 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("确定删除此订阅吗？"),
         "dialogTitle": MessageLookupByLibrary.simpleMessage("温馨提示"),
         "findNewVersion": MessageLookupByLibrary.simpleMessage("发现新版本"),
+        "oldVersion": MessageLookupByLibrary.simpleMessage("您的版本已不再支持，请更新!"),
         "fullScreen": MessageLookupByLibrary.simpleMessage("全屏切换"),
         "getDefaultError": MessageLookupByLibrary.simpleMessage("获取默认数据源失败"),
         "homePage": MessageLookupByLibrary.simpleMessage("主页"),
