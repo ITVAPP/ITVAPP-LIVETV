@@ -10,17 +10,128 @@ import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
+/// 语义化版本比较辅助类，仅内部使用
+/// 不导出为公共API，避免破坏现有代码引用
+class _SemanticVersion {
+  final List<int> _version;
+  final String _buildMetadata;
+  final String _preReleaseIdentifier;
+  final String _originalString;
+
+  _SemanticVersion._(this._version, this._preReleaseIdentifier, this._buildMetadata, this._originalString);
+
+  /// 解析版本字符串为语义化版本对象
+  static _SemanticVersion? parse(String versionString) {
+    if (versionString.isEmpty) return null;
+    
+    // 移除可能的 'v' 前缀
+    String cleanVersion = versionString;
+    if (cleanVersion.startsWith('v') || cleanVersion.startsWith('V')) {
+      cleanVersion = cleanVersion.substring(1);
+    }
+    
+    // 处理构建元数据部分 (例如 1.2.3+456)
+    String buildMetadata = '';
+    if (cleanVersion.contains('+')) {
+      final parts = cleanVersion.split('+');
+      cleanVersion = parts[0];
+      buildMetadata = parts.length > 1 ? parts[1] : '';
+    }
+    
+    // 处理预发布标识符 (例如 1.2.3-alpha.1)
+    String preReleaseIdentifier = '';
+    if (cleanVersion.contains('-')) {
+      final parts = cleanVersion.split('-');
+      cleanVersion = parts[0];
+      preReleaseIdentifier = parts.length > 1 ? parts[1] : '';
+    }
+    
+    // 解析版本号段
+    final segments = cleanVersion.split('.');
+    final versionNumbers = <int>[];
+    
+    for (final segment in segments) {
+      final num = int.tryParse(segment);
+      if (num == null) return null; // 无效的版本号段
+      versionNumbers.add(num);
+    }
+    
+    // 确保至少有主版本号
+    if (versionNumbers.isEmpty) return null;
+    
+    // 扩展到标准的三段式 (主.次.修订)
+    while (versionNumbers.length < 3) {
+      versionNumbers.add(0);
+    }
+    
+    return _SemanticVersion._(
+      versionNumbers, 
+      preReleaseIdentifier, 
+      buildMetadata,
+      versionString
+    );
+  }
+  
+  /// 比较两个版本号
+  /// 返回 -1 如果当前版本小于 other
+  /// 返回 0 如果当前版本等于 other
+  /// 返回 1 如果当前版本大于 other
+  int compareTo(_SemanticVersion other) {
+    // 先比较版本号段
+    final minLength = _version.length < other._version.length ? _version.length : other._version.length;
+    
+    for (int i = 0; i < minLength; i++) {
+      final comparison = _version[i].compareTo(other._version[i]);
+      if (comparison != 0) return comparison;
+    }
+    
+    // 如果前面的段都相同，较长的版本号较大
+    if (_version.length != other._version.length) {
+      return _version.length.compareTo(other._version.length);
+    }
+    
+    // 版本号相同时，比较预发布标识符
+    // 没有预发布标识符的版本大于有预发布标识符的版本
+    if (_preReleaseIdentifier.isEmpty && other._preReleaseIdentifier.isNotEmpty) {
+      return 1;
+    }
+    
+    if (_preReleaseIdentifier.isNotEmpty && other._preReleaseIdentifier.isEmpty) {
+      return -1;
+    }
+    
+    if (_preReleaseIdentifier != other._preReleaseIdentifier) {
+      return _preReleaseIdentifier.compareTo(other._preReleaseIdentifier);
+    }
+    
+    // 构建元数据不影响版本优先级
+    return 0;
+  }
+  
+  @override
+  String toString() => _originalString;
+}
+
 // 版本检查工具类，负责检测更新并提示用户
 class CheckVersionUtil {
-  static const version = Config.version; // 当前应用版本号
-  static final versionHost = EnvUtil.checkVersionHost(); // 版本检查 API 地址
-  static final downloadLink = EnvUtil.sourceDownloadHost(); // 应用下载链接基础 URL
-  static final releaseLink = EnvUtil.sourceReleaseHost(); // 应用发布页面 URL
-  static final homeLink = EnvUtil.sourceHomeHost(); // 应用主页 URL
-  static VersionEntity? latestVersionEntity; // 存储最新版本信息
+  // 静态常量，仅计算一次，提高性能
+  static const String version = Config.version; // 当前应用版本号
   static const String _lastPromptDateKey = 'lastPromptDate'; // 存储最后提示日期的键名
   static const int oneDayInMillis = 24 * 60 * 60 * 1000; // 一天的毫秒数
+
+  // 延迟初始化的静态变量，避免重复计算
+  static late final String versionHost = EnvUtil.checkVersionHost(); // 版本检查 API 地址
+  static late final String downloadLink = EnvUtil.sourceDownloadHost(); // 应用下载链接基础 URL
+  static late final String releaseLink = EnvUtil.sourceReleaseHost(); // 应用发布页面 URL
+  static late final String homeLink = EnvUtil.sourceHomeHost(); // 应用主页 URL
+  
+  static VersionEntity? latestVersionEntity; // 存储最新版本信息
   static bool isForceUpdate = false; // 标记是否为强制更新状态
+
+  // 检查版本并返回是否需要更新的缓存变量
+  static bool? _cachedForceUpdateState;
+  static DateTime? _cacheTime;
+  static const Duration _cacheDuration = Duration(minutes: 5); // 缓存有效期5分钟
 
   // 保存最后一次提示日期到本地存储
   static Future<void> saveLastPromptDate() async {
@@ -65,33 +176,72 @@ class CheckVersionUtil {
       
       final lastPromptTimestamp = await getLastPromptDate(); // 获取最后提示时间
       if (lastPromptTimestamp == null) return true; // 无记录时允许提示
+      
       final lastTime = int.parse(lastPromptTimestamp); // 解析时间戳
       final currentTime = DateTime.now().millisecondsSinceEpoch; // 当前时间戳
       final shouldShow = (currentTime - lastTime) >= oneDayInMillis; // 判断是否超过一天
-      LogUtil.d('检查更新提示间隔: 上次时间=$lastPromptTimestamp, 当前时间=$currentTime, 应该显示=$shouldShow');
+      
+      // 只在需要显示时记录日志，减少I/O操作
+      if (shouldShow) {
+        LogUtil.d('检查更新提示间隔: 上次时间=$lastPromptTimestamp, 当前时间=$currentTime, 应该显示=$shouldShow');
+      }
+      
       return shouldShow;
     } catch (e, stackTrace) {
       LogUtil.logError('检查提示间隔失败', e, stackTrace); // 记录检查错误
       return false; // 异常时避免频繁提示
     }
   }
+  
+  /// 辅助方法：比较两个版本号，判断第一个是否小于第二个
+  /// 使用语义化版本比较，如果无法解析版本号，则回退到原有字符串比较
+  static bool _isVersionLessThan(String v1, String v2) {
+    final version1 = _SemanticVersion.parse(v1);
+    final version2 = _SemanticVersion.parse(v2);
+    
+    // 如果任一版本解析失败，回退到原有的字符串比较逻辑
+    if (version1 == null || version2 == null) {
+      return v1.compareTo(v2) < 0; // 原始代码使用的方式
+    }
+    
+    return version1.compareTo(version2) < 0;
+  }
+  
+  /// 辅助方法：判断两个版本号是否相等
+  /// 使用语义化版本比较，如果无法解析版本号，则回退到原有字符串比较
+  static bool _isVersionEqual(String v1, String v2) {
+    // 快速路径：如果字符串完全相同，直接返回true
+    if (v1 == v2) return true;
+    
+    final version1 = _SemanticVersion.parse(v1);
+    final version2 = _SemanticVersion.parse(v2);
+    
+    // 如果任一版本解析失败，回退到原有的字符串比较
+    if (version1 == null || version2 == null) {
+      return v1 == v2; // 原始代码使用的方式
+    }
+    
+    return version1.compareTo(version2) == 0;
+  }
 
   // 检查最新版本并返回版本信息
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
     latestVersionEntity = null; // 重置缓存，确保最新数据
     isForceUpdate = false; // 重置强制更新标志
+    _cachedForceUpdateState = null; // 重置强制更新状态缓存
     
     try {
       LogUtil.d('开始检查版本更新: 主地址=$versionHost');
-      // 尝试使用主要地址
-      var res = await HttpUtil().getRequest(versionHost); // 请求版本检查 API
+      
+      // 请求版本信息，使用超时设置
+      var res = await HttpUtil().getRequest(versionHost, timeout: const Duration(seconds: 10));
       
       // 如果主要地址失败，尝试备用地址
       if (res == null || res is! Map<String, dynamic>) {
         final backupHost = EnvUtil.checkVersionBackupHost(); // 获取备用地址
         if (backupHost != null && backupHost.isNotEmpty) {
           LogUtil.d('主地址获取失败，尝试备用地址=$backupHost');
-          res = await HttpUtil().getRequest(backupHost);
+          res = await HttpUtil().getRequest(backupHost, timeout: const Duration(seconds: 10));
         }
       }
       
@@ -116,14 +266,18 @@ class CheckVersionUtil {
 
       // 检查是否强制更新 - 当本地版本低于最低支持版本时
       if (minSupportedVersion != null && minSupportedVersion.isNotEmpty) {
-        if (version.compareTo(minSupportedVersion) < 0) {
+        // 使用改进的语义化版本比较，替代原有的简单字符串比较
+        if (_isVersionLessThan(version, minSupportedVersion)) {
           isForceUpdate = true;
+          _cachedForceUpdateState = true;
+          _cacheTime = DateTime.now();
           LogUtil.d('检测到强制更新：当前版本 $version 低于最低支持版本 $minSupportedVersion');
         }
       }
 
-      // 版本号不相同时提示更新（不管是高于还是低于）
-      if (latestVersion != version) {
+      // 版本号不相同时提示更新（不管是高于还是低于，保持原有行为）
+      // 使用改进的语义化版本比较，替代原有的简单字符串比较
+      if (!_isVersionEqual(latestVersion, version)) {
         LogUtil.d('检测到版本不同: 当前=$version, 最新=$latestVersion');
         latestVersionEntity = VersionEntity(
           latestVersion: latestVersion,
@@ -153,7 +307,7 @@ class CheckVersionUtil {
     // 增加强制更新的内容前缀
     String content = latestVersionEntity!.latestMsg ?? '';
     if (isForceUpdate) {
-      content = "⚠️ 您的版本已经失效，请更新 ⚠️\n\n$content";
+      content = "⚠️ $S.current.oldVersion \n\n$content";
     }
     
     return DialogUtil.showCustomDialog(
@@ -196,7 +350,7 @@ class CheckVersionUtil {
   }
 
   // 在外部浏览器中打开 URL
-  static launchBrowserUrl(String url) async {
+  static Future<void> launchBrowserUrl(String url) async {
     try {
       final uri = Uri.tryParse(url); // 解析 URL
       if (uri == null || !uri.isAbsolute) {
@@ -209,8 +363,18 @@ class CheckVersionUtil {
     }
   }
   
-  // 检查是否处于强制更新状态
+  // 检查是否处于强制更新状态，带缓存机制
   static bool isInForceUpdateState() {
+    // 如果有缓存且缓存未过期，直接返回缓存值
+    if (_cachedForceUpdateState != null && _cacheTime != null) {
+      if (DateTime.now().difference(_cacheTime!) < _cacheDuration) {
+        return _cachedForceUpdateState!;
+      }
+    }
+    
+    // 缓存过期或不存在，返回当前状态并更新缓存
+    _cachedForceUpdateState = isForceUpdate;
+    _cacheTime = DateTime.now();
     return isForceUpdate; // 返回强制更新标志
   }
 }
