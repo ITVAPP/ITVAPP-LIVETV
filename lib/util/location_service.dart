@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -109,43 +109,53 @@ class LocationService {
       ipInfo = {'ip': 'Unknown IP'};
     }
     
+    // 初始化 Location 实例
+    Location location = Location();
+
     // 检查位置服务是否启用
     bool serviceEnabled;
     try {
-      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      serviceEnabled = await location.serviceEnabled();
       if (!serviceEnabled) {
-        LogUtil.i('设备位置服务未启用，切换到API获取位置');
-        return _fetchLocationInfo(); // 位置服务未启用，回退到API方法
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          LogUtil.i('设备位置服务未启用，切换到API获取位置');
+          return _fetchLocationInfo(); // 位置服务未启用，回退到API方法
+        }
       }
 
       // 检查位置权限
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
+      PermissionStatus permission = await location.hasPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await location.requestPermission();
+        if (permission == PermissionStatus.denied) {
           LogUtil.i('用户拒绝位置权限，切换到API获取位置');
           return _fetchLocationInfo(); // 权限被拒绝，回退到API方法
         }
       }
       
-      if (permission == LocationPermission.deniedForever) {
+      if (permission == PermissionStatus.deniedForever) {
         LogUtil.i('用户永久拒绝位置权限，切换到API获取位置');
         return _fetchLocationInfo(); // 权限被永久拒绝，回退到API方法
       }
 
       // 获取精确位置
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, // 中等精度平衡准确性和电池消耗
-        timeLimit: Duration(seconds: REQUEST_TIMEOUT_SECONDS), // 使用与API相同的超时设置
+      LocationData position = await location.getLocation(
+        timeLimit: Duration(seconds: REQUEST_TIMEOUT_SECONDS), // 使用与原代码相同的超时设置
       );
+      
+      // 确保经纬度非空
+      if (position.latitude == null || position.longitude == null) {
+        throw Exception('获取到的位置数据无效（经纬度为空）');
+      }
       
       LogUtil.i('成功获取设备位置: 经度=${position.longitude}, 纬度=${position.latitude}');
       
       // 尝试通过地理编码获取地址信息
       try {
         List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude, 
-          position.longitude
+          position.latitude!, 
+          position.longitude!
         );
         
         if (placemarks.isNotEmpty) {
