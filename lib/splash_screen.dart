@@ -6,6 +6,7 @@ import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/location_service.dart';
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
@@ -24,6 +25,7 @@ class _SplashScreenState extends State<SplashScreen> {
   String _message = ''; // 当前显示的提示信息
   bool isDebugMode = false; // 调试模式开关，控制日志显示
   late final LocationService _locationService; // 延迟初始化用户位置服务
+  bool _versionChecked = false; // 标记版本检查是否已完成
 
   // 静态资源路径和样式，避免重复创建
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图
@@ -51,23 +53,54 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       LogUtil.safeExecute(() async {
+        // 先检查版本更新
+        await _checkVersion();
+        
+        // 如果是强制更新状态，停止进一步加载
+        if (CheckVersionUtil.isInForceUpdateState()) {
+          _updateMessage("您的版本已经失效，请更新");
+          // 在强制更新状态下显示提示信息
+          if (mounted) {
+            CustomSnackBar.showSnackBar(
+              context, 
+              "您的版本已经失效，请更新", 
+              duration: const Duration(seconds: 5)
+            );
+          }
+          return; // 强制更新时中断初始化流程
+        }
+        
         // 获取 M3U 数据
         M3uResult m3uResult = await _fetchData();
-        // 并行加载用户信息和检查版本
-        await Future.wait([
-          _fetchUserInfo(),
-          Future<void>.value(CheckVersionUtil.checkVersion(context, false, false, false)),
-        ]);
+        
+        // 并行加载用户信息
+        await _fetchUserInfo();
+        
         // 数据就绪后跳转主页
-        if (mounted && m3uResult.data != null) {
+        if (mounted && m3uResult.data != null && !CheckVersionUtil.isInForceUpdateState()) {
           _navigateToHome(m3uResult.data!);
-        } else {
+        } else if (mounted && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror); // 数据失败时更新提示
         }
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
       LogUtil.logError('初始化应用时发生错误', error, stackTrace);
       _updateMessage(S.current.getDefaultError); // 全局错误提示
+    }
+  }
+
+  /// 检查版本更新
+  Future<void> _checkVersion() async {
+    try {
+      if (mounted) {
+        _updateMessage("检查版本更新...");
+        await CheckVersionUtil.checkVersion(context, false, false, false);
+        setState(() {
+          _versionChecked = true;
+        });
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查版本更新时发生错误', e, stackTrace);
     }
   }
 
@@ -130,9 +163,15 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   void _navigateToHome(PlaylistModel data) {
+    // 如果处于强制更新状态，不应该跳转到主页
+    if (CheckVersionUtil.isInForceUpdateState()) {
+      LogUtil.d('强制更新状态，阻止跳转到主页');
+      return;
+    }
+    
     if (mounted) {
       Future.delayed(const Duration(milliseconds: 100), () { // 延迟 100ms
-        if (mounted) {
+        if (mounted && !CheckVersionUtil.isInForceUpdateState()) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => LiveHomePage(m3uData: data), // 跳转到主页
@@ -155,7 +194,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
           _buildMessageUI(
             _message.isEmpty ? '${S.current.loading}' : _message,
-            isLoading: true, // 显示加载动画
+            isLoading: !CheckVersionUtil.isInForceUpdateState(), // 如果是强制更新状态，不显示加载动画
           ),
         ],
       ),
