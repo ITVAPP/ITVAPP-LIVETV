@@ -1,4 +1,4 @@
-name: ITVAPP-LIVETV APP
+name: ITVAPP-LIVETV APP for Android
 
 on:
   workflow_dispatch:  # 仅支持手动触发
@@ -11,6 +11,15 @@ on:
         options:
           - 'true'
           - 'false'
+      cpu_architecture:
+        description: '选择生成的CPU架构'
+        required: true
+        default: 'armeabi-v7a'
+        type: choice
+        options:
+          - '生成所有架构'
+          - 'armeabi-v7a'
+          - 'arm64-v8a'
 
 jobs:
   build_android:
@@ -19,6 +28,7 @@ jobs:
     env:
       PLAYLIST_FILE: playlists.m3u  # 定义M3U文件名变量
       ENABLE_OBFUSCATION: ${{ github.event.inputs.enable_obfuscation }}
+      CPU_ARCHITECTURE: ${{ github.event.inputs.cpu_architecture }}
       
     steps:
       - uses: actions/checkout@v4  # 检出代码
@@ -96,6 +106,7 @@ jobs:
           # 将存储在 GitHub Secrets 中的密钥库文件进行解码并保存到 android/app 目录下
 
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
+        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a' }}
         run: |
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
             flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
@@ -109,6 +120,7 @@ jobs:
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
+        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a' }}
         run: |
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
             flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
@@ -125,6 +137,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-artifacts
-          path: |
-            apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-            apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
+          path: apk/
