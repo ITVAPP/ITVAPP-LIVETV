@@ -2,5 +2,7 @@
   "version": "1.8.8",
   "changelog": "1. 新增功能 A\n2. 修复 Bug B\n3. 优化性能 C",
   "download_url": "https://cdn.itvapp.net/itvapp_live_tv/itvapp_live_tv-1.6.0.apk",
+  "backup_download_url": "https://backup-cdn.itvapp.net/itvapp_live_tv/itvapp_live_tv-1.6.0.apk",
+  "min_supported_version": "1.0.0",
   "release_date": "2025-08-18"
 }
