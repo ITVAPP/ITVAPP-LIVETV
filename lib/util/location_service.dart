@@ -18,7 +18,7 @@ class LocationService {
   static const String SP_KEY_USER_INFO = 'user_all_info'; // 本地存储用户信息键
   static const int CACHE_EXPIRY_HOURS = 48; // 缓存有效期（小时）
   static const int CACHE_EXPIRY_MS = 172800000; // 缓存有效期（毫秒）
-  static const int REQUEST_TIMEOUT_SECONDS = 5; // 请求超时时间（秒）
+  static const int REQUEST_TIMEOUT_SECONDS = 6; // 请求超时时间（秒）
 
   // 重置内存和本地缓存
   void resetCache() {
