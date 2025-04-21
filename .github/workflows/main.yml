@@ -35,6 +35,23 @@ jobs:
           channel: 'stable'  # 使用 stable 渠道版本
       - run: flutter pub get  # 获取项目依赖
 
+      - name: Fix hashValues in better_player
+        run: |
+          # 定义 better_player 包路径
+          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/lib/src/hls/hls_parser
+          
+          # 检查是否需要修复 (检查任意一个文件即可)
+          if grep -q "hashValues" "$BETTER_PLAYER_DIR"/*.dart 2>/dev/null; then
+            echo "Found hashValues in better_player files, applying fixes..."
+            
+            # 替换所有文件中的简单 hashValues 调用
+            find "$BETTER_PLAYER_DIR" -name "*.dart" -type f -exec sed -i 's/int get hashCode => hashValues(/int get hashCode => Object.hash(/g' {} \;
+            
+            # 无需替换结束括号，因为它们的格式是一样的
+          else
+            echo "No hashValues found in better_player, no fix needed"
+          fi
+
       - name: Add namespace to better_player  # 添加 namespace 到 better_player 插件配置
         run: |
           sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
