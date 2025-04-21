@@ -11,6 +11,9 @@ class Config {
   /// 升级检查地址
   static const String upgradeUrl = 'https://cdn.itvapp.net/itvapp_live_tv/upgrade.json';
   
+  /// 升级检查备用地址
+  static const String backupUpgradeUrl = 'https://backup-cdn.itvapp.net/itvapp_live_tv/upgrade.json';
+  
   /// EPG 数据获取地址
   static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php/api/';
   
