@@ -42,6 +42,7 @@
   "update": "Update",
   "latestVersion": "Latest Version",
   "findNewVersion": "New version found",
+  "oldVersion": "Your version is outdated, please update!",
   "updateContent": "Update details",
   "dialogTitle": "Reminder",
   "dataSourceContent": "Add this source?",
