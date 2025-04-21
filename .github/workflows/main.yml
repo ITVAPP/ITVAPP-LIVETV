@@ -33,6 +33,10 @@ jobs:
         with:
           flutter-version: '3.24.0'  # 使用 Flutter 的最新稳定版本
           channel: 'stable'  # 使用 stable 渠道版本
+      - name: Clean Flutter and Pub cache
+        run: |
+          flutter clean
+          rm -rf ~/.pub-cache/hosted/pub.dev/geolocator* # 清理 geolocator 缓存
       - run: flutter pub get  # 获取项目依赖
 
       - name: Add namespace to better_player  # 添加 namespace 到 better_player 插件配置
