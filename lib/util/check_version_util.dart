@@ -233,15 +233,15 @@ class CheckVersionUtil {
     try {
       LogUtil.d('开始检查版本更新: 主地址=$versionHost');
       
-      // 请求版本信息，使用超时设置
-      var res = await HttpUtil().getRequest(versionHost, timeout: const Duration(seconds: 10));
+      // 请求版本信息
+      var res = await HttpUtil().getRequest(versionHost);
       
       // 如果主要地址失败，尝试备用地址
       if (res == null || res is! Map<String, dynamic>) {
         final backupHost = EnvUtil.checkVersionBackupHost(); // 获取备用地址
         if (backupHost != null && backupHost.isNotEmpty) {
           LogUtil.d('主地址获取失败，尝试备用地址=$backupHost');
-          res = await HttpUtil().getRequest(backupHost, timeout: const Duration(seconds: 10));
+          res = await HttpUtil().getRequest(backupHost);
         }
       }
       
