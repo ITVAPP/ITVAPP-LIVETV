@@ -25,7 +25,7 @@ dependencies:
   responsive_builder: 0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
   flutter_easyloading: 3.0.5  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
   wakelock_plus: 1.2.10  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
-  geolocator: 14.0.0  # 获取用户地理信息。
+  geolocator: 12.0.0  # 获取用户地理信息。
   dio: 5.7.0  # 网络请求库，功能强大，支持拦截器、请求取消等。
   brotli: ^0.6.0  # 使用Brotli压缩的网站时，返回的内容将被正确解码
   sp_util: 2.0.3  # SharedPreferences工具类，简化数据存储操作，适用于存储应用配置等小数据。
