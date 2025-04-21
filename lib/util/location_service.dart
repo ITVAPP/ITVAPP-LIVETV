@@ -150,7 +150,7 @@ class LocationService {
         List<Placemark> placemarks = await placemarkFromCoordinates(
           position.latitude!, 
           position.longitude!,
-          localeIdentifier: 'zh_CN' // 使用中文地理编码
+          locale: 'zh_CN' // 使用中文地理编码
         );
         
         if (placemarks.isNotEmpty) {
@@ -240,7 +240,7 @@ class LocationService {
 
     final cancelToken = CancelToken(); // 创建统一取消令牌
     
-    final timeoutFuture = Future.delayed(Duration(seconds: \REQUEST_TIMEOUT_SECONDS * 2)).then((_) {
+    final timeoutFuture = Future.delayed(Duration(seconds: REQUEST_TIMEOUT_SECONDS * 2)).then((_) {
       if (!cancelToken.isCancelled) {
         cancelToken.cancel('并行请求超时');
         return null;
