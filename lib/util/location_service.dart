@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:location/location.dart';
+import 'package:location/location.dart' as location;
 import 'package:geocoding/geocoding.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -110,7 +110,7 @@ class LocationService {
     }
     
     // 初始化 Location 实例
-    Location location = Location();
+    location.Location location = location.Location();
 
     // 检查位置服务是否启用
     bool serviceEnabled;
@@ -125,22 +125,22 @@ class LocationService {
       }
 
       // 检查位置权限
-      PermissionStatus permission = await location.hasPermission();
-      if (permission == PermissionStatus.denied) {
+      location.PermissionStatus permission = await location.hasPermission();
+      if (permission == location.PermissionStatus.denied) {
         permission = await location.requestPermission();
-        if (permission == PermissionStatus.denied) {
+        if (permission == location.PermissionStatus.denied) {
           LogUtil.i('用户拒绝位置权限，切换到API获取位置');
           return _fetchLocationInfo(); // 权限被拒绝，回退到API方法
         }
       }
       
-      if (permission == PermissionStatus.deniedForever) {
+      if (permission == location.PermissionStatus.deniedForever) {
         LogUtil.i('用户永久拒绝位置权限，切换到API获取位置');
         return _fetchLocationInfo(); // 权限被永久拒绝，回退到API方法
       }
 
       // 获取精确位置
-      LocationData position = await location.getLocation(
+      location.LocationData position = await location.getLocation(
         timeLimit: Duration(seconds: REQUEST_TIMEOUT_SECONDS), // 使用与原代码相同的超时设置
       );
       
