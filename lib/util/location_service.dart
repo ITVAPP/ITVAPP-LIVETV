@@ -147,10 +147,17 @@ class LocationService {
       LogUtil.i('获取设备位置: 经度=${position.longitude}, 纬度=${position.latitude}');
       
       try {
+        // 先尝试设置地理编码的区域为中文
+        try {
+          await setLocaleIdentifier('zh_CN');
+        } catch (e) {
+          LogUtil.e('设置地理编码区域失败: $e');
+          // 设置失败继续执行，不影响后续操作
+        }
+        
         List<Placemark> placemarks = await placemarkFromCoordinates(
           position.latitude!, 
-          position.longitude!,
-          locale: 'zh_CN' // 使用中文地理编码
+          position.longitude!
         );
         
         if (placemarks.isNotEmpty) {
