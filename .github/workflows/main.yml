@@ -37,8 +37,8 @@ jobs:
         run: |
           flutter clean
           rm -rf ~/.pub-cache/hosted/pub.dev/* # 清理整个 Pub 缓存
-          flutter pub cache clean # 强制清理 Pub 缓存
-          flutter pub get --no-version-check # 重新获取依赖，忽略版本检查
+          flutter pub cache clean --force # 强制清理 Pub 缓存，跳过确认
+          flutter pub get # 重新获取依赖
           echo "Pub cache path:" && ls -la ~/.pub-cache/hosted/pub.dev/ # 调试：输出缓存内容
       - run: flutter pub get  # 获取项目依赖
       - name: Check geolocator version
