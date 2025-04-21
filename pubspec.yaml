@@ -26,6 +26,7 @@ dependencies:
   flutter_easyloading: 3.0.5  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
   wakelock_plus: 1.2.10  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
   geolocator: 14.0.0  # 地理定位插件。
+  geolocator_android: ^6.0.0  # 显式指定 geolocator_android 版本，确保与 geolocator: 14.0.0 兼容，修复 5.0.1+1 错误。
   geocoding: 3.0.0  # 地理编码插件。
   dio: 5.7.0  # 网络请求库，功能强大，支持拦截器、请求取消等。
   brotli: ^0.6.0  # 使用Brotli压缩的网站时，返回的内容将被正确解码
