@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> {
         
         // 如果是强制更新状态，停止进一步加载
         if (_getForceUpdateState()) {
-          const message = S.current.oldVersion;
+          final message = S.current.oldVersion;
           _updateMessage(message);
           // 在强制更新状态下显示提示信息
           if (mounted) {
