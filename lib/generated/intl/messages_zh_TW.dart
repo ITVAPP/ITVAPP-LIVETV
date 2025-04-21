@@ -40,6 +40,7 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("確定刪除此訂閱嗎？"),
         "dialogTitle": MessageLookupByLibrary.simpleMessage("溫馨提示"),
         "findNewVersion": MessageLookupByLibrary.simpleMessage("發現新版本"),
+        "oldVersion": MessageLookupByLibrary.simpleMessage("您的版本已不再支持，請更新！"),
         "fullScreen": MessageLookupByLibrary.simpleMessage("全屏切換"),
         "getDefaultError": MessageLookupByLibrary.simpleMessage("獲取預設資料來源失敗"),
         "homePage": MessageLookupByLibrary.simpleMessage("主頁"),
