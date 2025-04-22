@@ -5,7 +5,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 佛山电视台解析器
-class FoshanParser {
+class foshanParser {
   static const String _baseUrl = 'https://xmapi.fstv.com.cn/appapi/tv/indexaes';
 
   // 定义支持的频道列表，映射PHP中的$channels
