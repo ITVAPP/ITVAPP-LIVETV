@@ -78,6 +78,7 @@ zjwtv.com|app.zjwtv.com
 qhbtv.com|www.qhbtv.com
 qhtb.cn|www.qhtb.cn
 hdhhy.cn|www.hdhhy.cn
+zgfznews.com|www.zgfznews.com
 ''';
 
   /// 需要添加CORS头的域名列表
@@ -123,6 +124,7 @@ hlsplay.aodianyun.com
 player4.juyun.tv
 gbtv-rtmp.zjwtv.com
 pili-live-rtmp.akrt.cn
+xmplay.fstv.com.cn
 ''';
 
   /// 使用BetterPlayer默认请求头的域名列表
