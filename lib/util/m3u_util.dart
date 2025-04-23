@@ -76,8 +76,19 @@ class M3uUtil {
   }
 
   /// 转换播放列表的指定中文字段（PlayModel.title 和 PlayModel.group）
-  static PlaylistModel _convertPlaylistModel(PlaylistModel data, ZhConverter converter) {
+  static PlaylistModel _convertPlaylistModel(PlaylistModel data, String conversionType) {
     try {
+      // 根据 conversionType 创建 ZhConverter
+      ZhConverter? converter;
+      if (conversionType == 'zhHans2Hant') {
+        converter = ZhConverter(zhHans2Hant); // 简体转繁体
+      } else if (conversionType == 'zhHant2Hans') {
+        converter = ZhConverter(zhHant2Hans); // 繁体转简体
+      } else {
+        LogUtil.i('无效的转换类型: $conversionType，跳过转换');
+        return data; // 无效转换类型，回退到原始数据
+      }
+
       // 创建新的 playList 映射，保留原始键名
       Map<String, dynamic> newPlayList = {};
 
@@ -90,8 +101,8 @@ class M3uUtil {
               Map<String, PlayModel> newChannelMap = {};
               channelMap.forEach((channelName, playModel) {
                 // 转换 PlayModel 的 title 和 group
-                String? newTitle = playModel.title != null ? converter.convert(playModel.title!) : null;
-                String? newGroup = playModel.group != null ? converter.convert(playModel.group!) : null;
+                String? newTitle = playModel.title != null ? converter!.convert(playModel.title!) : null;
+                String? newGroup = playModel.group != null ? converter!.convert(playModel.group!) : null;
                 // 创建新的 PlayModel，保留其他字段
                 newChannelMap[channelName] = playModel.copyWith(
                   title: newTitle,
