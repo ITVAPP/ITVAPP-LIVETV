@@ -29,6 +29,9 @@ class Config {
   /// 定义播放列表无分类时的分类名称
   static const String allChannelsKey = 'allChannels';
 
+  /// 设置播放列表默认语言（zh_CN/zh_TW/zh_HK/zh_MO，其他: 不转换）
+  static const String playListlang = 'zh_CN';
+
   /// 流量统计开关（需正确设置流量统计API才可以使用）
   static const bool Analytics = true;
 
