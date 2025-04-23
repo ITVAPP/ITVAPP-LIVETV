@@ -45,6 +45,7 @@ dependencies:
   webview_flutter: 4.10.0  # 模拟网页访问。
   crypto: 3.0.6   # 处理sha256签名。
   encrypt: 5.0.3   # 处理加密/解密（如 AES）。
+  opencc: 1.1.0   # 处理中文简体繁体转换。
   # file_picker: 8.1.2  # 文件选择器插件，允许用户选择文件，适用于文件上传等场景。
   
 dev_dependencies:
