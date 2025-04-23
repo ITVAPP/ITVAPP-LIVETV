@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:collection';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:sp_util/sp_util.dart';
+import 'package:opencc/opencc.dart';
 import 'package:intl/intl.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/entity/subScribe_model.dart';
@@ -71,6 +72,47 @@ class M3uUtil {
     } catch (e, stackTrace) {
       LogUtil.logError('获取播放列表出错', e, stackTrace);
       return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.networkError);
+    }
+  }
+
+  /// 转换播放列表的指定中文字段（PlayModel.title 和 PlayModel.group）
+  static PlaylistModel _convertPlaylistModel(PlaylistModel data, ZhConverter converter) {
+    try {
+      // 创建新的 playList 映射，保留原始键名
+      Map<String, dynamic> newPlayList = {};
+
+      // 遍历原始 playList 的三层结构
+      data.playList.forEach((category, groupMap) {
+        if (groupMap is Map<String, dynamic>) {
+          Map<String, dynamic> newGroupMap = {};
+          groupMap.forEach((groupTitle, channelMap) {
+            if (channelMap is Map<String, PlayModel>) {
+              Map<String, PlayModel> newChannelMap = {};
+              channelMap.forEach((channelName, playModel) {
+                // 转换 PlayModel 的 title 和 group
+                String? newTitle = playModel.title != null ? converter.convert(playModel.title!) : null;
+                String? newGroup = playModel.group != null ? converter.convert(playModel.group!) : null;
+                // 创建新的 PlayModel，保留其他字段
+                newChannelMap[channelName] = playModel.copyWith(
+                  title: newTitle,
+                  group: newGroup,
+                );
+              });
+              newGroupMap[groupTitle] = newChannelMap;
+            }
+          });
+          newPlayList[category] = newGroupMap;
+        }
+      });
+
+      // 返回新的 PlaylistModel，保留 epgUrl 和 _cachedChannels
+      return PlaylistModel(
+        epgUrl: data.epgUrl,
+        playList: newPlayList,
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('简繁体转换失败，回退到原始数据', e, stackTrace);
+      return data; // 异常时回退原始数据
     }
   }
 
