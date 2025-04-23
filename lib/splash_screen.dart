@@ -190,9 +190,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) {
       Future.delayed(const Duration(milliseconds: 500), () { // 延迟跳转
         if (mounted && !_getForceUpdateState()) {
+          // 在跳转前对播放列表进行简繁体转换
+          final convertedData = M3uUtil.convertPlaylistText(data);
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => LiveHomePage(m3uData: data), // 跳转到主页
+              builder: (context) => LiveHomePage(m3uData: convertedData), // 传递转换后的数据
             ),
           );
         }
