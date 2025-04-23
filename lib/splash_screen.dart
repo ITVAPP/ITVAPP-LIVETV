@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
@@ -10,6 +11,7 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 // 启动页面组件，负责应用初始化和显示加载界面
 class SplashScreen extends StatefulWidget {
@@ -43,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
   static const _verticalSpacing = SizedBox(height: 18); // 间距组件
 
   DateTime? _lastUpdateTime; // 上次更新时间，用于节流
-  static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 300ms
+  static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 500ms
   
   // 缓存强制更新状态，避免重复检查
   bool? _isInForceUpdateState;
@@ -90,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // 并行获取M3U数据和用户信息，提高加载效率
         final Future<M3uResult> m3uFuture = _fetchData();
         final Future<void> userInfoFuture = _fetchUserInfo();
-        
+
         // 等待所有数据加载完成
         final m3uResult = await m3uFuture;
         await userInfoFuture;
@@ -179,6 +181,15 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  /// 获取语言转换类型
+  String? _getConversionType(String playListLang, String userLang) {
+    const conversionMap = {
+      ('zh_CN', 'zh_TW'): 'zhHans2Hant', // 简体转繁体
+      ('zh_TW', 'zh_CN'): 'zhHant2Hans', // 繁体转简体
+    };
+    return conversionMap[(playListLang, userLang)];
+  }
+
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   void _navigateToHome(PlaylistModel data) {
     // 如果处于强制更新状态，不应该跳转到主页
@@ -186,15 +197,55 @@ class _SplashScreenState extends State<SplashScreen> {
       LogUtil.d('强制更新状态，阻止跳转到主页');
       return;
     }
-    
+
     if (mounted) {
-      Future.delayed(const Duration(milliseconds: 500), () { // 延迟跳转
+      // 获取当前用户的语言环境
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      final userLocale = languageProvider.currentLocale;
+      PlaylistModel processedData = data;
+
+      try {
+        const playListLang = Config.playListlang;
+        String? conversionType;
+        String? userLang;
+
+        // 1. 检查是否包含 zh 并构造 userLang
+        if (userLocale.languageCode.startsWith('zh')) {
+          userLang = userLocale.languageCode == 'zh' && userLocale.countryCode != null
+              ? 'zh_${userLocale.countryCode}' // 标准 zh + 国家代码
+              : userLocale.languageCode; // 直接使用 languageCode（如 zh, zh_CN, zh_TW）
+
+          // 2. 比较 userLang 和 playListLang
+          if (userLang != playListLang) {
+            // 3. 确定转换类型
+            conversionType = _getConversionType(playListLang, userLang);
+          }
+        }
+
+        // 4. 执行转换或记录无需转换
+        if (conversionType != null) {
+          LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
+          processedData = M3uUtil._convertPlaylistModel(data, conversionType);
+          LogUtil.i('播放列表中文转换完成');
+        } else {
+          String reason = userLang == null
+              ? '用户语言不包含 zh (${userLocale.languageCode})'
+              : userLang == playListLang
+                  ? '用户语言 ($userLang) 与播放列表语言 ($playListLang) 相同'
+                  : '无匹配的转换类型';
+          LogUtil.i('无需对播放列表进行中文转换: $reason');
+        }
+      } catch (e, stackTrace) {
+        LogUtil.logError('播放列表中文转换失败，使用原始数据', e, stackTrace);
+        processedData = data; // 转换失败时回退到原始数据
+      }
+
+      // 延迟跳转到主页
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted && !_getForceUpdateState()) {
-          // 在跳转前对播放列表进行简繁体转换
-          final convertedData = M3uUtil.convertPlaylistText(data);
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => LiveHomePage(m3uData: convertedData), // 传递转换后的数据
+              builder: (context) => LiveHomePage(m3uData: processedData), // 传递处理后的数据
             ),
           );
         }
