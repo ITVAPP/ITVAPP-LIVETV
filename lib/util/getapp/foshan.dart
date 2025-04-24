@@ -51,7 +51,7 @@ class foshanParser {
       LogUtil.i('频道列表: $channels');
 
       String? playUrl;
-      const key = 'ptfcaxhmslc4Kyrnj$lWwmkcvdze2cub';
+      const key = 'ptfcaxhmslc4Kyrnj\$lWwmkcvdze2cub';
       const iv = '352e7f4773ef5c30';
 
       for (var channel in channels) {
