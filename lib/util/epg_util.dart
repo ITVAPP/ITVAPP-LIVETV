@@ -12,6 +12,98 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/config.dart';
 
+/// EPG节目数据
+class EpgData {
+  String? desc; // 节目描述
+  String? end; // 结束时间
+  String? start; // 开始时间
+  String? title; // 节目标题
+
+  EpgData({this.desc, this.end, this.start, this.title});
+
+  EpgData.fromJson(dynamic json) {
+    desc = json['desc'] == '' ? null : json['desc'] as String?; // 节目描述
+    start = json['start'] as String?; // 开始时间
+    end = json['end'] as String?; // 结束时间
+    title = json['title'] as String?; // 节目标题
+    if (start != null && end != null) {
+      final timePattern = RegExp(r'^\d{2}:\d{2}$');
+      if (!timePattern.hasMatch(start!) || !timePattern.hasMatch(end!)) {
+        LogUtil.i('EPG JSON 时间格式无效: start=$start, end=$end');
+        start = null;
+        end = null;
+      }
+    }
+  }
+
+  // 复制数据并更新指定字段
+  EpgData copyWith({String? desc, String? end, String? start, String? title}) =>
+      EpgData(
+        desc: desc ?? this.desc,
+        end: end ?? this.end,
+        start: start ?? this.start,
+        title: title ?? this.title,
+      );
+
+  // 转换为 JSON 格式
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{};
+    map['desc'] = desc;
+    map['end'] = end;
+    map['start'] = start;
+    map['title'] = title;
+    return map;
+  }
+}
+
+/// EPG 数据模型
+class EpgModel {
+  String? channelName; // 频道名称
+  String? date; // 日期
+  List<EpgData>? epgData; // 节目数据列表
+
+  EpgModel({this.channelName, this.date, this.epgData});
+
+  EpgModel.fromJson(dynamic json) {
+    channelName = json['channel_name'] as String?;
+    date = json['date'] as String?;
+    if (json['epg_data'] != null) {
+      epgData = [];
+      for (var v in json['epg_data']) {
+        final epgDataItem = EpgData.fromJson(v);
+        if (epgDataItem.title == null || epgDataItem.start == null || epgDataItem.end == null) {
+          LogUtil.i('EPG JSON 无效：缺少必要字段，数据=$v');
+          continue;
+        }
+        epgData!.add(epgDataItem);
+      }
+    }
+    if (epgData == null || epgData!.isEmpty) {
+      LogUtil.i('EPG JSON 解析失败：无有效节目，channel=$channelName, date=$date');
+    }
+    LogUtil.i('解析 EpgModel: channel=$channelName, date=$date, epgDataCount=${epgData?.length ?? 0}');
+  }
+
+  // 复制模型并更新指定字段
+  EpgModel copyWith({String? channelName, String? date, List<EpgData>? epgData}) =>
+      EpgModel(
+        channelName: channelName ?? this.channelName,
+        date: date ?? this.date,
+        epgData: epgData ?? this.epgData,
+      );
+
+  // 转换为 JSON 格式
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{};
+    map['channel_name'] = channelName;
+    map['date'] = date;
+    if (epgData != null) {
+      map['epg_data'] = epgData?.map((v) => v.toJson()).toList();
+    }
+    return map;
+  }
+}
+
 /// EPG 工具类，管理节目指南数据的获取、缓存和中文转换
 class EpgUtil {
   EpgUtil._(); // 私有构造函数，防止实例化
