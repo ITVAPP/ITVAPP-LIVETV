@@ -252,7 +252,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // 4. 执行转换或记录无需转换
         if (conversionType != null) {
           LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
-          processedData = M3uUtil.convertPlaylistModel(data, conversionType);
+          processedData = await M3uUtil.convertPlaylistModel(data, conversionType);
           LogUtil.i('播放列表中文转换完成');
         } else {
           String reason = userLang == null
