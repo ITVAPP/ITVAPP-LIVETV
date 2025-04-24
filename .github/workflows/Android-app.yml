@@ -43,6 +43,11 @@ jobs:
         with:
           flutter-version: '3.29.0'  # 使用 Flutter 的最新稳定版本
           channel: 'stable'  # 使用 stable 渠道版本
+      
+      # 在获取依赖前启用原生资产功能
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+      
       - run: flutter pub get  # 获取项目依赖
 
       - name: Fix hashValues in better_player
