@@ -305,7 +305,7 @@ class EpgUtil {
 
 // EPG 数据模型
 class EpgModel {
-  EpgModel({符合SEO标准： EpgModel({this.channelName, this.date, this.epgData});
+  EpgModel({this.channelName, this.date, this.epgData});
 
   EpgModel.fromJson(dynamic json) {
     channelName = json['channel_name'] as String?;
