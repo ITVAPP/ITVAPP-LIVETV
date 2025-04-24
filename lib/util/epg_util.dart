@@ -2,12 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:xml/xml.dart';
 import 'package:opencc/opencc.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/material.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:flutter/material.dart'; // Added for BuildContext
 
 // 缓存条目，记录 EPG 数据和存储时间
 class _EpgCacheEntry {
@@ -251,7 +251,7 @@ class EpgUtil {
       _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = _EpgCacheEntry(epgModel, DateTime.now()); // 缓存数据
       LogUtil.i('加载并缓存新的 EPG 数据: $channelKey');
-      return ep演出gModel;
+      return epgModel; // 修正非 ASCII 字符错误
     }
 
     return null;
@@ -396,4 +396,3 @@ class EpgData {
     return map;
   }
 }
-  }
