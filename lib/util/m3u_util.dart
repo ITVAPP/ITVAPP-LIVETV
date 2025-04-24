@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:collection';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:async/async.dart' show LineSplitter;
 import 'package:sp_util/sp_util.dart';
 import 'package:opencc/opencc.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +14,6 @@ import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:async/async.dart' show LineSplitter;
 
 // 定义转换类型枚举
 enum ConversionType {
