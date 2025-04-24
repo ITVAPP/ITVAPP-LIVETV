@@ -8,7 +8,25 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/config.dart';
+import 'package:itvapp_live_tv/config.dart'; // Added for Config
+
+// 定义转换类型枚举
+enum ConversionType {
+  zhHans2Hant,
+  zhHant2Hans,
+}
+
+// 转换类型工厂方法，用于创建 ZhConverter
+ZhConverter? createConverter(ConversionType? type) {
+  switch (type) {
+    case ConversionType.zhHans2Hant:
+      return ZhConverter('s2t'); // 简体转繁体
+    case ConversionType.zhHant2Hans:
+      return ZhConverter('t2s'); // 繁体转简体
+    default:
+      return null;
+  }
+}
 
 // 缓存条目，记录 EPG 数据和存储时间
 class _EpgCacheEntry {
@@ -48,10 +66,10 @@ class EpgUtil {
   // 获取语言转换类型
   static String? _getConversionType(String userLang) {
     const conversionMap = {
-      'zh_CN': 'toHans', // 简体
-      'zh_TW': 'toHant', // 繁体
-      'zh_HK': 'toHant', // 繁体
-      'zh': 'toHans', // 默认简体
+      'zh_CN': 'zhHant2Hans', // 简体
+      'zh_TW': 'zhHans2Hant', // 繁体
+      'zh_HK': 'zhHans2Hant', // 繁体
+      'zh': 'zhHant2Hans', // 默认简体
     };
     return conversionMap[userLang];
   }
@@ -59,7 +77,22 @@ class EpgUtil {
   // 简繁体转换
   static String _convertString(String text, String conversionType) {
     try {
-      final converter = OpenCC(conversionType == 'toHant' ? 's2t' : 't2s');
+      ConversionType? type;
+      if (conversionType == 'zhHans2Hant') {
+        type = ConversionType.zhHans2Hant;
+      } else if (conversionType == 'zhHant2Hans') {
+        type = ConversionType.zhHant2Hans;
+      } else {
+        LogUtil.i('无效的转换类型: $conversionType，跳过转换');
+        return text;
+      }
+
+      final converter = createConverter(type);
+      if (converter == null) {
+        LogUtil.i('无法创建转换器，跳过转换');
+        return text;
+      }
+
       return converter.convert(text);
     } catch (e, stackTrace) {
       LogUtil.logError('简繁体转换失败: text=$text, type=$conversionType', e, stackTrace);
@@ -67,7 +100,7 @@ class EpgUtil {
     }
   }
 
-  // 批量转换 EPG 数据的简繁体，减少 OpenCC 调用
+  // 批量转换 EPG 数据的简繁体，减少转换调用
   static EpgModel _convertEpgModel(EpgModel model, String conversionType, String userLang) {
     try {
       // 批量收集 title 和 desc
