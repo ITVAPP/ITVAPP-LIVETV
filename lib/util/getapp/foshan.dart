@@ -25,14 +25,14 @@ class foshanParser {
       final uri = Uri.parse(url);
       final clickIndex = uri.queryParameters['clickIndex'] ?? '';
 
-      // 如果clickIndex为空或无效，尝试映射到频道ID
-      Map<String, dynamic>? channelInfo;
+      // Map clickIndex to channel ID
+      Map<String, dynamic> channelInfo; // Non-nullable
       if (clickIndex.isEmpty || !_channels.containsKey(clickIndex)) {
-        // 默认返回ID为2的频道（佛山公共）
-        channelInfo = _channels['fsgg'];
-        LogUtil.i('无效或未提供clickIndex，使用默认频道: ${channelInfo!['name']} (ID: ${channelInfo['id']})');
+        // Default to 'fsgg' (ID: 2, 佛山公共)
+        channelInfo = _channels['fsgg']!; // Safe since 'fsgg' exists
+        LogUtil.i('无效或未提供clickIndex，使用默认频道: ${channelInfo['name']} (ID: ${channelInfo['id']})');
       } else {
-        channelInfo = _channels[clickIndex];
+        channelInfo = _channels[clickIndex]!; // Safe since key is checked
         LogUtil.i('选择的频道: ${channelInfo['name']} (ID: ${channelInfo['id']})');
       }
 
@@ -51,7 +51,7 @@ class foshanParser {
       LogUtil.i('频道列表: $channels');
 
       String? playUrl;
-      const key = 'ptfcaxhmslc4Kyrnj\$lWwmkcvdze2cub';
+      const key = 'ptfcaxhmslc4Kyrnj$lWwmkcvdze2cub';
       const iv = '352e7f4773ef5c30';
 
       for (var channel in channels) {
@@ -62,7 +62,7 @@ class foshanParser {
             return 'ERROR';
           }
 
-          // 解密stream
+          // Decrypt stream
           try {
             final encrypter = Encrypter(AES(
               Key.fromUtf8(key),
