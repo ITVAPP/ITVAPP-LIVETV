@@ -7,6 +7,15 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:flutter/material.dart'; // Added for BuildContext
+
+// 缓存条目，记录 EPG 数据和存储时间
+class _EpgCacheEntry {
+  final EpgModel model;
+  final DateTime timestamp;
+
+  _EpgCacheEntry(this.model, this.timestamp);
+}
 
 /// channel_name : "CCTV1"
 /// date : ""
@@ -18,14 +27,6 @@ class EpgUtil {
   static Map<String, List<XmlElement>>? _programmesByChannel; // 按频道分区的节目数据
   static const int _maxCacheSize = 100; // 缓存最大容量限制
   static const Duration _cacheTTL = Duration(hours: 24); // 缓存有效期 24 小时
-
-  // 缓存条目，记录 EPG 数据和存储时间
-  static class _EpgCacheEntry {
-    final EpgModel model;
-    final DateTime timestamp;
-
-    _EpgCacheEntry(this.model, this.timestamp);
-  }
 
   // 获取语言转换设置，集中处理语言逻辑
   static ({String? conversionType, String? userLang}) _getLanguageSettings(BuildContext context) {
@@ -250,7 +251,7 @@ class EpgUtil {
       _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = _EpgCacheEntry(epgModel, DateTime.now()); // 缓存数据
       LogUtil.i('加载并缓存新的 EPG 数据: $channelKey');
-      return epgModel;
+      return ep演出gModel;
     }
 
     return null;
@@ -395,3 +396,4 @@ class EpgData {
     return map;
   }
 }
+  }
