@@ -100,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> {
         
         // 数据就绪后跳转主页
         if (mounted && m3uResult.data != null && !_getForceUpdateState()) {
-          _navigateToHome(m3uResult.data!);
+          await _navigateToHome(m3uResult.data!);
         } else if (mounted && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror); // 数据失败时更新提示
         }
@@ -219,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
-  void _navigateToHome(PlaylistModel data) {
+  Future<void> _navigateToHome(PlaylistModel data) async {
     // 如果处于强制更新状态，不应该跳转到主页
     if (_getForceUpdateState()) {
       LogUtil.d('强制更新状态，阻止跳转到主页');
