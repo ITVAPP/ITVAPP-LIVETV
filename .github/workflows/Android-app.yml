@@ -41,8 +41,12 @@ jobs:
           node-version: '16'  # 使用 Node.js 16
       - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
         with:
-          flutter-version: '3.30.0'  # 修改：升级到 3.30.0，确保原生资产功能稳定
+          flutter-version: '3.29.0'  # flutter版本
           channel: 'stable'  # 使用 stable 渠道版本
+          architecture: 'x64'  # 修正为小写 x64，确保兼容
+          cache: false  # 禁用缓存
+          pub-cache-path: 'default'  # 默认 pub 缓存路径
+          dry-run: false  # 禁用 dry-run
       
       # 新增：安装 CMake，为 opencc 包的原生代码编译提供支持
       - name: Install CMake
@@ -125,7 +129,7 @@ jobs:
       - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
         if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a' }}
         run: |
-          # 修改：再次启用原生资产功能，确保在构建时生效
+          # 新增：再次启用原生资产功能，确保在构建时生效
           flutter config --enable-native-assets
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
             flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
@@ -141,7 +145,7 @@ jobs:
       - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
         if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a' }}
         run: |
-          # 修改：再次启用原生资产功能，确保在构建时生效
+          # 新增：再次启用原生资产功能，确保在构建时生效
           flutter config --enable-native-assets
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
             flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
