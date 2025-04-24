@@ -56,7 +56,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true  # 是否启用Material Design。
-  native-assets: true  # 启用原生资产支持
   generate: true
   assets:
     - assets/images/
