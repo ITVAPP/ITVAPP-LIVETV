@@ -15,6 +15,7 @@ import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
@@ -58,6 +59,9 @@ void main() async {
     SpUtil.getInstance(),  // 初始化本地存储工具
     themeProvider.initialize(), // 显式调用初始化
   ]);
+
+  // 初始化EPG文件系统，清理过期数据
+  await EpgUtil.init();
 
   if (!EnvUtil.isMobile) { // 判断是否为非移动端环境
     await _initializeDesktop(); // 初始化桌面端窗口设置
