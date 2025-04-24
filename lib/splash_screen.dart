@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sp_util/sp_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -190,6 +191,33 @@ class _SplashScreenState extends State<SplashScreen> {
     return conversionMap[(playListLang, userLang)];
   }
 
+  /// 从缓存中获取用户语言设置
+  Locale _getUserLocaleFromCache() {
+    try {
+      // 从持久化存储读取语言和国家代码
+      String? languageCode = SpUtil.getString('languageCode');
+      String? countryCode = SpUtil.getString('countryCode');
+      
+      if (languageCode != null && languageCode.isNotEmpty) {
+        // 若语言代码有效，返回保存的语言环境
+        if (countryCode != null && countryCode.isNotEmpty) {
+          return Locale(languageCode, countryCode);
+        } else {
+          return Locale(languageCode);
+        }
+      }
+      
+      // 如果没有存储的语言设置，使用Provider中的当前值
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      return languageProvider.currentLocale;
+    } catch (e, stackTrace) {
+      LogUtil.logError('从缓存获取用户语言设置失败', e, stackTrace);
+      // 发生错误时使用Provider中的当前值
+      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+      return languageProvider.currentLocale;
+    }
+  }
+
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   void _navigateToHome(PlaylistModel data) {
     // 如果处于强制更新状态，不应该跳转到主页
@@ -199,9 +227,8 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (mounted) {
-      // 获取当前用户的语言环境
-      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      final userLocale = languageProvider.currentLocale;
+      // 从缓存获取当前用户的语言环境
+      final userLocale = _getUserLocaleFromCache();
       PlaylistModel processedData = data;
 
       try {
