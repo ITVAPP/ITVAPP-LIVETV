@@ -181,7 +181,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
       appBar: AppBar(
         leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
         title: Text(
-          S.of(context).fontTitle, // 显示“字体设置”标题
+          S.of(context).fontTitle, // 显示"字体设置"标题
           style: _titleStyle,
         ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置标题栏颜色
@@ -267,7 +267,7 @@ class FontSizeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          S.of(context).fontSizeTitle, // 显示“字体大小”标题
+          S.of(context).fontSizeTitle, // 显示"字体大小"标题
           style: _SettingFontPageState._sectionTitleStyle,
         ),
         const SizedBox(height: 10), // 标题与按钮间距
@@ -330,7 +330,7 @@ class LanguageSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          S.of(context).languageSelection, // 显示“语言选择”标题
+          S.of(context).languageSelection, // 显示"语言选择"标题
           style: _SettingFontPageState._sectionTitleStyle,
         ),
         const SizedBox(height: 6), // 标题与内容间距
