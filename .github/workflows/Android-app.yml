@@ -74,7 +74,7 @@ jobs:
             echo "Applying JavaScript obfuscation..."
             ./node_modules/.bin/javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
             ./node_modules/.bin/javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
-            ./node_modules/.bin/javascript-obfuscator assets/js/cleanup.js --output assets/js/cleanup.js --compact true --control-flow-flattening true
+            ./node_modules/.bin/javascript-obfuscator assets/js/cleanup_script.js --output assets/js/cleanup_script.js --compact true --control-flow-flattening true
             ./node_modules/.bin/javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
           else
             echo "Skipping JavaScript obfuscation based on workflow settings"
