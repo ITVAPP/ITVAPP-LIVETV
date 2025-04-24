@@ -1,13 +1,10 @@
 name: itvapp_live_tv  # 应用程序的名称，可以根据需要进行更改。
 
-description: 电视宝 www.itvapp.net 直播，支持Android、车机、电视！
-# 应用的描述信息，这段文字通常会显示在应用商店中。可以根据项目实际情况进行修改。
+description: 电视宝 www.itvapp.net 直播，支持Android、车机、电视！ # 应用的描述信息。
 
-publish_to: "none"  # 私有项目不发布到pub.dev。
-# 如果要将包发布到pub.dev，将此行删除或修改为有效的URL。
+publish_to: "none"  # 私有项目不发布到pub.dev。如果要将包发布到pub.dev，将此行删除或修改为有效的URL。
 
 version: 1.5.8+1  # 应用的版本号，格式为 "主版本.次版本.修订版本+构建号"。 
-# 可以根据版本发布策略修改。例如，版本号可设置为 1.0.0+1。
 
 environment:
   sdk: ">=3.5.0 <4.0.0"  # Dart SDK的版本约束。可以根据项目需要选择不同版本的SDK。
@@ -45,7 +42,6 @@ dependencies:
   webview_flutter: 4.10.0  # 模拟网页访问。
   crypto: 3.0.6   # 处理sha256签名。
   encrypt: 5.0.3   # 处理加密/解密（如 AES）。
-  opencc: 1.1.0   # 处理中文简体繁体转换。
   # file_picker: 8.1.2  # 文件选择器插件，允许用户选择文件，适用于文件上传等场景。
   
 dev_dependencies:
