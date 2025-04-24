@@ -43,44 +43,6 @@ jobs:
         with:
           flutter-version: '3.29.0'  # 使用 Flutter 的最新稳定版本
           channel: 'stable'  # 使用 stable 渠道版本
-          
-      # 完整启用Flutter原生资产功能
-      - name: Enable Flutter native assets
-        run: |
-          # 全局启用原生资产
-          flutter config --enable-native-assets
-          
-          # 修改pubspec.yaml添加原生资产支持
-          if ! grep -q "native-assets:" pubspec.yaml; then
-            echo "" >> pubspec.yaml
-            echo "# 启用原生资产支持" >> pubspec.yaml
-            echo "flutter:" >> pubspec.yaml
-            echo "  native-assets: true" >> pubspec.yaml
-          fi
-          
-          # 确保android/app/build.gradle中的compileSdkVersion和目标SDK版本足够新
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 33/g' android/app/build.gradle
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 33/g' android/app/build.gradle
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 19/g' android/app/build.gradle
-          
-          # 检查pubspec.yaml看是否已经有flutter部分
-          if grep -q "^flutter:" pubspec.yaml; then
-            # 如果已经有flutter部分，检查是否有native-assets
-            if ! grep -q "native-assets:" pubspec.yaml; then
-              # 找到flutter:那一行，添加native-assets配置
-              sed -i '/^flutter:/a\  native-assets: true' pubspec.yaml
-            fi
-          else
-            # 如果没有flutter部分，添加整个部分
-            echo "" >> pubspec.yaml
-            echo "flutter:" >> pubspec.yaml
-            echo "  native-assets: true" >> pubspec.yaml
-          fi
-          
-          # 显示修改后的pubspec.yaml前几行
-          echo "Modified pubspec.yaml:"
-          head -n 30 pubspec.yaml
-          
       - run: flutter pub get  # 获取项目依赖
 
       - name: Fix hashValues in better_player
