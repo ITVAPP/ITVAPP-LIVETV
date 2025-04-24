@@ -5,11 +5,11 @@ import 'package:dio/dio.dart';
 import 'package:xml/xml.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:flutter/material.dart';
-import 'package:opencc/opencc.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/config.dart';
 
 /// EPG 工具类，管理节目指南数据的获取、缓存和中文转换
@@ -19,6 +19,7 @@ class EpgUtil {
   static Iterable<XmlElement>? _programmes; // 存储解析后的 XML 节目数据
   static const String _epgFolderName = 'epg_data'; // EPG数据文件夹名
   static Directory? _epgBaseDir; // EPG基础目录
+  static ZhConverter? _zhConverter; // 缓存转换器实例
 
   // 初始化EPG文件系统
   static Future<void> init() async {
@@ -158,7 +159,7 @@ class EpgUtil {
   }
 
   // 获取中文转换器，必要时返回 null
-  static ZhConverter? _getChineseConverter() {
+  static Future<ZhConverter?> _getChineseConverter() async {
     final userLocale = _getUserLocaleFromCache();
     // 非中文语言无需转换
     if (!userLocale.languageCode.startsWith('zh')) {
@@ -169,42 +170,54 @@ class EpgUtil {
     if (userLocale.countryCode != null && userLocale.countryCode!.isNotEmpty) {
       userLang = '${userLocale.languageCode}_${userLocale.countryCode}';
     }
+    
     // 根据语言区域选择转换方向
+    String conversionType = '';
     if (userLang.contains('TW') || userLang.contains('HK') || userLang.contains('MO')) {
       LogUtil.i('需转换：简体转繁体 (语言=$userLang)');
-      return ZhConverter('s2t');
+      conversionType = 's2t';
     } else if (userLang.contains('CN') || userLang == 'zh') {
       LogUtil.i('需转换：繁体转简体 (语言=$userLang)');
-      return ZhConverter('t2s');
+      conversionType = 't2s';
+    } else {
+      LogUtil.i('无需中文转换：未识别中文变体 (语言=$userLang)');
+      return null;
     }
-    LogUtil.i('无需中文转换：未识别中文变体 (语言=$userLang)');
-    return null;
+    
+    // 创建并初始化转换器（如果需要）
+    if (_zhConverter == null || _zhConverter!.conversionType != conversionType) {
+      _zhConverter = ZhConverter(conversionType);
+      await _zhConverter!.initialize();
+    }
+    
+    return _zhConverter;
   }
 
   // 转换 EPG 数据中的中文标题和描述
-  static EpgModel _convertEpgModelChinese(EpgModel model) {
-    final converter = _getChineseConverter();
+  static Future<EpgModel> _convertEpgModelChinese(EpgModel model) async {
+    final converter = await _getChineseConverter();
     if (converter == null) {
       return model; // 无需转换，直接返回
     }
     try {
       String? newChannelName = model.channelName;
       if (newChannelName != null && newChannelName.isNotEmpty) {
-        newChannelName = converter.convert(newChannelName); // 转换频道名称
+        newChannelName = await converter.convert(newChannelName); // 转换频道名称
       }
       List<EpgData>? newEpgData;
       if (model.epgData != null && model.epgData!.isNotEmpty) {
-        newEpgData = model.epgData!.map((epgData) {
+        newEpgData = [];
+        for (var epgData in model.epgData!) {
           String? newTitle = epgData.title;
           String? newDesc = epgData.desc;
           if (newTitle != null && newTitle.isNotEmpty) {
-            newTitle = converter.convert(newTitle); // 转换节目标题
+            newTitle = await converter.convert(newTitle); // 转换节目标题
           }
           if (newDesc != null && newDesc.isNotEmpty) {
-            newDesc = converter.convert(newDesc); // 转换节目描述
+            newDesc = await converter.convert(newDesc); // 转换节目描述
           }
-          return epgData.copyWith(title: newTitle, desc: newDesc);
-        }).toList();
+          newEpgData.add(epgData.copyWith(title: newTitle, desc: newDesc));
+        }
       }
       return model.copyWith(channelName: newChannelName, epgData: newEpgData);
     } catch (e, stackTrace) {
@@ -301,7 +314,7 @@ class EpgUtil {
         return null;
       }
       
-      final convertedEpgModel = _convertEpgModelChinese(epgModel);
+      final convertedEpgModel = await _convertEpgModelChinese(epgModel);
       await _saveEpgToFile(channelKey, convertedEpgModel);
       LogUtil.i('解析XML并保存：key=$channelKey');
       return convertedEpgModel;
@@ -330,7 +343,7 @@ class EpgUtil {
         epg.date = DateUtil.formatDate(DateTime.now(), format: "yyyy-MM-dd");
       }
       
-      final convertedEpg = _convertEpgModelChinese(epg);
+      final convertedEpg = await _convertEpgModelChinese(epg);
       await _saveEpgToFile(channelKey, convertedEpg);
       LogUtil.i('加载网络数据并保存：key=$channelKey');
       return convertedEpg;
