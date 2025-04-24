@@ -4,7 +4,6 @@ import 'dart:collection';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:async/async.dart' show LineSplitter;
 import 'package:sp_util/sp_util.dart';
-import 'package:opencc/opencc.dart';
 import 'package:intl/intl.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/entity/subScribe_model.dart';
@@ -14,6 +13,7 @@ import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/zhConverter.dart';
 
 // 定义转换类型枚举
 enum ConversionType {
@@ -95,7 +95,7 @@ class M3uUtil {
   }
 
   /// 转换播放列表的指定中文字段（PlayModel.title 和 PlayModel.group）
-  static PlaylistModel convertPlaylistModel(PlaylistModel data, String conversionType) {
+  static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String conversionType) async {
     try {
       // 映射字符串到枚举类型
       ConversionType? type;
@@ -120,40 +120,56 @@ class M3uUtil {
         LogUtil.i('无法创建转换器，跳过转换');
         return data;
       }
+      
+      // 确保转换器已初始化
+      await converter.initialize();
 
       // 使用 map 方法转换三层或两层嵌套结构
       final newPlayList = Map<String, dynamic>.fromEntries(
-        data.playList.entries.map((categoryEntry) {
+        await Future.wait(data.playList.entries.map((categoryEntry) async {
           final groupMap = categoryEntry.value;
           if (groupMap is! Map<String, dynamic>) {
             return MapEntry(categoryEntry.key, <String, Map<String, PlayModel>>{});
           }
 
           final newGroupMap = Map<String, dynamic>.fromEntries(
-            groupMap.entries.map((groupEntry) {
+            await Future.wait(groupMap.entries.map((groupEntry) async {
               final channelMap = groupEntry.value;
               if (channelMap is! Map<String, PlayModel>) {
                 return MapEntry(groupEntry.key, <String, PlayModel>{});
               }
 
               final newChannelMap = Map<String, PlayModel>.fromEntries(
-                channelMap.entries.map((channelEntry) {
+                await Future.wait(channelMap.entries.map((channelEntry) async {
                   final playModel = channelEntry.value;
                   // 转换 title 和 group
-                  final newTitle = playModel.title != null ? converter.convert(playModel.title!) : null;
-                  final newGroup = playModel.group != null ? converter.convert(playModel.group!) : null;
+                  String? newTitle;
+                  String? newGroup;
+                  
+                  if (playModel.title != null && playModel.title!.isNotEmpty) {
+                    newTitle = await converter.convert(playModel.title!);
+                  } else {
+                    newTitle = playModel.title;
+                  }
+                  
+                  if (playModel.group != null && playModel.group!.isNotEmpty) {
+                    newGroup = await converter.convert(playModel.group!);
+                  } else {
+                    newGroup = playModel.group;
+                  }
+                  
                   // 创建新的 PlayModel
                   return MapEntry(
                     channelEntry.key,
                     playModel.copyWith(title: newTitle, group: newGroup),
                   );
-                }),
+                })),
               );
               return MapEntry(groupEntry.key, newChannelMap);
-            }),
+            })),
           );
           return MapEntry(categoryEntry.key, newGroupMap);
-        }),
+        })),
       );
 
       // 返回新的 PlaylistModel，保留 epgUrl
