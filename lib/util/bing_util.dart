@@ -12,20 +12,21 @@ class BingUtil {
   static const int _maxRetries = 2; // 最大重试次数
   static const int _maxImages = 8; // 最大图片数量
   static const int _deleteRetries = 2; // 删除文件最大重试次数
-  static const Duration _retryDelay = Duration(milliseconds: 300); // 重试延迟时间
-  static const int _maxConcurrentDeletes = 3; // 最大并发删除任务数
+  static const Duration _retryDelay = Duration(milliseconds: 500); // 重试延迟时间
+  static const int _maxConcurrentDeletes = 2; // 最大并发删除任务数
 
-  static String? _cachedLocalStoragePath; // 缓存本地存储路径
+  static String? _cachedLocalStoragePath; // 缓存基础目录路径
+  static String? _cachedCurrentDateFolder; // 缓存当前日期文件夹路径
   static List<String>? _cachedTodayImages; // 缓存当天的图片列表
   static List<String>? _cachedAllImages; // 缓存所有图片列表
 
-  // 获取本地存储路径，若不存在则创建
+  // 获取本地存储基础路径，若不存在则创建
   static Future<String> _getLocalStoragePath() async {
     if (_cachedLocalStoragePath != null) {
       return _cachedLocalStoragePath!;
     }
     final directory = await getApplicationDocumentsDirectory();
-    final bingDir = Directory('${directory.path}/bing_images');
+    final bingDir = Directory('${directory.path}/pic');
     if (!await bingDir.exists()) {
       await bingDir.create(recursive: true);
     }
@@ -33,12 +34,49 @@ class BingUtil {
     return _cachedLocalStoragePath!;
   }
 
-  // 根据日期和序号生成文件名
-  static String _generateFileName(int index) {
+  // 获取当前日期的文件夹路径，若不存在则创建
+  static Future<String> _getCurrentDateFolder() async {
     final now = DateTime.now();
     final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    
+    if (_cachedCurrentDateFolder != null) {
+      return _cachedCurrentDateFolder!;
+    }
+    
+    final basePath = await _getLocalStoragePath();
+    final dateFolder = Directory('$basePath/$dateStr');
+    if (!await dateFolder.exists()) {
+      await dateFolder.create(recursive: true);
+    }
+    _cachedCurrentDateFolder = dateFolder.path;
+    return _cachedCurrentDateFolder!;
+  }
+
+  // 判断文件夹名是否为有效的日期格式
+  static bool _isValidDateFolder(String folderName) {
+    if (folderName.length != 8 || !RegExp(r'^\d{8}$').hasMatch(folderName)) {
+      return false;
+    }
+    
+    try {
+      final year = int.parse(folderName.substring(0, 4));
+      final month = int.parse(folderName.substring(4, 6));
+      final day = int.parse(folderName.substring(6, 8));
+      
+      // 简单验证日期合法性
+      if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return false;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 根据日期和序号生成文件名
+  static String _generateFileName(int index) {
     final seqStr = (index + 1).toString().padLeft(2, '0');
-    return '$dateStr$seqStr';
+    return seqStr; // 只返回序号，因为日期现在由文件夹表示
   }
 
   // 获取当天本地图片列表，支持缓存
@@ -47,15 +85,21 @@ class BingUtil {
       LogUtil.i('使用缓存的当天图片列表');
       return _cachedTodayImages!;
     }
-    final dirPath = await _getLocalStoragePath();
-    final todayPrefix = _generateFileName(0).substring(0, 8);
-    final files = await _listDirectoryFiles(dirPath);
     
+    final todayFolder = await _getCurrentDateFolder();
+    final dir = Directory(todayFolder);
+    if (!await dir.exists()) {
+      return [];
+    }
+    
+    final files = await dir.list().toList();
     _cachedTodayImages = files
-        .where((file) => file.path.contains(todayPrefix) && file.path.endsWith('.jpg'))
+        .where((file) => file is File && file.path.endsWith('.jpg'))
         .map((file) => file.path)
         .toList()
       ..sort();
+    
+    LogUtil.i('加载当天图片列表: ${_cachedTodayImages!.length}张');
     return _cachedTodayImages!;
   }
 
@@ -65,62 +109,98 @@ class BingUtil {
       LogUtil.i('使用缓存的所有图片列表');
       return _cachedAllImages!;
     }
-    final dirPath = await _getLocalStoragePath();
-    final files = await _listDirectoryFiles(dirPath);
     
-    _cachedAllImages = files
-        .where((file) => file.path.endsWith('.jpg'))
-        .map((file) => file.path)
-        .toList()
-      ..sort();
-    return _cachedAllImages!;
-  }
-
-  // 列出指定目录下的所有文件
-  static Future<List<FileSystemEntity>> _listDirectoryFiles(String dirPath) async {
-    final dir = Directory(dirPath);
-    return await dir.list().toList();
-  }
-
-  // 删除非当天的旧图片，限制并发删除数量
-  static Future<void> _deleteOldImages() async {
-    final dirPath = await _getLocalStoragePath();
-    final todayPrefix = _generateFileName(0).substring(0, 8);
-    final files = await _listDirectoryFiles(dirPath);
-
-    final deleteTasks = <Future<void>>[];
-    for (final file in files) {
-      if (file is File && !file.path.contains(todayPrefix)) {
-        deleteTasks.add((() async {
-          for (int retry = 0; retry < _deleteRetries; retry++) {
-            try {
-              await file.delete();
-              LogUtil.i('删除旧图片: ${file.path}');
-              break;
-            } catch (e) {
-              if (retry == _deleteRetries - 1) {
-                LogUtil.logError('删除旧图片失败: ${file.path}，已达最大重试次数', e);
-              } else {
-                await Future.delayed(_retryDelay);
-              }
-            }
-          }
-        })());
+    final basePath = await _getLocalStoragePath();
+    final baseDir = Directory(basePath);
+    if (!await baseDir.exists()) {
+      return [];
+    }
+    
+    final List<String> allImages = [];
+    
+    // 先获取所有日期文件夹
+    final folders = await baseDir.list().where((entity) => entity is Directory).toList();
+    
+    // 对每个文件夹，收集所有JPG文件
+    for (final folder in folders) {
+      if (folder is Directory) {
+        final files = await folder.list().toList();
+        final jpgFiles = files
+            .where((file) => file is File && file.path.endsWith('.jpg'))
+            .map((file) => file.path)
+            .toList();
+        allImages.addAll(jpgFiles);
       }
     }
+    
+    allImages.sort(); // 排序所有图片路径
+    _cachedAllImages = allImages;
+    
+    LogUtil.i('加载所有图片列表: ${allImages.length}张');
+    return allImages;
+  }
 
-    for (int i = 0; i < deleteTasks.length; i += _maxConcurrentDeletes) {
-      final batch = deleteTasks.sublist(i, (i + _maxConcurrentDeletes).clamp(0, deleteTasks.length));
-      await Future.wait(batch);
+  // 删除非当天的旧图片文件夹
+  static Future<void> _deleteOldImages() async {
+    try {
+      final basePath = await _getLocalStoragePath();
+      final baseDir = Directory(basePath);
+      if (!await baseDir.exists()) {
+        return;
+      }
+      
+      final now = DateTime.now();
+      final currentDateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      
+      // 获取所有子文件夹
+      final folders = await baseDir.list().where((entity) => entity is Directory).toList();
+      final deleteTasks = <Future<void>>[];
+      
+      for (final folder in folders) {
+        if (folder is Directory) {
+          final folderName = folder.path.split('/').last;
+          // 如果是有效的日期文件夹且不是当天的
+          if (_isValidDateFolder(folderName) && folderName != currentDateStr) {
+            deleteTasks.add((() async {
+              for (int retry = 0; retry < _deleteRetries; retry++) {
+                try {
+                  await folder.delete(recursive: true);
+                  LogUtil.i('删除旧图片文件夹: ${folder.path}');
+                  break;
+                } catch (e) {
+                  if (retry == _deleteRetries - 1) {
+                    LogUtil.logError('删除旧图片文件夹失败: ${folder.path}，已达最大重试次数', e);
+                  } else {
+                    await Future.delayed(_retryDelay);
+                  }
+                }
+              }
+            })());
+          }
+        }
+      }
+      
+      // 分批并发执行删除任务
+      for (int i = 0; i < deleteTasks.length; i += _maxConcurrentDeletes) {
+        final batch = deleteTasks.sublist(i, (i + _maxConcurrentDeletes).clamp(0, deleteTasks.length));
+        await Future.wait(batch);
+      }
+      
+      // 清理缓存
+      _cachedTodayImages = null;
+      _cachedAllImages = null;
+      _cachedCurrentDateFolder = null; // 因为日期可能变化，所以清理当前日期文件夹缓存
+      
+      LogUtil.i('旧图片文件夹清理完成');
+    } catch (e, stackTrace) {
+      LogUtil.logError('清理旧图片文件夹失败', e, stackTrace);
     }
-    _cachedTodayImages = null; // 清理当天图片缓存
-    _cachedAllImages = null; // 清理所有图片缓存
   }
 
   // 下载并保存图片到本地，返回文件路径
   static Future<String?> _downloadAndSaveImage(String url, String fileName) async {
     try {
-      final dirPath = await _getLocalStoragePath();
+      final dirPath = await _getCurrentDateFolder();
       final filePath = '$dirPath/$fileName.jpg';
       LogUtil.i('开始下载图片: $url 到 $filePath');
 
@@ -272,12 +352,15 @@ class BingUtil {
       bingImgUrls = [];
       bingImgUrl = null;
       _cachedLocalStoragePath = null;
-      _cachedTodayImages = null; // 清理当天图片缓存
-      _cachedAllImages = null; // 清理所有图片缓存
+      _cachedCurrentDateFolder = null;
+      _cachedTodayImages = null;
+      _cachedAllImages = null;
+      
       final dirPath = await _getLocalStoragePath();
       final dir = Directory(dirPath);
       if (await dir.exists()) {
         await dir.delete(recursive: true);
+        await dir.create(); // 重新创建空目录
         LogUtil.i('已清除所有本地 Bing 图片缓存');
       }
     } catch (e) {
