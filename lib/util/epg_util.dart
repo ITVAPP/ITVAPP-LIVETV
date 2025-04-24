@@ -2,12 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:xml/xml.dart';
 import 'package:opencc/opencc.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:flutter/material.dart'; // Added for BuildContext
+import 'package:itvapp_live_tv/config.dart';
 
 // 缓存条目，记录 EPG 数据和存储时间
 class _EpgCacheEntry {
@@ -124,7 +125,7 @@ class EpgUtil {
   }
 
   // 获取 EPG 数据，支持缓存、XML 和网络请求
-  static Future<EpgModel?> getEpg(BuildContext context, PlayModel? model, {CancelToken? cancelToken}) async {
+  static Future<EpgModel?> getEpg(PlayModel? model, {BuildContext? context, CancelToken? cancelToken}) async {
     // 检查取消状态
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('EPG 获取取消：请求已取消');
@@ -164,11 +165,6 @@ class EpgUtil {
         LogUtil.i('缓存已过期，重新获取: $channelKey');
       }
     }
-
-    // 获取语言设置
-    final languageSettings = _getLanguageSettings(context);
-    final conversionType = languageSettings.conversionType;
-    final userLang = languageSettings.userLang;
 
     EpgModel? epgModel;
 
@@ -238,20 +234,27 @@ class EpgUtil {
 
     // 应用语言转换
     if (epgModel != null) {
-      if (conversionType != null && userLang != null) {
-        LogUtil.i('正在对 EPG 数据进行中文转换: $userLang ($conversionType)');
-        epgModel = _convertEpgModel(epgModel, conversionType, userLang);
-        LogUtil.i('EPG 数据中文转换完成');
+      if (context != null) {
+        final languageSettings = _getLanguageSettings(context);
+        final conversionType = languageSettings.conversionType;
+        final userLang = languageSettings.userLang;
+        if (conversionType != null && userLang != null) {
+          LogUtil.i('正在对 EPG 数据进行中文转换: $userLang ($conversionType)');
+          epgModel = _convertEpgModel(epgModel, conversionType, userLang);
+          LogUtil.i('EPG 数据中文转换完成');
+        } else {
+          String reason = userLang == null
+              ? '用户语言非中文 (${context.read<LanguageProvider>().currentLocale.languageCode})'
+              : '无匹配的转换类型';
+          LogUtil.i('无需对 EPG 数据进行中文转换: $reason');
+        }
       } else {
-        String reason = userLang == null
-            ? '用户语言非中文 (${context.read<LanguageProvider>().currentLocale.languageCode})'
-            : '无匹配的转换类型';
-        LogUtil.i('无需对 EPG 数据进行中文转换: $reason');
+        LogUtil.i('未提供 BuildContext，跳过 EPG 数据中文转换');
       }
       _cleanCache(); // 清理缓存
       epgCacheMap[channelKey] = _EpgCacheEntry(epgModel, DateTime.now()); // 缓存数据
       LogUtil.i('加载并缓存新的 EPG 数据: $channelKey');
-      return epgModel; // 修正非 ASCII 字符错误
+      return epgModel;
     }
 
     return null;
