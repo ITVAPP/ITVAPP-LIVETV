@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
+import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // SelectionState 类用于管理焦点和选中状态
@@ -356,12 +357,35 @@ class LanguageSection extends StatelessWidget {
                             : S.of(context).use, // 使用此语言
                         isSelected: state.selectedIndex == index,
                         onSelected: () async {
-                          await languageProvider.changeLanguage(languageCodes[index]); // 切换语言
+                          // 记录当前语言代码，用于后续比较
+                          final currentLanguageCode = languageProvider.currentLocale.toString();
+                          
+                          // 切换语言
+                          await languageProvider.changeLanguage(languageCodes[index]);
+                          
+                          // 更新语言选中状态
                           final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
                           if (parentState != null && parentState.mounted) {
                             parentState.setState(() {
                               parentState._langState = SelectionState(state.focusedIndex, index); // 更新语言选中状态
                             });
+                          }
+                          
+                          // 检查是否为中文语言间的切换
+                          final newLanguageCode = languageCodes[index];
+                          final isChinese = _isChinese(newLanguageCode);
+                          final wasChineseBefore = _isChinese(currentLanguageCode);
+                          final isChineseVariantChange = 
+                              (currentLanguageCode.contains("CN") && newLanguageCode.contains("TW")) ||
+                              (currentLanguageCode.contains("TW") && newLanguageCode.contains("CN"));
+                          
+                          // 如果切换到中文或在不同中文变体间切换，显示提示信息
+                          if (isChinese && ((!wasChineseBefore) || isChineseVariantChange)) {
+                            CustomSnackBar.showSnackBar(
+                              context, 
+                              S.of(context).langTip,
+                              duration: const Duration(seconds: 5),
+                            );
                           }
                         },
                         isBold: state.selectedIndex == index, // 选中时加粗
@@ -375,5 +399,10 @@ class LanguageSection extends StatelessWidget {
         ),
       ],
     );
+  }
+  
+  // 辅助方法：检查语言代码是否为中文
+  bool _isChinese(String languageCode) {
+    return languageCode == 'zh' || languageCode.startsWith('zh_');
   }
 }
