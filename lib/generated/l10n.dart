@@ -735,6 +735,15 @@ class S {
     );
   }
 
+  String get langTip {
+    return Intl.message(
+      '重启应用后，频道信息才可以应用新的语言设置',
+      name: 'langTip',
+      desc: '',
+      args: [],
+    );
+  }
+  
   String get backgroundImageTitle {
     return Intl.message(
       '背景图',
