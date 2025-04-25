@@ -8,8 +8,8 @@ class Config {
   /// 当前应用包名（和 MainActivity.kt 设置的要一致）
   static const String packagename = "net.itvapp.livetv";
 
-  /// 是否需要另外生成国内版
-  static const String cnversion = true;
+  /// 是否需要生成国内版
+  static const bool cnversion = true;
 
   /// 生成国内版时屏蔽播放列表的 分类 Category 关键字（多个用@分隔）
   static const String cnplayListrule = '港·澳·台';
