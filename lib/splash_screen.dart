@@ -27,7 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 存储 M3U 数据结果，异常时可访问
   String _message = ''; // 当前显示的提示信息
   bool isDebugMode = false; // 调试模式开关，控制日志显示
-  final LocationService _locationService = LocationService(); // 初始化用户位置服务
+  final LocationService _locationService = LocationService(); // 用户位置服务实例
   
   // 静态资源路径和样式，避免重复创建
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图路径
@@ -51,15 +51,14 @@ class _SplashScreenState extends State<SplashScreen> {
   // 缓存强制更新状态，避免重复检查
   bool? _isInForceUpdateState;
   
-  // 删除超时时间常量，不再需要
-  // static const _initTimeoutDuration = Duration(seconds: 30); // 初始化超时时间
-  // static const _conversionTimeoutDuration = Duration(seconds: 15); // 中文转换超时时间
-
   // 定义语言转换映射表，与M3uUtil和ZhConverter匹配
   static const Map<String, Map<String, String>> _languageConversionMap = {
     'zh_CN': {'zh_TW': 'zhHans2Hant'}, // 简体转繁体
     'zh_TW': {'zh_CN': 'zhHant2Hans'}, // 繁体转简体
   };
+
+  // 初始化任务的取消标志
+  bool _isCancelled = false;
 
   @override
   void initState() {
@@ -69,7 +68,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    super.dispose(); // 清理资源，异步任务需在此取消（若有）
+    _isCancelled = true; // 标记取消任务，防止异步操作继续
+    super.dispose();
   }
 
   /// 获取缓存的强制更新状态，避免重复调用
@@ -80,112 +80,123 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 初始化应用，协调数据加载和页面跳转
   Future<void> _initializeApp() async {
+    if (_isCancelled) return; // 已取消则中断初始化
+
     try {
-      // 添加超时处理
       await LogUtil.safeExecute(() async {
-        // 先检查版本更新
-        await _checkVersion();
-        
-        // 如果是强制更新状态，停止进一步加载
+        await _checkVersion(); // 检查版本更新
         if (_getForceUpdateState()) {
-          final message = S.current.oldVersion;
-          _updateMessage(message);
-          // 在强制更新状态下显示提示信息
-          if (mounted) {
-            CustomSnackBar.showSnackBar(
-              context, 
-              message,
-              duration: const Duration(seconds: 5)
-            );
-          }
-          return; // 强制更新时中断初始化流程
+          _handleForceUpdate(); // 处理强制更新逻辑
+          return;
         }
         
-        // 并行获取M3U数据和用户信息，提高加载效率
-        final Future<M3uResult> m3uFuture = _fetchData();
-        final Future<void> userInfoFuture = _fetchUserInfo();
-
-        // 等待所有数据加载完成，移除超时处理
+        // 并行加载 M3U 数据和用户信息
+        final m3uFuture = _fetchData();
+        final userInfoFuture = _fetchUserInfo();
         final m3uResult = await m3uFuture;
-        
-        // 移除用户信息获取的超时处理
         await userInfoFuture;
         
         // 数据就绪后跳转主页
-        if (mounted && m3uResult.data != null && !_getForceUpdateState()) {
+        if (!_isCancelled && mounted && m3uResult.data != null && !_getForceUpdateState()) {
           await _navigateToHome(m3uResult.data!);
-        } else if (mounted && m3uResult.data == null) {
-          _updateMessage(S.current.getm3udataerror); // 数据失败时更新提示
+        } else if (!_isCancelled && mounted && m3uResult.data == null) {
+          _updateMessage(S.current.getm3udataerror); // 数据获取失败提示
         }
       }, '初始化应用时发生错误');
     } catch (error, stackTrace) {
-      LogUtil.logError('初始化应用时发生错误', error, stackTrace);
-      _updateMessage(S.current.getDefaultError); // 全局错误提示
+      if (!_isCancelled) {
+        LogUtil.logError('初始化应用时发生错误', error, stackTrace);
+        _updateMessage(S.current.getDefaultError); // 全局错误提示
+      }
     }
   }
 
-  /// 检查版本更新
+  /// 处理强制更新状态，显示提示信息
+  void _handleForceUpdate() {
+    if (_isCancelled || !mounted) return;
+    
+    final message = S.current.oldVersion;
+    _updateMessage(message);
+    CustomSnackBar.showSnackBar(
+      context, 
+      message,
+      duration: const Duration(seconds: 5), // 显示 5 秒提示
+    );
+  }
+
+  /// 检查应用版本更新状态
   Future<void> _checkVersion() async {
+    if (_isCancelled || !mounted) return;
+    
     try {
-      if (mounted) {
-        _updateMessage("检查版本更新...");
-        await CheckVersionUtil.checkVersion(context, false, false, false);
-        // 检查完成后更新缓存的强制更新状态
-        _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
-      }
+      _updateMessage('检查版本更新...');
+      await CheckVersionUtil.checkVersion(context, false, false, false);
+      _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState(); // 更新缓存状态
     } catch (e, stackTrace) {
       LogUtil.logError('检查版本更新时发生错误', e, stackTrace);
     }
   }
 
-  /// 获取用户信息（地理位置和设备信息）
+  /// 获取用户地理位置和设备信息
   Future<void> _fetchUserInfo() async {
-    if (mounted) {
-      try {
-        await _locationService.getUserAllInfo(context); // 获取用户位置和设备信息
-        LogUtil.i('用户信息获取成功');
-      } catch (error, stackTrace) {
-        LogUtil.logError('获取用户信息时发生错误', error, stackTrace);
-      }
+    if (_isCancelled || !mounted) return;
+    
+    try {
+      await _locationService.getUserAllInfo(context);
+      LogUtil.i('用户信息获取成功');
+    } catch (error, stackTrace) {
+      LogUtil.logError('获取用户信息时发生错误', error, stackTrace);
     }
   }
 
   /// 获取 M3U 数据，包含自动重试机制
   Future<M3uResult> _fetchData() async {
+    if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
+    
     try {
-      _updateMessage(S.current.getm3udata); // 显示获取数据提示
+      _updateMessage(S.current.getm3udata);
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
-        _updateMessage('${S.current.getm3udata} (自动重试第 $attempt 次，剩余 $remaining 次)');
-        LogUtil.e('获取 M3U 数据失败，自动重试第 $attempt 次，剩余 $remaining 次');
+        if (!_isCancelled) {
+          _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining)');
+          LogUtil.e('获取 M3U 数据失败，重试 $attempt/$remaining');
+        }
       });
+      
+      if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
+      
       if (result != null && result!.data != null) {
-        return result!; // 返回成功结果
+        return result!; // 返回成功获取的 M3U 数据
       } else {
-        _updateMessage(S.current.getm3udataerror); // 重试失败提示
+        _updateMessage(S.current.getm3udataerror);
         return M3uResult(errorMessage: result?.errorMessage ?? '未知错误');
       }
     } catch (e, stackTrace) {
-      _updateMessage(S.current.getm3udataerror); // 异常时更新提示
-      LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace);
-      return M3uResult(errorMessage: ': $e');
+      if (!_isCancelled) {
+        _updateMessage(S.current.getm3udataerror);
+        LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace);
+      }
+      return M3uResult(errorMessage: e.toString());
     }
   }
 
-  /// 更新提示信息，带节流机制减少重复刷新
+  /// 更新提示信息，带节流机制减少频繁刷新
   void _updateMessage(String message) {
-    if (!mounted) return; // 确保组件挂载
+    if (_isCancelled || !mounted) return;
+    
     final now = DateTime.now();
     if (_lastUpdateTime == null || now.difference(_lastUpdateTime!) >= _debounceDuration) {
       setState(() {
-        _message = message; // 更新提示信息
+        _message = message; // 更新界面提示信息
       });
       _lastUpdateTime = now;
     }
   }
 
-  /// 显示调试日志对话框，仅调试模式生效
+  /// 显示调试日志对话框，仅在调试模式下生效
   void _showErrorLogs(BuildContext context) {
-    if (isDebugMode && mounted) { // 检查挂载状态，确保上下文安全
+    if (_isCancelled || !mounted) return;
+    
+    if (isDebugMode) {
       DialogUtil.showCustomDialog(
         context,
         title: S.current.logtitle,
@@ -195,123 +206,147 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 获取语言转换类型，返回M3uUtil.convertPlaylistModel支持的转换类型字符串
+  /// 获取语言转换类型，返回支持的转换类型字符串
   String? _getConversionType(String playListLang, String userLang) {
     if (_languageConversionMap.containsKey(playListLang)) {
       final targetMap = _languageConversionMap[playListLang];
       if (targetMap != null && targetMap.containsKey(userLang)) {
-        return targetMap[userLang]; // 返回转换类型
+        return targetMap[userLang]; // 返回对应的转换类型
       }
     }
-    return null; // 找不到对应的转换类型
+    return null; // 无匹配的转换类型
   }
 
-  /// 将语言代码规范化为"zh_XX"格式，处理各种可能的语言代码
+  /// 规范化为"zh_XX"格式的语言代码
   String _normalizeLanguageCode(Locale locale) {
+    if (locale.languageCode.isEmpty) return 'zh'; // 默认中文
+    
     if (locale.languageCode == 'zh') {
       if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-        return 'zh_${locale.countryCode!}'; // 使用国家代码格式
+        return 'zh_${locale.countryCode!}'; // 带国家代码的中文
       }
-      return 'zh'; // 无国家代码返回zh
+      return 'zh'; // 纯中文
     } else if (locale.languageCode.startsWith('zh_')) {
-      return locale.languageCode; // 已经是zh_XX格式
+      return locale.languageCode; // 已规范化的中文
     } else if (locale.languageCode.startsWith('zh')) {
       if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-        return 'zh_${locale.countryCode!}'; // 其他zh开头格式使用国家代码
+        return 'zh_${locale.countryCode!}'; // 其他中文变体
       }
-      return locale.languageCode; // 无国家代码直接返回
+      return locale.languageCode; // 无国家代码的中文
     }
     
     if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-      return '${locale.languageCode}_${locale.countryCode!}'; // 非中文语言组合国家代码
+      return '${locale.languageCode}_${locale.countryCode!}'; // 非中文语言
     }
     
-    return locale.languageCode; // 返回原始语言代码
+    return locale.languageCode; // 原始语言代码
   }
 
   /// 从缓存中获取用户语言设置
   Locale _getUserLocaleFromCache() {
     try {
-      String? languageCode = SpUtil.getString('languageCode');
-      String? countryCode = SpUtil.getString('countryCode');
+      final String? languageCode = SpUtil.getString('languageCode');
+      final String? countryCode = SpUtil.getString('countryCode');
       
       if (languageCode != null && languageCode.isNotEmpty) {
         if (countryCode != null && countryCode.isNotEmpty) {
-          return Locale(languageCode, countryCode); // 返回缓存的语言环境
+          return Locale(languageCode, countryCode); // 缓存的语言环境
         }
-        return Locale(languageCode); // 无国家代码的语言环境
+        return Locale(languageCode); // 无国家代码的语言
       }
       
-      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      return languageProvider.currentLocale; // 使用Provider中的当前语言
+      if (mounted && context.mounted) {
+        final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+        return languageProvider.currentLocale; // 使用 Provider 的语言
+      }
+      
+      return const Locale('zh', 'CN'); // 默认简体中文
     } catch (e, stackTrace) {
-      LogUtil.logError('从缓存获取用户语言设置失败', e, stackTrace);
-      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      return languageProvider.currentLocale; // 错误时回退到Provider中的语言
+      LogUtil.logError('从缓存获取用户语言失败', e, stackTrace);
+      
+      if (mounted && context.mounted) {
+        try {
+          final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+          return languageProvider.currentLocale; // 回退到 Provider 语言
+        } catch (e2) {
+          LogUtil.logError('从 Provider 获取语言失败', e2, stackTrace);
+        }
+      }
+      
+      return const Locale('zh', 'CN'); // 兜底默认语言
     }
   }
 
-  /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
+  /// 执行播放列表的中文转换逻辑
+  Future<PlaylistModel> _performChineseConversion(
+    PlaylistModel data, 
+    String playListLang, 
+    String userLang
+  ) async {
+    if (!userLang.startsWith('zh') || 
+        !playListLang.startsWith('zh') || 
+        userLang == playListLang) {
+      return data; // 无需转换，直接返回
+    }
+    
+    final conversionType = _getConversionType(playListLang, userLang);
+    
+    if (conversionType == null) {
+      return data; // 无转换方法，返回原数据
+    }
+    
+    LogUtil.i('执行中文转换: $playListLang -> $userLang ($conversionType)');
+    
+    try {
+      final convertedData = await M3uUtil.convertPlaylistModel(data, conversionType);
+      return convertedData; // 返回转换后的数据
+    } catch (error, stackTrace) {
+      LogUtil.logError('中文转换失败', error, stackTrace);
+      return data; // 转换失败返回原数据
+    }
+  }
+
+  /// 跳转到主页，传递处理后的播放列表数据
   Future<void> _navigateToHome(PlaylistModel data) async {
+    if (_isCancelled || !mounted) return;
+    
     if (_getForceUpdateState()) {
-      LogUtil.d('强制更新状态，阻止跳转到主页');
+      LogUtil.d('强制更新状态，阻止跳转');
       return; // 强制更新时阻止跳转
     }
 
-    if (mounted) {
+    try {
       final userLocale = _getUserLocaleFromCache();
-      PlaylistModel processedData = data;
-
-      try {
-        const playListLang = Config.playListlang; // 播放列表使用的语言
-        final userLang = _normalizeLanguageCode(userLocale); // 规范化用户语言代码
-        
-        if (userLang.startsWith('zh') && 
-            playListLang.startsWith('zh') && 
-            userLang != playListLang) {
-          
-          _updateMessage('正在进行中文转换...');
-          
-          final conversionType = _getConversionType(playListLang, userLang);
-          
-          if (conversionType != null) {
-            LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
-            
-            // 修改此处，移除超时处理，直接调用转换方法
-            try {
-              processedData = await M3uUtil.convertPlaylistModel(data, conversionType);
-              LogUtil.i('播放列表中文转换完成');
-            } catch (error, stackTrace) {
-              LogUtil.logError('播放列表中文转换失败', error, stackTrace);
-              processedData = data; // 转换失败回退到原始数据
-            }
-            
-          } else {
-            LogUtil.i('无需对播放列表进行中文转换: 没有找到从 $playListLang 到 $userLang 的转换方法');
-          }
-        } else {
-          final reason = !userLang.startsWith('zh') 
-              ? '用户语言不是中文 ($userLang)' 
-              : userLang == playListLang 
-                  ? '用户语言 ($userLang) 与播放列表语言 ($playListLang) 相同' 
-                  : '播放列表语言不是中文 ($playListLang)';
-          LogUtil.i('无需对播放列表进行中文转换: $reason');
-        }
-      } catch (e, stackTrace) {
-        LogUtil.logError('播放列表中文转换过程中发生错误，使用原始数据', e, stackTrace);
-        processedData = data; // 转换失败回退到原始数据
-      }
-
-      // 延迟跳转到主页
+      final userLang = _normalizeLanguageCode(userLocale); // 规范化用户语言
+      const playListLang = Config.playListlang; // 播放列表语言
+      
+      final processedData = await _performChineseConversion(data, playListLang, userLang);
+      
+      if (_isCancelled || !mounted || _getForceUpdateState()) return;
+      
+      // 延迟 500ms 跳转，确保对话框关闭
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && !_getForceUpdateState()) {
+        if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => LiveHomePage(m3uData: processedData), // 传递处理后的数据
+              builder: (context) => LiveHomePage(m3uData: processedData), // 跳转主页
             ),
           );
         }
       });
+    } catch (e, stackTrace) {
+      LogUtil.logError('跳转主页失败', e, stackTrace);
+      if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && !_getForceUpdateState()) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => LiveHomePage(m3uData: data), // 使用原始数据跳转
+              ),
+            );
+          }
+        });
+      }
     }
   }
 
@@ -329,7 +364,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
           _buildMessageUI(
             _message.isEmpty ? '${S.current.loading}' : _message,
-            isLoading: !_getForceUpdateState(), // 强制更新状态下不显示加载动画
+            isLoading: !_getForceUpdateState(), // 强制更新时隐藏加载动画
             orientation: orientation,
           ),
         ],
