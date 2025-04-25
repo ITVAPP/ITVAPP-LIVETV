@@ -112,6 +112,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "downloadFailed": MessageLookupByLibrary.simpleMessage("下載失敗，請稍後重試"),
         "platformNotSupported": MessageLookupByLibrary.simpleMessage("系統不支持應用內更新"),
         "fontTitle": MessageLookupByLibrary.simpleMessage("字型"),
+        "langTip": MessageLookupByLibrary.simpleMessage("重啟應用後，頻道資訊才可以應用新的語言設置"),
         "backgroundImageTitle": MessageLookupByLibrary.simpleMessage("背景圖"),
         "slogTitle": MessageLookupByLibrary.simpleMessage("日誌"),
         "updateTitle": MessageLookupByLibrary.simpleMessage("更新"),
