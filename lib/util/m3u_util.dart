@@ -149,152 +149,168 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
       return data; // 初始化失败，回退到原始数据
     }
     
-    // 测试转换器是否正常工作
-    final testText = "测试文本";
-    final testResult = await converter.convert(testText);
-    LogUtil.i('转换器测试: "$testText" -> "$testResult"');
-    
-    // 获取原始播放列表的类型，保持类型一致性
+    // 获取原始播放列表
     final Map<String, dynamic> originalPlayList = data.playList as Map<String, dynamic>;
     
-    // 创建新的播放列表，使用与原始结构相同的类型
+    // 创建新的播放列表
     final Map<String, Map<String, Map<String, PlayModel>>> newPlayList = {};
+    
+    // 创建转换缓存，避免重复转换相同文本
+    final Map<String, String> convertCache = {};
     int convertCount = 0;
     
-    // 处理每个分类
-    for (final categoryEntry in originalPlayList.entries) {
-      final String categoryKey = categoryEntry.key;
-      final dynamic groupMapValue = categoryEntry.value;
+    // 转换文本的辅助函数，带缓存
+    Future<String> convertText(String text) async {
+      if (text.isEmpty) return text;
       
-      // 确保groupMap是有效的Map类型
-      if (groupMapValue is! Map<String, dynamic>) {
-        newPlayList[categoryKey] = <String, Map<String, PlayModel>>{};
-        continue;
+      // 检查缓存
+      if (convertCache.containsKey(text)) {
+        return convertCache[text]!;
       }
       
-      final Map<String, dynamic> groupMap = groupMapValue;
-      
-      // 转换分类名，特定键值跳过转换
-      String newCategoryKey = categoryKey;
-      if (categoryKey != 'myFavorite' && categoryKey != Config.myFavoriteKey && categoryKey != Config.allChannelsKey) {
-        try {
-          final convertedCategory = await converter.convert(categoryKey);
-          if (convertedCategory != categoryKey) {
-            LogUtil.d('转换分类: "$categoryKey" -> "$convertedCategory"');
-            newCategoryKey = convertedCategory;
-            convertCount++;
-          }
-        } catch (e) {
-          LogUtil.e('转换分类名失败: $categoryKey, 错误: $e');
-          // 转换失败使用原名
-          newCategoryKey = categoryKey;
-        }
-      }
-      
-      newPlayList[newCategoryKey] = <String, Map<String, PlayModel>>{};
-      
-      // 处理每个分组
-      for (final groupEntry in groupMap.entries) {
-        final String groupKey = groupEntry.key;
-        final dynamic channelMapValue = groupEntry.value;
-        
-        // 确保channelMap是有效的Map类型
-        if (channelMapValue is! Map<String, dynamic>) {
-          newPlayList[newCategoryKey][groupKey] = <String, PlayModel>{};
-          continue;
-        }
-        
-        final Map<String, dynamic> channelMap = channelMapValue;
-        
-        // 转换分组名，特定键值跳过转换
-        String newGroupKey = groupKey;
-        if (groupKey != 'myFavorite') {
-          try {
-            final convertedGroup = await converter.convert(groupKey);
-            if (convertedGroup != groupKey) {
-              LogUtil.d('转换分组: "$groupKey" -> "$convertedGroup"');
-              newGroupKey = convertedGroup;
-              convertCount++;
-            }
-          } catch (e) {
-            LogUtil.e('转换分组名失败: $groupKey, 错误: $e');
-            // 转换失败使用原名
-            newGroupKey = groupKey;
-          }
-        }
-        
-        newPlayList[newCategoryKey][newGroupKey] = <String, PlayModel>{};
-        
-        // 处理每个频道
-        for (final channelEntry in channelMap.entries) {
-          final String channelKey = channelEntry.key;
-          final dynamic playModelValue = channelEntry.value;
-          
-          // 确保playModel是有效的PlayModel类型
-          if (playModelValue is! PlayModel) {
-            continue;
-          }
-          
-          final PlayModel playModel = playModelValue;
-          
-          // 转换频道名
-          String newChannelKey = channelKey;
-          try {
-            final convertedChannel = await converter.convert(channelKey);
-            if (convertedChannel != channelKey) {
-              LogUtil.d('转换频道: "$channelKey" -> "$convertedChannel"');
-              newChannelKey = convertedChannel;
-              convertCount++;
-            }
-          } catch (e) {
-            LogUtil.e('转换频道名失败: $channelKey, 错误: $e');
-            // 转换失败使用原名
-            newChannelKey = channelKey;
-          }
-          
-          // 转换标题
-          String? newTitle = playModel.title;
-          if (newTitle != null && newTitle.isNotEmpty) {
-            try {
-              final convertedTitle = await converter.convert(newTitle);
-              if (convertedTitle != newTitle) {
-                LogUtil.d('转换标题: "$newTitle" -> "$convertedTitle"');
-                newTitle = convertedTitle;
-                convertCount++;
-              }
-            } catch (e) {
-              LogUtil.e('转换标题失败: $newTitle, 错误: $e');
-              // 转换失败使用原标题
-            }
-          }
-          
-          // 转换分组
-          String? newGroup = playModel.group;
-          if (newGroup != null && newGroup.isNotEmpty && newGroup != 'myFavorite') {
-            try {
-              final convertedGroup = await converter.convert(newGroup);
-              if (convertedGroup != newGroup) {
-                LogUtil.d('转换分组属性: "$newGroup" -> "$convertedGroup"');
-                newGroup = convertedGroup;
-                convertCount++;
-              }
-            } catch (e) {
-              LogUtil.e('转换分组属性失败: $newGroup, 错误: $e');
-              // 转换失败使用原分组
-            }
-          }
-          
-          // 创建新的PlayModel
-          final newPlayModel = playModel.copyWith(
-            title: newTitle,
-            group: newGroup
-          );
-          
-          // 将转换后的频道添加到新的播放列表
-          newPlayList[newCategoryKey][newGroupKey][newChannelKey] = newPlayModel;
-        }
+      try {
+        final converted = await converter.convert(text);
+        convertCache[text] = converted;
+        if (converted != text) convertCount++;
+        return converted;
+      } catch (e) {
+        LogUtil.e('转换失败: $text, 错误: $e');
+        return text; // 失败时返回原文本
       }
     }
+    
+    // 分批处理辅助函数，限制批量大小
+    Future<List<T>> processBatch<T>(List<Future<T> Function()> tasks, int batchSize) async {
+      final results = <T>[];
+      for (int i = 0; i < tasks.length; i += batchSize) {
+        final end = (i + batchSize < tasks.length) ? i + batchSize : tasks.length;
+        final batchTasks = tasks.sublist(i, end);
+        final batchResults = await Future.wait(batchTasks.map((task) => task()));
+        results.addAll(batchResults);
+      }
+      return results;
+    }
+    
+    // 处理分类的异步任务
+    final categoryTasks = <Future<void> Function()>[];
+    
+    // 优化1：异步处理分类
+    for (final categoryEntry in originalPlayList.entries) {
+      categoryTasks.add(() async {
+        final String categoryKey = categoryEntry.key;
+        final dynamic groupMapValue = categoryEntry.value;
+        
+        // 确保groupMap是有效的Map类型
+        if (groupMapValue is! Map<String, dynamic>) {
+          newPlayList[categoryKey] = <String, Map<String, PlayModel>>{};
+          return;
+        }
+        
+        final Map<String, dynamic> groupMap = groupMapValue;
+        
+        // 转换分类键名(categoryKey)，不为空时转换
+        String newCategoryKey = categoryKey.isNotEmpty ? await convertText(categoryKey) : categoryKey;
+        
+        // 确保新类别键存在
+        newPlayList[newCategoryKey] = <String, Map<String, PlayModel>>{};
+        
+        // 处理分组的异步任务
+        final groupTasks = <Future<void> Function()>[];
+        
+        // 优化1：异步处理分组
+        for (final groupEntry in groupMap.entries) {
+          groupTasks.add(() async {
+            final String groupKey = groupEntry.key;
+            final dynamic channelMapValue = groupEntry.value;
+            
+            // 确保channelMap是有效的Map类型
+            if (channelMapValue is! Map<String, dynamic>) {
+              newPlayList[newCategoryKey]![groupKey] = <String, PlayModel>{};
+              return;
+            }
+            
+            final Map<String, dynamic> channelMap = channelMapValue;
+            
+            // 转换分组键名(groupKey)，不为空时转换
+            String newGroupKey = groupKey.isNotEmpty ? await convertText(groupKey) : groupKey;
+            
+            // 确保新分组键存在
+            newPlayList[newCategoryKey]![newGroupKey] = <String, PlayModel>{};
+            
+            // 优化2：内存优化，将频道集合分批处理
+            // 收集所有需要处理的频道条目
+            final channelEntries = channelMap.entries.toList();
+            final int totalChannels = channelEntries.length;
+            
+            // 定义频道批处理大小
+            final int channelBatchSize = 50; // 每批处理50个频道
+            
+            // 分批处理频道
+            for (int i = 0; i < totalChannels; i += channelBatchSize) {
+              final int end = (i + channelBatchSize < totalChannels) ? i + channelBatchSize : totalChannels;
+              final batchChannelEntries = channelEntries.sublist(i, end);
+              
+              // 创建频道处理任务
+              final channelTasks = <Future<MapEntry<String, PlayModel>> Function()>[];
+              
+              for (final channelEntry in batchChannelEntries) {
+                channelTasks.add(() async {
+                  final String channelKey = channelEntry.key;
+                  final dynamic playModelValue = channelEntry.value;
+                  
+                  // 确保playModel是有效的PlayModel类型
+                  if (playModelValue is! PlayModel) {
+                    // 返回null表示跳过此频道
+                    return MapEntry(channelKey, playModelValue as PlayModel);
+                  }
+                  
+                  final PlayModel playModel = playModelValue;
+                  
+                  // 转换频道键名(channelKey)，不为空时转换
+                  String newChannelKey = channelKey.isNotEmpty ? await convertText(channelKey) : channelKey;
+                  
+                  // 转换标题
+                  String? newTitle = playModel.title;
+                  if (newTitle != null && newTitle.isNotEmpty) {
+                    newTitle = await convertText(newTitle);
+                  }
+                  
+                  // 转换分组
+                  String? newGroup = playModel.group;
+                  if (newGroup != null && newGroup.isNotEmpty) {
+                    newGroup = await convertText(newGroup);
+                  }
+                  
+                  // 创建新的PlayModel
+                  final newPlayModel = playModel.copyWith(
+                    title: newTitle,
+                    group: newGroup
+                  );
+                  
+                  return MapEntry(newChannelKey, newPlayModel);
+                });
+              }
+              
+              // 并行处理一批频道，限制并发数为20
+              final channelResults = await processBatch(channelTasks, 20);
+              
+              // 将处理结果添加到新的播放列表
+              for (final entry in channelResults) {
+                if (entry != null) {
+                  newPlayList[newCategoryKey]![newGroupKey]![entry.key] = entry.value;
+                }
+              }
+            }
+          });
+        }
+        
+        // 并行处理分组，限制并发数为10
+        await processBatch(groupTasks, 10);
+      });
+    }
+    
+    // 并行处理分类，限制并发数为5
+    await processBatch(categoryTasks, 5);
     
     LogUtil.i('中文转换完成: 共转换 $convertCount 个词条');
     
