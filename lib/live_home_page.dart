@@ -23,7 +23,7 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/channel_util.dart';
 import 'package:itvapp_live_tv/util/traffic_analytics.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:itvapp_live_tv/util/zh_converter.dart';
+import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
