@@ -15,7 +15,7 @@ class BingUtil {
   static const int _deleteRetries = 2; // 删除文件最大重试次数
   static const Duration _retryDelay = Duration(milliseconds: 500); // 重试延迟时间
   static const int _maxConcurrentDeletes = 2; // 最大并发删除任务数
-  static const int _maxConcurrentDownloads = 4; // 最大并发下载任务数
+  static const int _maxConcurrentDownloads = 2; // 最大并发下载任务数
   static const String _imageExtension = '.jpg'; // 图片文件扩展名
 
   static String? _cachedLocalStoragePath; // 缓存基础存储路径
