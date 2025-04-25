@@ -27,11 +27,11 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 存储 M3U 数据结果，异常时可访问
   String _message = ''; // 当前显示的提示信息
   bool isDebugMode = false; // 调试模式开关，控制日志显示
-  final LocationService _locationService = LocationService(); // 直接初始化用户位置服务
+  final LocationService _locationService = LocationService(); // 初始化用户位置服务
   
   // 静态资源路径和样式，避免重复创建
-  static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图
-  static const String _landscapeImage = 'assets/images/launch_image_land.png'; // 横向启动图
+  static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图路径
+  static const String _landscapeImage = 'assets/images/launch_image_land.png'; // 横向启动图路径
   static const Color _defaultPrimaryColor = Color(0xFFEB144C); // 默认主题颜色
   
   // UI常量，避免在build方法中重复创建
@@ -43,13 +43,23 @@ class _SplashScreenState extends State<SplashScreen> {
     fontSize: 16,
     color: Colors.white, // 提示文字样式
   );
-  static const _verticalSpacing = SizedBox(height: 18); // 间距组件
+  static const _verticalSpacing = SizedBox(height: 18); // 垂直间距组件
 
   DateTime? _lastUpdateTime; // 上次更新时间，用于节流
   static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 500ms
   
   // 缓存强制更新状态，避免重复检查
   bool? _isInForceUpdateState;
+  
+  // 定义超时时间常量
+  static const _initTimeoutDuration = Duration(seconds: 30); // 初始化超时时间
+  static const _conversionTimeoutDuration = Duration(seconds: 15); // 中文转换超时时间
+
+  // 定义语言转换映射表，与M3uUtil和ZhConverter匹配
+  static const Map<String, Map<String, String>> _languageConversionMap = {
+    'zh_CN': {'zh_TW': 'zhHans2Hant'}, // 简体转繁体
+    'zh_TW': {'zh_CN': 'zhHant2Hans'}, // 繁体转简体
+  };
 
   @override
   void initState() {
@@ -65,13 +75,14 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 获取缓存的强制更新状态，避免重复调用
   bool _getForceUpdateState() {
     _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
-    return _isInForceUpdateState!;
+    return _isInForceUpdateState!; // 返回强制更新状态
   }
 
   /// 初始化应用，协调数据加载和页面跳转
   Future<void> _initializeApp() async {
     try {
-      LogUtil.safeExecute(() async {
+      // 添加超时处理
+      await LogUtil.safeExecute(() async {
         // 先检查版本更新
         await _checkVersion();
         
@@ -94,9 +105,23 @@ class _SplashScreenState extends State<SplashScreen> {
         final Future<M3uResult> m3uFuture = _fetchData();
         final Future<void> userInfoFuture = _fetchUserInfo();
 
-        // 等待所有数据加载完成
-        final m3uResult = await m3uFuture;
-        await userInfoFuture;
+        // 等待所有数据加载完成，添加超时处理
+        final m3uResult = await m3uFuture.timeout(
+          _initTimeoutDuration,
+          onTimeout: () {
+            LogUtil.e('获取M3U数据超时');
+            return M3uResult(errorMessage: '网络请求超时，请检查网络连接');
+          }
+        );
+        
+        // 用户信息获取添加超时处理
+        await userInfoFuture.timeout(
+          _initTimeoutDuration,
+          onTimeout: () {
+            LogUtil.e('获取用户信息超时');
+            return;
+          }
+        );
         
         // 数据就绪后跳转主页
         if (mounted && m3uResult.data != null && !_getForceUpdateState()) {
@@ -182,89 +207,111 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 获取语言转换类型
+  /// 获取语言转换类型，返回M3uUtil.convertPlaylistModel支持的转换类型字符串
   String? _getConversionType(String playListLang, String userLang) {
-    const conversionMap = {
-      ('zh_CN', 'zh_TW'): 'zhHans2Hant', // 简体转繁体
-      ('zh_TW', 'zh_CN'): 'zhHant2Hans', // 繁体转简体
-    };
-    return conversionMap[(playListLang, userLang)];
+    if (_languageConversionMap.containsKey(playListLang)) {
+      final targetMap = _languageConversionMap[playListLang];
+      if (targetMap != null && targetMap.containsKey(userLang)) {
+        return targetMap[userLang]; // 返回转换类型
+      }
+    }
+    return null; // 找不到对应的转换类型
+  }
+
+  /// 将语言代码规范化为"zh_XX"格式，处理各种可能的语言代码
+  String _normalizeLanguageCode(Locale locale) {
+    if (locale.languageCode == 'zh') {
+      if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
+        return 'zh_${locale.countryCode!}'; // 使用国家代码格式
+      }
+      return 'zh'; // 无国家代码返回zh
+    } else if (locale.languageCode.startsWith('zh_')) {
+      return locale.languageCode; // 已经是zh_XX格式
+    } else if (locale.languageCode.startsWith('zh')) {
+      if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
+        return 'zh_${locale.countryCode!}'; // 其他zh开头格式使用国家代码
+      }
+      return locale.languageCode; // 无国家代码直接返回
+    }
+    
+    if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
+      return '${locale.languageCode}_${locale.countryCode!}'; // 非中文语言组合国家代码
+    }
+    
+    return locale.languageCode; // 返回原始语言代码
   }
 
   /// 从缓存中获取用户语言设置
   Locale _getUserLocaleFromCache() {
     try {
-      // 从持久化存储读取语言和国家代码
       String? languageCode = SpUtil.getString('languageCode');
       String? countryCode = SpUtil.getString('countryCode');
       
       if (languageCode != null && languageCode.isNotEmpty) {
-        // 若语言代码有效，返回保存的语言环境
         if (countryCode != null && countryCode.isNotEmpty) {
-          return Locale(languageCode, countryCode);
-        } else {
-          return Locale(languageCode);
+          return Locale(languageCode, countryCode); // 返回缓存的语言环境
         }
+        return Locale(languageCode); // 无国家代码的语言环境
       }
       
-      // 如果没有存储的语言设置，使用Provider中的当前值
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      return languageProvider.currentLocale;
+      return languageProvider.currentLocale; // 使用Provider中的当前语言
     } catch (e, stackTrace) {
       LogUtil.logError('从缓存获取用户语言设置失败', e, stackTrace);
-      // 发生错误时使用Provider中的当前值
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      return languageProvider.currentLocale;
+      return languageProvider.currentLocale; // 错误时回退到Provider中的语言
     }
   }
 
   /// 跳转到主页，传递播放列表数据，添加延迟确保对话框关闭
   Future<void> _navigateToHome(PlaylistModel data) async {
-    // 如果处于强制更新状态，不应该跳转到主页
     if (_getForceUpdateState()) {
       LogUtil.d('强制更新状态，阻止跳转到主页');
-      return;
+      return; // 强制更新时阻止跳转
     }
 
     if (mounted) {
-      // 从缓存获取当前用户的语言环境
       final userLocale = _getUserLocaleFromCache();
       PlaylistModel processedData = data;
 
       try {
-        const playListLang = Config.playListlang;
-        String? conversionType;
-        String? userLang;
-
-        // 1. 检查是否包含 zh 并构造 userLang
-        if (userLocale.languageCode.startsWith('zh')) {
-          userLang = userLocale.languageCode == 'zh' && userLocale.countryCode != null
-              ? 'zh_${userLocale.countryCode}' // 标准 zh + 国家代码
-              : userLocale.languageCode; // 直接使用 languageCode（如 zh, zh_CN, zh_TW）
-
-          // 2. 比较 userLang 和 playListLang
-          if (userLang != playListLang) {
-            // 3. 确定转换类型
-            conversionType = _getConversionType(playListLang, userLang);
+        const playListLang = Config.playListlang; // 播放列表使用的语言
+        final userLang = _normalizeLanguageCode(userLocale); // 规范化用户语言代码
+        
+        if (userLang.startsWith('zh') && 
+            playListLang.startsWith('zh') && 
+            userLang != playListLang) {
+          
+          _updateMessage('正在进行中文转换...');
+          
+          final conversionType = _getConversionType(playListLang, userLang);
+          
+          if (conversionType != null) {
+            LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
+            
+            processedData = await Future.timeout(
+              _conversionTimeoutDuration,
+              () => M3uUtil.convertPlaylistModel(data, conversionType)
+            ).catchError((error, stackTrace) {
+              LogUtil.logError('播放列表中文转换超时或失败', error, stackTrace);
+              return data; // 转换失败回退到原始数据
+            });
+            
+            LogUtil.i('播放列表中文转换完成');
+          } else {
+            LogUtil.i('无需对播放列表进行中文转换: 没有找到从 $playListLang 到 $userLang 的转换方法');
           }
-        }
-
-        // 4. 执行转换或记录无需转换
-        if (conversionType != null) {
-          LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
-          processedData = await M3uUtil.convertPlaylistModel(data, conversionType);
-          LogUtil.i('播放列表中文转换完成');
         } else {
-          String reason = userLang == null
-              ? '用户语言不包含 zh (${userLocale.languageCode})'
-              : userLang == playListLang
-                  ? '用户语言 ($userLang) 与播放列表语言 ($playListLang) 相同'
-                  : '无匹配的转换类型';
+          final reason = !userLang.startsWith('zh') 
+              ? '用户语言不是中文 ($userLang)' 
+              : userLang == playListLang 
+                  ? '用户语言 ($userLang) 与播放列表语言 ($playListLang) 相同' 
+                  : '播放列表语言不是中文 ($playListLang)';
           LogUtil.i('无需对播放列表进行中文转换: $reason');
         }
       } catch (e, stackTrace) {
-        LogUtil.logError('播放列表中文转换失败，使用原始数据', e, stackTrace);
-        processedData = data; // 转换失败时回退到原始数据
+        LogUtil.logError('播放列表中文转换过程中发生错误，使用原始数据', e, stackTrace);
+        processedData = data; // 转换失败回退到原始数据
       }
 
       // 延迟跳转到主页
@@ -294,7 +341,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
           _buildMessageUI(
             _message.isEmpty ? '${S.current.loading}' : _message,
-            isLoading: !_getForceUpdateState(), // 如果是强制更新状态，不显示加载动画
+            isLoading: !_getForceUpdateState(), // 强制更新状态下不显示加载动画
             orientation: orientation,
           ),
         ],
@@ -321,12 +368,12 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isLoading) ...[
-              _loadingIndicator, // 使用预定义常量
-              _verticalSpacing, // 使用预定义间距
+              _loadingIndicator, // 显示加载动画
+              _verticalSpacing, // 添加垂直间距
             ],
             Text(
               message,
-              style: _textStyle, // 使用预定义样式
+              style: _textStyle, // 应用提示文字样式
               textAlign: TextAlign.center,
             ),
           ],
