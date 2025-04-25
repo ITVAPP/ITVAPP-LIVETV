@@ -51,9 +51,9 @@ class _SplashScreenState extends State<SplashScreen> {
   // 缓存强制更新状态，避免重复检查
   bool? _isInForceUpdateState;
   
-  // 定义超时时间常量
-  static const _initTimeoutDuration = Duration(seconds: 30); // 初始化超时时间
-  static const _conversionTimeoutDuration = Duration(seconds: 15); // 中文转换超时时间
+  // 删除超时时间常量，不再需要
+  // static const _initTimeoutDuration = Duration(seconds: 30); // 初始化超时时间
+  // static const _conversionTimeoutDuration = Duration(seconds: 15); // 中文转换超时时间
 
   // 定义语言转换映射表，与M3uUtil和ZhConverter匹配
   static const Map<String, Map<String, String>> _languageConversionMap = {
@@ -105,23 +105,11 @@ class _SplashScreenState extends State<SplashScreen> {
         final Future<M3uResult> m3uFuture = _fetchData();
         final Future<void> userInfoFuture = _fetchUserInfo();
 
-        // 等待所有数据加载完成，添加超时处理
-        final m3uResult = await m3uFuture.timeout(
-          _initTimeoutDuration,
-          onTimeout: () {
-            LogUtil.e('获取M3U数据超时');
-            return M3uResult(errorMessage: '网络请求超时，请检查网络连接');
-          }
-        );
+        // 等待所有数据加载完成，移除超时处理
+        final m3uResult = await m3uFuture;
         
-        // 用户信息获取添加超时处理
-        await userInfoFuture.timeout(
-          _initTimeoutDuration,
-          onTimeout: () {
-            LogUtil.e('获取用户信息超时');
-            return;
-          }
-        );
+        // 移除用户信息获取的超时处理
+        await userInfoFuture;
         
         // 数据就绪后跳转主页
         if (mounted && m3uResult.data != null && !_getForceUpdateState()) {
@@ -289,15 +277,15 @@ class _SplashScreenState extends State<SplashScreen> {
           if (conversionType != null) {
             LogUtil.i('正在对播放列表进行中文转换: $playListLang -> $userLang ($conversionType)');
             
-            processedData = await Future.timeout(
-              _conversionTimeoutDuration,
-              () => M3uUtil.convertPlaylistModel(data, conversionType)
-            ).catchError((error, stackTrace) {
-              LogUtil.logError('播放列表中文转换超时或失败', error, stackTrace);
-              return data; // 转换失败回退到原始数据
-            });
+            // 修改此处，移除超时处理，直接调用转换方法
+            try {
+              processedData = await M3uUtil.convertPlaylistModel(data, conversionType);
+              LogUtil.i('播放列表中文转换完成');
+            } catch (error, stackTrace) {
+              LogUtil.logError('播放列表中文转换失败', error, stackTrace);
+              processedData = data; // 转换失败回退到原始数据
+            }
             
-            LogUtil.i('播放列表中文转换完成');
           } else {
             LogUtil.i('无需对播放列表进行中文转换: 没有找到从 $playListLang 到 $userLang 的转换方法');
           }
