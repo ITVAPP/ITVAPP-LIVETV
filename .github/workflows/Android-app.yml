@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # 仅支持手动触发
     inputs:
       enable_obfuscation:
-        description: '是否启用代码混淆'
+        description: '是否启用代码混淆'  # 是否开启代码混淆选项
         required: true
         default: 'false'
         type: choice
@@ -12,7 +12,7 @@ on:
           - 'true'
           - 'false'
       cpu_architecture:
-        description: '选择生成的CPU架构'
+        description: '选择生成的CPU架构'  # 选择构建的 CPU 架构
         required: true
         default: 'armeabi-v7a'
         type: choice
@@ -21,71 +21,109 @@ on:
           - 'armeabi-v7a'
           - 'arm64-v8a'
 
+env:
+  PLAYLIST_FILE: playlists.m3u  # M3U 播放列表文件名
+  BETTER_PLAYER_VERSION: '0.0.84'  # better_player 插件版本
+  FLUTTER_VERSION: '3.29.0'  # Flutter 版本
+  NODE_VERSION: '16'  # Node.js 版本
+  JAVA_VERSION: '17'  # Java 版本
+
 jobs:
   build_android:
-    runs-on: ubuntu-latest  # 使用 Ubuntu 环境
+    runs-on: ubuntu-latest  # 使用 Ubuntu 最新环境
     
     env:
-      PLAYLIST_FILE: playlists.m3u  # 定义M3U文件名变量
-      ENABLE_OBFUSCATION: ${{ github.event.inputs.enable_obfuscation }}
-      CPU_ARCHITECTURE: ${{ github.event.inputs.cpu_architecture }}
+      ENABLE_OBFUSCATION: ${{ github.event.inputs.enable_obfuscation }}  # 代码混淆配置
+      CPU_ARCHITECTURE: ${{ github.event.inputs.cpu_architecture }}  # CPU 架构配置
       
     steps:
-      - uses: actions/checkout@v4  # 检出代码
-      - uses: actions/setup-java@v3  # 设置 Java 环境
-        with:
-          distribution: 'zulu'  # 使用 Zulu 发行版的 Java 环境
-          java-version: '17'  # 设置 Java 版本为 17
-      - uses: actions/setup-node@v3  # 添加 Node.js 环境，用于 XOR 加密
-        with:
-          node-version: '16'  # 使用 Node.js 16
-      - uses: subosito/flutter-action@v2  # 设置 Flutter 环境
-        with:
-          flutter-version: '3.29.0'  # 使用 Flutter 的最新稳定版本
-          channel: 'stable'  # 使用 stable 渠道版本
-      - run: flutter pub get  # 获取项目依赖
+      - name: 检出代码
+        uses: actions/checkout@v4  # 检出仓库代码
 
-      - name: Fix hashValues in better_player
+      - name: 设置 Java 环境
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'  # 使用 Zulu 发行版 Java
+          java-version: ${{ env.JAVA_VERSION }}  # 设置 Java 版本
+
+      - name: 设置 Node.js 环境
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}  # 设置 Node.js 版本
+          cache: 'npm'  # 启用 npm 缓存
+
+      - name: 设置 Flutter 环境
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}  # 设置 Flutter 版本
+          channel: 'stable'  # 使用 stable 渠道
+          cache: true  # 启用 Flutter 缓存
+
+      - name: 获取项目依赖
+        run: flutter pub get  # 安装 Flutter 项目依赖
+
+      - name: 修复 better_player 中的 hashValues
         run: |
-          # 定义 better_player 包路径
-          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/lib/src/hls/hls_parser
+          # better_player 包路径
+          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-${{ env.BETTER_PLAYER_VERSION }}/lib/src/hls/hls_parser
           
-          # 检查是否需要修复 (检查任意一个文件即可)
+          # 检查 hashValues 是否存在
           if grep -q "hashValues" "$BETTER_PLAYER_DIR"/*.dart 2>/dev/null; then
             echo "Found hashValues in better_player files, applying fixes..."
-            
-            # 替换所有文件中的简单 hashValues 调用
+            # 替换 hashValues 为 Object.hash
             find "$BETTER_PLAYER_DIR" -name "*.dart" -type f -exec sed -i 's/int get hashCode => hashValues(/int get hashCode => Object.hash(/g' {} \;
-            
-            # 无需替换结束括号，因为它们的格式是一样的
           else
             echo "No hashValues found in better_player, no fix needed"
           fi
 
-      - name: Add namespace to better_player  # 添加 namespace 到 better_player 插件配置
+      - name: 添加 namespace 到 better_player
         run: |
-          sed -i '/android {/a\    namespace "com.jhomlala.better_player"' $HOME/.pub-cache/hosted/pub.dev/better_player-0.0.84/android/build.gradle
-          # 在 better_player 插件的 build.gradle 文件中添加 namespace 配置，以避免冲突
-
-      - name: Obfuscate JS and M3U files
-        run: |
-          npm install javascript-obfuscator  # 安装 JS 混淆工具
-          if [ "$ENABLE_OBFUSCATION" = "true" ]; then
-            echo "Applying JavaScript obfuscation..."
-            ./node_modules/.bin/javascript-obfuscator assets/js/time_interceptor.js --output assets/js/time_interceptor.js --compact true --control-flow-flattening true
-            ./node_modules/.bin/javascript-obfuscator assets/js/m3u8_detector.js --output assets/js/m3u8_detector.js --compact true --control-flow-flattening true
-            ./node_modules/.bin/javascript-obfuscator assets/js/cleanup_script.js --output assets/js/cleanup_script.js --compact true --control-flow-flattening true
-            ./node_modules/.bin/javascript-obfuscator assets/js/click_handler.js --output assets/js/click_handler.js --compact true --control-flow-flattening true
+          BETTER_PLAYER_GRADLE=$HOME/.pub-cache/hosted/pub.dev/better_player-${{ env.BETTER_PLAYER_VERSION }}/android/build.gradle
+          if [ -f "$BETTER_PLAYER_GRADLE" ]; then
+            if ! grep -q "namespace" "$BETTER_PLAYER_GRADLE"; then
+              # 添加 namespace 到 build.gradle
+              sed -i '/android {/a\    namespace "com.jhomlala.better_player"' "$BETTER_PLAYER_GRADLE"
+              echo "Added namespace to better_player build.gradle"
+            else
+              echo "Namespace already exists in better_player build.gradle"
+            fi
           else
-            echo "Skipping JavaScript obfuscation based on workflow settings"
+            echo "Warning: better_player build.gradle not found at $BETTER_PLAYER_GRADLE"
           fi
-          
+
+      - name: 安装 JavaScript 混淆工具
+        run: npm install javascript-obfuscator  # 安装 JS 混淆工具
+
+      - name: 混淆 JavaScript 文件
+        if: ${{ env.ENABLE_OBFUSCATION == 'true' }}  # 仅当启用混淆时执行
+        run: |
+          echo "Applying JavaScript obfuscation..."
+          # 定义待混淆的 JS 文件列表
+          JS_FILES=(
+            "assets/js/time_interceptor.js"
+            "assets/js/m3u8_detector.js"
+            "assets/js/cleanup_script.js"
+            "assets/js/click_handler.js"
+          )
+          # 对每个 JS 文件进行混淆
+          for file in "${JS_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              ./node_modules/.bin/javascript-obfuscator "$file" --output "$file" --compact true --control-flow-flattening true
+              echo "Obfuscated $file"
+            else
+              echo "Warning: $file not found, skipping obfuscation"
+            fi
+          done
+
+      - name: 加密 M3U 文件
+        run: |
           if [ -f "assets/$PLAYLIST_FILE" ]; then
             echo "Encrypting entire M3U file with XOR..."
+            # 使用 XOR 和 Base64 加密 M3U 文件
             node -e '
               const fs = require("fs");
               const content = fs.readFileSync("assets/'"$PLAYLIST_FILE"'", "utf8");
-              const key = "itvapp-livetv-secret-2025"; // 加密解密的密钥，与 config.dart 中的 m3uXorKey 一致
+              const key = "itvapp-livetv-secret-2025"; // 与 config.dart 的 m3uXorKey 一致
               let encrypted = "";
               for (let i = 0; i < content.length; i++) {
                 encrypted += String.fromCharCode(content.charCodeAt(i) ^ key.charCodeAt(i % key.length));
@@ -93,48 +131,68 @@ jobs:
               encrypted = Buffer.from(encrypted, "binary").toString("base64");
               fs.writeFileSync("assets/'"$PLAYLIST_FILE"'", encrypted);
             '
+            echo "M3U file encrypted successfully"
           else
-            echo "No $PLAYLIST_FILE found in assets/"
+            echo "Warning: No $PLAYLIST_FILE found in assets/ directory"
           fi
 
-      - name: Create apk directory in root  # 在项目根目录创建 APK 存放目录
-        run: mkdir -p apk
+      - name: 创建 APK 存放目录
+        run: mkdir -p apk  # 创建 APK 输出目录
 
-      - name: Decode keystore  # 解码密钥库文件并保存到指定路径
+      - name: 解码密钥库
         run: |
+          # 解码 Base64 编码的密钥库文件
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > android/app/LIVETV.jks
-          # 将存储在 GitHub Secrets 中的密钥库文件进行解码并保存到 android/app 目录下
-
-      - name: Build APK for armeabi-v7a  # 构建适用于 armeabi-v7a 架构的 APK 文件
-        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a' }}
-        run: |
-          if [ "$ENABLE_OBFUSCATION" = "true" ]; then
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm --split-per-abi --obfuscate --split-debug-info=debug-info
+          if [ -f "android/app/LIVETV.jks" ]; then
+            echo "Keystore decoded successfully"
           else
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm --split-per-abi
+            echo "Error: Failed to decode keystore"
+            exit 1
           fi
+
+      - name: 构建 armeabi-v7a 架构 APK
+        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a' }}  # 构建 armeabi-v7a 架构
+        run: |
+          BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi"
+          if [ "$ENABLE_OBFUSCATION" = "true" ]; then
+            # 启用混淆并分离调试信息
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=true --obfuscate --split-debug-info=debug-info"
+          else
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=false"
+          fi
+          echo "Executing: $BUILD_COMMAND"
+          eval $BUILD_COMMAND
+          # 移动 APK 到输出目录
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
+          echo "Built armeabi-v7a APK successfully"
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
 
-      - name: Build APK for arm64-v8a  # 构建适用于 arm64-v8a 架构的 APK 文件
-        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a' }}
+      - name: 构建 arm64-v8a 架构 APK
+        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a' }}  # 构建 arm64-v8a 架构
         run: |
+          BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi"
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=true --release --target-platform android-arm64 --split-per-abi --obfuscate --split-debug-info=debug-info
+            # 启用混淆并分离调试信息
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=true --obfuscate --split-debug-info=debug-info"
           else
-            flutter build apk --dart-define=isTV=false --dart-define=enableObfuscation=false --release --target-platform android-arm64 --split-per-abi
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=false"
           fi
+          echo "Executing: $BUILD_COMMAND"
+          eval $BUILD_COMMAND
+          # 移动 APK 到输出目录
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
+          echo "Built arm64-v8a APK successfully"
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
 
-      - name: Upload Android artifacts  # 上传构建生成的 APK 文件作为构建产物
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: android-artifacts
-          path: apk/
+          name: android-artifacts  # 构建产物名称
+          path: apk/  # 上传 APK 目录
+          retention-days: 7  # 保留 7 天
