@@ -95,7 +95,7 @@ void main() async {
       LogUtil.d('首次检测硬件加速支持，结果: $isHardwareEnabled，已存入缓存'); // 记录检测结果
     } 
   } catch (e, stackTrace) {
-    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}', stackTrace); // 记录硬件加速检测错误
+    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}'); // 记录硬件加速检测错误
     await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
   }
 
@@ -138,11 +138,11 @@ Future<void> _initializeDesktop() async {
           windowManager.focus(), // 聚焦窗口
         ]);
       } catch (e, stack) {
-        LogUtil.e('桌面端窗口显示或聚焦失败', stack); // 记录窗口显示错误
+        LogUtil.e('桌面端窗口显示或聚焦失败'); // 记录窗口显示错误
       }
     });
   } catch (e, stackTrace) {
-    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}', stackTrace); // 记录窗口初始化错误
+    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}'); // 记录窗口初始化错误
   }
 }
 
