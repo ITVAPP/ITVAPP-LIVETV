@@ -128,7 +128,7 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
     }
 
     // 检查 playList 是否为空或 null
-    if (data.playList.isEmpty) {
+    if (data.playList == null || data.playList!.isEmpty) {
       LogUtil.i('播放列表为空，无需转换');
       return data; // 空播放列表，回退到原始数据
     }
@@ -149,65 +149,63 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
       return data; // 初始化失败，回退到原始数据
     }
 
-    // 使用 map 方法转换三层或两层嵌套结构
-    final newPlayList = Map<String, dynamic>.fromEntries(
-      await Future.wait(data.playList.entries.map((categoryEntry) async {
-        final groupMap = categoryEntry.value;
-        if (groupMap is! Map<String, dynamic>) {
-          return MapEntry(categoryEntry.key, <String, Map<String, PlayModel>>{});
-        }
-
-        final newGroupMap = Map<String, dynamic>.fromEntries(
-          await Future.wait(groupMap.entries.map((groupEntry) async {
-            final channelMap = groupEntry.value;
-            if (channelMap is! Map<String, PlayModel>) {
-              return MapEntry(groupEntry.key, <String, PlayModel>{});
+    // 使用具体类型进行转换，确保类型一致性
+    final Map<String, Map<String, Map<String, PlayModel>>> playList = 
+        data.playList as Map<String, Map<String, Map<String, PlayModel>>>;
+    
+    final Map<String, Map<String, Map<String, PlayModel>>> newPlayList = {};
+    
+    // 手动遍历转换每一层，确保类型一致
+    for (final categoryEntry in playList.entries) {
+      final String categoryKey = categoryEntry.key;
+      final Map<String, Map<String, PlayModel>> groupMap = categoryEntry.value;
+      final Map<String, Map<String, PlayModel>> newGroupMap = {};
+      
+      for (final groupEntry in groupMap.entries) {
+        final String groupKey = groupEntry.key;
+        final Map<String, PlayModel> channelMap = groupEntry.value;
+        final Map<String, PlayModel> newChannelMap = {};
+        
+        for (final channelEntry in channelMap.entries) {
+          final String channelKey = channelEntry.key;
+          final PlayModel playModel = channelEntry.value;
+          
+          // 转换标题
+          String? newTitle = playModel.title;
+          if (newTitle != null && newTitle.isNotEmpty) {
+            try {
+              newTitle = await converter.convert(newTitle);
+            } catch (e) {
+              LogUtil.e('转换标题失败: $newTitle');
             }
+          }
+          
+          // 转换分组
+          String? newGroup = playModel.group;
+          if (newGroup != null && newGroup.isNotEmpty) {
+            try {
+              newGroup = await converter.convert(newGroup);
+            } catch (e) {
+              LogUtil.e('转换分组失败: $newGroup');
+            }
+          }
+          
+          // 创建新的PlayModel，保留原始对象的其他属性
+          final newPlayModel = playModel.copyWith(
+            title: newTitle, 
+            group: newGroup
+          );
+          
+          newChannelMap[channelKey] = newPlayModel;
+        }
+        
+        newGroupMap[groupKey] = newChannelMap;
+      }
+      
+      newPlayList[categoryKey] = newGroupMap;
+    }
 
-            final newChannelMap = Map<String, PlayModel>.fromEntries(
-              await Future.wait(channelMap.entries.map((channelEntry) async {
-                final playModel = channelEntry.value;
-                // 转换 title 和 group
-                String? newTitle;
-                String? newGroup;
-                
-                try {
-                  if (playModel.title != null && playModel.title!.isNotEmpty) {
-                    newTitle = await converter.convert(playModel.title!);
-                  } else {
-                    newTitle = playModel.title;
-                  }
-                } catch (e) {
-                  LogUtil.e('转换标题失败: ${playModel.title}');
-                  newTitle = playModel.title;
-                }
-                
-                try {
-                  if (playModel.group != null && playModel.group!.isNotEmpty) {
-                    newGroup = await converter.convert(playModel.group!);
-                  } else {
-                    newGroup = playModel.group;
-                  }
-                } catch (e) {
-                  LogUtil.e('转换分组失败: ${playModel.group}');
-                  newGroup = playModel.group;
-                }
-                
-                // 创建新的 PlayModel
-                return MapEntry(
-                  channelEntry.key,
-                  playModel.copyWith(title: newTitle, group: newGroup),
-                );
-              })),
-            );
-            return MapEntry(groupEntry.key, newChannelMap);
-          })),
-        );
-        return MapEntry(categoryEntry.key, newGroupMap);
-      })),
-    );
-
-    // 返回新的 PlaylistModel，保留 epgUrl
+    // 返回新的PlaylistModel，保留原epgUrl
     return PlaylistModel(
       epgUrl: data.epgUrl,
       playList: newPlayList,
