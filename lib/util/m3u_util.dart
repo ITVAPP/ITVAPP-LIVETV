@@ -68,12 +68,12 @@ class M3uUtil {
         final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
         final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
         parsedData = await _parseM3u(decryptedM3uData);
-        if (parsedData.playList.isEmpty) {
+        if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       } else {
         parsedData = m3uData.contains('||') ? await fetchAndMergeM3uData(m3uData) ?? PlaylistModel() : await _parseM3u(m3uData);
-        if (parsedData.playList.isEmpty) {
+        if (parsedData.playList == null) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       }
@@ -81,7 +81,7 @@ class M3uUtil {
       LogUtil.i('解析播放列表: ${parsedData.playList}\n类型: ${parsedData.playList.runtimeType}');
       final favoritePlaylist = await getOrCreateFavoriteList();
       await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList, PlaylistModel(playList: favoritePlaylist));
+      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, PlaylistModel(playList: favoritePlaylist));
       LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
 
       if (!m3uData.isEmpty) {
@@ -91,95 +91,6 @@ class M3uUtil {
     } catch (e, stackTrace) {
       LogUtil.logError('获取播放列表出错', e, stackTrace);
       return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.networkError);
-    }
-  }
-
-  /// 转换播放列表的指定中文字段（PlayModel.title 和 PlayModel.group）
-  static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String conversionType) async {
-    try {
-      // 映射字符串到枚举类型
-      ConversionType? type;
-      if (conversionType == 'zhHans2Hant') {
-        type = ConversionType.zhHans2Hant;
-      } else if (conversionType == 'zhHant2Hans') {
-        type = ConversionType.zhHant2Hans;
-      } else {
-        LogUtil.i('无效的转换类型: $conversionType，跳过转换');
-        return data; // 无效转换类型，回退到原始数据
-      }
-
-      // 检查 playList 是否为空或 null
-      if (data.playList.isEmpty) {
-        LogUtil.i('播放列表为空，无需转换');
-        return data; // 空播放列表，回退到原始数据
-      }
-
-      // 延迟创建 ZhConverter
-      final converter = createConverter(type);
-      if (converter == null) {
-        LogUtil.i('无法创建转换器，跳过转换');
-        return data;
-      }
-      
-      // 确保转换器已初始化
-      await converter.initialize();
-
-      // 使用 map 方法转换三层或两层嵌套结构
-      final newPlayList = Map<String, dynamic>.fromEntries(
-        await Future.wait(data.playList.entries.map((categoryEntry) async {
-          final groupMap = categoryEntry.value;
-          if (groupMap is! Map<String, dynamic>) {
-            return MapEntry(categoryEntry.key, <String, Map<String, PlayModel>>{});
-          }
-
-          final newGroupMap = Map<String, dynamic>.fromEntries(
-            await Future.wait(groupMap.entries.map((groupEntry) async {
-              final channelMap = groupEntry.value;
-              if (channelMap is! Map<String, PlayModel>) {
-                return MapEntry(groupEntry.key, <String, PlayModel>{});
-              }
-
-              final newChannelMap = Map<String, PlayModel>.fromEntries(
-                await Future.wait(channelMap.entries.map((channelEntry) async {
-                  final playModel = channelEntry.value;
-                  // 转换 title 和 group
-                  String? newTitle;
-                  String? newGroup;
-                  
-                  if (playModel.title != null && playModel.title!.isNotEmpty) {
-                    newTitle = await converter.convert(playModel.title!);
-                  } else {
-                    newTitle = playModel.title;
-                  }
-                  
-                  if (playModel.group != null && playModel.group!.isNotEmpty) {
-                    newGroup = await converter.convert(playModel.group!);
-                  } else {
-                    newGroup = playModel.group;
-                  }
-                  
-                  // 创建新的 PlayModel
-                  return MapEntry(
-                    channelEntry.key,
-                    playModel.copyWith(title: newTitle, group: newGroup),
-                  );
-                })),
-              );
-              return MapEntry(groupEntry.key, newChannelMap);
-            })),
-          );
-          return MapEntry(categoryEntry.key, newGroupMap);
-        })),
-      );
-
-      // 返回新的 PlaylistModel，保留 epgUrl
-      return PlaylistModel(
-        epgUrl: data.epgUrl,
-        playList: newPlayList,
-      );
-    } catch (e, stackTrace) {
-      LogUtil.logError('简繁体转换失败，回退到原始数据', e, stackTrace);
-      return data; // 异常时回退原始数据
     }
   }
 
@@ -202,44 +113,141 @@ class M3uUtil {
     }
   }
 
+  /// 播放列表转换为中文简体或繁体
+static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String conversionType) async {
+  try {
+    // 映射输入的转换类型字符串到ZhConverter需要的格式
+    String converterType;
+    if (conversionType == 'zhHans2Hant') {
+      converterType = 's2t';  // 简体到繁体
+    } else if (conversionType == 'zhHant2Hans') {
+      converterType = 't2s';  // 繁体到简体
+    } else {
+      LogUtil.i('无效的转换类型: $conversionType，跳过转换');
+      return data; // 无效转换类型，回退到原始数据
+    }
+
+    // 检查 playList 是否为空或 null
+    if (data.playList.isEmpty) {
+      LogUtil.i('播放列表为空，无需转换');
+      return data; // 空播放列表，回退到原始数据
+    }
+
+    // 创建 ZhConverter
+    final converter = ZhConverter(converterType);
+    
+    // 确保转换器已初始化，添加超时处理
+    try {
+      await converter.initialize().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('中文转换器初始化超时');
+        }
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('中文转换器初始化失败', e, stackTrace);
+      return data; // 初始化失败，回退到原始数据
+    }
+
+    // 使用 map 方法转换三层或两层嵌套结构
+    final newPlayList = Map<String, dynamic>.fromEntries(
+      await Future.wait(data.playList.entries.map((categoryEntry) async {
+        final groupMap = categoryEntry.value;
+        if (groupMap is! Map<String, dynamic>) {
+          return MapEntry(categoryEntry.key, <String, Map<String, PlayModel>>{});
+        }
+
+        final newGroupMap = Map<String, dynamic>.fromEntries(
+          await Future.wait(groupMap.entries.map((groupEntry) async {
+            final channelMap = groupEntry.value;
+            if (channelMap is! Map<String, PlayModel>) {
+              return MapEntry(groupEntry.key, <String, PlayModel>{});
+            }
+
+            final newChannelMap = Map<String, PlayModel>.fromEntries(
+              await Future.wait(channelMap.entries.map((channelEntry) async {
+                final playModel = channelEntry.value;
+                // 转换 title 和 group
+                String? newTitle;
+                String? newGroup;
+                
+                try {
+                  if (playModel.title != null && playModel.title!.isNotEmpty) {
+                    newTitle = await converter.convert(playModel.title!);
+                  } else {
+                    newTitle = playModel.title;
+                  }
+                } catch (e) {
+                  LogUtil.e('转换标题失败: ${playModel.title}');
+                  newTitle = playModel.title;
+                }
+                
+                try {
+                  if (playModel.group != null && playModel.group!.isNotEmpty) {
+                    newGroup = await converter.convert(playModel.group!);
+                  } else {
+                    newGroup = playModel.group;
+                  }
+                } catch (e) {
+                  LogUtil.e('转换分组失败: ${playModel.group}');
+                  newGroup = playModel.group;
+                }
+                
+                // 创建新的 PlayModel
+                return MapEntry(
+                  channelEntry.key,
+                  playModel.copyWith(title: newTitle, group: newGroup),
+                );
+              })),
+            );
+            return MapEntry(groupEntry.key, newChannelMap);
+          })),
+        );
+        return MapEntry(categoryEntry.key, newGroupMap);
+      })),
+    );
+
+    // 返回新的 PlaylistModel，保留 epgUrl
+    return PlaylistModel(
+      epgUrl: data.epgUrl,
+      playList: newPlayList,
+    );
+  } catch (e, stackTrace) {
+    LogUtil.logError('简繁体转换失败，回退到原始数据', e, stackTrace);
+    return data; // 异常时回退原始数据
+  }
+}
+
   /// 获取或创建本地收藏列表
-  static Future<Map<String, dynamic>> getOrCreateFavoriteList() async {
+  static Future<Map<String, Map<String, Map<String, PlayModel>>>> getOrCreateFavoriteList() async {
     final favoriteData = await _getCachedFavoriteM3uData();
     if (favoriteData.isEmpty) {
-      Map<String, dynamic> favoritePlaylist = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
+      Map<String, Map<String, Map<String, PlayModel>>> favoritePlaylist = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
       LogUtil.i('创建收藏列表类型: ${favoritePlaylist.runtimeType}\n内容: $favoritePlaylist');
       return favoritePlaylist;
     } else {
       PlaylistModel favoritePlaylistModel = PlaylistModel.fromString(favoriteData);
-      Map<String, dynamic> favoritePlaylist = favoritePlaylistModel.playList.isNotEmpty
-          ? favoritePlaylistModel.playList
-          : {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
+      Map<String, Map<String, Map<String, PlayModel>>> favoritePlaylist = favoritePlaylistModel.playList?.cast<String, Map<String, Map<String, PlayModel>>>() ?? {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
       LogUtil.i('缓存收藏列表: $favoriteData\n解析后: $favoritePlaylist\n类型: ${favoritePlaylist.runtimeType}');
       return favoritePlaylist;
     }
   }
 
   /// 将收藏列表插入播放列表首位
-  static Map<String, dynamic> _insertFavoritePlaylistFirst(
-      Map<String, dynamic> originalPlaylist, PlaylistModel favoritePlaylist) {
-    // 初始化结果 Map
-    final updatedPlaylist = <String, dynamic>{};
-
-    // 优先插入收藏列表
-    if (favoritePlaylist.playList.containsKey(Config.myFavoriteKey)) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList[Config.myFavoriteKey];
-    } else if (originalPlaylist.containsKey(Config.myFavoriteKey)) {
-      updatedPlaylist[Config.myFavoriteKey] = originalPlaylist[Config.myFavoriteKey];
+  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
+      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist, PlaylistModel favoritePlaylist) {
+    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+    originalPlaylist ??= {};
+    if (originalPlaylist[Config.myFavoriteKey] != null) {
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+    } else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     } else {
       updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
     }
-
-    // 添加非收藏的原始列表
-    updatedPlaylist.addAll({
-      for (var entry in originalPlaylist.entries)
-        if (entry.key != Config.myFavoriteKey) entry.key: entry.value
+    originalPlaylist.forEach((key, value) {
+      if (key != Config.myFavoriteKey) updatedPlaylist[key] = value;
     });
-
     return updatedPlaylist;
   }
 
@@ -266,34 +274,24 @@ class M3uUtil {
 
   /// 更新收藏列表中的频道播放地址
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
-    final favoriteCategory = favoritePlaylist.playList[Config.myFavoriteKey];
+    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
     final Map<String, List<String>> remoteIdToUrls = {};
-    remotePlaylist.playList.forEach((category, groups) {
-      if (groups is Map<String, dynamic>) {
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map<String, PlayModel>) {
-            channels.forEach((channelName, channelModel) {
-              if (channelModel.id != null && channelModel.urls != null) {
-                remoteIdToUrls[channelModel.id!] = channelModel.urls!;
-              }
-            });
-          }
+    remotePlaylist.playList?.forEach((category, groups) {
+      groups.forEach((groupTitle, channels) {
+        channels.forEach((channelName, channelModel) {
+          if (channelModel.id != null && channelModel.urls != null) remoteIdToUrls[channelModel.id!] = channelModel.urls!;
         });
-      }
+      });
     });
-    if (favoriteCategory is Map<String, dynamic>) {
-      favoriteCategory.forEach((groupTitle, channels) {
-        if (channels is Map<String, PlayModel>) {
-          channels.forEach((channelName, favoriteChannel) {
-            if (favoriteChannel.id != null && remoteIdToUrls.containsKey(favoriteChannel.id!)) {
-              final validUrls = remoteIdToUrls[favoriteChannel.id!]!.where((url) => isLiveLink(url)).toList();
-              if (validUrls.isNotEmpty) favoriteChannel.urls = validUrls;
-            }
-          });
+    favoriteCategory.forEach((groupTitle, channels) {
+      channels.forEach((channelName, favoriteChannel) {
+        if (favoriteChannel.id != null && remoteIdToUrls.containsKey(favoriteChannel.id!)) {
+          final validUrls = remoteIdToUrls[favoriteChannel.id!]!.where((url) => isLiveLink(url)).toList();
+          if (validUrls.isNotEmpty) favoriteChannel.urls = validUrls;
         }
       });
-    }
+    });
   }
 
   /// 请求重试机制，支持超时和回调
@@ -367,31 +365,16 @@ class M3uUtil {
     }
   }
 
-  /// 保存订阅数据到本地缓存
-  static Future<bool> saveLocalData(List<SubScribeModel> models) async {
-    try {
-      return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
-    } catch (e, stackTrace) {
-      LogUtil.logError('保存订阅数据失败', e, stackTrace);
-      return false;
-    }
-  }
-
   /// 合并多个播放列表并去重
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     try {
       PlaylistModel mergedPlaylist = PlaylistModel()..playList = {};
       Map<String, PlayModel> mergedChannelsById = {};
-
       for (PlaylistModel playlist in playlists) {
-        if (playlist.playList.isEmpty) continue;
-
-        playlist.playList.forEach((category, groups) {
-          if (groups is! Map<String, dynamic>) return;
-          mergedPlaylist.playList[category] ??= <String, Map<String, PlayModel>>{};
+        playlist.playList?.forEach((category, groups) {
+          mergedPlaylist.playList![category] ??= {};
           groups.forEach((groupTitle, channels) {
-            if (channels is! Map<String, PlayModel>) return;
-            mergedPlaylist.playList[category]![groupTitle] ??= <String, PlayModel>{};
+            mergedPlaylist.playList![category]![groupTitle] ??= {};
             channels.forEach((channelName, channelModel) {
               if (channelModel.id != null && channelModel.id!.isNotEmpty && channelModel.urls != null && channelModel.urls!.isNotEmpty) {
                 String tvgId = channelModel.id!;
@@ -402,7 +385,7 @@ class M3uUtil {
                 } else {
                   mergedChannelsById[tvgId] = channelModel;
                 }
-                mergedPlaylist.playList[category]![groupTitle]![channelName] = mergedChannelsById[tvgId]!;
+                mergedPlaylist.playList![category]![groupTitle]![channelName] = mergedChannelsById[tvgId]!;
               }
             });
           });
@@ -415,27 +398,36 @@ class M3uUtil {
     }
   }
 
+  /// 保存订阅数据到本地缓存
+  static Future<bool> saveLocalData(List<SubScribeModel> models) async {
+    try {
+      return await SpUtil.putObjectList('local_m3u', models.map((e) => e.toJson()).toList()) ?? false;
+    } catch (e, stackTrace) {
+      LogUtil.logError('保存订阅数据失败', e, stackTrace);
+      return false;
+    }
+  }
+
+  static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
+  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
+
   /// 解析 M3U 文件为 PlaylistModel
   static Future<PlaylistModel> _parseM3u(String m3u) async {
     try {
+      final lines = m3u.split(RegExp(r'\r?\n'));
       final playListModel = PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
       String currentCategory = Config.allChannelsKey;
       String tempGroupTitle = '';
       String tempChannelName = '';
 
-      // 使用 LineSplitter 提高行分割效率
-      final lines = LineSplitter.split(m3u).toList();
       if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
         for (int i = 0; i < lines.length; i++) {
           String line = lines[i].trim();
           if (line.isEmpty) continue;
-
           if (line.startsWith('#EXTM3U')) {
             final params = line.replaceAll('"', '').split(' ');
             for (var param in params) {
-              if (param.startsWith('x-tvg-url=')) {
-                playListModel.epgUrl = param.substring(10);
-              }
+              if (param.startsWith('x-tvg-url=')) playListModel.epgUrl = param.substring(10);
             }
           } else if (line.startsWith('#CATEGORY:')) {
             currentCategory = line.substring(10).trim().isNotEmpty ? line.substring(10).trim() : Config.allChannelsKey;
@@ -453,7 +445,7 @@ class M3uUtil {
             String tvgId = '';
             String tvgName = '';
 
-            // 解析参数
+            // 使用改进的正则表达式解析参数
             final params = paramRegex.allMatches(paramsStr);
             for (var param in params) {
               final key = param.group(1)!;
@@ -472,41 +464,31 @@ class M3uUtil {
 
             tempGroupTitle = groupTitle;
             tempChannelName = channelName;
+            playListModel.playList![currentCategory] ??= <String, Map<String, PlayModel>>{};
+            playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
+            PlayModel channel = playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??
+                PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
 
-            playListModel.playList[currentCategory] ??= <String, Map<String, PlayModel>>{};
-            playListModel.playList[currentCategory]![tempGroupTitle] ??= <String, PlayModel>{};
-            playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName] ??= PlayModel(
-              id: tvgId,
-              group: tempGroupTitle,
-              logo: tvgLogo,
-              title: tempChannelName,
-              urls: [],
-            );
-
-            // 检查后续行是否为直播链接
             if (i + 1 < lines.length && isLiveLink(lines[i + 1])) {
+              channel.urls ??= [];
               final nextLine = lines[i + 1].trim();
-              if (nextLine.isNotEmpty) {
-                playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(nextLine);
-              }
+              if (nextLine.isNotEmpty) channel.urls!.add(nextLine);
+              playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
               i += 1;
             } else if (i + 2 < lines.length && isLiveLink(lines[i + 2])) {
+              channel.urls ??= [];
               final nextLine = lines[i + 2].trim();
-              if (nextLine.isNotEmpty) {
-                playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(nextLine);
-              }
+              if (nextLine.isNotEmpty) channel.urls!.add(nextLine);
+              playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] = channel;
               i += 2;
             }
           } else if (isLiveLink(line)) {
-            playListModel.playList[currentCategory] ??= <String, Map<String, PlayModel>>{};
-            playListModel.playList[currentCategory]![tempGroupTitle] ??= <String, Map<String, PlayModel>>{};
-            playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName] ??= PlayModel(
-              id: '',
-              group: tempGroupTitle,
-              title: tempChannelName,
-              urls: [],
-            );
-            playListModel.playList[currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
+            playListModel.playList![currentCategory] ??= <String, Map<String, PlayModel>>{};
+            playListModel.playList![currentCategory]![tempGroupTitle] ??= <String, Map<String, PlayModel>>{};
+            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName] ??=
+                PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
+            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls ??= [];
+            playListModel.playList![currentCategory]![tempGroupTitle]![tempChannelName]!.urls!.add(line);
           }
         }
       } else {
@@ -519,25 +501,20 @@ class M3uUtil {
             final groupTitle = lineList[0];
             final channelLink = lineList[1];
             if (isLiveLink(channelLink)) {
-              playListModel.playList[tempGroup] ??= <String, Map<String, PlayModel>>{};
-              playListModel.playList[tempGroup]![groupTitle] ??= <String, PlayModel>{};
-              playListModel.playList[tempGroup]![groupTitle]![groupTitle] ??= PlayModel(
-                group: tempGroup,
-                id: groupTitle,
-                title: groupTitle,
-                urls: [],
-              );
-              if (channelLink.isNotEmpty) {
-                playListModel.playList[tempGroup]![groupTitle]![groupTitle]!.urls!.add(channelLink);
-              }
+              playListModel.playList![tempGroup] ??= <String, Map<String, PlayModel>>{};
+              playListModel.playList![tempGroup]![groupTitle] ??= <String, PlayModel>{};
+              final channel = playListModel.playList![tempGroup]![groupTitle]![groupTitle] ??
+                  PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
+              channel.urls ??= [];
+              if (channelLink.isNotEmpty) channel.urls!.add(channelLink);
+              playListModel.playList![tempGroup]![groupTitle]![groupTitle] = channel;
             } else {
               tempGroup = groupTitle.isEmpty ? '${S.current.defaultText}${i + 1}' : groupTitle;
-              playListModel.playList[tempGroup] ??= <String, Map<String, PlayModel>>{};
+              playListModel.playList![tempGroup] ??= <String, Map<String, PlayModel>>{};
             }
           }
         }
       }
-
       LogUtil.i('解析完成，播放列表: ${playListModel.playList}');
       return playListModel;
     } catch (e, stackTrace) {
@@ -551,8 +528,4 @@ class M3uUtil {
     const protocols = ['http', 'https', 'rtmp', 'rtsp', 'mms', 'ftp'];
     return protocols.any((protocol) => link.toLowerCase().startsWith(protocol));
   }
-
-  // 正则表达式优化：限制匹配范围，减少回溯
-  static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*([^,]*?)(?:,(.+))?$', multiLine: true);
-  static final RegExp paramRegex = RegExp(r'(\w+[-?\w]*)=(?:"([^"]*)"|(\S+))', multiLine: true);
 }
