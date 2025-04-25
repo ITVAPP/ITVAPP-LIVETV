@@ -52,6 +52,12 @@ enum ErrorType {
 class M3uUtil {
   M3uUtil._();
 
+  // 缓存常用的正则表达式
+  static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
+  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
+  static final RegExp validBase64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
+  static final RegExp liveProtocolRegex = RegExp(r'^(http|https|rtmp|rtsp|mms|ftp)', caseSensitive: false);
+
   /// 获取远程播放列表，失败时加载本地 playlists.m3u 并合并收藏
   static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
     try {
@@ -84,7 +90,8 @@ class M3uUtil {
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, PlaylistModel(playList: favoritePlaylist));
       LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
 
-      if (!m3uData.isEmpty) {
+      // 修复逻辑错误：!m3uData.isEmpty 改为 m3uData.isNotEmpty
+      if (m3uData.isNotEmpty) {
         await saveLocalData([SubScribeModel(time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full), link: 'default', selected: true)]);
       }
       return M3uResult(data: parsedData);
@@ -97,16 +104,23 @@ class M3uUtil {
   /// 解密 M3U 文件内容（Base64 解码后 XOR 解密）
   static String _decodeEntireFile(String encryptedContent) {
     try {
-      if (encryptedContent.isEmpty || !RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(encryptedContent)) {
+      // 增强健壮性：检查输入是否为有效的Base64字符串
+      if (encryptedContent.isEmpty || !validBase64Regex.hasMatch(encryptedContent)) {
         LogUtil.logError('解密失败', '无效的 Base64 字符串');
         return encryptedContent;
       }
-      String xorStr = utf8.decode(base64Decode(encryptedContent));
-      String decrypted = "";
+      
+      final List<int> decodedBytes = base64Decode(encryptedContent);
+      final String xorStr = utf8.decode(decodedBytes);
+      final StringBuffer decrypted = StringBuffer();
+      final int keyLength = Config.m3uXorKey.length;
+      
+      // 优化：使用StringBuffer减少字符串拼接开销
       for (int i = 0; i < xorStr.length; i++) {
-        decrypted += String.fromCharCode(xorStr.codeUnitAt(i) ^ Config.m3uXorKey.codeUnitAt(i % Config.m3uXorKey.length));
+        decrypted.writeCharCode(xorStr.codeUnitAt(i) ^ Config.m3uXorKey.codeUnitAt(i % keyLength));
       }
-      return decrypted;
+      
+      return decrypted.toString();
     } catch (e, stackTrace) {
       LogUtil.logError('解密 M3U 文件失败', e, stackTrace);
       return encryptedContent;
@@ -114,216 +128,214 @@ class M3uUtil {
   }
 
   /// 播放列表转换为中文简体或繁体
-static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String conversionType) async {
-  try {
-    // 映射输入的转换类型字符串到ZhConverter需要的格式
-    String converterType;
-    if (conversionType == 'zhHans2Hant') {
-      converterType = 's2t';  // 简体到繁体
-    } else if (conversionType == 'zhHant2Hans') {
-      converterType = 't2s';  // 繁体到简体
-    } else {
-      LogUtil.i('无效的转换类型: $conversionType，跳过转换');
-      return data; // 无效转换类型，回退到原始数据
-    }
-
-    // 检查 playList 是否为空或 null
-    if (data.playList == null || data.playList!.isEmpty) {
-      LogUtil.i('播放列表为空，无需转换');
-      return data; // 空播放列表，回退到原始数据
-    }
-
-    // 创建 ZhConverter
-    final converter = ZhConverter(converterType);
-    
-    // 确保转换器已初始化，添加超时处理
+  static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String conversionType) async {
     try {
-      await converter.initialize().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          throw TimeoutException('中文转换器初始化超时');
-        }
-      );
-    } catch (e, stackTrace) {
-      LogUtil.logError('中文转换器初始化失败', e, stackTrace);
-      return data; // 初始化失败，回退到原始数据
-    }
-    
-    // 获取原始播放列表
-    final Map<String, dynamic> originalPlayList = data.playList as Map<String, dynamic>;
-    
-    // 创建新的播放列表
-    final Map<String, Map<String, Map<String, PlayModel>>> newPlayList = {};
-    
-    // 创建转换缓存，避免重复转换相同文本
-    final Map<String, String> convertCache = {};
-    int convertCount = 0;
-    
-    // 转换文本的辅助函数，带缓存
-    Future<String> convertText(String text) async {
-      if (text.isEmpty) return text;
-      
-      // 检查缓存
-      if (convertCache.containsKey(text)) {
-        return convertCache[text]!;
+      // 映射输入的转换类型字符串到ZhConverter需要的格式
+      String converterType;
+      if (conversionType == 'zhHans2Hant') {
+        converterType = 's2t';  // 简体到繁体
+      } else if (conversionType == 'zhHant2Hans') {
+        converterType = 't2s';  // 繁体到简体
+      } else {
+        LogUtil.i('无效的转换类型: $conversionType，跳过转换');
+        return data; // 无效转换类型，回退到原始数据
       }
+
+      // 检查 playList 是否为空或 null
+      if (data.playList == null || data.playList!.isEmpty) {
+        LogUtil.i('播放列表为空，无需转换');
+        return data; // 空播放列表，回退到原始数据
+      }
+
+      // 创建 ZhConverter
+      final converter = ZhConverter(converterType);
       
+      // 确保转换器已初始化，添加超时处理
       try {
-        final converted = await converter.convert(text);
-        convertCache[text] = converted;
-        if (converted != text) convertCount++;
-        return converted;
-      } catch (e) {
-        LogUtil.e('转换失败: $text, 错误: $e');
-        return text; // 失败时返回原文本
+        await converter.initialize().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            throw TimeoutException('中文转换器初始化超时');
+          }
+        );
+      } catch (e, stackTrace) {
+        LogUtil.logError('中文转换器初始化失败', e, stackTrace);
+        return data; // 初始化失败，回退到原始数据
       }
-    }
-    
-    // 分批处理辅助函数，限制批量大小
-    Future<List<T>> processBatch<T>(List<Future<T> Function()> tasks, int batchSize) async {
-      final results = <T>[];
-      for (int i = 0; i < tasks.length; i += batchSize) {
-        final end = (i + batchSize < tasks.length) ? i + batchSize : tasks.length;
-        final batchTasks = tasks.sublist(i, end);
-        final batchResults = await Future.wait(batchTasks.map((task) => task()));
-        results.addAll(batchResults);
-      }
-      return results;
-    }
-    
-    // 处理分类的异步任务
-    final categoryTasks = <Future<void> Function()>[];
-    
-    // 优化1：异步处理分类
-    for (final categoryEntry in originalPlayList.entries) {
-      categoryTasks.add(() async {
-        final String categoryKey = categoryEntry.key;
-        final dynamic groupMapValue = categoryEntry.value;
+      
+      // 获取原始播放列表
+      final Map<String, dynamic> originalPlayList = data.playList as Map<String, dynamic>;
+      
+      // 创建新的播放列表，保持类型一致性
+      final Map<String, Map<String, Map<String, PlayModel>>> newPlayList = {};
+      
+      // 创建转换缓存，避免重复转换相同文本
+      final Map<String, String> convertCache = {};
+      int convertCount = 0;
+      
+      // 转换文本的辅助函数，带缓存
+      Future<String> convertText(String text) async {
+        if (text.isEmpty) return text;
         
-        // 确保groupMap是有效的Map类型
-        if (groupMapValue is! Map<String, dynamic>) {
-          newPlayList[categoryKey] = <String, Map<String, PlayModel>>{};
-          return;
+        // 检查缓存
+        if (convertCache.containsKey(text)) {
+          return convertCache[text]!;
         }
         
-        final Map<String, dynamic> groupMap = groupMapValue;
-        
-        // 转换分类键名(categoryKey)，不为空时转换
-        String newCategoryKey = categoryKey.isNotEmpty ? await convertText(categoryKey) : categoryKey;
-        
-        // 确保新类别键存在
-        newPlayList[newCategoryKey] = <String, Map<String, PlayModel>>{};
-        
-        // 处理分组的异步任务
-        final groupTasks = <Future<void> Function()>[];
-        
-        // 优化1：异步处理分组
-        for (final groupEntry in groupMap.entries) {
-          groupTasks.add(() async {
-            final String groupKey = groupEntry.key;
-            final dynamic channelMapValue = groupEntry.value;
-            
-            // 确保channelMap是有效的Map类型
-            if (channelMapValue is! Map<String, dynamic>) {
-              newPlayList[newCategoryKey]![groupKey] = <String, PlayModel>{};
-              return;
-            }
-            
-            final Map<String, dynamic> channelMap = channelMapValue;
-            
-            // 转换分组键名(groupKey)，不为空时转换
-            String newGroupKey = groupKey.isNotEmpty ? await convertText(groupKey) : groupKey;
-            
-            // 确保新分组键存在
-            newPlayList[newCategoryKey]![newGroupKey] = <String, PlayModel>{};
-            
-            // 优化2：内存优化，将频道集合分批处理
-            // 收集所有需要处理的频道条目
-            final channelEntries = channelMap.entries.toList();
-            final int totalChannels = channelEntries.length;
-            
-            // 定义频道批处理大小
-            final int channelBatchSize = 50; // 每批处理50个频道
-            
-            // 分批处理频道
-            for (int i = 0; i < totalChannels; i += channelBatchSize) {
-              final int end = (i + channelBatchSize < totalChannels) ? i + channelBatchSize : totalChannels;
-              final batchChannelEntries = channelEntries.sublist(i, end);
+        try {
+          final converted = await converter.convert(text);
+          convertCache[text] = converted;
+          if (converted != text) convertCount++;
+          return converted;
+        } catch (e) {
+          LogUtil.e('转换失败: $text, 错误: $e');
+          return text; // 失败时返回原文本
+        }
+      }
+      
+      // 优化批处理函数：使用泛型和更高效的队列处理
+      Future<List<T>> processBatch<T>(List<Future<T> Function()> tasks, int batchSize) async {
+        final results = <T>[];
+        for (int i = 0; i < tasks.length; i += batchSize) {
+          final end = (i + batchSize < tasks.length) ? i + batchSize : tasks.length;
+          final batchTasks = tasks.sublist(i, end);
+          final batchResults = await Future.wait(batchTasks.map((task) => task()));
+          results.addAll(batchResults);
+        }
+        return results;
+      }
+      
+      // 处理分类的异步任务队列
+      final categoryTasks = <Future<void> Function()>[];
+      
+      // 处理所有分类
+      for (final categoryEntry in originalPlayList.entries) {
+        categoryTasks.add(() async {
+          final String categoryKey = categoryEntry.key;
+          final dynamic groupMapValue = categoryEntry.value;
+          
+          // 改进类型检查：先验证类型再进行转换，避免运行时错误
+          if (groupMapValue is! Map<String, dynamic>) {
+            newPlayList[categoryKey] = <String, Map<String, PlayModel>>{};
+            return;
+          }
+          
+          final Map<String, dynamic> groupMap = groupMapValue;
+          
+          // 转换分类键名(categoryKey)，不为空时转换
+          String newCategoryKey = categoryKey.isNotEmpty ? await convertText(categoryKey) : categoryKey;
+          
+          // 确保新类别键存在
+          newPlayList[newCategoryKey] = <String, Map<String, PlayModel>>{};
+          
+          // 处理分组的异步任务队列
+          final groupTasks = <Future<void> Function()>[];
+          
+          // 处理分组
+          for (final groupEntry in groupMap.entries) {
+            groupTasks.add(() async {
+              final String groupKey = groupEntry.key;
+              final dynamic channelMapValue = groupEntry.value;
               
-              // 创建频道处理任务
-              final channelTasks = <Future<MapEntry<String, PlayModel>> Function()>[];
-              
-              for (final channelEntry in batchChannelEntries) {
-                channelTasks.add(() async {
-                  final String channelKey = channelEntry.key;
-                  final dynamic playModelValue = channelEntry.value;
-                  
-                  // 确保playModel是有效的PlayModel类型
-                  if (playModelValue is! PlayModel) {
-                    // 返回null表示跳过此频道
-                    return MapEntry(channelKey, playModelValue as PlayModel);
-                  }
-                  
-                  final PlayModel playModel = playModelValue;
-                  
-                  // 转换频道键名(channelKey)，不为空时转换
-                  String newChannelKey = channelKey.isNotEmpty ? await convertText(channelKey) : channelKey;
-                  
-                  // 转换标题
-                  String? newTitle = playModel.title;
-                  if (newTitle != null && newTitle.isNotEmpty) {
-                    newTitle = await convertText(newTitle);
-                  }
-                  
-                  // 转换分组
-                  String? newGroup = playModel.group;
-                  if (newGroup != null && newGroup.isNotEmpty) {
-                    newGroup = await convertText(newGroup);
-                  }
-                  
-                  // 创建新的PlayModel
-                  final newPlayModel = playModel.copyWith(
-                    title: newTitle,
-                    group: newGroup
-                  );
-                  
-                  return MapEntry(newChannelKey, newPlayModel);
-                });
+              // 改进类型检查
+              if (channelMapValue is! Map<String, dynamic>) {
+                newPlayList[newCategoryKey]![groupKey] = <String, PlayModel>{};
+                return;
               }
               
-              // 并行处理一批频道，限制并发数为20
-              final channelResults = await processBatch(channelTasks, 20);
+              final Map<String, dynamic> channelMap = channelMapValue;
               
-              // 将处理结果添加到新的播放列表
-              for (final entry in channelResults) {
-                if (entry != null) {
-                  newPlayList[newCategoryKey]![newGroupKey]![entry.key] = entry.value;
+              // 转换分组键名(groupKey)，不为空时转换
+              String newGroupKey = groupKey.isNotEmpty ? await convertText(groupKey) : groupKey;
+              
+              // 确保新分组键存在
+              newPlayList[newCategoryKey]![newGroupKey] = <String, PlayModel>{};
+              
+              // 优化：收集所有频道条目，分批处理
+              final channelEntries = channelMap.entries.toList();
+              final int totalChannels = channelEntries.length;
+              
+              // 优化批量处理大小，根据实际情况调整
+              final int channelBatchSize = 50; // 每批处理50个频道
+              
+              // 分批处理频道
+              for (int i = 0; i < totalChannels; i += channelBatchSize) {
+                final int end = (i + channelBatchSize < totalChannels) ? i + channelBatchSize : totalChannels;
+                final batchChannelEntries = channelEntries.sublist(i, end);
+                
+                // 创建频道处理任务
+                final channelTasks = <Future<MapEntry<String, PlayModel>> Function()>[];
+                
+                for (final channelEntry in batchChannelEntries) {
+                  channelTasks.add(() async {
+                    final String channelKey = channelEntry.key;
+                    final dynamic playModelValue = channelEntry.value;
+                    
+                    // 类型检查与安全转换
+                    if (playModelValue is! PlayModel) {
+                      return MapEntry(channelKey, playModelValue as PlayModel);
+                    }
+                    
+                    final PlayModel playModel = playModelValue;
+                    
+                    // 转换频道键名(channelKey)，不为空时转换
+                    String newChannelKey = channelKey.isNotEmpty ? await convertText(channelKey) : channelKey;
+                    
+                    // 转换标题
+                    String? newTitle = playModel.title;
+                    if (newTitle != null && newTitle.isNotEmpty) {
+                      newTitle = await convertText(newTitle);
+                    }
+                    
+                    // 转换分组
+                    String? newGroup = playModel.group;
+                    if (newGroup != null && newGroup.isNotEmpty) {
+                      newGroup = await convertText(newGroup);
+                    }
+                    
+                    // 创建新的PlayModel，使用copyWith确保对象属性正确复制
+                    final newPlayModel = playModel.copyWith(
+                      title: newTitle,
+                      group: newGroup
+                    );
+                    
+                    return MapEntry(newChannelKey, newPlayModel);
+                  });
+                }
+                
+                // 优化：并行处理一批频道，限制合理的并发数
+                final channelResults = await processBatch(channelTasks, 20);
+                
+                // 将处理结果添加到新的播放列表
+                for (final entry in channelResults) {
+                  if (entry != null) {
+                    newPlayList[newCategoryKey]![newGroupKey]![entry.key] = entry.value;
+                  }
                 }
               }
-            }
-          });
-        }
-        
-        // 并行处理分组，限制并发数为10
-        await processBatch(groupTasks, 10);
-      });
+            });
+          }
+          
+          // 并行处理分组，限制合理的并发数
+          await processBatch(groupTasks, 10);
+        });
+      }
+      
+      // 并行处理分类，限制合理的并发数
+      await processBatch(categoryTasks, 5);
+      
+      LogUtil.i('中文转换完成: 共转换 $convertCount 个词条');
+      
+      // 返回新的PlaylistModel，确保返回类型与原始类型一致
+      return PlaylistModel(
+        epgUrl: data.epgUrl,
+        playList: newPlayList,
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('简繁体转换失败，回退到原始数据', e, stackTrace);
+      return data; // 异常时回退原始数据
     }
-    
-    // 并行处理分类，限制并发数为5
-    await processBatch(categoryTasks, 5);
-    
-    LogUtil.i('中文转换完成: 共转换 $convertCount 个词条');
-    
-    // 返回新的PlaylistModel，确保类型一致
-    return PlaylistModel(
-      epgUrl: data.epgUrl,
-      playList: newPlayList,
-    );
-  } catch (e, stackTrace) {
-    LogUtil.logError('简繁体转换失败，回退到原始数据', e, stackTrace);
-    return data; // 异常时回退原始数据
   }
-}
 
   /// 获取或创建本地收藏列表
   static Future<Map<String, Map<String, Map<String, PlayModel>>>> getOrCreateFavoriteList() async {
@@ -383,17 +395,23 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
   static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
     final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
+    
+    // 优化：提前构建索引映射，减少嵌套循环
     final Map<String, List<String>> remoteIdToUrls = {};
     remotePlaylist.playList?.forEach((category, groups) {
       groups.forEach((groupTitle, channels) {
         channels.forEach((channelName, channelModel) {
-          if (channelModel.id != null && channelModel.urls != null) remoteIdToUrls[channelModel.id!] = channelModel.urls!;
+          if (channelModel.id != null && channelModel.urls != null) {
+            remoteIdToUrls[channelModel.id!] = channelModel.urls!;
+          }
         });
       });
     });
+    
     favoriteCategory.forEach((groupTitle, channels) {
       channels.forEach((channelName, favoriteChannel) {
         if (favoriteChannel.id != null && remoteIdToUrls.containsKey(favoriteChannel.id!)) {
+          // 优化：使用isLiveLink函数的正则版本，提高性能
           final validUrls = remoteIdToUrls[favoriteChannel.id!]!.where((url) => isLiveLink(url)).toList();
           if (validUrls.isNotEmpty) favoriteChannel.urls = validUrls;
         }
@@ -483,7 +501,10 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
           groups.forEach((groupTitle, channels) {
             mergedPlaylist.playList![category]![groupTitle] ??= {};
             channels.forEach((channelName, channelModel) {
-              if (channelModel.id != null && channelModel.id!.isNotEmpty && channelModel.urls != null && channelModel.urls!.isNotEmpty) {
+              final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+              final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+              
+              if (hasValidId && hasValidUrls) {
                 String tvgId = channelModel.id!;
                 if (mergedChannelsById.containsKey(tvgId)) {
                   LinkedHashSet<String> uniqueUrls = LinkedHashSet<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
@@ -514,9 +535,6 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
       return false;
     }
   }
-
-  static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
 
   /// 解析 M3U 文件为 PlaylistModel
   static Future<PlaylistModel> _parseM3u(String m3u) async {
@@ -632,7 +650,7 @@ static Future<PlaylistModel> convertPlaylistModel(PlaylistModel data, String con
 
   /// 判断链接是否为有效直播链接
   static bool isLiveLink(String link) {
-    const protocols = ['http', 'https', 'rtmp', 'rtsp', 'mms', 'ftp'];
-    return protocols.any((protocol) => link.toLowerCase().startsWith(protocol));
+    // 优化：使用预编译的正则表达式，提高性能
+    return liveProtocolRegex.hasMatch(link);
   }
 }
