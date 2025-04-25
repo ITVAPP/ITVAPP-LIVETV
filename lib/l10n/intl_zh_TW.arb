@@ -116,6 +116,7 @@
   "inUse": "使用中",
   "use": "使用",
   "languageSelection": "語言選擇",
+  "langTip": "重啟應用後，頻道資訊才可以應用新的語言設置",
   "fontSizeTitle": "字型大小",
   "logCopied": "日誌已複製到剪貼簿",
   "clipboardDataFetchError": "獲取剪貼簿資料失敗",
