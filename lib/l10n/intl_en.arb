@@ -116,6 +116,7 @@
   "inUse": "In Use",
   "use": "Use",
   "languageSelection": "Select Language",
+  "langTip": "The new language setting will take effect after restarting the app",
   "fontSizeTitle": "Font Size",
   "logCopied": "Log copied",
   "clipboardDataFetchError": "Failed to fetch clipboard data",
