@@ -53,15 +53,34 @@ void main() async {
 
   // 初始化主题提供者并确保正确初始化完成
   ThemeProvider themeProvider = ThemeProvider();
+  
+  // 创建初始化任务列表，确保错误处理
+  List<Future<void>> initTasks = [
+    WakelockPlus.enable().catchError((e, stack) {
+      LogUtil.logError('初始化屏幕常亮失败', e, stack); 
+      return Future.value(); // 返回完成状态，防止整个初始化流程中断
+    }),
+    
+    SpUtil.getInstance().catchError((e, stack) {
+      LogUtil.logError('初始化本地存储失败', e, stack);
+      return Future.value();
+    }),
+    
+    themeProvider.initialize().catchError((e, stack) {
+      LogUtil.logError('初始化主题失败', e, stack);
+      return Future.value();
+    }),
+  ];
+
   // 并行执行初始化操作以优化启动时间
-  await Future.wait([
-    WakelockPlus.enable(), // 启用屏幕常亮功能
-    SpUtil.getInstance(),  // 初始化本地存储工具
-    themeProvider.initialize(), // 显式调用初始化
-  ]);
+  await Future.wait(initTasks);
 
   // 初始化EPG文件系统，清理过期数据
-  await EpgUtil.init();
+  try {
+    await EpgUtil.init();
+  } catch (e, stack) {
+    LogUtil.logError('初始化EPG文件系统失败', e, stack);
+  }
 
   if (!EnvUtil.isMobile) { // 判断是否为非移动端环境
     await _initializeDesktop(); // 初始化桌面端窗口设置
@@ -74,13 +93,10 @@ void main() async {
       isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled(); // 检测硬件加速支持
       await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled); // 存入缓存
       LogUtil.d('首次检测硬件加速支持，结果: $isHardwareEnabled，已存入缓存'); // 记录检测结果
-    } else {
-      LogUtil.d('从缓存读取硬件加速状态: $isHardwareEnabled'); // 记录缓存读取结果
-    }
+    } 
   } catch (e, stackTrace) {
-    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}'); // 记录硬件加速检测错误
-    await SpUtil.putBool( AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
-    EasyLoading.showError('硬件加速检测失败，已禁用'); // 显示错误提示
+    LogUtil.e('检查和设置硬件加速状态发生错误: ${e.toString()}', stackTrace); // 记录硬件加速检测错误
+    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false); // 出错时禁用硬件加速
   }
 
   // 启动应用并配置全局状态管理
@@ -116,13 +132,17 @@ Future<void> _initializeDesktop() async {
 
     // 等待窗口准备好后显示并聚焦
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await Future.wait([
-        windowManager.show(), // 显示窗口
-        windowManager.focus(), // 聚焦窗口
-      ]);
+      try {
+        await Future.wait([
+          windowManager.show(), // 显示窗口
+          windowManager.focus(), // 聚焦窗口
+        ]);
+      } catch (e, stack) {
+        LogUtil.e('桌面端窗口显示或聚焦失败', stack); // 记录窗口显示错误
+      }
     });
   } catch (e, stackTrace) {
-    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}'); // 记录窗口初始化错误
+    LogUtil.e('桌面端窗口初始化失败: ${e.toString()}', stackTrace); // 记录窗口初始化错误
   }
 }
 
@@ -147,7 +167,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider; // 延迟初始化主题提供者
-  final Map<String?, ThemeData> _themeCache = {}; // 主题数据缓存
+  // 缓存改为使用计算键，避免字体相同但实例不同导致的缓存miss
+  final Map<String, ThemeData> _themeCache = {}; // 主题数据缓存
 
   @override
   void initState() {
@@ -158,7 +179,11 @@ class _MyAppState extends State<MyApp> {
 
   // 异步初始化应用，检查设备类型
   Future<void> _initializeApp() async {
-    await _themeProvider.checkAndSetIsTV(); // 检查并设置是否为电视设备
+    try {
+      await _themeProvider.checkAndSetIsTV(); // 检查并设置是否为电视设备
+    } catch (e, stack) {
+      LogUtil.logError('检查TV设备失败', e, stack);
+    }
   }
 
   // 处理返回键逻辑，决定是否退出应用
@@ -198,8 +223,11 @@ class _MyAppState extends State<MyApp> {
 
   // 构建主题数据并使用缓存优化性能
   ThemeData _buildTheme(String? fontFamily) {
-    if (_themeCache.containsKey(fontFamily)) { // 检查缓存中是否已有字体
-      return _themeCache[fontFamily]!; // 返回缓存字体
+    // 使用可靠的缓存键
+    final cacheKey = fontFamily ?? 'system';
+    
+    if (_themeCache.containsKey(cacheKey)) { // 检查缓存中是否已有字体
+      return _themeCache[cacheKey]!; // 返回缓存字体
     }
 
     final theme = ThemeData(
@@ -215,7 +243,7 @@ class _MyAppState extends State<MyApp> {
       fontFamily: fontFamily, // 支持动态字体
     );
 
-    _themeCache[fontFamily] = theme; // 缓存新构建的主题
+    _themeCache[cacheKey] = theme; // 缓存新构建的主题
     return theme; // 返回主题数据
   }
 
