@@ -116,6 +116,7 @@
   "inUse": "使用中",
   "use": "使用",
   "languageSelection": "语言选择",
+  "langTip": "重启应用后，频道信息才可以应用新的语言设置",
   "fontSizeTitle": "字体大小",
   "noNewVersion": "当前已是最新版本",
   "logCopied": "日志已复制到剪贴板",
