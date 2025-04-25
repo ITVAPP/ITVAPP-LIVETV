@@ -36,6 +36,8 @@ env:
   FLUTTER_VERSION: '3.29.0'             # Flutter版本
   NODE_VERSION: '16'                    # Node.js版本
   JAVA_VERSION: '17'                    # Java版本
+  CN_APP_NAME: '电视宝直播'              # 中国版应用名称
+  OVERSEAS_APP_NAME: '電視寶直播'        # 海外版应用名称
 
 jobs:
   build_android:
@@ -166,6 +168,11 @@ jobs:
           cp lib/config.dart lib/config.dart.bak  # 备份原始配置文件
           echo "Original config file backed up"
 
+      - name: 备份AndroidManifest.xml文件
+        run: |
+          cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml.bak  # 备份原始AndroidManifest文件
+          echo "Original AndroidManifest.xml file backed up"
+
       - name: 准备构建环境变量
         run: |
           # 创建构建工具脚本
@@ -202,10 +209,15 @@ jobs:
             local version_type=$1
             # 恢复原始配置
             cp lib/config.dart.bak lib/config.dart
+            # 恢复原始AndroidManifest.xml
+            cp android/app/src/main/AndroidManifest.xml.bak android/app/src/main/AndroidManifest.xml
+            
             if [ "$version_type" = "overseas" ]; then
               # 设置为国际版
               sed -i 's/static const bool cnversion = true;/static const bool cnversion = false;/g' lib/config.dart
-              echo "Set configuration for overseas version"
+              # 修改应用名称为海外版名称
+              sed -i "s/android:label=\"[^\"]*\"/android:label=\"$OVERSEAS_APP_NAME\"/g" android/app/src/main/AndroidManifest.xml
+              echo "Set configuration and app name for overseas version: $OVERSEAS_APP_NAME"
             elif [ "$version_type" = "china" ]; then
               # 设置为国内版
               sed -i 's/static const bool cnversion = false;/static const bool cnversion = true;/g' lib/config.dart
@@ -214,7 +226,9 @@ jobs:
                 echo "Backup fix: Setting cnversion to true..."
                 sed -i 's/static const bool cnversion =.*;/static const bool cnversion = true;/g' lib/config.dart
               fi
-              echo "Set configuration for China version"
+              # 修改应用名称为中国版名称
+              sed -i "s/android:label=\"[^\"]*\"/android:label=\"$CN_APP_NAME\"/g" android/app/src/main/AndroidManifest.xml
+              echo "Set configuration and app name for China version: $CN_APP_NAME"
             else
               echo "Error: Unknown version type $version_type"
               return 1
@@ -222,6 +236,8 @@ jobs:
             # 打印配置确认
             echo "Current config setting:"
             grep "cnversion" lib/config.dart
+            echo "Current app name setting:"
+            grep "android:label" android/app/src/main/AndroidManifest.xml
             return 0
           }
           # 执行构建并移动APK
@@ -285,10 +301,18 @@ jobs:
             rm lib/config.dart.bak
             echo "Restored original config file"
           fi
+          # 恢复原始AndroidManifest.xml
+          if [ -f "android/app/src/main/AndroidManifest.xml.bak" ]; then
+            cp android/app/src/main/AndroidManifest.xml.bak android/app/src/main/AndroidManifest.xml
+            rm android/app/src/main/AndroidManifest.xml.bak
+            echo "Restored original AndroidManifest.xml file"
+          fi
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}                # 密钥别名
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
+          CN_APP_NAME: ${{ env.CN_APP_NAME }}                 # 中国版应用名称
+          OVERSEAS_APP_NAME: ${{ env.OVERSEAS_APP_NAME }}     # 海外版应用名称
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
