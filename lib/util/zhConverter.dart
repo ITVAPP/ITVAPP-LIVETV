@@ -4,7 +4,7 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 /// 中文转换工具类，支持单字符和词组的简繁体转换
 class ZhConverter {
   final String conversionType; // 转换类型：'s2t' 简体到繁体，'t2s' 繁体到简体
-  Map<int, String> conversionMap = {}; // 字符转换映射，键为字符的codeUnit
+  OptimizedCharMap conversionMap = OptimizedCharMap(); // 优化的字符转换映射
   Map<String, String> phrasesMap = {}; // 词组转换映射
   List<String> phraseKeys = []; // 词组键列表，按长度降序排序
   bool _isInitialized = false; // 标记初始化状态
@@ -14,16 +14,48 @@ class ZhConverter {
   
   /// 转换结果缓存，优化重复转换性能
   final Map<String, String> _conversionCache = {};
-  final int _maxCacheSize = 888; // 缓存最大容量，防止内存溢出
+  final int _maxCacheSize = 588; // 缓存最大容量，防止内存溢出
   
-  /// 构造函数，初始化转换类型和前缀树
+  /// 初始化锁，防止并发初始化
+  bool _isInitializing = false;
+  
+  /// 单例实例，优化多次创建
+  static final Map<String, ZhConverter> _instances = {};
+  
+  /// 获取转换器实例，实现单例模式
+  /// @param conversionType 转换类型：'s2t' 简体到繁体，'t2s' 繁体到简体
+  static ZhConverter getInstance(String conversionType) {
+    if (!_instances.containsKey(conversionType)) {
+      _instances[conversionType] = ZhConverter._internal(conversionType);
+    }
+    return _instances[conversionType]!;
+  }
+  
+  /// 私有构造函数，初始化转换类型和前缀树
+  ZhConverter._internal(this.conversionType) {
+    _phraseTrie = _PhraseTrie();
+  }
+  
+  /// 公开构造函数，保持向后兼容
   ZhConverter(this.conversionType) {
     _phraseTrie = _PhraseTrie();
   }
 
   /// 初始化转换表，加载字符和词组映射
   Future<void> initialize() async {
-    if (_isInitialized) return; // 已初始化则跳过
+    // 已初始化则直接返回
+    if (_isInitialized) return;
+    
+    // 避免并发初始化
+    if (_isInitializing) {
+      // 等待初始化完成
+      while (_isInitializing) {
+        await Future.delayed(Duration(milliseconds: 50));
+      }
+      return;
+    }
+    
+    _isInitializing = true;
     
     try {
       // 并发加载字符和词组映射
@@ -35,7 +67,13 @@ class ZhConverter {
         })
       ]);
       
-      conversionMap = results[0] as Map<int, String>; // 设置字符映射
+      // 将结果转换为优化的字符映射结构
+      final Map<int, String> charMap = results[0] as Map<int, String>;
+      conversionMap.clear();
+      for (final entry in charMap.entries) {
+        conversionMap.set(entry.key, entry.value);
+      }
+      
       phrasesMap = results[1] as Map<String, String>; // 设置词组映射
       
       // 按长度降序排序词组键，优先匹配长词组
@@ -47,12 +85,14 @@ class ZhConverter {
     } catch (e, stackTrace) {
       LogUtil.logError('转换器初始化失败: $e', e, stackTrace); // 记录初始化错误
       _resetState(); // 重置状态
+    } finally {
+      _isInitializing = false; // 释放初始化锁
     }
   }
   
   /// 重置内部状态，保持一致性
   void _resetState() {
-    conversionMap = {};
+    conversionMap.clear();
     phrasesMap = {};
     phraseKeys = [];
     _conversionCache.clear(); // 清除缓存
@@ -125,35 +165,45 @@ class ZhConverter {
   /// 异步转换文本，执行简繁体转换
   Future<String> convert(String text) async {
     if (text.isEmpty) return text;
-    final String? cachedResult = _getCachedConversion(text); // 检查缓存
-    if (cachedResult != null) return cachedResult;
     
+    // 确保初始化
     if (!_isInitialized) {
-      await initialize(); // 确保初始化
+      await initialize();
       if (!_isInitialized || conversionMap.isEmpty) {
         LogUtil.i('转换器未初始化或映射为空，返回原文本');
         return text;
       }
     }
     
-    final result = _performCombinedConversion(text); // 执行转换
-    _cacheConversionResult(text, result); // 缓存结果
-    return result;
+    // 执行实际转换
+    return _processTextConversion(text);
   }
 
   /// 同步转换文本，兼容原有接口
   String convertSync(String text) {
     if (text.isEmpty) return text;
-    final String? cachedResult = _getCachedConversion(text); // 检查缓存
-    if (cachedResult != null) return cachedResult;
     
     if (!_isInitialized || conversionMap.isEmpty) {
       LogUtil.i('同步转换未初始化或映射为空，返回原文本');
       return text;
     }
     
-    final result = _performCombinedConversion(text); // 执行转换
-    _cacheConversionResult(text, result); // 缓存结果
+    // 复用处理逻辑
+    return _processTextConversion(text);
+  }
+  
+  /// 处理文本转换，抽取共用逻辑
+  String _processTextConversion(String text) {
+    // 检查缓存
+    final String? cachedResult = _getCachedConversion(text);
+    if (cachedResult != null) return cachedResult;
+    
+    // 执行转换
+    final result = _performCombinedConversion(text);
+    
+    // 缓存结果
+    _cacheConversionResult(text, result);
+    
     return result;
   }
   
@@ -198,7 +248,7 @@ class ZhConverter {
         
         if (!phraseMatched) {
           final int codeUnit = text.codeUnitAt(position); // 获取当前字符codeUnit
-          final String? convertedChar = conversionMap[codeUnit]; // 查找字符映射
+          final String? convertedChar = conversionMap.get(codeUnit); // 查找字符映射
           resultBuffer.write(convertedChar ?? text[position]); // 添加转换字符或原字符
           position++; // 前进到下一字符
         }
@@ -209,6 +259,52 @@ class ZhConverter {
       LogUtil.logError('转换过程异常: $e', e, stackTrace); // 记录转换错误
       return text;
     }
+  }
+}
+
+/// 优化的字符映射，使用数组提高查找速度
+class OptimizedCharMap {
+  final List<String?> _fastMap = List.filled(65536, null);
+  final Map<int, String> _overflowMap = {};
+  
+  /// 设置字符映射
+  void set(int codeUnit, String value) {
+    if (codeUnit < 65536) {
+      _fastMap[codeUnit] = value;
+    } else {
+      _overflowMap[codeUnit] = value;
+    }
+  }
+  
+  /// 获取字符映射
+  String? get(int codeUnit) {
+    if (codeUnit < 65536) {
+      return _fastMap[codeUnit];
+    } else {
+      return _overflowMap[codeUnit];
+    }
+  }
+  
+  /// 清空映射
+  void clear() {
+    for (int i = 0; i < _fastMap.length; i++) {
+      _fastMap[i] = null;
+    }
+    _overflowMap.clear();
+  }
+  
+  /// 检查是否为空
+  bool get isEmpty {
+    return _fastMap.every((element) => element == null) && _overflowMap.isEmpty;
+  }
+  
+  /// 获取映射数量
+  int get length {
+    int count = 0;
+    for (String? char in _fastMap) {
+      if (char != null) count++;
+    }
+    return count + _overflowMap.length;
   }
 }
 
