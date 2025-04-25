@@ -23,6 +23,7 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/channel_util.dart';
 import 'package:itvapp_live_tv/util/traffic_analytics.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/zh_converter.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
@@ -145,6 +146,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _showPlayIcon = false; // 是否显示播放图标
   bool _showPauseIconFromListener = false; // 是否显示暂停图标（监听器触发）
   int _m3u8InvalidCount = 0; // m3u8 失效计数
+  
+  // 添加中文转换器实例
+  ZhConverter? _s2tConverter; // 简体转繁体转换器
+  ZhConverter? _t2sConverter; // 繁体转简体转换器
 
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
@@ -727,6 +732,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
+  /// 初始化中文转换器
+  Future<void> _initializeZhConverters() async {
+    try {
+      // 仅需要在第一次时初始化
+      if (_s2tConverter == null) {
+        _s2tConverter = ZhConverter('s2t'); // 简体转繁体
+        await _s2tConverter!.initialize();
+      }
+      
+      if (_t2sConverter == null) {
+        _t2sConverter = ZhConverter('t2s'); // 繁体转简体
+        await _t2sConverter!.initialize();
+      }
+      
+      LogUtil.i('中文转换器初始化完成');
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始化中文转换器失败', e, stackTrace);
+    }
+  }
+
   /// 重试播放逻辑
   void _retryPlayback({bool resetRetryCount = false}) {
     if (!_canPerformOperation('重试播放')) return;
@@ -977,30 +1002,75 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  /// 从用户信息中提取地理位置信息
-  Map<String, String?> _getLocationInfo(String? userInfo) {
-    if (userInfo == null || userInfo.isEmpty) {
-      LogUtil.i('用户地理信息为空，使用默认顺序');
-      return {'region': null, 'city': null};
-    }
-    try {
-      final Map<String, dynamic> userData = jsonDecode(userInfo);
-      final Map<String, dynamic>? locationData = userData['info']?['location'];
-      final String? region = locationData?['region'] as String?;
-      final String? city = locationData?['city'] as String?;
-      final String? regionPrefix = region != null && region.isNotEmpty
-          ? (region.length >= 2 ? region.substring(0, 2) : region)
-          : null;
-      final String? cityPrefix = city != null && city.isNotEmpty
-          ? (city.length >= 2 ? city.substring(0, 2) : city)
-          : null;
-      LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
-      return {'region': regionPrefix, 'city': cityPrefix};
-    } catch (e) {
-      LogUtil.e('解析地理信息失败: $e');
-      return {'region': null, 'city': null};
-    }
+/// 从用户信息中提取地理位置信息并根据语言环境进行简繁转换
+Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
+  if (userInfo == null || userInfo.isEmpty) {
+    LogUtil.i('用户地理信息为空，使用默认顺序');
+    return {'region': null, 'city': null};
   }
+  
+  try {
+    final Map<String, dynamic> userData = jsonDecode(userInfo);
+    final Map<String, dynamic>? locationData = userData['info']?['location'];
+    
+    if (locationData == null) {
+      LogUtil.i('用户信息中无location字段');
+      return {'region': null, 'city': null};
+    }
+    
+    // 获取原始地理信息
+    String? region = locationData['region'] as String?;
+    String? city = locationData['city'] as String?;
+    
+    // 获取当前语言环境
+    final currentLocale = Localizations.localeOf(context).toString();
+    LogUtil.i('当前语言环境: $currentLocale');
+    
+    // 如果是中文环境，需要进行简繁转换
+    if (currentLocale.startsWith('zh')) {
+      await _initializeZhConverters(); // 确保转换器已初始化
+      
+      // 判断是简体还是繁体环境
+      bool isTraditional = currentLocale.contains('TW') || 
+                          currentLocale.contains('HK') || 
+                          currentLocale.contains('MO');
+      
+      // 使用对应的转换器
+      ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
+      String targetType = isTraditional ? '繁体' : '简体';
+      
+      if (converter != null) {
+        // 转换 region
+        if (region != null && region.isNotEmpty) {
+          String oldRegion = region;
+          region = converter.convertSync(region);
+          LogUtil.i('region转换为$targetType: $oldRegion -> $region');
+        }
+        
+        // 转换 city
+        if (city != null && city.isNotEmpty) {
+          String oldCity = city;
+          city = converter.convertSync(city);
+          LogUtil.i('city转换为$targetType: $oldCity -> $city');
+        }
+      }
+    }
+    
+    // 提取前缀（保持原有逻辑）
+    final String? regionPrefix = region != null && region.isNotEmpty
+        ? (region.length >= 2 ? region.substring(0, 2) : region)
+        : null;
+    final String? cityPrefix = city != null && city.isNotEmpty
+        ? (city.length >= 2 ? city.substring(0, 2) : city)
+        : null;
+        
+    LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
+    return {'region': regionPrefix, 'city': cityPrefix};
+  } catch (e, stackTrace) {
+    LogUtil.logError('解析地理信息失败', e, stackTrace);
+    return {'region': null, 'city': null};
+  }
+}
 
   /// 根据地理前缀排序列表
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
@@ -1024,11 +1094,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   /// 根据地理信息排序视频播放列表
-  void _sortVideoMap(PlaylistModel videoMap, String? userInfo) {
+  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
     if (videoMap.playList == null || videoMap.playList!.isEmpty) {
       return;
     }
-    final location = _getLocationInfo(userInfo);
+    final location = await _getLocationInfo(userInfo);
     final String? regionPrefix = location['region'];
     final String? cityPrefix = location['city'];
     if (regionPrefix == null || regionPrefix.isEmpty) {
@@ -1130,6 +1200,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden); // 非移动端隐藏标题栏
     _loadData(); // 加载播放数据
     _extractFavoriteList(); // 提取收藏列表
+    
+    // 预初始化中文转换器
+    Future.microtask(() => _initializeZhConverters());
   }
 
   @override
@@ -1138,6 +1211,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _adManager.dispose(); // 清理广告资源
     favoriteList.clear(); 
     _videoMap = null;
+    _s2tConverter = null; // 释放中文转换器资源
+    _t2sConverter = null; // 释放中文转换器资源
     super.dispose();
   }
 
@@ -1174,7 +1249,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _videoMap = widget.m3uData;
       String? userInfo = SpUtil.getString('user_all_info');
       LogUtil.i('原始 user_all_info: $userInfo');
-      _sortVideoMap(_videoMap!, userInfo);
+      // 确保中文转换器已初始化
+      await _initializeZhConverters();
+      await _sortVideoMap(_videoMap!, userInfo);
       _sourceIndex = 0;
       await _handlePlaylist();
     } catch (e, stackTrace) {
