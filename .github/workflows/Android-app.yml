@@ -20,6 +20,15 @@ on:
           - 'all'
           - 'armeabi-v7a'
           - 'arm64-v8a'
+      build_versions:
+        description: '选择构建的版本类型'  # 选择构建国际版还是国内版
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'         # 同时构建国际版和国内版
+          - 'international'  # 仅构建国际版
+          - 'china'       # 仅构建国内版
 
 env:
   PLAYLIST_FILE: playlists.m3u  # M3U 播放列表文件名
@@ -35,6 +44,7 @@ jobs:
     env:
       ENABLE_OBFUSCATION: ${{ github.event.inputs.enable_obfuscation }}  # 代码混淆配置
       CPU_ARCHITECTURE: ${{ github.event.inputs.cpu_architecture }}  # CPU 架构配置
+      BUILD_VERSIONS: ${{ github.event.inputs.build_versions }}  # 版本类型配置
       
     steps:
       - name: 检出代码
@@ -147,9 +157,29 @@ jobs:
             echo "Error: Failed to decode keystore"
             exit 1
           fi
-
-      - name: 构建 armeabi-v7a 架构 APK
-        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a' }}  # 构建 armeabi-v7a 架构
+      
+      # 备份原始配置文件
+      - name: 备份配置文件
+        run: |
+          cp lib/config.dart lib/config.dart.bak
+          echo "Original config file backed up"
+      
+      # 国际版构建 - armeabi-v7a 架构
+      - name: 设置为国际版配置
+        if: ${{ env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'international' }}
+        run: |
+          # 恢复原始配置
+          cp lib/config.dart.bak lib/config.dart
+          
+          # 修改 Config.dart 中的 cnversion 为 false
+          sed -i 's/static const bool cnversion = true;/static const bool cnversion = false;/g' lib/config.dart
+          
+          # 打印配置确认
+          echo "Config for international version:"
+          grep "cnversion" lib/config.dart
+      
+      - name: 构建国际版 armeabi-v7a 架构 APK
+        if: ${{ (env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a') && (env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'international') }}
         run: |
           BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi"
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
@@ -160,16 +190,18 @@ jobs:
           fi
           echo "Executing: $BUILD_COMMAND"
           eval $BUILD_COMMAND
+          
           # 移动 APK 到输出目录
-          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-armeabi-v7a-${{ github.ref_name }}.apk
-          echo "Built armeabi-v7a APK successfully"
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-international-armeabi-v7a-${{ github.ref_name }}.apk
+          echo "Built international armeabi-v7a APK successfully"
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
 
-      - name: 构建 arm64-v8a 架构 APK
-        if: ${{ env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a' }}  # 构建 arm64-v8a 架构
+      # 国际版构建 - arm64-v8a 架构
+      - name: 构建国际版 arm64-v8a 架构 APK
+        if: ${{ (env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a') && (env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'international') }}
         run: |
           BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi"
           if [ "$ENABLE_OBFUSCATION" = "true" ]; then
@@ -180,13 +212,87 @@ jobs:
           fi
           echo "Executing: $BUILD_COMMAND"
           eval $BUILD_COMMAND
+          
           # 移动 APK 到输出目录
-          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-arm64-v8a-${{ github.ref_name }}.apk
-          echo "Built arm64-v8a APK successfully"
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-international-arm64-v8a-${{ github.ref_name }}.apk
+          echo "Built international arm64-v8a APK successfully"
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
           KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
+
+      # 国内版构建
+      - name: 设置为国内版配置
+        if: ${{ env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'china' }}
+        run: |
+          # 恢复原始配置
+          cp lib/config.dart.bak lib/config.dart
+          
+          # 修改 Config.dart 中的 cnversion 为 true
+          sed -i 's/static const bool cnversion = false;/static const bool cnversion = true;/g' lib/config.dart
+          
+          # 确保 cnversion 为 true
+          if ! grep -q "static const bool cnversion = true;" lib/config.dart; then
+            echo "Error: Failed to set cnversion to true, manually fixing..."
+            sed -i 's/static const bool cnversion =.*;/static const bool cnversion = true;/g' lib/config.dart
+          fi
+          
+          # 打印配置确认
+          echo "Config for China version:"
+          grep "cnversion" lib/config.dart
+
+      # 国内版构建 - armeabi-v7a 架构
+      - name: 构建国内版 armeabi-v7a 架构 APK
+        if: ${{ (env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'armeabi-v7a') && (env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'china') }}
+        run: |
+          BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm --split-per-abi"
+          if [ "$ENABLE_OBFUSCATION" = "true" ]; then
+            # 启用混淆并分离调试信息
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=true --obfuscate --split-debug-info=debug-info"
+          else
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=false"
+          fi
+          echo "Executing: $BUILD_COMMAND"
+          eval $BUILD_COMMAND
+          
+          # 移动 APK 到输出目录
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apk/ITVAPP-livetv-china-armeabi-v7a-${{ github.ref_name }}.apk
+          echo "Built China version armeabi-v7a APK successfully"
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
+
+      # 国内版构建 - arm64-v8a 架构
+      - name: 构建国内版 arm64-v8a 架构 APK
+        if: ${{ (env.CPU_ARCHITECTURE == 'all' || env.CPU_ARCHITECTURE == 'arm64-v8a') && (env.BUILD_VERSIONS == 'all' || env.BUILD_VERSIONS == 'china') }}
+        run: |
+          BUILD_COMMAND="flutter build apk --dart-define=isTV=false --release --target-platform android-arm64 --split-per-abi"
+          if [ "$ENABLE_OBFUSCATION" = "true" ]; then
+            # 启用混淆并分离调试信息
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=true --obfuscate --split-debug-info=debug-info"
+          else
+            BUILD_COMMAND="$BUILD_COMMAND --dart-define=enableObfuscation=false"
+          fi
+          echo "Executing: $BUILD_COMMAND"
+          eval $BUILD_COMMAND
+          
+          # 移动 APK 到输出目录
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apk/ITVAPP-livetv-china-arm64-v8a-${{ github.ref_name }}.apk
+          echo "Built China version arm64-v8a APK successfully"
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}  # 密钥库密码
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}  # 密钥别名
+          KEY_ALIAS_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}  # 密钥别名密码
+      
+      # 还原原始配置文件
+      - name: 还原配置文件
+        run: |
+          if [ -f "lib/config.dart.bak" ]; then
+            cp lib/config.dart.bak lib/config.dart
+            rm lib/config.dart.bak
+            echo "Restored original config file"
+          fi
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
