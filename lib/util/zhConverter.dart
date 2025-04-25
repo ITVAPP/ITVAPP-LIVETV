@@ -1,6 +1,6 @@
+import 'dart:collection';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'dart:collection';
 
 /// 中文转换工具类
 class ZhConverter {
