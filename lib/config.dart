@@ -46,12 +46,18 @@ class Config {
 
   /// M3U 文件 URL 的 XOR 加密密钥
   static const String m3uXorKey = 'itvapp-livetv-secret-2025'; // 自定义密钥
+
+  /// 默认的广告功能开关
+  static const bool adOn = true;
   
   /// 存储广告计数的本地缓存键
   static const String adCountsKey = 'ad_counts_key';
 
   /// 广告 API 地址
-  static const String adApiUrl = 'https://your-api.com/ads';
+  static const String adApiUrl = 'https://your-api.com/ads.json';
+
+  /// 广告 API 备用地址
+  static const String backupAdApiUrl = 'https://www.itvapp.net/itvapp_live_tv/ads.json';
   
   /// 升级检查地址
   static const String upgradeUrl = 'https://cdn.itvapp.net/itvapp_live_tv/upgrade.json';
