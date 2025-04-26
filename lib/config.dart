@@ -14,15 +14,6 @@ class Config {
   /// 生成国内版时屏蔽播放列表的 分类 Category 关键字（多个用@分隔）
   static const String cnplayListrule = '港·澳·台';
   
-  /// 升级检查地址
-  static const String upgradeUrl = 'https://cdn.itvapp.net/itvapp_live_tv/upgrade.json';
-  
-  /// 升级检查备用地址
-  static const String backupUpgradeUrl = 'https://backup-cdn.itvapp.net/itvapp_live_tv/upgrade.json';
-  
-  /// EPG 数据获取地址
-  static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php/api/';
-  
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
 
@@ -55,13 +46,19 @@ class Config {
 
   /// M3U 文件 URL 的 XOR 加密密钥
   static const String m3uXorKey = 'itvapp-livetv-secret-2025'; // 自定义密钥
+  
+  /// 存储广告计数的本地缓存键
+  static const String adCountsKey = 'ad_counts_key';
 
   /// 广告 API 地址
   static const String adApiUrl = 'https://your-api.com/ads';
-
-  /// 文字广告显示次数的本地缓存键
-  static const String textAdCountKey = 'text_ad_shown_count';
-
-  /// 视频广告显示次数的本地缓存键
-  static const String videoAdCountKey = 'video_ad_shown_count';
+  
+  /// 升级检查地址
+  static const String upgradeUrl = 'https://cdn.itvapp.net/itvapp_live_tv/upgrade.json';
+  
+  /// 升级检查备用地址
+  static const String backupUpgradeUrl = 'https://www.itvapp.net/itvapp_live_tv/upgrade.json';
+  
+  /// EPG 数据获取地址
+  static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php/api/';
 }
