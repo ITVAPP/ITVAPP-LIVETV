@@ -176,11 +176,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  
-  // 图片广告倒计时定时器
-  Timer? _imageAdCountdownTimer;
-  // 图片广告剩余秒数
-  int _imageAdRemainingSeconds = 0;
 
   @override
   void initState() {
@@ -461,124 +456,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
 
-  // 启动图片广告倒计时
-  void _startImageAdCountdown(int durationSeconds) {
-    _imageAdCountdownTimer?.cancel();
-    setState(() {
-      _imageAdRemainingSeconds = durationSeconds;
-    });
-    
-    _imageAdCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_imageAdRemainingSeconds <= 1) {
-        timer.cancel();
-        // 这里不需要额外隐藏广告，因为AdManager会自动处理
-      } else {
-        setState(() {
-          _imageAdRemainingSeconds--;
-        });
-      }
-    });
-  }
-
-  // 图片广告展示组件
-  Widget _buildImageAdWidget() {
-    final imageAd = widget.adManager.getCurrentImageAd()!;
-    
-    // 如果倒计时未开始，则启动倒计时
-    if (_imageAdCountdownTimer == null || !_imageAdCountdownTimer!.isActive) {
-      _startImageAdCountdown(imageAd.durationSeconds ?? 8);
-    }
-    
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              spreadRadius: 5,
-              blurRadius: 15,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              children: [
-                if (imageAd.url != null && imageAd.url!.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageAd.url!,
-                      fit: BoxFit.contain,
-                      height: 300,
-                      width: 400,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 300,
-                        width: 400,
-                        color: Colors.grey[900],
-                        child: const Center(
-                          child: Text(
-                            '广告加载失败',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$_imageAdRemainingSeconds秒',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            if (imageAd.link != null && imageAd.link!.isNotEmpty)
-              ElevatedButton(
-                onPressed: () {
-                  widget.adManager.handleAdClick(imageAd.link);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // 资源释放，取消定时器和焦点管理
   @override
   void dispose() {
@@ -586,7 +463,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     try {
       _pauseIconTimer?.cancel();
-      _imageAdCountdownTimer?.cancel();
     } catch (e) {
       LogUtil.logError('释放定时器失败', e);
     }
@@ -726,39 +602,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // 滚动文字广告，位置距离顶部 30
-                  if (widget.adManager.getShowTextAd() && widget.adManager.getTextAdContent() != null && widget.adManager.getTextAdAnimation() != null)
-                    Positioned(
-                      top: 30.0, // TV 端固定距离顶部 30
-                      left: 0,
-                      right: 0,
-                      child: AnimatedBuilder(
-                        animation: widget.adManager.getTextAdAnimation()!,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
-                            child: Text(
-                              widget.adManager.getTextAdContent()!, // 确保有内容时才显示
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(1.0, 1.0),
-                                    blurRadius: 0.0,
-                                    color: Colors.black,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    
-                  // 图片广告显示
+                  // 使用AdManager提供的文字广告Widget
+                  if (widget.adManager.getShowTextAd() && 
+                      widget.adManager.getTextAdContent() != null && 
+                      widget.adManager.getTextAdAnimation() != null)
+                    widget.adManager.buildTextAdWidget(isLandscape: widget.isLandscape),
+
+                  // 使用AdManager提供的图片广告Widget
                   if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-                    _buildImageAdWidget(),
+                    widget.adManager.buildImageAdWidget(),
                 ],
               ),
             ),
