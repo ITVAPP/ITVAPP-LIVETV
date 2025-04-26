@@ -386,17 +386,11 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 加载广告数据
-  Future<void> loadAdData() async {
-    // 检查广告开关
-    if (!Config.adOn) {
-      LogUtil.i('广告功能已关闭，不加载广告数据');
-      return;
-    }
-    
+  // 从指定 URL 获取广告数据
+  Future<AdData?> _fetchAdData(String url) async {
     try {
       final response = await HttpUtil().getRequest(
-        Config.adApiUrl,
+        url,
         parseData: (data) {
           if (data is! Map<String, dynamic>) {
             LogUtil.e('广告数据格式不正确，期望 JSON 对象，实际为: $data');
@@ -416,17 +410,47 @@ class AdManager with ChangeNotifier {
       );
       
       if (response != null) {
-        _adData = response;
-        LogUtil.i('广告数据加载成功: ${Config.adApiUrl}');
+        LogUtil.i('广告数据加载成功: $url');
+        return response;
+      } else {
+        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误: $url');
+        return null;
+      }
+    } catch (e) {
+      LogUtil.e('从 $url 获取广告数据失败: $e');
+      return null;
+    }
+  }
+  
+  // 加载广告数据
+  Future<void> loadAdData() async {
+    // 检查广告开关
+    if (!Config.adOn) {
+      LogUtil.i('广告功能已关闭，不加载广告数据');
+      return;
+    }
+    
+    try {
+      // 首先尝试主要广告 API 地址
+      AdData? adData = await _fetchAdData(Config.adApiUrl);
+      
+      // 如果主要 API 失败，尝试备用 API
+      if (adData == null && Config.backupAdApiUrl.isNotEmpty) {
+        LogUtil.i('主要广告 API 加载失败，尝试备用地址');
+        adData = await _fetchAdData(Config.backupAdApiUrl);
+      }
+      
+      if (adData != null) {
+        _adData = adData;
+        LogUtil.i('广告数据加载成功');
         LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
         
         // 为每种类型安排广告显示
         _scheduleTextAd();
         _scheduleImageAd();
-        
       } else {
         _adData = null;
-        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
+        LogUtil.e('广告数据加载失败，主要和备用 API 均返回 null');
       }
     } catch (e) {
       LogUtil.e('加载广告数据失败: $e');
