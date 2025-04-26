@@ -168,6 +168,10 @@ class AdCountManager {
 
 // 广告管理类
 class AdManager with ChangeNotifier {
+  // 文字广告相关常量
+  static const int TEXT_AD_SCROLL_DURATION_SECONDS = 15; // 文字广告滚动持续时间（秒）
+  static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
+
   AdData? _adData; // 广告数据
   Map<String, int> _adShownCounts = {}; // 各广告已显示次数
   Map<String, Timer?> _adTimers = {}; // 各广告延迟定时器
@@ -191,6 +195,10 @@ class AdManager with ChangeNotifier {
   // 文字广告动画控制
   AnimationController? _textAdAnimationController;
   Animation<double>? _textAdAnimation;
+  
+  // 图片广告倒计时相关
+  int _imageAdRemainingSeconds = 0;
+  final ValueNotifier<int> imageAdCountdownNotifier = ValueNotifier<int>(0);
 
   AdManager() {
     _init();
@@ -242,8 +250,8 @@ class AdManager with ChangeNotifier {
     if (_textAdAnimationController == null && _currentTextAd?.content != null) {
       _textAdAnimationController = AnimationController(
         vsync: vsync,
-        duration: const Duration(seconds: 10), // 滚动周期 10 秒，可调整
-      )..repeat(); // 无限循环
+        duration: Duration(seconds: TEXT_AD_SCROLL_DURATION_SECONDS),
+      ); // 移除 repeat()，让动画只执行一次
 
       // 计算文字滚动的起始和结束位置
       final textWidth = _calculateTextWidth(_currentTextAd!.content!);
@@ -251,6 +259,18 @@ class AdManager with ChangeNotifier {
         begin: screenWidth, // 从屏幕右侧开始
         end: -textWidth,   // 滚动到文字完全移出左侧
       ).animate(_textAdAnimationController!);
+      
+      // 添加动画状态监听，在动画结束后隐藏广告
+      _textAdAnimationController!.addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _isShowingTextAd = false;
+          _currentTextAd = null;
+          notifyListeners();
+        }
+      });
+      
+      // 开始动画
+      _textAdAnimationController!.forward();
     }
   }
 
@@ -272,7 +292,7 @@ class AdManager with ChangeNotifier {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: const TextStyle(fontSize: 16),
+        style: TextStyle(fontSize: TEXT_AD_FONT_SIZE),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -370,27 +390,49 @@ class AdManager with ChangeNotifier {
       AdCountManager.saveAdCounts(_adShownCounts);
       _hasTriggeredAdOnCurrentChannel = true;
       
+      // 设置初始倒计时
+      _imageAdRemainingSeconds = nextAd.durationSeconds ?? 8;
+      imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
+      
       LogUtil.i('显示图片广告 ${nextAd.id}, 当前次数: ${_adShownCounts[nextAd.id]} / ${nextAd.displayCount}');
       notifyListeners();
       
-      // 设置自动关闭
-      final durationSeconds = nextAd.durationSeconds ?? 8;
-      Timer(Duration(seconds: durationSeconds), () {
-        if (_currentImageAd?.id == nextAd.id) {
-          _isShowingImageAd = false;
-          _currentImageAd = null;
-          LogUtil.i('图片广告 ${nextAd.id} 自动关闭');
-          notifyListeners();
-        }
-      });
+      // 设置自动关闭和倒计时
+      _startImageAdCountdown(nextAd);
     });
   }
   
-  // 从指定 URL 获取广告数据
-  Future<AdData?> _fetchAdData(String url) async {
+  // 开始图片广告倒计时
+  void _startImageAdCountdown(AdItem ad) {
+    final duration = ad.durationSeconds ?? 8;
+    _imageAdRemainingSeconds = duration;
+    imageAdCountdownNotifier.value = duration;
+    
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_imageAdRemainingSeconds <= 1) {
+        timer.cancel();
+        _isShowingImageAd = false;
+        _currentImageAd = null;
+        LogUtil.i('图片广告 ${ad.id} 自动关闭');
+        notifyListeners();
+      } else {
+        _imageAdRemainingSeconds--;
+        imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
+      }
+    });
+  }
+  
+  // 加载广告数据
+  Future<void> loadAdData() async {
+    // 检查广告开关
+    if (!Config.adOn) {
+      LogUtil.i('广告功能已关闭，不加载广告数据');
+      return;
+    }
+    
     try {
       final response = await HttpUtil().getRequest(
-        url,
+        Config.adApiUrl,
         parseData: (data) {
           if (data is! Map<String, dynamic>) {
             LogUtil.e('广告数据格式不正确，期望 JSON 对象，实际为: $data');
@@ -410,47 +452,17 @@ class AdManager with ChangeNotifier {
       );
       
       if (response != null) {
-        LogUtil.i('广告数据加载成功: $url');
-        return response;
-      } else {
-        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误: $url');
-        return null;
-      }
-    } catch (e) {
-      LogUtil.e('从 $url 获取广告数据失败: $e');
-      return null;
-    }
-  }
-  
-  // 加载广告数据
-  Future<void> loadAdData() async {
-    // 检查广告开关
-    if (!Config.adOn) {
-      LogUtil.i('广告功能已关闭，不加载广告数据');
-      return;
-    }
-    
-    try {
-      // 首先尝试主要广告 API 地址
-      AdData? adData = await _fetchAdData(Config.adApiUrl);
-      
-      // 如果主要 API 失败，尝试备用 API
-      if (adData == null && Config.backupAdApiUrl.isNotEmpty) {
-        LogUtil.i('主要广告 API 加载失败，尝试备用地址');
-        adData = await _fetchAdData(Config.backupAdApiUrl);
-      }
-      
-      if (adData != null) {
-        _adData = adData;
-        LogUtil.i('广告数据加载成功');
+        _adData = response;
+        LogUtil.i('广告数据加载成功: ${Config.adApiUrl}');
         LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
         
         // 为每种类型安排广告显示
         _scheduleTextAd();
         _scheduleImageAd();
+        
       } else {
         _adData = null;
-        LogUtil.e('广告数据加载失败，主要和备用 API 均返回 null');
+        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
       }
     } catch (e) {
       LogUtil.e('加载广告数据失败: $e');
@@ -626,6 +638,131 @@ class AdManager with ChangeNotifier {
 
   // 获取文字广告动画
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
+  
+  // 构建文字广告 Widget
+  Widget buildTextAdWidget({double topPositionLandscape = 50.0, double topPositionPortrait = 80.0, required bool isLandscape}) {
+    final content = getTextAdContent()!;
+    return Positioned(
+      top: isLandscape ? topPositionLandscape : topPositionPortrait,
+      left: 0,
+      right: 0,
+      child: AnimatedBuilder(
+        animation: getTextAdAnimation()!,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(getTextAdAnimation()!.value, 0),
+            child: Text(
+              content,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: TEXT_AD_FONT_SIZE,
+                shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  // 构建图片广告 Widget
+  Widget buildImageAdWidget() {
+    final imageAd = getCurrentImageAd()!;
+    
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              spreadRadius: 5,
+              blurRadius: 15,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                if (imageAd.url != null && imageAd.url!.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      imageAd.url!,
+                      fit: BoxFit.contain,
+                      height: 300,
+                      width: 400,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 300,
+                        width: 400,
+                        color: Colors.grey[900],
+                        child: const Center(
+                          child: Text(
+                            '广告加载失败',
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: imageAdCountdownNotifier,
+                    builder: (context, remainingSeconds, child) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$remainingSeconds秒',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            if (imageAd.link != null && imageAd.link!.isNotEmpty)
+              ElevatedButton(
+                onPressed: () {
+                  handleAdClick(imageAd.link);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // 处理广告点击
   Future<void> handleAdClick(String? link) async {
