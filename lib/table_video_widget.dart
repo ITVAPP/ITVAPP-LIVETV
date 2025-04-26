@@ -128,11 +128,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   double? _adAnimationWidth; // 广告动画宽度
   late bool _isFavorite; // 缓存收藏状态
   bool? _lastIsLandscape; // 缓存上次横屏状态
-  
-  // 图片广告倒计时定时器
-  Timer? _imageAdCountdownTimer;
-  // 图片广告剩余秒数
-  int _imageAdRemainingSeconds = 0;
 
   // 更新 UI 状态，优化更新逻辑
   void _updateUIState({
@@ -183,25 +178,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       _lastIsLandscape = widget.isLandscape;
     }
   }
-  
-  // 启动图片广告倒计时
-  void _startImageAdCountdown(int durationSeconds) {
-    _imageAdCountdownTimer?.cancel();
-    setState(() {
-      _imageAdRemainingSeconds = durationSeconds;
-    });
-    
-    _imageAdCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_imageAdRemainingSeconds <= 1) {
-        timer.cancel();
-        // AdManager 会自动处理广告关闭
-      } else {
-        setState(() {
-          _imageAdRemainingSeconds--;
-        });
-      }
-    });
-  }
 
   @override
   void didChangeDependencies() {
@@ -229,7 +205,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _uiStateNotifier.dispose(); // 释放 UI 状态管理器
     _pauseIconTimer?.cancel(); // 取消定时器
     _pauseIconTimer = null;
-    _imageAdCountdownTimer?.cancel(); // 取消图片广告倒计时定时器
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this); // 移除窗口监听
     }, '移除窗口监听器发生错误');
@@ -492,131 +467,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 构建文本广告组件
-  Widget _buildTextAdWidget() {
-    final content = widget.adManager.getTextAdContent()!;
-    return Positioned(
-      top: widget.isLandscape ? 50.0 : 80.0,
-      left: 0,
-      right: 0,
-      child: AnimatedBuilder(
-        animation: widget.adManager.getTextAdAnimation()!,
-        builder: (context, child) {
-          return Transform.translate(
-            offset: Offset(widget.adManager.getTextAdAnimation()!.value, 0),
-            child: Text(
-              content,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-  
-  // 图片广告展示组件
-  Widget _buildImageAdWidget() {
-    final imageAd = widget.adManager.getCurrentImageAd()!;
-    
-    // 如果倒计时未开始，则启动倒计时
-    if (_imageAdCountdownTimer == null || !_imageAdCountdownTimer!.isActive) {
-      _startImageAdCountdown(imageAd.durationSeconds ?? 8);
-    }
-    
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              spreadRadius: 5,
-              blurRadius: 15,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              children: [
-                if (imageAd.url != null && imageAd.url!.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageAd.url!,
-                      fit: BoxFit.contain,
-                      height: 300,
-                      width: 400,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 300,
-                        width: 400,
-                        color: Colors.grey[900],
-                        child: const Center(
-                          child: Text(
-                            '广告加载失败',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$_imageAdRemainingSeconds秒',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            if (imageAd.link != null && imageAd.link!.isNotEmpty)
-              ElevatedButton(
-                onPressed: () {
-                  widget.adManager.handleAdClick(imageAd.link);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // 构建竖屏右侧按钮组
   Widget _buildPortraitRightButtons() {
     return Positioned(
@@ -744,10 +594,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       child: Stack(
         children: [
           if (!widget.isLandscape) _buildPortraitRightButtons(),
-          if (_shouldShowTextAd) _buildTextAdWidget(),
-          // 添加图片广告显示
+          // 使用AdManager提供的文字广告Widget
+          if (_shouldShowTextAd) 
+            widget.adManager.buildTextAdWidget(isLandscape: widget.isLandscape),
+          // 使用AdManager提供的图片广告Widget
           if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-            _buildImageAdWidget(),
+            widget.adManager.buildImageAdWidget(),
         ],
       ),
     );
