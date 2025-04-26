@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart'; 
 
 class BetterPlayerConfig {
   // 定义常量背景图片Widget
@@ -15,17 +16,21 @@ class BetterPlayerConfig {
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
   /// - [isHls]: 是否为 HLS 格式（直播流）
+  /// - [headers]: 可选的HTTP请求头
+  /// - [channelTitle]: 频道标题，用于通知栏显示
+  /// - [channelLogo]: 频道LOGO路径，支持网络URL或本地资源路径
   static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
     Map<String, String>? headers,
+    String? channelTitle,
+    String? channelLogo,
   }) {
     // 使用 HeadersConfig 生成默认 headers
     final defaultHeaders = HeadersConfig.generateHeaders(url: url);
-
     // 合并 defaultHeaders 和传入的 headers
     final mergedHeaders = {...defaultHeaders, ...?headers};
-
+    
     // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
@@ -34,9 +39,12 @@ class BetterPlayerConfig {
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
-      // 配置系统通知栏行为（此处关闭通知栏播放控制）
-      notificationConfiguration: const BetterPlayerNotificationConfiguration(
+      // 配置系统通知栏行为
+      notificationConfiguration: BetterPlayerNotificationConfiguration(
         showNotification: true,
+        title: channelTitle ?? S.current.appName, // 使用传入的频道标题或默认值
+        imageUrl: channelLogo, // 频道LOGO URL或本地路径
+        notificationChannelName: S.current.appName, // Android通知渠道名称
       ),
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
@@ -53,7 +61,7 @@ class BetterPlayerConfig {
         maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
       ),
     );
-
+    
     // 根据 mergedHeaders 是否为空返回实例
     return mergedHeaders.isNotEmpty
         ? BetterPlayerDataSource(
