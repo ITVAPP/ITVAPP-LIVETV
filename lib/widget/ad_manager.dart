@@ -9,6 +9,23 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/config.dart';
 
+/* 广告配置说明
+   - 通用参数：
+     - id: 广告的唯一标识符，用于跟踪广告展示次数和区分不同广告
+     - enabled: 布尔值，控制该广告是否启用
+     - display_count: 整数，表示该广告最多可以展示的次数
+     - link: 广告点击后跳转的URL链接
+   - 文本广告：
+     - 延迟 display_delay_seconds 秒后在应用顶部显示滚动文字
+     - 最多显示 display_count 次
+   - 视频广告：
+     - 最多播放 display_count 次
+   - 图片广告：
+     - 延迟 display_delay_seconds 秒后在屏幕中央显示
+     - 显示 duration_seconds 秒后自动关闭，期间显示倒计时
+     - 最多显示 display_count 次
+*/
+
 // 单个广告项模型
 class AdItem {
   final String id;
