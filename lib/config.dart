@@ -68,6 +68,6 @@ class Config {
   /// EPG json数据获取地址
   static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php/api/';
 
-  /// EPG xml数据获取地址
-  static String? epgXmlUrl;
+  /// EPG XML 地址，可以为null或空字符串
+  static const String epgXmlUrl = '';
 }
