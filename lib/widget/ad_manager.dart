@@ -171,6 +171,10 @@ class AdManager with ChangeNotifier {
   // 文字广告相关常量
   static const int TEXT_AD_SCROLL_DURATION_SECONDS = 15; // 文字广告滚动持续时间（秒）
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
+  
+  // 广告位置常量
+  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 50.0; // 文字广告在横屏模式下的顶部位置
+  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 80.0; // 文字广告在竖屏模式下的顶部位置
 
   AdData? _adData; // 广告数据
   Map<String, int> _adShownCounts = {}; // 各广告已显示次数
@@ -640,10 +644,10 @@ class AdManager with ChangeNotifier {
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
   // 构建文字广告 Widget
-  Widget buildTextAdWidget({double topPositionLandscape = 50.0, double topPositionPortrait = 80.0, required bool isLandscape}) {
+  Widget buildTextAdWidget({required bool isLandscape}) {
     final content = getTextAdContent()!;
     return Positioned(
-      top: isLandscape ? topPositionLandscape : topPositionPortrait,
+      top: isLandscape ? TEXT_AD_TOP_POSITION_LANDSCAPE : TEXT_AD_TOP_POSITION_PORTRAIT,
       left: 0,
       right: 0,
       child: AnimatedBuilder(
