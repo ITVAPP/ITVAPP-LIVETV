@@ -43,16 +43,16 @@ class LanguageProvider with ChangeNotifier {
       
       if (languageCode != null && languageCode.isNotEmpty) {
         try {
-          // 确保语言代码格式正确
-          if (!RegExp(r'^[a-zA-Z]+$').hasMatch(languageCode)) {
+          // 确保语言代码格式正确 - 修改这里的正则表达式，允许下划线
+          if (!RegExp(r'^[a-zA-Z_]+$').hasMatch(languageCode)) {
             LogUtil.v('保存的语言代码格式错误: $languageCode，将使用系统默认');
             // 重置为系统默认
             _isInitialized = true;
             return;
           }
           
-          // 若国家代码存在且无效，则忽略它
-          if (countryCode != null && !RegExp(r'^[a-zA-Z]+$').hasMatch(countryCode)) {
+          // 若国家代码存在且无效，则忽略它 - 也修改这里的正则表达式，保持一致性
+          if (countryCode != null && !RegExp(r'^[a-zA-Z_]+$').hasMatch(countryCode)) {
             LogUtil.v('保存的国家代码格式错误: $countryCode，将忽略');
             countryCode = null;
           }
