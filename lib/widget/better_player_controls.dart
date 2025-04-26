@@ -13,6 +13,9 @@ class BetterPlayerConfig {
     gaplessPlayback: true,  // 防止图片加载时闪烁
     filterQuality: FilterQuality.medium,  // 优化图片质量和性能的平衡
   );
+  
+  // 定义默认的通知图标路径
+  static const String _defaultNotificationImage = 'assets/images/logo.png';
 
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
@@ -44,10 +47,9 @@ class BetterPlayerConfig {
       notificationConfiguration: BetterPlayerNotificationConfiguration(
         showNotification: true,
         title: channelTitle ?? S.current.appName, // 使用传入的频道标题或默认值
-        author: "电视宝直播", // 添加作者/来源信息
-        imageUrl: channelLogo, // 频道LOGO URL或本地路径
+        author: S.current.appName, // 添加作者/来源信息
+        imageUrl: channelLogo ?? _defaultNotificationImage, // 频道LOGO URL或默认图像
         notificationChannelName: S.current.appName, // Android通知渠道名称
-        notificationChannelId: Config.packagename, // 使用应用包名作为通知频道ID
         enableNotificationActions: true, // 启用通知栏控制按钮
       ),
       // 缓冲配置
