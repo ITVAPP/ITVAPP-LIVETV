@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-import 'package:itvapp_live_tv/generated/l10n.dart'; 
+import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 class BetterPlayerConfig {
   // 定义常量背景图片Widget
@@ -43,8 +44,11 @@ class BetterPlayerConfig {
       notificationConfiguration: BetterPlayerNotificationConfiguration(
         showNotification: true,
         title: channelTitle ?? S.current.appName, // 使用传入的频道标题或默认值
+        author: "电视宝直播", // 添加作者/来源信息
         imageUrl: channelLogo, // 频道LOGO URL或本地路径
         notificationChannelName: S.current.appName, // Android通知渠道名称
+        notificationChannelId: Config.packagename, // 使用应用包名作为通知频道ID
+        enableNotificationActions: true, // 启用通知栏控制按钮
       ),
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
