@@ -27,7 +27,7 @@ class EpgData {
     end = json['end'] as String?; // 解析结束时间
     title = json['title'] as String?; // 解析节目标题
     if (start != null && end != null) {
-      if (!_timePatternRegExp.hasMatch(start!) || !_timePatternRegExp.hasMatch(end!)) {
+      if (!EpgUtil._regex.timePattern.hasMatch(start!) || !EpgUtil._regex.timePattern.hasMatch(end!)) {
         LogUtil.i('EPG 时间格式无效: start=$start, end=$end');
         start = null;
         end = null;
@@ -53,9 +53,6 @@ class EpgData {
     map['title'] = title;
     return map;
   }
-  
-  // 时间格式正则表达式，验证 HH:mm
-  static final RegExp _timePatternRegExp = RegExp(r'^\d{2}:\d{2}$');
 }
 
 /// EPG 数据模型，包含频道和节目信息
@@ -110,25 +107,51 @@ class EpgModel {
 class EpgUtil {
   EpgUtil._(); // 私有构造函数，防止实例化
 
-  static Iterable<XmlElement>? _programmes; // 缓存解析后的 XML 节目数据
+  // 集中管理正则表达式
+  static final _RegExpConstants _regex = _RegExpConstants();
+
+  static class _RegExpConstants {
+    final safeFileName = RegExp(r'[\\/:*?"<>|]');
+    final dateValidation = RegExp(r'^\d{8}$');
+    final titleClean = RegExp(r'[ -]');
+    final timePattern = RegExp(r'^\d{2}:\d{2}$');
+  }
+
   static const String _epgFolderName = 'epg_data'; // EPG 数据存储文件夹
   static Directory? _epgBaseDir; // EPG 数据基础目录
   static ZhConverter? _zhConverter; // 缓存中文转换器实例
+  static String? _currentDateString; // 缓存当前日期字符串，避免重复计算
+  static Directory? _currentDateFolder; // 缓存当前日期文件夹
   
-  // 正则表达式常量，避免重复创建
-  static final RegExp _safeFileNameRegExp = RegExp(r'[^\w\s\-\.]'); // 清理文件名
-  static final RegExp _dateValidationRegExp = RegExp(r'^\d{8}$'); // 验证日期格式
-  static final RegExp _titleCleanRegExp = RegExp(r'[ -]'); // 清理标题空格和连字符
-  static final RegExp _timePatternRegExp = RegExp(r'^\d{2}:\d{2}$'); // 验证时间格式
+  // 缓存常用日期格式，避免重复创建
+  static const String _dateFormatYMD = "yyyyMMdd";
+  static const String _dateFormatHM = "HH:mm";
+  static const String _dateFormatFull = "yyyy-MM-dd";
+  static const String _dateFormatCompact = "yyMMdd";
+  
+  // 默认区域设置，减少语言查询
+  static const Locale _defaultLocale = Locale('zh', 'CN');
+
+  // 获取当前日期字符串
+  static String get _currentDate => _currentDateString ?? DateUtil.formatDate(DateTime.now(), format: _dateFormatYMD);
 
   // 初始化 EPG 文件系统
   static Future<void> init() async {
+    if (_epgBaseDir != null) return; // 避免重复初始化
+    
     try {
       final appDir = await getApplicationDocumentsDirectory();
       _epgBaseDir = Directory('${appDir.path}/$_epgFolderName');
       
       if (!await _epgBaseDir!.exists()) {
         await _epgBaseDir!.create(recursive: true); // 创建 EPG 目录
+      }
+      
+      // 初始化日期字符串和文件夹
+      _currentDateString = DateUtil.formatDate(DateTime.now(), format: _dateFormatYMD);
+      _currentDateFolder = Directory('${_epgBaseDir!.path}/$_currentDateString');
+      if (!await _currentDateFolder!.exists()) {
+        await _currentDateFolder!.create(recursive: true);
       }
       
       await _cleanOldData(); // 清理过期数据
@@ -143,14 +166,11 @@ class EpgUtil {
     if (_epgBaseDir == null) return;
     
     try {
-      final now = DateTime.now();
-      final currentDate = DateUtil.formatDate(now, format: "yyyyMMdd");
-      
       final folders = await _epgBaseDir!.list().toList();
       for (var folder in folders) {
         if (folder is Directory) {
           final folderName = folder.path.split('/').last;
-          if (_isValidDateFolder(folderName) && folderName.compareTo(currentDate) < 0) {
+          if (_isValidDateFolder(folderName) && folderName.compareTo(_currentDate) < 0) {
             await folder.delete(recursive: true); // 删除过期文件夹
             LogUtil.i('删除过期 EPG 数据: $folderName');
           }
@@ -163,7 +183,7 @@ class EpgUtil {
   
   // 验证日期文件夹名是否为有效格式（yyyyMMdd）
   static bool _isValidDateFolder(String folderName) {
-    if (folderName.length != 8 || !_dateValidationRegExp.hasMatch(folderName)) {
+    if (folderName.length != 8 || !_regex.dateValidation.hasMatch(folderName)) {
       return false;
     }
     
@@ -172,11 +192,9 @@ class EpgUtil {
       final month = int.parse(folderName.substring(4, 6));
       final day = int.parse(folderName.substring(6, 8));
       
-      if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return false; // 日期范围无效
-      }
-      
-      return true;
+      return (year >= 2000 && year <= 2100) && 
+             (month >= 1 && month <= 12) && 
+             (day >= 1 && day <= 31);
     } catch (e) {
       return false; // 解析失败
     }
@@ -185,149 +203,347 @@ class EpgUtil {
   // 获取当前日期的 EPG 目录
   static Future<Directory> _getCurrentDateFolder() async {
     if (_epgBaseDir == null) await init();
-    
-    final currentDate = DateUtil.formatDate(DateTime.now(), format: "yyyyMMdd");
-    final dateFolder = Directory('${_epgBaseDir!.path}/$currentDate');
-    if (!await dateFolder.exists()) {
-      await dateFolder.create(recursive: true); // 创建日期目录
-    }
-    return dateFolder;
+    return _currentDateFolder!;
   }
   
   // 清理文件名中的非法字符
   static String _sanitizeFileName(String filename) {
-    return filename.replaceAll(_safeFileNameRegExp, '_');
+    return filename.replaceAll(_regex.safeFileName, '_');
   }
   
-  // 保存 EPG 数据到文件
-  static Future<void> _saveEpgToFile(String channelKey, EpgModel model) async {
+  // 从URL获取文件名
+  static String _getFileNameFromUrl(String url) {
+    final uri = Uri.parse(url);
+    final pathSegments = uri.pathSegments;
+    
+    if (pathSegments.isNotEmpty) {
+      final fileName = pathSegments.last;
+      if (fileName.isNotEmpty) {
+        return _sanitizeFileName(fileName);
+      }
+    }
+    
+    return 'epg_${url.hashCode.abs()}';
+  }
+  
+  // 获取文件完整路径
+  static Future<String> _getFilePath(String fileName, {bool isJson = true}) async {
+    final dateFolder = await _getCurrentDateFolder();
+    return '${dateFolder.path}/$fileName${isJson ? '.json' : '.xml'}';
+  }
+  
+  // 通用文件保存方法
+  static Future<void> _saveFile(String fileName, String content, {bool isJson = true}) async {
     try {
-      final dateFolder = await _getCurrentDateFolder();
-      final safeKey = _sanitizeFileName(channelKey);
-      final file = File('${dateFolder.path}/$safeKey.json');
-      
-      final jsonData = jsonEncode(model.toJson());
-      await file.writeAsString(jsonData);
-      LogUtil.i('EPG 数据保存: ${file.path}');
+      final filePath = await _getFilePath(fileName, isJson: isJson);
+      await File(filePath).writeAsString(content, flush: true);
     } catch (e, stackTrace) {
-      LogUtil.logError('保存 EPG 数据失败: $channelKey', e, stackTrace);
+      LogUtil.logError('保存 ${isJson ? 'EPG' : 'XML'} 数据失败: $fileName', e, stackTrace);
     }
   }
   
-  // 从文件加载 EPG 数据
-  static Future<EpgModel?> _loadEpgFromFile(String channelKey) async {
+  // 通用文件加载方法
+  static Future<String?> _loadFile(String fileName, {bool isJson = true}) async {
     try {
-      final dateFolder = await _getCurrentDateFolder();
-      final safeKey = _sanitizeFileName(channelKey);
-      final file = File('${dateFolder.path}/$safeKey.json');
-      
+      final filePath = await _getFilePath(fileName, isJson: isJson);
+      final file = File(filePath);
       if (!await file.exists()) {
         return null; // 文件不存在
       }
       
-      final jsonData = await file.readAsString();
-      final model = EpgModel.fromJson(jsonDecode(jsonData));
-      LogUtil.i('从文件加载 EPG: ${file.path}');
-      return model;
+      final content = await file.readAsString();
+      if (content.isEmpty) {
+        return null;
+      }
+      
+      return content;
     } catch (e, stackTrace) {
-      LogUtil.logError('加载 EPG 数据失败: $channelKey', e, stackTrace);
+      LogUtil.logError('加载 ${isJson ? 'EPG' : 'XML'} 数据失败: $fileName', e, stackTrace);
       return null;
     }
   }
+  
+  // 获取XML URL列表
+  static List<String> _getXmlUrls(String url) {
+    final uStr = url.replaceAll('/h', ',h');
+    return uStr.split(',');
+  }
 
-  // 从缓存获取用户语言设置
+  // 从缓存获取用户语言设置，优化语言检测逻辑
   static Locale _getUserLocaleFromCache() {
     try {
       String? languageCode = SpUtil.getString('languageCode');
-      String? countryCode = SpUtil.getString('countryCode');
-      if (languageCode != null && languageCode.isNotEmpty) {
-        return countryCode != null && countryCode.isNotEmpty
-            ? Locale(languageCode, countryCode)
-            : Locale(languageCode); // 返回缓存语言
+      if (languageCode == null || languageCode.isEmpty) {
+        return _defaultLocale;
       }
-      return const Locale('en'); // 默认英语
+      
+      String? countryCode = SpUtil.getString('countryCode');
+      return countryCode != null && countryCode.isNotEmpty
+          ? Locale(languageCode, countryCode)
+          : Locale(languageCode);
     } catch (e, stackTrace) {
       LogUtil.logError('获取用户语言失败', e, stackTrace);
-      return const Locale('en');
+      return _defaultLocale;
     }
   }
 
   // 获取中文转换器实例
   static Future<ZhConverter?> _getChineseConverter() async {
     final userLocale = _getUserLocaleFromCache();
-    if (!userLocale.languageCode.startsWith('zh')) {
-      LogUtil.i('无需转换: 非中文语言 (${userLocale.languageCode})');
-      return null;
-    }
-    
-    String userLang = userLocale.languageCode;
+    final languageCode = userLocale.languageCode;
+    if (languageCode != 'zh' && !languageCode.startsWith('zh_')) return null;
+
+    String userLang = languageCode;
     if (userLocale.countryCode != null && userLocale.countryCode!.isNotEmpty) {
-      userLang = '${userLocale.languageCode}_${userLocale.countryCode}';
+      userLang = '${languageCode}_${userLocale.countryCode}';
     }
-    
-    String conversionType = '';
-    if (userLang.contains('TW') || userLang.contains('HK') || userLang.contains('MO')) {
-      conversionType = 's2t'; // 简体转繁体
-    } else if (userLang.contains('CN') || userLang == 'zh') {
-      conversionType = 't2s'; // 繁体转简体
-    } else {
+
+    String conversionType = userLang.contains('TW') || userLang.contains('HK') || userLang.contains('MO')
+        ? 's2t'
+        : userLang.contains('CN') || userLang == 'zh'
+            ? 't2s'
+            : '';
+    if (conversionType.isEmpty) {
       LogUtil.i('无需转换: 未识别中文变体 ($userLang)');
       return null;
     }
-    
+
     if (_zhConverter == null || _zhConverter!.conversionType != conversionType) {
       _zhConverter = ZhConverter(conversionType);
-      await _zhConverter!.initialize(); // 初始化转换器
+      await _zhConverter!.initialize();
     }
-    
     return _zhConverter;
   }
 
   // 转换中文字符串
   static Future<String> _convertChineseString(String? text, ZhConverter converter) async {
     if (text == null || text.isEmpty) {
-      return text ?? ''; // 空文本直接返回
+      return text ?? '';
     }
     try {
-      return await converter.convert(text); // 执行转换
+      return await converter.convert(text);
     } catch (e) {
       LogUtil.e('中文转换失败: $text, 错误=$e');
       return text;
     }
   }
 
-  // 转换 EPG 数据中的中文内容
-  static Future<EpgModel> _convertEpgModelChinese(EpgModel model) async {
+  // 转换XML内容中的中文文本
+  static Future<String> _convertXmlContent(String xmlContent) async {
     final converter = await _getChineseConverter();
     if (converter == null) {
-      return model; // 无需转换
+      return xmlContent;
     }
     
     try {
-      String? newChannelName = model.channelName;
-      if (newChannelName != null && newChannelName.isNotEmpty) {
-        newChannelName = await _convertChineseString(newChannelName, converter);
-      }
+      final document = XmlDocument.parse(xmlContent);
+      final tagsToConvert = ['title', 'desc', 'subtitle', 'category', 'display-name'];
       
-      List<EpgData>? newEpgData;
-      if (model.epgData != null && model.epgData!.isNotEmpty) {
-        newEpgData = [];
-        for (var epgData in model.epgData!) {
-          final newTitle = await _convertChineseString(epgData.title, converter);
-          final newDesc = await _convertChineseString(epgData.desc, converter);
-          
-          newEpgData.add(epgData.copyWith(
-            title: newTitle.isNotEmpty ? newTitle : epgData.title,
-            desc: newDesc.isNotEmpty ? newDesc : epgData.desc,
-          ));
+      for (var tagName in tagsToConvert) {
+        final elements = document.findAllElements(tagName);
+        for (var element in elements) {
+          if (element.innerText.isNotEmpty) {
+            final convertedText = await converter.convert(element.innerText);
+            if (convertedText != element.innerText) {
+              element.innerText = convertedText;
+            }
+          }
         }
       }
       
-      return model.copyWith(channelName: newChannelName, epgData: newEpgData);
+      return document.toXmlString();
     } catch (e, stackTrace) {
-      LogUtil.logError('EPG 中文转换失败', e, stackTrace);
+      LogUtil.logError('XML 中文转换失败', e, stackTrace);
+      return xmlContent;
+    }
+  }
+
+  // 转换 EPG 数据中的中文内容
+  static Future<EpgModel> _convertEpgModelChinese(EpgModel model) async {
+    final converter = await _getChineseConverter();
+    if (converter == null || (model.channelName == null && model.epgData == null)) {
       return model;
     }
+
+    final newChannelName = model.channelName != null && model.channelName!.isNotEmpty
+        ? await _convertChineseString(model.channelName, converter)
+        : model.channelName;
+
+    final newEpgData = model.epgData?.map((epgData) async => epgData.copyWith(
+          title: await _convertChineseString(epgData.title, converter) ?? epgData.title,
+          desc: await _convertChineseString(epgData.desc, converter) ?? epgData.desc,
+        ));
+
+    return model.copyWith(
+      channelName: newChannelName,
+      epgData: newEpgData != null ? await Future.wait(newEpgData) : null,
+    );
+  }
+
+  // 解析开始和结束时间
+  static Future<Map<String, String>?> _parseStartEndTimes(String? start, String? stop) async {
+    if (start == null || stop == null) {
+      return null;
+    }
+    
+    try {
+      final dateStart = DateUtil.formatDate(
+        DateUtil.parseCustomDateTimeString(start), 
+        format: _dateFormatHM,
+      );
+      final dateEnd = DateUtil.formatDate(
+        DateUtil.parseCustomDateTimeString(stop), 
+        format: _dateFormatHM,
+      );
+      
+      if (!_regex.timePattern.hasMatch(dateStart) || !_regex.timePattern.hasMatch(dateEnd)) {
+        return null;
+      }
+      
+      return {'start': dateStart, 'end': dateEnd};
+    } catch (e) {
+      LogUtil.e('时间解析失败: start=$start, stop=$stop, 错误=$e');
+      return null;
+    }
+  }
+
+  // 从XML字符串解析EPG数据
+  static Future<EpgModel?> _parseXmlFromString(String xmlString, PlayModel model) async {
+    if (model.id == null) {
+      LogUtil.i('解析失败: 频道ID为空');
+      return null;
+    }
+    
+    try {
+      final xmlDocument = XmlDocument.parse(xmlString);
+      final allProgrammes = xmlDocument.findAllElements('programme');
+      final matchedProgrammes = allProgrammes.where((programme) => 
+        programme.getAttribute('channel') == model.id).toList();
+        
+      if (matchedProgrammes.isEmpty) {
+        LogUtil.i('XML 匹配失败: 未找到节目, channel=${model.id}');
+        return null;
+      }
+      
+      final epgModel = EpgModel(
+        channelName: model.title ?? '未知频道', 
+        epgData: [],
+        date: DateUtil.formatDate(DateTime.now(), format: _dateFormatFull),
+      );
+      
+      for (var programme in matchedProgrammes) {
+        final start = programme.getAttribute('start');
+        final stop = programme.getAttribute('stop');
+        
+        final times = await _parseStartEndTimes(start, stop);
+        if (times == null) {
+          LogUtil.i('解析失败: 时间格式无效, channel=${model.id}, start=$start, stop=$stop');
+          continue;
+        }
+        
+        final titleElements = programme.findAllElements('title');
+        if (titleElements.isEmpty) {
+          LogUtil.i('解析失败: 缺少标题, channel=${model.id}, start=$start');
+          continue;
+        }
+        final title = titleElements.first.innerText;
+        if (title.isEmpty) {
+          LogUtil.i('解析失败: 标题为空, channel=${model.id}, start=$start');
+          continue;
+        }
+        
+        String? desc;
+        final descElements = programme.findAllElements('desc');
+        if (descElements.isNotEmpty) {
+          desc = descElements.first.innerText;
+        }
+        
+        epgModel.epgData!.add(EpgData(
+          title: title, 
+          start: times['start'], 
+          end: times['end'],
+          desc: desc
+        ));
+      }
+      
+      if (epgModel.epgData!.isEmpty) {
+        LogUtil.i('数据无效: 无有效节目, channel=${model.id}');
+        return null;
+      }
+      
+      return epgModel;
+    } catch (e, stackTrace) {
+      LogUtil.logError('XML 解析失败', e, stackTrace);
+      return null;
+    }
+  }
+
+  // 构建频道缓存键
+  static String _buildChannelKey(PlayModel model) {
+    if (model.id != null && model.id!.isNotEmpty) {
+      return model.id!;
+    } 
+    
+    if (model.title == null || model.title!.isEmpty) {
+      return '';
+    }
+    
+    final channel = model.title!.replaceAll(_regex.titleClean, '');
+    final date = DateUtil.formatDate(DateTime.now(), format: _dateFormatCompact);
+    return "$date-$channel";
+  }
+
+  // 尝试从不同来源加载EPG数据
+  static Future<EpgModel?> _tryLoadEpgFromSource(PlayModel model, String channelKey, CancelToken? cancelToken) async {
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('获取取消: key=$channelKey');
+      return null;
+    }
+    
+    // 尝试从本地JSON缓存加载
+    final safeKey = _sanitizeFileName(channelKey);
+    final jsonData = await _loadFile(safeKey, isJson: true);
+    if (jsonData != null) {
+      try {
+        return EpgModel.fromJson(jsonDecode(jsonData));
+      } catch (e, stackTrace) {
+        LogUtil.logError('解析 EPG JSON 数据失败: $channelKey', e, stackTrace);
+      }
+    }
+
+    if (cancelToken?.isCancelled ?? false) return null;
+
+    // 尝试从本地XML文件解析
+    if (Config.epgXmlUrl != null && Config.epgXmlUrl!.isNotEmpty && model.id != null) {
+      try {
+        final urlLink = _getXmlUrls(Config.epgXmlUrl!);
+        String? xmlContent;
+        for (var currentUrl in urlLink) {
+          xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
+          if (xmlContent != null) {
+            break;
+          }
+        }
+        
+        if (xmlContent != null) {
+          final epgModel = await _parseXmlFromString(xmlContent, model);
+          if (epgModel != null) {
+            final convertedEpgModel = await _convertEpgModelChinese(epgModel);
+            await _saveFile(safeKey, jsonEncode(convertedEpgModel.toJson()), isJson: true);
+            return convertedEpgModel;
+          }
+        }
+      } catch (e, stackTrace) {
+        LogUtil.logError('本地XML解析失败', e, stackTrace);
+      }
+    }
+
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('获取取消: key=$channelKey');
+      return null;
+    }
+    
+    return null;
   }
 
   // 获取 EPG 数据，优先从缓存、XML 或网络加载
@@ -341,37 +557,25 @@ class EpgUtil {
       return null;
     }
     
-    String channelKey = '';
+    final channelKey = _buildChannelKey(model);
+    if (channelKey.isEmpty) {
+      LogUtil.i('获取失败: 无法构建有效的频道键');
+      return null;
+    }
+    
     String channel = '';
     String date = '';
-    final isHasXml = _programmes != null && _programmes!.isNotEmpty;
-
-    if (model.id != null && model.id!.isNotEmpty && isHasXml) {
-      channelKey = model.id!; // 使用频道 ID 作为键
+    if (model.title != null && model.title!.isNotEmpty) {
+      channel = model.title!.replaceAll(_regex.titleClean, '');
+      date = DateUtil.formatDate(DateTime.now(), format: _dateFormatCompact);
     } else {
-      if (model.title == null || model.title!.isEmpty) {
-        LogUtil.i('获取失败: 频道标题为空');
-        return null;
-      }
-      channel = model.title!.replaceAll(_titleCleanRegExp, '');
-      date = DateUtil.formatDate(DateTime.now(), format: "yyMMdd");
-      channelKey = "$date-$channel"; // 组合日期和频道名
+      LogUtil.i('获取失败: 频道名为空');
+      return null;
     }
 
-    final cachedEpg = await _loadEpgFromFile(channelKey);
-    if (cachedEpg != null) {
-      LogUtil.i('从缓存获取: key=$channelKey');
-      return cachedEpg;
-    }
-
-    if (isHasXml) {
-      final epgModel = await _parseXmlEpg(model);
-      if (epgModel != null) {
-        final convertedEpgModel = await _convertEpgModelChinese(epgModel);
-        await _saveEpgToFile(channelKey, convertedEpgModel);
-        LogUtil.i('从 XML 解析并保存: key=$channelKey');
-        return convertedEpgModel;
-      }
+    final localEpg = await _tryLoadEpgFromSource(model, channelKey, cancelToken);
+    if (localEpg != null) {
+      return localEpg;
     }
 
     if (cancelToken?.isCancelled ?? false) {
@@ -379,131 +583,78 @@ class EpgUtil {
       return null;
     }
     
-    final epgRes = await HttpUtil().getRequest(
-      '${Config.epgBaseUrl}?ch=$channel&date=$date',
-      cancelToken: cancelToken, // 发起网络请求
-    );
-    
-    if (epgRes != null) {
-      final epg = EpgModel.fromJson(epgRes);
-      if (epg.epgData == null || epg.epgData!.isEmpty) {
-        LogUtil.i('数据无效: 无节目信息, channel=$channel, date=$date');
-        return null;
-      }
+    try {
+      final epgRes = await HttpUtil().getRequest(
+        '${Config.epgBaseUrl}?ch=$channel&date=$date',
+        cancelToken: cancelToken,
+      );
       
-      if (epg.date == null || epg.date!.isEmpty) {
-        epg.date = DateUtil.formatDate(DateTime.now(), format: "yyyy-MM-dd"); // 设置默认日期
+      if (epgRes != null) {
+        final epg = EpgModel.fromJson(epgRes);
+        if (epg.epgData == null || epg.epgData!.isEmpty) {
+          LogUtil.i('数据无效: 无节目信息, channel=$channel, date=$date');
+          return null;
+        }
+        
+        if (epg.date == null || epg.date!.isEmpty) {
+          epg.date = DateUtil.formatDate(DateTime.now(), format: _dateFormatFull);
+        }
+        
+        final convertedEpg = await _convertEpgModelChinese(epg);
+        await _saveFile(_sanitizeFileName(channelKey), jsonEncode(convertedEpg.toJson()), isJson: true);
+        return convertedEpg;
       }
-      
-      final convertedEpg = await _convertEpgModelChinese(epg);
-      await _saveEpgToFile(channelKey, convertedEpg);
-      LogUtil.i('从网络加载并保存: key=$channelKey');
-      return convertedEpg;
+    } catch (e, stackTrace) {
+      LogUtil.logError('从网络获取EPG失败: channel=$channel', e, stackTrace);
     }
     
     LogUtil.i('获取失败: 无有效数据, channel=$channel, date=$date');
     return null;
   }
-  
-  // 从 XML 解析 EPG 数据
-  static Future<EpgModel?> _parseXmlEpg(PlayModel model) async {
-    if (_programmes == null || _programmes!.isEmpty || model.id == null) {
-      return null; // XML 数据或频道 ID 无效
-    }
-    
-    final epgModel = EpgModel(
-      channelName: model.title ?? '未知频道', 
-      epgData: [],
-      date: DateUtil.formatDate(DateTime.now(), format: "yyyy-MM-dd"),
-    );
-    
-    final matchedProgrammes = _programmes!.where((programme) => 
-      programme.getAttribute('channel') == model.id);
-      
-    if (matchedProgrammes.isEmpty) {
-      LogUtil.i('XML 匹配失败: 未找到节目, channel=${model.id}');
-      return null;
-    }
-    
-    for (var programme in matchedProgrammes) {
-      final start = programme.getAttribute('start');
-      final stop = programme.getAttribute('stop');
-      if (start == null || stop == null) {
-        LogUtil.i('解析失败: 缺少 start/stop, channel=${model.id}');
-        continue;
-      }
-      
-      try {
-        final dateStart = DateUtil.formatDate(
-          DateUtil.parseCustomDateTimeString(start), 
-          format: "HH:mm",
-        );
-        final dateEnd = DateUtil.formatDate(
-          DateUtil.parseCustomDateTimeString(stop), 
-          format: "HH:mm",
-        );
-        
-        if (!_timePatternRegExp.hasMatch(dateStart) || !_timePatternRegExp.hasMatch(dateEnd)) {
-          LogUtil.i('时间格式无效: start=$dateStart, end=$dateEnd, channel=${model.id}');
-          continue;
-        }
-        
-        final titleElements = programme.findAllElements('title');
-        if (titleElements.isEmpty) {
-          LogUtil.i('解析失败: 缺少标题, channel=${model.id}, start=$start');
-          continue;
-        }
-        
-        final title = titleElements.first.innerText;
-        epgModel.epgData!.add(EpgData(title: title, start: dateStart, end: dateEnd));
-      } catch (e) {
-        LogUtil.e('解析失败: start=$start, stop=$stop, channel=${model.id}, 错误=$e');
-        continue;
-      }
-    }
-    
-    if (epgModel.epgData!.isEmpty) {
-      LogUtil.i('数据无效: 无有效节目, channel=${model.id}');
-      return null;
-    }
-    
-    return epgModel;
-  }
 
   // 加载 EPG XML 文件，支持重试
   static Future<void> loadEPGXML(String url) async {
-    int index = 0;
-    const int maxRetries = 3;
-    final uStr = url.replaceAll('/h', ',h');
-    final urlLink = uStr.split(','); // 分割 URL 列表
-    XmlDocument? tempXmlDocument;
-    final failedUrls = <String>[];
+    final urlLink = _getXmlUrls(url);
+    bool fileExists = false;
+    for (var currentUrl in urlLink) {
+      final xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
+      if (xmlContent != null) {
+        fileExists = true;
+        break;
+      }
+    }
+    
+    if (!fileExists) {
+      int index = 0;
+      const int maxRetries = 2;
+      XmlDocument? tempXmlDocument;
+      final failedUrls = <String>[];
+      String? xmlContent;
 
-    while (tempXmlDocument == null && index < urlLink.length && index < maxRetries) {
-      final currentUrl = urlLink[index];
-      final res = await HttpUtil().getRequest(currentUrl);
-      if (res != null) {
+      while (tempXmlDocument == null && index < urlLink.length && index < maxRetries) {
+        final currentUrl = urlLink[index];
         try {
-          tempXmlDocument = XmlDocument.parse(res.toString()); // 解析 XML
-        } catch (e) {
-          LogUtil.e('XML 解析失败: url=$currentUrl, 错误=$e');
+          final res = await HttpUtil().getRequest(currentUrl);
+          if (res != null) {
+            xmlContent = res.toString();
+            tempXmlDocument = XmlDocument.parse(xmlContent);
+            final convertedXmlContent = await _convertXmlContent(xmlContent);
+            await _saveFile(_getFileNameFromUrl(currentUrl), convertedXmlContent, isJson: false);
+            break;
+          } else {
+            failedUrls.add(currentUrl);
+            index += 1;
+          }
+        } catch (e, stackTrace) {
+          LogUtil.logError('XML下载或解析失败: url=$currentUrl', e, stackTrace);
           failedUrls.add(currentUrl);
           index += 1;
         }
-      } else {
-        LogUtil.i('XML 请求失败: url=$currentUrl');
-        failedUrls.add(currentUrl);
-        index += 1;
+      }
+      
+      if (tempXmlDocument == null) {
+        LogUtil.e('XML加载失败: 所有URL无效, 失败=$failedUrls');
       }
     }
-    if (tempXmlDocument == null) {
-      LogUtil.e('XML 加载失败: 所有 URL 无效, url=$url, 失败=$failedUrls');
-    }
-    _programmes = tempXmlDocument?.findAllElements('programme'); // 缓存节目数据
-  }
-
-  // 重置 EPG XML 数据
-  static void resetEPGXML() {
-    _programmes = null; // 清空缓存的节目数据
   }
 }
