@@ -49,8 +49,7 @@ class BetterPlayerConfig {
         title: channelTitle ?? S.current.appName, // 使用传入的频道标题或默认值
         author: S.current.appName, // 添加作者/来源信息
         imageUrl: channelLogo ?? _defaultNotificationImage, // 频道LOGO URL或默认图像
-        notificationChannelName: S.current.appName, // Android通知渠道名称
-        enableNotificationActions: true, // 启用通知栏控制按钮
+        notificationChannelName: Config.packagename, // Android通知渠道名称
       ),
       // 缓冲配置
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
